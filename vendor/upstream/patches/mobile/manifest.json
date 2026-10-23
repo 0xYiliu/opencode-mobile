@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "owner": "opencode-mobile maintainers",
+  "patches": [
+    {
+      "id": "M-001",
+      "patch": "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+      "targets": [
+        "packages/gui-extensions/package.json"
+      ],
+      "reason": "Remove Electron-only dev tooling (electron, @lydell/node-pty, devtools-protocol) from devDependencies. They are used only by gui-extensions' own tests/typecheck, and electron's postinstall pulls ~110MB of binaries that the web build never needs.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 (bun run build:web) succeeds without the removed devDependencies.",
+      "rebase": "S3 exercise: regenerated at b4525d79bf (upstream bumped electron 44.4.5->44.9.1 in the devDependencies block; same three removals, context lines updated; no semantic change)."
+    },
+    {
+      "id": "M-002",
+      "patch": "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts"
+      ],
+      "reason": "Memory-only credentials: the encode (write) path of the server persistence schema drops `password`, so no persistent backend (web localStorage, desktop storage, drafts) ever receives one. Decoding still tolerates stored passwords from legacy files; a missing password reaches the existing authentication-failure path. Keystore persistence is owned by mobile issue #4. The embedded marker string 'mobile(M-002): password stripped at encode (memory-only)' survives minification and anchors V-cred dist verification.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V-cred: (a) encode-path strip present in source with marker; (b) marker string found in built dist assets; semantic probe of the codec against effect@4.0.1 confirmed strip on encode, tolerance on decode.",
+      "rebase": "S3 exercise: no rebase needed - packages/app/src/runtime/server/persistence.ts is unchanged at b4525d79bf; the patch applies verbatim."
+    },
+    {
+      "id": "M-003",
+      "patch": "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+      "targets": [
+        "packages/client/package.json",
+        "packages/plugin/package.json",
+        "packages/ai/package.json"
+      ],
+      "reason": "Strip the three workspace references that dangle after closure acquisition (their targets are excluded packages): client devDependency @opencode/httpapi-codegen (generated code is committed), plugin devDependency+peerDependency+peerDependenciesMeta @opencode/theme (not in the runtime closure), ai devDependency @opencode/http-recorder (test recording tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V1 (bun install) succeeds and V3(b) workspace-reference scan reports zero dangling refs.",
+      "rebase": "S3 exercise: regenerated at b4525d79bf (the three target package.json files shifted line numbers upstream; all three dangling refs still present with identical semantics; hunks re-derived, no semantic change)."
+    }
+  ]
+}

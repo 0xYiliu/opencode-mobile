@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "upstream": {
+    "repository": "https://github.com/anomalyco/opencode",
+    "branch": "dev",
+    "pin": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+    "pinDate": "2026-10-23T10:28:20-07:00",
+    "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
+    "acquisition": "git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE | tar -x"
+  },
+  "packages": [
+    "app",
+    "client",
+    "protocol",
+    "schema",
+    "session-ui",
+    "ui",
+    "util",
+    "gui-extensions",
+    "plugin-browser",
+    "plugin",
+    "ai"
+  ],
+  "topLevelFiles": [
+    "LICENSE"
+  ],
+  "partialPackages": [
+    {
+      "path": "packages/desktop/icons/dev",
+      "reason": "Correction loop (S2/V2): packages/app/vite.icons.ts reads ../desktop/icons/dev/* unconditionally at vite config load to emit favicons/webmanifest icons for the PWA, and packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/dev/64x64.png. Only the dev and beta channel subtrees are carried; OPENCODE_CHANNEL=prod builds are not supported by this vendor set."
+    },
+    {
+      "path": "packages/desktop/icons/beta",
+      "reason": "Correction loop (S2/V2): packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/beta/64x64.png for the beta channel titlebar icon (unconditional import, resolved at build)."
+    }
+  ],
+  "upstreamPatches": {
+    "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
+    "@dnd-kit/dom@0.5.0": "patches/@dnd-kit%2Fdom@0.5.0.patch",
+    "@npmcli/agent@4.0.2": "patches/@npmcli%2Fagent@4.0.2.patch",
+    "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
+    "@tanstack/virtual-core@3.17.8": "patches/@tanstack%2Fvirtual-core@3.17.8.patch",
+    "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "patches/ghostty-web@0.3.0.patch",
+    "pacote@21.5.1": "patches/pacote@21.5.1.patch",
+    "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
+    "vite@8.2.2": "patches/vite@8.2.2.patch"
+  },
+  "mobilePatches": [
+    "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+    "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch"
+  ],
+  "excluded": {
+    "packages": [
+      "cli",
+      "codemode",
+      "console",
+      "containers",
+      "core",
+      "desktop",
+      "effect-drizzle-sqlite",
+      "function",
+      "http-recorder",
+      "httpapi-codegen",
+      "identity",
+      "latex",
+      "merman",
+      "plugins",
+      "posts",
+      "script",
+      "sdk",
+      "server",
+      "simulation",
+      "stats",
+      "storybook",
+      "theme",
+      "tui",
+      "web"
+    ],
+    "fileLevel": [
+      {
+        "path": "packages/ai/test/fixtures/recordings/",
+        "files": 274,
+        "reason": "HTTP recorder test fixtures (~13.7 MiB); unused by the web build."
+      }
+    ]
+  }
+}

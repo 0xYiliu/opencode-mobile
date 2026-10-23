@@ -4,9 +4,12 @@
 
 ## 当前事实
 
-- 已建立独立 Git 仓库及初始化文档。
-- 尚无应用源码、Android 工程、构建流程或测试结果。
-- 尚无 APK；两种连接方式、安全存储和状态恢复均未实现。
+- 已建立独立 Git 仓库及初始化文档；上游前端闭包已引入 `vendor/upstream`（pin `b4525d79bf`，经 issue #27 更新演练推进），来源与补丁记录见 `vendor/upstream/PROVENANCE.md`。
+- web 静态构建在本机可复现（bun 1.4.2；3330 个文件，共 152,638,185 字节，清单见 `web-dist/manifest.json`）。
+- Android WebView 壳代码已实现（未编译验证）：构建环境无 Android SDK，`assembleDebug` BLOCKED。
+- 尚无 APK；两种连接方式（SSH 隧道、服务地址直连）与会话功能均未实现；设备门禁 G1–G12 全部未执行（见设计文档与 `docs/build-and-verify.md`）。
+- 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。
+- 服务凭据默认 memory-only（M-002 补丁，刷新/重启需重新输入密码）；Keystore 安全持久化归 issue #4。
 
 ## 已确认目标，尚未实现
 
@@ -68,5 +71,5 @@ WSL 排除与原生 Windows 保留是已确认的范围决策，见[决策记录
 | 条目 | 交付位置 | 验证方式 | 状态 |
 | --- | --- | --- | --- |
 | 产品边界 | README 与本文 | 核对用户确认的双连接、远程执行、Android 优先范围 | 已记录；功能未实现 |
-| 实现状态 | README 与本文 | 明确无应用源码和 APK，不将建议选型写成已实现 | 已记录 |
-| 凭据纪律 | README、AGENTS 与 .gitignore | 初始化文档人工核对、常见凭据标记扫描和 `git check-ignore` 检查 | 已检查；不代表已实现安全存储 |
+| 实现状态 | README、本文与 `docs/build-and-verify.md` | 明确壳代码已实现（未编译验证）、无 APK，不将 vendored 能力写成已交付 | 已记录 |
+| 凭据纪律 | README、AGENTS 与 .gitignore | 初始化文档人工核对、常见凭据标记扫描和 `git check-ignore` 检查；M-002 memory-only 静态验证 | 已检查；真机核验（G9/G11）未执行 |
