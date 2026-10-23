@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "generator": "scripts/vendor-sync.sh",
+  "upstream": {
+    "repository": "https://github.com/anomalyco/opencode",
+    "branch": "dev",
+    "pin": "cec70f3ed6b64bf0e23a7c62325850ca25d3409b",
+    "pinDate": "2026-10-19T13:06:20+02:00",
+    "pinSubject": "test(gui-extensions): wait for worker rpc handlers to start before aborting (#55988)",
+    "cache": "~/.cache/opencode-upstream (clone --filter=blob:none)",
+    "acquisitionCommand": "scripts/vendor-sync.sh  (git -C <cache> archive <pin> -- packages/<p>... LICENSE | tar -x --exclude=packages/ai/test/fixtures/recordings)"
+  },
+  "closure": {
+    "packages": [
+      "app",
+      "client",
+      "protocol",
+      "schema",
+      "session-ui",
+      "ui",
+      "util",
+      "gui-extensions",
+      "plugin-browser",
+      "plugin",
+      "ai"
+    ],
+    "fileCount": 4379,
+    "packagesTreeSizeMB": 43,
+    "excludedPackages": [
+      "cli", "codemode", "console", "containers", "core", "desktop",
+      "effect-drizzle-sqlite", "function", "http-recorder", "httpapi-codegen",
+      "identity", "latex", "merman", "plugins", "posts", "script", "sdk",
+      "server", "simulation", "stats", "storybook", "theme", "tui", "web"
+    ],
+    "excludedPackagesReason": "Only the Electron-rendered frontend (packages/app) and its transitive workspace closure are acquired. desktop/web are alternative renderers; core/server/cli/tui/sdk run the local service the phone never hosts; theme/httpapi-codegen/http-recorder are excluded tooling (see mobilePatches M-003); the rest is unrelated to the app build.",
+    "fileLevelExclusions": [
+      {
+        "path": "packages/ai/test/fixtures/recordings/",
+        "files": 274,
+        "approxSizeMB": 13.7,
+        "reason": "HTTP recorder test fixtures; unused by the web build."
+      }
+    ],
+    "partialPackages": [
+      {
+        "path": "packages/desktop/icons/dev",
+        "files": 53,
+        "reason": "Closure correction (correction loop, discovered at first V2 build): packages/app/vite.icons.ts reads ../desktop/icons/dev/* unconditionally at vite config load to emit favicons and webmanifest icons for the PWA. Only the dev-channel subtree is carried; the desktop package itself stays excluded and OPENCODE_CHANNEL=beta|prod builds are outside this vendor set."
+      }
+    ]
+  },
+  "mobilePatches": [
+    {
+      "id": "M-001",
+      "file": "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+      "targets": ["packages/gui-extensions/package.json"],
+      "summary": "devDependencies: remove electron, @lydell/node-pty, devtools-protocol",
+      "reason": "Electron-only dev tooling (own tests/typecheck); electron postinstall pulls ~110MB binaries.",
+      "verification": "V2 web build succeeds."
+    },
+    {
+      "id": "M-002",
+      "file": "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+      "targets": ["packages/app/src/runtime/server/persistence.ts"],
+      "summary": "Server persistence encode path strips password (memory-only); marker string 'mobile(M-002): password stripped at encode (memory-only)' embedded in reachable encode code (M002.stripped counter).",
+      "reason": "Web platform default storage is localStorage; persisting credentials there violates AGENTS.md. Default delivery state must be memory-only. Keystore persistence is owned by issue #4.",
+      "verification": "V-cred(a) source grep + semantic probe against effect@4.0.1 (strip on encode, tolerance on decode); V-cred(b) marker found in built dist; G9 device check BLOCKED (no device)."
+    },
+    {
+      "id": "M-003",
+      "file": "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+      "targets": [
+        "packages/client/package.json",
+        "packages/plugin/package.json",
+        "packages/ai/package.json"
+      ],
+      "summary": "Remove dangling workspace refs: client devDep @opencode/httpapi-codegen; plugin devDep+peerDep+peerDependenciesMeta @opencode/theme; ai devDep @opencode/http-recorder",
+      "reason": "Referenced packages are outside the acquired closure (generated code committed; theme not in runtime closure; http-recorder is a test tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
+      "verification": "V1 install succeeds; V3(b) workspace scan reports DANGLING=0."
+    }
+  ],
+  "upstreamPatches": {
+    "derivationRule": "carried = (packages resolved by upstream bun.lock at pin) intersect (patchedDependencies segment recorded in upstream bun.lock at pin). Upstream package.json declares 17 patchedDependencies; the lock segment holds 13; the closure dependency graph uses 9.",
+    "carried": {
+      "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
+      "@dnd-kit/dom@0.5.0": "patches/@dnd-kit%2Fdom@0.5.0.patch",
+      "@npmcli/agent@4.0.2": "patches/@npmcli%2Fagent@4.0.2.patch",
+      "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
+      "@tanstack/virtual-core@3.17.8": "patches/@tanstack%2Fvirtual-core@3.17.8.patch",
+      "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "patches/ghostty-web@0.3.0.patch",
+      "pacote@21.5.1": "patches/pacote@21.5.1.patch",
+      "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
+      "vite@8.2.2": "patches/vite@8.2.2.patch"
+    },
+    "applicationStatus": "effective: V1 (bun install, rc=0, 1057 packages) recorded all 9 keys in bun.lock patchedDependencies segment (PATCH_SEGMENT_MATCH=true) and store contents confirm applied patches (e.g. solid-js dist marker); no silent skip",
+    "notCarried": [
+      {
+        "patch": "gcp-metadata@8.1.2",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment (lock resolves gcp-metadata@8.1.4). Bun silently skips keys whose version does not match resolution, so carrying it would be a dead entry. Recorded as explicit deviation per plan §2."
+      },
+      {
+        "patch": "@ai-sdk/google@3.0.73",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@ai-sdk/mistral@3.0.51",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@standard-community/standard-openapi@0.2.9",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@modelcontextprotocol/client@2.0.0",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (MCP client tooling)."
+      },
+      {
+        "patch": "@silvia-odwyer/photon-node@0.3.4",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (wasm image tooling)."
+      },
+      {
+        "patch": "@ff-labs/fff-bun@0.10.5",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph."
+      },
+      {
+        "patch": "@ai-sdk/openai-compatible@2.0.41",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (server-side AI providers)."
+      }
+    ]
+  },
+  "gitDependencies": {
+    "ghostty-web": {
+      "spec": "github:anomalyco/ghostty-web#83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+      "resolvedCommit": "83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+      "installedVersion": "0.3.0",
+      "note": "Resolved commit from the package.json spec at pin; bun install fetched the git dep successfully (V1)."
+    }
+  },
+  "lockfile": {
+    "bunLockSha256": "2d629ee0ff93cfb1566d784b99c611f2dff83fed580511bf95675ca3e8033a45",
+    "bunLockOrigin": "initial lock copied from upstream bun.lock at the pin (sha256 80827a747a7f54b55e6b36cfcccdf3a2c5acfcd08996fae41cf7037acca5462d), then reconciled by bun 1.4.2 install (pruned 50 entries for non-closure workspaces); resulting resolutions are version-identical to the pin for the closure and patch keys",
+    "lockfileVersion": 1
+  },
+  "license": {
+    "upstreamLicense": "MIT",
+    "file": "LICENSE",
+    "copyright": "Copyright (c) 2025 opencode",
+    "notice": "NOTICE-THIRD-PARTY.md is generated by scripts/license-audit.ts (S4)."
+  },
+  "discipline": {
+    "wholeRepoCopied": false,
+    "upstreamModified": false,
+    "nodeModulesHandPatched": false,
+    "correctionLoop": "closure gaps are fixed by amending the manifest + provenance and re-running scripts/vendor-sync.sh, never by hand-editing node_modules"
+  }
+}

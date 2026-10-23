@@ -1,0 +1,52 @@
+diff --git a/packages/ai/package.json b/packages/ai/package.json
+index 8220243..f4ddd97 100644
+--- a/packages/ai/package.json
++++ b/packages/ai/package.json
+@@ -22,7 +22,6 @@
+   "devDependencies": {
+     "@clack/prompts": "1.0.0-alpha.1",
+     "@effect/platform-node": "catalog:",
+-    "@opencode/http-recorder": "workspace:*",
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+     "@typescript/native": "catalog:",
+diff --git a/packages/client/package.json b/packages/client/package.json
+index 0b4edd8..985cec7 100644
+--- a/packages/client/package.json
++++ b/packages/client/package.json
+@@ -50,7 +50,6 @@
+   },
+   "devDependencies": {
+     "@effect/platform-node": "catalog:",
+-    "@opencode/httpapi-codegen": "workspace:*",
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+     "@typescript/native": "catalog:",
+diff --git a/packages/plugin/package.json b/packages/plugin/package.json
+index ca02610..64e71a4 100644
+--- a/packages/plugin/package.json
++++ b/packages/plugin/package.json
+@@ -37,15 +37,11 @@
+     "effect": "catalog:"
+   },
+   "peerDependencies": {
+-    "@opencode/theme": "workspace:*",
+     "@opentui/core": ">=0.5.17",
+     "@opentui/solid": ">=0.5.17",
+     "solid-js": ">=1.9.0"
+   },
+   "peerDependenciesMeta": {
+-    "@opencode/theme": {
+-      "optional": true
+-    },
+     "@opentui/core": {
+       "optional": true
+     },
+@@ -57,7 +53,6 @@
+     }
+   },
+   "devDependencies": {
+-    "@opencode/theme": "workspace:*",
+     "@opentui/core": "catalog:",
+     "@opentui/solid": "catalog:",
+     "@tsconfig/bun": "catalog:",
