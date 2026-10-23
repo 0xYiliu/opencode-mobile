@@ -15,6 +15,8 @@ OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为
 
 手机不运行本地 OpenCode 服务。项目文件、Git、Shell、模型调用与 Agent 工具执行均由远程机器负责。手机断开连接不应主动停止远程任务。
 
+远程机器为原生 Windows 时同样通过上述两种方式支持。Android 客户端不管理、不运行 Windows 宿主上的 WSL 发行版，并以明示方式呈现这一与 Desktop 的差异；见[决策记录 0001](docs/decisions/0001-wsl-exclusion.md)。
+
 ## 凭据与隐私
 
 - SSH 私钥和服务凭据可以保存在用户设备上，不嵌入 APK，也不上传到本仓库。
@@ -25,6 +27,7 @@ OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为
 ## 文档
 
 - [项目范围与开发前待确认项](docs/project-scope.md)
+- [决策记录 0001：排除 WSL，保留原生 Windows 远程支持](docs/decisions/0001-wsl-exclusion.md)
 - [开发约定](AGENTS.md)
 
 ## 与 OpenCode 的关系
