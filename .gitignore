@@ -13,6 +13,10 @@ Pods/
 *.aab
 *.apks
 
+# Web build payload copied into the WebView assets by scripts/copy-web-dist.sh
+# (the committed record of what was copied is web-dist/manifest.json)
+android/app/src/main/assets/web/
+
 # Machine-local configuration
 .DS_Store
 .idea/
