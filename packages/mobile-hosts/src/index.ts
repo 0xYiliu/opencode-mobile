@@ -50,6 +50,32 @@ export {
   isValidCredentialRef,
   type CredentialResolver,
 } from "./credential-ref"
+export {
+  MAX_SECRET_BYTES,
+  UnavailableVault,
+  VaultError,
+  formatVaultRef,
+  parseVaultRef,
+  type CredentialVault,
+  type VaultEntryMetadata,
+  type VaultErrorCode,
+  type VaultKind,
+  type VaultPutInput,
+  type VaultStatus,
+} from "./vault/types"
+export { ENVELOPE_MAGIC, generateEnvelopeKey, importEnvelopeKey, openEnvelope, sealEnvelope } from "./vault/envelope"
+export {
+  VAULT_HANDSHAKE,
+  createInProcessVaultEngine,
+  createWebMessageChannelTransport,
+  type InProcessVaultEngine,
+  type VaultOperation,
+  type VaultPortLike,
+  type VaultResponse,
+  type VaultTransport,
+} from "./vault/transport"
+export { createVaultClient, createVaultResolver } from "./vault/vault"
+export { evaluateRemember, initialRemember, type RememberDecision, type RememberInput } from "./vault/remember"
 export { HOSTS_STORAGE_KEY, createMemoryStorage, loadHosts, safeStorage, sanitizeRecord, saveHosts, type StoragePort } from "./storage"
 export { assessIncompatible, isCompatibleServerVersion, parseServerVersion, type HealthLike } from "./health-wrapper"
 export { assertExtensionShape, mapStateToServerState, toExtensionConnection, type ExtensionConnection, type ServerState } from "./upstream-map"
