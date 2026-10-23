@@ -19,6 +19,6 @@
 ## 组件、动效、图像纪律
 
 - 组件规范与动效规范由上游组件库承载（`packages/ui/src/components`、`src/feedback` 等）；本阶段不单独建立组件契约，待各单元设计文档补齐时引用基线。
-- 第一方 `packages/mobile-hosts` 的界面组件（host-manager/host-dialog/host-key-prompt，计划中：issue #3）**复用 `@opencode/ui` 令牌与组件**（Button/TextInput/Dialog/Icon 等），不新增令牌、不引入裸值；深浅色跟随上游主题上下文。真机渲染随 G1/G13 核验。
+- 第一方 `packages/mobile-hosts` 的界面组件（host-manager/host-dialog/host-key-prompt，已实现（未验证）：issue #3）**复用 `@opencode/ui` 令牌与组件**（Button/TextInput/Dialog/Icon 等），不新增令牌、不引入裸值；深浅色跟随上游主题上下文。真机渲染随 G1/G13 核验（当前 BLOCKED）。
 - 动效降级（`prefers-reduced-motion`）跟随上游实现，本仓库不另行配置。
 - 图像纪律：全部图像/字体/图标资产随构建本地打包（`assets/web/`，清单见 `web-dist/manifest.json`），不引用外部图床或 CDN；PWA 图标随上游 `vite.icons.ts` 管线生成。无需联网即可渲染 UI 外壳。

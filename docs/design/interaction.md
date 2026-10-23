@@ -54,10 +54,12 @@
 
 该 notice 的真机核验（localStorage 负例、重启后行为）归 G9/G11。
 
-## 主机管理交互（计划中：issue #3，实现后改「已实现（未验证）」）
+## 主机管理交互（已实现（未验证）：issue #3；设备核验 BLOCKED，归 G13–G15）
 
 - **host-manager（设置 → servers 标签页）**：SSH 主机列表（名称/target/状态徽标），行内动作：编辑（→ host-dialog）、删除、连接/重连；空态引导新增。删除为本地操作——**零远程调用**，远程服务/任务不受影响（红线，测试断言）；删除活跃主机不弹「停止远程」类操作。
 - **host-dialog（SSH 主机新增/编辑）**：字段 name（唯一校验，重名行内报错不写入）、target（格式校验 `[user@]host[:port]`）、credentialRef（引用标识输入，**不是密码输入**——界面不接收凭据值）；保存前校验失败保留表单；**保存/健康检查失败保留原配置**（不写入注册表）。取消/关闭不产生任何变更。
 - **取消切换语义**：连接发起后取消（connect 过程、host-key 确认、重连过程）恢复进入前的来源态（idle 或 offline），无残留副作用（状态机 T13，测试锁定）。
-- **host-key-prompt（stub）**：状态机进入 hostKeyUnverified 时展示指纹确认；当前 stub 恒拒绝——确认 UI 仅立桩，不可达（真实校验归 #6，BLOCKED）；**不存在"跳过校验"选项**。
+- **host-key-prompt（stub）**：状态机进入 hostKeyUnverified 时展示指纹确认；当前 stub 恒拒绝——确认 UI 已立桩但在本构建不可达（真实校验归 #6，BLOCKED）；**不存在"跳过校验"选项**。
+- **已知入口缺口（M-008）**：上游多 server 布局下，设置导航以 per-server 条目取代 "servers" 标签页，host-manager 在该布局不可达（单 server/空列表布局可达，且空列表时可创建首个 SSH 主机）。补齐导航入口归后续 issue，先以 G13 真机核对实际布局。
+- **断开语义**：ready 态的「断开」走状态机 T13（cancel）：恢复来源态 idle、清空内存端点，零 transport 调用；「删除」走 T14：仅删本地记录，零 transport 调用。两者均不向远程发出任何信号（红线，单测断言）。
 - **状态可见性**：SSH 主机行状态由状态机映射的上游 ServerState 呈现（starting/auth/ready/failed/incompatible）；offline/reconnecting 有明确反馈与恢复入口（重试/编辑/删除），不静默（G14 真机核验）。
