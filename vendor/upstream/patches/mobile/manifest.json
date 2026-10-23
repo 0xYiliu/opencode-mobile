@@ -60,6 +60,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; targeted probe scripts/verify-credential-ref.ts (schema round-trip keeps the reference, still strips password) plus the upstream persistence.test.ts file as regression.",
       "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field."
+    },
+    {
+      "id": "M-006",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0006-M-006-dialog-preserve-credential-ref.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx"
+      ],
+      "reason": "The connect dialog constructs a fresh connection object on save; without this patch the M-005 credential reference would be dropped on the first edit of a server (both the same-url add path and the key-changing replace path). The original's reference is forwarded into the new connection; the form never edits it (it is a non-secret pointer, there is no reference input in the dialog). The 'nothing changed' early-exit comparison deliberately stays without the reference: it is never user-editable here, so it cannot be the only change, and adding it would keep the dialog open pointlessly.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-credential-ref.ts (schema round-trip keeps credentialRef + password still stripped + dialog forwards original.http.credentialRef and keeps it out of the early-exit comparison); upstream persistence.test.ts targeted run unchanged vs the M-002 baseline (same 4 pass / 1 pre-existing M-002 round-trip expectation).",
+      "rebase": "New patch (issue #3); rebase target is the request.mutationFn connection construction block in packages/app/src/servers/connect/dialog.tsx."
     }
   ]
 }
