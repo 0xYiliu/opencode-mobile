@@ -53,6 +53,12 @@ export interface MobileHosts {
   /** Current machine state of a host (reactive store read). */
   stateOf: (id: string) => HostState
   /**
+   * True when the injected storage was unavailable (or refused writes) and the registry
+   * runs on the in-memory fallback: host records last for this session only. The UI must
+   * surface this, not swallow it.
+   */
+  storageVolatile: boolean
+  /**
    * Reactive view of every SSH host as an upstream extension connection. Must be read
    * inside a tracking scope (the upstream ServersProvider reads it inside createMemo);
    * it is derived from solid stores, so registry and state changes propagate.
@@ -81,7 +87,9 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const hostKeyVerifier = options.hostKey ?? StubHostKeyVerifier
   const transport = options.transport ?? StubHostTransport
 
-  const { storage: storagePort } = safeStorage(options.storage)
+  // volatile: the storage candidate was unavailable/refused writes, so the registry runs
+  // on the in-memory fallback. Surfaced on the runtime (N5) — never silent.
+  const { storage: storagePort, volatile: storageVolatile } = safeStorage(options.storage)
   const registry = createHostRegistry({ storage: storagePort })
 
   // Runtime machine state per host, in a store so UI and upstreamConnections react.
@@ -224,6 +232,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const instance: MobileHosts = {
     registry,
     locale: options.locale ?? detectLocale(),
+    storageVolatile,
     connect,
     disconnect,
     retry,

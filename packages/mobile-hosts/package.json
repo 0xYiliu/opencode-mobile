@@ -9,7 +9,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@opencode/client": "workspace:*",
     "@opencode/ui": "workspace:*",
     "solid-js": "catalog:"
   },

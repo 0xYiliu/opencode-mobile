@@ -88,6 +88,9 @@ export function MobileHostManager() {
           </For>
         </ul>
       </Show>
+      <Show when={runtime.storageVolatile}>
+        <p role="status" class="text-12-regular text-text-strong">{t("hostManager.volatileStorage")}</p>
+      </Show>
       <p class="text-12-regular text-text-weak">{t("hostManager.deleteHint")}</p>
       <Show when={dialogOpen()}>
         <HostDialog runtime={runtime} hostId={editingId()} onClose={() => setDialogOpen(false)} />

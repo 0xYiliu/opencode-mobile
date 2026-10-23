@@ -9,7 +9,6 @@
       "name": "@opencode-mobile/mobile-hosts",
       "version": "0.1.0",
       "dependencies": {
-        "@opencode/client": "workspace:*",
         "@opencode/ui": "workspace:*",
         "solid-js": "catalog:",
       },
