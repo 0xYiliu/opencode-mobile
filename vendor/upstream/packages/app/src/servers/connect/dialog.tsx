@@ -396,6 +396,12 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
         http: {
           url: normalized,
           password,
+          // mobile(M-006): an edit must not drop the stored credential reference (M-005).
+          // The reference is a non-secret pointer; the form never edits it, so the original's
+          // reference carries over for both the same-url add and the key-changing replace.
+          // The "nothing changed" early-exit above deliberately does not compare it: the
+          // reference is never user-edited here, so it cannot be the only change.
+          credentialRef: original?.http.credentialRef,
         },
       }
 

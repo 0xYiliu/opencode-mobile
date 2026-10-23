@@ -5,18 +5,19 @@
 ## 当前事实
 
 - 已建立独立 Git 仓库及初始化文档；上游前端闭包已引入 `vendor/upstream`（pin `b4525d79bf`，经 issue #27 更新演练推进），来源与补丁记录见 `vendor/upstream/PROVENANCE.md`。
-- web 静态构建在本机可复现（bun 1.4.2；3330 个文件，共 152,638,185 字节，清单见 `web-dist/manifest.json`）。
+- web 静态构建在本机可复现（bun 1.4.2；3329 个文件，共 152,740,475 字节，清单见 `web-dist/manifest.json`，issue #3 评审修复后 2026-10-24 刷新）。
 - Android WebView 壳代码已实现（未编译验证）：构建环境无 Android SDK，`assembleDebug` BLOCKED。
-- 尚无 APK；两种连接方式（SSH 隧道、服务地址直连）与会话功能均未实现；设备门禁 G1–G12 全部未执行（见设计文档与 `docs/build-and-verify.md`）。
+- 尚无 APK；两种连接方式（SSH 隧道、服务地址直连）与会话功能均未实现；设备门禁 G1–G15 全部未执行（见设计文档与 `docs/build-and-verify.md`）。
 - 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。
 - 服务凭据默认 memory-only（M-002 补丁，刷新/重启需重新输入密码）；Keystore 安全持久化归 issue #4。
+- 主机注册表已实现（未验证，issue #3）：第一方包 `packages/mobile-hosts/` 承载 SSH 主机记录（身份键 `mobile-ssh:<uuid>`、名称唯一、载荷白名单无凭据字段）与连接状态机；vendor 补丁 M-004…M-008 将其接入上游 app。直连服务仍走上游原生注册表，credentialRef（M-005/M-006）为非机密引用。host-key 校验与 SSH 隧道为 fail-closed stub（恒拒绝），真实实现归 issue #6；凭据引用解析归 issue #4。设备级验证（G13–G15、live E2E）全部 BLOCKED。
 
 ## 已确认目标，尚未实现
 
 | 领域 | 目标 |
 | --- | --- |
 | 平台 | 优先交付 Android APK，后续允许适配其他移动平台 |
-| SSH | 连接远程主机，通过 SSH 隧道访问远程 OpenCode 服务 |
+| SSH | 连接远程主机，通过 SSH 隧道访问远程 OpenCode 服务（注册表/状态机层已实现（未验证），隧道归 issue #6） |
 | 直连 | 通过服务地址、端口和认证信息访问远程 OpenCode 服务 |
 | 工作界面 | 尽量复用 Desktop 的远程项目、会话、文件、Diff、权限与终端体验 |
 | 服务位置 | 不在手机本地运行 OpenCode 服务或项目工具链 |

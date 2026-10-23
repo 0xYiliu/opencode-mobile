@@ -5,6 +5,17 @@
     "": {
       "name": "opencode",
     },
+    "packages/mobile-hosts": {
+      "name": "@opencode-mobile/mobile-hosts",
+      "version": "0.1.0",
+      "dependencies": {
+        "@opencode/ui": "workspace:*",
+        "solid-js": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "vendor/upstream/packages/ai": {
       "name": "@opencode/ai",
       "version": "2.1.4",
@@ -344,9 +355,9 @@
     "esbuild",
   ],
   "patchedDependencies": {
-    "@pierre/trees@1.0.0-beta.4": "vendor/upstream/patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
-    "vite@8.2.2": "vendor/upstream/patches/vite@8.2.2.patch",
     "solid-js@1.9.15": "vendor/upstream/patches/solid-js@1.9.15.patch",
+    "vite@8.2.2": "vendor/upstream/patches/vite@8.2.2.patch",
+    "@pierre/trees@1.0.0-beta.4": "vendor/upstream/patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
     "@tanstack/virtual-core@3.17.8": "vendor/upstream/patches/@tanstack%2Fvirtual-core@3.17.8.patch",
     "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "vendor/upstream/patches/ghostty-web@0.3.0.patch",
     "pacote@21.5.1": "vendor/upstream/patches/pacote@21.5.1.patch",
@@ -868,6 +879,8 @@
     "@npmcli/redact": ["@npmcli/redact@4.0.0", "", {}, "sha512-gOBg5YHMfZy+TfHArfVogwgfBeQnKbbGo3pSUyK/gSI0AVu+pEiDVcKlQb0D8Mg1LNRZILZ6XG8I5dJ4KuAd9Q=="],
 
     "@npmcli/run-script": ["@npmcli/run-script@10.0.4", "", { "dependencies": { "@npmcli/node-gyp": "^5.0.0", "@npmcli/package-json": "^7.0.0", "@npmcli/promise-spawn": "^9.0.0", "node-gyp": "^12.1.0", "proc-log": "^6.0.0" } }, "sha512-mGUWr1uMnf0le2TwfOZY4SFxZGXGfm4Jtay/nwAa2FLNAKXUoUwaGwBMNH36UHPtinWfTSJ3nqFQr0091CxVGg=="],
+
+    "@opencode-mobile/mobile-hosts": ["@opencode-mobile/mobile-hosts@workspace:packages/mobile-hosts"],
 
     "@opencode/ai": ["@opencode/ai@workspace:vendor/upstream/packages/ai"],
 

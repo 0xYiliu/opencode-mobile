@@ -48,7 +48,12 @@
   "mobilePatches": [
     "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
     "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
-    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch"
+    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+    "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
+    "patches/mobile/0005-M-005-server-persistence-credential-ref.patch",
+    "patches/mobile/0006-M-006-dialog-preserve-credential-ref.patch",
+    "patches/mobile/0007-M-007-mobile-hosts-bootstrap-in-web-entry.patch",
+    "patches/mobile/0008-M-008-mount-mobile-host-manager-in-server-settings.patch"
   ],
   "excluded": {
     "packages": [

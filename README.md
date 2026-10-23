@@ -2,7 +2,7 @@
 
 OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为其他移动平台保留适配空间。
 
-> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）。尚无 APK；两种连接方式与会话功能未实现。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
+> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，host-key 校验与 SSH 隧道为 fail-closed stub，真实实现归 issue #6/#4）。尚无 APK；两种连接方式与会话功能未实现，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
 
 ## 产品目标
 
