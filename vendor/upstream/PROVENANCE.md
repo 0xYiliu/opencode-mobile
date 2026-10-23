@@ -29,17 +29,20 @@ scripts/vendor-sync.sh
 
 `app, client, protocol, schema, session-ui, ui, util, gui-extensions, plugin-browser, plugin, ai`
 
-- 4460 files, ~45 MB under `packages/` (measured at the pin, before install; excludes install/build artifacts).
+- 4473 files, ~45 MB under `packages/` (git ls-files count at the pin; the earlier 4460 was
+  an intermediate-state residue, corrected in review), before install; excludes install/build artifacts.
 - Excluded packages: `cli, codemode, console, containers, core, desktop,
   effect-drizzle-sqlite, function, http-recorder, httpapi-codegen, identity, latex,
   merman, plugins, posts, script, sdk, server, simulation, stats, storybook, theme, tui, web`
   — only the Electron-rendered frontend (packages/app) and its transitive workspace closure
   are needed for the static web build; the phone never hosts a local OpenCode service.
-- Partial package (closure correction, correction loop): `packages/desktop/icons/dev`
-  (53 files) — `packages/app/vite.icons.ts` reads `../desktop/icons/dev/*` unconditionally
-  at vite config load to emit favicons and webmanifest icons for the PWA. The desktop
-  package itself stays excluded; `OPENCODE_CHANNEL=beta|prod` builds are outside this
-  vendor set.
+- Partial packages (closure correction, correction loop): `packages/desktop/icons/dev`
+  (53 files) and `packages/desktop/icons/beta` (53 files) — `packages/app/vite.icons.ts`
+  reads `../desktop/icons/<channel>/*` at vite config load to emit favicons and
+  webmanifest icons for the PWA, and `packages/app/src/shell/titlebar/titlebar.tsx`
+  imports the dev and beta 64x64 icons unconditionally at build time. The desktop
+  package itself stays excluded; `OPENCODE_CHANNEL=beta` builds are supported by this
+  vendor set while `prod` builds are not (`icons/prod` is not carried).
 - File-level exclusion: `packages/ai/test/fixtures/recordings/` (274 files, ~13.7 MiB,
   HTTP recorder test fixtures) — dropped during extraction and registered in the manifest.
 

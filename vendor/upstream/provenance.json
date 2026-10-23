@@ -24,7 +24,8 @@
       "plugin",
       "ai"
     ],
-    "fileCount": 4460,
+    "fileCount": 4473,
+    "fileCountBasis": "git ls-files count under packages/ at the pin (review correction N1: 4460 was an intermediate-state residue)",
     "packagesTreeSizeMB": 45,
     "excludedPackages": [
       "cli",
@@ -65,7 +66,12 @@
       {
         "path": "packages/desktop/icons/dev",
         "files": 53,
-        "reason": "Closure correction (correction loop, discovered at first V2 build): packages/app/vite.icons.ts reads ../desktop/icons/dev/* unconditionally at vite config load to emit favicons and webmanifest icons for the PWA. Only the dev-channel subtree is carried; the desktop package itself stays excluded and OPENCODE_CHANNEL=beta|prod builds are outside this vendor set."
+        "reason": "Closure correction (correction loop, discovered at first V2 build): packages/app/vite.icons.ts reads ../desktop/icons/<channel>/* at vite config load to emit favicons and webmanifest icons for the PWA, and packages/app/src/shell/titlebar/titlebar.tsx imports the dev 64x64 icon. The desktop package itself stays excluded; the dev and beta icon subtrees are carried, so OPENCODE_CHANNEL=beta builds are supported by this vendor set while prod builds are not (icons/prod is not carried)."
+      },
+      {
+        "path": "packages/desktop/icons/beta",
+        "files": 53,
+        "reason": "Review correction (N5): registered in vendor-manifest.json but missing here. packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/beta/64x64.png for the beta channel titlebar icon (unconditional import, resolved at build)."
       }
     ]
   },
@@ -172,7 +178,7 @@
     "upstreamLicense": "MIT",
     "file": "LICENSE",
     "copyright": "Copyright (c) 2025 opencode",
-    "notice": "NOTICE-THIRD-PARTY.md generation is BLOCKED pending user decisions: scripts/license-audit.ts audits 1089 installed packages and stops on 12 entries (7 distinct packages) that are unknown or weak-copyleft \u2014 lightningcss 1.32.0/1.33.0 + platform binaries (MPL-2.0, transitive of vite and tailwindcss), dompurify 3.4.14 (MPL-2.0, runtime transitive of mermaid), axe-core 4.13.0 (MPL-2.0, via lighthouse, build-time only), @sentry/cli + @sentry/cli-linux-x64 2.58.6 (FSL-1.1-MIT, build-time only, Sentry disabled), json-schema 0.4.0 (AFL-2.1 OR BSD-3-Clause), khroma 2.1.0 (no license field). Per AGENTS.md the audit halts instead of deciding; no NOTICE is written until the user rules on these. MPL-2.0 is file-level copyleft and commonly accepted for NOTICE inclusion with source availability, but that classification is the user's call, not the tooling's."
+    "notice": "NOTICE-THIRD-PARTY.md generation is BLOCKED pending user decisions: scripts/license-audit.ts audits 1089 installed packages and stops on 12 entries (9 distinct packages, 6 families when platform binaries are folded) that are unknown or weak-copyleft \u2014 lightningcss 1.32.0/1.33.0 + platform binaries (MPL-2.0, transitive of vite and tailwindcss), dompurify 3.4.14 (MPL-2.0, runtime transitive of mermaid), axe-core 4.13.0 (MPL-2.0, via lighthouse, build-time only), @sentry/cli + @sentry/cli-linux-x64 2.58.6 (FSL-1.1-MIT, build-time only, Sentry disabled), json-schema 0.4.0 (AFL-2.1 OR BSD-3-Clause), khroma 2.1.0 (no license field). Per AGENTS.md the audit halts instead of deciding; no NOTICE is written until the user rules on these. MPL-2.0 is file-level copyleft and commonly accepted for NOTICE inclusion with source availability, but that classification is the user's call, not the tooling's."
   },
   "discipline": {
     "wholeRepoCopied": false,
@@ -195,7 +201,7 @@
       "rootConfigDiff": "catalog/overrides re-synced from the candidate root package.json (new @pierre/highlights=0.2.0; @pierre/diffs 1.5.1->1.6.1; @opentui/* 0.5.17->0.6.8; @playwright/test 1.60.0; @types/bun 1.4.3; @typescript/native -> typescript@7.1.0-beta; overrides bun-types 1.4.2->1.4.4)",
       "bunfigDiff": "[install] section mirrored from the candidate: minimumReleaseAge unchanged at 259200; upstream added @pierre/highlights, bun-types, typescript@7.1.0-beta to minimumReleaseAgeExcludes (mirroring upstream's own policy decision, not a local relaxation). First install attempt failed on @pierre/highlights@0.2.0 (published <3 days before the exercise) until the candidate bunfig was mirrored.",
       "lockDiff": "root bun.lock (candidate upstream lock reconciled by bun 1.4.2): 82 insertions / 76 deletions vs the previous pin's reconciled lock; reconciled sha256 05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4; re-reconciliation after the rollback demo produced the identical sha (deterministic)",
-      "licenseRefresh": "license-audit re-run at the candidate: 1089 packages audited, same 12 stop items as at the previous pin (7 distinct packages; MPL-2.0 x8 incl. lightningcss/dompurify/axe-core, FSL-1.1-MIT x2 @sentry/cli, AFL-2.1 OR BSD-3-Clause json-schema, khroma no license field). No new license class introduced by the update."
+      "licenseRefresh": "license-audit re-run at the candidate: 1089 packages audited, same 12 stop items as at the previous pin (9 distinct packages, 6 families folded; MPL-2.0 x8 incl. lightningcss/dompurify/axe-core, FSL-1.1-MIT x2 @sentry/cli, AFL-2.1 OR BSD-3-Clause json-schema, khroma no license field). No new license class introduced by the update."
     },
     "patchLifecycle": {
       "mobilePatches": {
