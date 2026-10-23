@@ -115,7 +115,7 @@ export function createWebMessageChannelTransport(options: WebMessageChannelTrans
       pending.delete(id)
       entry.resolve(parsed as unknown as VaultResponse)
     }
-    port = candidate as VaultPortLike
+    port = candidate as unknown as VaultPortLike
     // Ack immediately; messages are in-order on the port pair, so the native side has the
     // ack before any request that follows.
     try {

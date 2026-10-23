@@ -84,3 +84,4 @@ export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOp
 export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
 export { MobileHostManager } from "./ui/host-manager"
+export { CredentialManager } from "./ui/credential-manager"

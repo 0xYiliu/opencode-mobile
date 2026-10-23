@@ -95,12 +95,18 @@ export function createVaultClient(transport: VaultTransport): CredentialVault {
         const e = raw as Record<string, unknown>
         // Defense in depth: a value-shaped field must never cross back over the bridge.
         if ("value" in e) throw new VaultError("io", "bridge metadata carried a forbidden value field")
-        if (typeof e["id"] !== "string" || (e["kind"] !== "password" && e["kind"] !== "privateKey")) continue
+        if (
+          typeof e["id"] !== "string" ||
+          (e["kind"] !== "password" && e["kind"] !== "privateKey") ||
+          typeof e["createdAt"] !== "string"
+        ) {
+          continue
+        }
         metas.push({
           id: e["id"],
           kind: e["kind"],
           ...(typeof e["label"] === "string" && e["label"] ? { label: e["label"] } : {}),
-          ...(typeof e["createdAt"] === "string" ? { createdAt: e["createdAt"] } : {}),
+          createdAt: e["createdAt"],
         })
       }
       return metas
