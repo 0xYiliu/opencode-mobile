@@ -1,6 +1,6 @@
 # 单元：server-list（服务器列表与项目选择）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证））**。作为产品能力（在设备上查看服务器列表、选择远程项目并进入会话）尚未交付，依赖 connection 单元成立与 G1–G3 门禁；已实现部分：随闭包引入的持久化字段契约与上游 UI 代码，加上 issue #3 的 SSH 主机注册表（`packages/mobile-hosts/src/registry.ts` + `storage.ts`）与管理界面（host-manager / host-dialog，M-008 挂载），全部未经设备运行验证（真机归 G13/G15）。
+状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据管理界面已实现（未验证））**。作为产品能力（在设备上查看服务器列表、选择远程项目并进入会话）尚未交付，依赖 connection 单元成立与 G1–G3 门禁；已实现部分：随闭包引入的持久化字段契约与上游 UI 代码，issue #3 的 SSH 主机注册表（`packages/mobile-hosts/src/registry.ts` + `storage.ts`）与管理界面（host-manager / host-dialog，M-008 挂载），以及 issue #4 的凭据管理器（credential-manager）与 host-dialog 凭据绑定块重构，全部未经设备运行验证（真机归 G13/G15）。
 
 ## 字段契约（已实现）
 
@@ -24,7 +24,7 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 | `id` | String（uuid v4） | 主机身份，创建即定、永不改 |
 | `name` | String（唯一，1–100 字符） | 展示名，重名校验拒绝 |
 | `target` | String（SSH 目标，`[user@]host[:port]` 形，≤500 字符） | 连接目标；格式校验失败拒收 |
-| `credentialRef` | optional String（`mobile-credential:<id>` 形，≤500 字符） | 非机密引用，不是凭据；解析归 issue #4 |
+| `credentialRef` | optional String（`mobile-credential:<id>` 形，≤500 字符） | 非机密引用，不是凭据；解析经 vault-backed resolver（issue #4 已实现（未验证），默认 UnavailableVault fail-closed） |
 | `createdAt` / `updatedAt` | String（ISO 时间戳） | 审计元数据；更新不改 id/createdAt |
 
 - 凭据形字段（password/secret/token/privateKey 等）在载荷校验层拒收：**测试断言**持久化往返与重启恢复后的记录不含任何 password 形字段。
@@ -42,19 +42,21 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 - 同名校验：上游对 displayName 无唯一性约束（自由命名）；SSH 主机名由我方注册表强制唯一（重名拒绝，测试锁定）。
 - 多 host 一窗：SSH 主机经 `props.servers` 注入上游 `ServersProvider`（extension 型；provided 键 `canRemove=false`，删除控制权在我方管理界面）；直连服务走上游原生注册表。注入值必须是 solid store 派生的响应式访问器（`ServersProvider` 在 `createMemo` 内读取；普通数组快照不会触发重渲染——测试锁定变更传播）。
 
-## 管理界面挂载点（已实现（未验证）：issue #3）
+## 管理界面挂载点（已实现（未验证）：issue #3 + issue #4 扩展）
 
 | 组件 | 归属单元文档 | 挂载点 | 职责 |
 | --- | --- | --- | --- |
-| host-manager | 本文档 | 设置 → servers 标签页（M-008 挂载，lazy import） | SSH 主机列表：展示名称/target/状态徽标，入口到 host-dialog、删除、重连；空态引导新增 |
-| host-dialog | 本文档 | host-manager 内（对话框） | SSH 主机新增/编辑表单：name（唯一）、target（格式校验）、credentialRef（引用标识，非机密）；保存失败（含健康检查不过）**保留原配置** |
+| host-manager | 本文档 | 设置 → servers 标签页（M-008 挂载，lazy import） | SSH 主机列表：展示名称/target/状态徽标+**已绑定凭据指示**（issue #4：行内显示该主机是否绑定凭据），入口到 host-dialog、删除、重连；**凭据管理器入口**（issue #4）；空态引导新增 |
+| host-dialog | 本文档 | host-manager 内（对话框） | SSH 主机新增/编辑表单：name（唯一）、target（格式校验）、**凭据绑定块（issue #4 重构：移除 #3 的自由文本 ref 输入；改为「记住凭据」勾选/私钥导入路径，真值表语义见 [connection.md](connection.md)）；保存失败（含 vault put 失败）**保留原配置** |
+| credential-manager | 本文档 | host-manager 内入口（对话框/面板，issue #4 新增） | 凭据条目元数据列表（kind/label/时间，**无值**）：vault unavailable 横幅、corrupt/recovery-needed 标红与恢复动作（重输/删除）、**孤儿区**（无宿主引用的条目对账+删除） |
 | host-key-prompt | [connection.md](connection.md) | 连接状态机 hostKeyUnverified 态 | 指纹确认（stub fail-closed，BLOCKED #6） |
 
-- 设计单元归属说明：host-manager/host-dialog 并入本单元（它们是服务器列表的管理面），host-key-prompt 并入 connection 单元（它是连接确认交互）；architecture.md 设计单元清单不单列新行。
+- 设计单元归属说明：host-manager/host-dialog/credential-manager 并入本单元（它们是服务器列表的管理面），host-key-prompt 并入 connection 单元（它是连接确认交互）；architecture.md 设计单元清单不单列新行。
+- host-dialog 凭据绑定块（issue #4）：SSH 主机不再手输引用标识符——密码凭据通过上游连接对话框的「记住」勾选（M-009）或主机表单绑定；表单内不再存在任何凭据值输入位。
 - 诚实边界：
   - 多 host 一窗、设置页/home 内 extension 行渲染待真机核对，归 G13/G15。
   - 已知展示缺口：上游多 server 布局下（`multiple()`），设置导航以 per-server 条目取代 "servers" 标签页，此时 host-manager 入口不可达（M-008 保持最小挂载；补齐导航入口归后续 issue，先以 G13 真机核对为准）。
-  - 直连服务记录仍由上游原生注册表承载（含 M-005/M-006 的 credentialRef 透传），本单元的注册表只管理 SSH 主机。
+  - 直连服务记录仍由上游原生注册表承载（含 M-005/M-006/M-009/M-010 的 credentialRef 行为），本单元的注册表只管理 SSH 主机。
 
 ## 结构与流转
 
@@ -75,4 +77,4 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 
 ## 文案口径
 
-列表与项目文案由上游 i18n 体系承载；host-manager/host-dialog 文案由 `packages/mobile-hosts` 自含 EN/ZH 字典承载（已实现（未验证），`src/i18n.ts`），不混入上游字典。
+列表与项目文案由上游 i18n 体系承载；host-manager/host-dialog/credential-manager 文案由 `packages/mobile-hosts` 自含 EN/ZH 字典承载（已实现（未验证），`src/i18n.ts`；issue #4 增补凭据绑定/恢复态/孤儿区键，EN/ZH 成对），不混入上游字典。

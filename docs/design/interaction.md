@@ -1,6 +1,6 @@
 # 交互基线与设备门禁
 
-本文承载跨单元交互约束、G1–G15 设备门禁完整枚举、失败路径处置协议与 memory-only notice。事实状态图例见 [README.md](README.md)。
+本文承载跨单元交互约束、G1–G15 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
 ## 交互基线
 
@@ -32,7 +32,17 @@
 | G14 连接状态呈现与恢复（issue #3） | connecting/host-key 确认/认证失败/incompatible/offline/reconnecting/connected 的用户可见呈现与可操作恢复（重试/重认证/编辑）；SSH incompatible 由状态机判定 | 真机/模拟器 + 授权远程服务（host-key 真实流另归 #6） | BLOCKED |
 | G15 SSH 身份稳定（issue #3） | SSH 隧道端口变化后身份/scope/会话/设置不变（`mobile-ssh:<uuid>` 与端点解耦）；重启后主机记录恢复且无凭据形字段 | 真机/模拟器 + SSH 远程主机 | BLOCKED（依赖 #6 隧道） |
 
-补充 BLOCKED 项（非 G 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6/#21）；host-key 真实校验流（归 issue #6）；SSH 凭据引用真实解析（归 issue #4）；SSH 端口变化真机验证（归 #6 配合 G15）。
+## C1–C5 凭据桥设备门禁（issue #4，全部 BLOCKED）
+
+| 门禁 | 验证目标 | 所需环境 | 状态 |
+| --- | --- | --- | --- |
+| C1 桥握手 bring-up | `onPageFinished` 握手 → JS 捕获 port（形状校验）→ 回发 ack → vault status 翻转 available；重试路径：无 ack 时通道重建（旧 port1 close）5×500ms 后 unavailable 呈现（横幅+勾选禁用）；ack 生命周期随导航重置（重新加载页面重新握手）；**C5a 顺序钉死：错误 origin 的握手探针必须在页面首次成功捕获之前执行**（新加载页面先投递错误 targetOrigin 握手 → 断言无捕获 → 再投递正确 origin → 可达） | 真机/模拟器（API 23+） | BLOCKED |
+| C2 凭据读写端到端 | 勾选记住 → put → 重启 → M-010 hydration 免重输（密码仅内存）；不勾选/取消勾选 → ref 清理 + vault.remove；私钥导入：input file → `onShowFileChooser` → `ACTION_OPEN_DOCUMENT` → 读文本 → put(kind=privateKey) → 元数据出现在凭据管理器；**ValueCallback 全路径恰一次回调**（取消/异常 → `onReceiveValue(null)`，可再次打开 chooser）；凭据管理器删除/孤儿区清理；corrupt 恢复（重输 in-place，ref 稳定） | 真机/模拟器 + 授权远程服务 | BLOCKED |
+| C3 64KiB 边界 | 恰 65536 字节凭据经桥传输成功落盘；超限在 JS 预检拒绝（native 复检为纵深，真机核对超限请求不产生文件）；错误提示可见 | 真机/模拟器 | BLOCKED |
+| C4 备份排除负例 | `allowBackup=false` 主控制 + `data_extraction_rules`/`full_backup_content` 引用生效：`adb backup`/设备迁移不带走 `filesDir/vault/`；重装后 vault 空（无悬挂引用） | 真机/模拟器（adb） | BLOCKED |
+| C5 桥安全探针 | **C5a** targetOrigin 强制（错误 origin 握手不可达/正确 origin 可达；顺序见 C1；**禁止伪造 event.origin 断言**——平台证据链见 [architecture.md](architecture.md)，event.origin 恒空串）；**C5b** port confinement（window 无全局 port 引用；单测锁定）；**C5c** 握手 data/ports 形状校验（单测锁定，仅形状不涉 origin）；**C5d** ack 前 vault 恒 unavailable、无明文回退（单测+真机） | 真机/模拟器（C5a/C5d 真机面）+ 本机单测（C5b/C5c） | BLOCKED（单测部分已 PASS，见 build-and-verify） |
+
+补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6/#21）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）。
 
 ## 失败路径处置协议
 
@@ -43,23 +53,30 @@
 3. **备选方案**：列出可行替代（如 G3 的预案 A/B/C），含各自代价与安全影响；备选不得默认「原生重写」或「关闭浏览器/传输安全」。
 4. **用户决策**：由用户选定处置后再继续产品化工作；未获决策前该路径停在那里并如实标注。
 
-## memory-only notice（用户可见口径）
+## 凭据 notice（修订：可选记住，issue #4）
 
-凭据在本阶段为 memory-only（M-002），用户须知晓并接受以下行为：
+凭据基线为 memory-only（M-002）；issue #4 起提供**可选**的安全记住（vault 加密落盘），用户须知晓并接受以下行为：
 
-- **刷新或重启 App 后需重新输入服务密码**：密码只存在于内存，不写入任何持久化后端（localStorage、桌面存储、草稿存储均收不到）。
-- **配对重连需重新认证**：连接中断后重连不能复用已落盘的凭据。
-- **credentialRef 不是凭据（issue #3 扩展）**：主机记录与连接记录中的 `credentialRef` 是指向凭据条目的非机密引用标识符，随记录持久化；它**不携带任何凭据值**。重启后：直连需重新输入密码（同上），SSH 主机需重新解析引用（解析端口本期为 NullResolver，真实解析归 issue #4）——引用本身不会还原出凭据。
-- **Keystore 安全持久化归 issue #4**：在 Keystore 方案交付并验证前，本 notice 是默认行为而非缺陷；上游界面不自带该提示，本条目前以文档为口径，App 内提示文案为后续事项。
+- **不勾选「记住」时，刷新或重启 App 后需重新输入服务密码**：密码只存在于内存，不写入任何持久化后端（localStorage、桌面存储、草稿存储均收不到）。
+- **勾选「记住」时**（vault available，issue #4）：密码经 Android Keystore 加密落盘（信封 v1，无明文形态），重启后由 M-010 hydration 自动恢复到内存；勾选框仅在 vault available 时可用，unavailable 时禁用+说明（显式状态，无明文回退）。
+- **配对重连需重新认证**：连接中断后重连不能复用已落盘的凭据（memory-only 语义未被 vault 改变）。
+- **credentialRef 不是凭据（issue #3 扩展）**：主机记录与连接记录中的 `credentialRef` 是指向凭据条目的非机密引用标识符，随记录持久化；它**不携带任何凭据值**。引用的目标现在真实存在（vault 条目），解析经 vault-backed resolver 仅入内存。
+- **失效与恢复**（issue #4）：vault unavailable（握手未 ack/非 Android）→ 记住功能禁用+横幅；条目 corrupt/unsupported → 该条目按失效矩阵标红，重输后重存（in-place，ref 稳定）或删除；TEE 重置等 Keystore 失效 → 横幅+重输或一键清除。恢复=丢失+重输，合法且显式；无额外解锁（不设生物识别/锁屏门，设计免除：设备锁定时 App 本不可用）。
+- 上游界面不自带 memory-only 提示；「记住」勾选框的禁用说明（M-009 i18n）与凭据管理器横幅（mobile-hosts i18n）是 App 内提示口径，本 notice 为文档口径。
 
-该 notice 的真机核验（localStorage 负例、重启后行为）归 G9/G11。
+该 notice 的真机核验（localStorage 负例、重启后行为、vault 落盘形态）归 G9/G11 与 C1–C4。
 
 ## 主机管理交互（已实现（未验证）：issue #3；设备核验 BLOCKED，归 G13–G15）
 
 - **host-manager（设置 → servers 标签页）**：SSH 主机列表（名称/target/状态徽标），行内动作：编辑（→ host-dialog）、删除、连接/重连；空态引导新增。删除为本地操作——**零远程调用**，远程服务/任务不受影响（红线，测试断言）；删除活跃主机不弹「停止远程」类操作。
-- **host-dialog（SSH 主机新增/编辑）**：字段 name（唯一校验，重名行内报错不写入）、target（格式校验 `[user@]host[:port]`）、credentialRef（引用标识输入，**不是密码输入**——界面不接收凭据值）；保存前校验失败保留表单；**保存/健康检查失败保留原配置**（不写入注册表）。取消/关闭不产生任何变更。
+- **host-dialog（SSH 主机新增/编辑）**：字段 name（唯一校验，重名行内报错不写入）、target（格式校验 `[user@]host[:port]`）；凭据绑定块（issue #4 重构，见上）；保存前校验失败保留表单；**保存/健康检查失败保留原配置**（不写入注册表）。取消/关闭不产生任何变更。
 - **取消切换语义**：连接发起后取消（connect 过程、host-key 确认、重连过程）恢复进入前的来源态（idle 或 offline），无残留副作用（状态机 T13，测试锁定）。
 - **host-key-prompt（stub）**：状态机进入 hostKeyUnverified 时展示指纹确认；当前 stub 恒拒绝——确认 UI 组件已立桩但**挂载点未建**（无任何界面渲染它），在本构建不可达（真实校验与挂载归 #6，BLOCKED）；**不存在"跳过校验"选项**。
+- **凭据绑定与凭据管理器（已实现（未验证）：issue #4）**：
+  - host-dialog 凭据绑定块取代 #3 的自由文本 ref 输入：表单不再存在任何凭据值/引用标识输入位；SSH 主机行内显示已绑定指示，凭据管理器入口在 host-manager 头部。
+  - 直连服务的「记住」勾选随上游连接对话框（M-009，真值表见 [units/connection.md](units/connection.md)）；**healthPreview 附注**：连接前健康预览（输入过程中的探测）不解析凭据引用、不读 vault——预览只验证地址可达性，权威的凭据检查发生在保存时。
+  - 凭据管理器：仅元数据（kind/label/时间，无值）；unavailable 横幅、corrupt/recovery-needed 标红与恢复动作（重输/一键清除）；孤儿区（无宿主引用的条目）列出对账并可删除。
+  - **link 流 stale-ref 附注（issue #4 评审）**：link/redeem 重配对产生的新连接会带原条目的 credentialRef 透传（M-006/M-009 prior 语义）；若该 ref 已成孤儿（条目已删/换绑），M-010 hydration 解析不到值 → unauthorized → 用户重输自愈（重输后重存 in-place，ref 稳定）；孤儿条目本身由凭据管理器孤儿区兜底呈现。重配对后旧 ref 注入失败不静默、不阻断，恢复路径始终可达。
 - **已知入口缺口（M-008）**：上游多 server 布局下，设置导航以 per-server 条目取代 "servers" 标签页，host-manager 在该布局不可达（单 server/空列表布局可达，且空列表时可创建首个 SSH 主机）。补齐导航入口归后续 issue，先以 G13 真机核对实际布局。
 - **断开语义**：ready 态的「断开」走状态机 T13（cancel）：恢复来源态 idle、清空内存端点，零 transport 调用；「删除」走 T14：仅删本地记录，零 transport 调用。两者均不向远程发出任何信号（红线，单测断言）。
 - **状态可见性**：SSH 主机行状态由状态机映射的上游 ServerState 呈现（starting/auth/ready/failed/incompatible）；offline/reconnecting 有明确反馈与恢复入口（重试/编辑/删除），不静默（G14 真机核验）。
