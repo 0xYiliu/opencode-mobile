@@ -56,6 +56,11 @@ const GuiExtensionsSettings = import.meta.env.DEV
     )
   : undefined
 
+// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
+const MobileHostManager = lazy(() =>
+  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
+)
+
 const rootClientTabs = [
   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
   { value: "appearance", icon: pageIcons.appearance, label: "settings.general.section.appearance" },
@@ -424,13 +429,15 @@ function RootSettings() {
           </SettingsServerDataScope>
         )}
       </Show>
-      <Show when={singleEntry()}>
-        {(entry) => (
-          <Tabs.Content value="servers" class="settings-panel">
-            <SettingsServerGeneral entry={entry()} onAddServer={addServer} />
-          </Tabs.Content>
-        )}
-      </Show>
+      {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
+          upstream single-server panel; it renders even with an empty upstream list so the
+          first SSH host can be created. */}
+      <Tabs.Content value="servers" class="settings-panel">
+        <MobileHostManager />
+        <Show when={singleEntry()} keyed>
+          {(entry) => <SettingsServerGeneral entry={entry()} onAddServer={addServer} />}
+        </Show>
+      </Tabs.Content>
     </SettingsNavigation>
   )
 }

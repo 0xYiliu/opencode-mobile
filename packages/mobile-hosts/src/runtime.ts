@@ -60,6 +60,18 @@ export interface MobileHosts {
   upstreamConnections: () => ExtensionConnection[]
 }
 
+// The shell has exactly one host runtime, bootstrapped once in the app entry (M-007).
+// The settings mount point (M-008) reaches it through this accessor instead of prop
+// drilling through the app's provider tree. Test runs overwrite it freely; production
+// calls createMobileHosts exactly once per window.
+let activeInstance: MobileHosts | undefined
+
+/** The runtime bootstrapped by the entry (M-007). Throws before bootstrap. */
+export const getMobileHosts = (): MobileHosts => {
+  if (!activeInstance) throw new Error("mobile hosts not bootstrapped: createMobileHosts() must run first (entry bootstrap, M-007)")
+  return activeInstance
+}
+
 /**
  * Bootstrap the host registry + connection state machine and derive the reactive
  * upstream connections injected into the app (M-007).
@@ -206,7 +218,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     ),
   )
 
-  return {
+  const instance: MobileHosts = {
     registry,
     locale: options.locale ?? detectLocale(),
     connect,
@@ -219,4 +231,6 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     stateOf,
     upstreamConnections,
   }
+  activeInstance = instance
+  return instance
 }

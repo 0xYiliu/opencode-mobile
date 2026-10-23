@@ -84,6 +84,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke after applying: bun run build:web succeeds and the built entry chunk contains the mobile-hosts bootstrap (dist marker mobile-ssh / opencode-mobile.hosts.v1). Runtime behavior on device is BLOCKED (G1/G13).",
       "rebase": "New patch (issue #3); rebase target is the render block of packages/app/src/entry.tsx."
+    },
+    {
+      "id": "M-008",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0008-M-008-mount-mobile-host-manager-in-server-settings.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx"
+      ],
+      "reason": "Mounts the first-party SSH host manager (lazy import) in the settings 'servers' tab, above the upstream single-server panel and also when the upstream list is empty, so the first SSH host can be created. The manager reads the runtime bootstrapped by M-007 through getMobileHosts(). Known gap, documented in docs/design/interaction.md: in the multiple-servers layout the upstream nav replaces the 'servers' tab with per-server entries, so the manager is not reachable there; the injected extension rows themselves render through the upstream home/settings inventory (device verification: G13/G15).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web) with the lazy chunk resolving through the M-004 alias; manager rendering and interactions on device are BLOCKED (G13).",
+      "rebase": "New patch (issue #3); rebase targets are the lazy-import block after GuiExtensionsSettings and the 'servers' Tabs.Content block in packages/app/src/settings/shell.tsx."
     }
   ]
 }

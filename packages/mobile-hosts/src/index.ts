@@ -54,7 +54,7 @@ export { HOSTS_STORAGE_KEY, createMemoryStorage, loadHosts, safeStorage, sanitiz
 export { assessIncompatible, isCompatibleServerVersion, parseServerVersion, type HealthLike } from "./health-wrapper"
 export { assertExtensionShape, mapStateToServerState, toExtensionConnection, type ExtensionConnection, type ServerState } from "./upstream-map"
 export { createTranslator, detectLocale, messages, type Locale, type MessageKey, type Translator } from "./i18n"
-export { createMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
+export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
 export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
 export { MobileHostManager } from "./ui/host-manager"
