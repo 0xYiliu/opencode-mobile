@@ -2,6 +2,9 @@ import { createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { NullCredentialResolver } from "./credential-ref"
 import type { CredentialResolver } from "./credential-ref"
+import { UnavailableVault } from "./vault/types"
+import type { CredentialVault } from "./vault/types"
+import { createVaultResolver } from "./vault/vault"
 import type { HostRecord, HostRegistry } from "./registry"
 import { createHostRegistry } from "./registry"
 import { StubHostKeyVerifier, StubHostTransport } from "./ports"
@@ -23,8 +26,19 @@ export interface MobileHostsOptions {
    * phase; accepted at the seam so the bootstrap contract does not change.
    */
   fetch?: typeof globalThis.fetch
-  /** Credential reference resolver. Defaults to NullCredentialResolver (issue #4 — BLOCKED). */
+  /**
+   * Credential reference resolver. Defaults to the vault-backed resolver when a vault is
+   * injected, and to NullCredentialResolver otherwise (issue #3 — unresolvable refs yield
+   * undefined). A vault-level failure (e.g. bridge unavailable) throws and lands the host
+   * in the explicit failed state; a corrupt/missing entry yields undefined (failure matrix).
+   */
   resolver?: CredentialResolver
+  /**
+   * Device credential vault (issue #4). Defaults to the fail-closed UnavailableVault: an
+   * explicit state, never a plaintext fallback. The Android shell injects the bridge client
+   * (M-007 amendment); tests inject the in-process engine client.
+   */
+  vault?: CredentialVault
   /** Host key verifier. Defaults to the fail-closed stub (issue #6 — BLOCKED). */
   hostKey?: HostKeyVerifier
   /** SSH tunnel transport. Defaults to the stub that never opens (issue #6 — BLOCKED). */
@@ -36,6 +50,11 @@ export interface MobileHostsOptions {
 export interface MobileHosts {
   registry: HostRegistry
   locale: Locale
+  /**
+   * The device credential vault (issue #4). Fail-closed UnavailableVault unless injected;
+   * UI surfaces its status explicitly (remember disabled + banner), never a downgrade.
+   */
+  credentials: CredentialVault
   /** Begin a connection attempt for a host (T1; verifier-gated, see below). */
   connect: (id: string) => void
   /** Cancel the current attempt / disconnect from the host (T13). Zero remote calls. */
@@ -83,7 +102,8 @@ export const getMobileHosts = (): MobileHosts => {
  * upstream connections injected into the app (M-007).
  */
 export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts {
-  const resolver = options.resolver ?? NullCredentialResolver
+  const vault = options.vault ?? UnavailableVault
+  const resolver = options.resolver ?? (options.vault ? createVaultResolver(vault) : NullCredentialResolver)
   const hostKeyVerifier = options.hostKey ?? StubHostKeyVerifier
   const transport = options.transport ?? StubHostTransport
 
@@ -206,10 +226,17 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   }
 
   const remove = (id: string) => {
+    const record: HostRecord | undefined = registry.get(id)
     stopAttempt(id) // delete is local-only; aborting a pending local attempt is not a remote call
     send(id, { type: "delete" })
     setEndpoint(id, undefined)
     registry.remove(id)
+    // Issue #4 linkage: deleting a host deletes its vault entry (T14 regression). Best
+    // effort and local-only: a failed cleanup leaves the entry visible in the credential
+    // manager's orphan zone instead of blocking or retrying anything remote.
+    if (record?.credentialRef) {
+      void vault.remove(record.credentialRef).catch(() => {})
+    }
   }
 
   const markIncompatible = (id: string, version?: string) => {
@@ -232,6 +259,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const instance: MobileHosts = {
     registry,
     locale: options.locale ?? detectLocale(),
+    credentials: vault,
     storageVolatile,
     connect,
     disconnect,
