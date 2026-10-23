@@ -36,6 +36,12 @@ const MemoryOnlyPassword = Schema.UndefinedOr(Schema.String).pipe(
 export const ServerHttpBase = Persistence.struct({
   url: Schema.String,
   password: Schema.optional(MemoryOnlyPassword),
+  // mobile(M-005): non-secret credential REFERENCE (a pointer such as
+  // "mobile-credential:<id>", not a credential value). The password above is still stripped
+  // at encode (M-002); this reference is safe to persist and is resolved per session into
+  // memory only by the credential resolver (keystore-backed resolution is mobile issue #4).
+  // Decoding tolerates its absence for already-stored servers.
+  credentialRef: Schema.optional(Schema.String),
 })
 
 export const ServerHttp = Persistence.struct({

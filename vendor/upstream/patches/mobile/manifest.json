@@ -48,6 +48,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 (verify-closure) tree equivalence with the patch registered; V2 build smoke after applying: `bun run build:web` succeeds and the built entry chunk resolves the mobile-hosts modules (no unresolved import errors).",
       "rebase": "New patch (issue #3); rebase target is the resolve.alias block in packages/app/vite.js."
+    },
+    {
+      "id": "M-005",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0005-M-005-server-persistence-credential-ref.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts"
+      ],
+      "reason": "Adds an optional non-secret credential REFERENCE (http.credentialRef, inside ServerHttpBase) so a stored direct server can point at a keystore entry without storing any credential. The M-002 encode path still strips password; the reference is a pointer (mobile-credential:<id>), safe for every persistent backend, and resolves per session into memory only. Keystore-backed resolution is mobile issue #4; decoding tolerates absence for already-stored servers.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; targeted probe scripts/verify-credential-ref.ts (schema round-trip keeps the reference, still strips password) plus the upstream persistence.test.ts file as regression.",
+      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field."
     }
   ]
 }
