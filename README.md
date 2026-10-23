@@ -2,7 +2,7 @@
 
 OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为其他移动平台保留适配空间。
 
-> 当前状态：仓库初始化，仅包含项目说明和范围约定。尚未实现客户端、Android 工程或可安装 APK。
+> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）。尚无 APK；两种连接方式与会话功能未实现。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
 
 ## 产品目标
 
@@ -28,12 +28,14 @@ OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为
 
 - [项目范围与开发前待确认项](docs/project-scope.md)
 - [决策记录 0001：排除 WSL，保留原生 Windows 远程支持](docs/decisions/0001-wsl-exclusion.md)
+- [设计文档体系](docs/design/README.md)
+- [构建与验证证据](docs/build-and-verify.md)
 - [开发约定](AGENTS.md)
 
 ## 与 OpenCode 的关系
 
 本项目是独立的移动端客户端仓库，不是整个 OpenCode 源码仓库的副本。
 
-计划优先复用 OpenCode 已有的前端界面、客户端协议和 SSH 交互契约；复用方式、上游版本固定策略及依赖分发方式在技术验证阶段确定。当前未复制上游代码，也未建立可构建的依赖关系。
+前端界面与客户端契约优先复用 OpenCode 已有实现：当前以 vendor 闭包方式引入上游部分前端包（`vendor/upstream`，仅 `packages/app` 及其传递闭包），版本固定与更新策略按 [docs/build-and-verify.md](docs/build-and-verify.md) 与上游来源记录执行；复用代码保留上游许可证与版权声明，移动补丁记录在 `vendor/upstream/patches/mobile/`。
 
 上游项目：<https://github.com/anomalyco/opencode>。本项目不是上游官方移动客户端的声明。
