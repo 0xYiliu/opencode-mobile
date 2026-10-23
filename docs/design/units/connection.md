@@ -14,7 +14,7 @@
 | `authToken` | optional Boolean | 布尔标志（是否携带 token），非机密 | 已实现（未验证） |
 | `displayName` / `label` | optional String | 展示元数据 | 已实现（未验证） |
 
-## credentialRef 契约（计划中：issue #3）
+## credentialRef 契约（已实现（未验证）：issue #3）
 
 | 字段 | 类型 | 语义 | 状态 |
 | --- | --- | --- | --- |

@@ -1,6 +1,8 @@
 # 构建与验证证据（V8）
 
-本文按 issue #2 验收第 6 条记录真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore）。
+本文按 issue #2 验收第 6 条记录真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore）、[issue #3](https://github.com/0xYiliu/opencode-mobile/issues/3)（主机注册表，见下方 issue #3 段）。
+
+记录日期：2026-10-24。issue #3 段（mobile-hosts 包、M-004…M-008 补丁）的验证于同日在分支 `issue-3-host-registry` 工作树执行，全部为本机构建/静态/单测级验证；设备级验证全部 BLOCKED。
 
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
@@ -27,7 +29,11 @@ bash scripts/leak-scan.sh              # V7
 python3 -m json.tool <关键 JSON>        # V5
 python3 xml.dom.minidom 解析 Android XML  # V6
 scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
+bun test --conditions=browser packages/mobile-hosts   # V-mh（issue #3 第一方包单测）
+bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探针）
 ```
+
+`--conditions=browser` 的原因：solid-js@1.9.15 的 exports 无 `solid` 条目，bun test 默认按 `node` 条件解析到无响应式的 server 构建；`browser` 条件选中有响应式的 client 构建（已用最小 repro 验证：store 变更触发 memo 重算）。上游 app 自身测试使用 `--conditions=solid` + happy-dom 预载（其 JSX 预载所必需），与本包命令不同属正常，两者均已如实记录。
 
 `cd android && ./gradlew :app:assembleDebug` 与 `gradle wrapper --gradle-version 8.11.1`（wrapper jar 引导）**仅记录、未执行**：本机无 Android SDK，执行必然失败；wrapper jar 不提交（见 `.gitignore`）。
 
@@ -46,13 +52,19 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | V6 Android XML 校验 | python3 `xml.dom.minidom` 解析 | PASS（2026-10-24 真实执行）：`AndroidManifest.xml`（root `<manifest>`）、`network_security_config.xml`（root `<network-security-config>`）为计划要求项；另覆盖 `themes.xml`、`strings.xml`（root `<resources>`），全部解析成功、退出码 0 | 本文 |
 | V7 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；评审修复后 2026-10-24 重跑）：高置信模式仅命中 7 处已过滤的 AWS 文档示例密钥（AKIA…EXAMPLE 形式；构成：扫描脚本自身模式行 4 处 + 上游 test fixture 3 处；计数不含本文自引用，本文不引用完整示例键字面量）；`git check-ignore` 抽查全部忽略 | 脚本输出 |
 | V8 证据文档 | 本文 | 记录完成 | — |
-| 锁文件哈希 | `sha256sum bun.lock` | `05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4`（与 `provenance.json#pinUpdateExercise.closureRefresh.lockDiff` 记录一致，reconciliation 确定性复现） | 本文 |
+| 锁文件哈希 | `sha256sum bun.lock` | `05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4`（与 `provenance.json#pinUpdateExercise.closureRefresh.lockDiff` 记录一致，reconciliation 确定性复现；issue #3 后新哈希见下节 V-lock 行） | 本文 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：48 tests / 48 pass / 0 fail，801 expect()（identity/registry/state-machine/credential-ref/storage/upstream-map 六文件；含 T1–T14 逐条、非法转移拒绝、取消无残留、删除/断开零 transport 调用、host-key stub 恒拒绝、载荷白名单、凭据形字段拒收、变更传播断言） | 本文 issue #3 段 |
+| V-cRef 凭据引用探针 | `bun run scripts/verify-credential-ref.ts` | PASS：M-005 schema 往返保留 credentialRef、password 仍被剥离（含 legacy 载荷）、M-006 对话框构造转发 `original.http.credentialRef` 且早退比较不含 ref。诚实边界：M-006 断言为对 dialog.tsx 源的静态结构检查（正则），未在 Solid 运行时执行对话框；探针以 createRequire 经 `packages/app` 依赖图解析 effect@4.0.1（隔离 linker 下 scripts/ 无法直接解析） | 脚本输出 |
+| V-upstream 上游定向回归 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/runtime/server/persistence.test.ts`（在 packages/app 下） | 4 pass / 1 fail。该 1 fail 为 **M-002 预先存在**（上游用例断言 encode 保留 password，与 M-002 memory-only 语义冲突；已用「仅 M-002、无 M-005」的基线树复跑确认失败一致，非 M-005 引入）。另跑 `src/servers/registry/{management,controller}.test.ts` + `src/runtime/server/registry.test.ts`：12 pass / 0 fail。不声称上游全量套件 | 本文 issue #3 段 |
 
 ## 四态区分表
 
 | 能力/条目 | implemented | built-local-test | device-tested | real-remote-tested |
 | --- | --- | --- | --- | --- |
 | vendor 闭包 + provenance + 补丁（M-001/002/003） | ✓ | ✓（V1/V3/V-cred） | BLOCKED | BLOCKED |
+| mobile-hosts 包（注册表/身份键/状态机/端口 stub/映射/UI） | ✓ | ✓（V-mh：48 单测） | BLOCKED（G13–G15） | BLOCKED |
+| vendor 运行时接缝（M-004…M-008） | ✓ | ✓（V2 冒烟 ×3、V3 ×5、V-cRef） | BLOCKED（G1/G13/G14） | BLOCKED |
+| connection 字段契约 + credentialRef（M-005/M-006） | ✓ | ✓（V-cRef） | BLOCKED（G9/G14） | BLOCKED |
 | web 静态构建（含 PWA SW、主题） | ✓ | ✓（V2，3330 文件） | BLOCKED（G1/G10） | BLOCKED |
 | Android 壳代码（Gradle 骨架/Manifest/netsec/Kotlin） | ✓ | 静态验证 ✓（V6 XML + V7）；编译 **BLOCKED**（无 SDK，无 APK） | BLOCKED | BLOCKED |
 | 回环 asset server + WebView 配置 + 生命周期 | ✓（代码） | 编译/运行 BLOCKED | BLOCKED（G1/G2/G9/G12） | BLOCKED |
@@ -62,6 +74,30 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | NOTICE-THIRD-PARTY.md | 未生成（V4 BLOCKED） | — | — | — |
 | SSH 隧道 | 未开始（归 #6） | — | — | — |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
+
+## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
+
+交付物：第一方包 `packages/mobile-hosts/`（@opencode-mobile/mobile-hosts）+ 五个 vendor 补丁 M-004…M-008（`vendor/upstream/patches/mobile/`，两处登记：`patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches`，均含 owner 字段）。提交链 `ff0a69f → 1de095c → c5dd037 → aed9eba → e881ad9 → 99b6d40 → 34b5752`（分支 `issue-3-host-registry`，基于 dev @ 693ad3f，未 push）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #3） | `git diff 693ad3f 1de095c -- bun.lock` + 段比对 | lock 变更 +16/−2（workspaces 增 `packages/*`，新增 `packages/mobile-hosts` 工作区条目）；patchedDependencies 段 9/9 逐字不变；`bun install --frozen-lockfile` rc=0（1093 installs / 1203 packages, no changes）。换锁前未动 node_modules（教训遵守：本次为全新安装，无 superset 漂移） | 本文；`sha256sum bun.lock` = `84eeea9d2d8f36b1b537e3201fd43e5bbfe9ba82cb230f643649830713fc132d` |
+| V2 冒烟（M-004 后） | `bun run build:web` | PASS（rc=0，6138 modules）；别名解析核验：`new URL("../../../../packages/mobile-hosts/src/index.ts", import.meta.url)` 自 `packages/app/vite.js` 解析到仓库根 `packages/mobile-hosts/src/index.ts`（真实文件，node --input-type=module 实测） | 本文 |
+| V2 冒烟（M-007 后） | `bun run build:web` | PASS（rc=0，11.56s）；dist 标记：`opencode-mobile.hosts.v1` 与 `mobile-ssh` 命中 `dist/_assets/index-BZUHd7yB.js(.map)`，`mobile(M-002)` 标记仍命中 `dist/_assets/health-BFLwV0ab.js(.map)`（新 chunk 哈希，语义不变） | 本文 |
+| V2 冒烟（M-008 后，最终产物） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，11.53s）；3329 文件 / 152,736,649 bytes 拷入 assets；manager 文案键（`SSH hosts`/`SSH 主机`/`hostManager`）命中 `index-TwxVaV1z.js`。文件数 3330→3329 的差异为懒加载分块切分变化（新增 M-008 懒块、相邻分块合并），非丢失：见偏差表 | `web-dist/manifest.json`（generatedAt 2026-10-23T21:35:05Z；sha256 `9459b17902ecaa5b69100d6a46a35bee6e1238177c87b277ffee17f3600629be`） |
+| V3 闭包核对（每补丁后） | `bash scripts/verify-closure.sh` | PASS ×5（M-004/M-005/M-006/M-007/M-008 各一次）：树 == pin + 已登记 8 个补丁（5 上游 + M-001…M-003 + 新 M-004…M-008），`DANGLING=0`，recordings 排除核对通过 | 本文 |
+| V-mh / V-cRef / V-upstream | 见上方验证项记录表 | 全部如上（48 单测、探针 PASS、上游定向 4 pass/1 预存 fail + 12 pass） | 本文 |
+| V5 JSON 校验（issue #3 增量） | `python3 -m json.tool` | PASS：`patches/mobile/manifest.json`、`vendor-manifest.json`、`web-dist/manifest.json` 可解析 | 本文 |
+| V7 泄漏扫描（issue #3 重跑） | `bash scripts/leak-scan.sh` | PASS（rc=0；启发式扫描，非 gitleaks）；新第一方包无凭据形字面量 | 脚本输出 |
+| 文档链接核对 | `test -f` 全量核对（docs/design/**、README、project-scope、build-and-verify） | PASS（见机械检查记录） | 本文 |
+| 单元清单 ↔ units 文件对应 | 人工核对 | architecture.md 清单 9 行 ↔ units/ 3 文档 + 6 TODO 行，一一对应，无幽灵行（host-manager/host-dialog 归 server-list、host-key-prompt 归 connection，清单不单列新行） | 本文 |
+
+### 诚实边界（issue #3 段）
+
+- **设备级全部 BLOCKED**：G13（多 host 一窗 + 隔离）、G14（连接状态呈现与恢复）、G15（SSH 身份稳定，依赖 #6 隧道）未执行；host-key 真实校验流（#6）、SSH 凭据引用真实解析（#4）、SSH 端口变化真机验证（#6）、live 直连 E2E 均未执行。不声称"可连接"。
+- **M-006 静态边界**：对话框透传经源码结构探针验证（见 V-cRef），未在 Solid 运行时执行对话框组件；上游 dialog 自身无单测可挂。
+- **上游全量套件不作为门禁**：仅定向文件如实记录（persistence.test.ts、servers registry 三件）。
+- **M-007 构建期变量的取舍记录**：不采用 `VITE_OPENCODE_SERVER_MODE=none`——那会把"壳不装配 origin 服务"这一行为隐藏进构建配置，且该变量为上游 dev 语义（dev 模式另有 host/port 逻辑），补丁内联修改保持行为可见、可随上游 rebase、不引入隐藏构建配置依赖（补丁 reason 字段同记）。
 
 ## 上游更新演练记录（S3，经 issue #27）
 
@@ -83,6 +119,13 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | live 直连 HTTPS E2E（选项目/开会话/发提示/增量事件/PTY） | 授权服务 + 模型；不允许 fixture 替代 | issue #2 验收第 4 条 |
 | SSH E2E | SSH 适配未实现 | issue #6 / #21 |
 | 许可审计（V4）与 NOTICE-THIRD-PARTY.md 生成 | 12 项许可类别用户决策 | 用户决策，见下表 |
+| G13 多 host 一窗 + 隔离（issue #3） | 真机/模拟器（+授权远程服务） | issue #3 验收第 5/3 条 |
+| G14 连接状态呈现与恢复（issue #3） | 真机/模拟器 + 授权远程服务；host-key 真实流另归 #6 | issue #3 验收第 2 条 |
+| G15 SSH 身份稳定 + 注册表恢复（issue #3） | 真机/模拟器 + SSH 远程主机（依赖 #6 隧道） | issue #3 验收第 3 条 |
+| host-key 真实校验流 | SSH 适配未实现（stub fail-closed 已立桩，恒拒绝） | issue #6 |
+| SSH 凭据引用真实解析 | NullResolver 恒 undefined；Keystore 未实现 | issue #4 |
+| SSH 端口变化后身份稳定真机验证 | 隧道重解析未实现（单测已锁定键不随端口变化） | issue #6（配合 G15） |
+| live 直连 E2E（含 incompatible 真服务差异核对） | 授权服务 + 模型；直连不展示 incompatible（上游 web 原生行为，补齐归 #5） | issue #2/#5 |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -115,6 +158,9 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | sourcemap 不可复现 | 28/3138 `.map` 跨构建字节不同 | 已接受限制（fallback 判定放行），见演练记录 |
 | 泄漏扫描非 gitleaks | 环境无 gitleaks，`scripts/leak-scan.sh` 为启发式 + check-ignore 抽查 | 脚本头与本文均已明示 |
 | gradle-wrapper jar 不提交 | 仅提交 `gradle-wrapper.properties`；jar 由 `gradle wrapper --gradle-version 8.11.1` 本地引导 | `.gitignore` 已登记 |
+| bun test 条件选择 | solid-js@1.9.15 exports 无 `solid` 条目；本包单测用 `--conditions=browser` 选中响应式 client 构建（repro 验证），与上游 app 测试的 `--conditions=solid`+happy-dom 组合不同 | 本文「构建流水线」段已记录两条命令 |
+| 上游 persistence.test.ts 1 fail 预存 | 该用例断言 encode 保留 password，与 M-002 memory-only 冲突；基线（仅 M-002）复跑失败一致，非 M-005/M-006 引入；不作为本轮门禁 | 本文 V-upstream 行 |
+| dist 文件数 3330→3329 | M-007/M-008 引入新懒块与分块合并改变 chunk 切分；copy-web-dist 全量重拷（sha256 清单已刷新），V2 rc=0 且 6138 modules 不变 | 本文 V2（最终产物）行 |
 | 本轮验证边界 | 全部验证为本机构建/静态验证（构建宿主 ≠ 远程 OS）；远程 OS 范围（Linux/原生 Windows/macOS）仅明示未验证，WSL 排除见决策记录 0001 | [docs/project-scope.md](project-scope.md) |
 
 ## 最小核对记录表（设计文档 ↔ 实现）
@@ -133,8 +179,15 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | 四横切适用性总表（[design/README.md](design/README.md)） | 文档 | 人工核对 | 4/4 适用，无不适用项；覆盖状态与正文一致 |
 | 设计单元清单与单元文档对应 | [design/architecture.md](design/architecture.md) 清单 ↔ design/units/ | 人工核对 + 链接检查 | 一致：3 单元有文档，6 单元 TODO 行（未开始），无幽灵行 |
 | 文档相对链接 | design/*.md、README.md、project-scope.md | `test -f` 全量核对 | 通过（终态，见下方机械检查记录） |
+| credentialRef 契约（[units/connection.md](design/units/connection.md)） | M-005 patch（persistence.ts）、M-006 patch（dialog.tsx）、`scripts/verify-credential-ref.ts` | V-cRef 探针 | 一致；引用非机密、password 仍剥离、早退比较不含 ref；真机归 G9/G14 |
+| SSH 主机注册表白名单（[units/server-list.md](design/units/server-list.md)） | `packages/mobile-hosts/src/{registry,storage}.ts` | V-mh（registry/storage 单测：白名单、凭据形字段拒收、往返无 password 形字段、重复 id 折叠、损坏 JSON 回退、v1 迁移钩子） | 一致；载荷仅 id/name/target/credentialRef/时间戳 |
+| 身份键与隔离（[units/server-list.md](design/units/server-list.md)） | `packages/mobile-hosts/src/identity.ts`、`upstream-map.ts` | V-mh（identity/upstream-map 单测：直连键随端口变化、SSH 键 `mobile-ssh:<uuid>` 与端点解耦、键唯一稳定） | 一致；端口变化身份不变的真机核验归 G15 |
+| 连接状态机 T1–T14（[units/connection.md](design/units/connection.md)） | `packages/mobile-hosts/src/state-machine.ts`（TRANSITIONS 恰 14 行）、`runtime.ts`（驱动） | V-mh（state-machine 单测逐条 + 非法转移 + 取消无残留 + T14 零 transport 调用） | 一致；文档 T1/T8/T13 行与实现语义一致（T8 预算未耗尽回 offline） |
+| host-key stub fail-closed（[units/connection.md](design/units/connection.md)） | `packages/mobile-hosts/src/ports.ts`（StubHostKeyVerifier）、`runtime.ts`（verifier 先于 transport） | V-mh（stub 恒拒绝、拒绝后零连接尝试） | 一致；真实校验归 #6，BLOCKED |
+| entry 引导与注入（M-007） | M-007 patch（entry.tsx） | V2 冒烟 + dist 标记（`opencode-mobile.hosts.v1`/`mobile-ssh` 命中 index chunk） | 一致；`location.origin` 服务装配与 ?auth_token 直通已移除（壳内不适用） |
+| 设置挂载（M-008） | M-008 patch（settings/shell.tsx） | V2 冒烟 + manager 文案键命中 dist | 一致；多 server 布局入口缺口已在 interaction.md/server-list.md 记录 |
 
 ### 机械检查记录（2026-10-24）
 
-- 文档相对链接：对 `README.md`、`docs/design/**`、`docs/project-scope.md` 中的仓库内相对链接逐一 `test -f`，全部存在。
-- 设计单元清单、索引表与 `design/units/` 实际文件一一对应；未决 TODO（会话列表/时间线/终端/设置/权限确认/文件与 Diff、深链、状态恢复、预测性返回）在索引与单元文档中可见。
+- 文档相对链接：对 `README.md`、`docs/design/**`、`docs/project-scope.md` 中的仓库内相对链接逐一 `test -f`，全部存在（issue #3 交付后 2026-10-24 重跑，含 `docs/build-and-verify.md` 与 `docs/design/units/*` 的新增链接）。
+- 设计单元清单、索引表与 `design/units/` 实际文件一一对应；未决 TODO（会话列表/时间线/终端/设置/权限确认/文件与 Diff、深链、状态恢复、预测性返回）在索引与单元文档中可见；issue #3 的 host-manager/host-dialog 并入 server-list 单元、host-key-prompt 并入 connection 单元，清单未单列新行（机械核对一致）。
