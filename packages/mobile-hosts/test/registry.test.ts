@@ -81,10 +81,28 @@ describe("host registry validation", () => {
     expect(() => registry.update(created.id, { name: "second" })).toThrow(/duplicate-name/)
     expect(() => registry.update(second.id, { name: "renamed" })).toThrow(/duplicate-name/)
     expect(() => registry.update(created.id, { target: "bad target" })).toThrow(/invalid-target/)
-    // Clearing the reference works; the record keeps its identity.
-    const cleared = registry.update(created.id, { credentialRef: undefined })
+  })
+
+  test("update reference semantics: undefined keeps, empty string clears, and clearing reaches storage", () => {
+    const storage = createMemoryStorage()
+    const registry = createHostRegistry({ storage })
+    const created = registry.add({ ...VALID, credentialRef: "mobile-credential:entry-1" })
+    expect(registry.get(created.id)?.credentialRef).toBe("mobile-credential:entry-1")
+
+    // undefined keeps the stored value (do-not-change semantics).
+    const kept = registry.update(created.id, { name: "renamed", credentialRef: undefined })
+    expect(kept.credentialRef).toBe("mobile-credential:entry-1")
+
+    // Empty string clears: the in-memory record AND the persisted payload both lose it.
+    const cleared = registry.update(created.id, { credentialRef: "" })
     expect(cleared.credentialRef).toBeUndefined()
+    expect(registry.get(created.id)?.credentialRef).toBeUndefined()
+    const payload = JSON.parse(storage.getItem(HOSTS_STORAGE_KEY)!) as { hosts: Array<Record<string, unknown>> }
+    expect(payload.hosts[0]!["credentialRef"]).toBeUndefined()
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).not.toContain("mobile-credential:entry-1")
+    // The cleared record keeps its identity and other fields.
     expect(cleared.id).toBe(created.id)
+    expect(cleared.name).toBe("renamed")
   })
 
   test("removing an active (connected) host performs zero transport calls", async () => {

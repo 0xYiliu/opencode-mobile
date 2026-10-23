@@ -167,6 +167,11 @@ export function createHostRegistry(options: HostRegistryOptions) {
     return record
   }
 
+  /**
+   * Update the mutable fields of a record. `id` and `createdAt` are never rewritten.
+   * Reference semantics for `credentialRef`: `undefined` keeps the current value; an
+   * explicit empty string clears it (persisted payload drops the field).
+   */
   function update(id: string, patch: Partial<HostRecordInput> & { credentialRef?: string | undefined }): HostRecord {
     const index = store.hosts.findIndex((host) => host.id === id)
     if (index === -1) throw new HostRegistryError("not-found", id)
@@ -182,7 +187,12 @@ export function createHostRegistry(options: HostRegistryOptions) {
     if (credentialRef !== undefined) next.credentialRef = credentialRef
     else delete next.credentialRef
     checkShape(next)
-    setStore("hosts", index, next)
+    // Replace the array node (not the element): setStore with an object path MERGES, which
+    // would resurrect a deleted `credentialRef` key from the previous proxy.
+    setStore(
+      "hosts",
+      [...store.hosts.slice(0, index), next, ...store.hosts.slice(index + 1)],
+    )
     persist()
     return next
   }

@@ -8,6 +8,7 @@
 import { Show, createSignal } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { TextInput } from "@opencode/ui/text-input"
+import { CredentialRefError } from "../credential-ref"
 import { HostRegistryError } from "../registry"
 import { createTranslator, type MessageKey } from "../i18n"
 import type { MobileHosts } from "../runtime"
@@ -44,10 +45,13 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
     const ref = credentialRef().trim()
     try {
       if (editing) {
+        // Empty string means "clear": the registry's update treats an explicit empty value
+        // as removal (undefined would mean "keep the current value"). Never convert the
+        // empty string to undefined here — that would silently preserve the stored ref.
         props.runtime.registry.update(editing.id, {
           name: name(),
           target: target(),
-          credentialRef: ref || undefined,
+          credentialRef: ref,
         })
       } else {
         props.runtime.registry.add({
@@ -57,6 +61,10 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
         })
       }
     } catch (error) {
+      if (error instanceof CredentialRefError) {
+        setError(t("hostDialog.error.invalidCredentialRef"))
+        return
+      }
       const code = error instanceof HostRegistryError ? error.code : "invalid-target"
       setError(t(errorCodeToMessage(code)))
       return // keep the previously stored record untouched
@@ -72,13 +80,13 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
 
   return (
     <div
-      class="flex w-full min-w-0 flex-col gap-4 rounded-[12px] border border-token p-4"
+      class="flex w-full min-w-0 flex-col gap-4 rounded-[12px] border border-border-weak-base p-4"
       role="dialog"
       aria-label={editing ? t("hostDialog.editTitle") : t("hostDialog.addTitle")}
     >
-      <h4 class="text-14-strong">{editing ? t("hostDialog.editTitle") : t("hostDialog.addTitle")}</h4>
+      <h4 class="text-14-medium text-text-strong">{editing ? t("hostDialog.editTitle") : t("hostDialog.addTitle")}</h4>
       <div class="flex w-full min-w-0 flex-col gap-2">
-        <label for="mobile-host-name" class="text-13-muted">
+        <label for="mobile-host-name" class="text-12-regular text-text-weak">
           {t("hostDialog.name")}
         </label>
         <TextInput
@@ -92,7 +100,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           onInput={(event) => setName(event.currentTarget.value)}
           onKeyDown={keyDown}
         />
-        <label for="mobile-host-target" class="text-13-muted">
+        <label for="mobile-host-target" class="text-12-regular text-text-weak">
           {t("hostDialog.target")}
         </label>
         <TextInput
@@ -109,7 +117,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           onInput={(event) => setTarget(event.currentTarget.value)}
           onKeyDown={keyDown}
         />
-        <label for="mobile-host-credential-ref" class="text-13-muted">
+        <label for="mobile-host-credential-ref" class="text-12-regular text-text-weak">
           {t("hostDialog.credentialRef")}
         </label>
         <TextInput
@@ -124,11 +132,11 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           onInput={(event) => setCredentialRef(event.currentTarget.value)}
           onKeyDown={keyDown}
         />
-        <span id="mobile-host-credential-ref-hint" class="text-12-muted">
+        <span id="mobile-host-credential-ref-hint" class="text-12-regular text-text-weak">
           {t("hostDialog.credentialRefHint")}
         </span>
         <Show when={error()}>
-          <span role="alert" class="text-12-muted">
+          <span role="alert" class="text-12-regular text-text-strong">
             {error()}
           </span>
         </Show>

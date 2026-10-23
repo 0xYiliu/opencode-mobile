@@ -34,23 +34,23 @@ export function MobileHostManager() {
   return (
     <div class="flex w-full min-w-0 flex-col gap-4">
       <div class="flex items-center justify-between gap-2">
-        <h3 class="text-14-strong">{t("hostManager.title")}</h3>
+        <h3 class="text-14-medium text-text-strong">{t("hostManager.title")}</h3>
         <Button size="small" onClick={openAdd}>
           {t("hostManager.add")}
         </Button>
       </div>
-      <Show when={runtime.registry.list().length > 0} fallback={<p class="text-13-muted">{t("hostManager.empty")}</p>}>
+      <Show when={runtime.registry.list().length > 0} fallback={<p class="text-14-regular text-text-weak">{t("hostManager.empty")}</p>}>
         <ul class="flex w-full min-w-0 flex-col gap-2">
           <For each={runtime.registry.list()}>
             {(host) => (
-              <li class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-token px-3 py-2">
+              <li class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2">
                 <div class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate text-13-strong">{host.name}</span>
-                  <span class="truncate text-12-muted" dir="ltr">
+                  <span class="truncate text-12-medium text-text-strong">{host.name}</span>
+                  <span class="truncate text-12-regular text-text-weak" dir="ltr">
                     {host.target}
                   </span>
                 </div>
-                <span class="shrink-0 text-12-muted">{stateLabel(t, runtime.stateOf(host.id))}</span>
+                <span class="shrink-0 text-12-regular text-text-weak">{stateLabel(t, runtime.stateOf(host.id))}</span>
                 <div class="flex shrink-0 items-center gap-1">
                   <Switch>
                     <Match when={runtime.stateOf(host.id) === "offline"}>
@@ -88,7 +88,7 @@ export function MobileHostManager() {
           </For>
         </ul>
       </Show>
-      <p class="text-12-muted">{t("hostManager.deleteHint")}</p>
+      <p class="text-12-regular text-text-weak">{t("hostManager.deleteHint")}</p>
       <Show when={dialogOpen()}>
         <HostDialog runtime={runtime} hostId={editingId()} onClose={() => setDialogOpen(false)} />
       </Show>

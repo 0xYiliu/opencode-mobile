@@ -17,18 +17,18 @@ export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; fin
 
   return (
     <div
-      class="flex w-full min-w-0 flex-col gap-4 rounded-[12px] border border-token p-4"
+      class="flex w-full min-w-0 flex-col gap-4 rounded-[12px] border border-border-weak-base p-4"
       role="alertdialog"
       aria-label={t("hostKey.title")}
     >
-      <h4 class="text-14-strong">{t("hostKey.title")}</h4>
+      <h4 class="text-14-medium text-text-strong">{t("hostKey.title")}</h4>
       <div class="flex min-w-0 flex-col gap-1">
-        <span class="text-13-muted">{t("hostKey.fingerprint")}</span>
-        <code class="truncate text-12-strong" dir="ltr">
+        <span class="text-12-regular text-text-weak">{t("hostKey.fingerprint")}</span>
+        <code class="truncate text-12-mono text-text-strong" dir="ltr">
           {fingerprint()}
         </code>
       </div>
-      <p class="text-12-muted">{t("hostKey.note")}</p>
+      <p class="text-12-regular text-text-weak">{t("hostKey.note")}</p>
       <Show when={props.runtime.stateOf(props.hostId) === "hostKeyUnverified"}>
         <div class="flex items-center justify-end gap-2">
           <Button
