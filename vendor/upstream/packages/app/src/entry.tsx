@@ -11,9 +11,8 @@ import { isStandalone, PwaRoutePersistence, restorePwaRoute } from "@/runtime/pl
 import { KeyboardInsets } from "@/runtime/platform/keyboard"
 import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
-import { authFromToken } from "@/runtime/server/api"
 import pkg from "../package.json"
-import { ServerConnection } from "@/runtime/server/registry"
+import { createMobileHosts, NullCredentialResolver, StubHostKeyVerifier } from "@opencode-mobile/mobile-hosts"
 
 const getLocale = () => {
   if (typeof navigator === "undefined") return "en" as const
@@ -41,13 +40,9 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
   throw new Error(getRootNotFoundError())
 }
 
-const clearAuthToken = () => {
-  const params = new URLSearchParams(location.search)
-
-  if (!params.has("auth_token")) return
-  params.delete("auth_token")
-  history.replaceState(null, "", location.pathname + (params.size ? `?${params}` : "") + location.hash)
-}
+// mobile(M-007): the ?auth_token URL passthrough and its cleanup helper are removed with the
+// location.origin server assembly — this shell never assembles a server from the URL, so
+// there is nothing to authenticate here.
 
 const web = createWebPlatform(pkg.version)
 
@@ -78,32 +73,30 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
   // Lazy chunks can import the entry chunk back under a distinct URL, so claim the root before async startup.
   root.dataset.opencodeMounted = ""
   void loadInitialLocale().then((locale) => {
-    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
-    clearAuthToken()
     const standalone = isStandalone()
     root.dataset.standalone = String(standalone)
 
     if (standalone) restorePwaRoute()
 
-    const server: ServerConnection.Http | undefined = web.currentServerUrl
-      ? {
-          type: "http",
-          authToken: !!auth,
-          http: {
-            url: web.currentServerUrl,
-            ...auth,
-          },
-        }
-      : undefined
+    // mobile(M-007): the shell asset origin (http://127.0.0.1:18090) is not an OpenCode
+    // server — the previous assembly of `location.origin` into a ServerConnection could only
+    // fail its health check, so it is removed. SSH hosts come from the first-party registry
+    // as managed extension connections (stable mobile-ssh:<uuid> identity); direct servers
+    // are added through the app's own dialog into the upstream persisted list. The
+    // ?auth_token passthrough is inapplicable in this shell (no assembled server to
+    // authenticate), so its handling is removed with this patch.
+    const hosts = createMobileHosts({
+      storage: window.localStorage,
+      fetch: globalThis.fetch.bind(globalThis),
+      resolver: NullCredentialResolver,
+      hostKey: StubHostKeyVerifier,
+    })
 
     render(
       () => (
         <PlatformProvider value={web.platform}>
           <AppBaseProviders locale={locale}>
-            <AppInterface
-              canonicalLocalServer={server ? ServerConnection.key(server) : undefined}
-              servers={server ? [server] : []}
-            >
+            <AppInterface servers={hosts.upstreamConnections()}>
               <KeyboardInsets />
               {standalone && <PwaRoutePersistence />}
             </AppInterface>

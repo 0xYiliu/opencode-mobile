@@ -72,6 +72,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-credential-ref.ts (schema round-trip keeps credentialRef + password still stripped + dialog forwards original.http.credentialRef and keeps it out of the early-exit comparison); upstream persistence.test.ts targeted run unchanged vs the M-002 baseline (same 4 pass / 1 pre-existing M-002 round-trip expectation).",
       "rebase": "New patch (issue #3); rebase target is the request.mutationFn connection construction block in packages/app/src/servers/connect/dialog.tsx."
+    },
+    {
+      "id": "M-007",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0007-M-007-mobile-hosts-bootstrap-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Shell bootstrap (issue #3). (1) Removes the assembly of location.origin into a ServerConnection: in this Android WebView shell the asset origin http://127.0.0.1:18090 is a static asset server, not an OpenCode service, so that connection could only fail its health check. The ?auth_token URL passthrough is inapplicable for the same reason (no assembled server to authenticate) and is removed with its cleanup helper. (2) Bootstraps the first-party host registry via createMobileHosts (fail-closed host-key stub + Null credential resolver; real counterparts are issues #6/#4) and injects hosts.upstreamConnections() - a solid-store-derived reactive value - as the app's servers prop; direct servers are added through the app's own dialog into the upstream persisted list. Not implemented via the VITE_OPENCODE_SERVER_MODE=none build-time variable on purpose: that would hide the behavior behind build configuration and complicate rebasing; this patch keeps the change visible and rebaseable in one place.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke after applying: bun run build:web succeeds and the built entry chunk contains the mobile-hosts bootstrap (dist marker mobile-ssh / opencode-mobile.hosts.v1). Runtime behavior on device is BLOCKED (G1/G13).",
+      "rebase": "New patch (issue #3); rebase target is the render block of packages/app/src/entry.tsx."
     }
   ]
 }
