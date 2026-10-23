@@ -9,9 +9,9 @@ Verification: `scripts/verify-closure.sh` (V3).
 | --- | --- |
 | Upstream repository | https://github.com/anomalyco/opencode |
 | Branch | `dev` (upstream default branch) |
-| Pin | `cec70f3ed6b64bf0e23a7c62325850ca25d3409b` |
-| Pin date | 2026-10-19T13:06:20+02:00 |
-| Pin subject | `test(gui-extensions): wait for worker rpc handlers to start before aborting (#55988)` |
+| Pin | `b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43` (advanced from `cec70f3ed6b64bf0e23a7c62325850ca25d3409b` via the issue #27 update exercise; see below) |
+| Pin date | 2026-10-23T10:28:20-07:00 |
+| Pin subject | `fix(app,client): wire session transcript retention and evict background transcripts (#57025)` |
 | Local cache | `~/.cache/opencode-upstream` (`clone --filter=blob:none`) |
 
 Acquisition command (whole-repo copy is forbidden by policy; only the closure below is
@@ -29,7 +29,7 @@ scripts/vendor-sync.sh
 
 `app, client, protocol, schema, session-ui, ui, util, gui-extensions, plugin-browser, plugin, ai`
 
-- 4379 files, ~43 MB under `packages/` (measured at pin, before install).
+- 4460 files, ~45 MB under `packages/` (measured at the pin, before install; excludes install/build artifacts).
 - Excluded packages: `cli, codemode, console, containers, core, desktop,
   effect-drizzle-sqlite, function, http-recorder, httpapi-codegen, identity, latex,
   merman, plugins, posts, script, sdk, server, simulation, stats, storybook, theme, tui, web`
@@ -53,6 +53,41 @@ scripts/vendor-sync.sh
 
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).
+
+## Upstream update exercise (issue #27 lifecycle, S3)
+
+The pin was advanced from `cec70f3ed6b64bf0e23a7c62325850ca25d3409b` (2026-10-19,
+v2.0.32) to `b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43` (2026-10-23, v2.1.4 cycle).
+
+- **Selection**: app/client-touching fix (#57025 session transcript retention); all 9
+  carried patch keys verified present in the candidate lock segment with identical
+  versions; M-002 target file unchanged; 241 candidate commits considered on origin/dev.
+- **Closure refresh**: 289 closure files changed; root catalog/overrides re-synced
+  (@pierre/highlights 0.2.0 new, @pierre/diffs 1.6.1, @opentui 0.6.8, bun-types 1.4.4
+  override); candidate `[install]` bunfig mirrored (upstream itself added
+  `@pierre/highlights`, `bun-types`, `typescript@7.1.0-beta` to the release-age excludes;
+  `minimumReleaseAge` unchanged at 259200). First install attempt failed on
+  `@pierre/highlights@0.2.0` (<3 days old) until the candidate bunfig was mirrored.
+- **Patch lifecycle**: M-001/M-003 regenerated at the candidate (electron version bump
+  and hunk line shifts; semantics unchanged, conflict resolutions recorded in
+  `patches/mobile/manifest.json`); M-002 applied verbatim (target unchanged). Carried
+  upstream patch files are byte-identical between pins; upstream's
+  `@modelcontextprotocol/client` patch move (2.0.0→2.3.1) and photon-node patch change
+  affect only our explicit not-carried set.
+- **Regression**: V1 PASS (9/9 patch segment, no silent skip), V2 PASS (6138 modules,
+  3330 dist files), V3 PASS, V-cred PASS, V7 PASS, V4 BLOCKED unchanged (same 12
+  user-decision items as before the update — no new license class).
+- **Rollback demo**: performed for real (git restore to the previous pin + vendor-sync +
+  clean reinstall + rebuild). Preferred sha256-identity criterion met for 3110/3138
+  dist files; the 28 differing files are all `.map` sourcemaps (vite/rolldown map
+  emission is not byte-reproducible across runs); fallback criterion (V3 + V2) met —
+  rollback SUCCESS with that caveat recorded. Operational finding: swapping
+  `bun.lock` back requires removing `node_modules` first — bun 1.4.2 reported
+  "no changes" against a stale superset store.
+- **Gate report**: Gradle/Android build, device gates G1–G12 and live-service E2E are
+  BLOCKED (not passed) — no Android SDK, no device, no authorized service.
+- **Decision**: pin advanced; rationale and full record in `provenance.json`
+  (`pinUpdateExercise`).
 
 ## Upstream npm patches — carried subset (9)
 
@@ -79,7 +114,8 @@ Not carried, with reasons (explicit deviation protocol — no silent dead entrie
   skips version-mismatched keys, so carrying it would be a dead entry.
 - `@ai-sdk/google@3.0.73`, `@ai-sdk/mistral@3.0.51`, `@standard-community/standard-openapi@0.2.9`
   — same: declared upstream, absent from the lock segment.
-- `@modelcontextprotocol/client@2.0.0`, `@silvia-odwyer/photon-node@0.3.4`,
+- `@modelcontextprotocol/client@2.3.1` (key was 2.0.0 at the previous pin; upstream moved
+  the patch during the update exercise), `@silvia-odwyer/photon-node@0.3.4`,
   `@ff-labs/fff-bun@0.10.5`, `@ai-sdk/openai-compatible@2.0.41` — in the lock segment but
   outside the closure dependency graph.
 

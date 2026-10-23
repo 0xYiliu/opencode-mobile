@@ -1,8 +1,8 @@
 diff --git a/packages/gui-extensions/package.json b/packages/gui-extensions/package.json
-index 7e3d317..5f0f354 100644
+index af00e88..3b718ff 100644
 --- a/packages/gui-extensions/package.json
 +++ b/packages/gui-extensions/package.json
-@@ -51,13 +51,10 @@
+@@ -52,13 +52,10 @@
    },
    "devDependencies": {
      "@happy-dom/global-registrator": "20.0.11",
@@ -12,7 +12,7 @@ index 7e3d317..5f0f354 100644
      "@types/node": "catalog:",
      "@typescript/native": "catalog:",
 -    "devtools-protocol": "0.0.1687809",
--    "electron": "44.4.5",
+-    "electron": "44.9.1",
      "electron-updater": "6.8.9",
      "lighthouse": "13.4.1",
      "vite": "catalog:"

@@ -52,13 +52,15 @@ for mp in $MOBILE_PATCHES; do
   (cd "$SCRATCH" && git apply --directory="$WORK_REL/pristine" "$DEST/$mp")
 done
 
-DIFFS="$(diff -r "$WORK/pristine/packages" "$DEST/packages" 2>&1 || true)"
+DIFFS="$(diff -r \
+  --exclude=node_modules --exclude=dist --exclude=.vite --exclude=.turbo \
+  "$WORK/pristine/packages" "$DEST/packages" 2>&1 || true)"
 if [ -n "$DIFFS" ]; then
   echo "V3(a) FAIL: vendor packages tree differs from pin tree + registered patches:"
   echo "$DIFFS" | head -40
   status=1
 else
-  echo "V3(a) OK: vendor packages tree == pin $PIN + registered mobile patches (byte-identical)"
+  echo "V3(a) OK: vendor packages tree == pin $PIN + registered mobile patches (byte-identical; install/build artifact dirs node_modules|dist|.vite|.turbo excluded)"
 fi
 
 for f in $TOPFILES; do

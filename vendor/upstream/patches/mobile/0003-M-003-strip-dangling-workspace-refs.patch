@@ -1,8 +1,8 @@
 diff --git a/packages/ai/package.json b/packages/ai/package.json
-index 8220243..f4ddd97 100644
+index 87af79a..a2cdab9 100644
 --- a/packages/ai/package.json
 +++ b/packages/ai/package.json
-@@ -22,7 +22,6 @@
+@@ -23,7 +23,6 @@
    "devDependencies": {
      "@clack/prompts": "1.0.0-alpha.1",
      "@effect/platform-node": "catalog:",
@@ -11,28 +11,28 @@ index 8220243..f4ddd97 100644
      "@types/bun": "catalog:",
      "@typescript/native": "catalog:",
 diff --git a/packages/client/package.json b/packages/client/package.json
-index 0b4edd8..985cec7 100644
+index 0ef2d11..afe9ffc 100644
 --- a/packages/client/package.json
 +++ b/packages/client/package.json
-@@ -50,7 +50,6 @@
-   },
+@@ -53,7 +53,6 @@
    "devDependencies": {
      "@effect/platform-node": "catalog:",
+     "@modelcontextprotocol/client": "2.3.1",
 -    "@opencode/httpapi-codegen": "workspace:*",
      "@tsconfig/bun": "catalog:",
      "@types/bun": "catalog:",
      "@typescript/native": "catalog:",
 diff --git a/packages/plugin/package.json b/packages/plugin/package.json
-index ca02610..64e71a4 100644
+index d812010..7c84c2c 100644
 --- a/packages/plugin/package.json
 +++ b/packages/plugin/package.json
-@@ -37,15 +37,11 @@
+@@ -38,15 +38,11 @@
      "effect": "catalog:"
    },
    "peerDependencies": {
 -    "@opencode/theme": "workspace:*",
-     "@opentui/core": ">=0.5.17",
-     "@opentui/solid": ">=0.5.17",
+     "@opentui/core": ">=0.6.8",
+     "@opentui/solid": ">=0.6.8",
      "solid-js": ">=1.9.0"
    },
    "peerDependenciesMeta": {
@@ -42,7 +42,7 @@ index ca02610..64e71a4 100644
      "@opentui/core": {
        "optional": true
      },
-@@ -57,7 +53,6 @@
+@@ -58,7 +54,6 @@
      }
    },
    "devDependencies": {

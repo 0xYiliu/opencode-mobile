@@ -3,9 +3,9 @@
   "upstream": {
     "repository": "https://github.com/anomalyco/opencode",
     "branch": "dev",
-    "pin": "cec70f3ed6b64bf0e23a7c62325850ca25d3409b",
-    "pinDate": "2026-10-19T13:06:20+02:00",
-    "pinSubject": "test(gui-extensions): wait for worker rpc handlers to start before aborting (#55988)",
+    "pin": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+    "pinDate": "2026-10-23T10:28:20-07:00",
+    "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
     "acquisition": "git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE | tar -x"
   },
   "packages": [
@@ -21,7 +21,9 @@
     "plugin",
     "ai"
   ],
-  "topLevelFiles": ["LICENSE"],
+  "topLevelFiles": [
+    "LICENSE"
+  ],
   "partialPackages": [
     {
       "path": "packages/desktop/icons/dev",
