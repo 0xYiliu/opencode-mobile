@@ -109,7 +109,7 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 
 | 项 | 说明 | 处置 |
 | --- | --- | --- |
-| 返回键实现与计划表述差异 | 计划 §3 写 `onBackPressedDispatcher`，该 API 属 androidx，与「零 androidx」约束冲突；按框架 `onBackPressed` 实现（minSdk 29 全覆盖），保持 `enableOnBackInvokedCallback` 不启用以维持行为 | 已在 [design/interaction.md](design/interaction.md) 交互基线记录；预测性返回迁移留后续 issue |
+| 返回键实现与计划表述差异 | 计划 §3 写 `onBackPressedDispatcher`，该 API 属 androidx，与「零 androidx」约束冲突；按框架 `onBackPressed` 实现（minSdk 29 全覆盖）。Android 16 起 targetSdk ≥ 36 默认开启 predictive back、`onBackPressed` 不再被调用，故 manifest 显式 `android:enableOnBackInvokedCallback="false"` 维持该行为；未来迁移 `OnBackInvokedCallback` 需 minSdk（API 33+）守卫 | 已在 [design/interaction.md](design/interaction.md) 交互基线记录；迁移留后续 issue |
 | 许可审计条目口径 | 交接摘要「lightningcss×2」为概数；实跑 12 项中 lightningcss 系为 6 项（2 个 JS 版本 + 4 个平台原生二进制包） | 按实跑输出记录（本文上表），以 `provenance.json` 的 12 项总数为准 |
 | 回滚比对计数口径 | `web-dist/manifest.json` fileCount=3330；演练回滚首选判定记录为 3110/3138。两处计数口径未在本段重新调和，本文不改写，以 `provenance.json` 原文为准 | 记录为待澄清口径（不影响 fallback 判定结论） |
 | sourcemap 不可复现 | 28/3138 `.map` 跨构建字节不同 | 已接受限制（fallback 判定放行），见演练记录 |

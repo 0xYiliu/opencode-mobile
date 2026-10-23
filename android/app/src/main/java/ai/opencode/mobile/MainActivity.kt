@@ -87,8 +87,11 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // androidx OnBackPressedDispatcher is unavailable (zero-androidx constraint); the
-        // framework callback stays valid while enableOnBackInvokedCallback remains unset.
+        // androidx OnBackPressedDispatcher is unavailable (zero-androidx constraint). The
+        // manifest sets enableOnBackInvokedCallback="false" because Android 16 defaults
+        // predictive back ON for targetSdk >= 36 apps, which would make this callback dead
+        // code. Migrating to the platform OnBackInvokedCallback needs a minSdk guard
+        // (API 33+) — follow-up issue.
         if (::webView.isInitialized && webView.canGoBack()) {
             webView.goBack()
         } else {

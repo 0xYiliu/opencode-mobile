@@ -8,7 +8,7 @@
 - 壳层自有交互仅四项（均已实现、未验证，见 [units/shell-startup.md](units/shell-startup.md)）：返回键（`canGoBack` → goBack，否则结束 Activity）、SSL 错误处理（恒 CANCEL）、控制台日志（固定 tag，不含 URL 参数/请求头/凭据）、生命周期停止范围（仅本地回环 asset server）。
 - 软键盘与视口：沿用上游 `viewport`（`interactive-widget=resizes-content`、`viewport-fit=cover`），见 [visual.md](visual.md)。
 - 深链：不实现（未注册 VIEW intent-filter，代码留 TODO）。
-- 返回手势：壳按 `onBackPressed` 实现并保持 `enableOnBackInvokedCallback` 未启用；预测性返回（OnBackInvokedCallback / androidx 迁移）为后续 issue 事项。此为 zero-androidx 约束下的实现口径，与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
+- 返回手势：壳按 `onBackPressed` 实现，manifest 显式声明 `android:enableOnBackInvokedCallback="false"`——Android 16 起 targetSdk ≥ 36 的应用默认启用 predictive back，`onBackPressed` 将不再被调用，必须显式禁用才能维持该行为；迁移平台 `OnBackInvokedCallback` 需 minSdk 守卫（API 33+），为后续 issue 事项。与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
 
 ## G1–G12 设备门禁（完整枚举）
 
