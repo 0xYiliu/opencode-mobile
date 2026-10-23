@@ -36,6 +36,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V1 (bun install) succeeds and V3(b) workspace-reference scan reports zero dangling refs.",
       "rebase": "S3 exercise: regenerated at b4525d79bf (the three target package.json files shifted line numbers upstream; all three dangling refs still present with identical semantics; hunks re-derived, no semantic change)."
+    },
+    {
+      "id": "M-004",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
+      "targets": [
+        "packages/app/vite.js"
+      ],
+      "reason": "Build-time seam so the vendored app can import the first-party host registry (@opencode-mobile/mobile-hosts, issue #3). The alias value is expressed as fileURLToPath(new URL(\"../../../../packages/mobile-hosts/src/index.ts\", import.meta.url)) - importer-relative like the existing fonts-cjk stub, so the four .. segments land on the repository root's packages/; a bare relative string would resolve against the importer and miss. Dependency direction stays one-way: the vendored packages themselves do not depend on the first-party package; only this alias resolves the specifier at build time.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 (verify-closure) tree equivalence with the patch registered; V2 build smoke after applying: `bun run build:web` succeeds and the built entry chunk resolves the mobile-hosts modules (no unresolved import errors).",
+      "rebase": "New patch (issue #3); rebase target is the resolve.alias block in packages/app/vite.js."
     }
   ]
 }

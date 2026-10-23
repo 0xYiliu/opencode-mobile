@@ -48,7 +48,8 @@
   "mobilePatches": [
     "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
     "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
-    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch"
+    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+    "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch"
   ],
   "excluded": {
     "packages": [

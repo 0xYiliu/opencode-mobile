@@ -98,6 +98,13 @@ export default [
             "@betteroffice/fonts-cjk": fileURLToPath(
               new URL("../gui-extensions/src/microsoft-office/fonts-cjk.ts", import.meta.url),
             ),
+            // mobile(M-004): the first-party host registry lives outside the vendor closure, at
+            // the repository root's packages/. Like the fonts-cjk entry above, the URL is
+            // importer-relative (packages/app), so four ".." segments reach the repo root; a
+            // bare relative string would be resolved against the importer and miss.
+            "@opencode-mobile/mobile-hosts": fileURLToPath(
+              new URL("../../../../packages/mobile-hosts/src/index.ts", import.meta.url),
+            ),
           },
         },
         define: {
