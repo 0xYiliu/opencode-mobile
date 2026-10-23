@@ -27,6 +27,10 @@ local.properties
 key.properties
 keystore.properties
 
+# Gradle wrapper jar is bootstrapped locally (gradle wrapper --gradle-version 8.11.1);
+# only gradle-wrapper.properties is committed.
+android/gradle/wrapper/gradle-wrapper.jar
+
 # Secrets and signing material (not a substitute for reviewing staged files)
 .ssh/
 secrets/
