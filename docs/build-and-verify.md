@@ -44,7 +44,7 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | V-cred 凭据静态验证 | 源码 grep + dist 标记检索 + 语义探针 | PASS：(a) `persistence.ts` encode 剥离 password 且含 `mobile(M-002)` 标记，app/src/runtime 无其他持久化写入路径；(b) dist 压缩产物中标记命中（`dist/_assets/health-6k7mPhm6.js` + .map）。诚实边界：压缩产物仍含与 auth header 拼接相关的无关 password 字面量；真机负例归 G9 | `provenance.json#pinUpdateExercise.regression.V_cred` |
 | V5 JSON 结构校验 | `python3 -m json.tool` | PASS（2026-10-24 重跑）：`provenance.json`、`vendor-manifest.json`、`patches/mobile/manifest.json`、`web-dist/manifest.json` 全部可解析 | 本文 |
 | V6 Android XML 校验 | python3 `xml.dom.minidom` 解析 | PASS（2026-10-24 真实执行）：`AndroidManifest.xml`（root `<manifest>`）、`network_security_config.xml`（root `<network-security-config>`）为计划要求项；另覆盖 `themes.xml`、`strings.xml`（root `<resources>`），全部解析成功、退出码 0 | 本文 |
-| V7 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；2026-10-24 重跑）：高置信模式仅命中 7 处已过滤的文档示例凭据（AWS `AKIAIOSFODNN7EXAMPLE`，上游测试 fixture；S3 更新后较前段记录的 3 处增加，均为同类别示例键）；`git check-ignore` 抽查全部忽略 | 脚本输出 |
+| V7 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；评审修复后 2026-10-24 重跑）：高置信模式仅命中 7 处已过滤的 AWS 文档示例密钥（AKIA…EXAMPLE 形式；构成：扫描脚本自身模式行 4 处 + 上游 test fixture 3 处；计数不含本文自引用，本文不引用完整示例键字面量）；`git check-ignore` 抽查全部忽略 | 脚本输出 |
 | V8 证据文档 | 本文 | 记录完成 | — |
 | 锁文件哈希 | `sha256sum bun.lock` | `05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4`（与 `provenance.json#pinUpdateExercise.closureRefresh.lockDiff` 记录一致，reconciliation 确定性复现） | 本文 |
 
@@ -86,7 +86,7 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
-`bun run scripts/license-audit.ts`：1089 packages 审计，STOP 于以下 12 项（7 类包名家族；NOTICE-THIRD-PARTY.md 因此未生成）：
+`bun run scripts/license-audit.ts`：1089 packages 审计，STOP 于以下 12 项（9 个独立包，按平台二进制折叠为 6 家族；NOTICE-THIRD-PARTY.md 因此未生成）：
 
 | 包 | 版本 | 许可 | 审计判定 |
 | --- | --- | --- | --- |
@@ -111,7 +111,7 @@ scripts/vendor-sync.sh [revision]      # 闭包重建（S3 演练复用）
 | --- | --- | --- |
 | 返回键实现与计划表述差异 | 计划 §3 写 `onBackPressedDispatcher`，该 API 属 androidx，与「零 androidx」约束冲突；按框架 `onBackPressed` 实现（minSdk 29 全覆盖）。Android 16 起 targetSdk ≥ 36 默认开启 predictive back、`onBackPressed` 不再被调用，故 manifest 显式 `android:enableOnBackInvokedCallback="false"` 维持该行为；未来迁移 `OnBackInvokedCallback` 需 minSdk（API 33+）守卫 | 已在 [design/interaction.md](design/interaction.md) 交互基线记录；迁移留后续 issue |
 | 许可审计条目口径 | 交接摘要「lightningcss×2」为概数；实跑 12 项中 lightningcss 系为 6 项（2 个 JS 版本 + 4 个平台原生二进制包） | 按实跑输出记录（本文上表），以 `provenance.json` 的 12 项总数为准 |
-| 回滚比对计数口径 | `web-dist/manifest.json` fileCount=3330；演练回滚首选判定记录为 3110/3138。两处计数口径未在本段重新调和，本文不改写，以 `provenance.json` 原文为准 | 记录为待澄清口径（不影响 fallback 判定结论） |
+| 回滚比对计数口径 | 3138 = 前 pin（cec70f3）构建的 dist 文件基数（回滚重建后与之比对），3330 = 候选 pin（b4525d79）构建基数（当前 `web-dist/manifest.json`）——两次构建本就不同分母，3110/3138 是回滚重建相对其自身基数的字节一致数 | 结论句替代此前「待澄清」记录；不影响 fallback 判定结论 |
 | sourcemap 不可复现 | 28/3138 `.map` 跨构建字节不同 | 已接受限制（fallback 判定放行），见演练记录 |
 | 泄漏扫描非 gitleaks | 环境无 gitleaks，`scripts/leak-scan.sh` 为启发式 + check-ignore 抽查 | 脚本头与本文均已明示 |
 | gradle-wrapper jar 不提交 | 仅提交 `gradle-wrapper.properties`；jar 由 `gradle wrapper --gradle-version 8.11.1` 本地引导 | `.gitignore` 已登记 |

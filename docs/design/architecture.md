@@ -43,7 +43,7 @@
 
 ## 信任边界
 
-- **origin**：UI 资产来自 `http://127.0.0.1:18090`（本机任意 App 可绑定回环端口，理论上存在端口占用/冒充面；本轮按计划固定端口交付，随机端口与 origin 固化等加固留待后续 issue）。对远程 API 的调用是跨源请求，CORS 行为见下节。
+- **origin**：UI 资产来自 `http://127.0.0.1:18090`（本机任意 App 可绑定回环端口，理论上存在端口占用/冒充面；本轮按计划固定端口交付，随机端口与 origin 固化等加固留待后续 issue）。运行期其他 App 亦可连接 18090 端口读取静态资产（均为公开于 APK 的内容，无秘密）。对远程 API 的调用是跨源请求，CORS 行为见下节。
 - **TLS**：仅系统 CA（network_security_config base-config 显式声明，不信任用户安装 CA）；`onReceivedSslError` 恒 CANCEL 并仅记录错误类别，绝不 proceed；不用关闭校验规避错误。
 - **cleartext**：全局 `usesCleartextTraffic=false` + base-config 禁明文；仅 `127.0.0.1`/`localhost` 域名配置允许 cleartext（资产服务与 SSH 隧道回环口）；局域网 HTTP 直连放行不在本轮范围。
 - **凭据流（M-002 memory-only）**：用户输入密码 → 仅存于内存 → 在 `packages/app/src/runtime/server/api.ts` 的 `authTokenFromCredentials` 处拼接 `Basic ${btoa("opencode:<password>")}` 进入 Authorization 请求头 → 持久化编码路径（`persistence.ts` encode）恒剥离 password，任何持久化后端收不到凭据；`authToken` 是布尔标志（是否带 token），非机密。完整口径与用户可见后果见 [interaction.md](interaction.md) 的 memory-only notice。
