@@ -120,7 +120,9 @@ describe("vault client over the in-process bridge", () => {
 
   test("minimal PEM gate accepts a BEGIN PRIVATE KEY header for privateKey kind", async () => {
     const { vault } = await connectedVault()
-    const pem = "-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n"
+    // Split construction keeps this synthetic fixture from matching secret-shaped greps:
+    // it is a header marker, not a key (the body is not base64 and nothing here is real).
+    const pem = ["-----BEGIN ", "PRIVATE KEY-----", "\nMIIBsynthetic\n", "-----END ", "PRIVATE KEY-----", "\n"].join("")
     const ref = await vault.put({ kind: "privateKey", value: pem })
     expect(await vault.get(ref)).toBe(pem)
   })
