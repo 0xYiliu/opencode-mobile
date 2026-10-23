@@ -20,8 +20,8 @@ class WebAssetServer(
 ) : NanoHTTPD(LOOPBACK_HOST, port) {
 
     override fun serve(session: IHTTPSession): Response {
-        // session.uri may carry a query string depending on the NanoHTTPD parsing path;
-        // drop it before path handling so query parameters can never select asset files.
+        // NanoHTTPD 2.3.1 strips the query string before decodeHeader populates session.uri;
+        // substringBefore stays as defense in depth so a '?' can never select asset files.
         val path = resolveAssetPath((session.uri ?: "/").substringBefore('?'))
             ?: return plain(Response.Status.FORBIDDEN, "forbidden\n")
         return serveAsset(path)
@@ -49,16 +49,20 @@ class WebAssetServer(
     /**
      * Normalizes the request path and refuses anything that is not a plain relative
      * segment list. Returns null for rejected paths (traversal attempts included) and
-     * an empty string for the root. Percent sequences are decoded before checking, so
-     * "%2e%2e" cannot smuggle a ".." past the comparison.
+     * an empty string for the root. Decoding model: NanoHTTPD 2.3.1 has already
+     * percent-decoded the URI once before it reaches session.uri, and this decodes a
+     * second time, so every smuggle form (%2e%2e, %2f, %252e%252e, %255c, raw '+')
+     * resolves to its literal characters before the checks below — never relax them on
+     * the assumption that the input is still encoded.
      */
     private fun resolveAssetPath(rawPath: String): String? {
         if (!rawPath.startsWith("/")) return null
         val segments = ArrayList<String>()
         for (segment in rawPath.split('/')) {
             if (segment.isEmpty() || segment == ".") continue
-            // Packaged asset names contain no '+', so rejecting it here avoids
-            // URLDecoder's form-urlencoded '+'-to-space rewrite of path characters.
+            // Defense in depth: after NanoHTTPD's decode and the second decode below, a
+            // '+' can only come from a literal or double-encoded request; no packaged
+            // asset name contains one, so '+' is rejected outright.
             if (segment.contains('+')) return null
             val decoded = try {
                 URLDecoder.decode(segment, "UTF-8")
@@ -79,8 +83,10 @@ class WebAssetServer(
         return MIME_BY_EXTENSION[name.substring(dot + 1).lowercase()] ?: DEFAULT_MIME
     }
 
-    private fun plain(status: Response.Status, text: String): Response =
-        newFixedLengthResponse(status, MIME_PLAINTEXT, ByteArrayInputStream(text.toByteArray()), text.length.toLong())
+    private fun plain(status: Response.Status, text: String): Response {
+        val payload = text.toByteArray()
+        return newFixedLengthResponse(status, MIME_PLAINTEXT, ByteArrayInputStream(payload), payload.size.toLong())
+    }
 
     companion object {
         const val LOOPBACK_HOST = "127.0.0.1"
