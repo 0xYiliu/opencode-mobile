@@ -1,0 +1,19 @@
+{
+  "name": "@opencode-mobile/mobile-hosts",
+  "version": "0.1.0",
+  "description": "First-party host registry, stable identity and connection state machine for the OpenCode mobile shell (issue #3).",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@opencode/client": "workspace:*",
+    "@opencode/ui": "workspace:*",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

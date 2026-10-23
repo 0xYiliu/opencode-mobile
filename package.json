@@ -12,6 +12,7 @@
   },
   "workspaces": {
     "packages": [
+      "packages/*",
       "vendor/upstream/packages/*"
     ],
     "catalog": {
