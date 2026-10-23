@@ -24,7 +24,7 @@
 ┌─────────────────────────── Android 壳（本仓库 android/，已实现（未验证）） ───────────────────────────┐
 │  MainActivity                                                                                        │
 │    └─ WebAssetServer（NanoHTTPD，仅绑 127.0.0.1:18090）                                               │
-│         └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，3329 项静态文件 + sw.js）          │
+│         └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，3330 项文件，含 PWA service worker）│
 │  WebView（javaScriptEnabled / domStorageEnabled；文件与内容访问关闭；geolocation 关闭）                │
 │    origin = http://127.0.0.1:18090（回环可信上下文；PWA SW 可注册，行为归 G10）                        │
 └──────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
