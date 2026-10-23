@@ -159,6 +159,9 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     } catch (error) {
       if (controller.signal.aborted) return
       send(id, { type: "fail", reason: error instanceof Error ? error.message : "transport-error" })
+    } finally {
+      // Clear this attempt's controller, unless a newer attempt has replaced it.
+      if (attempts.get(id) === controller) attempts.delete(id)
     }
   }
 

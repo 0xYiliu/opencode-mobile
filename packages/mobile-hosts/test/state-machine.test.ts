@@ -17,7 +17,7 @@ function drivingTransport() {
   const transport: HostTransport = {
     open: async (input) => {
       calls.push(input.target)
-      return { url: "http://127.0.0.1:0" }
+      return { url: "http://127.0.0.1:45678" }
     },
   }
   return { calls, transport }
@@ -160,6 +160,27 @@ describe("state machine transitions T1–T14", () => {
     hosts.remove(host.id)
     expect(calls.length).toBe(1) // delete never calls the transport
     expect(hosts.stateOf(host.id)).toBe("idle")
+  })
+
+  test("disconnect from a ready host performs zero transport calls and drops the endpoint", async () => {
+    const { calls, transport } = drivingTransport()
+    const hosts = createMobileHosts({
+      storage: createMemoryStorage(),
+      transport,
+      hostKey: { verify: async () => ({ action: "trust" as const }) },
+    })
+    const host = hosts.registry.add({ name: "h", target: "user@example.invalid" })
+    hosts.connect(host.id)
+    await flush()
+    expect(hosts.stateOf(host.id)).toBe("ready")
+    expect(calls.length).toBe(1)
+    // While ready, the mapped connection surfaces the in-memory endpoint.
+    expect(hosts.upstreamConnections()[0]?.http.url).toBe("http://127.0.0.1:45678")
+    hosts.disconnect(host.id)
+    expect(hosts.stateOf(host.id)).toBe("idle")
+    expect(calls.length).toBe(1) // disconnect is local-only: no further transport call, no remote signal
+    // The endpoint no longer surfaces on the mapped connection (state left ready).
+    expect(hosts.upstreamConnections()[0]?.http.url).toBe("http://127.0.0.1:0")
   })
 
   test("illegal transitions are rejected in both directions", () => {

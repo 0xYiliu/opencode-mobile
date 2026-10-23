@@ -50,6 +50,12 @@ describe("extension mapping", () => {
     expect(conn.state).toBe("ready")
     expect(conn.connecting).toBe(false)
 
+    // A real endpoint must never surface on a non-ready state, even if one is supplied.
+    for (const state of ["idle", "connecting", "hostKeyUnverified", "authRequired", "incompatible", "offline", "reconnecting", "failed"] as const) {
+      const mapped = toExtensionConnection({ record: RECORD, state, endpoint: { url: "http://127.0.0.1:45133" } })
+      expect(mapped.http).toEqual({ url: "http://127.0.0.1:0" })
+    }
+
     for (const state of ["idle", "connecting", "hostKeyUnverified", "ready", "authRequired", "incompatible", "offline", "reconnecting", "failed"] as const) {
       const mapped = toExtensionConnection({ record: RECORD, state })
       expect(mapStateToServerState(state)).toBe(mapped.state)

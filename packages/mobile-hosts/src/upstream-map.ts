@@ -75,8 +75,13 @@ export function toExtensionConnection(input: ToExtensionConnectionInput): Extens
     connecting: input.state === "connecting" || input.state === "reconnecting" || input.state === "hostKeyUnverified",
     authenticationRequired: input.state === "authRequired",
     managed: true,
-    // Endpoint lives in memory only; the password (never present this phase) never persists.
-    http: input.endpoint ? { url: input.endpoint.url, password: input.endpoint.password } : { url: OFFLINE_ENDPOINT },
+    // Endpoint lives in memory only and only ever surfaces on the ready state — a non-ready
+    // connection must never expose a real endpoint URL. The password (never present this
+    // phase) never persists.
+    http:
+      input.state === "ready" && input.endpoint
+        ? { url: input.endpoint.url, password: input.endpoint.password }
+        : { url: OFFLINE_ENDPOINT },
     displayName: input.record.name,
     label: "SSH",
   }
