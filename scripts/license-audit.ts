@@ -148,17 +148,19 @@ for (const pkg of [...pkgs.values()].sort((a, b) => a.name.localeCompare(b.name)
     problems.push(`UNKNOWN license: ${pkg.name}@${pkg.version} (no license field) — ${pkg.path}`)
     continue
   }
+  // The allowlist is checked first: an allowlisted weak-copyleft id (MPL-1.1) must not be
+  // shadowed by the stop patterns below — review correction N7b, output unchanged.
+  if (isPermissive(ids)) {
+    const label = ids.join(" OR ")
+    byLicense.set(label, [...(byLicense.get(label) ?? []), `${pkg.name}@${pkg.version}`])
+    continue
+  }
   const reason = stopReason(ids)
   if (reason) {
     problems.push(`COPYLEFT/STOP: ${pkg.name}@${pkg.version} license ${reason} — ${pkg.path}`)
     continue
   }
-  if (!isPermissive(ids)) {
-    problems.push(`UNRECOGNIZED license: ${pkg.name}@${pkg.version} ${JSON.stringify(pkg.license)} — ${pkg.path}`)
-    continue
-  }
-  const label = ids.join(" OR ")
-  byLicense.set(label, [...(byLicense.get(label) ?? []), `${pkg.name}@${pkg.version}`])
+  problems.push(`UNRECOGNIZED license: ${pkg.name}@${pkg.version} ${JSON.stringify(pkg.license)} — ${pkg.path}`)
 }
 
 if (problems.length > 0) {
