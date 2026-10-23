@@ -114,6 +114,6 @@ class MainActivity : Activity() {
 
     companion object {
         private const val TAG = "OpencodeShell"
-        private const val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
+        private val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
     }
 }
