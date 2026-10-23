@@ -62,7 +62,7 @@ bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探
 | 能力/条目 | implemented | built-local-test | device-tested | real-remote-tested |
 | --- | --- | --- | --- | --- |
 | vendor 闭包 + provenance + 补丁（M-001/002/003） | ✓ | ✓（V1/V3/V-cred） | BLOCKED | BLOCKED |
-| mobile-hosts 包（注册表/身份键/状态机/端口 stub/映射/UI） | ✓ | ✓（V-mh：48 单测） | BLOCKED（G13–G15） | BLOCKED |
+| mobile-hosts 包（注册表/身份键/状态机/端口 stub/映射/UI） | ✓ | ✓（V-mh：50 单测） | BLOCKED（G13–G15） | BLOCKED |
 | vendor 运行时接缝（M-004…M-008） | ✓ | ✓（V2 冒烟 ×3、V3 ×5、V-cRef） | BLOCKED（G1/G13/G14） | BLOCKED |
 | connection 字段契约 + credentialRef（M-005/M-006） | ✓ | ✓（V-cRef） | BLOCKED（G9/G14） | BLOCKED |
 | web 静态构建（含 PWA SW、主题） | ✓ | ✓（V2，3330 文件） | BLOCKED（G1/G10） | BLOCKED |
@@ -91,6 +91,12 @@ bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探
 | V7 泄漏扫描（issue #3 重跑） | `bash scripts/leak-scan.sh` | PASS（rc=0；启发式扫描，非 gitleaks）；新第一方包无凭据形字面量 | 脚本输出 |
 | 文档链接核对 | `test -f` 全量核对（docs/design/**、README、project-scope、build-and-verify） | PASS（见机械检查记录） | 本文 |
 | 单元清单 ↔ units 文件对应 | 人工核对 | architecture.md 清单 9 行 ↔ units/ 3 文档 + 6 TODO 行，一一对应，无幽灵行（host-manager/host-dialog 归 server-list、host-key-prompt 归 connection，清单不单列新行） | 本文 |
+| V-css（评审修复轮） | `bun run build:web` + dist CSS 选择器静态核验 | PASS：新令牌类 `.text-12-regular/.text-12-medium/.text-12-mono/.text-14-regular/.text-14-medium/.text-text-strong/.text-text-weak/.border-border-weak-base/.rounded-\[8px\]` 全部命中 dist CSS；6 个非法类（text-14-strong/text-13-strong/text-13-muted/text-12-strong/text-12-muted/border-token）零残留。诚实发现：`text-danger-base` 在本构建同样不生成（主题无 danger 色令牌），已一并改用 text-text-strong + role=alert/status | 本文 |
+| V-lock（评审修复轮） | `bun install` + `--frozen-lockfile` + 段比对 | PASS：移除 mobile-hosts 未使用的 `@opencode/client` 依赖（源码零引用；#6 需要时再按 workspace:* 加回），bun.lock 仅 −1 行；patchedDependencies 9/9 逐字不变；`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`（换锁前删除 node_modules 重建） | 本文 |
+| V2 最终产物（评审修复轮） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，11.64s）；3329 文件 / 152,740,475 bytes；`web-dist/manifest.json` generatedAt 2026-10-23T21:58:58Z，sha256 `ebbdcf1b47e680f7ddc92aac65ca96fa62b94e2bc4780f0cf8c2995853fa7379` | 本文 |
+| V-mh（评审修复轮） | `bun test --conditions=browser packages/mobile-hosts` | **50 tests / 50 pass / 0 fail，821 expect()**（新增：引用清空到达持久化载荷、非 ready 态不暴露真实端点、driver 级 disconnect 零 transport 调用） | 本文 |
+| V-cRef（评审修复轮） | `bun run scripts/verify-credential-ref.ts` | PASS（语义未变，重跑确认） | 本文 |
+| V3（评审修复轮） | `bash scripts/verify-closure.sh` | PASS（树等价 + DANGLING=0；本轮零 vendor 源码改动，补丁集不变） | 本文 |
 
 ### 诚实边界（issue #3 段）
 
@@ -161,6 +167,8 @@ bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探
 | bun test 条件选择 | solid-js@1.9.15 exports 无 `solid` 条目；本包单测用 `--conditions=browser` 选中响应式 client 构建（repro 验证），与上游 app 测试的 `--conditions=solid`+happy-dom 组合不同 | 本文「构建流水线」段已记录两条命令 |
 | 上游 persistence.test.ts 1 fail 预存 | 该用例断言 encode 保留 password，与 M-002 memory-only 冲突；基线（仅 M-002）复跑失败一致，非 M-005/M-006 引入；不作为本轮门禁 | 本文 V-upstream 行 |
 | dist 文件数 3330→3329 | M-007/M-008 引入新懒块与分块合并改变 chunk 切分；copy-web-dist 全量重拷（sha256 清单已刷新），V2 rc=0 且 6138 modules 不变 | 本文 V2（最终产物）行 |
+| mobile-hosts UI 首版令牌类非法 | 首版误用 text-14-strong/text-13-*/text-12-muted/border-token（dist CSS 零规则落地）；评审修复轮替换为合法令牌组合并静态核验；theme 无 danger 色令牌，错误/降级提示改用 text-text-strong + role=alert/status | 本文 V-css 行；[design/visual.md](design/visual.md) |
+| credentialRef 清空语义 | update：undefined=保留、空串=清空；对话框编辑路径必须传空串而非 undefined（首版误转换导致清空静默失效）。另发现 solid setStore 按对象路径写入是 MERGE 语义，删除键须整组替换数组——均已修并有测试锁定 | 本文 V-mh（评审修复轮）；[design/units/connection.md](design/units/connection.md) credentialRef 契约 |
 | 本轮验证边界 | 全部验证为本机构建/静态验证（构建宿主 ≠ 远程 OS）；远程 OS 范围（Linux/原生 Windows/macOS）仅明示未验证，WSL 排除见决策记录 0001 | [docs/project-scope.md](project-scope.md) |
 
 ## 最小核对记录表（设计文档 ↔ 实现）

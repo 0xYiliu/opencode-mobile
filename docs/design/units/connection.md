@@ -21,7 +21,7 @@
 | `http.credentialRef` | optional String（位于 `ServerHttpBase` 内，即 `http.credentialRef` 层级） | 指向凭据条目的**非机密引用**（形如 `mobile-credential:<id>`），不是凭据本身 | 已实现（未验证）（M-005 字段 + M-006 对话框透传）；探针 `scripts/verify-credential-ref.ts` PASS |
 
 - 直连：M-005 在持久化 schema 增字段（encode 剥 password 的行为不变）；M-006 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
-- SSH：主机记录原生持有 `credentialRef`（载荷白名单字段，见 [server-list.md](server-list.md)）。
+- SSH：主机记录原生持有 `credentialRef`（载荷白名单字段，见 [server-list.md](server-list.md)）；编辑语义为「undefined=保留、空串=清空」，主机 target/身份变更时是否清空或重确认引用归 issue #4 裁定。
 - 引用解析：`CredentialResolver` 端口本期为 NullResolver（恒返回 undefined）；解析结果只注入内存连接对象，永不回写持久化。真实解析（Keystore）归 issue #4，**BLOCKED**。
 - 用户可见后果：重启后直连仍需重输密码（M-002），SSH 主机需重新解析凭据引用（本期引用无目标，SSH 连接真实建立归 #6）；引用本身会随记录保留。
 
@@ -69,7 +69,7 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 
 ### host-key 确认（已实现（未验证）的立桩，真实校验 BLOCKED #6）
 
-- 状态机显式状态 `hostKeyUnverified` + 确认 UI（host-key-prompt）均已立桩；指纹只存内存。
+- 状态机显式状态 `hostKeyUnverified` 已实现；确认 UI 组件（HostKeyPrompt）已立桩并随包导出，但**挂载点未建**（host-manager 尚未在行内渲染该提示）——stub 阶段本组件不可达；挂载与真实指纹数据源一并归 issue #6。指纹只存内存。
 - `HostKeyVerifier` 端口本期为 stub：**对任何主机恒返回"拒绝"**（fail-closed），不存在"跳过校验"路径；测试断言 stub 永不放行。
 - 真实指纹校验数据源与确认流归 issue #6，**BLOCKED**；真机核验归 G14。
 

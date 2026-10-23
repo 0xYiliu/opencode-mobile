@@ -28,6 +28,7 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 | `createdAt` / `updatedAt` | String（ISO 时间戳） | 审计元数据；更新不改 id/createdAt |
 
 - 凭据形字段（password/secret/token/privateKey 等）在载荷校验层拒收：**测试断言**持久化往返与重启恢复后的记录不含任何 password 形字段。
+- 存储降级不静默：注入存储不可用（或拒绝写入）时注册表落到内存后备，`storageVolatile` 标志经 host-manager 以行内提示明示（i18n 键 `hostManager.volatileStorage`，EN/ZH）；单测覆盖降级路径。
 - 白名单外字段拒收（未知键剥离或拒绝，测试锁定）。
 
 ## 身份键与隔离（已实现（未验证）：issue #3）

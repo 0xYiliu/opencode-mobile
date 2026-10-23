@@ -141,7 +141,8 @@ export const TRANSITIONS: readonly Transition[] = [
   // T8 connecting|reconnecting --fail--> failed
   // From connecting a transport failure is terminal. From reconnecting the episode keeps
   // its retry budget: while retries remain, the failure lands back in offline (retry again);
-  // once the budget is exhausted it lands in failed (reason retry-exhausted from the driver).
+  // once the budget is exhausted it lands in failed. The fail event's reason is whatever
+  // the driver reports for the transport error (this phase: the error message itself).
   {
     id: "T8",
     from: ["connecting", "reconnecting"],
