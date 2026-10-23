@@ -1,0 +1,41 @@
+# Dependencies and generated outputs
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+.gradle/
+.kotlin/
+.capacitor/
+DerivedData/
+Pods/
+*.apk
+*.aab
+*.apks
+
+# Machine-local configuration
+.DS_Store
+.idea/
+.env
+.env.*
+!.env.example
+local.properties
+key.properties
+keystore.properties
+
+# Secrets and signing material (not a substitute for reviewing staged files)
+.ssh/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ecdsa
+id_ed25519
+
+# Runtime artifacts
+*.log
+*.hprof
