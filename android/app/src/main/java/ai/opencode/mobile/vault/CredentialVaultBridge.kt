@@ -112,7 +112,9 @@ class CredentialVaultBridge(
             webView.postWebMessage(WebMessage(HANDSHAKE, arrayOf(pagePort)), TARGET_ORIGIN)
         } catch (e: Exception) {
             Log.w(TAG, "vault: handshake post failed")
-            closeChannel()
+            // Do NOT close/bump the round here: scheduleRetry(round) must see the live round
+            // or the guard would swallow this retry and the page load would get ZERO retries.
+            // The retry callback itself closes the old channel before rebuilding.
             scheduleRetry(round)
             return
         }
@@ -158,6 +160,12 @@ class CredentialVaultBridge(
                 // Duplicate acks are ignored (suppression mirror of the page side).
             }
             else -> {
+                // Zero capability before ack (trust layer 3, docs/design/units/connection.md):
+                // operations are only served from a session that answered the handshake.
+                if (!acked) {
+                    Log.w(TAG, "vault: dropping operation before ack")
+                    return
+                }
                 val op = json.optString("op")
                 if (op !in OPERATIONS) {
                     Log.w(TAG, "vault: dropping non-whitelisted op")

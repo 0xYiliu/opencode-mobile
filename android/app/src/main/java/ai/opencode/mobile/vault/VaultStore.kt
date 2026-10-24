@@ -53,31 +53,34 @@ class VaultStore(context: Context) {
         }
     }
 
-    /** Atomic index write: tmp + rename keeps a crash from dropping the metadata. */
+    /** Atomic index write: tmp + rename. POSIX rename atomically overwrites the target; a
+     *  failure must only remove the tmp file — the previous index stays intact (an index
+     *  row whose ciphertext was already replaced is repaired by the caller's error path,
+     *  never by destroying the old payload). */
     private fun writeIndex(index: JSONArray) {
         val tmp = File(dir, "index.json.tmp")
         tmp.writeText(index.toString(), Charsets.UTF_8)
         if (!tmp.renameTo(indexFile)) {
-            indexFile.delete()
-            if (!tmp.renameTo(indexFile)) {
-                tmp.delete()
-                throw VaultException("io", "credential index write failed")
-            }
+            tmp.delete()
+            throw VaultException("io", "credential index write failed")
         }
     }
 
-    /** Atomic payload write: tmp + rename; failure keeps the previous ciphertext intact. */
+    /**
+     * Atomic payload write: tmp + rename. POSIX rename atomically overwrites the target, so
+     * a failure keeps the previous ciphertext intact — the fallback "delete target, retry
+     * rename" branch is deliberately absent: its second-failure path would DESTROY the old
+     * ciphertext while its index row still references it (issue #4 review N1). A failed
+     * rename only removes the tmp file and reports io.
+     */
     private fun writeEntry(id: String, envelope: ByteArray) {
         dir.mkdirs()
         val target = entryFile(id)
         val tmp = File(dir, "$id.bin.tmp")
         tmp.writeBytes(envelope)
         if (!tmp.renameTo(target)) {
-            target.delete()
-            if (!tmp.renameTo(target)) {
-                tmp.delete()
-                throw VaultException("io", "credential write failed")
-            }
+            tmp.delete()
+            throw VaultException("io", "credential write failed")
         }
     }
 
