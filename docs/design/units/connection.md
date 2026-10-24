@@ -1,6 +1,6 @@
 # 单元：connection（服务连接与凭据）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证））**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，高风险）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），以及 issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/vault/`，全部未经设备运行验证（桥 bring-up 与 C1–C5 门禁 BLOCKED）。
+状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证））**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16 门禁 BLOCKED）。
 
 ## 字段契约（已实现）
 
@@ -154,6 +154,32 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 3. `packages/app/src/runtime/server/api.ts` 的 `authTokenFromCredentials` 拼接 `Basic ${btoa("opencode:<password>")}` 进入 `Authorization` 请求头。
 4. 持久化编码路径（`persistence.ts` encode，`MemoryOnlyPassword` codec）恒将 password 重写为 `undefined`；解码容忍历史遗留值，缺失密码进入既有认证失败路径。M-010 hydration 注入的密码只写 solid store（内存），同一 encode 路径保证不落盘。
 5. 交付态验证：构建产物中检索 `mobile(M-002)` 标记命中（见 [docs/build-and-verify.md](../../build-and-verify.md) V-cred）；localStorage 负例的真机复核归 G9；vault 落盘负例（index.json 无值、密文文件不进备份）归 C3/C4。
+
+## 直连传输（已实现（未验证）：issue #5，裁定见[决策记录 0002](../../decisions/0002-direct-connection-transport.md)）
+
+直连服务沿用上游原生注册表与连接对话框（M-005/M-006/M-009/M-010 已承载），issue #5 补齐传输卫生与错误分类：secure-fetch（M-011）、上传 XHR 校验（M-012）、probe 先行分类反馈（M-013）、probe 桥接线（M-014）。实现位置 `packages/mobile-hosts/src/transport/`、`src/probe.ts` 与 `android/app/src/main/java/ai/opencode/mobile/probe/`。
+
+### 四通道认证覆盖表（现状=上游已统一 Authorization 头；M-011 不触头语义）
+
+| 通道 | 载体 | 认证方式 | URL 中有无凭据 | 本轮动作 |
+| --- | --- | --- | --- | --- |
+| API | `api.ts createApiForServer`（Basic base64("opencode:<password>") 进 `Authorization` 头，经 `client.tsx` 的 `createServerTransport({fetch: platform.fetch})`） | 头 | 无 | M-011 注入 secure-fetch（重定向校验/userinfo 拒发），头语义不动 |
+| SSE | 生成客户端 `sse()` 为 fetch body 异步迭代器（非 EventSource），同一 fetch 封装同一头 | 头 | 无 | 同上（随 M-011 覆盖） |
+| WS（PTY） | `client/solid/pty.ts` 先认证铸一次性 ticket（`Authorization`+`x-opencode-ticket` 头）再 `new WebSocket(url?ticket=…)`；服务端单次消费并校验 Origin 白名单 | 铸票（头）+ 单次能力票据（URL） | URL 携带短时效单次 ticket（**非凭据**，D5 裁定接受并文档化） | 无补丁；纪律=日志零 URL 参数 |
+| 文件上传 | `composer/attachments/destination.ts` XHR 显式 `setRequestHeader("authorization", …)` | 头 | 无 | M-012 load 后校验 `xhr.responseURL`（跨主机/降级 fail-closed） |
+| 二进制读 | `descriptor.binary` 带头 fetch | 头 | 无 | 随 M-011 覆盖 |
+
+URL 卫生：secure-fetch 对含 userinfo（`user:pass@host`）的请求 URL 拒发（`assertNoUrlCredentials`，纵深——对话框 link 流 `serverAddress` 已拒 userinfo，password 表单的 `normalizeServerUrl` 直存路径不拒，壳侧拒发兜底，错误呈现为 `dialog.server.error.credential-url`）。
+
+`authFromToken` 残留评估：上游 `api.ts` 的 `authFromToken`（`?auth_token` 直通铸头）唯一消费方已被 M-007 从 entry.tsx 移除，仅 `api.test.ts` 引用——运行期无可达的 URL 凭据通路，不加补丁，此处记录评估结论。
+
+### probe 分类与反馈（M-013/M-014；错误分类×反馈×恢复矩阵见 S11 同步后本文件下方矩阵）
+
+probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavailable`，绝不伪造分类）；Android 桥 ack 后由 `DirectEndpointProbe` 支撑。probe 是**分类器不是权威**：仅在保存路径健康检查失败时用于选择错误文案（`dialog.server.error.<code>`，app i18n en/zh；probe unavailable 显式退化为上游泛化文案 `dialog.server.add.error`）；分类与真实 fetch 冲突时以真实 fetch 为准。probe 凭据边界（带 Authorization 头的分类语义、头/URL/桥消息零日志值、不持久化、三层信任复用与协议隔离）见[决策记录 0002](../../decisions/0002-direct-connection-transport.md) probe 设计节。
+
+### 残余 fetch 面（评审备注 F2 登记）
+
+以下两处不经 `platform.fetch`（不受 D1 校验），登记为已知残余面、本轮不修补：①`pairing.ts:87` `OpenCode.make({baseUrl})`（配对码兑换，无认证头——以一次性 code 换 token）；②`pairing.ts:129` `checkServerHealth(…, globalThis.fetch)`（配对地址优选，带 Basic 头）。out-of-scope 理由：浏览器规范对跨源重定向子请求剥头是底线，D1 校验为纵深；两处仅存在于配对流，地址来自 `opencode pair` 链接而非服务器列表，泄漏不成立、静默跟随的内容风险窗口极小。
 
 ## 状态矩阵（单元级）
 
