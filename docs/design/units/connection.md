@@ -173,9 +173,33 @@ URL 卫生：secure-fetch 对含 userinfo（`user:pass@host`）的请求 URL 拒
 
 `authFromToken` 残留评估：上游 `api.ts` 的 `authFromToken`（`?auth_token` 直通铸头）唯一消费方已被 M-007 从 entry.tsx 移除，仅 `api.test.ts` 引用——运行期无可达的 URL 凭据通路，不加补丁，此处记录评估结论。
 
-### probe 分类与反馈（M-013/M-014；错误分类×反馈×恢复矩阵见 S11 同步后本文件下方矩阵）
+### probe 分类与反馈（M-013/M-014）
 
 probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavailable`，绝不伪造分类）；Android 桥 ack 后由 `DirectEndpointProbe` 支撑。probe 是**分类器不是权威**：仅在保存路径健康检查失败时用于选择错误文案（`dialog.server.error.<code>`，app i18n en/zh；probe unavailable 显式退化为上游泛化文案 `dialog.server.add.error`）；分类与真实 fetch 冲突时以真实 fetch 为准。probe 凭据边界（带 Authorization 头的分类语义、头/URL/桥消息零日志值、不持久化、三层信任复用与协议隔离）见[决策记录 0002](../../decisions/0002-direct-connection-transport.md) probe 设计节。
+
+### 错误分类×反馈×恢复矩阵（issue #5）
+
+保存路径的权威判定=上游健康检查（真实 fetch）；下表是健康检查**失败后**的错误反馈与恢复路径。错误文案优先级：mixedContent（上游结构信号）→ unauthorized（健康检查 unauthorized 标志）→ probe 分类 → 泛化文案（probe unavailable/`ok`/冲突时显式退化）。双键集口径（F5）：M-013 只消费 app i18n 键 `dialog.server.error.<code>`（en 基表 + zh 表，缺键回退 en 再回退键名）；mobile-hosts 自含键 `direct.error.<code>`（EN/ZH）用于第一方 UI 面（映射 `directErrorCodeMessageKey`，全集断言单测锁定）。
+
+| 分类码 | 触发（probe/secure-fetch/健康检查） | 用户可见反馈（app i18n 键） | 恢复路径 |
+| --- | --- | --- | --- |
+| `unauthorized` | probe 401 / 健康检查 unauthorized 标志（权威） | `dialog.server.error.unauthorized`（服务器拒绝凭据 401） | 检查密码重输；上游 unauthorized 流 + #4 M-009/M-010 链路 |
+| `forbidden` | probe 403 | `dialog.server.error.forbidden` | 检查账号与权限 |
+| `cert-expired` | probe TLS（证书过期） | `dialog.server.error.cert-expired`（续期证书/Let's Encrypt 或 SSH 隧道） | 换正规 CA 证书；SSH 隧道（#6） |
+| `cert-hostname` | probe TLS（主机名不符） | `dialog.server.error.cert-hostname` | 核对地址；为本主机签发证书 |
+| `cert-untrusted` | probe TLS（自签/私有 CA 不可分辨） | `dialog.server.error.cert-untrusted`（裁定：本期不支持，三条出路见 0002 D2） | 正规 CA；SSH 隧道；per-connection pin（后续候选） |
+| `cleartext-blocked` | netsec 阻断明文（probe 与 WebView 同源判定） | `dialog.server.error.cleartext-blocked`（D3：本期不支持明文） | 改用 HTTPS；SSH 隧道 |
+| `refused` | probe 连接拒绝 | `dialog.server.error.refused` | 确认服务运行与端口 |
+| `timeout` | probe 超时（8s+8s 有界）/ 健康检查 30s 超时 | `dialog.server.error.timeout` | 检查地址/端口/网络路径 |
+| `dns` | probe DNS 解析失败 | `dialog.server.error.dns` | 检查主机名 |
+| `not-found` | probe 404 | `dialog.server.error.not-found` | 检查地址与端口 |
+| `html-response` | probe 命中 HTML（代理/门户页，任意状态码 + content-type/侦嗅） | `dialog.server.error.html-response` | 核对地址是否指向服务本体 |
+| `credential-url` | secure-fetch/userinfo 前置校验（M-011/M-012/M-013 三面一致） | `dialog.server.error.credential-url` | 从地址移除凭据，密码走密码栏 |
+| 重定向跨主机/降级 | secure-fetch（M-011 fetch 面）/M-012（XHR 面）fail-closed | 健康检查失败 → 泛化文案（分类错误被上游吞为 `{healthy:false}`；两端拒交付是行为保证，矩阵登记） | 服务端修正重定向；反代保持同源 |
+| 地址格式 | 上游 `serverAddress`/`normalizeServerUrl`（不动） | 上游既有文案（`server.connect.link.invalid` 等，矩阵登记） | 修正地址 |
+| probe unavailable | stub 默认/桥未 ack/桥超时/畸形响应 | `dialog.server.add.error`（**显式退化**，不伪造分类） | 重载页面重握手（G16）；真机核对归 G16 |
+
+诚实边界：会话中期的逐因分类不在本期（D4）——中期降级由上游 10s 健康轮询承载，逐因反馈归后续迭代。设备级端到端核验（G4/G5/G11）全部 BLOCKED。
 
 ### 残余 fetch 面（评审备注 F2 登记）
 

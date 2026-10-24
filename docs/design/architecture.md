@@ -7,7 +7,7 @@
 | 设计单元 | 标识属性 | 适用约束 | 职责 | 状态 |
 | --- | --- | --- | --- | --- |
 | shell-startup | 应用进程启动 → 回环资产服务 → WebView 首帧 | 仅 `INTERNET` 权限；零 androidx；凭据不入普通存储 | 启动本地 asset server，加载打包的上游 app，承载返回键与生命周期红线 | 已实现（未验证）；交互已确认未实现，见 [units/shell-startup.md](units/shell-startup.md) |
-| connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`）；凭据保险库条目（信封 v1 密文 + 元数据索引） | 凭据 memory-only（M-002）+ 可选记住经 vault 加密落盘（issue #4，无明文回退）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS；TLS 校验不可关闭；host-key stub fail-closed | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机；承载凭据的设备侧加密存储（vault 端口/桥/Keystore） | 已实现（未验证）；设备交互 BLOCKED（G14、host-key 归 #6、C1–C5 归 #4），见 [units/connection.md](units/connection.md) |
+| connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`）；凭据保险库条目（信封 v1 密文 + 元数据索引）；直连错误分类码（`DirectErrorCode` 十二码，`transport/connection-errors.ts`） | 凭据 memory-only（M-002）+ 可选记住经 vault 加密落盘（issue #4，无明文回退）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS（明文直连不支持，issue #5 D3）；TLS 校验不可关闭（system CA 唯一锚，D2）；重定向 validated-follow + userinfo 拒发（D1/D-URL）；host-key stub fail-closed | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机；承载凭据的设备侧加密存储（vault 端口/桥/Keystore）；承载直连传输卫生（secure-fetch/URL 策略）与端点 probe 分类器（probe 端口/桥传输） | 已实现（未验证）；设备交互 BLOCKED（G14、host-key 归 #6、C1–C5 归 #4、G16 归 #5），见 [units/connection.md](units/connection.md) |
 | server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页）；凭据管理器（credential-manager，issue #4） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳）；凭据管理器仅展示元数据无值 | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口；凭据条目的元数据查看/删除与恢复 | 已实现（未验证）；设备交互 BLOCKED（G13/G15、C2 归 #4），见 [units/server-list.md](units/server-list.md) |
 | 会话列表 | TODO | — | TODO | 未开始 |
 | 时间线 | TODO | — | TODO | 未开始 |
@@ -25,17 +25,22 @@
 │  MainActivity                                                                                        │
 │    ├─ WebAssetServer（NanoHTTPD，仅绑 127.0.0.1:18090）                                               │
 │    │    └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，含 PWA service worker）            │
-│    └─ CredentialVaultBridge（issue #4：onPageFinished 握手 → WebMessageChannel port1/port2；          │
-│         VaultCrypto（AndroidKeyStore AES-256-GCM）+ VaultStore（filesDir/vault/ 原子落盘+index.json） │
+│    ├─ CredentialVaultBridge（issue #4：onPageFinished 握手 → WebMessageChannel port1/port2；          │
+│    │    VaultCrypto（AndroidKeyStore AES-256-GCM）+ VaultStore（filesDir/vault/ 原子落盘+index.json） │
+│    └─ ProbeBridge（issue #5：协议隔离的姊妹桥，独立握手串 opencode-mobile-probe-handshake；            │
+│         DirectEndpointProbe（HttpURLConnection 严格默认 + 有界侦嗅 + 分类枚举，单后台线程执行）        │
 │  WebView（javaScriptEnabled / domStorageEnabled；文件与内容访问关闭；geolocation 关闭）                │
 │    origin = http://127.0.0.1:18090（回环可信上下文；PWA SW 可注册，行为归 G10）                        │
 └──────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
-                                               │ 加载 UI（同源）+ vault 握手（平台 WebMessage channel，port 闭包）
+                                               │ 加载 UI（同源）+ vault/probe 双握手（平台 WebMessage channel，port 闭包）
                                                ▼
-              第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3/#4）
+              第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3/#4/#5）
                 ├─ SSH 主机注册表（opencode-mobile.hosts.v1，载荷白名单：id/name/target/credentialRef/时间戳）
                 ├─ 连接状态机（idle/connecting/hostKeyUnverified/ready/authRequired/incompatible/offline/reconnecting/failed）
                 ├─ vault（issue #4）：端口+信封 v1+桥传输（形状校验/ack/requestId；UnavailableVault fail-closed 默认）
+                ├─ transport（issue #5）：connection-errors（DirectErrorCode/SecureFetchError）+ url-policy（userinfo/重定向判定）
+                │   + secure-fetch（validated-follow，M-011 注入面；mobile(M-011) dist 标记）
+                ├─ probe（issue #5）：ProbePort（StubProbePort fail-closed 默认）+ probe 桥传输（独立握手串）+ 分类→文案映射
                 └─ upstream-map：SSH 主机 → 上游 extension 型 ServerConnection（键 `mobile-ssh:<uuid>`），
                    经 props.servers 注入上游 ServersProvider；直连服务仍走上游原生注册表（M-010 hydration 注入内存密码）
                                                │
@@ -44,7 +49,8 @@
                                                │ HTTP API 调用（fetch / SSE / WebSocket，跨源）
                                                ▼
 ┌───────────────────── 远程 OpenCode 服务（远程机器负责项目、Git、Shell、模型调用） ─────────────────────┐
-│  服务地址直连：HTTPS 直连远程 OpenCode HTTP API（Authorization: Basic base64("opencode:<password>")）  │
+│  服务地址直连：HTTPS 直连远程 OpenCode HTTP API（Authorization: Basic base64("opencode:<password>")；   │
+│    PTY 经一次性票据 URL 参数（非凭据，D5）；明文 HTTP 不支持（D3）；TLS=system CA 唯一信任锚（D2）      │
 │  SSH 连接：[占位，归 issue #6] 平台 SSH 适配 → 设备侧加密隧道回环端口 → 远程 OpenCode HTTP API          │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -61,17 +67,21 @@
 - **凭据保险库（issue #4，已实现（未验证））**：凭据值唯一持久形态是 AndroidKeyStore（密钥 `opencode-mobile-vault.v1`，AES-256-GCM，不设用户认证绑定）加密的信封 v1 文件（`filesDir/vault/<id>.bin`，原子写）+ 无值元数据索引 `index.json`；信封 `OPMV1`+12B IV+GCM 128-bit tag，AAD=条目 id（换绑拒绝）。凭据值永不进入 localStorage/sessionStorage/日志/构建产物/git；无额外解锁；unavailable 是显式状态，无明文回退代码路径。契约与失效矩阵见 [units/connection.md](units/connection.md)。
 - **vault 桥的三层信任（替换 origin 校验）**：平台 WebMessage channel 的 JS 侧**不做 origin 等值校验**——**勘误三（计划 F-1b）平台证据链**：embedder 经 `postWebMessage` 投递的消息其 `event.origin` 恒为空串（Chromium `AwContents.postMessageToMainFrame` 硬编码 sourceOrigin=null → blink `MessageEvent::originForBindings()` 返回 "" → 平台 `PostMessageTest` 断言 `SOURCE_ORIGIN=""`）。信任依据为：①平台 targetOrigin 强制（非该 origin 的 frame 收不到 port2，native 侧参数平台强制）；②port 能力 confinement（port 引用不暴露 window 全局，单测锁定；如实边界：同页监听者事件层面可见握手字符串，confinement 实际来源=port 引用不暴露+页面仅第一方资产——页内脚本可捕获 port ≈ 资产被篡改=应用被攻破，既有边界不新增攻击面）；③ack 前零能力（握手捕获并回发 ack 前 vault 恒 unavailable，native 不受理操作）。模拟测试禁止伪造 origin 断言。
 - **host-key stub fail-closed（已实现（未验证）：issue #3）**：SSH 主机指纹校验端口 `HostKeyVerifier` 本期为 stub——对任何主机恒返回"拒绝"，状态机据此永不放行未确认指纹的连接；不存在"跳过校验"路径。确认 UI（host-key-prompt）与状态机状态均已立桩，真实验证数据源归 issue #6，**BLOCKED**。持久化载荷中不含指纹/凭据形态字段。
+- **直连传输卫生（已实现（未验证）：issue #5，决策 [0002](../decisions/0002-direct-connection-transport.md)）**：M-011 注入的 secure-fetch 与 M-012 的上传 XHR 校验执行 validated-follow——重定向后最终 origin 必须与请求 origin 一致（双向严格，http→https 升级亦拒）、https→http 降级拒绝、userinfo 凭据 URL 拒发；跨源重定向子请求被浏览器剥头是规范底线，我方校验是交付前的纵深。TLS 信任=system CA 唯一锚（netsec 不变，静态负断言在 `scripts/verify-direct-connection.ts`）；明文 HTTP 本期不支持（D3）。
+- **probe 桥（已实现（未验证）：issue #5，G16 BLOCKED）**：`ProbeBridge` 是 vault 桥的**协议隔离**姊妹桥——独立握手串 `opencode-mobile-probe-handshake`、独立通道、同用三层信任（平台 targetOrigin 强制/port 闭包 confinement/ack 前零能力），vault 门禁 C1–C5 不受牵连（双方按 data 严格等值校验握手，互不误捕；单测锁定）。`DirectEndpointProbe` 用平台默认栈（system CA、严格链/过期/主机名校验，**无任何自定义 trust/verifier 钩子**——静态负断言在册）；自动重定向跟随禁用，Authorization 头永不离开用户输入的 origin；**probe 是分类器不是权威**：仅在健康检查失败后选错误文案，冲突以真实 fetch 为准，分类绝不伪造。凭据边界（F1）：密码仅存活于单次请求（桥消息→内存头），头/URL/桥消息零日志值、不持久化、响应只回分类码。
 - **身份键（已实现（未验证）：issue #3）**：直连服务沿用上游原生键（URL 本身，端口变化即新身份）；SSH 主机身份为 `mobile-ssh:<uuid4>`（创建即定、永不改），与隧道回环端口解耦——端口重解析（reconnect）不改变身份/scope/会话/设置键。
 - **日志纪律**：logcat 仅固定 tag（`OpencodeShell`）+ 控制台消息文本与行号；不写 URL 查询参数、请求头或凭据。
 - **进程边界**：壳 `onDestroy` 仅停本地回环 asset server；远程服务/任务永不因客户端断开而停止（代码注释与本文档双写）。
 
-## CORS 差异（桌面 Electron vs 本壳）
+## CORS 事实（G3 修正，issue #5）
 
-上游桌面渲染器在 Electron 主进程为所有服务响应注入宽松 CORS（`packages/desktop/src/main/windows/headers.ts` @ pin `b4525d79bf`：`Access-Control-Allow-Origin: *`；服务未自带 `Access-Control-Allow-Headers` 时补 `*, authorization`——Chromium 仅在预检结果显式列出 `authorization` 时复用预检缓存，`*` 不覆盖它；`Access-Control-Max-Age: 7200`）。该包不在闭包内，WebView 也没有等价注入 API：远程服务不回 CORS 时，本壳的跨源 API 调用会在预检或响应读取处失败。这是 G3 列为高风险门禁的依据；预案 A（部署侧补 CORS）/ B（Android 本地反代，凭据留在 App 进程，需设计评审）/ C（平台适配层改造）均为用户决策项，在获得决策前不续做产品化，绝不关闭浏览器安全或转原生重写。
+**来源表述**：以下结论取自**上游 pin 提交树（采集缓存 `~/.cache/opencode-upstream` @ `cec70f3`/`b4525d79bf`）**的 `packages/server/src/cors.ts`，**不是** vendored 闭包树——vendored 闭包按策略不含 `packages/server`（手机不运行本地服务），该文件仅可从上游缓存读取（决策 [0002](../decisions/0002-direct-connection-transport.md)）。
 
-## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-010）
+事实：上游原生服务的 `isAllowedCorsOrigin` 默认放行任意 `http://127.0.0.1:*` 与 `http://localhost:*` origin（另有 `--cors` 配置扩展；PTY 铸票/升级与 MCP 的 `isAllowedRequestOrigin` 同白名单）。本壳 origin 恰为 `http://127.0.0.1:18090`，落在默认白名单内——**原生上游服务对本壳 API/SSE/WS（铸票与升级）/上传的跨源调用（含预检）默认允许（预案 A 零配置成立）**。G3 由「高风险无证据」修正为「低风险待实测」（设备级验证仍 BLOCKED）。桌面 Electron 主进程的宽松 CORS 注入（`packages/desktop` @ pin，不在闭包内）与本壳无关：本壳依赖的是**服务端**白名单。预案 B（本地反代）/C（平台适配层）仅对非原生/旧版/自定 CORS 策略的服务兜底，维持用户决策项，在获得决策前不续做产品化，绝不关闭浏览器安全或转原生重写。
 
-上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝，每补丁一事：
+## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-014）
+
+上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类，每补丁一事：
 
 | 补丁 | 内容 | 理由 |
 | --- | --- | --- |
@@ -85,6 +95,10 @@
 | M-008 | 设置 servers 标签页挂载 `<MobileHostManager/>`（lazy import） | SSH 主机管理界面入口 |
 | M-009 | 连接对话框 `dialog.tsx`：`method=password` 时渲染「记住凭据」勾选框（vault available 才可用，unavailable 禁用+说明），真值表 v3 十二行分路（含 add-prior 不分 method、早退强制条件、link 流不渲染、行 2/12 空值中止），i18n en/zh 新键 | 可选记住（issue #4）：勾选时经桥 put 加密落盘并写 credentialRef；取消勾选清 ref+删条目；不铸空值不静默失败。评审修复（B1）：决策核心增 `boundKind`——已绑定**私钥**且值为空时保留绑定（行 13，add/edit 同义），host-dialog 装配在私钥绑定期间禁用密码位防 in-place 换 kind |
 | M-010 | `registry.tsx`：hydration 后对 credentialRef 有且 password 缺失的条目，经 vault resolver 解析并 **setStore 注入内存 password**（不落盘：同一 M-002 encode 路径保证） | 重启后已记住的直连服务免重输；仅内存；unavailable/corrupt 时不注入、走重输路径（失效矩阵） |
+| M-011 | `platform/web.ts`：`createWebPlatform` 注入 `fetch: createSecureFetch()`（validated-follow：跨主机/降级响应拒交付、userinfo URL 拒发；含 `mobile(M-011)` dist 标记） | 直连传输卫生（issue #5，决策 0002 D1/D-URL）：覆盖 API/SSE/二进制读/健康检查全部 fetch 面；头语义不动；回滚=撤单补丁 |
+| M-012 | `composer/attachments/destination.ts`：上传 XHR load 后校验 `xhr.responseURL`（同规则）+ userinfo URL 拒发 | 上传不经 platform.fetch，同一策略的第二面（issue #5 D1） |
+| M-013 | `servers/connect/dialog.tsx` + i18n en/zh：保存路径 probe 先行分类 → `dialog.server.error.<code>` 行内精确错误；probe unavailable 显式退化为上游泛化文案；userinfo URL 保存前精确拒绝 | 错误反馈精确化（issue #5 D4）：probe 只选文案，健康检查仍是保存放行的唯一权威；分类冲突以真实 fetch 为准 |
+| M-014 | `entry.tsx`：probe 桥握手监听（独立握手串 `opencode-mobile-probe-handshake`）+ `createProbeClient` 注入 `createMobileHosts({probe})` | probe 分类器到达 UI 的接线（issue #5）：与 vault 桥并存互不误捕（双方 data 严格等值校验）；ack 前 fail-closed |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。
 

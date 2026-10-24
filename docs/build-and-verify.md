@@ -6,6 +6,8 @@
 
 记录日期：2026-10-24。issue #4 段（凭据保险库、M-009/M-010/M-007 修订、审计脚本）的验证于同日在分支 `issue-4-credential-vault` 工作树执行（基线 dev @ 815bde5，计划 v3），全部为本机构建/静态/单测级验证；桥 bring-up 与设备门禁 C1–C5 全部 BLOCKED。
 
+记录日期：2026-10-24。issue #5 段（直连传输卫生与错误分类，M-011…M-014、V-conn 探针）的验证于同日在分支 `issue-5-direct-connection` 工作树执行（基线 dev @ f9cc526，计划 v1），全部为本机构建/静态/单测级验证；probe 桥 bring-up 与错误矩阵设备门禁（G4/G5/G11/G16）全部 BLOCKED。
+
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
 ## 工具链（本机真实版本）
@@ -35,6 +37,7 @@ bun test --conditions=browser packages/mobile-hosts   # V-mh（issue #3/#4 第�
 bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探针，issue #4 升级为 M-006/M-009 口径）
 bun run scripts/verify-credential-vault.ts            # V-vault（issue #4 真值表/桥/M-010 探针）
 bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明文持久化审计）
+bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连静态验证；补丁落地前用 --pre-vendor 分段）
 ```
 
 `--conditions=browser` 的原因：solid-js@1.9.15 的 exports 无 `solid` 条目，bun test 默认按 `node` 条件解析到无响应式的 server 构建；`browser` 条件选中有响应式的 client 构建（已用最小 repro 验证：store 变更触发 memo 重算）。上游 app 自身测试使用 `--conditions=solid` + happy-dom 预载（其 JSX 预载所必需），与本包命令不同属正常，两者均已如实记录。
@@ -75,6 +78,7 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | 上游 app UI（会话/终端/设置/权限/文件 Diff 的 vendored 代码） | ✓（vendored） | ✓（随 V2 构建打包） | BLOCKED | BLOCKED |
 | connection 字段契约 + memory-only（M-002） | ✓ | ✓（V-cred 静态） | BLOCKED（G9） | BLOCKED |
 | 设备凭据保险库（vault 端口/信封 v1/桥/Keystore 落盘/可选记住，issue #4） | ✓ | ✓（V-mh 96 单测、V-vault、V-secret、V2/V3） | BLOCKED（C1–C5） | BLOCKED |
+| 直连传输卫生与错误分类（secure-fetch/URL 策略/probe 端口/Android probe 桥/M-011…M-014，issue #5） | ✓ | ✓（V-mh 140 单测、V-conn、V2/V3、V-cRef/V-vault 回归） | BLOCKED（G4/G5/G11/G16） | BLOCKED |
 | 凭据绑定 UI + 凭据管理器（issue #4） | ✓ | ✓（V-css 令牌核验 + 单测） | BLOCKED（C2、G13） | BLOCKED |
 | connection / server-list 产品能力 | 已确认未实现 | BLOCKED | BLOCKED | BLOCKED |
 | NOTICE-THIRD-PARTY.md | 未生成（V4 BLOCKED） | — | — | — |
@@ -166,6 +170,43 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | 4 无额外解锁、失效恢复路径 | 不设 setUserAuthenticationRequired（VaultCrypto 注释+审读）；失效矩阵与恢复文案（connection.md/interaction.md/i18n 恢复键）；锁屏 N/A by design | implemented（逻辑级）；真机恢复 C2 BLOCKED |
 | 5 设备测试（合成秘密、TLS/host-key 保持） | 全部 BLOCKED（C1–C5、APK 构建）；netsec/ssl/host-key 零改动静态确认 PASS | BLOCKED |
 
+## issue #5 段（直连传输卫生与错误分类）——2026-10-24 实测记录
+
+交付物：决策记录 [0002](decisions/0002-direct-connection-transport.md)（D1 validated-follow/D-URL/D5 WS 票据/D2 system-CA/D3 明文不支持/D4 分类落点）、第一方传输与 probe 模块（`packages/mobile-hosts/src/transport/`：connection-errors/url-policy/secure-fetch 三件 + `src/probe.ts` + i18n 十二分类键 EN/ZH + runtime probe 访问器）、Android probe 两件（`android/app/src/main/java/ai/opencode/mobile/probe/`：DirectEndpointProbe.kt + ProbeBridge.kt + MainActivity 接线）、vendor 补丁 M-011…M-014（登记于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches`，均含 owner 字段，mobile 补丁总数 10→14）、静态探针 `scripts/verify-direct-connection.ts`（V-conn，F3 分段策略）。提交链 `c7c5556 → 756fd28 → 6cb8d33 → b5fb626 → 3edf631 → 2719d25 → b18d9e0 → fd25ba8 → ece20b1 → e467f8f`（分支 `issue-5-direct-connection`，基于 dev @ f9cc526，未 push）。计划版本 v1（PASS），5 条评审备注（F1–F5）落实见下表。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #5） | 未动依赖 | bun.lock 与 issue #4 终态逐字相同：`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`；`bun install --frozen-lockfile` rc=0（1060 packages installed）；全部走 WebCrypto/平台 API/HttpURLConnection，零新依赖（android build.gradle.kts 零改动） | 本文；git diff f9cc526 HEAD -- bun.lock 为空 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**140 tests / 140 pass / 0 fail，1146 expect()**（13 文件；issue #3/#4 的 99 项 + issue #5 的 41 项：userinfo 拒绝（含 percent-encoded）/同源放行/跨主机拒/降级拒/端口变化=跨源/回环别名=跨源/升级亦拒（origin 双向严格）/空 responseURL=合成放行/SecureFetchError 非 retryable 形状（message 避开 health 重试正则）+ 全码映射/secure-fetch mock fetch 五场景（跨主机拒、降级拒、凭据 URL 拒发且零请求、直连放行、同源重定向放行）+ init 透传 + Request/URL 输入 + 错误原样穿透、StubProbePort 恒 unavailable、分类→i18n 全集断言（EN/ZH 非空非桩）、probe 桥形状校验/vault 握手不误捕/ack 前零能力/超时显式 unavailable/userinfo URL 不过桥/错误与畸形码退化、runtime 默认 stub + 注入访问器） | 本文；脚本输出 |
+| V-conn 直连静态验证（S6 提交点） | `bun run scripts/verify-direct-connection.ts --pre-vendor` | PASS（rc=0）：①android 负断言 13 个 .kt/.xml 零命中（无 X509TrustManager/checkServerTrusted/checkClientTrusted/HostnameVerifier/setSSLSocketFactory/SslErrorHandler proceed/trust-all 姿态）；②netsec 未放宽（base 禁明文 + 仅 system 锚 + 回环例外恰 127.0.0.1/localhost 两域）；③12 分类码 Kotlin↔JS 线协议一致 + 第一方 i18n EN/ZH 全集非空；④vendor 依赖断言按 F3 分段跳过 | 脚本输出 |
+| V-conn 直连静态验证（S10 后全量） | `bun run scripts/verify-direct-connection.ts` | PASS（rc=0）：前述三段不变 + ④全量生效：vendored web.ts 含 `createSecureFetch` 注入与 mobile(M-011) 标记注释；dist 标记 `mobile(M-011)`、`opencode-mobile-probe-handshake`、`mobile(probe-v1)` 在 3457 个构建资产中全部命中 | 脚本输出 |
+| V2 冒烟（M-011 后） | `bun run build:web` | PASS（rc=0，6162 modules，11.7–11.9s）；**dist 标记勘误与修复**：首版 `void MARKER` 引用被 tree-shake（标记仅存于 .map sourcemap），修复为写入逃逸函数对象的属性后，`mobile(M-011)` 命中压缩产物 `dist/_assets/src-*.js` | 本文 |
+| V2 冒烟（M-012/M-013 后） | `bun run build:web` | PASS（rc=0，6162 modules）；M-013 后 `dialog.server.error.*` 键命中 `dist/_assets/language-*.js` 与 `zh-*.js` | 本文 |
+| V2 最终产物（M-014 后） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，11.7s）；3480 文件 / 152,967,449 bytes 拷入 assets；probe 握手串与 mobile(probe-v1) 标记命中压缩产物 | `web-dist/manifest.json`（sha256 `883902ae323120678f15eb42fe1f5817e0405b276386f90ae41d707082efadaf`） |
+| V3 闭包核对（每补丁后） | `bash scripts/verify-closure.sh` | PASS ×4（M-011/M-012/M-013/M-014 各一次）：树 == pin b4525d79bf + 已登记 patches 字节一致、LICENSE 一致、`DANGLING=0`；M-013/M-014 为**叠层补丁**（生成基线=pin+前序补丁，因 M-006/M-009 已改写 dialog.tsx），经 scratch 树 `git apply --check` round-trip 验证 | 本文 |
+| V-cRef / V-vault 回归 | `bun run scripts/verify-credential-ref.ts` + `bun run scripts/verify-credential-vault.ts` | PASS（M-013/M-014 后重跑）：M-006/M-009 对话框结构断言、M-007 监听先于 render/标记/零 origin 咨询断言全部保持 | 脚本输出 |
+| V5 JSON 结构校验（issue #5 增量） | `python3 -m json.tool` | PASS：`patches/mobile/manifest.json`、`vendor-manifest.json`、`web-dist/manifest.json` 可解析；两 manifest 的 diff 为纯追加（无删除行） | 本文 |
+| V7 泄漏扫描 | 见最终核查段 | PASS（rc=0） | 本文 |
+| Android XML 校验（V6 回归） | python3 `xml.dom.minidom` | netsec/Manifest 零改动（`git diff f9cc526 HEAD -- android/app/src/main/res/xml/network_security_config.xml` 为空） | 本文 |
+
+### 评审备注 F1–F5 落实（issue #5，计划 v1）
+
+| 备注 | 落实 |
+| --- | --- |
+| F1 probe 凭据边界 | 决策 0002 probe 设计节 + [design/architecture.md](design/architecture.md) probe 桥条目 + [design/units/connection.md](design/units/connection.md) probe 节三处落字：带凭据 probe（401/403 分类语义成立，Basic 头由 Kotlin 侧从桥消息内存构造）；日志纪律覆盖请求头/URL/桥消息（零值，Kotlin 注释与审读双写）；不持久化（probe 侧零写盘）；信任模型复用 vault 桥三层信任 + 协议隔离（独立握手串互不误捕，单测锁定）；密码仅存活单次请求，响应只回分类码 |
+| F2 pairing 残余 fetch 面 | decision 0002「残余 fetch 面」节 + [design/units/connection.md](design/units/connection.md) 直连章节登记：`pairing.ts:87` OpenCode.make（无认证头）与 `pairing.ts:129` checkServerHealth(…, globalThis.fetch)（带 Basic 头、不受 D1 校验）不经 platform.fetch；out-of-scope 理由=浏览器剥头为底线、fail-closed 为纵深、仅配对流且地址非服务器列表 |
+| F3 脚本时序 | `verify-direct-connection.ts` 断言分两段：S6 提交点 `--pre-vendor` 跑通 android 负断言+netsec+分类码一致（实际执行 PASS）；S10 后全量 PASS（dist 断言自此常绿——标记丢失即 FAIL）；两阶段均真实执行并记录 |
+| F4 来源表述 | decision 0002 与 architecture.md CORS 节均写明「上游 pin 提交树（采集缓存 `~/.cache/opencode-upstream` @ `cec70f3`/`b4525d79bf`）」，并注明 vendored 闭包不含 packages/server |
+| F5 双 i18n 键集 | [design/units/connection.md](design/units/connection.md) 错误矩阵节写明消费方：M-013 只消费 app i18n `dialog.server.error.<code>`（en 基表合并 locale 表，缺键回退 en 再回退键名）；mobile-hosts `direct.error.<code>` 自含 EN/ZH 键用于第一方 UI 面（`directErrorCodeMessageKey` 映射 + 全集断言单测）；en.ts 内加注释锚点 |
+
+### 诚实边界（issue #5 段）
+
+- **设备级全部 BLOCKED**：G3 预检实测（静态证据已把风险修正为低风险）、G4 坏证书分类呈现、G5 明文阻断呈现、G11 错误矩阵端到端、G16 probe 桥 bring-up（握手/ack/重试耗尽/与 vault 并存/零日志负例）——均未执行。
+- **Kotlin 未编译**：无 Android SDK，probe 两件与 MainActivity 改动仅静态（V-conn 负断言 + 人工审读 + 括号平衡机械检查），BLOCKED 如实。
+- **M-013 装配为静态边界**：probe 优先级/退化逻辑在第一方端口层单测锁定（140 项中的 probe 套件），vendored dialog 的 Solid 装配为源码结构（V-cRef 回归 + 构建冒烟），未在 Solid 运行时执行对话框。
+- **probe 分类与 Chromium 漂移**：probe 仅为分类器，权威判定=真实 fetch/上游健康检查（决策 0002 D4，探针单测锁定「冲突以真实 fetch 为准」）；分类错误（如 SSL 异常消息匹配）在 Android 版本间可能漂移，漂移的后果=退化为泛化文案，不会误放行。
+- **tree-shake 勘误**：M-011 首版 `void SECURE_FETCH_MARKER` 被最小化器删除（标记仅存 sourcemap）；已改为逃逸函数对象属性写入并实测压缩产物命中——该经验已写回 secure-fetch.ts 注释。
+
 ## 上游更新演练记录（S3，经 issue #27）
 
 完整记录以 `vendor/upstream/provenance.json#pinUpdateExercise` 与 `vendor/upstream/PROVENANCE.md` 为准，此处为摘要：
@@ -193,6 +234,8 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | SSH 凭据引用真实解析 | ~~NullResolver 恒 undefined~~ 已随 issue #4 实现（未验证）：vault-backed resolver + Android 桥；**设备级归 C1/C2** | issue #4 |
 | SSH 端口变化后身份稳定真机验证 | 隧道重解析未实现（单测已锁定键不随端口变化） | issue #6（配合 G15） |
 | live 直连 E2E（含 incompatible 真服务差异核对） | 授权服务 + 模型；直连不展示 incompatible（上游 web 原生行为，补齐归 #5） | issue #2/#5 |
+| G16 probe 桥 bring-up（issue #5） | 真机/模拟器（API 23+）：probe 握手/ack/重试耗尽显式 unavailable/与 vault 桥并存互不误捕/probe 零日志值负例 | issue #5 |
+| G3 预检实测（修正后） / G4 坏证书分类呈现 / G5 明文阻断呈现 / G11 错误矩阵端到端（issue #5 细化） | 真机/模拟器 + 授权远程服务（G4 另需证书可控服务）；静态证据与单测已就位，见 V-conn 与决策 0002 | issue #5 |
 | C1 桥握手 bring-up（含错误 origin 探针顺序：新加载页面先错误 origin→断言无捕获→再正确 origin） | 真机/模拟器（API 23+）；ack/重试耗尽呈现/导航重置 | issue #4（计划 v3 D1/C5） |
 | C2 凭据读写端到端（勾选记住/hydration 免重输/私钥导入/ValueCallback 恰一次/chooser 取消复用/corrupt 恢复） | 真机/模拟器 + 授权远程服务 | issue #4 |
 | C3 64KiB 边界（恰 65536 字节传输成功/超限 JS 预检拒绝+native 复检纵深） | 真机/模拟器 | issue #4 |
@@ -200,6 +243,7 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | C5 桥安全探针（C5a targetOrigin 强制/C5b port confinement 单测已 PASS/C5c 形状校验单测已 PASS/C5d ack 前 unavailable 单测已 PASS+真机复核） | 真机/模拟器（C5a/C5d 真机面） | issue #4 |
 | 平台 WebMessage 细节 bring-up 实测（ack 到达时序、超时兜底真机复核） | 真机/模拟器 | issue #4（随 C1） |
 | Kotlin vault 三件 + MainActivity 编译 | Android SDK（compileSdk 36，minSdk 29） | 后续环境准备；命令已记录于本文 |
+| Kotlin probe 两件（DirectEndpointProbe/ProbeBridge）+ MainActivity 增量编译 | Android SDK（compileSdk 36，minSdk 29）；括号平衡与红线负断言（V-conn）为仅有的静态检查 | issue #5；命令已记录于本文 |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -272,6 +316,8 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | 凭据绑定块/凭据管理器（[units/server-list.md](design/units/server-list.md)） | `packages/mobile-hosts/src/ui/{host-dialog,credential-manager,host-manager}.tsx` | V-mh（remove 联动/T14）+ V-css 令牌核验 | 一致；自由文本 ref 输入已移除 |
 | 三层信任 + event.origin 平台证据（[design/architecture.md](design/architecture.md)） | `packages/mobile-hosts/src/vault/transport.ts`（形状校验/port 闭包/ack） | V-vault（无 origin 咨询负检查 + 形状校验动态探针）+ V-mh（port 不入全局） | 一致；PostMessageTest 证据链已写入文档 |
 | M-010 hydration 仅内存（[design/architecture.md](design/architecture.md) 补丁表） | M-010 patch（registry.tsx） | V-vault（setStore-only、无直接存储写入、M-002 标记在） | 一致；运行时执行归 C1 |
+| 直连裁定 D1–D5（[decisions/0002](decisions/0002-direct-connection-transport.md)） | `packages/mobile-hosts/src/transport/*`、`src/probe.ts`、M-011…M-014 patches、`scripts/verify-direct-connection.ts` | V-mh（url-policy/secure-fetch/probe 套件）+ V-conn（负断言/netsec/分类码/标记）+ V3 | 一致；G3–G5/G11/G16 设备级 BLOCKED |
+| 错误分类×反馈×恢复矩阵（[units/connection.md](design/units/connection.md)） | M-013 patch（dialog.tsx + en/zh i18n）、`packages/mobile-hosts/src/probe.ts`（directErrorCodeMessageKey） | V-mh 全集断言 + dist language/zh chunk 键命中 | 一致；矩阵每行文案键 EN/ZH 成对；设备端到端归 G11 |
 
 ### 机械检查记录（2026-10-24）
 
