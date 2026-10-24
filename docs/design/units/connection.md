@@ -21,9 +21,9 @@
 | `http.credentialRef` | optional String（位于 `ServerHttpBase` 内，即 `http.credentialRef` 层级） | 指向凭据条目的**非机密引用**（形如 `mobile-credential:<id>`），不是凭据本身 | 已实现（未验证）（M-005 字段 + M-006 对话框透传）；探针 `scripts/verify-credential-ref.ts` PASS |
 
 - 直连：M-005 在持久化 schema 增字段（encode 剥 password 的行为不变）；M-006 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
-- SSH：主机记录原生持有 `credentialRef`（载荷白名单字段，见 [server-list.md](server-list.md)）；编辑语义为「undefined=保留、空串=清空」，主机 target/身份变更时是否清空或重确认引用归 issue #4 裁定。
-- 引用解析：issue #3 本期为 NullResolver；issue #4 起 resolver 默认仍是 fail-closed 的 Unavailable 实现（显式状态，非降级），Android 桥握手 ack 后由 vault 支撑的 resolver 解析（见下节 vault 契约）；解析结果只注入内存连接对象，永不回写持久化。
-- 用户可见后果：重启后直连仍需重输密码（M-002），SSH 主机需重新解析凭据引用（本期引用无目标，SSH 连接真实建立归 #6）；引用本身会随记录保留。
+- SSH：主机记录原生持有 `credentialRef`（载荷白名单字段，见 [server-list.md](server-list.md)）；编辑语义为「undefined=保留、空串=清空」。target/身份变更裁定（issue #4，已定）：**保留 ref + 显式移除**——target 变更不清 ref，由用户在编辑表单取消勾选或经凭据管理器删除（见失效矩阵）。
+- 引用解析（已实现（未验证）：issue #4）：resolver 默认 fail-closed——未注入 vault 时为 NullResolver（恒 undefined），注入 vault 时默认经 `createVaultResolver` 走 vault（vault 级 unavailable 抛错 → 主机显式 failed；条目级 corrupt/missing → undefined → 服务端认证路径）；Android 桥握手 ack 后由 vault 支撑的 resolver 解析（见下节 vault 契约）。解析结果只注入内存连接对象，永不回写持久化。
+- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据经 M-010 hydration 自动恢复（内存）；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接真实建立归 #6）；引用本身随记录保留。
 
 ## 凭据保险库契约（已实现（未验证）：issue #4）
 
