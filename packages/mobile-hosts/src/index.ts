@@ -105,6 +105,7 @@ export {
   parseKnownHosts,
   parseKnownHostsLine,
   parseSshTargetHost,
+  parseSshTargetUser,
   serializeKnownHosts,
   serializeKnownHostsEntry,
   type KnownHostsEntry,
@@ -233,3 +234,11 @@ export {
   type ServiceOpsPort,
 } from "./service-ops/port"
 export { shouldRefreshServiceStatus } from "./service-ops/refresh"
+export {
+  createPanelDriver,
+  type PanelDriverDeps,
+  type PanelResult,
+  type PlanStep,
+  type Preview,
+  type PreviewAction,
+} from "./service-ops/panel-driver"

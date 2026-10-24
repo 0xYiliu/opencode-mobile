@@ -118,7 +118,14 @@ describe("SshBridgeHostTransport open flow", () => {
     })
     expect(endpoint).toEqual({ url: "http://127.0.0.1:41001" })
     expect(native.requests()[0]!.op).toBe("connect")
-    expect(native.requests()[0]!.params).toEqual({ host: "example.invalid", port: 2200, servicePort: DEFAULT_SERVICE_PORT })
+    // Review B2 (issue #7): the target's user@ segment crosses as the username (a
+    // routing fact, not a credential).
+    expect(native.requests()[0]!.params).toEqual({
+      host: "example.invalid",
+      port: 2200,
+      servicePort: DEFAULT_SERVICE_PORT,
+      username: "deploy",
+    })
 
     const withCredential = createFakeSshBridge({ connect: connectOk })
     withCredential.native.connect()

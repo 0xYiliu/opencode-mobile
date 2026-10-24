@@ -32,6 +32,12 @@ import type { ServiceOsFamily } from "./commands"
 export type ServiceOpsExecInput = {
   host: string
   port: number
+  /**
+   * The SSH username from the target's user@ segment (review B2): a routing fact, NOT a
+   * credential — carried so the native getSession authenticates as the right user.
+   * Absent for user-less targets.
+   */
+  username?: string
   /** The whitelisted template id (the wire face; the command is assembled natively). */
   templateId: string
   params?: Record<string, string>
@@ -123,6 +129,7 @@ export function createServiceOpsClient(transport: ServiceOpsBridgeTransport): Se
         const response = await transport.request("exec", {
           host: input.host,
           port: input.port,
+          ...(input.username !== undefined ? { username: input.username } : {}),
           templateId: input.templateId,
           params: input.params ?? {},
           os: input.os,
@@ -134,8 +141,11 @@ export function createServiceOpsClient(transport: ServiceOpsBridgeTransport): Se
           return {
             ok: false,
             code: bridgeErrorToServiceOpsError(response.code, message).code,
-            // The native error face may carry the bounded stderr tail in the message
-            // field (permission-denied evidence); pass it through untouched.
+            // The wire protocol carries an EMPTY message (zero-echo discipline — the
+            // bounded stderr tail travels only on successful exec results, classified
+            // JS-side by interpretExecResult). This pass-through is a defensive dead
+            // path kept so a future protocol change cannot silently swallow evidence
+            // (review N5: the earlier comment wrongly claimed the tail traveled here).
             stderrTail: message && message.length > 0 ? message : undefined,
           }
         }

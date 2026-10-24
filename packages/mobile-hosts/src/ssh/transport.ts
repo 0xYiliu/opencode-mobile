@@ -22,7 +22,7 @@
 // `localhost:<servicePort>` single hop (no jump host, no WSL, no device-side service).
 
 import { bridgeErrorToTransportError, bridgeServicePort, parseBridgeEndpoint, type SshBridgeTransport } from "./bridge"
-import { parseSshTargetHost } from "./known-hosts"
+import { parseSshTargetHost, parseSshTargetUser } from "./known-hosts"
 import { SshTransportError } from "../transport/ssh-errors"
 import type { HostTransport, TransportEndpoint, TransportEvent } from "../ports"
 
@@ -68,6 +68,11 @@ export function createSshHostTransport(transport: SshBridgeTransport): HostTrans
     open: async (input: OpenInput): Promise<TransportEndpoint> => {
       if (input.signal.aborted) throw new SshTransportError("io", "attempt already aborted")
       const { host, port } = parseSshTargetHost(input.target)
+      // Review B2 (issue #7): the target's user@ segment is the SSH username — a routing
+      // fact, NOT a credential — and must reach the session (the pre-B2 bug dropped it
+      // here, so the native getSession received the password as the username). Absent for
+      // user-less targets (the session falls back to the server's default behavior).
+      const username = parseSshTargetUser(input.target)
       const servicePort = bridgeServicePort(input.servicePort)
       const key = `${host}:${port}`
 
@@ -81,6 +86,7 @@ export function createSshHostTransport(transport: SshBridgeTransport): HostTrans
           host,
           port,
           servicePort,
+          ...(username !== undefined ? { username } : {}),
           ...(input.credential !== undefined ? { credential: input.credential } : {}),
           ...(input.pinnedFingerprint !== undefined ? { pinnedFingerprint: input.pinnedFingerprint } : {}),
         })

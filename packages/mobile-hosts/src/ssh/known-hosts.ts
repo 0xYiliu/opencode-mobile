@@ -122,6 +122,22 @@ export function matchesKnownHostsEntry(entry: { hostname: string; port?: number;
   return (entry.port ?? 22) === port
 }
 
+/**
+ * Extract the user segment from an SSH target (`[user@]host[:port]`). Undefined when the
+ * target carries no user@ (the session then falls back to the SSH client's default user
+ * behavior). The username is NOT a credential (issue #7 review B2) — it is a routing
+ * fact that must reach the SSH session instead of being dropped here (the pre-B2 bug:
+ * `getSession` received the password as the username because the user segment never
+ * crossed the bridge).
+ */
+export function parseSshTargetUser(target: string): string | undefined {
+  const trimmed = target.trim()
+  const at = trimmed.lastIndexOf("@")
+  if (at === -1) return undefined
+  const user = trimmed.slice(0, at)
+  return user.length > 0 ? user : undefined
+}
+
 /** Extract the host[:port] pieces from an SSH target (`[user@]host[:port]`). */
 export function parseSshTargetHost(target: string): { host: string; port: number } {
   const trimmed = target.trim()
