@@ -99,6 +99,8 @@ async function softwareVaultNative() {
     // value to have planted in the store before the row (password text), or undefined
     plantPrior?: boolean
     expectEntries: number
+    // host-dialog assembly: the kind of the entry bound to priorRef, when known
+    boundKind?: "password" | "privateKey"
   }
   // expectEntries is the CUMULATIVE store size after the row (rows share one store, like
   // one device): 1 put / row1 -> 1; rows 3,7,8 plant priors (+1 each); rows 4,9,10 clear.
@@ -115,6 +117,13 @@ async function softwareVaultNative() {
     { n: 10, mode: "edit", checkboxRendered: true, remember: false, valueEmpty: true, priorRef: "mobile-credential:row10", action: "clear", plantPrior: true, expectEntries: 4 },
     { n: 11, mode: "edit", checkboxRendered: false, remember: false, valueEmpty: true, priorRef: "mobile-credential:row11", action: "passthrough", expectEntries: 4 },
     { n: 12, mode: "add", checkboxRendered: true, remember: true, valueEmpty: true, priorRef: "mobile-credential:row12", action: "abort", expectEntries: 4 },
+    // Row 13 (issue #4 review fix, host-dialog assembly): a PRIVATE KEY imported on add with
+    // nothing typed keeps its binding instead of aborting — aborting the save would strand
+    // the imported entry as an orphan. add and edit are the same decision here.
+    { n: 13, mode: "add", checkboxRendered: true, remember: true, valueEmpty: true, priorRef: "mobile-credential:row13", action: "passthrough", plantPrior: true, expectEntries: 5, boundKind: "privateKey" },
+    { n: 14, mode: "edit", checkboxRendered: true, remember: true, valueEmpty: true, priorRef: "mobile-credential:row13", action: "passthrough", expectEntries: 5, boundKind: "privateKey" },
+    // Row 12 stays abort for password-kind priors (boundKind reported by the assembly).
+    { n: 15, mode: "add", checkboxRendered: true, remember: true, valueEmpty: true, priorRef: "mobile-credential:row12", action: "abort", expectEntries: 5, boundKind: "password" },
   ]
 
   const planted = new Set<string>()
@@ -130,6 +139,7 @@ async function softwareVaultNative() {
       remember: row.remember,
       valueEmpty: row.valueEmpty,
       priorRef: row.priorRef,
+      ...(row.boundKind !== undefined ? { boundKind: row.boundKind } : {}),
     })
     if (decision.action !== row.action) fail(`row ${row.n}: decision ${decision.action} != expected ${row.action}`)
 
@@ -201,6 +211,27 @@ async function softwareVaultNative() {
   if (!/encode: SchemaGetter\.transform/.test(persistence)) {
     fail("M-002 encode-side strip missing from persistence.ts")
   }
+}
+
+// ---------------------------------------------------------------------------
+// 3b: host-dialog assembly (issue #4 review fix) — the add+imported-key path completes.
+// ---------------------------------------------------------------------------
+{
+  const dialog = await Bun.file(new URL("../packages/mobile-hosts/src/ui/host-dialog.tsx", import.meta.url)).text()
+  // The save passes the bound entry's kind so a remembered private key keeps its binding.
+  if (!/boundKind:\s*boundMeta\(\)!?\.kind/.test(dialog)) {
+    fail("host-dialog: save() does not pass boundKind to the remember decision")
+  }
+  // The checkbox participates only when the vault is available (remember.ts semantics).
+  if (!/checkboxRendered:\s*vaultAvailable\(\)/.test(dialog)) {
+    fail("host-dialog: checkboxRendered must be vaultAvailable(), not an unconditional true")
+  }
+  // Secondary hazard: a password must never in-place overwrite a bound key entry — the
+  // field is disabled while a key is bound (explicit, review-chosen fix).
+  if (!/disabled=\{boundMeta\(\)\?\.kind === "privateKey"\}/.test(dialog)) {
+    fail("host-dialog: the password field is not disabled while a private key is bound")
+  }
+  console.log("3b OK: host-dialog assembly passes boundKind, gates the checkbox on vault availability and disables the password field for key bindings")
 }
 
 // ---------------------------------------------------------------------------
@@ -288,5 +319,5 @@ const distMarker = VAULT_BRIDGE.marker
 if (!distMarker.startsWith("mobile(vault-v1)")) fail("vault dist marker missing from the transport module")
 
 console.log(
-  "verify-credential-vault: PASS (truth table v3 rows 1-12 with in-process envelope-crypted vault effects; early-exit forcing + initial value; M-010 setStore-only hydration injection; M-007 listener-before-render with shape-only handshake; no origin fabrication or consultation anywhere)",
+  "verify-credential-vault: PASS (truth table v3 rows 1-12 + review-fix row 13 with in-process envelope-crypted vault effects; early-exit forcing + initial value; host-dialog assembly passes boundKind; M-010 setStore-only hydration injection; M-007 listener-before-render with shape-only handshake; no origin fabrication or consultation anywhere)",
 )

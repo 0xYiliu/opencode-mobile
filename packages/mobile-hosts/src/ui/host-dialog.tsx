@@ -103,12 +103,15 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
   const save = async () => {
     setError(undefined)
     // Truth table v3 for the SSH form: add has no prior, edit's prior is the bound ref.
+    // boundKind lets an already-imported private key keep its binding on an empty value
+    // (row 13) instead of aborting the save and stranding the entry as an orphan.
     const decision = evaluateRemember({
       mode: editing ? "edit" : "add",
-      checkboxRendered: true,
+      checkboxRendered: vaultAvailable(),
       remember: remember(),
       valueEmpty: password().length === 0,
       priorRef: boundRef(),
+      ...(boundMeta() !== undefined ? { boundKind: boundMeta()!.kind } : {}),
     })
     if (decision.action === "abort") {
       setError(t("hostDialog.needsPassword"))
@@ -238,9 +241,17 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
               value={password()}
               placeholder={t("hostDialog.credentialPasswordPlaceholder")}
               invalid={!!error()}
+              // A bound private key must never be silently in-place overwritten by a
+              // password (same entry id, kind would flip to password). The field is
+              // disabled while a key is bound; replacing the key with a password goes
+              // through uncheck (clears the binding) then check + type.
+              disabled={boundMeta()?.kind === "privateKey"}
               onInput={(event) => setPassword(event.currentTarget.value)}
               onKeyDown={keyDown}
             />
+            <Show when={boundMeta()?.kind === "privateKey"}>
+              <span class="text-12-regular text-text-weak">{t("hostDialog.passwordDisabledForKey")}</span>
+            </Show>
             <input
               ref={keyFileInput}
               type="file"

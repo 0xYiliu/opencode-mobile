@@ -245,6 +245,24 @@ describe("remember truth table v3 (evaluateRemember)", () => {
   test("edit analogue of rows 2/12: checked, empty, no ref to keep -> abort", () => {
     expect(evaluateRemember({ ...EDIT, remember: true, valueEmpty: true, priorRef: undefined })).toMatchObject({ action: "abort", reason: "needs-password" })
   })
+  test("row 13 (issue #4 review fix): checked, empty, PRIVATE KEY bound -> keep the binding in add and edit", () => {
+    // host-dialog add assembly: the key was imported before save; aborting would strand it
+    // as an orphan and there is no value to type for a key binding.
+    expect(evaluateRemember({ ...ADD, remember: true, valueEmpty: true, priorRef: "mobile-credential:keyentry", boundKind: "privateKey" })).toEqual({
+      action: "passthrough",
+      ref: "mobile-credential:keyentry",
+      forcesSave: false,
+    })
+    expect(evaluateRemember({ ...EDIT, remember: true, valueEmpty: true, priorRef: "mobile-credential:keyentry", boundKind: "privateKey" })).toEqual({
+      action: "passthrough",
+      ref: "mobile-credential:keyentry",
+      forcesSave: false,
+    })
+  })
+  test("row 12 unchanged for password-kind priors (boundKind absent or password)", () => {
+    expect(evaluateRemember({ ...ADD, remember: true, valueEmpty: true, priorRef: "mobile-credential:p12" })).toMatchObject({ action: "abort", reason: "needs-password" })
+    expect(evaluateRemember({ ...ADD, remember: true, valueEmpty: true, priorRef: "mobile-credential:p12", boundKind: "password" })).toMatchObject({ action: "abort", reason: "needs-password" })
+  })
   test("early-exit forcing: a rendered checkbox flipped against the prior blocks the nothing-changed exit", () => {
     // checked over a ref-less prior / unchecked over a remembered prior
     expect(evaluateRemember({ ...ADD, remember: true, valueEmpty: false, priorRef: undefined }).forcesSave).toBe(true)

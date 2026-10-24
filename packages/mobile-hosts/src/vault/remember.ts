@@ -12,6 +12,7 @@
 // the ref field is carried from the prior. Checkbox initial value is Boolean(priorRef).
 
 import { isValidCredentialRef } from "../credential-ref"
+import type { VaultKind } from "./types"
 
 export interface RememberInput {
   /** Dialog mode: row 8 (keep on empty) is edit-only; its add analogue aborts (row 12). */
@@ -29,6 +30,15 @@ export interface RememberInput {
   valueEmpty: boolean
   /** The prior's credential reference (edit original, or the URL-matched prior on add). */
   priorRef?: string
+  /**
+   * Kind of the credential bound to priorRef, when known (host-dialog assembly, issue #4
+   * review fix). A remembered PRIVATE KEY on an empty value keeps the binding in add and
+   * edit alike — a key binding has no value to type, and aborting the save would strand the
+   * imported entry as an orphan. M-009 (direct servers, password kind) does not pass the
+   * field and is unaffected. The UI additionally disables the password field while a key is
+   * bound, so a password can never in-place overwrite a key entry through the form.
+   */
+  boundKind?: VaultKind
 }
 
 export type RememberDecision =
@@ -66,9 +76,12 @@ export function evaluateRemember(input: RememberInput): RememberDecision & { for
   const forcesSave = input.remember !== Boolean(priorRef)
   if (input.remember) {
     if (input.valueEmpty) {
-      // Row 8: an edit that stays checked with nothing typed keeps the stored ref — the
-      // remembered credential is still there; health checks use the resolved in-memory value.
-      if (input.mode === "edit" && priorRef !== undefined) {
+      // Row 8 and its review-fix extension (row 13): a checked save with nothing typed
+      // keeps the stored binding — the remembered credential already exists. For a bound
+      // PRIVATE KEY this holds in add and edit alike (a key has no value to type; aborting
+      // would strand the imported entry as an orphan). For a password binding it is
+      // edit-only (row 8); the add analogue with a password kind stays row 12's abort.
+      if (priorRef !== undefined && (input.mode === "edit" || input.boundKind === "privateKey")) {
         return { action: "passthrough", ref: priorRef, forcesSave }
       }
       // Rows 2/12 (and the edit-without-ref analogue): "remember an empty credential" is not
