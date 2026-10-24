@@ -172,6 +172,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts M-007 assertions (listener-before-render, markers, no origin consultation) still pass; probe transport isolation and handshake shape are unit-tested in packages/mobile-hosts/test/probe.test.ts; dist markers opencode-mobile-probe-handshake and mobile(probe-v1) + scripts/verify-direct-connection.ts full mode; device behavior BLOCKED (G16).",
       "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field)."
+    },
+    {
+      "id": "M-015",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "SSH tunnel bridge wiring (issue #6). The entry creates the ssh bridge transport over the protocol-isolated ssh handshake (opencode-mobile-ssh-handshake) - the third sibling of the vault and probe transports on the same window message events, each capturing only its own handshake string with exactly one port, none consulting event.origin (embedder-posted messages carry an empty origin by platform construction). Port captured in the transport closure, acked immediately, later handshakes ignored. createMobileHosts now receives the bridge-backed hostKey verifier, tunnel transport and sshBridge handle; the fail-closed stubs stay the package's no-injection default. Before the native ack every ssh attempt fails explicitly (bridge-unavailable) - no tunnel can exist unverified.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts full mode (dist markers opencode-mobile-ssh-handshake + mobile(ssh-v1), entry wiring assertions); driver full-flow tests in packages/mobile-hosts/test/runtime-ssh.test.ts; device behavior BLOCKED (G17, SSH E2E).",
+      "rebase": "New patch (issue #6); rebase target is the mobile(M-014) probe transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the createMobileHosts call, extended with the ssh transport, the bridge-backed hostKey/transport and the sshBridge handle)."
     }
   ]
 }
