@@ -14,7 +14,8 @@ describe("registry servicePort (issue #6)", () => {
     const registry = createHostRegistry({ storage: createMemoryStorage(), now: NOW })
     const withPort = registry.add({ name: "a", target: "user@example.invalid", servicePort: 8080 })
     expect(withPort.servicePort).toBe(8080)
-    const withoutPort = registry.add({ name: "b", target: "user@example.invalid" })
+    // Distinct targets: the registry enforces unique targets (review N5).
+    const withoutPort = registry.add({ name: "b", target: "user2@example.invalid" })
     expect(withoutPort.servicePort).toBeUndefined() // default applies at the consumer
     expect(DEFAULT_SERVICE_PORT).toBe(4096)
   })

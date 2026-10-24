@@ -64,6 +64,8 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
     switch (code) {
       case "duplicate-name":
         return "hostDialog.error.duplicateName"
+      case "duplicate-target":
+        return "hostDialog.error.duplicateTarget"
       case "invalid-target":
       case "empty-target":
       case "target-too-long":

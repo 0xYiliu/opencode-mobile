@@ -45,6 +45,7 @@ export type RegistryErrorCode =
   | "empty-name"
   | "name-too-long"
   | "duplicate-name"
+  | "duplicate-target"
   | "empty-target"
   | "invalid-target"
   | "target-too-long"
@@ -171,11 +172,26 @@ export function createHostRegistry(options: HostRegistryOptions) {
     if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-name", name)
   }
 
+  /**
+   * Targets are unique across the registry (issue #6 review N5): two records with the same
+   * target would address ONE ssh host through two identities, and a connect for one would
+   * tear down the other's active tunnel (the transport keys live sessions by host:port).
+   * Comparison is case-insensitive on the whole target: the hostname part is
+   * case-insensitive by RFC, and treating the user part the same way is the predictable
+   * UX choice (the same discipline as the name uniqueness check).
+   */
+  function assertUniqueTarget(target: string, exceptId?: string): void {
+    const normalized = target.trim().toLowerCase()
+    const existing = store.hosts.find((host) => host.target.toLowerCase() === normalized)
+    if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-target", target)
+  }
+
   function add(input: HostRecordInput): HostRecord {
     assertNoForbiddenKeys(input)
     const name = validateName(input.name)
     assertUniqueName(name)
     const target = validateTarget(input.target)
+    assertUniqueTarget(target)
     const credentialRef = normalizeCredentialRef(input.credentialRef)
     const servicePort = validateServicePort(input.servicePort)
     const timestamp = now()
@@ -208,6 +224,7 @@ export function createHostRegistry(options: HostRegistryOptions) {
     const name = patch.name !== undefined ? validateName(patch.name) : current.name
     assertUniqueName(name, id)
     const target = patch.target !== undefined ? validateTarget(patch.target) : current.target
+    assertUniqueTarget(target, id)
     const credentialRef =
       patch.credentialRef !== undefined ? normalizeCredentialRef(patch.credentialRef) : current.credentialRef
     const servicePort = patch.servicePort !== undefined ? validateServicePort(patch.servicePort) : current.servicePort
