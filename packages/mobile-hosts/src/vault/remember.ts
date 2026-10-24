@@ -16,7 +16,12 @@ import { isValidCredentialRef } from "../credential-ref"
 export interface RememberInput {
   /** Dialog mode: row 8 (keep on empty) is edit-only; its add analogue aborts (row 12). */
   mode: "add" | "edit"
-  /** The checkbox is rendered for the password method only (link flows never render it). */
+  /**
+   * The checkbox participates in the decision only when it is rendered AND enabled: the
+   * password method (link flows never render it) and the vault available. When false, the
+   * prior ref passes through untouched and zero vault operations follow — an unavailable
+   * vault must not silently clear a remembered credential.
+   */
   checkboxRendered: boolean
   /** Resolved checkbox state: the user's choice once touched, else Boolean(priorRef). */
   remember: boolean

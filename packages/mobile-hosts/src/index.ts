@@ -65,6 +65,7 @@ export {
 } from "./vault/types"
 export { ENVELOPE_MAGIC, generateEnvelopeKey, importEnvelopeKey, openEnvelope, sealEnvelope } from "./vault/envelope"
 export {
+  VAULT_BRIDGE,
   VAULT_HANDSHAKE,
   createInProcessVaultEngine,
   createWebMessageChannelTransport,

@@ -19,6 +19,16 @@ import { VaultError, type VaultErrorCode } from "./types"
 /** The handshake string the native side posts with the transferable port. */
 export const VAULT_HANDSHAKE = "opencode-mobile-vault-handshake"
 
+/**
+ * Bridge constants object; `marker` anchors the V-secret dist audit (docs/build-and-verify.md):
+ * the string survives minification inside this used object and lets the built bundle be
+ * checked for the vault contract (mobile(vault-v1)) the same way mobile(M-002) is.
+ */
+export const VAULT_BRIDGE = {
+  marker: "mobile(vault-v1): keystore envelope v1 over the platform web message channel",
+  handshake: VAULT_HANDSHAKE,
+} as const
+
 export type VaultOperation = "put" | "remove" | "get" | "list"
 
 export type VaultResponse =
@@ -91,7 +101,7 @@ export function createWebMessageChannelTransport(options: WebMessageChannelTrans
 
   const unsubscribe = options.subscribe((event: VaultHandshakeEvent) => {
     if (port || dead) return // first successful capture wins; later handshakes are ignored
-    if (!isRecord(event) || event["data"] !== VAULT_HANDSHAKE) return
+    if (!isRecord(event) || event["data"] !== VAULT_BRIDGE.handshake) return
     const ports = event["ports"]
     if (!Array.isArray(ports) || ports.length !== 1) return
     const candidate = ports[0]
@@ -276,7 +286,7 @@ export function createInProcessVaultEngine(handlers: InProcessVaultHandlers, opt
     client,
     native: {
       connect() {
-        subscriber?.call(undefined, { data: VAULT_HANDSHAKE, ports: [nativePort] })
+        subscriber?.call(undefined, { data: VAULT_BRIDGE.handshake, ports: [nativePort] })
       },
       deliver(event) {
         subscriber?.call(undefined, event)
