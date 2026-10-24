@@ -95,6 +95,7 @@ export {
   validateRedirectTarget,
   type RedirectVerdict,
 } from "./transport/url-policy"
+export { SECURE_FETCH_MARKER, createSecureFetch } from "./transport/secure-fetch"
 export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
 export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
