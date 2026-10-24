@@ -8,6 +8,8 @@
 
 记录日期：2026-10-24。issue #5 段（直连传输卫生与错误分类，M-011…M-014、V-conn 探针）的验证于同日在分支 `issue-5-direct-connection` 工作树执行（基线 dev @ f9cc526，计划 v1），全部为本机构建/静态/单测级验证；probe 桥 bring-up 与错误矩阵设备门禁（G4/G5/G11/G16）全部 BLOCKED。
 
+记录日期：2026-10-24。issue #7 段（远程服务发现与显式授权的安装/启动/版本处理：第四桥/白名单命令面/授权流/M-016/V-svcops 探针）的验证于同日在分支 `issue-7-service-discovery` 工作树执行（基线 dev @ efce61f，计划 v2+v2.1 addendum；S1–S8 提交链），全部为本机构建/静态/单测级验证；G18 四桥 bring-up 与三 OS 真 OS E2E 全部 BLOCKED。另：本机存在 Android SDK（`~/.android-sdk`，platforms/android-36）与 gradle 9.6.1 发行版，issue #6 曾声明「无 SDK、Kotlin 编译 BLOCKED」的环境前提已变化——本轮实测 `:app:compileDebugKotlin` 经真实工具链 PASS（详见 issue #7 段与偏差表）。
+
 记录日期：2026-10-24。issue #6 段（SSH 隧道传输：ssh 桥/verifier/transport、驱动装配、Kotlin ssh 四件、M-015、V-ssh 探针）的验证于同日在分支 `issue-6-ssh-tunnel` 工作树执行（基线 dev @ 8d55bd2，计划 v1；S1–S8 提交链），全部为本机构建/静态/单测级验证；桥 bring-up（G17）与 SSH E2E 及 Kotlin 编译全部 BLOCKED。
 
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
@@ -40,6 +42,16 @@ bun run scripts/verify-credential-ref.ts              # V-cRef（issue #3 N2 探
 bun run scripts/verify-credential-vault.ts            # V-vault（issue #4 真值表/桥/M-010 探针）
 bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明文持久化审计）
 bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连静态验证；补丁落地前用 --pre-vendor 分段）
+bun run scripts/verify-service-ops.ts                 # V-svcops（issue #7 服务操作静态验证；--pre-native/--pre-vendor 分段）
+```
+
+Kotlin 编译探针（issue #7 S5 实测可用，替代既往「仅括号平衡」的静态检查）：
+
+```bash
+java -cp "$GRADLE_LIB/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib \
+  -classpath "$ANDROID_JAR:$JSCH_JAR:$NANOHTTPD_JAR:$BCPROV_JAR:$KOTLIN_STDLIB" -jvm-target 17 -d <out> \
+  $(find android/app/src/main/java -name "*.kt")      # 整包 Kotlin 编译探针（对真实 android.jar + jsch jar）
+cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（GRADLE 本地发行版 + ANDROID_HOME）
 ```
 
 `--conditions=browser` 的原因：solid-js@1.9.15 的 exports 无 `solid` 条目，bun test 默认按 `node` 条件解析到无响应式的 server 构建；`browser` 条件选中有响应式的 client 构建（已用最小 repro 验证：store 变更触发 memo 重算）。上游 app 自身测试使用 `--conditions=solid` + happy-dom 预载（其 JSX 预载所必需），与本包命令不同属正常，两者均已如实记录。
@@ -86,6 +98,8 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 | NOTICE-THIRD-PARTY.md | 未生成（V4 BLOCKED） | — | — | — |
 | SSH 隧道（认证/host-key/转发/四层分类，issue #6） | ✓ | ✓（V-mh 212 单测含 runtime-ssh 全流、V-ssh 全模式、V2/V3/V-conn 回归） | BLOCKED（G17 三桥 bring-up、SSH E2E） | BLOCKED |
 | Kotlin ssh 四件 + gradle 依赖（jsch/bcprov） | ✓（代码） | 静态验证 ✓（V-ssh native 断言 + 括号平衡）；编译 **BLOCKED**（无 SDK，无 APK） | BLOCKED（G17） | BLOCKED |
+| 服务操作（发现/显式授权安装/启动/升级/替换/停止，issue #7） | ✓ | ✓（V-mh 299 单测、V-svcops 全模式、V2/V3、Kotlin 编译探针+compileDebugKotlin PASS） | BLOCKED（G18 四桥 bring-up + 面板交互） | BLOCKED（三 OS 真 OS E2E） |
+| Kotlin svcops 四件 | ✓（代码） | 编译 PASS（真实工具链）；**APK 打包 BLOCKED**（jsch+bcprov jar 元数据冲突，需 build.gradle.kts packaging 块——零改动清单，待决策） | BLOCKED（G18） | BLOCKED |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
 
 ## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
@@ -245,6 +259,35 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 - **失败分类为最佳努力映射**：JSch 异常面 → wire 分类码的映射（`classifySessionException`）按消息关键词分类，真机漂移后果=落入 `io` 泛化文案，不会误放行（分类只选文案，不改变 fail-closed 行为）。
 - **钉固 fast path 的安全边界**：钉固指纹只能经 T2→T3 用户确认进入机器上下文（T4/T8/T13 均清除，单测锁定）；钉固 open 的权威比对在 Kotlin store（KEX 失配 fail-closed）；scan 会话零认证材料由 V-ssh 负断言锁定。运行期断言归 G17。
 
+## issue #7 段（远程服务发现与显式授权的安装/启动/版本处理）——2026-10-24 实测记录
+
+交付物：决策记录 [0004](decisions/0004-service-operations.md)（命令面白名单双门禁/N2 curl POSIX 闭域与 WSL launcher 出处/N3 有界 TOCTOU 声明/N5 pgrep 局限/N6 winget 动词出处/N7 凭据边界继承/N8 fresh-install 回滚选型/安全评审七项/验收⑤条件句）、第一方 service-ops 模块（`packages/mobile-hosts/src/service-ops/`：errors 二十一码含 N4 专码 + commands 模板表（OS 闭域+参数双闸+golden vectors）/discovery 模型与纯解析器/flow O1–O14/bridge 第四桥传输/port（stub fail-closed+模块级注入 seam）/refresh B1 谓词五件 + `src/ui/service-panel.tsx` 面板 + i18n `svcops.*` EN/ZH 全集 + host-manager 行内挂载）、Android svcops 三件（`android/app/src/main/java/ai/opencode/mobile/svcops/`：ServiceOpsErrorCode/ServiceCommandValidator/ServiceOpsManager.kt + ServiceOpsBridge.kt + MainActivity 四挂点）、vendor 补丁 M-016（叠层补丁，登记于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches`，mobile 补丁总数 15→16）、静态探针 `scripts/verify-service-ops.ts`（V-svcops，--pre-native/--pre-vendor 分段）。提交链 `400e650 → 7b1584c → 28ed36e → ca45314 → 6dadbc5 → 4281421 → 1d6bf11`（分支 `issue-7-service-discovery`，基于 dev @ efce61f，未 push）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #7） | npm 侧零新依赖 | bun.lock 与既有终态逐字相同：`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`；`git diff efce61f HEAD -- bun.lock` 为空；`bun install --frozen-lockfile` rc=0（no changes）；gradle 侧零新增依赖（ChannelExec 在既有 jsch jar 内，javap 实证） | 本文；git diff 为空 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**299 tests / 299 pass / 0 fail，2353 expect()**（27 文件；issue #3–#6 的 213 项 + issue #7 的 86 项：二十一码全集与 i18n EN/ZH、N4 分类器 fixture 与诚实降级、golden vectors 双面逐字节（N1 两 POSIX `</dev/null`、Windows 无 /dev/null——评审残余 1；B2 setsid 拆分）、参数元字符/穿越/allowlist/端口范围全拒、OS 闭域双侧拒绝、curl N2 闭域、模板表零删除类无 uninstall（N8）、发现解析器 fixture/合并规则 API 权威/冲突记录/N5 limitations 矩阵、O1–O14 逐行+无确认不执行穷举+cancel/cancel-uncertain+回滚仅自 rollbackAvailable+无 disconnect→stop 边+N3 新鲜度守卫（含未来时钟拒绝）、四桥握手两两互异+双向不误捕+ack 前零能力+超时显式 unavailable+dispose 幂等+凭据单次过桥（N7 wire 形状）+stub fail-closed+注入 seam、B1 谓词级触发集（真实 T 表路径 offline→T10→reconnecting→T11→ready 与 authRequired→T12→ready；T5 不触发；offline 直接边不存在——评审残余 2） | 本文；脚本输出 |
+| V-svcops 服务操作静态验证（S4 提交点） | `bun run scripts/verify-service-ops.ts --pre-native --pre-vendor` | PASS（rc=0）：①21 码 ↔ i18n EN/ZH 全集（N4 专码在册）；②golden vectors 双面逐字节复验；③命令面负断言（零删除类模板/无 uninstall/N2 闭域/跨域拒绝）；④无构建期执行面（零 child_process/spawn）+ 预览串来源唯一（面板零裸模板碎片）；⑤四桥握手两两互异 | 脚本输出 |
+| V-svcops（S5 后 native 段） | `bun run scripts/verify-service-ops.ts --pre-vendor` | PASS（rc=0）：前述五段 + native 断言：Kotlin 枚举逐串镜像 21 码、校验器镜像全部 37 模板 id + 参数正则（Kotlin 字面量形态）+ OS 适用域、全仓 `setCommand` 恰一个调用点且在管理器内被校验器门禁引用、无 ProcessBuilder/Runtime.exec/wsl.exe/ProxyJump、无 uninstall 执行路径（N8）、有界执行面要素（16KiB/ChannelExec/exitStatus/pinnedFingerprint/SshHostKeyStore/单飞簿记）、零值日志负断言（无 host/port/凭据插值）、原生握手隔离、生命周期红线 Kotlin 双写 | 脚本输出 |
+| V-svcops（S6 后全量） | `bun run scripts/verify-service-ops.ts` | PASS（rc=0）：前述全部 + vendor 段：M-016 entry 接线断言（createWebMessageServiceOpsTransport/setActiveServiceOpsPort/握手串）+ dist 标记 `opencode-mobile-svcops-handshake`、`mobile(svcops-v1)` 命中构建资产（`src-CkCjoya0.js`） | 脚本输出 |
+| JSch API javap 核验（S5，#6 B1/B1' 教训执行） | `javap -cp jsch-2.28.8.jar com.jcraft.jsch.ChannelExec`（+ ChannelSession/Channel） | 实证：`setCommand(String)`/`setCommand(byte[])`、`getErrStream():InputStream`、继承 `getInputStream()`/`connect(int)`/`disconnect()`/`isClosed()`/`getExitStatus()`；ChannelExec 为类（无接口常量限定问题）；随整包 Kotlin 编译探针 PASS 双静态门达成 | 本文 |
+| Kotlin 编译（S5，环境勘误） | 整包编译探针（kotlin-compiler-embeddable 2.3.21，经 gradle 9.6.1 发行版 lib）+ `gradle :app:compileDebugKotlin`（真实工具链，compileSdk 36） | **PASS**（exit 0；仅既存 onBackPressed 弃用警告）。**勘误**：本机存在 `~/.android-sdk`（platforms/android-36）与 gradle 发行版，既往「无 SDK、编译 BLOCKED」前提不成立；首编译暴露 issues #2/#5/#6 四处潜伏编译错误并已最小修复（MainActivity `android.net.http.SslError` import、ProbeBridge 枚举→wire 映射错位、SshTunnelManager watchdog Long 字面量，均属既往 issue 面、已如实记录） | 本文；编译探针输出 |
+| APK 打包 | `gradle :app:assembleDebug` | **FAIL**：`mergeDebugJavaResource` 阶段 jsch-2.28.8 与 bcprov-jdk18on 携带的 `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复——需 `build.gradle.kts` packaging 排除块；该文件在计划零改动清单内，本轮不改动，留用户/后续 issue 决策。compile+dex 均已通过，仅 jar 元数据合并阻塞打包 | 本文 |
+| V2 web 构建（M-016 后） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0）；3480 文件 / 153,300,980 bytes 拷入 assets；`web-dist/manifest.json` 已刷新 | `web-dist/manifest.json` |
+| V3 闭包核对（M-016） | `bash scripts/verify-closure.sh` | PASS：树 == pin b4525d79bf + 已登记 16 patches 字节一致、`DANGLING=0`；M-016 为叠层补丁（基线=pin+M-001…M-015），经 checkout 前态 → `git apply --directory=vendor/upstream` round-trip 字节等值验证 | 本文 |
+| V5/V6 机械校验（issue #7 增量） | python3 json.tool / xml.dom.minidom | PASS：三个 manifest + `web-dist/manifest.json` 可解析；Manifest/netsec 可解析（本轮零 XML 改动） | 本文 |
+| V7 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；启发式扫描，非 gitleaks） | 脚本输出 |
+| V-ssh / V-conn 回归 | `bun run scripts/verify-ssh.ts` + `bun run scripts/verify-direct-connection.ts`（全模式） | PASS（rc=0）：M-015/M-011 接线与 dist 标记完好；V-conn 的 SSL 负断言在 MainActivity 修复后复跑零命中 | 脚本输出 |
+| 文档链接核对（issue #7 后） | `test -f` 全量核对 | PASS（decision 0004、units/service-ops.md、architecture/interaction/README/connection 增量链接全在） | 本文 |
+
+### 诚实边界（issue #7 段）
+
+- **设备/真 OS 全部 BLOCKED**：G18 四桥 bring-up、三 OS 真实 exec 发现与 install/start/upgrade/replace E2E、occupied-port/permission-denied 真实路径、真实文件系统回滚、Windows DefaultShell 非 cmd 变体、macOS nohup-only 与 Windows `start /b` 的真实 detach 存活、**N2 远端 bash=WSL 诱饵负例**、断开存活真机触发核对（B1 watcher 真机面）——均未执行；验收⑤条件句（F4 第四处落字）生效：G18+三 OS E2E 通过前只声称「静态边界已实现（未验证）」。
+- **APK 打包 BLOCKED（新边界，精确化）**：非「无 SDK」——SDK 在位、Kotlin 编译与 dex 已过真实工具链；打包阻塞点是 jsch+bcprov 既有 jar 的 OSGI-INF 元数据重复（mergeDebugJavaResource），解法（packaging 排除块）触碰计划零改动清单 `android/build.gradle.kts`，本轮未动、留用户决策。
+- **面板装配为静态+单测边界**：svcops 面板的 Solid 装配（预览对话框/进度/结果渲染）未在 Solid 运行时执行组件级测试（仓库无 UI 组件测试先例）；授权流/触发集/桥协议/命令面均有纯函数级单测与探针，装配逻辑经类型检查与 V2 构建冒烟。
+- **解析器 fixture 为文档化输出形状**：非 live 输出（issue #7 验收①的诚实标注）；真实输出漂移的后果=归入 unknown/no-evidence 如实呈现，不伪造。
+- **失败分类为最佳努力映射**：会话建立面的 JSch 异常→svcops 码映射按消息关键词，漂移后果=落入 `exec-failed` 泛化文案，不改变 fail-closed 行为。
+
 ## 上游更新演练记录（S3，经 issue #27）
 
 完整记录以 `vendor/upstream/provenance.json#pinUpdateExercise` 与 `vendor/upstream/PROVENANCE.md` 为准，此处为摘要：
@@ -284,6 +327,9 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 | Kotlin probe 两件（DirectEndpointProbe/ProbeBridge）+ MainActivity 增量编译 | Android SDK（compileSdk 36，minSdk 29）；括号平衡与红线负断言（V-conn）为仅有的静态检查 | issue #5；命令已记录于本文 |
 | G17 三桥并存 bring-up（issue #6 新设门禁） | 真机/模拟器（API 23+）：vault/probe/ssh 三握手各自捕获互不误捕/互不重置 ack；ssh 桥 cancel/disconnect 即时响应（不依赖 executor 队列排空）；C1–C5 与 G14–G16 不受扰动复测 | issue #6 |
 | Kotlin ssh 四件（SshErrorCode/SshHostKeyStore/SshTunnelManager/SshTunnelBridge）+ MainActivity/gradle 增量编译 | Android SDK（compileSdk 36，minSdk 29）；括号平衡、红线负断言（V-ssh）与 JSch API javap 核验（对 Maven Central jar，评审 B1 轮）为仅有的静态检查 | issue #6；命令已记录于本文 |
+| G18 四桥并存 bring-up + 服务操作交互（issue #7 新设门禁） | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS：四握手各自捕获互不误捕/互不重置 ack；svcops 面板交互（预览=执行/确认/回滚/cancel-uncertain）；occupied-port/permission-denied 真实路径；survivedDisconnect 真机触发（B1）；零日志负例；C1–C5/G14–G17 不受扰动复测 | issue #7 |
+| 三 OS 服务操作真 OS E2E（issue #7） | 授权 Linux/原生 Windows/macOS SSH 主机：真实 exec 发现、install/start/upgrade/replace 全链路、真实回滚、Windows DefaultShell 非 cmd 变体、macOS nohup 与 Windows start /b detach 存活、bash=WSL 诱饵负例（N2） | issue #7 |
+| APK 打包（issue #7 精确化） | jsch+bcprov `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复：需 build.gradle.kts packaging 排除块（计划零改动清单内，待用户决策）；compileDebugKotlin/dex 已 PASS | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露） |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
