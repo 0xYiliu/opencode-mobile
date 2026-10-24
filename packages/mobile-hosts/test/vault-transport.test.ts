@@ -149,4 +149,16 @@ describe("request/response", () => {
     expect(h.transport.status()).toBe("unavailable")
     expect(h.port.received).toEqual([])
   })
+
+  test("dispose rejects an in-flight pending request (N7, issue #4 review)", async () => {
+    const h = harness()
+    h.deliver(handshakeWith(h.port))
+    const pending = h.transport.request("get", { id: "entry-1" })
+    expect(h.port.received).toHaveLength(2) // ack + request
+    h.transport.dispose()
+    await expect(pending).rejects.toMatchObject({ code: "unavailable" })
+    // And a late response for the already-rejected correlation id is ignored (no crash).
+    h.port.onmessage?.({ data: JSON.stringify({ id: JSON.parse(h.port.received[1]!).id, ok: true, result: "late" }) })
+    h.transport.dispose() // idempotent
+  })
 })
