@@ -111,13 +111,15 @@ describe("error taxonomy invariants", () => {
     expect(isDirectErrorCode(42)).toBe(false)
   })
 
-  test("SecureFetchError is not retryable-shaped: name and message avoid the health-retry patterns", () => {
-    // The vendored health check retries on name TypeError or on
-    // /network|fetch|econnreset|econnrefused|enotfound|timedout/i in error.message. A
-    // policy violation must fail fast instead of feeding the retry loop (decision 0002 D1).
-    // The name is only compared for equality (TypeError/AbortError/TimeoutError), and no
-    // vendored code regex-tests String(error), so the class name itself ("SecureFetchError",
-    // which contains "Fetch") is harmless — the message is the load-bearing surface.
+  test("SecureFetchError keeps the message discipline (defense in depth, erratum N1)", () => {
+    // Precise retry semantics: the vendored client's execute() wraps EVERY fetch exception
+    // (including this one) into ClientError("Transport", {cause}) — client.ts:350 — and the
+    // health check's retryable() returns true for ClientError("Transport") BEFORE its
+    // message regex, so classified failures ARE retried on the health-check face (2 extra
+    // fail-closed attempts; harmless). The discipline locked here is for callers that
+    // consume SecureFetchError directly (the M-012 upload face rejects with no retry loop;
+    // future direct consumers get a fast, unambiguous failure): the name stays distinct
+    // from TypeError and messages stay free of the health-retry words.
     const retryableMessage = /network|fetch|econnreset|econnrefused|enotfound|timedout/i
     for (const code of ["redirect-cross-host", "redirect-downgrade", "credential-url"] as const) {
       const error = new SecureFetchError(code)

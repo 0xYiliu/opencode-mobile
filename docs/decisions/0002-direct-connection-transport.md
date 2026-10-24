@@ -23,7 +23,7 @@
 
 - XHR 上传不经 `platform.fetch`：M-012 在 `destination.ts` 的 load 回调以同规则校验 `xhr.responseURL`（`validateRedirectTarget`），两面一致。
 - 备选评估：`redirect: "error"` 否（伤害合法同源反代）；`redirect: "manual"` 否（`opaqueredirect` 不可读，无法区分合法/恶意跟随）。
-- 已知边界：`SecureFetchError` 不是 `TypeError`，上游 `health.ts` 的 `retryable()` 不再对分类错误重试——预期行为（分类错误重试无意义），以测试锁定。
+- 已知边界（勘误 N1，评审）：**分类错误在健康检查面会被重试**——vendored client 的 `execute()`（`packages/client/src/promise/generated/client.ts:350`）把一切 fetch 异常（含 `SecureFetchError`）包为 `ClientError("Transport")`，而 `health.ts` 的 `retryable()` 第一分支 `error instanceof ClientError` 先于消息正则短路返回 true。后果无害且 fail-closed：至多默认再试 2 次（~300ms 量级）、全程无 body 交付、跨源子请求已被浏览器剥头（底线不破）。消息纪律（避开 `network|fetch|timedout` 等词、类名非 `TypeError`）保留为**未来直接消费 `SecureFetchError` 的调用方**（如 M-012 上传面的直接 reject）的纵深，并以单测锁定该纪律本身。
 
 ## D-URL 密钥不进 URL
 
@@ -51,7 +51,7 @@ PTY 通道（vendored `packages/client/src/solid/pty.ts`）先认证铸一次性
 
 ### probe 设计节（F1：probe 凭据边界与桥纪律）
 
-probe 是**分类器不是权威**：`/api/info`（与上游健康检查同路径）的一次 GET 请求 + 有界响应侦嗅，产出 `DirectErrorCode`；分类与真实 fetch（上游健康检查）冲突时**以真实 fetch 为准**（M-013 只在健康检查失败时消费 probe 分类选择错误文案，绝不因 probe 结果放行保存；`ok` 分类与真实失败冲突时退化为上游泛化反馈）。探针行为单测锁定该优先级。
+probe 是**分类器不是权威**：`/api/info`（与上游健康检查同路径）的一次 GET 请求 + 有界响应侦嗅，产出 `DirectErrorCode`；分类与真实 fetch（上游健康检查）冲突时**以真实 fetch 为准**（M-013 只在健康检查失败时消费 probe 分类选择错误文案，绝不因 probe 结果放行保存；`ok` 分类与真实失败冲突时退化为上游泛化反馈）。覆盖边界（勘误 N4）：优先级次序位于 vendored dialog 的 `connectErrorKey`（M-013 装配），现有覆盖=probe 端口级单测（fail-closed/退化/零伪造）+ M-013 装配静态核验（V-cRef 类结构探针），优先级次序本身未经 Solid 运行时单测。
 
 带凭据 probe（评审备注 F1）：probe 分类含 `unauthorized`/`forbidden`，语义成立要求请求携带 `Authorization` 头——用户刚输入的密码经 probe 桥（JS→Kotlin WebMessage port）传给原生 probe，Kotlin 侧拼 `Basic base64("opencode:" + password)`。边界纪律：
 
