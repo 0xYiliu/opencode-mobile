@@ -83,7 +83,7 @@
 | M-006 | 连接对话框 add/replace 构造连接时透传 `original.http.credentialRef` | 否则编辑服务会丢失凭据引用；"无变化早退"比较不含 ref |
 | M-007 | entry.tsx：移除 `location.origin` 当作 OpenCode 服务的装配（壳 asset origin 不是 OpenCode 服务）；以 `createMobileHosts` 引导并经 `servers` 注入 SSH 主机；**M-007 修订（issue #4）**：注入 vault 客户端 + 首渲染前注册握手监听（形状校验/port 闭包/ack/重复握手忽略），resolver 换为 vault-backed | 不用 `VITE_OPENCODE_SERVER_MODE=none` 构建期变量：避免隐藏的构建配置依赖，补丁可随上游 rebase；`?auth_token` 直通流在壳内不适用（无装配服务可认证） |
 | M-008 | 设置 servers 标签页挂载 `<MobileHostManager/>`（lazy import） | SSH 主机管理界面入口 |
-| M-009 | 连接对话框 `dialog.tsx`：`method=password` 时渲染「记住凭据」勾选框（vault available 才可用，unavailable 禁用+说明），真值表 v3 十二行分路（含 add-prior 不分 method、早退强制条件、link 流不渲染、行 2/12 空值中止），i18n en/zh 新键 | 可选记住（issue #4）：勾选时经桥 put 加密落盘并写 credentialRef；取消勾选清 ref+删条目；不铸空值不静默失败 |
+| M-009 | 连接对话框 `dialog.tsx`：`method=password` 时渲染「记住凭据」勾选框（vault available 才可用，unavailable 禁用+说明），真值表 v3 十二行分路（含 add-prior 不分 method、早退强制条件、link 流不渲染、行 2/12 空值中止），i18n en/zh 新键 | 可选记住（issue #4）：勾选时经桥 put 加密落盘并写 credentialRef；取消勾选清 ref+删条目；不铸空值不静默失败。评审修复（B1）：决策核心增 `boundKind`——已绑定**私钥**且值为空时保留绑定（行 13，add/edit 同义），host-dialog 装配在私钥绑定期间禁用密码位防 in-place 换 kind |
 | M-010 | `registry.tsx`：hydration 后对 credentialRef 有且 password 缺失的条目，经 vault resolver 解析并 **setStore 注入内存 password**（不落盘：同一 M-002 encode 路径保证） | 重启后已记住的直连服务免重输；仅内存；unavailable/corrupt 时不注入、走重输路径（失效矩阵） |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。

@@ -61,7 +61,7 @@
 
 ### 可选记住真值表 v3（M-009，连接对话框）
 
-勾选框仅 `method=password` 渲染（link 流不渲染，行 6/11）；vault 不可用时禁用+说明（unavailable 显式呈现）。add 流的 prior 语义：保存时按规范化 URL 从 server.list 查既有 http 条目作为 ref 语义 prior（**password 与 link/redeem 流都套用，不区分 method**；否则 M-006 的 original 在 add 流为 undefined，覆盖后 ref 孤儿）。prior 仅承载 ref 字段。初始勾选值 = `Boolean(refOriginal?.http.credentialRef)`。
+勾选框仅 `method=password` 渲染（link 流不渲染，行 6/11）；vault 不可用时禁用+说明（unavailable 显式呈现）。add 流的 prior 语义：保存时按规范化 URL 从 server.list 查既有 http 条目作为 ref 语义 prior（**password 与 link/redeem 流都套用，不区分 method**；否则 M-006 的 original 在 add 流为 undefined，覆盖后 ref 孤儿）。prior 仅承载 ref 字段。初始勾选值 = `Boolean(refOriginal?.http.credentialRef)`。SSH 主机表单（host-dialog）复用同一决策核心，装配时附传 `boundKind`（绑定条目的 kind，评审修复 B1）——决策核心 `packages/mobile-hosts/src/vault/remember.ts`，行 1–13 逐行单测+探针。
 
 | # | 场景 | 行为 |
 | --- | --- | --- |
@@ -77,8 +77,12 @@
 | 10 | edit + 未勾 + 空 + 有 ref | 清 ref + vault.remove |
 | 11 | edit（link 模式） | 不渲染勾选框，M-006 透传保留，勾选框缺失≠删除意图，零 vault 操作 |
 | 12 | add 有 prior + 已勾 + 空 | **按行 2 语义处理**（issue #4 评审补行）：保存中止、行内报错，不 put 不铸空值——「记住一个空凭据」不是合法意图，与行 2 同解 |
+| 13 | add/edit 有 prior(**privateKey**) + 已勾 + 空 | **保留绑定（passthrough）**（issue #4 评审修复，host-dialog 装配路径）：记住的凭据已存在——私钥绑定没有可输入的值，中止保存会把已导入条目变成孤儿；add 与 edit 同义。M-009（直连、password kind）不传 `boundKind`，不受影响 |
 
-早退强制条件：勾选框已渲染 && `remember !== Boolean(refOriginalRef)` 时**不早退**（覆盖「仅切换记住」与「预填后取消勾选」两种纯 ref 变更）。put 失败 → 不关对话框 + 行内报错，绝不静默。UX 附注：healthPreview（连接前探测）不解析、不读 vault；权威检查在保存时。
+装配语义注记（issue #4 评审）：
+- 行 4/9/10 的 clear 与行 1/3/7 的 put 都发生在**健康检查通过之后**（M-009 装配顺序：决策 → 中止检查 → 早退检查 → 健康检查 → vault put/remove → 构造连接）。因此健康检查失败时 ref 与 vault 条目**原样保留**（按「保存失败」处理，行内报错、对话框保持打开）——行 10 的「清 ref+remove」以保存最终成功为前提。
+- 私钥绑定期间的防覆盖：host-dialog 在 `boundMeta().kind === "privateKey"` 时**禁用密码输入位**（行内说明），密码不可能经表单 in-place 覆盖私钥条目（同 id 换 kind）；替换路径为取消勾选（清绑定+删条目）后重新绑定。
+- 早退强制条件：勾选框已渲染 && `remember !== Boolean(refOriginalRef)` 时**不早退**（覆盖「仅切换记住」与「预填后取消勾选」两种纯 ref 变更）。put 失败 → 不关对话框 + 行内报错，绝不静默。UX 附注：healthPreview（连接前探测）不解析、不读 vault；权威检查在保存时。
 
 ### 失效/恢复矩阵
 

@@ -5,7 +5,7 @@
 ## 当前事实
 
 - 已建立独立 Git 仓库及初始化文档；上游前端闭包已引入 `vendor/upstream`（pin `b4525d79bf`，经 issue #27 更新演练推进），来源与补丁记录见 `vendor/upstream/PROVENANCE.md`。
-- web 静态构建在本机可复现（bun 1.4.2；3480 个文件，共 152,908,348 字节，清单见 `web-dist/manifest.json`，issue #4 交付后 2026-10-24 刷新）。
+- web 静态构建在本机可复现（bun 1.4.2；3480 个文件，共 152,911,729 字节，清单见 `web-dist/manifest.json`，issue #4 交付后 2026-10-24 刷新）。
 - Android WebView 壳代码已实现（未编译验证）：构建环境无 Android SDK，`assembleDebug` BLOCKED。
 - 尚无 APK；两种连接方式（SSH 隧道、服务地址直连）与会话功能均未实现；设备门禁 G1–G15 全部未执行（见设计文档与 `docs/build-and-verify.md`）。
 - 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。

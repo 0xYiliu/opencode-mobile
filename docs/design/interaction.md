@@ -36,7 +36,7 @@
 
 | 门禁 | 验证目标 | 所需环境 | 状态 |
 | --- | --- | --- | --- |
-| C1 桥握手 bring-up | `onPageFinished` 握手 → JS 捕获 port（形状校验）→ 回发 ack → vault status 翻转 available；重试路径：无 ack 时通道重建（旧 port1 close）5×500ms 后 unavailable 呈现（横幅+勾选禁用）；ack 生命周期随导航重置（重新加载页面重新握手）；**C5a 顺序钉死：错误 origin 的握手探针必须在页面首次成功捕获之前执行**（新加载页面先投递错误 targetOrigin 握手 → 断言无捕获 → 再投递正确 origin → 可达） | 真机/模拟器（API 23+） | BLOCKED |
+| C1 桥握手 bring-up | `onPageFinished` 握手 → JS 捕获 port（形状校验）→ 回发 ack → vault status 翻转 available；重试路径：无 ack 时通道重建（旧 port1 close）5×500ms 后 unavailable 呈现（横幅+勾选禁用）；ack 生命周期随导航重置（重新加载页面重新握手）；**postWebMessage 抛出的失败信号同样进入有界重试**（评审修复：调度不得吞没本轮重试）；**C5a 顺序钉死：错误 origin 的握手探针必须在页面首次成功捕获之前执行**（新加载页面先投递错误 targetOrigin 握手 → 断言无捕获 → 再投递正确 origin → 可达）。**固有竞态窗口（评审 N5）**：ack 恰在重试耗尽边界在途时，本轮会以 unavailable 收场直至下次导航重握手——窗口有界（≤一个重试周期）、可见（unavailable 为显式状态+横幅）、无降级（无明文回退，重载即恢复） | 真机/模拟器（API 23+） | BLOCKED |
 | C2 凭据读写端到端 | 勾选记住 → put → 重启 → M-010 hydration 免重输（密码仅内存）；不勾选/取消勾选 → ref 清理 + vault.remove；私钥导入：input file → `onShowFileChooser` → `ACTION_OPEN_DOCUMENT` → 读文本 → put(kind=privateKey) → 元数据出现在凭据管理器；**ValueCallback 全路径恰一次回调**（取消/异常 → `onReceiveValue(null)`，可再次打开 chooser）；凭据管理器删除/孤儿区清理；corrupt 恢复（重输 in-place，ref 稳定） | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | C3 64KiB 边界 | 恰 65536 字节凭据经桥传输成功落盘；超限在 JS 预检拒绝（native 复检为纵深，真机核对超限请求不产生文件）；错误提示可见 | 真机/模拟器 | BLOCKED |
 | C4 备份排除负例 | `allowBackup=false` 主控制 + `data_extraction_rules`/`full_backup_content` 引用生效：`adb backup`/设备迁移不带走 `filesDir/vault/`；重装后 vault 空（无悬挂引用） | 真机/模拟器（adb） | BLOCKED |

@@ -118,13 +118,13 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | 验证项 | 命令 | 结果 | 证据 |
 | --- | --- | --- | --- |
 | V-lock（issue #4） | 未动依赖 | bun.lock 与 issue #3 终态逐字相同：`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`；vault 全部走 WebCrypto/平台 API，零新依赖（android build.gradle.kts 零新增） | 本文；`git diff 815bde5 HEAD -- bun.lock` 为空 |
-| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**96 tests / 96 pass / 0 fail，942 expect()**（10 文件；issue #3 的 50 项 + issue #4 新增 46 项：信封真实 WebCrypto 往返/换绑拒绝/版本拒绝/截断与篡改、握手形状校验/port 不入全局（globalThis 键集合不变）/重复握手忽略/ack 前 unavailable/requestId 关联/超时显式 unavailable、客户端校验（空值/64KiB 边界允许/超限拒绝/私钥 BEGIN 头/非法 kind/existingRef）、in-place ref 稳定、元数据无 value 且拒绝带值响应、corrupt/unsupported 按条目 undefined、UnavailableVault fail-closed、resolver 失败分类、真值表 v3 十二行+早退强制+初始值、runtime vault 默认 Unavailable/credentials 访问器/remove 联动/T14 回归）。**全程无 origin 伪造或 origin 断言**（探针含负检查） | 本文；脚本输出 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**99 tests / 99 pass / 0 fail，948 expect()**（10 文件；issue #3 的 50 项 + issue #4 的 49 项：信封真实 WebCrypto 往返/换绑拒绝/版本拒绝/截断与篡改、握手形状校验/port 不入全局（globalThis 键集合不变）/重复握手忽略/ack 前 unavailable/requestId 关联/超时显式 unavailable/dispose 拒绝在途请求、客户端校验（空值/64KiB 边界允许/超限拒绝/私钥 BEGIN 头/非法 kind/existingRef）、in-place ref 稳定、元数据无 value 且拒绝带值响应、corrupt/unsupported 按条目 undefined、UnavailableVault fail-closed、resolver 失败分类、真值表 v3 十二行+评审修复行 13（boundKind privateKey 空值保留绑定）+早退强制+初始值、runtime vault 默认 Unavailable/credentials 访问器/remove 联动/T14 回归）。**全程无 origin 伪造或 origin 断言**（探针含负检查） | 本文；脚本输出 |
 | 类型检查 | `bunx tsc --noEmit -p packages/mobile-hosts/tsconfig.json` | PASS（过滤 bun:test 类型与 vendored ui 的 css side-effect import 两类环境噪声后零错误） | 本文 |
-| V-vault 凭据 vault 探针 | `bun run scripts/verify-credential-vault.ts` | PASS：真值表 v3 行 1–12 逐行经 in-process 引擎（真实信封加密）断言决策+落盘效应（put 铸造/in-place 稳定/clear 删除/abort·none·passthrough 零操作、条目数逐行核对）；早退强制三态；初始值；M-010 静态（hydration 注入仅 setStore、门控 credentialRef+缺失 password、注入块无直接存储写入）+ M-002 标记仍在；M-007 静态（entry 监听先于 render、五装配标记）+ 动态（形状校验握手捕获+ack、畸形握手忽略）；全第一方 vault 面代码级无 origin 咨询（注释剥除后检查） | 脚本输出 |
+| V-vault 凭据 vault 探针 | `bun run scripts/verify-credential-vault.ts` | PASS：真值表 v3 行 1–12 + 评审修复行 13/14/15（boundKind=privateKey 空值保留绑定，add/edit 同义；password kind 行 12 语义不变）逐行经 in-process 引擎（真实信封加密）断言决策+落盘效应（put 铸造/in-place 稳定/clear 删除/abort·none·passthrough 零操作、条目数逐行核对）；host-dialog 装配静态核验（boundKind 传递、checkboxRendered=vaultAvailable、私钥绑定禁用密码位）；早退强制三态；初始值；M-010 静态（hydration 注入仅 setStore、门控 credentialRef+缺失 password、await 后快照索引新鲜度复检、注入块无直接存储写入）+ M-002 标记仍在；M-007 静态（entry 监听先于 render、五装配标记）+ 动态（形状校验握手捕获+ack、畸形握手忽略）；全第一方 vault 面代码级无 origin 咨询（注释剥除后检查） | 脚本输出 |
 | V-cRef 凭据引用探针（升级） | `bun run scripts/verify-credential-ref.ts` | PASS：M-005 schema 往返保留 credentialRef、password 仍剥离（含 legacy）；M-006/M-009 对话框构造以 remember 决策 passthrough 携带引用、早退比较不含 ref 且含 `!decision.forcesSave` 门、决策先于早退 | 脚本输出 |
 | V-secret 明文持久化审计 | `bun run scripts/audit-secret-persistence.ts` | PASS（A–G 七段）：A 写入路径清单（vendored app 全部 localStorage/sessionStorage 写入仅持久化机械 + 2 个登记的非秘密 UI 写入方（pwa 路由键/通知认领键），原始句柄仅进机械 write()；theme preload 只读；mobile-hosts vault 模块零 DOM storage）；B 键清单（`opencode.global.dat:server`、legacy `server.v3`、`opencode-mobile.hosts.v1`、草稿键）核对；C 服务载荷 encode 剥 password（真实 effect@4.0.1 往返，含 legacy 只解不编码）+ credentialRef 保留；D 扩展连接形状无 http 外凭据形字段（上游 ServerEntry + 我方镜像）；E 草稿边界登记恰 4 键（prompt/comments/file-view/layout，用户内容）；F dist 标记 `mobile(M-002)` 与 `mobile(vault-v1)` 均命中构建产物；G vault 元数据无 value 字段且客户端拒绝带值响应 | 脚本输出 |
 | V2 web 构建（M-009/M-007 修订后） | `bun run build:web` | PASS（rc=0，6158 modules，11.9s）；dist 标记：`mobile(M-002)` 命中 `dist/_assets/health-CgcOj6Fn.js(.map)`、`opencode-mobile-vault-handshake` 命中 `index-DtKOK4jL.js`、M-009 文案键命中 `zh-Ch81V5Ky.js`/`language-CD9_hHNf.js` | 本文 |
-| V2 web 构建（vault-v1 标记后，最终产物） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，6158 modules，11.91s）；3480 文件 / 152,908,348 bytes 拷入 assets；`mobile(vault-v1)` 命中 `dist/_assets/index-TaWSH94l.js` | `web-dist/manifest.json`（generatedAt 2026-10-24T00:10:38Z；sha256 `d4bc4171f78de5317a9c553ca8f12981833d2477fa548d62449b1335c8f4a87c`） |
+| V2 web 构建（vault-v1 标记后，最终产物） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，6158 modules，11.52s，评审修复轮重建）；3480 文件 / 152,911,729 bytes 拷入 assets；`mobile(vault-v1)` 命中 dist | `web-dist/manifest.json`（generatedAt 2026-10-24T00:41:39Z；sha256 `dd4811055c57d71ab309a18bcbfc3b0efaf6a9fbcc89da9380b128d2f9598c16`） |
 | V3 闭包核对 | `bash scripts/verify-closure.sh` | PASS（最终态，10 个 mobile 补丁登记）：树 == pin b4525d79bf + 已登记 patches 字节一致、LICENSE 一致、`DANGLING=0`、recordings 排除核对通过；M-007 修订补丁经 pristine pin 树 `git apply --check`+apply+字节比对 round-trip 验证 | 本文 |
 | V5 JSON 校验（issue #4 增量） | `python3 -m json.tool` | PASS：`patches/mobile/manifest.json`、`vendor-manifest.json`、`web-dist/manifest.json` 可解析 | 本文 |
 | V6 Android XML 校验（issue #4 增量） | python3 `xml.dom.minidom` 解析 | PASS：新增 `data_extraction_rules.xml`（root `<data-extraction-rules>`）、`full_backup_content.xml`（root `<full-backup-content>`）+ 既有 Manifest/netsec/themes/strings 全部解析成功、退出码 0 | 本文 |
@@ -139,6 +139,22 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 - **M-009/M-010 静态边界**：真值表经第一方决策核心（`evaluateRemember`）+ in-process 引擎逐行验证，但 vendored dialog 的 Solid 装配（勾选框渲染、mutation 错误呈现）为源码结构探针（V-cRef/V-vault），未在 Solid 运行时执行对话框；M-010 hydration 注入为源码结构断言 + M-002 编码路径语义证明，未在运行时执行 registry。
 - **Android Kotlin 未编译**：无 Android SDK，Kotlin 三件与 MainActivity 改动仅静态（V6 XML + 人工审读），BLOCKED 如实。
 - **无 origin 断言**：全部模拟测试不伪造 event.origin、不断言 origin 值（平台证据链：恒空串）；信任依据为形状校验+三层信任（见 [design/architecture.md](design/architecture.md)）。
+
+### 评审修复轮（CODE_REVIEWER on 93b7675 判定 FAIL → 修复，2026-10-24）
+
+评审独立复跑全部验证 PASS、红线全干净；修复项与落实：
+
+| 项 | 修复 | 验证 |
+| --- | --- | --- |
+| B1（blocking）host-dialog add+私钥导入无法完成绑定且逃生路径静默换 kind | `evaluateRemember` 增可选 `boundKind`：已勾+空值+绑定私钥 → passthrough 保留绑定（行 13，add/edit 同义；M-009 不传该字段不受影响）；host-dialog 装配传 `boundKind: boundMeta().kind`、`checkboxRendered: vaultAvailable()`；次级隐患按「禁用密码位」处置——私钥绑定期间密码输入禁用+行内说明（防 in-place 换 kind），替换路径=取消勾选再绑定 | V-vault 行 13/14/15 + 3b 装配静态核验；V-mh 新增 2 单测（99/99） |
+| B2（blocking）startHandshake 异常路径以过期 round 调度重试（postWebMessage 抛出→本轮零重试） | catch 内不再 close/bump round，直接 `scheduleRetry(round)`（round 为活值；重试回调自带 close+重建） | 代码审读；C1 门禁描述同步（postWebMessage 失败进入有界重试） |
+| N1 VaultStore 回退分支可毁旧密文 | 删除「delete target+二次 rename」回退：POSIX rename 原子覆盖，失败只删 tmp 并抛 io（注释写明二次失败路径危害） | 代码审读 |
+| N2 ack 前 native 受理操作与文档不符 | `handleClientMessage` 非 ack 操作加 `acked` guard（零能力于 ack 前，三层信任第 3 层落地） | 代码审读 |
+| N3 M-010 hydration 跨 await 快照索引写回 | 写回前 `store.list[index] !== conn` 则放弃注入；M-010 patch 自 pristine 树重新生成并 round-trip 验证 | V-vault M-010 静态断言（含新鲜度行） |
+| N7 dispose 在途请求无测试 | 新增单测：dispose 拒绝在途请求（unavailable）+ 迟到响应忽略 + dispose 幂等 | V-mh 99/99 |
+| N4 行 10 被健康检查门控 | connection.md 真值表增「装配语义注记」：put/clear 在健康检查通过之后执行，失败按「保存失败」保留 ref 与条目 | 文档；链接核对 |
+| N5 重试耗尽与 ack 在途竞态窗口 | interaction.md C1 记录：窗口有界（≤一个重试周期）、可见（unavailable 显式+横幅）、无降级（重载即恢复） | 文档 |
+| N6/N8 | 提交点级事实状态不要求改写历史（最终树准确）；N8 冗余参数折叠跳过 | — |
 
 ## issue #4 段（设备凭据保险库与可选记住）验证对应（验收映射）
 
@@ -222,7 +238,7 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | mobile-hosts UI 首版令牌类非法 | 首版误用 text-14-strong/text-13-*/text-12-muted/border-token（dist CSS 零规则落地）；评审修复轮替换为合法令牌组合并静态核验；theme 无 danger 色令牌，错误/降级提示改用 text-text-strong + role=alert/status | 本文 V-css 行；[design/visual.md](design/visual.md) |
 | credentialRef 清空语义 | update：undefined=保留、空串=清空；对话框编辑路径必须传空串而非 undefined（首版误转换导致清空静默失效）。另发现 solid setStore 按对象路径写入是 MERGE 语义，删除键须整组替换数组——均已修并有测试锁定 | 本文 V-mh（评审修复轮）；[design/units/connection.md](design/units/connection.md) credentialRef 契约 |
 | 本轮验证边界 | 全部验证为本机构建/静态验证（构建宿主 ≠ 远程 OS）；远程 OS 范围（Linux/原生 Windows/macOS）仅明示未验证，WSL 排除见决策记录 0001 | [docs/project-scope.md](project-scope.md) |
-| 真值表决策核心位置（issue #4） | 计划的文件清单将真值表逻辑全部放于 M-009 对话框补丁；实施将**决策核心**抽为第一方 `packages/mobile-hosts/src/vault/remember.ts`（`evaluateRemember`/`initialRemember`，纯函数），M-009 补丁只做装配翻译——使 12 行真值表可被 bun 单测与 in-process 探针逐行验证，而非仅静态正则 | 记录为有意偏差；语义与计划 D3 v3 逐行一致（V-mh+V-vault） |
+| 真值表决策核心位置（issue #4） | 计划的文件清单将真值表逻辑全部放于 M-009 对话框补丁；实施将**决策核心**抽为第一方 `packages/mobile-hosts/src/vault/remember.ts`（`evaluateRemember`/`initialRemember`，纯函数），M-009 补丁只做装配翻译——使 12+1 行真值表可被 bun 单测与 in-process 探针逐行验证，而非仅静态正则 | 记录为有意偏差；语义与计划 D3 v3 逐行一致（V-mh+V-vault） |
 | evaluateRemember 增加 mode 字段（issue #4） | 行 8（edit 保持勾选+空+有 ref → 保留）与行 12（add 有 prior+已勾+空 → 按行 2 中止）输入完全同形，必须以 add/edit 模式区分；评审补行 12 时选定「中止」解 | 记录于 [design/units/connection.md](design/units/connection.md) 真值表；单测两行齐备 |
 | 桥请求超时映射（issue #4） | 挂死的桥请求超时（默认 15s）映射为 `VaultError("unavailable")` 并终结通道——不可用是显式状态；计划未指定超时码 | 记录为实施裁定；真机复核归 C1 |
 | PEM fixture 字面量拆分（issue #4） | 合成 PEM 测试值首版逐字书写触发 V7 高置信模式；拆分为拼接构造（非密钥，正文非 base64） | 提交 1109c40；V7 rc=0 |
@@ -251,7 +267,7 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 | host-key stub fail-closed（[units/connection.md](design/units/connection.md)） | `packages/mobile-hosts/src/ports.ts`（StubHostKeyVerifier）、`runtime.ts`（verifier 先于 transport） | V-mh（stub 恒拒绝、拒绝后零连接尝试） | 一致；真实校验归 #6，BLOCKED |
 | entry 引导与注入（M-007） | M-007 patch（entry.tsx） | V2 冒烟 + dist 标记（`opencode-mobile.hosts.v1`/`mobile-ssh` 命中 index chunk） | 一致；`location.origin` 服务装配与 ?auth_token 直通已移除（壳内不适用） |
 | 设置挂载（M-008） | M-008 patch（settings/shell.tsx） | V2 冒烟 + manager 文案键命中 dist | 一致；多 server 布局入口缺口已在 interaction.md/server-list.md 记录 |
-| vault 契约/信封 v1/失效矩阵/真值表 v3（[units/connection.md](design/units/connection.md)） | `packages/mobile-hosts/src/vault/*`、`android/.../vault/*` | V-mh（信封/握手/客户端/真值表套件）+ V-vault 探针 + V-secret 审计 | 一致；12 行真值表（含评审补行 12）逐行验证；设备级 BLOCKED（C1–C5） |
+| vault 契约/信封 v1/失效矩阵/真值表 v3（[units/connection.md](design/units/connection.md)） | `packages/mobile-hosts/src/vault/*`、`android/.../vault/*` | V-mh（信封/握手/客户端/真值表套件）+ V-vault 探针 + V-secret 审计 | 一致；12+1 行真值表（含评审补行 12 与评审修复行 13）逐行验证；设备级 BLOCKED（C1–C5） |
 | 可选记住 notice/健康预览附注/stale-ref 附注（[design/interaction.md](design/interaction.md)） | M-009 patch（dialog.tsx + i18n en/zh）、mobile-hosts i18n | V-cRef（早退/装配结构）+ V-vault（行语义）+ V-css | 一致；healthPreview 不读 vault（决策在保存时，代码核对）；stale-ref 自愈路径记录于 interaction.md |
 | 凭据绑定块/凭据管理器（[units/server-list.md](design/units/server-list.md)） | `packages/mobile-hosts/src/ui/{host-dialog,credential-manager,host-manager}.tsx` | V-mh（remove 联动/T14）+ V-css 令牌核验 | 一致；自由文本 ref 输入已移除 |
 | 三层信任 + event.origin 平台证据（[design/architecture.md](design/architecture.md)） | `packages/mobile-hosts/src/vault/transport.ts`（形状校验/port 闭包/ack） | V-vault（无 origin 咨询负检查 + 形状校验动态探针）+ V-mh（port 不入全局） | 一致；PostMessageTest 证据链已写入文档 |
