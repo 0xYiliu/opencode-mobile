@@ -146,6 +146,20 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
       "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts."
+    },
+    {
+      "id": "M-013",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Probe-classified connect errors on the save path (issue #5, decision 0002 D4). The endpoint probe is dispatched BEFORE the authoritative health check (so its classification is usually already resolved when the verdict arrives) but only chooses the error WORDING after the check failed - the health check stays the sole authority for whether a save proceeds, and a probe verdict can never pass a save it refused. Error-message precedence: the upstream mixed-content structural signal, then the check's own unauthorized flag (authoritative 401), then the probe's transport classification (dialog.server.error.<code>), then the generic upstream message as the EXPLICIT degrade when the probe is unavailable, answered ok, or conflicts with the real fetch - a classification is never fabricated. A userinfo credential URL is refused up front with the precise credential-url message (D-URL). App-i18n keys only (en base merged with the locale table; missing key falls back to en, then to the key itself) - the first-party mobile-hosts direct.error.* keys are a separate set for first-party UI surfaces (F5).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; probe classification precedence and degrade are unit-tested in packages/mobile-hosts/test/probe.test.ts (port level); V2 build smoke + dialog.server.error keys in dist language chunks; device behavior BLOCKED (G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts."
     }
   ]
 }

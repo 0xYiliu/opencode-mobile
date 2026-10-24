@@ -347,6 +347,21 @@ export const dict = {
   "dialog.server.add.url": "Server address",
   "dialog.server.add.placeholder": "http://localhost:4096",
   "dialog.server.add.error": "Could not connect to server",
+  // mobile(M-013): probe-classified connect errors (issue #5, decision 0002 D4). One
+  // actionable line per transport classification plus the URL-policy refusal; consumed
+  // ONLY by the connect dialog (the first-party mobile-hosts keys are a separate set).
+  "dialog.server.error.cert-expired": "The server's certificate has expired. Renew the certificate (for example with Let's Encrypt) or connect through an SSH tunnel.",
+  "dialog.server.error.cert-hostname": "The certificate does not match this host's name. Check the address or issue a certificate for this exact host.",
+  "dialog.server.error.cert-untrusted": "The certificate is not from a trusted authority (self-signed or private CA). Direct HTTPS to such servers is not supported: use a publicly trusted certificate or an SSH tunnel.",
+  "dialog.server.error.cleartext-blocked": "Plaintext HTTP direct connections are not supported (credentials would cross the network unencrypted). Use HTTPS or an SSH tunnel.",
+  "dialog.server.error.refused": "Nothing answered at this address and port. Check that the OpenCode service is running and the port is correct.",
+  "dialog.server.error.timeout": "The server did not answer in time. Check the address, the port and the network path.",
+  "dialog.server.error.dns": "The server's name could not be resolved. Check the hostname for typos.",
+  "dialog.server.error.unauthorized": "The server rejected the credentials (401). Check the password and try again.",
+  "dialog.server.error.forbidden": "The server refused access (403). Check the account and its permissions.",
+  "dialog.server.error.not-found": "No OpenCode service answered at this address (404). Check the address and port.",
+  "dialog.server.error.html-response": "A web page answered instead of the OpenCode service \u2014 likely a proxy or captive portal. Check the address.",
+  "dialog.server.error.credential-url": "The address carries embedded credentials (user:password@host). Remove them from the address and use the password field instead.",
   "dialog.server.add.checking": "Checking…",
   "dialog.server.add.button": "Add server",
   "dialog.server.add.name": "Server name (optional)",
