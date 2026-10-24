@@ -17,6 +17,8 @@ import { toExtensionConnection } from "./upstream-map"
 import type { ExtensionConnection } from "./upstream-map"
 import { detectLocale } from "./i18n"
 import type { Locale } from "./i18n"
+import { StubProbePort } from "./probe"
+import type { ProbePort } from "./probe"
 
 export interface MobileHostsOptions {
   /** WebView storage for the host registry (whitelist payload; no credentials, ever). */
@@ -43,6 +45,14 @@ export interface MobileHostsOptions {
   hostKey?: HostKeyVerifier
   /** SSH tunnel transport. Defaults to the stub that never opens (issue #6 — BLOCKED). */
   transport?: HostTransport
+  /**
+   * Endpoint probe (issue #5, decision 0002 D4): the shell-side error classifier for the
+   * direct-connection save path. Defaults to the fail-closed stub that always answers
+   * { status: "unavailable" } — the caller degrades to the upstream generic error and a
+   * classification is never fabricated. The Android shell injects the bridge-backed
+   * client (M-014).
+   */
+  probe?: ProbePort
   /** UI locale; defaults to navigator.language detection. */
   locale?: Locale
 }
@@ -55,6 +65,11 @@ export interface MobileHosts {
    * UI surfaces its status explicitly (remember disabled + banner), never a downgrade.
    */
   credentials: CredentialVault
+  /**
+   * The endpoint probe (issue #5). Fail-closed stub unless injected: classifications are
+   * an error-message helper, never an authority (decision 0002 D4).
+   */
+  probe: ProbePort
   /** Begin a connection attempt for a host (T1; verifier-gated, see below). */
   connect: (id: string) => void
   /** Cancel the current attempt / disconnect from the host (T13). Zero remote calls. */
@@ -106,6 +121,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const resolver = options.resolver ?? (options.vault ? createVaultResolver(vault) : NullCredentialResolver)
   const hostKeyVerifier = options.hostKey ?? StubHostKeyVerifier
   const transport = options.transport ?? StubHostTransport
+  const probe = options.probe ?? StubProbePort
 
   // volatile: the storage candidate was unavailable/refused writes, so the registry runs
   // on the in-memory fallback. Surfaced on the runtime (N5) — never silent.
@@ -260,6 +276,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     registry,
     locale: options.locale ?? detectLocale(),
     credentials: vault,
+    probe,
     storageVolatile,
     connect,
     disconnect,

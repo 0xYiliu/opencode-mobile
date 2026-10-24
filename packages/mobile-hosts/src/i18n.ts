@@ -72,6 +72,21 @@ export const messages = {
     "state.offline": "Offline",
     "state.reconnecting": "Reconnecting…",
     "state.failed": "Failed",
+    // issue #5: endpoint probe classifications (one actionable line per DirectErrorCode).
+    // First-party key set (src/probe.ts directErrorCodeMessageKey); the vendored connect
+    // dialog consumes the separate app-i18n keys dialog.server.error.<code> (M-013).
+    "direct.error.ok": "The endpoint answered; the authoritative connection check decides from here.",
+    "direct.error.cert-expired": "The server's certificate has expired. Renew the certificate (for example with Let's Encrypt) or connect through an SSH tunnel.",
+    "direct.error.cert-hostname": "The certificate does not match this host's name. Check the address or issue a certificate for this exact host.",
+    "direct.error.cert-untrusted": "The certificate is not from a trusted authority (self-signed or private CA). Direct HTTPS to such servers is not supported: use a publicly trusted certificate or an SSH tunnel.",
+    "direct.error.cleartext-blocked": "Plaintext HTTP direct connections are not supported (credentials would cross the network unencrypted). Use HTTPS or an SSH tunnel.",
+    "direct.error.refused": "Nothing answered at this address and port. Check that the OpenCode service is running and the port is correct.",
+    "direct.error.timeout": "The server did not answer in time. Check the address, the port and the network path.",
+    "direct.error.dns": "The server's name could not be resolved. Check the hostname for typos.",
+    "direct.error.unauthorized": "The server rejected the credentials (401). Check the password and try again.",
+    "direct.error.forbidden": "The server refused access (403). Check the account and its permissions.",
+    "direct.error.not-found": "No OpenCode service answered at this address (404). Check the address and port.",
+    "direct.error.html-response": "A web page answered instead of the OpenCode service — likely a proxy or captive portal. Check the address.",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -138,6 +153,19 @@ export const messages = {
     "state.offline": "离线",
     "state.reconnecting": "重连中…",
     "state.failed": "失败",
+    // issue #5：端点探测分类文案（每个 DirectErrorCode 一条可操作建议；第一方键集）。
+    "direct.error.ok": "服务端已应答；连接是否可用以上游权威检查为准。",
+    "direct.error.cert-expired": "服务器证书已过期。请续期证书（例如使用 Let's Encrypt）或改用 SSH 隧道。",
+    "direct.error.cert-hostname": "证书与该主机名不匹配。请检查地址，或为本主机签发证书。",
+    "direct.error.cert-untrusted": "证书并非来自受信任的机构（自签名或私有 CA）。不支持直连此类 HTTPS 服务：请使用公开受信任的证书或 SSH 隧道。",
+    "direct.error.cleartext-blocked": "不支持明文 HTTP 直连（凭据将明文过网）。请使用 HTTPS 或 SSH 隧道。",
+    "direct.error.refused": "该地址与端口无服务应答。请确认 OpenCode 服务正在运行且端口正确。",
+    "direct.error.timeout": "服务器未在时限内应答。请检查地址、端口与网络路径。",
+    "direct.error.dns": "无法解析服务器主机名。请检查主机名是否有误。",
+    "direct.error.unauthorized": "服务器拒绝了凭据（401）。请检查密码后重试。",
+    "direct.error.forbidden": "服务器拒绝访问（403）。请检查账号与权限。",
+    "direct.error.not-found": "该地址无 OpenCode 服务应答（404）。请检查地址与端口。",
+    "direct.error.html-response": "应答的是网页而非 OpenCode 服务——可能是代理或门户页。请检查地址。",
   },
 } as const
 

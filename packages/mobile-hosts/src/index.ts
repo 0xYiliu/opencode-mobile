@@ -96,6 +96,20 @@ export {
   type RedirectVerdict,
 } from "./transport/url-policy"
 export { SECURE_FETCH_MARKER, createSecureFetch } from "./transport/secure-fetch"
+export {
+  PROBE_BRIDGE,
+  PROBE_HANDSHAKE,
+  StubProbePort,
+  createProbeClient,
+  createWebMessageProbeTransport,
+  directErrorCodeMessageKey,
+  type ProbeBridgeResponse,
+  type ProbeBridgeTransport,
+  type ProbePort,
+  type ProbeRequest,
+  type ProbeResult,
+  type WebMessageProbeTransportOptions,
+} from "./probe"
 export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
 export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
