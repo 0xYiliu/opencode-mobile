@@ -23,15 +23,73 @@ function assertAvailable(vault: { status(): VaultStatus }): void {
   if (vault.status() !== "available") throw new VaultError("unavailable")
 }
 
+/**
+ * Private key value envelope (issue #6, decision 0003 §4, option C): a privateKey vault
+ * entry's value accepts TWO forms —
+ *   1. the bare PEM/OpenSSH key text (issue #4 form, unchanged), or
+ *   2. a JSON envelope `{"v":1,"key":"<key text>","passphrase":"<optional>"}`
+ *      recognized by the leading `{`; the embedded key MUST pass the PEM BEGIN gate.
+ * The passphrase travels inside the same Keystore-encrypted envelope (never a registry
+ * field, never a second reference — the three rejected alternatives in decision 0003).
+ * FORBIDDEN_INPUT_KEYS is untouched: the envelope lives inside the vault value, the
+ * registry layer never sees it.
+ */
+export interface PrivateKeyEnvelope {
+  v: 1
+  key: string
+  passphrase?: string
+}
+
+function hasPemHeader(value: string): boolean {
+  return PEM_HEADER_PATTERN.test(value.trim().split("\n")[0] ?? "")
+}
+
+/**
+ * Recognize the JSON envelope form. Returns undefined when the value is NOT an envelope
+ * (bare key text — the caller applies the plain PEM gate). Throws VaultError("io") for a
+ * value that LOOKS like an envelope but is malformed or carries a key without the PEM
+ * BEGIN header — fail closed, never guess.
+ */
+export function parsePrivateKeyEnvelope(value: string): PrivateKeyEnvelope | undefined {
+  if (!value.startsWith("{")) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new VaultError("io", "private key envelope is not valid JSON")
+  }
+  if (typeof parsed !== "object" || parsed === null) throw new VaultError("io", "private key envelope is not an object")
+  const record = parsed as Record<string, unknown>
+  if (record["v"] !== 1) throw new VaultError("io", "private key envelope version must be 1")
+  const key = record["key"]
+  if (typeof key !== "string" || key.length === 0) throw new VaultError("io", "private key envelope carries no key")
+  if (!hasPemHeader(key)) {
+    // The embedded key must pass the same BEGIN gate as a bare key — an envelope is never
+    // a way to smuggle non-PEM bytes into the vault.
+    throw new VaultError("io", "private key envelope key must be a PEM block with a BEGIN PRIVATE KEY header")
+  }
+  const passphrase = record["passphrase"]
+  if (passphrase !== undefined && (typeof passphrase !== "string" || passphrase.length === 0)) {
+    throw new VaultError("io", "private key envelope passphrase must be a non-empty string when present")
+  }
+  return passphrase !== undefined ? { v: 1, key, passphrase } : { v: 1, key }
+}
+
 function validateValue(kind: VaultKind, value: string): void {
   if (typeof value !== "string" || value.length === 0) throw new VaultError("io", "credential value must be a non-empty string")
   const bytes = new TextEncoder().encode(value)
   if (bytes.length > MAX_SECRET_BYTES) {
     throw new VaultError("io", `credential value exceeds the ${MAX_SECRET_BYTES}-byte limit`)
   }
-  if (kind === "privateKey" && !PEM_HEADER_PATTERN.test(value.trim().split("\n")[0] ?? "")) {
-    // Minimal format gate only (the BEGIN header); real parsing belongs to the SSH transport (issue #6).
-    throw new VaultError("io", "private key must be a PEM block with a BEGIN PRIVATE KEY header")
+  if (kind === "privateKey") {
+    // Dual form (issue #6): a JSON envelope (leading `{`) is validated as a whole — the
+    // parser enforces the PEM BEGIN gate on the embedded key; anything else is bare key
+    // text and must pass the plain PEM gate. Real parsing still belongs to the SSH
+    // transport (JSch at the bridge; this is the minimal format gate only).
+    const envelope = parsePrivateKeyEnvelope(value)
+    if (envelope === undefined && !hasPemHeader(value)) {
+      throw new VaultError("io", "private key must be a PEM block with a BEGIN PRIVATE KEY header")
+    }
   }
 }
 

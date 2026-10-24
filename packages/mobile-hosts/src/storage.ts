@@ -84,9 +84,12 @@ function normalize(payload: unknown): HostsPayload {
 }
 
 /**
- * Whitelist sanitizer: keep only id/name/target/credentialRef/createdAt/updatedAt, and only
- * when every kept field has a plausible value. Records carrying forbidden (credential-
- * shaped) keys are dropped entirely — fail closed for persisted data.
+ * Whitelist sanitizer: keep only id/name/target/credentialRef/createdAt/updatedAt (+ the
+ * issue #6 `servicePort` when it is a valid port integer), and only when every kept
+ * required field has a plausible value. Records carrying forbidden (credential-shaped)
+ * keys are dropped entirely — fail closed for persisted data. An absent or invalid
+ * servicePort takes the default path (the consumer applies DEFAULT_SERVICE_PORT); the
+ * field is optional and never credential-shaped.
  */
 export function sanitizeRecord(raw: unknown): HostRecord | undefined {
   if (typeof raw !== "object" || raw === null) return undefined
@@ -129,6 +132,12 @@ export function sanitizeRecord(raw: unknown): HostRecord | undefined {
   const record: HostRecord = { id, name, target, createdAt, updatedAt }
   const credentialRef = source["credentialRef"]
   if (typeof credentialRef === "string" && credentialRef) record.credentialRef = credentialRef
+  // issue #6 (F1): the service port joins the whitelist as an optional integer. Invalid
+  // shapes are dropped (default applies) — a hostile payload cannot smuggle a non-port.
+  const servicePort = source["servicePort"]
+  if (typeof servicePort === "number" && Number.isInteger(servicePort) && servicePort >= 1 && servicePort <= 65535) {
+    record.servicePort = servicePort
+  }
   return record
 }
 
@@ -166,7 +175,7 @@ export function saveHosts(storage: StoragePort, hosts: readonly HostRecord[]): v
   const payload: HostsPayload = {
     version: 1,
     hosts: hosts.map((host) => {
-      const record: Record<string, string> = {
+      const record: Record<string, string | number> = {
         id: host.id,
         name: host.name,
         target: host.target,
@@ -174,6 +183,7 @@ export function saveHosts(storage: StoragePort, hosts: readonly HostRecord[]): v
         updatedAt: host.updatedAt,
       }
       if (host.credentialRef !== undefined) record["credentialRef"] = host.credentialRef
+      if (host.servicePort !== undefined) record["servicePort"] = host.servicePort
       return record as unknown as HostRecord
     }),
   }

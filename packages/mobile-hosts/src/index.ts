@@ -14,7 +14,9 @@ export { SSH_EXTENSION, directKey, hostKey, isValidHostId, makeHostId, normalize
 export {
   HostRegistryError,
   createHostRegistry,
+  validateServicePort,
   validateTarget,
+  DEFAULT_SERVICE_PORT,
   type HostRecord,
   type HostRegistry,
   type HostRegistryOptions,
@@ -75,7 +77,7 @@ export {
   type VaultResponse,
   type VaultTransport,
 } from "./vault/transport"
-export { createVaultClient, createVaultResolver } from "./vault/vault"
+export { createVaultClient, createVaultResolver, parsePrivateKeyEnvelope, type PrivateKeyEnvelope } from "./vault/vault"
 export { evaluateRemember, initialRemember, type RememberDecision, type RememberInput } from "./vault/remember"
 export { HOSTS_STORAGE_KEY, createMemoryStorage, loadHosts, safeStorage, sanitizeRecord, saveHosts, type StoragePort } from "./storage"
 export { assessIncompatible, isCompatibleServerVersion, parseServerVersion, type HealthLike } from "./health-wrapper"
@@ -109,6 +111,21 @@ export {
   type KnownHostsParseIssue,
   type KnownHostsParseResult,
 } from "./ssh/known-hosts"
+export {
+  SSH_BRIDGE,
+  SSH_HANDSHAKE,
+  bridgeErrorToTransportError,
+  bridgeServicePort,
+  createWebMessageSshTransport,
+  parseBridgeEndpoint,
+  type SshBridgeEvent,
+  type SshBridgeOperation,
+  type SshBridgeResponse,
+  type SshBridgeTransport,
+  type WebMessageSshTransportOptions,
+} from "./ssh/bridge"
+export { createSshHostKeyVerifier, removeSshHostKey } from "./ssh/host-key-verifier"
+export { createSshHostTransport } from "./ssh/transport"
 export {
   assertNoUrlCredentials,
   hasUrlCredentials,

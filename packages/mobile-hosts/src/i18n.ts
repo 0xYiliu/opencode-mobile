@@ -104,6 +104,19 @@ export const messages = {
     "ssh.error.forward-failed": "The local forwarding could not be established. Check the service port.",
     "ssh.error.service-unreachable": "The tunnel is up, but no OpenCode service answered on the far side. Check the remote service.",
     "ssh.error.io": "The SSH transport failed. Try again.",
+    // issue #6: host dialog additions (dual-port disambiguation F7 + optional key
+    // passphrase) and the host-key changed recovery flow (explicit danger confirmation,
+    // never an automatic overwrite — decision 0003 §3.3).
+    "hostDialog.servicePort": "Service port (remote OpenCode service)",
+    "hostDialog.servicePortPlaceholder": "4096",
+    "hostDialog.servicePortHint": "The tunnel forwards to the remote loopback on this port. The SSH port is the one in the host field above.",
+    "hostDialog.error.invalidServicePort": "Enter a service port between 1 and 65535.",
+    "hostDialog.passphrase": "Key passphrase (optional)",
+    "hostDialog.passphrasePlaceholder": "Only if the private key is encrypted",
+    "hostKey.changed.title": "Host key changed",
+    "hostKey.changed.note": "The key this host presented no longer matches the stored one. This can indicate an interception. Nothing was sent to the host and no connection was made.",
+    "hostKey.changed.recover": "Remove stored key and re-verify",
+    "hostKey.changed.cancel": "Stay disconnected",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -199,6 +212,18 @@ export const messages = {
     "ssh.error.forward-failed": "本地转发未能建立。请检查服务端口。",
     "ssh.error.service-unreachable": "隧道已建立，但远端无 OpenCode 服务应答。请检查远程服务。",
     "ssh.error.io": "SSH 传输失败，请重试。",
+    // issue #6：主机对话框增补（双端口去混淆 F7 + 可选私钥口令）与主机密钥变更恢复流
+    // （显式危险确认，绝不自动覆盖——决策 0003 §3.3）。
+    "hostDialog.servicePort": "服务端口（远端 OpenCode 服务）",
+    "hostDialog.servicePortPlaceholder": "4096",
+    "hostDialog.servicePortHint": "隧道将转发到远端回环上的该端口。SSH 端口是上方主机字段中的端口。",
+    "hostDialog.error.invalidServicePort": "请输入 1–65535 之间的服务端口。",
+    "hostDialog.passphrase": "私钥口令（可选）",
+    "hostDialog.passphrasePlaceholder": "仅当私钥已加密时需要",
+    "hostKey.changed.title": "主机密钥已变更",
+    "hostKey.changed.note": "该主机呈现的密钥与已存记录不符，可能存在中间人。未向该主机发送任何信息，也未建立连接。",
+    "hostKey.changed.recover": "移除已存密钥并重新校验",
+    "hostKey.changed.cancel": "保持断开",
   },
 } as const
 
