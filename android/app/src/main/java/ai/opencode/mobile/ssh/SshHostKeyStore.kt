@@ -109,7 +109,14 @@ class SshHostKeyStore(private val baseDir: File) {
                 lines.add(Line(trimmed, null))
                 continue
             }
-            if (fields.size != 3) continue // tolerate-but-ignore: never rewrite what we can't parse
+            // Everything below is the strict 3-field parse. A line that fails ANY step is
+            // preserved VERBATIM and never matched (kept out of [entry]): a rewrite must
+            // never destroy store content this app cannot fully interpret (review N6b —
+            // behavior now matches the "never rewrite what we cannot parse" contract).
+            if (fields.size != 3) {
+                lines.add(Line(trimmed, null))
+                continue
+            }
             val hostField = fields[0]
             val keyType = fields[1]
             val blob = fields[2]
@@ -117,11 +124,22 @@ class SshHostKeyStore(private val baseDir: File) {
             var port = 22
             if (hostField.startsWith("[")) {
                 val close = hostField.indexOf("]:")
-                if (close == -1) continue
+                if (close == -1) {
+                    lines.add(Line(trimmed, null))
+                    continue
+                }
                 host = hostField.substring(1, close)
-                port = hostField.substring(close + 2).toIntOrNull() ?: continue
+                val parsedPort = hostField.substring(close + 2).toIntOrNull()
+                if (parsedPort == null) {
+                    lines.add(Line(trimmed, null))
+                    continue
+                }
+                port = parsedPort
             }
-            if (!HOST.matches(host) || !KEY_TYPE.matches(keyType) || !BLOB.matches(blob) || port !in 1..65535) continue
+            if (!HOST.matches(host) || !KEY_TYPE.matches(keyType) || !BLOB.matches(blob) || port !in 1..65535) {
+                lines.add(Line(trimmed, null))
+                continue
+            }
             lines.add(Line(trimmed, Entry(host, port, keyType, blob)))
         }
         return lines

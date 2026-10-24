@@ -113,7 +113,11 @@ class SshTunnelManager(context: android.content.Context) {
                 }
             }
         }
-        teardownThread.shutdownNow()
+        // shutdown() (not shutdownNow): the disconnects enqueued above MUST run — a local
+        // teardown dropped by an interrupt would leak the sessions until process death
+        // (review N6a). The queued tasks are session.disconnect() calls only: fast,
+        // uninterruptible-safe, and the thread is a daemon.
+        teardownThread.shutdown()
     }
 
     // -------------------------------------------------------------------------
@@ -420,10 +424,18 @@ class SshTunnelManager(context: android.content.Context) {
         android.os.HandlerThread("opencode-mobile-ssh-watchdog").apply { start() }.looper,
     )
 
+    /** Single-slot watchdog scheduling: one pending post at most (review N6c). */
+    private var watchdogScheduled = false
+
     private fun scheduleWatchdog() {
+        synchronized(lock) {
+            if (watchdogScheduled || destroyed) return
+            watchdogScheduled = true
+        }
         watchdog.postDelayed({
             val lost = ArrayList<Pair<String, Int>>()
             synchronized(lock) {
+                watchdogScheduled = false
                 if (!destroyed) {
                     for (entry in live.values) {
                         try {

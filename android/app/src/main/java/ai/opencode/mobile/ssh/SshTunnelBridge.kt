@@ -219,13 +219,17 @@ class SshTunnelBridge(
                         manager.removeHostKey(host, port)
                         JSONObject()
                     }
-                    "cancel" -> respond(id) {
+                    // cancel/disconnect (review N2): dispatched OFF the work executor —
+                    // manager.cancel/disconnect only enqueue on the manager's dedicated
+                    // teardown thread and return immediately, so a teardown is never queued
+                    // behind an in-flight connect (F6). The ack is posted right away.
+                    "cancel" -> {
                         manager.cancel(host, port)
-                        JSONObject()
+                        respondNow(id)
                     }
-                    "disconnect" -> respond(id) {
+                    "disconnect" -> {
                         manager.disconnect(host, port)
-                        JSONObject()
+                        respondNow(id)
                     }
                     "connect" -> {
                         val servicePort = params.optInt("servicePort")
@@ -274,6 +278,12 @@ class SshTunnelBridge(
             }
             mainHandler.post { pushToPage(response) }
         }
+    }
+
+    /** An immediate empty-success ack for ops that were already dispatched (review N2). */
+    private fun respondNow(requestId: String) {
+        val response = JSONObject().put("id", requestId).put("ok", true).put("result", JSONObject())
+        mainHandler.post { pushToPage(response) }
     }
 
     private fun respondError(requestId: String, code: SshErrorCode) {
