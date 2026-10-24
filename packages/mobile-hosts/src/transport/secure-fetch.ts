@@ -59,7 +59,10 @@ export function createSecureFetch(options?: { underlying?: typeof globalThis.fet
     }
     return response
   }
-  // Reference the marker from the live code path so minifiers cannot drop the string.
-  void SECURE_FETCH_MARKER
+  // Anchor the V-conn dist audit (the same way mobile(M-002)/mobile(vault-v1) are checked):
+  // the marker is written onto the escaping function object, so minifiers must keep the
+  // string — a bare `void MARKER` reference is dropped as side-effect-free (verified: the
+  // first attempt survived only in sourcemaps).
+  ;(secureFetch as unknown as { marker: string }).marker = SECURE_FETCH_MARKER
   return secureFetch
 }

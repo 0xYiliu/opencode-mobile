@@ -122,6 +122,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts asserts the injection is setStore-only (no direct storage writes) and that the M-002 encode still strips (memory-only); runtime behavior on device is BLOCKED (C1).",
       "rebase": "New patch (issue #4); rebase target is the ServersProvider init block in packages/app/src/runtime/server/registry.tsx, directly after the persisted() call."
+    },
+    {
+      "id": "M-011",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch",
+      "targets": [
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "reason": "Platform fetch injection with the validated-follow policy (issue #5, decision 0002 D1). createSecureFetch from the first-party package keeps redirect:\"follow\" (legitimate same-origin reverse proxies keep working) and validates the FINAL response before body delivery: a cross-host final URL is refused with the body cancelled, an https-to-http downgrade is refused, and a request URL carrying userinfo credentials is refused before anything is sent. Coverage: platform.fetch feeds createServerTransport (API/SSE/binary reads) and the health checks; the upload XHR is validated separately by M-012 with the same rules, and the pairing-flow residual fetch surface (OpenCode.make + checkServerHealth(globalThis.fetch) in pairing.ts) is registered out-of-scope in docs/design/units/connection.md. Auth-header semantics are untouched (the Basic header is built upstream exactly as before); cross-origin redirect sub-requests already lose the Authorization header by browser spec, so the wrapper is the shell's own fail-closed layer, not a leak fix. The embedded marker 'mobile(M-011): platform fetch validated-follow (origin + downgrade checked before body delivery)' survives minification and anchors V-conn dist verification.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun unit tests for the wrapper (packages/mobile-hosts/test/secure-fetch.test.ts: cross-host refuse, downgrade refuse, credential-URL refuse, direct pass, same-origin redirect pass); V2 build smoke + dist marker mobile(M-011) + scripts/verify-direct-connection.ts (full mode); device behavior BLOCKED (G3/G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal)."
     }
   ]
 }
