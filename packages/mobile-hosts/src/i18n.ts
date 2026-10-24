@@ -87,6 +87,23 @@ export const messages = {
     "direct.error.forbidden": "The server refused access (403). Check the account and its permissions.",
     "direct.error.not-found": "No OpenCode service answered at this address (404). Check the address and port.",
     "direct.error.html-response": "A web page answered instead of the OpenCode service — likely a proxy or captive portal. Check the address.",
+    // issue #6: SSH failure classifications (one actionable line per SshErrorCode; four
+    // layers per decision 0003 §5). First-party key set (sshErrorCodeMessageKey); the
+    // Kotlin SshErrorCode.codeName speaks the same wire strings.
+    "ssh.error.bridge-unavailable": "The SSH bridge is unavailable right now, so no connection can be attempted.",
+    "ssh.error.dns": "The SSH host name could not be resolved. Check the hostname for typos.",
+    "ssh.error.refused": "The SSH port refused the connection. Check that the host is reachable and the port is correct.",
+    "ssh.error.timeout": "The SSH host did not answer in time. Check the address, the port and the network path.",
+    "ssh.error.unreachable": "The SSH host is unreachable from this network.",
+    "ssh.error.auth-failed": "The server rejected the authentication. Check the password or key and try again.",
+    "ssh.error.key-decrypt-failed": "The private key could not be decrypted. Re-import it (with its passphrase if it has one).",
+    "ssh.error.host-key-unknown": "This host's key is not known yet. Verify the fingerprint to continue.",
+    "ssh.error.host-key-changed": "DANGER: the host key no longer matches the stored record — this can indicate an interception. The connection was refused.",
+    "ssh.error.host-key-rejected": "The host key was rejected, so no connection was attempted.",
+    "ssh.error.target-refused": "SSH authentication succeeded, but the remote host refused to forward to the service. Check the service port and that the service is running.",
+    "ssh.error.forward-failed": "The local forwarding could not be established. Check the service port.",
+    "ssh.error.service-unreachable": "The tunnel is up, but no OpenCode service answered on the far side. Check the remote service.",
+    "ssh.error.io": "The SSH transport failed. Try again.",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -166,6 +183,22 @@ export const messages = {
     "direct.error.forbidden": "服务器拒绝访问（403）。请检查账号与权限。",
     "direct.error.not-found": "该地址无 OpenCode 服务应答（404）。请检查地址与端口。",
     "direct.error.html-response": "应答的是网页而非 OpenCode 服务——可能是代理或门户页。请检查地址。",
+    // issue #6：SSH 失败分类文案（每个 SshErrorCode 一条可操作建议；四层分类见决策 0003 §5）。
+    // Kotlin SshErrorCode.codeName 与此处的线字符串一致。
+    "ssh.error.bridge-unavailable": "SSH 通道当前不可用，无法发起连接。",
+    "ssh.error.dns": "无法解析 SSH 主机名。请检查主机名是否有误。",
+    "ssh.error.refused": "SSH 端口拒绝连接。请确认主机可达且端口正确。",
+    "ssh.error.timeout": "SSH 主机未在时限内应答。请检查地址、端口与网络路径。",
+    "ssh.error.unreachable": "当前网络无法到达该 SSH 主机。",
+    "ssh.error.auth-failed": "服务器拒绝了认证。请检查密码或密钥后重试。",
+    "ssh.error.key-decrypt-failed": "私钥无法解密。请重新导入（如私钥有口令请一并填写）。",
+    "ssh.error.host-key-unknown": "尚未记录该主机的密钥。请先核对指纹再继续。",
+    "ssh.error.host-key-changed": "危险：主机密钥与已存记录不符，可能存在中间人。连接已被拒绝。",
+    "ssh.error.host-key-rejected": "主机密钥已被拒绝，未尝试任何连接。",
+    "ssh.error.target-refused": "SSH 认证成功，但远端主机拒绝向服务转发。请检查服务端口与服务是否在运行。",
+    "ssh.error.forward-failed": "本地转发未能建立。请检查服务端口。",
+    "ssh.error.service-unreachable": "隧道已建立，但远端无 OpenCode 服务应答。请检查远程服务。",
+    "ssh.error.io": "SSH 传输失败，请重试。",
   },
 } as const
 

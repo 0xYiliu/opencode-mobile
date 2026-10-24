@@ -90,6 +90,26 @@ export {
   type SecureFetchErrorCode,
 } from "./transport/connection-errors"
 export {
+  SSH_ERROR_CODES,
+  SshTransportError,
+  isSshErrorCode,
+  sshErrorCodeMessageKey,
+  type SshErrorCode,
+  type SshErrorInfo,
+} from "./transport/ssh-errors"
+export { computeSshFingerprint, decodeBase64KeyBlob, isSshFingerprint } from "./ssh/fingerprint"
+export {
+  matchesKnownHostsEntry,
+  parseKnownHosts,
+  parseKnownHostsLine,
+  parseSshTargetHost,
+  serializeKnownHosts,
+  serializeKnownHostsEntry,
+  type KnownHostsEntry,
+  type KnownHostsParseIssue,
+  type KnownHostsParseResult,
+} from "./ssh/known-hosts"
+export {
   assertNoUrlCredentials,
   hasUrlCredentials,
   validateRedirectTarget,
