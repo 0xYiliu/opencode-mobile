@@ -10,7 +10,8 @@
 | [interaction.md](interaction.md) | 交互基线、G1–G15 与 C1–C5 设备门禁枚举、主机管理交互（issue #3）与凭据绑定/凭据管理器（issue #4）、失败路径处置协议、凭据 notice（修订：可选记住） |
 | [visual.md](visual.md) | 视觉视角：令牌与主题来源、viewport 口径、窄屏/深色、图像纪律、mobile-hosts 组件复用上游令牌（含 issue #4 组件） |
 | [units/shell-startup.md](units/shell-startup.md) | 单元：Android 壳启动与资产服务（本轮已实现，未验证） |
-| [units/connection.md](units/connection.md) | 单元：服务连接与凭据（已确认未实现，字段契约已实现；credentialRef/状态机/host-key 立桩已实现（未验证）：issue #3；vault 契约/真值表 v3/失效矩阵已实现（未验证）：issue #4） |
+| [units/connection.md](units/connection.md) | 单元：服务连接与凭据（已确认未实现，字段契约已实现；credentialRef/状态机/host-key 立桩已实现（未验证）：issue #3；vault 契约/真值表 v3/失效矩阵已实现（未验证）：issue #4；SSH 隧道契约已实现（未验证）：issue #6） |
+| [units/service-ops.md](units/service-ops.md) | 单元：服务操作——发现与显式授权的安装/启动/版本处理（已实现（未验证）：issue #7；设备/真 OS G18+三 OS E2E BLOCKED；[决策 0004](../decisions/0004-service-operations.md)） |
 | [units/server-list.md](units/server-list.md) | 单元：服务器列表与项目选择（已确认未实现，字段契约已实现；SSH 主机注册表与 host-manager/host-dialog 已实现（未验证）：issue #3；credential-manager 已实现（未验证）：issue #4） |
 
 未产出单元文档的单元见 [architecture.md](architecture.md) 设计单元清单中的 TODO 行，均为未开始。
@@ -27,7 +28,7 @@
 | 待验证 | 逻辑上成立但依赖真机/授权远程服务才能核验；本环境标 BLOCKED |
 | 未开始 | 规划中的设计单元，尚无设计产出 |
 
-本轮的关键事实基线：Android 壳代码已实现（未编译验证，无 Android SDK，无 APK）；上游前端闭包已引入 `vendor/upstream`（pin `b4525d79bf`），web 构建本机可复现；主机注册表、身份键与连接状态机已随 issue #3 实现（未验证；第一方包 `packages/mobile-hosts/` 与 vendor 补丁 M-004…M-008）；凭据保险库（vault 端口/信封 v1/桥协议/Keystore 落盘/可选记住交互）已随 issue #4 实现（未验证；vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED，见 [units/connection.md](units/connection.md) 与 [units/server-list.md](units/server-list.md)）；许可审计 BLOCKED（12 项待用户决策）。全部证据见 [docs/build-and-verify.md](../build-and-verify.md)。
+本轮的关键事实基线：Android 壳代码已实现（未编译验证，无 Android SDK，无 APK）；上游前端闭包已引入 `vendor/upstream`（pin `b4525d79bf`），web 构建本机可复现；主机注册表、身份键与连接状态机已随 issue #3 实现（未验证；第一方包 `packages/mobile-hosts/` 与 vendor 补丁 M-004…M-008）；凭据保险库（vault 端口/信封 v1/桥协议/Keystore 落盘/可选记住交互）已随 issue #4 实现（未验证；vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED，见 [units/connection.md](units/connection.md) 与 [units/server-list.md](units/server-list.md)）；许可审计 BLOCKED（12 项待用户决策）；服务操作（发现+显式授权安装/启动，第四桥+白名单命令面+授权流）已随 issue #7 实现（未验证；vendor 补丁 M-016，G18 与三 OS 真 OS E2E BLOCKED）。全部证据见 [docs/build-and-verify.md](../build-and-verify.md)。
 
 ## 四横切适用性总表
 
