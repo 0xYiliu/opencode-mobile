@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Credential vault backup exclusion, pre-API-31 path (issue #4, decision D7).
+     Referenced by android:fullBackupContent for the legacy auto-backup mechanism; mirrors
+     data_extraction_rules.xml. allowBackup="false" remains the primary control — this file
+     is lazy defense in depth, not the control itself. -->
+<full-backup-content>
+    <exclude domain="file" path="vault/" />
+</full-backup-content>

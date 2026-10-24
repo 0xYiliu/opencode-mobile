@@ -12,7 +12,7 @@ import { KeyboardInsets } from "@/runtime/platform/keyboard"
 import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import pkg from "../package.json"
-import { createMobileHosts, NullCredentialResolver, StubHostKeyVerifier } from "@opencode-mobile/mobile-hosts"
+import { createMobileHosts, createVaultClient, createVaultResolver, createWebMessageChannelTransport, StubHostKeyVerifier } from "@opencode-mobile/mobile-hosts"
 
 const getLocale = () => {
   if (typeof navigator === "undefined") return "en" as const
@@ -85,10 +85,29 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     // are added through the app's own dialog into the upstream persisted list. The
     // ?auth_token passthrough is inapplicable in this shell (no assembled server to
     // authenticate), so its handling is removed with this patch.
+    //
+    // mobile(M-007 amendment, issue #4): wire the device credential vault. The transport
+    // subscribes BEFORE first render so the native handshake (posted from
+    // onPageFinished with a transferable port) cannot be missed: the handler validates the
+    // handshake SHAPE only — event.origin is never consulted because embedder-posted
+    // messages carry an empty origin by platform construction (see
+    // docs/design/architecture.md, three-layer trust). The port is captured inside the
+    // transport's closure (never a global), acked immediately, and later handshakes are
+    // ignored. Before that ack the vault is unavailable — an explicit state; there is no
+    // plaintext fallback anywhere.
+    const vault = createVaultClient(
+      createWebMessageChannelTransport({
+        subscribe: (handler) => {
+          window.addEventListener("message", handler as EventListener)
+          return () => window.removeEventListener("message", handler as EventListener)
+        },
+      }),
+    )
     const hosts = createMobileHosts({
       storage: window.localStorage,
       fetch: globalThis.fetch.bind(globalThis),
-      resolver: NullCredentialResolver,
+      vault,
+      resolver: createVaultResolver(vault),
       hostKey: StubHostKeyVerifier,
     })
 

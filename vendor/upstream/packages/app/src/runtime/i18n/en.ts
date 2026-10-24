@@ -353,6 +353,12 @@ export const dict = {
   "dialog.server.add.namePlaceholder": "Localhost",
   "dialog.server.add.password": "Password",
   "dialog.server.add.passwordPlaceholder": "password",
+  // mobile(M-009): optional "remember" for the password method. Row-2/12 wording names the
+  // missing password ("enter a password to remember it"), not a missing capability.
+  "dialog.server.remember": "Remember the password on this device",
+  "dialog.server.remember.unavailable": "Credential storage is unavailable right now. The password stays memory-only for this session.",
+  "dialog.server.remember.needsPassword": "Enter a password to remember it.",
+  "dialog.server.remember.saveFailed": "Could not save the credential. Nothing was changed.",
 
   "server.connect.title": "Connect to a server",
   "server.connect.description": "Enter your server address and password to get started.",

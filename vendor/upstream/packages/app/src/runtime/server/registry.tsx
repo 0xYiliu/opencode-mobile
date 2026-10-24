@@ -5,6 +5,9 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { pathKey } from "@/workspaces/path-key"
 import { ServerScope } from "@/runtime/server/scope"
 import type { ServerEntry } from "@opencode/gui-extensions/sdk"
+// mobile(M-010): stored direct servers remember their password through the shell's device
+// vault (issue #4); after hydration the reference is resolved into memory here.
+import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
 import { ServerHttp, ServerHttpBase, ServerKey, serverState } from "./persistence"
 
 type ServerState = ReturnType<typeof serverState>["current"]["Type"]
@@ -224,6 +227,44 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
       serverState(() => props.canonicalLocalServer),
       { list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} },
     )
+
+    // mobile(M-010): after the persisted list hydrates, entries that carry a credential
+    // reference but no password get the password resolved from the shell's device vault and
+    // injected into the in-memory store ONLY. The M-002 encode path runs on every persist
+    // write, so the injected value can never reach a persistent backend — hydration merely
+    // spares the re-typing in one session. Vault unavailable (bridge not acked / non-Android)
+    // and per-entry corrupt/unsupported resolve to nothing here: the entry keeps no password
+    // and the server's own authentication flow takes over (failure matrix, no fallback).
+    const vault = (() => {
+      try {
+        return getMobileHosts().credentials
+      } catch {
+        return undefined
+      }
+    })()
+    if (vault) {
+      void Promise.resolve(hydrated.promise ?? undefined)
+        .then(async () => {
+          for (let index = 0; index < store.list.length; index++) {
+            const conn = store.list[index]
+            if (!conn || conn.type !== "http" || conn.http.password || !conn.http.credentialRef) continue
+            try {
+              const value = await vault.get(conn.http.credentialRef)
+              if (!value) continue
+              batch(() => {
+                // Re-check freshness after the await: the list may have been edited while
+                // the vault was consulted, and a snapshot index must never inject into a
+                // different entry (issue #4 review N3).
+                if (store.list[index] !== conn) return
+                if (!store.list[index]?.http.password) setStore("list", index, "http", "password", value)
+              })
+            } catch {
+              // Explicit unavailability is honored per entry; nothing is invented.
+            }
+          }
+        })
+        .catch(() => undefined)
+    }
 
     const allServers = createMemo((): Array<ServerConnection.Any> => {
       return resolveServerList({ stored: store.list, props: props.servers })

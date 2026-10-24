@@ -7,8 +7,8 @@
 | 设计单元 | 标识属性 | 适用约束 | 职责 | 状态 |
 | --- | --- | --- | --- | --- |
 | shell-startup | 应用进程启动 → 回环资产服务 → WebView 首帧 | 仅 `INTERNET` 权限；零 androidx；凭据不入普通存储 | 启动本地 asset server，加载打包的上游 app，承载返回键与生命周期红线 | 已实现（未验证）；交互已确认未实现，见 [units/shell-startup.md](units/shell-startup.md) |
-| connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`） | 凭据 memory-only（M-002）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS；TLS 校验不可关闭；host-key stub fail-closed | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机 | 已实现（未验证）；设备交互 BLOCKED（G14、host-key 归 #6），见 [units/connection.md](units/connection.md) |
-| server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳） | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口 | 已实现（未验证）；设备交互 BLOCKED（G13/G15），见 [units/server-list.md](units/server-list.md) |
+| connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`）；凭据保险库条目（信封 v1 密文 + 元数据索引） | 凭据 memory-only（M-002）+ 可选记住经 vault 加密落盘（issue #4，无明文回退）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS；TLS 校验不可关闭；host-key stub fail-closed | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机；承载凭据的设备侧加密存储（vault 端口/桥/Keystore） | 已实现（未验证）；设备交互 BLOCKED（G14、host-key 归 #6、C1–C5 归 #4），见 [units/connection.md](units/connection.md) |
+| server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页）；凭据管理器（credential-manager，issue #4） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳）；凭据管理器仅展示元数据无值 | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口；凭据条目的元数据查看/删除与恢复 | 已实现（未验证）；设备交互 BLOCKED（G13/G15、C2 归 #4），见 [units/server-list.md](units/server-list.md) |
 | 会话列表 | TODO | — | TODO | 未开始 |
 | 时间线 | TODO | — | TODO | 未开始 |
 | 终端 | TODO | — | TODO | 未开始 |
@@ -23,18 +23,21 @@
 ```text
 ┌─────────────────────────── Android 壳（本仓库 android/，已实现（未验证）） ───────────────────────────┐
 │  MainActivity                                                                                        │
-│    └─ WebAssetServer（NanoHTTPD，仅绑 127.0.0.1:18090）                                               │
-│         └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，3329 项文件，含 PWA service worker）│
+│    ├─ WebAssetServer（NanoHTTPD，仅绑 127.0.0.1:18090）                                               │
+│    │    └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，含 PWA service worker）            │
+│    └─ CredentialVaultBridge（issue #4：onPageFinished 握手 → WebMessageChannel port1/port2；          │
+│         VaultCrypto（AndroidKeyStore AES-256-GCM）+ VaultStore（filesDir/vault/ 原子落盘+index.json） │
 │  WebView（javaScriptEnabled / domStorageEnabled；文件与内容访问关闭；geolocation 关闭）                │
 │    origin = http://127.0.0.1:18090（回环可信上下文；PWA SW 可注册，行为归 G10）                        │
 └──────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
-                                               │ 加载 UI（同源）
+                                               │ 加载 UI（同源）+ vault 握手（平台 WebMessage channel，port 闭包）
                                                ▼
-              第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3）
+              第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3/#4）
                 ├─ SSH 主机注册表（opencode-mobile.hosts.v1，载荷白名单：id/name/target/credentialRef/时间戳）
                 ├─ 连接状态机（idle/connecting/hostKeyUnverified/ready/authRequired/incompatible/offline/reconnecting/failed）
+                ├─ vault（issue #4）：端口+信封 v1+桥传输（形状校验/ack/requestId；UnavailableVault fail-closed 默认）
                 └─ upstream-map：SSH 主机 → 上游 extension 型 ServerConnection（键 `mobile-ssh:<uuid>`），
-                   经 props.servers 注入上游 ServersProvider；直连服务仍走上游原生注册表
+                   经 props.servers 注入上游 ServersProvider；直连服务仍走上游原生注册表（M-010 hydration 注入内存密码）
                                                │
                                                ▼
                               上游 OpenCode app（vendor/upstream/packages/app 静态构建；M-004 别名 / M-007 entry 引导 / M-008 设置挂载）
@@ -54,7 +57,9 @@
 - **TLS**：仅系统 CA（network_security_config base-config 显式声明，不信任用户安装 CA）；`onReceivedSslError` 恒 CANCEL 并仅记录错误类别，绝不 proceed；不用关闭校验规避错误。
 - **cleartext**：全局 `usesCleartextTraffic=false` + base-config 禁明文；仅 `127.0.0.1`/`localhost` 域名配置允许 cleartext（资产服务与 SSH 隧道回环口）；局域网 HTTP 直连放行不在本轮范围。
 - **凭据流（M-002 memory-only）**：用户输入密码 → 仅存于内存 → 在 `packages/app/src/runtime/server/api.ts` 的 `authTokenFromCredentials` 处拼接 `Basic ${btoa("opencode:<password>")}` 进入 Authorization 请求头 → 持久化编码路径（`persistence.ts` encode）恒剥离 password，任何持久化后端收不到凭据；`authToken` 是布尔标志（是否带 token），非机密。完整口径与用户可见后果见 [interaction.md](interaction.md) 的 memory-only notice。
-- **credentialRef（非机密引用，已实现（未验证）：issue #3）**：持久化 schema 增加的 `http.credentialRef`（M-005）与 SSH 主机记录中的 `credentialRef` 都是指向凭据条目的指针（形如 `mobile-credential:<id>` 的标识符），**不是凭据本身**，允许进入持久化载荷；它指向的凭据值在 Keystore 方案（issue #4）交付前不存在，解析端口 `CredentialResolver` 本期为 NullResolver（恒返回 undefined）。解析结果只注入内存连接对象，永不回写持久化。依赖该引用的真实解析行为归 issue #4，**BLOCKED**。
+- **credentialRef（非机密引用，已实现（未验证）：issue #3）**：持久化 schema 增加的 `http.credentialRef`（M-005）与 SSH 主机记录中的 `credentialRef` 都是指向凭据条目的指针（形如 `mobile-credential:<id>` 的标识符），**不是凭据本身**，允许进入持久化载荷；它指向的凭据值存放在 vault（issue #4）。解析结果只注入内存连接对象，永不回写持久化。
+- **凭据保险库（issue #4，已实现（未验证））**：凭据值唯一持久形态是 AndroidKeyStore（密钥 `opencode-mobile-vault.v1`，AES-256-GCM，不设用户认证绑定）加密的信封 v1 文件（`filesDir/vault/<id>.bin`，原子写）+ 无值元数据索引 `index.json`；信封 `OPMV1`+12B IV+GCM 128-bit tag，AAD=条目 id（换绑拒绝）。凭据值永不进入 localStorage/sessionStorage/日志/构建产物/git；无额外解锁；unavailable 是显式状态，无明文回退代码路径。契约与失效矩阵见 [units/connection.md](units/connection.md)。
+- **vault 桥的三层信任（替换 origin 校验）**：平台 WebMessage channel 的 JS 侧**不做 origin 等值校验**——**勘误三（计划 F-1b）平台证据链**：embedder 经 `postWebMessage` 投递的消息其 `event.origin` 恒为空串（Chromium `AwContents.postMessageToMainFrame` 硬编码 sourceOrigin=null → blink `MessageEvent::originForBindings()` 返回 "" → 平台 `PostMessageTest` 断言 `SOURCE_ORIGIN=""`）。信任依据为：①平台 targetOrigin 强制（非该 origin 的 frame 收不到 port2，native 侧参数平台强制）；②port 能力 confinement（port 引用不暴露 window 全局，单测锁定；如实边界：同页监听者事件层面可见握手字符串，confinement 实际来源=port 引用不暴露+页面仅第一方资产——页内脚本可捕获 port ≈ 资产被篡改=应用被攻破，既有边界不新增攻击面）；③ack 前零能力（握手捕获并回发 ack 前 vault 恒 unavailable，native 不受理操作）。模拟测试禁止伪造 origin 断言。
 - **host-key stub fail-closed（已实现（未验证）：issue #3）**：SSH 主机指纹校验端口 `HostKeyVerifier` 本期为 stub——对任何主机恒返回"拒绝"，状态机据此永不放行未确认指纹的连接；不存在"跳过校验"路径。确认 UI（host-key-prompt）与状态机状态均已立桩，真实验证数据源归 issue #6，**BLOCKED**。持久化载荷中不含指纹/凭据形态字段。
 - **身份键（已实现（未验证）：issue #3）**：直连服务沿用上游原生键（URL 本身，端口变化即新身份）；SSH 主机身份为 `mobile-ssh:<uuid4>`（创建即定、永不改），与隧道回环端口解耦——端口重解析（reconnect）不改变身份/scope/会话/设置键。
 - **日志纪律**：logcat 仅固定 tag（`OpencodeShell`）+ 控制台消息文本与行号；不写 URL 查询参数、请求头或凭据。
@@ -64,9 +69,9 @@
 
 上游桌面渲染器在 Electron 主进程为所有服务响应注入宽松 CORS（`packages/desktop/src/main/windows/headers.ts` @ pin `b4525d79bf`：`Access-Control-Allow-Origin: *`；服务未自带 `Access-Control-Allow-Headers` 时补 `*, authorization`——Chromium 仅在预检结果显式列出 `authorization` 时复用预检缓存，`*` 不覆盖它；`Access-Control-Max-Age: 7200`）。该包不在闭包内，WebView 也没有等价注入 API：远程服务不回 CORS 时，本壳的跨源 API 调用会在预检或响应读取处失败。这是 G3 列为高风险门禁的依据；预案 A（部署侧补 CORS）/ B（Android 本地反代，凭据留在 App 进程，需设计评审）/ C（平台适配层改造）均为用户决策项，在获得决策前不续做产品化，绝不关闭浏览器安全或转原生重写。
 
-## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-008）
+## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-010）
 
-上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-008（已实现（未验证）：issue #3）是移动运行时接缝，每补丁一事：
+上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝，每补丁一事：
 
 | 补丁 | 内容 | 理由 |
 | --- | --- | --- |
@@ -76,8 +81,10 @@
 | M-004 | app vite `resolve.alias` 增 `@opencode-mobile/mobile-hosts` → 仓库根 `packages/mobile-hosts/src/index.ts`（`fileURLToPath(new URL(...))` 形式，按 importer 定位到闭包外第一方包） | 上游 app 引用第一方包的唯一构建期通道；依赖方向我方→vendor 之外的特例（仅构建别名，不改 vendor 包依赖） |
 | M-005 | `ServerHttpBase` 增非机密 `credentialRef: Schema.optional(Schema.String)` | 直连服务可携带凭据引用；encode 剥 password 逻辑不变 |
 | M-006 | 连接对话框 add/replace 构造连接时透传 `original.http.credentialRef` | 否则编辑服务会丢失凭据引用；"无变化早退"比较不含 ref |
-| M-007 | entry.tsx：移除 `location.origin` 当作 OpenCode 服务的装配（壳 asset origin 不是 OpenCode 服务）；以 `createMobileHosts` 引导并经 `servers` 注入 SSH 主机 | 不用 `VITE_OPENCODE_SERVER_MODE=none` 构建期变量：避免隐藏的构建配置依赖，补丁可随上游 rebase；`?auth_token` 直通流在壳内不适用（无装配服务可认证） |
+| M-007 | entry.tsx：移除 `location.origin` 当作 OpenCode 服务的装配（壳 asset origin 不是 OpenCode 服务）；以 `createMobileHosts` 引导并经 `servers` 注入 SSH 主机；**M-007 修订（issue #4）**：注入 vault 客户端 + 首渲染前注册握手监听（形状校验/port 闭包/ack/重复握手忽略），resolver 换为 vault-backed | 不用 `VITE_OPENCODE_SERVER_MODE=none` 构建期变量：避免隐藏的构建配置依赖，补丁可随上游 rebase；`?auth_token` 直通流在壳内不适用（无装配服务可认证） |
 | M-008 | 设置 servers 标签页挂载 `<MobileHostManager/>`（lazy import） | SSH 主机管理界面入口 |
+| M-009 | 连接对话框 `dialog.tsx`：`method=password` 时渲染「记住凭据」勾选框（vault available 才可用，unavailable 禁用+说明），真值表 v3 十二行分路（含 add-prior 不分 method、早退强制条件、link 流不渲染、行 2/12 空值中止），i18n en/zh 新键 | 可选记住（issue #4）：勾选时经桥 put 加密落盘并写 credentialRef；取消勾选清 ref+删条目；不铸空值不静默失败。评审修复（B1）：决策核心增 `boundKind`——已绑定**私钥**且值为空时保留绑定（行 13，add/edit 同义），host-dialog 装配在私钥绑定期间禁用密码位防 in-place 换 kind |
+| M-010 | `registry.tsx`：hydration 后对 credentialRef 有且 password 缺失的条目，经 vault resolver 解析并 **setStore 注入内存 password**（不落盘：同一 M-002 encode 路径保证） | 重启后已记住的直连服务免重输；仅内存；unavailable/corrupt 时不注入、走重输路径（失效矩阵） |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。
 
@@ -98,6 +105,9 @@
 | server-list（已实现（未验证）） | 用户进入设置 → servers 标签页 | host-manager（SSH 主机管理） | 无 | 列表为空 → 空态引导（新增主机）；多 server 布局下该标签被上游 per-server 导航取代（管理入口缺口，见 [interaction.md](interaction.md)） | 已实现（未验证）（M-008）；真机归 G13 |
 | host-manager（已实现（未验证）） | 新增/编辑 SSH 主机 | host-dialog | 主机记录（name/target/credentialRef） | 校验失败（重名/非法 target/超长）→ 行内错误，不写注册表；保存失败保留原配置 | 已实现（未验证）；真机归 G13 |
 | host-dialog（已实现（未验证）） | 保存 SSH 主机 | host-manager | 注册表记录（白名单载荷） | — | 已实现（未验证）；真机归 G13 |
+| 连接对话框（已实现（未验证）：issue #4，M-009） | 保存直连服务（勾选记住） | vault（桥 put） | kind=password、内存密码值、existingRef | put 失败 → 不关对话框+行内报错；vault unavailable → 勾选禁用+说明 | 已实现（未验证）；真机归 C1/C2 |
+| 连接对话框（已实现（未验证）：issue #4，M-010） | 应用启动 hydration | registry（内存注入） | credentialRef → 解析值（内存） | corrupt/unavailable → 不注入 → unauthorized 重输 | 已实现（未验证）；真机归 C1 |
+| credential-manager（已实现（未验证）：issue #4） | 用户删除条目/一键清除 | vault（桥 remove） | ref | io/corrupt → 行内报错不静默 | 已实现（未验证）；真机归 C2 |
 | connection（已实现（未验证）） | SSH 主机发起连接 | 连接状态机（host-key-prompt） | target、credentialRef（引用） | host-key stub 恒拒绝 → failed（可重试/编辑），永不放行未确认指纹 | 已实现（未验证）；真实校验归 #6（BLOCKED） |
 | 连接状态机（已实现（未验证）） | 状态迁移 | 上游 server-list 行内状态 | extension 型 ServerConnection（state 映射） | offline/reconnecting 有反馈可恢复；取消恢复来源态；删除/断开零远程调用 | 已实现（未验证）；真机归 G14 |
 | 会话列表 | 打开会话 | 时间线 | 会话 ID | — | 未开始 |

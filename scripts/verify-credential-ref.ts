@@ -84,19 +84,29 @@ const legacyEncoded = JSON.stringify(Schema.encodeSync(schema)(legacy))
 if (/legacy-secret/.test(legacyEncoded)) fail("legacy password survived encode")
 if (!/old\.example\.invalid/.test(legacyEncoded)) fail("legacy url lost")
 
-// 3. Static M-006 check: the dialog forwards the reference on add/replace and the
-//    early-exit comparison does not consult it.
+// 3. Static M-006/M-009 check: the dialog's constructed connection carries the reference
+//    from the remember decision's passthrough (M-006's original forward was generalized by
+//    M-009: the prior is the edit original, or the URL-matched record on add, and the ref
+//    comes from the truth-table decision), and the early-exit comparison still does not
+//    consult it.
 const dialogSource = new URL("../vendor/upstream/packages/app/src/servers/connect/dialog.tsx", import.meta.url)
 const dialog = await Bun.file(dialogSource).text()
 const constructsHttp = /const connection: ServerConnection\.Http = \{[\s\S]*?http: \{[\s\S]*?\}/.exec(dialog)
 if (!constructsHttp) fail("dialog connection construction block not found")
-if (!/credentialRef:\s*original\?\.http\.credentialRef/.test(constructsHttp[0]!)) {
-  fail("M-006: dialog does not forward original.http.credentialRef into the constructed connection")
+if (!/credentialRef:\s*decision\.action === "passthrough" \? decision\.ref : undefined/.test(constructsHttp[0]!)) {
+  fail("M-006/M-009: dialog does not carry the remember decision's passthrough reference into the constructed connection")
 }
-const earlyExit = /Nothing changed[\s\S]*?\}\s*\[\s*\]\s*\)?/.exec(dialog) ?? /normalized === original\.http\.url &&[\s\S]*?password === original\.http\.password/.exec(dialog)
+const earlyExit = /Nothing changed[\s\S]*?password === original\.http\.password/.exec(dialog)
 if (!earlyExit) fail("dialog early-exit comparison not found")
 if (/credentialRef/.test(earlyExit[0]!)) {
-  fail("M-006: the early-exit comparison consults credentialRef (must not)")
+  fail("M-006/M-009: the early-exit comparison consults credentialRef (must not)")
 }
+// mobile(M-009) glue: the early exit is forced off when a rendered checkbox state differs
+// from the prior's remembered flag, and the remember decision runs BEFORE the exit.
+if (!/!decision\.forcesSave &&/.test(earlyExit[0]!)) {
+  fail("M-009: the early-exit condition does not honor decision.forcesSave")
+}
+const decisionBeforeExit = dialog.indexOf("evaluateRemember(") < dialog.indexOf("Nothing changed")
+if (!decisionBeforeExit) fail("M-009: the remember decision must run before the nothing-changed early exit")
 
-console.log("verify-credential-ref: PASS (schema round-trip keeps credentialRef, strips password; M-006 forwards the reference and keeps it out of the early-exit comparison)")
+console.log("verify-credential-ref: PASS (schema round-trip keeps credentialRef, strips password; M-006/M-009 carry the decision's passthrough reference, early exit stays ref-free and honors forcesSave)")

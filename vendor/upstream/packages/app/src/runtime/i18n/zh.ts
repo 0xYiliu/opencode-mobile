@@ -334,6 +334,11 @@ export const dict = {
   "dialog.server.add.name": "服务器名称（可选）",
   "dialog.server.add.namePlaceholder": "Localhost",
   "dialog.server.add.password": "密码（可选）",
+  // mobile(M-009)：password 方式的「可选记住」。行 2/12 文案点明缺少的是密码（"需要密码才能记住"），而非能力缺失。
+  "dialog.server.remember": "在这台设备上记住密码",
+  "dialog.server.remember.unavailable": "凭据保管库当前不可用：密码仅保留在本次会话内存中。",
+  "dialog.server.remember.needsPassword": "需要密码才能记住。",
+  "dialog.server.remember.saveFailed": "凭据保存失败，未做任何更改。",
   "dialog.server.edit.title": "编辑服务器",
   "dialog.server.menu.edit": "编辑",
 

@@ -33,6 +33,10 @@ import { cameraHint, createCameraAvailability } from "./camera"
 import { bareServerAddress, pairingLink, type Pairing } from "./pairing"
 import { useRedeemPairing } from "./redeem"
 import { ConnectMethodSwitch, type ConnectMethod } from "./method"
+// mobile(M-009): the optional "remember credential" branch runs on the shell's device vault
+// (bootstrapped in the entry by M-007). The truth table lives in the first-party package so
+// it is unit-tested and probe-able; this dialog only translates the decision.
+import { evaluateRemember, getMobileHosts, initialRemember } from "@opencode-mobile/mobile-hosts"
 import "@/settings/settings.css"
 
 const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
@@ -196,6 +200,26 @@ export const DialogServer: Component<{
                 onKeyDown={keyDown}
               />
             </div>
+            {/* mobile(M-009): optional "remember" — rendered for the password method only
+                (link flows never render it and keep their prior reference untouched). With
+                the vault unavailable the checkbox renders disabled plus an explicit-state
+                note; there is no plaintext fallback anywhere. */}
+            <Show when={form.state.method() === "password"}>
+              <label class="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.state.remember()}
+                  disabled={!form.state.rememberAvailable() || form.state.busy()}
+                  onChange={(event) => form.change.remember(event.currentTarget.checked)}
+                />
+                <span class="settings-server-dialog-hint">{language.t("dialog.server.remember")}</span>
+              </label>
+              <Show when={!form.state.rememberAvailable()}>
+                <p class="settings-server-dialog-hint" role="status">
+                  {language.t("dialog.server.remember.unavailable")}
+                </p>
+              </Show>
+            </Show>
             <Show when={form.state.method() === "password"}>
               <div class="flex w-full min-w-0 flex-col gap-2">
                 <label for="dialog-server-password" class="settings-server-dialog-label">
@@ -266,6 +290,18 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
   const redeem = useRedeemPairing()
   const healthPreview = createServerHealthPreview(checkServerHealth)
 
+  // mobile(M-009): the shell's credential vault. Outside the mobile shell there is no
+  // bootstrap (getMobileHosts throws) and remember stays inert — the checkbox renders
+  // disabled and the decision degrades to a passthrough, never to a vault write.
+  const vault = (() => {
+    try {
+      return getMobileHosts().credentials
+    } catch {
+      return undefined
+    }
+  })()
+  const vaultAvailable = () => vault !== undefined && vault.status() === "available"
+
   const [store, setStore] = createStore<{
     mode: FormMode
     method: ConnectMethod
@@ -286,10 +322,30 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
     status: undefined,
   })
 
+  // mobile(M-009): the remember checkbox is the user's explicit choice once touched; before
+  // that it follows the prior's remembered flag (truth-table "initial value").
+  const [rememberOverride, setRememberOverride] = createSignal<boolean | undefined>(undefined)
+
+  // The prior carrying the ref semantics: the edited original, or — on add, regardless of
+  // the connect method (password AND link/redeem) — the stored http record with the same
+  // normalized URL. Only the reference field is taken from it. Without the URL lookup, the
+  // M-006 `original` would be undefined on add and re-adding a remembered server would
+  // orphan its credential reference.
+  const priorRef = (): string | undefined => {
+    if (store.mode === "edit") return editing()?.http.credentialRef
+    const normalized = normalizeServerUrl(store.values.url)
+    if (!normalized) return undefined
+    const prior = server.list.find((item) => item.type === "http" && item.http.url === normalized)
+    return prior?.type === "http" ? prior.http.credentialRef : undefined
+  }
+
+  const remember = () => rememberOverride() ?? initialRemember(priorRef())
+
   onCleanup(healthPreview.cancel)
 
   const reset = () => {
     healthPreview.cancel()
+    setRememberOverride(undefined) // mobile(M-009): a fresh dialog follows the prior again
     setStore({
       mode: "list",
       method: "link",
@@ -376,9 +432,32 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
       const name = store.values.name.trim() || undefined
       const password = http.password
 
+      // mobile(M-009): resolve the remember decision BEFORE the early exit. The prior
+      // carries the ref semantics for both the edit and the add flow (URL lookup, not
+      // method-gated). The checkbox only participates when rendered AND the vault is
+      // available; otherwise the decision is a passthrough and no vault op can happen.
+      const decision = evaluateRemember({
+        mode: store.mode === "edit" ? "edit" : "add",
+        checkboxRendered: store.method === "password" && vaultAvailable(),
+        remember: remember(),
+        valueEmpty: !password,
+        priorRef: priorRef(),
+      })
+
+      // Truth-table rows 2/12: remembering an EMPTY credential stops the save with an inline
+      // message — no put, no empty value ever cast, the dialog stays open.
+      if (decision.action === "abort") {
+        setStore("error", language.t("dialog.server.remember.needsPassword"))
+
+        return
+      }
+
       // Nothing changed: close, unless the server rejects these credentials, so saving checks them and the action that
-      // asked for sign-in can continue.
+      // asked for sign-in can continue. mobile(M-009): the exit is FORCED OFF when a rendered
+      // checkbox state differs from the prior's remembered flag — toggling remember (on or
+      // off) is a change even when url/name/password are identical.
       if (
+        !decision.forcesSave &&
         original?.type === "http" &&
         !global.servers.health[ServerConnection.key(original)]?.unauthorized &&
         normalized === original.http.url &&
@@ -396,12 +475,11 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
         http: {
           url: normalized,
           password,
-          // mobile(M-006): an edit must not drop the stored credential reference (M-005).
-          // The reference is a non-secret pointer; the form never edits it, so the original's
-          // reference carries over for both the same-url add and the key-changing replace.
-          // The "nothing changed" early-exit above deliberately does not compare it: the
-          // reference is never user-edited here, so it cannot be the only change.
-          credentialRef: original?.http.credentialRef,
+          // mobile(M-006)+(M-009): the reference comes from the remember decision — the
+          // passthrough keeps the prior's ref (edit original, or the URL-matched prior on
+          // add); put/clear resolve after the health check below. The early-exit comparison
+          // above deliberately does not consult it.
+          credentialRef: decision.action === "passthrough" ? decision.ref : undefined,
         },
       }
 
@@ -418,6 +496,31 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
         )
 
         return
+      }
+
+      // mobile(M-009): cast/clear the vault entry only after the health check passed. A
+      // failed put or remove keeps the dialog open with an inline error — never silently
+      // close with a half-applied binding. The entered password still authorizes THIS save.
+      if (decision.action === "put") {
+        try {
+          connection.http.credentialRef = await vault!.put({
+            kind: "password",
+            value: password!,
+            ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}),
+          })
+        } catch {
+          setStore("error", language.t("dialog.server.remember.saveFailed"))
+
+          return
+        }
+      } else if (decision.action === "clear") {
+        try {
+          await vault!.remove(decision.ref)
+        } catch {
+          setStore("error", language.t("dialog.server.remember.saveFailed"))
+
+          return
+        }
       }
 
       if (original?.type === "http") {
@@ -508,6 +611,8 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
       value: () => store.values.url,
       name: () => store.values.name,
       password: () => store.values.password,
+      remember,
+      rememberAvailable: vaultAvailable,
       scanning: () => store.scanning,
       error: () => store.error,
       status: () => store.status,
@@ -530,6 +635,10 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
       value: (value: string) => change("url", value),
       name: (value: string) => change("name", value),
       password: (value: string) => change("password", value),
+      remember: (value: boolean) => {
+        if (request.isPending) return
+        setRememberOverride(value)
+      },
     },
     scan: {
       start: () => setStore("scanning", true),

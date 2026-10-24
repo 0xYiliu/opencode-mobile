@@ -1,7 +1,8 @@
 // Host manager: the SSH host list mounted in the app's settings "servers" tab (M-008).
 // Reuses @opencode/ui primitives and tokens — no new visual decisions, no bare values.
 // Delete and disconnect are local-only operations (see createMobileHosts); the component
-// has no transport reach of its own.
+// has no transport reach of its own. Issue #4 adds the credential manager entry point and
+// the per-row bound-credential indicator.
 
 import { For, Show, createSignal } from "solid-js"
 import { Match, Switch } from "solid-js"
@@ -9,6 +10,7 @@ import { Button } from "@opencode/ui/button"
 import { createTranslator } from "../i18n"
 import type { HostState } from "../state-machine"
 import { getMobileHosts } from "../runtime"
+import { CredentialManager } from "./credential-manager"
 import { HostDialog } from "./host-dialog"
 
 function stateLabel(t: ReturnType<typeof createTranslator>, state: HostState): string {
@@ -20,6 +22,7 @@ export function MobileHostManager() {
   const t = createTranslator(runtime.locale)
   const [dialogOpen, setDialogOpen] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | undefined>(undefined)
+  const [credentialsOpen, setCredentialsOpen] = createSignal(false)
 
   const openAdd = () => {
     setEditingId(undefined)
@@ -35,9 +38,14 @@ export function MobileHostManager() {
     <div class="flex w-full min-w-0 flex-col gap-4">
       <div class="flex items-center justify-between gap-2">
         <h3 class="text-14-medium text-text-strong">{t("hostManager.title")}</h3>
-        <Button size="small" onClick={openAdd}>
-          {t("hostManager.add")}
-        </Button>
+        <div class="flex shrink-0 items-center gap-2">
+          <Button size="small" variant="neutral" onClick={() => setCredentialsOpen(true)}>
+            {t("hostManager.credentials")}
+          </Button>
+          <Button size="small" onClick={openAdd}>
+            {t("hostManager.add")}
+          </Button>
+        </div>
       </div>
       <Show when={runtime.registry.list().length > 0} fallback={<p class="text-14-regular text-text-weak">{t("hostManager.empty")}</p>}>
         <ul class="flex w-full min-w-0 flex-col gap-2">
@@ -50,6 +58,9 @@ export function MobileHostManager() {
                     {host.target}
                   </span>
                 </div>
+                <Show when={host.credentialRef !== undefined}>
+                  <span class="shrink-0 text-12-regular text-text-weak">{t("hostManager.bound")}</span>
+                </Show>
                 <span class="shrink-0 text-12-regular text-text-weak">{stateLabel(t, runtime.stateOf(host.id))}</span>
                 <div class="flex shrink-0 items-center gap-1">
                   <Switch>
@@ -94,6 +105,9 @@ export function MobileHostManager() {
       <p class="text-12-regular text-text-weak">{t("hostManager.deleteHint")}</p>
       <Show when={dialogOpen()}>
         <HostDialog runtime={runtime} hostId={editingId()} onClose={() => setDialogOpen(false)} />
+      </Show>
+      <Show when={credentialsOpen()}>
+        <CredentialManager runtime={runtime} onClose={() => setCredentialsOpen(false)} />
       </Show>
     </div>
   )
