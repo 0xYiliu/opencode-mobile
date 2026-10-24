@@ -42,9 +42,11 @@ const path = (...segments: string[]) => `${ROOT}${segments.join("/")}`
 {
   const forbidden: Array<{ pattern: RegExp; why: string }> = [
     { pattern: /X509TrustManager/i, why: "custom trust manager" },
+    { pattern: /X509ExtendedTrustManager/i, why: "extended custom trust manager" },
     { pattern: /checkServerTrusted|checkClientTrusted/i, why: "trust-manager callback" },
     { pattern: /HostnameVerifier/i, why: "custom hostname verifier" },
-    { pattern: /setSSLSocketFactory|sslSocketFactory\s*=/i, why: "custom SSL socket factory" },
+    { pattern: /setSSLSocketFactory|setDefaultSSLSocketFactory|sslSocketFactory\s*=/i, why: "custom SSL socket factory" },
+    { pattern: /SSLCertificateSocketFactory/i, why: "certificate-agnostic socket factory" },
     { pattern: /\bproceed\b/i, why: "SSL error accept path (SslErrorHandler)" },
     { pattern: /trustall|trust-all/i, why: "trust-all posture" },
   ]
