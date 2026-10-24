@@ -159,13 +159,16 @@ const path = (...segments: string[]) => `${ROOT}${segments.join("/")}`
       fail(`${relative}: build-time execution face (a client-only build implies no service-operation capability)`)
     }
   }
-  // The panel never spells a raw template string — command text is assembled ONLY via
-  // the golden-vector table (preview source uniqueness).
+  // The panel (and its driver) never spell a raw template string — command text is
+  // assembled ONLY via the golden-vector table (preview source uniqueness).
   const panel = await Bun.file(path("packages/mobile-hosts/src/ui/service-panel.tsx")).text()
-  for (const raw of ["opencode serve", "curl -fsSL", "winget install", "npm install -g", "pkill -x", "taskkill", "setsid nohup", "uname -s"]) {
-    if (panel.includes(raw)) fail(`service-panel.tsx spells the raw template fragment "${raw}" — preview strings must come from the template table only`)
+  const driver = await Bun.file(path("packages/mobile-hosts/src/service-ops/panel-driver.ts")).text()
+  for (const face of [panel, driver]) {
+    for (const raw of ["opencode serve", "curl -fsSL", "winget install", "npm install -g", "pkill -x", "taskkill", "setsid nohup", "uname -s"]) {
+      if (face.includes(raw)) fail("a UI/driver face spells the raw template fragment \"" + raw + "\" — preview strings must come from the template table only")
+    }
   }
-  if (!panel.includes("assembleServiceCommand")) fail("service-panel.tsx does not assemble through the whitelist table")
+  if (!driver.includes("assembleServiceCommand")) fail("panel-driver.ts does not assemble through the whitelist table")
   console.log(`verify-service-ops: no build-time execution face; preview source unique (template table)`)
 }
 
@@ -205,6 +208,26 @@ if (!PRE_NATIVE) {
     if (!validator) fail("ServiceCommandValidator.kt not found")
     for (const template of COMMAND_TEMPLATES) {
       if (!validator!.text.includes(`"${template.id}"`)) fail(`ServiceCommandValidator.kt does not whitelist the template "${template.id}"`)
+    }
+    // Review N1: EVERY template's command body is compared BYTE FOR BYTE against the
+    // Kotlin TEMPLATE_COMMANDS map — not just the golden-vector subset. A single-sided
+    // template drift (whitelist body edited on one side only) fails here.
+    {
+      const commandMap: Record<string, string> = {}
+      const entry = /"([a-z0-9.-]+)"\s+to\s+(?:\n\s*)?"((?:[^"\\]|\\.)*)"/g
+      let match: RegExpExecArray | null
+      while ((match = entry.exec(validator!.text)) !== null) {
+        commandMap[match[1]!] = match[2]!.replace(/\\"/g, '"')
+      }
+      for (const template of COMMAND_TEMPLATES) {
+        const kotlinCommand = commandMap[template.id]
+        if (kotlinCommand === undefined) fail(`ServiceCommandValidator.kt TEMPLATE_COMMANDS is missing "${template.id}"`)
+        if (kotlinCommand !== template.command) {
+          fail(`template command body drifted for "${template.id}":\n  js: ${template.command}\n  kt: ${kotlinCommand}`)
+        }
+      }
+      const kotlinOnly = Object.keys(commandMap).filter((id) => !COMMAND_TEMPLATES.some((t) => t.id === id))
+      if (kotlinOnly.length > 0) fail(`ServiceCommandValidator.kt carries templates unknown to the JS table: ${kotlinOnly.join(", ")}`)
     }
     for (const [name, pattern] of Object.entries(SERVICE_PARAM_PATTERNS)) {
       // The Kotlin source stores the pattern in its STRING-LITERAL form: every backslash

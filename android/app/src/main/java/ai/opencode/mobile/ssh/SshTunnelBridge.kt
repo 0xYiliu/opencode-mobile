@@ -61,6 +61,9 @@ class SshTunnelBridge(
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
         private val HOST = Regex("^[A-Za-z0-9._-]{1,253}$")
+        // The SSH username from the target's user@ segment (issue #7 review B2): a
+        // routing fact, NOT a credential — validated like any request field, never logged.
+        private val USERNAME = Regex("^[A-Za-z0-9._-]{1,32}$")
         private const val MAX_PORT = 65535
         private const val MAX_CREDENTIAL_BYTES = 65_536 // the vault bound (native re-check)
         private val FINGERPRINT = Regex("^SHA256:[A-Za-z0-9+/]{43}$")
@@ -232,6 +235,13 @@ class SshTunnelBridge(
                         respondNow(id)
                     }
                     "connect" -> {
+                        val username =
+                            if (params.has("username") && !params.isNull("username")) params.optString("username") else null
+                        if (username != null && !USERNAME.matches(username)) {
+                            Log.w(TAG, "ssh: dropping connect with malformed username")
+                            respondError(id, SshErrorCode.IO)
+                            return
+                        }
                         val servicePort = params.optInt("servicePort")
                         if (servicePort !in 1..MAX_PORT) {
                             Log.w(TAG, "ssh: dropping connect with refused service port")
@@ -251,7 +261,7 @@ class SshTunnelBridge(
                             return
                         }
                         respond(id) {
-                            JSONObject().put("url", manager.connect(host, port, servicePort, credential, pinned))
+                            JSONObject().put("url", manager.connect(username, host, port, servicePort, credential, pinned))
                         }
                     }
                     else -> respondError(id, SshErrorCode.IO) // unreachable behind the whitelist

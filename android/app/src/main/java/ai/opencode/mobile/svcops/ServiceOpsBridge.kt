@@ -71,6 +71,9 @@ class ServiceOpsBridge(
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
         private val HOST = Regex("^[A-Za-z0-9._-]{1,253}$")
+        // The SSH username from the target's user@ segment (review B2): a routing fact,
+        // NOT a credential — validated like any request field, never logged.
+        private val USERNAME = Regex("^[A-Za-z0-9._-]{1,32}$")
         private val OS_DOMAINS = setOf("linux", "darwin", "windows")
         private val TEMPLATE_ID = Regex("^[a-z0-9.-]{1,64}$")
         private const val MAX_PORT = 65535
@@ -215,6 +218,13 @@ class ServiceOpsBridge(
                     respondError(id, ServiceOpsErrorCode.EXEC_DENIED)
                     return
                 }
+                val username =
+                    if (params.has("username") && !params.isNull("username")) params.optString("username") else null
+                if (username != null && !USERNAME.matches(username)) {
+                    Log.w(TAG, "svcops: dropping request with malformed username")
+                    respondError(id, ServiceOpsErrorCode.EXEC_DENIED)
+                    return
+                }
                 when (op) {
                     "cancel" -> {
                         manager.cancel(host, port)
@@ -264,7 +274,7 @@ class ServiceOpsBridge(
                             return
                         }
                         respond(id) {
-                            manager.exec(host, port, os, templateId, paramMap, credential, pinned)
+                            manager.exec(host, port, username, os, templateId, paramMap, credential, pinned)
                         }
                     }
                     else -> respondError(id, ServiceOpsErrorCode.EXEC_DENIED) // unreachable behind the whitelist

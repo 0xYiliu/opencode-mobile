@@ -135,6 +135,7 @@ class ServiceOpsManager(context: android.content.Context) {
     fun exec(
         host: String,
         port: Int,
+        username: String?,
         os: String,
         templateId: String,
         params: Map<String, String>,
@@ -151,18 +152,20 @@ class ServiceOpsManager(context: android.content.Context) {
         val command = ServiceCommandValidator.validate(os, templateId, params)
             ?: throw ServiceOpsException(ServiceOpsErrorCode.EXEC_DENIED, "the requested command was refused by the whitelist")
 
+        var session: Session? = null
+        var channel: ChannelExec? = null
         val key = sessionKey(host, port)
+        // N2 (issue #7 review): the seat is taken atomically (putIfAbsent semantics) and
+        // the channel registration re-checks ownership so a cancel that removed the seat
+        // during session establishment can never be resurrected by this exec.
+        var current = LiveExec(null, null)
         synchronized(lock) {
             if (destroyed) throw ServiceOpsException(ServiceOpsErrorCode.SVCOPS_UNAVAILABLE, "manager destroyed")
-            if (inFlight.containsKey(key)) {
+            if (inFlight.putIfAbsent(key, current) != null) {
                 // Defensive single flight (the JS driver is sequential per host).
                 throw ServiceOpsException(ServiceOpsErrorCode.EXEC_DENIED, "an exec is already in flight for this host")
             }
-            inFlight[key] = LiveExec(null, null) // seat taken before any network work
         }
-
-        var session: Session? = null
-        var channel: ChannelExec? = null
         try {
             // 1. Host-key gate BEFORE any credential exists (decision 0003 §3.3 verbatim).
             val (presentedType, presentedBlob) = scanner.scanHostKey(host, port)
@@ -214,7 +217,12 @@ class ServiceOpsManager(context: android.content.Context) {
                     throw ServiceOpsException(ServiceOpsErrorCode.EXEC_DENIED, "private key could not be loaded")
                 }
             }
-            val execSession = jsch.getSession(password ?: "", host, port)
+            // Review B2: the username comes from the target's user@ segment (a routing
+            // fact, not a credential) — the pre-B2 bug passed the PASSWORD here, so every
+            // session authenticated as the wrong user (or an empty one for key auth).
+            // Absent username = the target carried no user@ (server default behavior).
+            val sessionUser = username?.takeIf { it.isNotEmpty() } ?: ""
+            val execSession = jsch.getSession(sessionUser, host, port)
             session = execSession
             execSession.setConfig("StrictHostKeyChecking", "yes")
             execSession.setTimeout(EXEC_TIMEOUT_MS)
@@ -237,7 +245,13 @@ class ServiceOpsManager(context: android.content.Context) {
             channel = execChannel
             synchronized(lock) {
                 if (destroyed) throw ServiceOpsException(ServiceOpsErrorCode.SVCOPS_UNAVAILABLE, "manager destroyed")
-                inFlight[key] = LiveExec(execChannel, execSession)
+                if (inFlight[key] !== current) {
+                    // The seat was cancelled during session establishment: do not
+                    // resurrect it (review N2) — tear down locally and report honestly.
+                    throw ServiceOpsException(ServiceOpsErrorCode.CANCELLED, "cancelled during session establishment")
+                }
+                current = LiveExec(execChannel, execSession)
+                inFlight[key] = current
             }
             execChannel.setCommand(command)
             execChannel.setInputStream(null) // stdin: nothing locally; the templates self-redirect (N1)
@@ -265,7 +279,11 @@ class ServiceOpsManager(context: android.content.Context) {
                 .put("stdoutTruncated", outTruncated)
                 .put("stderrTruncated", errTruncated)
         } finally {
-            synchronized(lock) { inFlight.remove(key) }
+            synchronized(lock) {
+                // Remove only if we still own the seat (a cancel may already have removed
+                // it — and a NEWER exec may legitimately hold a fresh seat afterwards).
+                if (inFlight[key] === current) inFlight.remove(key)
+            }
             // Local teardown only (red line): the remote process/service keeps running.
             closeLocal(LiveExec(channel, session))
         }
