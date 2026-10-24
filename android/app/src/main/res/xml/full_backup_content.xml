@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Credential vault backup exclusion, pre-API-31 path (issue #4, decision D7).
+<!-- Credential vault backup exclusion, pre-API-31 path (issue #4, decision D7), and SSH
+     host-key store exclusion (issue #6, decision 0003 §3.1).
      Referenced by android:fullBackupContent for the legacy auto-backup mechanism; mirrors
      data_extraction_rules.xml. allowBackup="false" remains the primary control — this file
-     is lazy defense in depth, not the control itself. -->
+     is lazy defense in depth, not the control itself. The ssh/ exclusion keeps the trust
+     state (filesDir/ssh/known_hosts) device-bound: it is a trust anchor, not a credential. -->
 <full-backup-content>
     <exclude domain="file" path="vault/" />
+    <exclude domain="file" path="ssh/" />
 </full-backup-content>

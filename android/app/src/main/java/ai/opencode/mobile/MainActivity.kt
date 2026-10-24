@@ -15,6 +15,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import ai.opencode.mobile.probe.ProbeBridge
+import ai.opencode.mobile.ssh.SshTunnelBridge
 import ai.opencode.mobile.vault.CredentialVaultBridge
 import fi.iki.elonen.NanoHTTPD
 import java.io.IOException
@@ -32,6 +33,7 @@ class MainActivity : Activity() {
     private var assetServer: WebAssetServer? = null
     private var vaultBridge: CredentialVaultBridge? = null
     private var probeBridge: ProbeBridge? = null
+    private var sshBridge: SshTunnelBridge? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +59,11 @@ class MainActivity : Activity() {
         // its own handshake string and channel, restarted on every page load alongside the
         // vault handshake. Until the page acks, the probe port stays unavailable.
         probeBridge = ProbeBridge(webView)
+        // SSH tunnel bridge (issue #6): the THIRD protocol-isolated sibling — its own
+        // handshake string (opencode-mobile-ssh-handshake) and channel, restarted on every
+        // page load alongside the vault and probe handshakes. Until the page acks, the ssh
+        // transport stays unavailable (fail-closed stub on the JS side).
+        sshBridge = SshTunnelBridge(this, webView)
 
         webView.loadUrl(START_URL)
     }
@@ -93,6 +100,9 @@ class MainActivity : Activity() {
                 // round alongside the vault one (see ProbeBridge); its ack lifecycle is
                 // likewise navigation-scoped.
                 probeBridge?.onPageFinished()
+                // The ssh bridge (issue #6) is the third protocol-isolated handshake round
+                // (see SshTunnelBridge); ack lifecycle navigation-scoped like the others.
+                sshBridge?.onPageFinished()
             }
         }
 
@@ -182,6 +192,11 @@ class MainActivity : Activity() {
         vaultBridge = null
         probeBridge?.destroy()
         probeBridge = null
+        // The ssh bridge tears down every tunnel LOCALLY (session disconnect + local
+        // listener release only) — the remote OpenCode service/process keeps running
+        // (AGENTS.md red line; F8① in decision 0003).
+        sshBridge?.destroy()
+        sshBridge = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {

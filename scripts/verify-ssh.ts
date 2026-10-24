@@ -207,11 +207,13 @@ if (!PRE_NATIVE) {
   }
 
   // F8①: the lifecycle red line is double-written in the Kotlin sources (teardown is
-  // local; the remote OpenCode process keeps running).
+  // local; the remote OpenCode process keeps running). At least one of the manager/bridge
+  // files must carry the explicit wording.
   {
     const redLine = /remote\s+(OpenCode\s+)?(service|process|task)[^.]*keeps?\s+running|远端[^。\n]*(存活|继续运行)/i
-    const keeper = sshFiles.find((f) => f.relative.includes("SshTunnelManager") || f.relative.includes("SshTunnelBridge"))
-    if (!keeper || !redLine.test(keeper!.text)) {
+    const keepers = sshFiles.filter((f) => f.relative.includes("SshTunnelManager") || f.relative.includes("SshTunnelBridge"))
+    if (keepers.length === 0) fail("no SshTunnelManager/SshTunnelBridge Kotlin file found")
+    if (!keepers.some((f) => redLine.test(f.text))) {
       fail("the F8① lifecycle red line (teardown is local; the remote keeps running) is not double-written in the Kotlin ssh sources")
     }
   }
