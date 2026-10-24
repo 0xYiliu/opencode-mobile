@@ -252,6 +252,10 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
               const value = await vault.get(conn.http.credentialRef)
               if (!value) continue
               batch(() => {
+                // Re-check freshness after the await: the list may have been edited while
+                // the vault was consulted, and a snapshot index must never inject into a
+                // different entry (issue #4 review N3).
+                if (store.list[index] !== conn) return
                 if (!store.list[index]?.http.password) setStore("list", index, "http", "password", value)
               })
             } catch {
