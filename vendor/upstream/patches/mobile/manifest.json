@@ -96,6 +96,20 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web) with the lazy chunk resolving through the M-004 alias; manager rendering and interactions on device are BLOCKED (G13).",
       "rebase": "New patch (issue #3); rebase targets are the lazy-import block after GuiExtensionsSettings and the 'servers' Tabs.Content block in packages/app/src/settings/shell.tsx."
+    },
+    {
+      "id": "M-009",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0009-M-009-remember-credential-branch-in-connect-dialog.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Optional 'remember credential' for the connect dialog's password method (issue #4). The checkbox participates only when rendered AND the shell vault is available; the decision itself (truth table v3, 12 rows) lives in the first-party package (packages/mobile-hosts src/vault/remember.ts) so it is unit-tested and probe-able, and this patch only translates it into vault put/remove calls and the constructed connection. Add flow resolves the ref-bearing prior by normalized URL from server.list regardless of the connect method (password AND link/redeem) - otherwise the M-006 original is undefined on add and re-adding a remembered server would orphan its reference. Rows 2/12 abort the save with an inline needs-password message (never cast an empty value); the early-exit is forced off when the checkbox state differs from the prior's remembered flag; a failed put/remove keeps the dialog open with an inline error. Vault unavailable renders the checkbox disabled plus an explicit-state note - no plaintext fallback anywhere.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun test truth-table suite (packages/mobile-hosts); scripts/verify-credential-vault.ts probes rows 1-12 + early-exit forcing + initial value through the in-process vault engine; V2 build smoke after registration.",
+      "rebase": "New patch (issue #4); rebase targets are the request.mutationFn block, the form controller state exports, the password-method JSX block, and the dialog.server i18n sections in packages/app/src/servers/connect/dialog.tsx."
     }
   ]
 }
