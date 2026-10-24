@@ -53,7 +53,8 @@
 │    PTY 经一次性票据 URL 参数（非凭据，D5）；明文 HTTP 不支持（D3）；TLS=system CA 唯一信任锚（D2）      │
 │  SSH 连接（issue #6，已实现（未验证））：设备侧 JSch（Kotlin 桥内，jsch+bcprov）→ 本地转发 listener 绑    │
 │    127.0.0.1:0（动态回环端口，会话期）→ 远端回环 localhost:<servicePort>（单跳，无跳板机）→ 远程          │
-│    OpenCode HTTP API；host-key=自实现 HostKeyRepository + filesDir/ssh/known_hosts（OpenSSH 行格式）     │
+│    OpenCode HTTP API；host-key=认证会话自实现 HostKeyRepository 权威比对+scan 抛出后读 session.hostKey   │
+│    + filesDir/ssh/known_hosts（OpenSSH 行格式）                                                         │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -71,7 +72,7 @@
 - **host-key stub fail-closed（已实现（未验证）：issue #3）**：SSH 主机指纹校验端口 `HostKeyVerifier` 本期为 stub——对任何主机恒返回"拒绝"，状态机据此永不放行未确认指纹的连接；不存在"跳过校验"路径。确认 UI（host-key-prompt）与状态机状态均已立桩，真实验证数据源归 issue #6，**BLOCKED**。持久化载荷中不含指纹/凭据形态字段。
 - **直连传输卫生（已实现（未验证）：issue #5，决策 [0002](../decisions/0002-direct-connection-transport.md)）**：M-011 注入的 secure-fetch 与 M-012 的上传 XHR 校验执行 validated-follow——重定向后最终 origin 必须与请求 origin 一致（双向严格，http→https 升级亦拒）、https→http 降级拒绝、userinfo 凭据 URL 拒发；跨源重定向子请求被浏览器剥头是规范底线，我方校验是交付前的纵深。TLS 信任=system CA 唯一锚（netsec 不变，静态负断言在 `scripts/verify-direct-connection.ts`）；明文 HTTP 本期不支持（D3）。
 - **probe 桥（已实现（未验证）：issue #5，G16 BLOCKED）**：`ProbeBridge` 是 vault 桥的**协议隔离**姊妹桥——独立握手串 `opencode-mobile-probe-handshake`、独立通道、同用三层信任（平台 targetOrigin 强制/port 闭包 confinement/ack 前零能力），vault 门禁 C1–C5 不受牵连（双方按 data 严格等值校验握手，互不误捕；单测锁定）。`DirectEndpointProbe` 用平台默认栈（system CA、严格链/过期/主机名校验，**无任何自定义 trust/verifier 钩子**——静态负断言在册）；自动重定向跟随禁用，Authorization 头永不离开用户输入的 origin；**probe 是分类器不是权威**：仅在健康检查失败后选错误文案，冲突以真实 fetch 为准，分类绝不伪造。凭据边界（F1）：密码仅存活于单次请求（桥消息→内存头），头/URL/桥消息零日志值、不持久化、响应只回分类码。
-- **ssh 桥（已实现（未验证）：issue #6，G17 BLOCKED）**：`SshTunnelBridge` 是第三座**协议隔离**桥——独立握手串 `opencode-mobile-ssh-handshake`、独立通道、同用三层信任，与 vault/probe 互不误捕（三桥并存互不重置对方 ack 生命周期，C1–C5/G16 不受牵连）。SSH 库（jsch 2.28.8 + bcprov-jdk18on 1.80，许可见[决策记录 0003](../decisions/0003-ssh-transport.md)）只在 Kotlin 桥内；共享层零平台 API、零 SSH 依赖。host-key 校验永不禁用（`StrictHostKeyChecking="yes"` + 自实现 HostKeyRepository + filesDir/ssh/known_hosts，备份排除）；转发目标固定远端回环单跳；断开仅拆 SSH 传输（远端进程存活）；凭据过桥 JSON 单向一次/零日志/零持久化/零回显；scan 会话零认证材料；凭据在指纹确认前不发出。
+- **ssh 桥（已实现（未验证）：issue #6，G17 BLOCKED）**：`SshTunnelBridge` 是第三座**协议隔离**桥——独立握手串 `opencode-mobile-ssh-handshake`、独立通道、同用三层信任，与 vault/probe 互不误捕（三桥并存互不重置对方 ack 生命周期，C1–C5/G16 不受牵连）。SSH 库（jsch 2.28.8 + bcprov-jdk18on 1.80，许可见[决策记录 0003](../decisions/0003-ssh-transport.md)）只在 Kotlin 桥内；共享层零平台 API、零 SSH 依赖。host-key 校验永不禁用（`StrictHostKeyChecking="yes"`；认证会话自实现 HostKeyRepository 权威比对、scan 会话 strict 抛出后读 session.hostKey；filesDir/ssh/known_hosts，备份排除）；转发目标固定远端回环单跳；断开仅拆 SSH 传输（远端进程存活）；凭据过桥 JSON 单向一次/零日志/零持久化/零回显；scan 会话零认证材料；凭据在指纹确认前不发出。
 - **身份键（已实现（未验证）：issue #3）**：直连服务沿用上游原生键（URL 本身，端口变化即新身份）；SSH 主机身份为 `mobile-ssh:<uuid4>`（创建即定、永不改），与隧道回环端口解耦——端口重解析（reconnect）不改变身份/scope/会话/设置键。
 - **日志纪律**：logcat 仅固定 tag（`OpencodeShell`）+ 控制台消息文本与行号；不写 URL 查询参数、请求头或凭据。
 - **进程边界**：壳 `onDestroy` 仅停本地回环 asset server；远程服务/任务永不因客户端断开而停止（代码注释与本文档双写）。

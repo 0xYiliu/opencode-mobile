@@ -132,13 +132,26 @@ class SshTunnelManager(context: android.content.Context) {
         val session = jsch.getSession("", host, port)
         session.setConfig("StrictHostKeyChecking", "yes")
         session.setTimeout(SCAN_TIMEOUT_MS)
+        var connectError: Exception? = null
         try {
             session.connect(SCAN_TIMEOUT_MS) // throws at KEX: the key is unknown to the strict empty store
         } catch (e: Exception) {
-            // Expected path: the presented key was captured before the refusal.
+            // Expected path (UnknownHostKey at KEX): the presented key was captured before
+            // the refusal. Every other failure is remembered — the hostKey check below
+            // decides which of the two this was (review N3).
+            connectError = e
         }
         try {
-            val hostKey = session.hostKey ?: throw classifySessionException(JSchException("connect failed"), "scan")
+            val hostKey = session.hostKey
+            if (hostKey == null) {
+                // No key was presented: a reachability/DNS/timeout failure, not a key
+                // capture — classify the ORIGINAL exception so dns/refused/timeout/
+                // unreachable stay reachable instead of collapsing into io (review N3).
+                throw classifySessionException(
+                    connectError as? JSchException ?: JSchException(connectError?.message ?: "scan failed"),
+                    "scan",
+                )
+            }
             val blob = hostKey.key ?: throw SshException(SshErrorCode.IO, "scan returned no key blob")
             val type = hostKey.type ?: SshHostKeyStore.keyTypeOf(blob) ?: throw SshException(SshErrorCode.IO, "scan returned an unknown key type")
             return Pair(type, blob)
@@ -305,21 +318,28 @@ class SshTunnelManager(context: android.content.Context) {
 
     /**
      * The store-backed repository: the authoritative KEX comparison (decision 0003 §3.3,
-     * defense in depth). With StrictHostKeyChecking="yes" a CHANGED/NOTINCLUDED answer
+     * defense in depth). With StrictHostKeyChecking="yes" a CHANGED/NOT_INCLUDED answer
      * makes Session.connect throw BEFORE any authentication is attempted — the red line
      * "host-key validation is never disabled" is enforced by the strict config plus this
      * fail-closed implementation. add() is a NO-OP on purpose: the ONLY recording path is
      * store.record from the pinned-open flow; there is no auto-add bypass.
+     *
+     * API surface note (review B1, verified by javap against the Maven Central
+     * com.github.mwiede:jsch 2.28.8 jar — no SDK needed): the fork modernized
+     * HostKeyRepository — check takes (host, key) WITHOUT the legacy JCraft Session
+     * parameter, the constant is NOT_INCLUDED (one word), and getKnownHostsRepositoryID()
+     * replaces the removed getStatus(). The session's port is captured in this factory's
+     * closure (one repository per session), so the 2-arg check loses nothing.
      */
     private fun storeRepository(host: String, port: Int): HostKeyRepository = object : HostKeyRepository {
-        override fun check(jhost: String?, presented: ByteArray?, session: Session?): Int {
-            if (jhost == null || presented == null) return NOTINCLUDED
+        override fun check(jhost: String?, presented: ByteArray?): Int {
+            if (jhost == null || presented == null) return NOT_INCLUDED
             val blob = Base64.encodeToString(presented, Base64.NO_WRAP)
-            val type = SshHostKeyStore.keyTypeOf(blob) ?: return NOTINCLUDED
+            val type = SshHostKeyStore.keyTypeOf(blob) ?: return NOT_INCLUDED
             return when (store.check(host, port, type, blob)) {
                 null -> OK
                 SshErrorCode.HOST_KEY_CHANGED -> CHANGED
-                else -> NOTINCLUDED
+                else -> NOT_INCLUDED
             }
         }
 
@@ -332,7 +352,7 @@ class SshTunnelManager(context: android.content.Context) {
         override fun remove(host: String?, type: String?, blob: ByteArray?): Unit = Unit
         override fun getHostKey(): Array<com.jcraft.jsch.HostKey> = arrayOf()
         override fun getHostKey(host: String?, type: String?): Array<com.jcraft.jsch.HostKey> = arrayOf()
-        override fun getStatus(): String = "opencode-mobile-host-key-store"
+        override fun getKnownHostsRepositoryID(): String = "opencode-mobile-host-key-store"
     }
 
     // -------------------------------------------------------------------------

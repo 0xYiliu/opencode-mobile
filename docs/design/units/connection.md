@@ -246,7 +246,7 @@ SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HAND
 
 ### SSH 安全评审节
 
-- **host-key 校验永不禁用**：`StrictHostKeyChecking` 恒 `"yes"` + 自实现 `HostKeyRepository`（KEX 捕获/权威比对两用）；变更=严格拒绝（`host-key-changed`），**无任何跳过/仅本次信任路径**；恢复=显式危险确认 + `removeHostKey`。负断言在册（`scripts/verify-ssh.ts`：无 `no/ask`、无自动 add、无 ProxyJump/ProxyCommand/setProxy*、无 hashed hostname 行、scan 零认证材料）。
+- **host-key 校验永不禁用**：`StrictHostKeyChecking` 恒 `"yes"`；scan 会话经默认空库在 KEX 抛 UnknownHostKey 后读 `session.hostKey`（赋值先于抛出，经 2.28.8 jar 字节码层核验），自实现 `HostKeyRepository` 承担认证会话的权威比对；变更=严格拒绝（`host-key-changed`），**无任何跳过/仅本次信任路径**；恢复=显式危险确认 + `removeHostKey`。负断言在册（`scripts/verify-ssh.ts`：无 `no/ask`、无自动 add、无 ProxyJump/ProxyCommand/setProxy*、无 hashed hostname 行、scan 零认证材料）。
 - **算法降级防护**：`ssh-rsa`（SHA-1）维持 fork 默认禁用；密钥交换/密码学套件取 fork+BC 默认集（支持矩阵），不引入弱算法白名单项；服务端若仅提供已弃用算法则连接失败并落入可达性/认证分类文案（不静默降级）。
 - **凭据流**：凭据值（密码/私钥/passphrase）仅存 vault（Keystore AES-GCM 信封 v1；passphrase 与私钥同信封，F10 方案 C）；过桥 JSON 单向一次、零日志（含 header）、零持久化、零回显；scan 会话零认证材料；**凭据在指纹确认前不发出**（fetchHostKey 不认证）。
 - **回环 listener 残余风险（如实登记）**：本地转发口绑定 `127.0.0.1` 动态端口，本机其他 App 理论上可探测/连接该端口——缓解：会话期短生命周期（断开即关）+ 远端 OpenCode 服务自身认证兜底（隧道只透传，不扩权）；per-listener token 加固为后续候选，不在本轮。
