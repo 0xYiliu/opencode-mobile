@@ -1,6 +1,6 @@
 # 交互基线与设备门禁
 
-本文承载跨单元交互约束、G1–G15 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
+本文承载跨单元交互约束、G1–G16 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
 ## 交互基线
 
@@ -10,27 +10,28 @@
 - 深链：不实现（未注册 VIEW intent-filter，代码留 TODO）。
 - 返回手势：壳按 `onBackPressed` 实现，manifest 显式声明 `android:enableOnBackInvokedCallback="false"`——Android 16 起 targetSdk ≥ 36 的应用默认启用 predictive back，`onBackPressed` 将不再被调用，必须显式禁用才能维持该行为；迁移平台 `OnBackInvokedCallback` 需 minSdk 守卫（API 33+），为后续 issue 事项。与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
 
-## G1–G15 设备门禁（完整枚举）
+## G1–G16 设备门禁（完整枚举）
 
-每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2 与 issue #3 新增交互）。
+每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互与 issue #5 的 G16）。
 
 | 门禁 | 验证目标 | 所需环境 | 状态 |
 | --- | --- | --- | --- |
 | G1 assets 加载 | 打包资产经回环 asset server 完整加载：首帧、懒加载分块（dist 内 1568 个 js 分块）、字体/图标/媒体（ttf/woff/woff2/aac/png/svg） | 真机或模拟器（Android 10+，记录 WebView 版本） | BLOCKED |
 | G2 loopback origin 行为 | `http://127.0.0.1:18090` 作为 origin 的 secure context 判定、localStorage 可用、未知路径回落 index.html（SPA 路由回退） | 真机或模拟器 | BLOCKED |
-| G3 actual CORS | 对远程服务的真实预检（OPTIONS）与带 `Authorization` 头的跨源请求；高风险项，预案 A/B/C 见 [architecture.md](architecture.md)，任一预案启用需用户决策 | 真机/模拟器 + 可配置 CORS 的授权远程服务 | BLOCKED |
-| G4 TLS/证书拒绝 | 自签名/过期/主机名不符证书被拒绝并有反馈路径；`onReceivedSslError` 恒 CANCEL 的真机复核 | 真机/模拟器 + 证书可控的远程服务 | BLOCKED |
-| G5 cleartext 拒绝 | 对非回环地址的 `http://` 请求被 network_security_config 阻断且失败可见（回环口除外） | 真机/模拟器 + 局域网 HTTP 服务 | BLOCKED |
+| G3 actual CORS | 对远程服务的真实预检（OPTIONS）与带 `Authorization` 头的跨源请求。**静态证据注记（issue #5，决策 0002）**：上游原生服务 `packages/server/src/cors.ts`（来源=上游 pin 提交树采集缓存 `~/.cache/opencode-upstream` @ `cec70f3`/`b4525d79bf`，vendored 闭包不含 packages/server）默认放行任意 `http://127.0.0.1:*`/`http://localhost:*` origin——本壳 origin 恰为 `http://127.0.0.1:18090`，原生上游服务对本壳 API/SSE/WS（铸票与升级）/上传跨源调用（含预检）**默认允许**；风险由「高风险无证据」修正为「低风险待实测」。任一兜底预案（B 本地反代/C 平台适配层）启用仍需用户决策 | 真机/模拟器 + 授权远程服务 | BLOCKED（低风险待实测） |
+| G4 TLS/证书拒绝 | 自签名/过期/主机名不符证书被拒绝并有反馈路径；`onReceivedSslError` 恒 CANCEL 的真机复核；**issue #5 细化**：WebView（Chromium）与平台 probe 对同地址的证书判定一致（同受 netsec system-CA 约束），坏证书在保存路径呈现 `dialog.server.error.cert-*` 分类文案（probe 分类）+ 三条出路（正规 CA/SSH 隧道/后续 per-connection pin 候选） | 真机/模拟器 + 证书可控的远程服务 | BLOCKED |
+| G5 cleartext 拒绝 | 对非回环地址的 `http://` 请求被 network_security_config 阻断且失败可见（回环口除外）；**issue #5 细化**：明文直连裁定本期不支持（决策 0002 D3），保存路径呈现 `dialog.server.error.cleartext-blocked` 分类文案（probe 分类，引导 HTTPS/SSH 隧道）；裸地址默认补 `http://` 的上游行为保留，由分类文案承接 | 真机/模拟器 + 局域网 HTTP 服务 | BLOCKED |
 | G6 fetch ReadableStream/SSE 增量 | 事件流经 fetch 流式读取在 WebView 内增量到达（会话事件实时性） | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G7 WebSocket 二进制 PTY | 终端 PTY 经 WebSocket 二进制双向传输（含 resize 消息）；上游实现位于 vendored `packages/client/src/solid/pty.ts` | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G8 WASM/Office 加载 | dist 内 4 个 `.wasm` 资产（ghostty-web 相关）及其他重型资源在 WebView 内可加载执行 | 真机/模拟器 | BLOCKED |
 | G9 生命周期 + 凭据负例 | 切后台/杀进程/旋转的生命周期行为；负例：localStorage 中检索不到 password（M-002 落地）、memory-only 符合下方 notice | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G10 PWA SW 行为 | 打包构建生成的 service worker（`sw.js`）在回环 origin 的注册、缓存与更新行为 | 真机/模拟器 | BLOCKED |
-| G11 负例矩阵 | 认证失败、不兼容 server（上游含 incompatible-server-panel UI）、证书错误、断网/切网——均有反馈且可恢复，不静默 | 真机/模拟器 + 授权远程服务 | BLOCKED |
+| G11 负例矩阵 | 认证失败、不兼容 server（上游含 incompatible-server-panel UI）、证书错误、断网/切网——均有反馈且可恢复，不静默；**issue #5 细化**：保存路径错误分类×反馈×恢复矩阵（401/403/坏证书/明文/超时/DNS/拒连/HTML 代理页/服务缺失/地址格式/重定向拒绝，见 [units/connection.md](units/connection.md) 错误矩阵）经 probe 分类呈现 `dialog.server.error.<code>`，probe 不可用显式退化为上游泛化文案；上游健康检查仍为保存放行的权威，probe 仅选文案 | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G12 生命周期恢复口径 + 断开不杀远程 | 恢复口径与壳层「不停止远程」红线在真机一致：客户端断开/退出后远程任务存活 | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G13 多 host 一窗 + 隔离（issue #3） | 多个 SSH/直连服务同窗并列：列表呈现、切换、scope 隔离（同名项目/会话不混淆）；设置 servers 标签页 host-manager 可用 | 真机/模拟器 + 授权远程服务 | BLOCKED |
 | G14 连接状态呈现与恢复（issue #3） | connecting/host-key 确认/认证失败/incompatible/offline/reconnecting/connected 的用户可见呈现与可操作恢复（重试/重认证/编辑）；SSH incompatible 由状态机判定 | 真机/模拟器 + 授权远程服务（host-key 真实流另归 #6） | BLOCKED |
 | G15 SSH 身份稳定（issue #3） | SSH 隧道端口变化后身份/scope/会话/设置不变（`mobile-ssh:<uuid>` 与端点解耦）；重启后主机记录恢复且无凭据形字段 | 真机/模拟器 + SSH 远程主机 | BLOCKED（依赖 #6 隧道） |
+| G16 probe 桥 bring-up（issue #5） | `onPageFinished` probe 握手（独立握手串 `opencode-mobile-probe-handshake`）→ JS 形状校验捕获 port → 回发 ack → probe 端口翻转 available；与 vault 握手并存互不误捕（双方 data 严格等值校验）；重试路径 5×500ms 通道重建；重试耗尽 probe 显式 `unavailable`（保存路径显式退化为上游泛化错误文案，不伪造分类）；probe 请求头/URL/桥消息零日志值、密码不持久化的真机负例核对 | 真机/模拟器（API 23+） | BLOCKED |
 
 ## C1–C5 凭据桥设备门禁（issue #4，全部 BLOCKED）
 

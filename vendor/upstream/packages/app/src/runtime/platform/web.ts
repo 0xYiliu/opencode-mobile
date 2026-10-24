@@ -1,9 +1,20 @@
 import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
+import { createSecureFetch } from "@opencode-mobile/mobile-hosts"
 import type { Platform } from "./platform"
 
 export function createWebPlatform(version: string) {
   const platform: Platform = {
     platform: "web",
+    // mobile(M-011): the platform fetch is the validated-follow front (issue #5, decision
+    // 0002 D1). It keeps redirect: "follow" (same-origin reverse proxies keep working) and
+    // validates the FINAL response before its body is delivered: a cross-host final URL is
+    // refused, an https->http downgrade is refused, and a request URL carrying userinfo
+    // credentials is refused before anything is sent. This seam covers the server
+    // transport (API/SSE/binary reads) and the health checks; the upload XHR is validated
+    // separately (M-012) with the same rules, and the pairing-flow residual fetch surface
+    // is registered in docs/design/units/connection.md. The signature matches
+    // Platform.fetch unchanged, so rollback is reverting this one patch.
+    fetch: createSecureFetch(),
     draftStore: createBrowserDraftStore(),
     version,
     openExternal(value) {

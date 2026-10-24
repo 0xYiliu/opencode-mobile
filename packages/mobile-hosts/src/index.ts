@@ -81,6 +81,35 @@ export { HOSTS_STORAGE_KEY, createMemoryStorage, loadHosts, safeStorage, sanitiz
 export { assessIncompatible, isCompatibleServerVersion, parseServerVersion, type HealthLike } from "./health-wrapper"
 export { assertExtensionShape, mapStateToServerState, toExtensionConnection, type ExtensionConnection, type ServerState } from "./upstream-map"
 export { createTranslator, detectLocale, messages, type Locale, type MessageKey, type Translator } from "./i18n"
+export {
+  DIRECT_ERROR_CODES,
+  SURFACEABLE_ERROR_CODES,
+  SecureFetchError,
+  isDirectErrorCode,
+  type DirectErrorCode,
+  type SecureFetchErrorCode,
+} from "./transport/connection-errors"
+export {
+  assertNoUrlCredentials,
+  hasUrlCredentials,
+  validateRedirectTarget,
+  type RedirectVerdict,
+} from "./transport/url-policy"
+export { SECURE_FETCH_MARKER, createSecureFetch } from "./transport/secure-fetch"
+export {
+  PROBE_BRIDGE,
+  PROBE_HANDSHAKE,
+  StubProbePort,
+  createProbeClient,
+  createWebMessageProbeTransport,
+  directErrorCodeMessageKey,
+  type ProbeBridgeResponse,
+  type ProbeBridgeTransport,
+  type ProbePort,
+  type ProbeRequest,
+  type ProbeResult,
+  type WebMessageProbeTransportOptions,
+} from "./probe"
 export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
 export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"

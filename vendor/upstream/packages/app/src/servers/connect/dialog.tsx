@@ -36,7 +36,17 @@ import { ConnectMethodSwitch, type ConnectMethod } from "./method"
 // mobile(M-009): the optional "remember credential" branch runs on the shell's device vault
 // (bootstrapped in the entry by M-007). The truth table lives in the first-party package so
 // it is unit-tested and probe-able; this dialog only translates the decision.
-import { evaluateRemember, getMobileHosts, initialRemember } from "@opencode-mobile/mobile-hosts"
+// mobile(M-013): the save path also consumes the shell's endpoint probe (issue #5) — the
+// probe classifies a failed transport so the inline error names the actual cause, and the
+// URL policy pre-check refuses userinfo credential addresses before anything is sent.
+import {
+  assertNoUrlCredentials,
+  evaluateRemember,
+  getMobileHosts,
+  initialRemember,
+  type DirectErrorCode,
+  type ProbeResult,
+} from "@opencode-mobile/mobile-hosts"
 import "@/settings/settings.css"
 
 const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
@@ -301,6 +311,48 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
     }
   })()
   const vaultAvailable = () => vault !== undefined && vault.status() === "available"
+  // mobile(M-013): the shell's endpoint probe port (fail-closed stub by default, the
+  // bridge-backed client when the native probe handshake was acked). Outside the shell
+  // there is no bootstrap, so the probe is undefined — classification then degrades to
+  // the generic message, the same explicit-availability pattern as the vault above.
+  const probe = (() => {
+    try {
+      return getMobileHosts().probe
+    } catch {
+      return undefined
+    }
+  })()
+
+  // mobile(M-013): probe-first error classification for the save path (issue #5, decision
+  // 0002 D4). The upstream health check stays THE authority: its verdict alone decides
+  // whether the save proceeds, and a probe verdict can never pass a save it refused. The
+  // probe (dispatched before the check so its classification is usually already resolved)
+  // only chooses the error WORDING after the check failed, in a fixed precedence: the
+  // upstream mixed-content structural signal first, then the check's own unauthorized
+  // flag (authoritative 401), then the probe's transport classification
+  // (dialog.server.error.<code>), and the generic upstream message as the EXPLICIT
+  // degrade when the probe is unavailable, answered ok, or when its classification
+  // conflicts with the real fetch — a classification is never fabricated. App-i18n keys
+  // only (en base merged with the locale table; a missing key falls back to en, then to
+  // the key itself — the first-party mobile-hosts keys are a separate set).
+  type ConnectErrorKey =
+    | "server.connect.mixedContent"
+    | "dialog.server.add.error"
+    | "dialog.server.error.credential-url"
+    | `dialog.server.error.${Exclude<DirectErrorCode, "ok">}`
+  const connectErrorKey = async (
+    http: { url: string },
+    unauthorized: boolean | undefined,
+    probePromise: Promise<ProbeResult> | undefined,
+  ): Promise<ConnectErrorKey> => {
+    if (platform.platform === "web" && isMixedContent(location.href, http.url)) return "server.connect.mixedContent"
+    if (unauthorized) return "dialog.server.error.unauthorized"
+    const probeResult = await probePromise
+    if (probeResult && probeResult.status === "available" && probeResult.code !== "ok") {
+      return `dialog.server.error.${probeResult.code}`
+    }
+    return "dialog.server.add.error"
+  }
 
   const [store, setStore] = createStore<{
     mode: FormMode
@@ -432,6 +484,17 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
       const name = store.values.name.trim() || undefined
       const password = http.password
 
+      // mobile(M-013): URL policy pre-check (decision 0002 D-URL). A userinfo credential
+      // URL is refused with the precise message before any request is built — no probe,
+      // no health check; the address itself has to be fixed first.
+      try {
+        assertNoUrlCredentials(normalized)
+      } catch {
+        setStore("error", language.t("dialog.server.error.credential-url"))
+
+        return
+      }
+
       // mobile(M-009): resolve the remember decision BEFORE the early exit. The prior
       // carries the ref semantics for both the edit and the add flow (URL lookup, not
       // method-gated). The checkbox only participates when rendered AND the vault is
@@ -483,17 +546,16 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
         },
       }
 
+      // mobile(M-013): the probe is dispatched FIRST (before the authoritative health
+      // check) so its classification is usually already resolved when the verdict
+      // arrives. The password crosses the probe bridge once, lives for the duration of
+      // the request, and is never logged or persisted (decision 0002 F1).
+      const probePromise = probe?.probe({ url: normalized, password: password ?? undefined })
+
       const result = await checkServerHealth(connection.http)
 
       if (!result.healthy) {
-        setStore(
-          "error",
-          language.t(
-            platform.platform === "web" && isMixedContent(location.href, normalized)
-              ? "server.connect.mixedContent"
-              : "dialog.server.add.error",
-          ),
-        )
+        setStore("error", language.t(await connectErrorKey(connection.http, result.unauthorized, probePromise)))
 
         return
       }

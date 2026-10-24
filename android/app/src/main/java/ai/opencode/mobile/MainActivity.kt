@@ -14,6 +14,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import ai.opencode.mobile.probe.ProbeBridge
 import ai.opencode.mobile.vault.CredentialVaultBridge
 import fi.iki.elonen.NanoHTTPD
 import java.io.IOException
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var assetServer: WebAssetServer? = null
     private var vaultBridge: CredentialVaultBridge? = null
+    private var probeBridge: ProbeBridge? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,6 +53,10 @@ class MainActivity : Activity() {
 
         // Credential vault bridge (issue #4): handshake is (re)started on every page load.
         vaultBridge = CredentialVaultBridge(this, webView)
+        // Endpoint probe bridge (issue #5): protocol-isolated sibling of the vault bridge;
+        // its own handshake string and channel, restarted on every page load alongside the
+        // vault handshake. Until the page acks, the probe port stays unavailable.
+        probeBridge = ProbeBridge(webView)
 
         webView.loadUrl(START_URL)
     }
@@ -83,6 +89,10 @@ class MainActivity : Activity() {
                 // Each page load opens a new vault handshake round; the ack flag resets here
                 // (ack lifecycle is navigation-scoped — see CredentialVaultBridge).
                 vaultBridge?.onPageFinished()
+                // The probe bridge (issue #5) runs its own, protocol-isolated handshake
+                // round alongside the vault one (see ProbeBridge); its ack lifecycle is
+                // likewise navigation-scoped.
+                probeBridge?.onPageFinished()
             }
         }
 
@@ -170,6 +180,8 @@ class MainActivity : Activity() {
         pendingFileChooser = null
         vaultBridge?.destroy()
         vaultBridge = null
+        probeBridge?.destroy()
+        probeBridge = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {

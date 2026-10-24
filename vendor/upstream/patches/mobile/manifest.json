@@ -122,6 +122,56 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts asserts the injection is setStore-only (no direct storage writes) and that the M-002 encode still strips (memory-only); runtime behavior on device is BLOCKED (C1).",
       "rebase": "New patch (issue #4); rebase target is the ServersProvider init block in packages/app/src/runtime/server/registry.tsx, directly after the persisted() call."
+    },
+    {
+      "id": "M-011",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch",
+      "targets": [
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "reason": "Platform fetch injection with the validated-follow policy (issue #5, decision 0002 D1). createSecureFetch from the first-party package keeps redirect:\"follow\" (legitimate same-origin reverse proxies keep working) and validates the FINAL response before body delivery: a cross-host final URL is refused with the body cancelled, an https-to-http downgrade is refused, and a request URL carrying userinfo credentials is refused before anything is sent. Coverage: platform.fetch feeds createServerTransport (API/SSE/binary reads) and the health checks; the upload XHR is validated separately by M-012 with the same rules, and the pairing-flow residual fetch surface (OpenCode.make + checkServerHealth(globalThis.fetch) in pairing.ts) is registered out-of-scope in docs/design/units/connection.md. Auth-header semantics are untouched (the Basic header is built upstream exactly as before); cross-origin redirect sub-requests already lose the Authorization header by browser spec, so the wrapper is the shell's own fail-closed layer, not a leak fix. The embedded marker 'mobile(M-011): platform fetch validated-follow (origin + downgrade checked before body delivery)' survives minification and anchors V-conn dist verification.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun unit tests for the wrapper (packages/mobile-hosts/test/secure-fetch.test.ts: cross-host refuse, downgrade refuse, credential-URL refuse, direct pass, same-origin redirect pass); V2 build smoke + dist marker mobile(M-011) + scripts/verify-direct-connection.ts (full mode); device behavior BLOCKED (G3/G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal)."
+    },
+    {
+      "id": "M-012",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0012-M-012-upload-xhr-redirect-validation.patch",
+      "targets": [
+        "packages/app/src/composer/attachments/destination.ts"
+      ],
+      "reason": "Validated-follow for the upload face (issue #5, decision 0002 D1). The attachment upload is the one request that bypasses the platform fetch seam (M-011) - it goes through XMLHttpRequest for progress and streaming - so the same URL policy from the first-party package is enforced here: userinfo credential URLs are refused before anything is sent (D-URL), and on load the FINAL xhr.responseURL must still be same-origin with the request and must not have downgraded https-to-http, else the body is rejected (SecureFetchError) instead of being read as the server's upload receipt. Cross-origin redirect sub-requests already lose the Authorization header by browser spec (the floor); this patch is the shell's own fail-closed layer on top.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
+      "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts."
+    },
+    {
+      "id": "M-013",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Probe-classified connect errors on the save path (issue #5, decision 0002 D4). The endpoint probe is dispatched BEFORE the authoritative health check (so its classification is usually already resolved when the verdict arrives) but only chooses the error WORDING after the check failed - the health check stays the sole authority for whether a save proceeds, and a probe verdict can never pass a save it refused. Error-message precedence: the upstream mixed-content structural signal, then the check's own unauthorized flag (authoritative 401), then the probe's transport classification (dialog.server.error.<code>), then the generic upstream message as the EXPLICIT degrade when the probe is unavailable, answered ok, or conflicts with the real fetch - a classification is never fabricated. A userinfo credential URL is refused up front with the precise credential-url message (D-URL). App-i18n keys only (en base merged with the locale table; missing key falls back to en, then to the key itself) - the first-party mobile-hosts direct.error.* keys are a separate set for first-party UI surfaces (F5).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; probe classification precedence and degrade are unit-tested in packages/mobile-hosts/test/probe.test.ts (port level); V2 build smoke + dialog.server.error keys in dist language chunks; device behavior BLOCKED (G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts."
+    },
+    {
+      "id": "M-014",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Probe bridge wiring (issue #5). The entry creates the endpoint probe client over the protocol-isolated probe transport (independent opencode-mobile-probe-handshake string, shape-validated capture with exactly one port, port confined to the transport closure, acked immediately, later handshakes ignored, event.origin never consulted - embedder-posted messages carry an empty origin by platform construction) and passes it into createMobileHosts alongside the vault. The two bridges sit on the same window message events but each captures only its own handshake string, so neither can capture the other's port and the vault gates C1-C5 are not perturbed. Before the native ack the probe stays unavailable (fail-closed); a never-acked bridge degrades the dialog to the generic error message.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts M-007 assertions (listener-before-render, markers, no origin consultation) still pass; probe transport isolation and handshake shape are unit-tested in packages/mobile-hosts/test/probe.test.ts; dist markers opencode-mobile-probe-handshake and mobile(probe-v1) + scripts/verify-direct-connection.ts full mode; device behavior BLOCKED (G16).",
+      "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field)."
     }
   ]
 }

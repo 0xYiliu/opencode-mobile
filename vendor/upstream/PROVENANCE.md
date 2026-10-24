@@ -54,6 +54,21 @@ scripts/vendor-sync.sh
 | M-002 | `packages/app/src/runtime/server/persistence.ts` | encode path strips `password` (memory-only); embeds marker `mobile(M-002): password stripped at encode (memory-only)` | Web default storage is localStorage; persisting credentials violates AGENTS.md. Decode tolerates legacy values; Keystore is issue #4 |
 | M-003 | `packages/{client,plugin,ai}/package.json` | strip three dangling workspace refs (`@opencode/httpapi-codegen`, `@opencode/theme` ×3 spots, `@opencode/http-recorder`) | Targets are excluded packages; Bun 1.4.2 hard-errors on dangling workspace devDeps and unsatisfied optional workspace peerDeps |
 
+Runtime seam patches beyond the closure set — M-004…M-014 (issues #3/#4/#5) — are registered with
+owner/reason/upstreamBaseline/verification/rebase in `patches/mobile/manifest.json` (mirrored in
+`vendor-manifest.json#mobilePatches`, 14 mobile patches since issue #5); the table above lists only the
+three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itself. In one line:
+
+- M-004–M-008 (issue #3): app vite alias to the first-party package, credentialRef field, dialog
+  reference passthrough, entry bootstrap of the host registry, settings mount of the host manager.
+- M-009/M-010 + M-007 amendment (issue #4): optional "remember credential" branch over the device
+  vault, hydration credential resolution into memory only, vault handshake listener before first render.
+- M-011–M-014 (issue #5): platform fetch injection with the validated-follow redirect policy
+  (marker `mobile(M-011)`), upload XHR responseURL validation, probe-classified connect errors in the
+  server dialog (`dialog.server.error.<code>`), and the endpoint-probe bridge wiring in the web entry
+  (independent `opencode-mobile-probe-handshake` string, protocol-isolated from the vault bridge).
+  Rationale and trust design: `docs/decisions/0002-direct-connection-transport.md`.
+
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).
 

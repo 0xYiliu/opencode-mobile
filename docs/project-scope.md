@@ -11,6 +11,7 @@
 - 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。
 - 服务凭据默认 memory-only（M-002 补丁，刷新/重启需重新输入密码）；可选的安全记住已实现（未验证，issue #4）：Android Keystore（AES-256-GCM 信封 v1）加密落盘，元数据索引永不存值，无额外解锁，无明文回退，备份排除已实现（未验证）。
 - 主机注册表已实现（未验证，issue #3）：第一方包 `packages/mobile-hosts/` 承载 SSH 主机记录（身份键 `mobile-ssh:<uuid>`、名称唯一、载荷白名单无凭据字段）与连接状态机；vendor 补丁 M-004…M-008 将其接入上游 app。直连服务仍走上游原生注册表，credentialRef（M-005/M-006）为非机密引用；可选记住与凭据管理器随 issue #4 交付（M-009/M-010 与 M-007 修订，`packages/mobile-hosts/src/vault/` + `android/.../vault/`）。host-key 校验与 SSH 隧道为 fail-closed stub（恒拒绝），真实实现归 issue #6。设备级验证（G13–G15、C1–C5、live E2E）全部 BLOCKED。
+- 直连传输卫生与错误分类已实现（未验证，issue #5）：vendor 补丁 M-011…M-014（mobile 补丁总数 10→14）——validated-follow 重定向策略（跨主机/降级拒交付）、userinfo 凭据 URL 拒发、端点 probe 分类器（fail-closed stub 默认，Android 桥 ack 后可用）与 `dialog.server.error.<code>` 反馈；裁定（决策 [0002](decisions/0002-direct-connection-transport.md)）：TLS 信任=system CA 唯一锚（静态负断言在册，绝不 trust-all）、**明文 HTTP 直连本期不支持**、**自签/私有 CA HTTPS 直连本期不支持**（出路：正规 CA/SSH 隧道/per-connection pin 后续候选）。probe 桥 bring-up（G16）与错误矩阵端到端（G4/G5/G11）BLOCKED。
 
 ## 已确认目标，尚未实现
 
@@ -51,7 +52,7 @@ WSL 排除与原生 Windows 保留是已确认的范围决策，见[决策记录
 3. **远程引导**：确认远程服务发现、安装、启动和版本不兼容处理；替换现有远程服务需明确提示，不静默操作。
 4. **传输**：验证 HTTP、事件流和远程终端经过 SSH 转发及 Android WebView 的端到端行为。
 5. **安全存储**：确定 Keystore 保护方案、备份和卸载行为、私钥导入方式，以及生物识别解锁与后台重连的取舍。
-6. **直连安全**：确定局域网 HTTP 的显式允许策略、HTTPS 和自签名证书的信任流程；不关闭全局校验。
+6. **直连安全**（issue #5 已裁定，见[决策记录 0002](decisions/0002-direct-connection-transport.md)，设备级验证待实测）：TLS 信任流程=system CA 唯一锚，链/过期/主机名严格校验，不关闭全局校验、绝不 trust-all；自签/私有 CA HTTPS 直连本期不支持（反馈正规 CA、SSH 隧道与 per-connection pin 候选三条出路）；局域网明文 HTTP 本期不支持，逐连接知情授权为前瞻方案、留用户决策；重定向跨主机/降级 fail-closed；凭据不进 URL（WS 单次票据为能力凭证，非凭据）。
 7. **生命周期**：明确前台恢复与持续后台连接的不同承诺；不默认承诺进程被杀后仍保活或收到通知。
 8. **移动体验**：确定窄屏布局、返回键、软键盘、触摸与无障碍，以及页面、草稿和滚动位置的恢复口径。
 9. **交付**：确定包名、最低 Android 版本、APK 签名与发布方式；签名密钥不得提交仓库。

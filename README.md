@@ -2,7 +2,7 @@
 
 OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为其他移动平台保留适配空间。
 
-> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，host-key 校验与 SSH 隧道为 fail-closed stub，真实实现归 issue #6）；设备凭据保险库已实现（未验证，issue #4：vault 端口/信封 v1/Keystore 落盘/可选记住交互 + vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED）。尚无 APK；两种连接方式与会话功能未实现，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
+> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，host-key 校验与 SSH 隧道为 fail-closed stub，真实实现归 issue #6）；设备凭据保险库已实现（未验证，issue #4：vault 端口/信封 v1/Keystore 落盘/可选记住交互 + vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED）；直连传输卫生与错误分类已实现（未验证，issue #5：vendor 补丁 M-011…M-014——validated-follow 重定向策略、userinfo 凭据 URL 拒发、端点 probe 分类器与精确错误反馈；TLS=system CA 唯一信任锚，明文 HTTP 与自签/私有 CA 直连本期不支持，见 `docs/decisions/0002`；probe 桥 bring-up 与错误矩阵端到端 BLOCKED）。尚无 APK；两种连接方式与会话功能未实现，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
 
 ## 产品目标
 
