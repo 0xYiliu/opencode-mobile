@@ -2,7 +2,10 @@
 // Reuses @opencode/ui primitives and tokens — no new visual decisions, no bare values.
 // Delete and disconnect are local-only operations (see createMobileHosts); the component
 // has no transport reach of its own. Issue #4 adds the credential manager entry point and
-// the per-row bound-credential indicator.
+// the per-row bound-credential indicator. Issue #6 mounts the host-key confirmation
+// prompt inline (hostKeyUnverified), surfaces the classified failure reason, and adds the
+// changed-key recovery entry (one explicit danger confirmation -> forgetHostKey; never an
+// automatic overwrite, no skip-verification affordance anywhere).
 
 import { For, Show, createSignal } from "solid-js"
 import { Match, Switch } from "solid-js"
@@ -10,8 +13,10 @@ import { Button } from "@opencode/ui/button"
 import { createTranslator } from "../i18n"
 import type { HostState } from "../state-machine"
 import { getMobileHosts } from "../runtime"
+import { isSshErrorCode, sshErrorCodeMessageKey } from "../transport/ssh-errors"
 import { CredentialManager } from "./credential-manager"
 import { HostDialog } from "./host-dialog"
+import { HostKeyPrompt } from "./host-key-prompt"
 
 function stateLabel(t: ReturnType<typeof createTranslator>, state: HostState): string {
   return t(`state.${state}` as Parameters<typeof t>[0])
@@ -23,6 +28,9 @@ export function MobileHostManager() {
   const [dialogOpen, setDialogOpen] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | undefined>(undefined)
   const [credentialsOpen, setCredentialsOpen] = createSignal(false)
+  // Memory-only recovery bookkeeping: hosts whose stored key was removed in this session
+  // (the row then shows the "connect to re-verify" hint instead of the danger entry).
+  const [forgotten, setForgotten] = createSignal<Record<string, boolean>>({})
 
   const openAdd = () => {
     setEditingId(undefined)
@@ -32,6 +40,21 @@ export function MobileHostManager() {
   const openEdit = (id: string) => {
     setEditingId(id)
     setDialogOpen(true)
+  }
+
+  // The classified failure reason (memory-only, decision 0003 §5): a recognized
+  // SshErrorCode gets its actionable line; anything else (e.g. the stub transport
+  // message) gets the generic failure line — the raw reason is never swallowed.
+  const reasonLine = (reason: string | undefined): string | undefined => {
+    if (!reason) return undefined
+    return isSshErrorCode(reason) ? t(sshErrorCodeMessageKey(reason)) : t("hostManager.failedGeneric")
+  }
+
+  const recoverHostKey = async (id: string) => {
+    // The danger copy renders next to this button; this click is the single explicit
+    // confirmation. A failed removal keeps the danger entry visible (failure matrix).
+    const removed = await runtime.forgetHostKey(id)
+    if (removed) setForgotten((current) => ({ ...current, [id]: true }))
   }
 
   return (
@@ -57,6 +80,26 @@ export function MobileHostManager() {
                   <span class="truncate text-12-regular text-text-weak" dir="ltr">
                     {host.target}
                   </span>
+                  <Show when={runtime.stateOf(host.id) === "failed" && reasonLine(runtime.failureReasonOf(host.id))}>
+                    <span role="alert" class="text-12-regular text-text-strong">
+                      {reasonLine(runtime.failureReasonOf(host.id))}
+                    </span>
+                  </Show>
+                  <Show when={runtime.stateOf(host.id) === "failed" && runtime.failureReasonOf(host.id) === "host-key-changed"}>
+                    <Show
+                      when={!forgotten()[host.id]}
+                      fallback={<span class="text-12-regular text-text-weak">{t("hostKey.changed.removed")}</span>}
+                    >
+                      <div class="flex items-center gap-2">
+                        <span class="text-12-regular text-text-strong" role="alert">
+                          {t("hostKey.changed.note")}
+                        </span>
+                        <Button size="small" variant="danger" onClick={() => void recoverHostKey(host.id)}>
+                          {t("hostKey.changed.recover")}
+                        </Button>
+                      </div>
+                    </Show>
+                  </Show>
                 </div>
                 <Show when={host.credentialRef !== undefined}>
                   <span class="shrink-0 text-12-regular text-text-weak">{t("hostManager.bound")}</span>
@@ -82,6 +125,8 @@ export function MobileHostManager() {
                         runtime.stateOf(host.id) === "authRequired"
                       }
                     >
+                      {/* authRequired included (issue #6): T1's revised source set makes this
+                          button real — edit the credential, then connect re-drives the attempt. */}
                       <Button size="small" variant="neutral" onClick={() => runtime.connect(host.id)}>
                         {t("hostManager.connect")}
                       </Button>
@@ -99,6 +144,11 @@ export function MobileHostManager() {
           </For>
         </ul>
       </Show>
+      <For each={runtime.registry.list().filter((host) => runtime.stateOf(host.id) === "hostKeyUnverified")}>
+        {(host) => (
+          <HostKeyPrompt runtime={runtime} hostId={host.id} fingerprint={runtime.fingerprintOf(host.id) ?? ""} onClose={() => {}} />
+        )}
+      </For>
       <Show when={runtime.storageVolatile}>
         <p role="status" class="text-12-regular text-text-strong">{t("hostManager.volatileStorage")}</p>
       </Show>

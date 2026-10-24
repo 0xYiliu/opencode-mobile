@@ -23,6 +23,14 @@ function drivingTransport() {
   return { calls, transport }
 }
 
+/**
+ * Healthy service face for the post-open health check (issue #6): a compatible-version
+ * answer, so a driven attempt reaches ready exactly as it did before the check existed.
+ */
+function healthyFetch(): typeof globalThis.fetch {
+  return (async () => new Response(JSON.stringify({ version: "2.1.4" }), { status: 200 })) as typeof globalThis.fetch
+}
+
 function pureMachine(state: HostState, ctx = { ...INITIAL_CONTEXT }) {
   return {
     get state() {
@@ -40,11 +48,14 @@ function pureMachine(state: HostState, ctx = { ...INITIAL_CONTEXT }) {
 }
 
 describe("state machine transitions T1–T14", () => {
-  test("T1 idle|failed|incompatible --connect--> connecting", () => {
+  test("T1 idle|failed|incompatible|authRequired --connect--> connecting", () => {
     expect(transition("idle", { type: "connect" })?.id).toBe("T1")
     expect(transition("idle", { type: "connect" })?.state).toBe("connecting")
     expect(transition("failed", { type: "connect" })?.state).toBe("connecting")
     expect(transition("incompatible", { type: "connect" })?.state).toBe("connecting")
+    // Issue #6 revision: authRequired joins the source set — after an authentication
+    // failure the user edits the credential and connects again (the dead-end fix).
+    expect(transition("authRequired", { type: "connect" })?.id).toBe("T1")
     // connect while ready is illegal (disconnect first)
     expect(transition("ready", { type: "connect" })).toBeUndefined()
   })
@@ -150,6 +161,7 @@ describe("state machine transitions T1–T14", () => {
     const hosts = createMobileHosts({
       storage: createMemoryStorage(),
       transport,
+      fetch: healthyFetch(),
       hostKey: { verify: async () => ({ action: "trust" as const }) },
     })
     const host = hosts.registry.add({ name: "h", target: "user@example.invalid" })
@@ -167,6 +179,7 @@ describe("state machine transitions T1–T14", () => {
     const hosts = createMobileHosts({
       storage: createMemoryStorage(),
       transport,
+      fetch: healthyFetch(),
       hostKey: { verify: async () => ({ action: "trust" as const }) },
     })
     const host = hosts.registry.add({ name: "h", target: "user@example.invalid" })

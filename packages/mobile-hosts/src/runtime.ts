@@ -8,17 +8,21 @@ import { createVaultResolver } from "./vault/vault"
 import type { HostRecord, HostRegistry } from "./registry"
 import { createHostRegistry } from "./registry"
 import { StubHostKeyVerifier, StubHostTransport } from "./ports"
-import type { HostKeyVerifier, HostTransport } from "./ports"
+import type { HostKeyVerifier, HostTransport, TransportEndpoint } from "./ports"
 import { safeStorage } from "./storage"
 import type { StorageLike } from "./storage"
 import { transition } from "./state-machine"
 import type { HostEvent, HostState, MachineContext } from "./state-machine"
 import { toExtensionConnection } from "./upstream-map"
-import type { ExtensionConnection } from "./upstream-map"
+import type { ExtensionConnection, ExtensionHttpBase } from "./upstream-map"
 import { detectLocale } from "./i18n"
 import type { Locale } from "./i18n"
 import { StubProbePort } from "./probe"
 import type { ProbePort } from "./probe"
+import { SshTransportError } from "./transport/ssh-errors"
+import { removeSshHostKey } from "./ssh/host-key-verifier"
+import type { SshBridgeTransport } from "./ssh/bridge"
+import { assessIncompatible } from "./health-wrapper"
 
 export interface MobileHostsOptions {
   /** WebView storage for the host registry (whitelist payload; no credentials, ever). */
@@ -53,6 +57,12 @@ export interface MobileHostsOptions {
    * client (M-014).
    */
   probe?: ProbePort
+  /**
+   * The raw ssh bridge transport (issue #6): the recovery path (forgetHostKey after a
+   * host-key change) speaks to the known_hosts store through it. Absent (default) makes
+   * the recovery entry a no-op that reports false — the fail-closed posture again.
+   */
+  sshBridge?: SshBridgeTransport
   /** UI locale; defaults to navigator.language detection. */
   locale?: Locale
 }
@@ -82,10 +92,21 @@ export interface MobileHosts {
   confirmHostKey: (id: string) => void
   /** Reject a pending host key (T4). No connection attempt follows. */
   rejectHostKey: (id: string) => void
-  /** Classify the current probe as incompatible (T7/T8 path; real probe is issue #6). */
+  /**
+   * Remove the stored host key for a target through the ssh bridge (issue #6 changed-key
+   * recovery: an explicit danger confirmation above this call, never an automatic
+   * overwrite). Resolves true when the key was removed; false when no bridge is wired or
+   * the bridge refused. The next connect re-enters the unknown-fingerprint flow.
+   */
+  forgetHostKey: (id: string) => Promise<boolean>
+  /** Classify the current probe as incompatible (T7; wired into the post-open check). */
   markIncompatible: (id: string, version?: string) => void
   /** Current machine state of a host (reactive store read). */
   stateOf: (id: string) => HostState
+  /** The in-memory host key fingerprint of a host (prompt flow; never persisted). */
+  fingerprintOf: (id: string) => string | undefined
+  /** The in-memory failure reason of a host (classified code or transport message; never persisted). */
+  failureReasonOf: (id: string) => string | undefined
   /**
    * True when the injected storage was unavailable (or refused writes) and the registry
    * runs on the in-memory fallback: host records last for this session only. The UI must
@@ -122,6 +143,8 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const hostKeyVerifier = options.hostKey ?? StubHostKeyVerifier
   const transport = options.transport ?? StubHostTransport
   const probe = options.probe ?? StubProbePort
+  const sshBridge = options.sshBridge
+  const fetchFn = options.fetch ?? ((...args: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...args))
 
   // volatile: the storage candidate was unavailable/refused writes, so the registry runs
   // on the in-memory fallback. Surfaced on the runtime (N5) — never silent.
@@ -165,47 +188,135 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     attempts.delete(id)
   }
 
+  // ---------------------------------------------------------------------------
+  // Post-open service health check (issue #6, decision 0003 §5 — the SERVICE layer)
+  // ---------------------------------------------------------------------------
+  // The tunnel being up proves nothing about the service behind it: a bounded GET
+  // <endpoint>/api/info decides service-unreachable (T8) and detects the server version
+  // for the incompatible predicate (T7 via markIncompatible). A 401/403 still proves the
+  // service is alive — service authentication is the upstream flow's business, never this
+  // check's (SSH credentials are NOT service credentials and are never sent here).
+
+  const SERVICE_HEALTH_TIMEOUT_MS = 10000
+
+  const checkServiceHealth = async (
+    endpoint: TransportEndpoint,
+    signal: AbortSignal,
+  ): Promise<{ ok: true; version?: string } | { ok: false }> => {
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    signal.addEventListener("abort", abort, { once: true })
+    const timer = setTimeout(abort, SERVICE_HEALTH_TIMEOUT_MS)
+    try {
+      // The tunnel endpoint is loopback; a redirect there is hostile — fail closed.
+      const response = await fetchFn(`${endpoint.url}/api/info`, { signal: controller.signal, redirect: "error" })
+      if (response.status === 401 || response.status === 403) return { ok: true } // alive, auth-gated
+      if (!response.ok) return { ok: false }
+      const body = (await response.json().catch(() => undefined)) as { version?: unknown } | undefined
+      const version = typeof body?.["version"] === "string" ? body["version"] : undefined
+      return { ok: true, version }
+    } catch {
+      return { ok: false }
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener("abort", abort)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Attempt pipeline (T1/T10 entry): verifier -> open -> post-open health -> ready
+  // ---------------------------------------------------------------------------
+
   const attemptOpen = async (id: string) => {
     const record = registry.get(id)
     if (!record) return
+    // A new attempt supersedes whatever is registered for this host: aborting a LIVE
+    // session's controller drives its local disconnect (the established case), aborting an
+    // in-flight attempt drives cancel. A new connect for the same host:port is only legal
+    // after the previous tunnel is gone (the transport keys sessions by host:port).
+    stopAttempt(id)
     const controller = new AbortController()
     attempts.set(id, controller)
+    // True once transport.open resolved for this attempt: the session is live and the
+    // controller must stay registered so a later disconnect/remove can abort it (the abort
+    // drives the local disconnect — see the established-branch comment in stopAttempt).
+    let established = false
     try {
-      // Resolve the credential reference first (NullResolver this phase: undefined).
+      // Resolve the credential reference first (NullResolver: undefined). The resolved
+      // value is the SSH credential (password or key envelope JSON) — memory-only.
       const credential = record.credentialRef ? await resolver.resolve(record.credentialRef) : undefined
       if (controller.signal.aborted) return
       // Verify the host key BEFORE any connection attempt proceeds. The stub rejects
-      // everything, so with the stub no transport.open call ever happens.
-      const decision = await hostKeyVerifier.verify({ host: record.target })
-      if (controller.signal.aborted) return
-      if (decision.action === "reject") {
-        send(id, { type: "fail", reason: "host-key-rejected" })
-        return
-      }
-      if (decision.action === "prompt") {
-        send(id, { type: "hostKeyPending", fingerprint: decision.fingerprint })
-        return // wait for hostKeyConfirm/hostKeyReject from the UI
+      // everything, so with the stub no transport.open call ever happens. A bridge-backed
+      // verifier (issue #6) answers trust (store hit) / prompt (unknown) / reject+changed.
+      //
+      // Confirmed-fingerprint fast path (decision 0003 §3.3): a fingerprint already in the
+      // machine context IS the user's T2->T3 confirmation — the attempt proceeds straight
+      // to open(pinnedFingerprint) and the NATIVE side enforces presented-key == pinned
+      // (fail-closed, accept-and-store on match). Re-running the verifier here would
+      // re-prompt forever: the store records the key only at that pinned open. No path
+      // reaches this branch without a confirmation — T4/T8/T13 all clear the fingerprint.
+      if (!ctxOf(id).fingerprint) {
+        const decision = await hostKeyVerifier.verify({ host: record.target })
+        if (controller.signal.aborted) return
+        if (decision.action === "reject") {
+          // A changed key is the hard refusal (never an automatic overwrite); a plain
+          // rejection covers the user's own T4 flow and the stub.
+          send(id, { type: "fail", reason: decision.reason === "changed" ? "host-key-changed" : "host-key-rejected" })
+          return
+        }
+        if (decision.action === "prompt") {
+          send(id, { type: "hostKeyPending", fingerprint: decision.fingerprint })
+          return // wait for hostKeyConfirm/hostKeyReject from the UI
+        }
       }
       const endpoint = await transport.open({
         target: record.target,
         credential,
+        servicePort: record.servicePort,
         pinnedFingerprint: ctxOf(id).fingerprint,
         signal: controller.signal,
         onEvent: (event) => {
           if (event.type === "hostKey") send(id, { type: "hostKeyPending", fingerprint: event.fingerprint })
+          else if (event.type === "connectionLost") send(id, { type: "connectionLost" }) // T9; remote keeps running
         },
       })
       if (controller.signal.aborted) return
+      established = true // the tunnel is live; the controller stays registered (see above)
       setEndpoint(id, endpoint)
+      // Service-layer authority: only after the tunnel answered do we speak to the service.
+      const health = await checkServiceHealth(endpoint, controller.signal)
+      if (controller.signal.aborted) return
+      if (!health.ok) {
+        send(id, { type: "fail", reason: "service-unreachable" })
+        return
+      }
+      // incompatible is OUR machine's decision for SSH hosts (health-wrapper predicate):
+      // wired here so the upstream IncompatibleServerPanel can take over (T7).
+      if (assessIncompatible({ kind: "ssh", version: health.version })) {
+        markIncompatible(id, health.version)
+        return
+      }
       send(id, { type: "ready" })
-      // Health/incompatible classification (kind "ssh") drives { type: "incompatible" }
-      // through markIncompatible below once a real probe exists (issue #6).
     } catch (error) {
       if (controller.signal.aborted) return
-      send(id, { type: "fail", reason: error instanceof Error ? error.message : "transport-error" })
+      // Four-layer classification (decision 0003 §5): SSH-auth failures land in
+      // authRequired (T6) so the credential can be edited and the attempt re-driven (T1,
+      // revised source set); every other failure is a classified fail (T8) whose reason
+      // is the SshErrorCode wire string when available — never a parsed message.
+      if (error instanceof SshTransportError && (error.code === "auth-failed" || error.code === "key-decrypt-failed")) {
+        send(id, { type: "authRequired" })
+        return
+      }
+      send(id, {
+        type: "fail",
+        reason: error instanceof SshTransportError ? error.code : error instanceof Error ? error.message : "transport-error",
+      })
     } finally {
-      // Clear this attempt's controller, unless a newer attempt has replaced it.
-      if (attempts.get(id) === controller) attempts.delete(id)
+      // Clear this attempt's controller — unless the session it opened is still live (the
+      // controller must remain reachable so disconnect/remove can abort it and drive the
+      // local disconnect), or a newer attempt has replaced it.
+      if (!established && attempts.get(id) === controller) attempts.delete(id)
     }
   }
 
@@ -224,9 +335,10 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const retry = (id: string) => {
     if (!registry.get(id)) return
     // The reconnect budget lives in the machine: T8 routes a reconnecting failure back to
-    // offline while the budget lasts and into failed once it is exhausted. Auto-retry
-    // timers belong to the real transport (issue #6); this phase retry is user-actionable
-    // from offline.
+    // offline while the budget lasts and into failed once it is exhausted. The automatic
+    // retry driver is the upstream reconnect hook (ensureTunnel below) — the vendored
+    // client's connection watchdog calls it when the tunnel's event stream drops; the
+    // budget bounds the loop and there is no retry timer of our own.
     if (!send(id, { type: "retry" })) return
     void attemptOpen(id)
   }
@@ -259,15 +371,112 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     send(id, { type: "incompatible", version })
   }
 
+  // ---------------------------------------------------------------------------
+  // Changed-key recovery + tunnel re-resolution (issue #6)
+  // ---------------------------------------------------------------------------
+
+  const forgetHostKey = async (id: string): Promise<boolean> => {
+    const record = registry.get(id)
+    if (!record || !sshBridge) return false
+    try {
+      // The dangerous confirmation lives in the UI above this call; the removal itself is
+      // a single idempotent bridge op. The machine stays in failed — the next connect
+      // re-enters the unknown-fingerprint confirmation flow (never an auto-connect).
+      await removeSshHostKey(sshBridge, record.target)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const fingerprintOf = (id: string): string | undefined => ctxOf(id).fingerprint
+
+  const failureReasonOf = (id: string): string | undefined => ctxOf(id).reason
+
+  // Wait until the machine leaves the transient attempt states (or the caller aborts).
+  // Resolves the settled HostState, "aborted" or "timeout". The timeout bounds the wait to
+  // several native connect timeouts — the caller never hangs forever on a dead bridge.
+  const ATTEMPT_WAIT_TIMEOUT_MS = 120000
+  const ATTEMPT_WAIT_POLL_MS = 100
+
+  const waitForAttempt = (id: string, signal?: AbortSignal): Promise<HostState | "aborted" | "timeout"> =>
+    new Promise((resolve) => {
+      const startedAt = Date.now()
+      const timer = setInterval(() => {
+        if (signal?.aborted) {
+          clearInterval(timer)
+          const state = stateOf(id)
+          if (state === "connecting" || state === "reconnecting") stopAttempt(id)
+          resolve("aborted")
+          return
+        }
+        const state = stateOf(id)
+        if (state !== "connecting" && state !== "reconnecting") {
+          clearInterval(timer)
+          resolve(state)
+          return
+        }
+        if (Date.now() - startedAt > ATTEMPT_WAIT_TIMEOUT_MS) {
+          clearInterval(timer)
+          resolve("timeout")
+        }
+      }, ATTEMPT_WAIT_POLL_MS)
+    })
+
+  /**
+   * Re-resolve the tunnel endpoint through the machine (the upstream reconnect hook):
+   * from offline it drives T10 -> attemptOpen (verifier store-hit -> trust, open,
+   * post-open health) and re-drives while the T8 budget keeps landing back in offline;
+   * ready returns the live endpoint. Anything else (failed budget, prompt, auth,
+   * incompatible) needs user action — the hook reports failure by returning undefined and
+   * the vendored client's own loop re-calls it at its cadence. Bounded: at most
+   * RECONNECT_MAX_RETRIES + 1 attempts, no infinite loop.
+   */
+  const ensureTunnel = async (id: string, signal?: AbortSignal): Promise<TransportEndpoint | undefined> => {
+    for (;;) {
+      if (signal?.aborted) return undefined
+      const state = stateOf(id)
+      if (state === "ready") return endpointOf(id)
+      if (state !== "offline") return undefined
+      retry(id)
+      const settled = await waitForAttempt(id, signal)
+      if (settled !== "ready" && settled !== "offline") return undefined
+      // ready -> endpoint; offline (budget remains) -> one more bounded hop; anything
+      // else (failed/authRequired/incompatible/hostKeyUnverified/idle) -> give up.
+    }
+  }
+
+  const reconnectEndpoint = async (id: string, signal: AbortSignal): Promise<ExtensionHttpBase> => {
+    const endpoint = await ensureTunnel(id, signal)
+    // The vendored client catches the throw, logs it and re-calls the hook; an undefined
+    // return would be passed to transport.update and must never happen.
+    if (!endpoint) throw new Error("ssh tunnel unavailable")
+    return { url: endpoint.url } // never a password — service auth is upstream's business
+  }
+
+  /** The upstream authenticate hook (T6 -> T1 revised -> ready/failed), "resolves true once ready". */
+  const connectInline = async (id: string): Promise<boolean> => {
+    const state = stateOf(id)
+    if (state === "ready") return true
+    if (state !== "idle" && state !== "failed" && state !== "incompatible" && state !== "authRequired") return false
+    connect(id)
+    const settled = await waitForAttempt(id)
+    return settled === "ready"
+  }
+
   // Reactive derivation: registry list + per-host runtime state -> upstream extension
   // connections. Read inside upstream ServersProvider's createMemo; solid store changes
-  // propagate (test/upstream-map.test.ts locks the propagation).
+  // propagate (test/upstream-map.test.ts locks the propagation). The reconnect/connect
+  // hooks (issue #6) ride along per host: reconnect re-resolves the tunnel endpoint
+  // through the machine, connect backs the upstream inline sign-in (authenticate path).
   const upstreamConnections = createMemo<ExtensionConnection[]>(() =>
     registry.list().map((record: HostRecord) =>
       toExtensionConnection({
         record,
         state: stateOf(record.id),
         endpoint: endpointOf(record.id),
+        reconnect: (signal) => reconnectEndpoint(record.id, signal),
+        connect: () => connectInline(record.id),
       }),
     ),
   )
@@ -284,8 +493,11 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     remove,
     confirmHostKey,
     rejectHostKey,
+    forgetHostKey,
     markIncompatible,
     stateOf,
+    fingerprintOf,
+    failureReasonOf,
     upstreamConnections,
   }
   activeInstance = instance

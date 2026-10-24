@@ -117,6 +117,8 @@ export const messages = {
     "hostKey.changed.note": "The key this host presented no longer matches the stored one. This can indicate an interception. Nothing was sent to the host and no connection was made.",
     "hostKey.changed.recover": "Remove stored key and re-verify",
     "hostKey.changed.cancel": "Stay disconnected",
+    "hostKey.changed.removed": "Stored key removed. Connect again to verify the host's new fingerprint.",
+    "hostManager.failedGeneric": "The connection failed. Edit the host or try connecting again.",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -224,6 +226,8 @@ export const messages = {
     "hostKey.changed.note": "该主机呈现的密钥与已存记录不符，可能存在中间人。未向该主机发送任何信息，也未建立连接。",
     "hostKey.changed.recover": "移除已存密钥并重新校验",
     "hostKey.changed.cancel": "保持断开",
+    "hostKey.changed.removed": "已移除已存密钥。请重新连接以校验主机的新指纹。",
+    "hostManager.failedGeneric": "连接失败。请编辑主机信息或重试连接。",
   },
 } as const
 

@@ -81,7 +81,7 @@ export { createVaultClient, createVaultResolver, parsePrivateKeyEnvelope, type P
 export { evaluateRemember, initialRemember, type RememberDecision, type RememberInput } from "./vault/remember"
 export { HOSTS_STORAGE_KEY, createMemoryStorage, loadHosts, safeStorage, sanitizeRecord, saveHosts, type StoragePort } from "./storage"
 export { assessIncompatible, isCompatibleServerVersion, parseServerVersion, type HealthLike } from "./health-wrapper"
-export { assertExtensionShape, mapStateToServerState, toExtensionConnection, type ExtensionConnection, type ServerState } from "./upstream-map"
+export { assertExtensionShape, mapStateToServerState, toExtensionConnection, type ExtensionConnection, type ExtensionHttpBase, type ServerState } from "./upstream-map"
 export { createTranslator, detectLocale, messages, type Locale, type MessageKey, type Translator } from "./i18n"
 export {
   DIRECT_ERROR_CODES,

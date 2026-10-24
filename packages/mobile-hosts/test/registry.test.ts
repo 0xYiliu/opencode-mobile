@@ -21,6 +21,11 @@ function openCounter() {
   return { calls, transport }
 }
 
+/** Healthy service face for the post-open health check (issue #6). */
+function healthyFetch(): typeof globalThis.fetch {
+  return (async () => new Response(JSON.stringify({ version: "2.1.4" }), { status: 200 })) as typeof globalThis.fetch
+}
+
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 1))
 
 describe("host registry validation", () => {
@@ -110,6 +115,7 @@ describe("host registry validation", () => {
     const hosts = createMobileHosts({
       storage: createMemoryStorage(),
       transport,
+      fetch: healthyFetch(),
       // A trusting verifier so the attempt actually reaches the transport.
       hostKey: { verify: async () => ({ action: "trust" as const }) },
     })
