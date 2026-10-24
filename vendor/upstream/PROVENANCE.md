@@ -54,9 +54,9 @@ scripts/vendor-sync.sh
 | M-002 | `packages/app/src/runtime/server/persistence.ts` | encode path strips `password` (memory-only); embeds marker `mobile(M-002): password stripped at encode (memory-only)` | Web default storage is localStorage; persisting credentials violates AGENTS.md. Decode tolerates legacy values; Keystore is issue #4 |
 | M-003 | `packages/{client,plugin,ai}/package.json` | strip three dangling workspace refs (`@opencode/httpapi-codegen`, `@opencode/theme` ×3 spots, `@opencode/http-recorder`) | Targets are excluded packages; Bun 1.4.2 hard-errors on dangling workspace devDeps and unsatisfied optional workspace peerDeps |
 
-Runtime seam patches beyond the closure set — M-004…M-014 (issues #3/#4/#5) — are registered with
+Runtime seam patches beyond the closure set — M-004…M-015 (issues #3/#4/#5/#6) — are registered with
 owner/reason/upstreamBaseline/verification/rebase in `patches/mobile/manifest.json` (mirrored in
-`vendor-manifest.json#mobilePatches`, 14 mobile patches since issue #5); the table above lists only the
+`vendor-manifest.json#mobilePatches`, 15 mobile patches since issue #6); the table above lists only the
 three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itself. In one line:
 
 - M-004–M-008 (issue #3): app vite alias to the first-party package, credentialRef field, dialog
@@ -68,6 +68,10 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   server dialog (`dialog.server.error.<code>`), and the endpoint-probe bridge wiring in the web entry
   (independent `opencode-mobile-probe-handshake` string, protocol-isolated from the vault bridge).
   Rationale and trust design: `docs/decisions/0002-direct-connection-transport.md`.
+- M-015 (issue #6): the ssh tunnel bridge wiring in the web entry (third protocol-isolated handshake
+  `opencode-mobile-ssh-handshake`; the bridge-backed host-key verifier and tunnel transport replace
+  the fail-closed stubs in the shipped wiring only). Rationale and trust design:
+  `docs/decisions/0003-ssh-transport.md`.
 
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).

@@ -23,22 +23,34 @@ export interface HostRecord {
   target: string
   /** Non-secret credential reference (mobile-credential:<id>), optional. */
   credentialRef?: string
+  /**
+   * Remote OpenCode service port (issue #6): the tunnel forwards to the REMOTE loopback
+   * `localhost:<servicePort>`. Non-secret, whitelist payload field, optional — absent
+   * means the default applies (DEFAULT_SERVICE_PORT). Distinct from the SSH port inside
+   * `target` (dialog labels disambiguate the two).
+   */
+  servicePort?: number
   /** ISO-8601 creation timestamp. */
   createdAt: string
   /** ISO-8601 last-update timestamp. */
   updatedAt: string
 }
 
-export type HostRecordInput = { name: string; target: string; credentialRef?: string }
+/** Default remote OpenCode service port (issue #6, F7): applied when a record omits it. */
+export const DEFAULT_SERVICE_PORT = 4096
+
+export type HostRecordInput = { name: string; target: string; credentialRef?: string; servicePort?: number }
 
 export type RegistryErrorCode =
   | "empty-name"
   | "name-too-long"
   | "duplicate-name"
+  | "duplicate-target"
   | "empty-target"
   | "invalid-target"
   | "target-too-long"
   | "invalid-credential-ref"
+  | "invalid-service-port"
   | "invalid-id"
   | "not-found"
   | "forbidden-field"
@@ -111,6 +123,19 @@ function normalizeCredentialRef(input: string | undefined): string | undefined {
   return trimmed
 }
 
+/**
+ * Validate the remote service port (issue #6): an integer 1..65535. `undefined` is the
+ * default path (DEFAULT_SERVICE_PORT applies at the consumer). The service port is NOT
+ * the SSH port — that one lives inside `target` and is validated there.
+ */
+export function validateServicePort(input: number | undefined): number | undefined {
+  if (input === undefined) return undefined
+  if (typeof input !== "number" || !Number.isInteger(input) || input < 1 || input > 65535) {
+    throw new HostRegistryError("invalid-service-port", String(input))
+  }
+  return input
+}
+
 function checkShape(record: HostRecord): void {
   if (!isValidHostId(record.id)) throw new HostRegistryError("invalid-id")
   if (typeof record.name !== "string" || !record.name) throw new HostRegistryError("invalid-record", "name")
@@ -147,12 +172,28 @@ export function createHostRegistry(options: HostRegistryOptions) {
     if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-name", name)
   }
 
+  /**
+   * Targets are unique across the registry (issue #6 review N5): two records with the same
+   * target would address ONE ssh host through two identities, and a connect for one would
+   * tear down the other's active tunnel (the transport keys live sessions by host:port).
+   * Comparison is case-insensitive on the whole target: the hostname part is
+   * case-insensitive by RFC, and treating the user part the same way is the predictable
+   * UX choice (the same discipline as the name uniqueness check).
+   */
+  function assertUniqueTarget(target: string, exceptId?: string): void {
+    const normalized = target.trim().toLowerCase()
+    const existing = store.hosts.find((host) => host.target.toLowerCase() === normalized)
+    if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-target", target)
+  }
+
   function add(input: HostRecordInput): HostRecord {
     assertNoForbiddenKeys(input)
     const name = validateName(input.name)
     assertUniqueName(name)
     const target = validateTarget(input.target)
+    assertUniqueTarget(target)
     const credentialRef = normalizeCredentialRef(input.credentialRef)
+    const servicePort = validateServicePort(input.servicePort)
     const timestamp = now()
     const record: HostRecord = {
       id: makeHostId(),
@@ -162,6 +203,7 @@ export function createHostRegistry(options: HostRegistryOptions) {
       updatedAt: timestamp,
     }
     if (credentialRef !== undefined) record.credentialRef = credentialRef
+    if (servicePort !== undefined) record.servicePort = servicePort
     setStore("hosts", [...store.hosts, record])
     persist()
     return record
@@ -170,7 +212,9 @@ export function createHostRegistry(options: HostRegistryOptions) {
   /**
    * Update the mutable fields of a record. `id` and `createdAt` are never rewritten.
    * Reference semantics for `credentialRef`: `undefined` keeps the current value; an
-   * explicit empty string clears it (persisted payload drops the field).
+   * explicit empty string clears it (persisted payload drops the field). For
+   * `servicePort` (issue #6): `undefined` keeps the current value; a valid integer sets
+   * it (there is no "clear to non-default" state — the default applies when absent).
    */
   function update(id: string, patch: Partial<HostRecordInput> & { credentialRef?: string | undefined }): HostRecord {
     const index = store.hosts.findIndex((host) => host.id === id)
@@ -180,12 +224,16 @@ export function createHostRegistry(options: HostRegistryOptions) {
     const name = patch.name !== undefined ? validateName(patch.name) : current.name
     assertUniqueName(name, id)
     const target = patch.target !== undefined ? validateTarget(patch.target) : current.target
+    assertUniqueTarget(target, id)
     const credentialRef =
       patch.credentialRef !== undefined ? normalizeCredentialRef(patch.credentialRef) : current.credentialRef
+    const servicePort = patch.servicePort !== undefined ? validateServicePort(patch.servicePort) : current.servicePort
     // id and createdAt are never rewritten by an update.
     const next: HostRecord = { ...current, name, target, updatedAt: now() }
     if (credentialRef !== undefined) next.credentialRef = credentialRef
     else delete next.credentialRef
+    if (servicePort !== undefined) next.servicePort = servicePort
+    else delete next.servicePort
     checkShape(next)
     // Replace the array node (not the element): setStore with an object path MERGES, which
     // would resurrect a deleted `credentialRef` key from the previous proxy.

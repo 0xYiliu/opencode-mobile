@@ -1,0 +1,54 @@
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 29995ab..a2ec6cd 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -15,11 +15,13 @@ import pkg from "../package.json"
+ import {
+   createMobileHosts,
+   createProbeClient,
++  createSshHostKeyVerifier,
++  createSshHostTransport,
+   createVaultClient,
+   createVaultResolver,
+   createWebMessageChannelTransport,
+   createWebMessageProbeTransport,
+-  StubHostKeyVerifier,
++  createWebMessageSshTransport,
+ } from "@opencode-mobile/mobile-hosts"
+ 
+ const getLocale = () => {
+@@ -127,13 +129,33 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
+         },
+       }),
+     )
++    // mobile(M-015): the ssh tunnel bridge (issue #6) — the THIRD protocol-isolated sibling
++    // of the vault and probe bridges on the same window message events. Its handshake
++    // string ("opencode-mobile-ssh-handshake") is captured only by this transport (strict
++    // data equality + exactly one port), so none of the three bridges can capture another's
++    // handshake; event.origin is never consulted (embedder-posted messages carry an empty
++    // origin by platform construction). The port is captured into the transport closure and
++    // acked immediately; before that ack every ssh attempt fails explicitly
++    // (bridge-unavailable) — no tunnel can exist unverified.
++    const ssh = createWebMessageSshTransport({
++      subscribe: (handler) => {
++        window.addEventListener("message", handler as EventListener)
++        return () => window.removeEventListener("message", handler as EventListener)
++      },
++    })
+     const hosts = createMobileHosts({
+       storage: window.localStorage,
+       fetch: globalThis.fetch.bind(globalThis),
+       vault,
+       probe,
+       resolver: createVaultResolver(vault),
+-      hostKey: StubHostKeyVerifier,
++      // Issue #6: the fail-closed stubs (StubHostKeyVerifier / StubHostTransport) give way
++      // to the bridge-backed counterparts ONLY in this shipped wiring. Without the acked
++      // bridge no connection is attempted beyond an explicit failure; the stubs remain the
++      // package's no-injection default (fail-closed posture unchanged).
++      hostKey: createSshHostKeyVerifier(ssh),
++      transport: createSshHostTransport(ssh),
++      sshBridge: ssh,
+     })
+ 
+     render(

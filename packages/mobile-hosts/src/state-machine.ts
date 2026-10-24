@@ -80,11 +80,15 @@ const clearSession = (ctx: MachineContext): MachineContext => ({
 })
 
 export const TRANSITIONS: readonly Transition[] = [
-  // T1 idle|failed|incompatible --connect--> connecting
-  // (failed/incompatible stay actionable: a fresh user attempt re-opens the transport)
+  // T1 idle|failed|incompatible|authRequired --connect--> connecting
+  // (failed/incompatible stay actionable: a fresh user attempt re-opens the transport.
+  // Issue #6 revision: authRequired joins the source states — the "dead end" fix. After
+  // an authentication failure the user edits the credential and connects again; T1 used
+  // to refuse the authRequired source, so the Connect button did nothing. The other 13
+  // rows are untouched; docs/design/units/connection.md carries the same revision.)
   {
     id: "T1",
-    from: ["idle", "failed", "incompatible"],
+    from: ["idle", "failed", "incompatible", "authRequired"],
     event: "connect",
     to: "connecting",
     apply: () => ({ source: "idle", retries: 0 }),

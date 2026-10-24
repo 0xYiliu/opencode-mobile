@@ -16,6 +16,13 @@ import type { HostState } from "./state-machine"
 /** Mirror of upstream gui-extensions `ServerState`. */
 export type ServerState = "stopped" | "starting" | "auth" | "ready" | "failed" | "incompatible"
 
+/**
+ * Mirror of the upstream `ServerHttpBase` shape the Extension hooks deal in
+ * (reconnect resolves one). The endpoint a tunnel re-resolves to is loopback http with a
+ * possibly-new port; a password is never part of it (service auth is upstream's business).
+ */
+export type ExtensionHttpBase = { url: string; password?: string; credentialRef?: string }
+
 /** Mirror of upstream app `ServerConnection.Extension`. */
 export interface ExtensionConnection {
   type: "extension"
@@ -29,6 +36,15 @@ export interface ExtensionConnection {
   http: { url: string; password?: string }
   displayName?: string
   label?: string
+  /**
+   * Issue #6 hooks (optional, mirroring the upstream Extension type):
+   * - reconnect: re-resolves the tunnel endpoint through the machine (T10/T11 pipeline);
+   *   the vendored client's connection watchdog calls it when the event stream drops.
+   * - connect: backs the upstream inline sign-in (authenticate path, T6 -> T1 revised);
+   *   resolves true once the connection is ready.
+   */
+  reconnect?: (signal: AbortSignal) => Promise<ExtensionHttpBase>
+  connect?: () => Promise<boolean>
 }
 
 /** Upstream's sentinel endpoint for contributed servers without an endpoint yet. */
@@ -63,6 +79,10 @@ export interface ToExtensionConnectionInput {
   state: HostState
   /** Resolved tunnel endpoint, memory-only; present once a transport is up (issue #6). */
   endpoint?: TransportEndpoint
+  /** Tunnel re-resolution hook (issue #6) — forwarded onto the extension connection. */
+  reconnect?: (signal: AbortSignal) => Promise<ExtensionHttpBase>
+  /** Inline sign-in hook (issue #6) — forwarded onto the extension connection. */
+  connect?: () => Promise<boolean>
 }
 
 export function toExtensionConnection(input: ToExtensionConnectionInput): ExtensionConnection {
@@ -84,6 +104,11 @@ export function toExtensionConnection(input: ToExtensionConnectionInput): Extens
         : { url: OFFLINE_ENDPOINT },
     displayName: input.record.name,
     label: "SSH",
+    // The hooks are only present when provided: a shell without the ssh wiring (stub
+    // phase) produces the exact pre-#6 shape. Fields must never be undefined-valued —
+    // upstream branches on presence (`!!entry().reconnect`).
+    ...(input.reconnect ? { reconnect: input.reconnect } : {}),
+    ...(input.connect ? { connect: input.connect } : {}),
   }
 }
 

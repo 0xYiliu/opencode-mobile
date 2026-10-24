@@ -13,7 +13,7 @@
 import { Show, createSignal, onMount } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { TextInput } from "@opencode/ui/text-input"
-import { HostRegistryError } from "../registry"
+import { DEFAULT_SERVICE_PORT, HostRegistryError } from "../registry"
 import { createTranslator, type MessageKey } from "../i18n"
 import type { MobileHosts } from "../runtime"
 import { evaluateRemember, initialRemember } from "../vault/remember"
@@ -26,9 +26,16 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
 
   const [name, setName] = createSignal(editing?.name ?? "")
   const [target, setTarget] = createSignal(editing?.target ?? "")
+  // servicePort (issue #6, F7): the REMOTE OpenCode service port the tunnel forwards to —
+  // a different thing from the SSH port inside the target, hence its own labeled input.
+  // Prefill: the stored port, else the documented default 4096.
+  const [servicePort, setServicePort] = createSignal(String(editing?.servicePort ?? DEFAULT_SERVICE_PORT))
   // Remember state: initialized from the prior ref (truth table "initial value").
   const [remember, setRemember] = createSignal(initialRemember(editing?.credentialRef))
   const [password, setPassword] = createSignal("")
+  // Key passphrase (issue #3): optional, shown with the import block — it wraps the
+  // imported key into the vault envelope form and is cleared from memory right after.
+  const [keyPassphrase, setKeyPassphrase] = createSignal("")
   // The binding the save will work from; a key import re-points it before the save.
   const [boundRef, setBoundRef] = createSignal<string | undefined>(editing?.credentialRef)
   const [boundMeta, setBoundMeta] = createSignal<VaultEntryMetadata | undefined>(undefined)
@@ -57,6 +64,8 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
     switch (code) {
       case "duplicate-name":
         return "hostDialog.error.duplicateName"
+      case "duplicate-target":
+        return "hostDialog.error.duplicateTarget"
       case "invalid-target":
       case "empty-target":
       case "target-too-long":
@@ -66,6 +75,8 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
         return "hostDialog.error.emptyName"
       case "invalid-credential-ref":
         return "hostDialog.error.invalidCredentialRef"
+      case "invalid-service-port":
+        return "hostDialog.error.invalidServicePort"
       default:
         return "hostDialog.error.invalidTarget"
     }
@@ -75,6 +86,9 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
   // (onShowFileChooser -> ACTION_OPEN_DOCUMENT); the plaintext crosses the bridge exactly
   // once, is never persisted anywhere else and never leaves this closure. The URI/permission
   // is not persisted (no takePersistableUriPermission) and the size bound is pre-checked.
+  // Issue #6: an optional key passphrase wraps the key into the vault envelope form
+  // ({"v":1,"key":...,"passphrase":...}) — same Keystore-encrypted value, never a registry
+  // field — and is cleared from this closure the moment the import settles either way.
   const onKeyFile = async (file: File | undefined) => {
     if (!file) return // chooser cancelled: nothing happens
     setError(undefined)
@@ -83,9 +97,12 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
       return
     }
     setImporting(true)
+    const passphrase = keyPassphrase()
+    setKeyPassphrase("") // the passphrase never lingers in memory beyond the import
     try {
       const text = await file.text()
-      const ref = await vault.put({ kind: "privateKey", value: text, ...(boundRef() !== undefined ? { existingRef: boundRef() } : {}) })
+      const value = passphrase.length > 0 ? JSON.stringify({ v: 1, key: text, passphrase }) : text
+      const ref = await vault.put({ kind: "privateKey", value, ...(boundRef() !== undefined ? { existingRef: boundRef() } : {}) })
       setBoundRef(ref)
       setRemember(true)
       const meta = await vault.list().then((metas) => metas.find((m) => m.id === parseVaultRef(ref)))
@@ -100,8 +117,28 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
     }
   }
 
+  /**
+   * Parse the service port input (issue #6): a blank field means the default (4096);
+   * anything non-numeric or out of 1..65535 fails the save with an inline error — the
+   * previously stored record stays untouched.
+   */
+  const parseServicePort = (): number | undefined => {
+    const raw = servicePort().trim()
+    if (raw === "") return DEFAULT_SERVICE_PORT
+    const parsed = Number(raw)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return undefined
+    return parsed
+  }
+
   const save = async () => {
     setError(undefined)
+    // servicePort first: a malformed port fails the save before any vault call (the
+    // previously stored record stays untouched, acceptance: editing failure preserves it).
+    const port = parseServicePort()
+    if (port === undefined) {
+      setError(t("hostDialog.error.invalidServicePort"))
+      return
+    }
     // Truth table v3 for the SSH form: add has no prior, edit's prior is the bound ref.
     // boundKind lets an already-imported private key keep its binding on an empty value
     // (row 13) instead of aborting the save and stranding the entry as an orphan.
@@ -141,12 +178,14 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
         props.runtime.registry.update(editing.id, {
           name: name(),
           target: target(),
+          servicePort: port,
           credentialRef: credentialRef ?? "",
         })
       } else {
         props.runtime.registry.add({
           name: name(),
           target: target(),
+          servicePort: port,
           ...(credentialRef !== undefined ? { credentialRef } : {}),
         })
       }
@@ -211,6 +250,28 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           onInput={(event) => setTarget(event.currentTarget.value)}
           onKeyDown={keyDown}
         />
+        {/* Issue #6 (F7): dual-port disambiguation — the SSH port lives inside the target
+            above; this is the REMOTE OpenCode service port the tunnel forwards to
+            (remote loopback localhost:<servicePort>, single hop). */}
+        <label for="mobile-host-service-port" class="text-12-regular text-text-weak">
+          {t("hostDialog.servicePort")}
+        </label>
+        <TextInput
+          id="mobile-host-service-port"
+          type="text"
+          inputmode="numeric"
+          appearance="large"
+          class="!w-full self-stretch"
+          dir="ltr"
+          spellcheck={false}
+          autocapitalize="off"
+          value={servicePort()}
+          placeholder={t("hostDialog.servicePortPlaceholder")}
+          invalid={!!error()}
+          onInput={(event) => setServicePort(event.currentTarget.value)}
+          onKeyDown={keyDown}
+        />
+        <span class="text-12-regular text-text-weak">{t("hostDialog.servicePortHint")}</span>
       </div>
       <div class="flex w-full min-w-0 flex-col gap-2 border-t border-border-weak-base pt-3">
         <span class="text-12-medium text-text-strong">{t("hostDialog.credentialSection")}</span>
@@ -265,6 +326,24 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
             <Button size="small" variant="neutral" disabled={importing()} onClick={() => keyFileInput?.click()}>
               {t("hostDialog.importKey")}
             </Button>
+            {/* Issue #6: optional key passphrase — wraps the imported key into the vault
+                envelope form; memory-only, cleared the moment the import settles. v1 does
+                not try to decrypt at import time: a wrong/missing passphrase surfaces as
+                ssh-key-decrypt-failed on first connect (known limitation, documented). */}
+            <label for="mobile-host-key-passphrase" class="text-12-regular text-text-weak">
+              {t("hostDialog.passphrase")}
+            </label>
+            <TextInput
+              id="mobile-host-key-passphrase"
+              type="password"
+              appearance="large"
+              class="!w-full self-stretch"
+              autocomplete="off"
+              value={keyPassphrase()}
+              placeholder={t("hostDialog.passphrasePlaceholder")}
+              onInput={(event) => setKeyPassphrase(event.currentTarget.value)}
+              onKeyDown={keyDown}
+            />
           </Show>
         </Show>
         <Show when={!vaultAvailable()}>

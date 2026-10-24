@@ -110,4 +110,30 @@ describe("storage port", () => {
     expect(loaded.hosts.length).toBe(1)
     expect(loaded.hosts[0]).toEqual(GOOD_RECORD)
   })
+
+  // F1 (issue #6): servicePort joins the whitelist as an optional integer; the persisted
+  // payload round-trips it, invalid shapes are dropped and old payloads without the field
+  // take the default path.
+  test("servicePort round-trip keeps a valid integer and drops invalid shapes", () => {
+    const storage = createMemoryStorage()
+    saveHosts(storage, [
+      { ...GOOD_RECORD, servicePort: 5051 },
+      { ...GOOD_RECORD, id: "44444444-4444-4555-8666-777777777777", name: "default" },
+    ] as never)
+    const raw = storage.getItem(HOSTS_STORAGE_KEY)!
+    expect(raw).toContain("5051")
+    const loaded = loadHosts(storage)
+    expect(loaded.hosts[0]!.servicePort).toBe(5051)
+    expect(loaded.hosts[1]!.servicePort).toBeUndefined()
+  })
+
+  test("sanitizeRecord keeps only valid service ports and rejects credential-shaped keys regardless", () => {
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: 8080 })).toEqual({ ...GOOD_RECORD, servicePort: 8080 })
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: 0 })?.servicePort).toBeUndefined()
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: 65536 })?.servicePort).toBeUndefined()
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: 1.5 })?.servicePort).toBeUndefined()
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: "4096" })?.servicePort).toBeUndefined()
+    // The field never opens the door to credential-shaped keys.
+    expect(sanitizeRecord({ ...GOOD_RECORD, servicePort: 8080, passphrase: "x" })).toBeUndefined()
+  })
 })
