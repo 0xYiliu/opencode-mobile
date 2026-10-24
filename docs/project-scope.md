@@ -10,15 +10,16 @@
 - 尚无 APK；两种连接方式（SSH 隧道、服务地址直连）与会话功能均未实现；设备门禁 G1–G15 全部未执行（见设计文档与 `docs/build-and-verify.md`）。
 - 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。
 - 服务凭据默认 memory-only（M-002 补丁，刷新/重启需重新输入密码）；可选的安全记住已实现（未验证，issue #4）：Android Keystore（AES-256-GCM 信封 v1）加密落盘，元数据索引永不存值，无额外解锁，无明文回退，备份排除已实现（未验证）。
-- 主机注册表已实现（未验证，issue #3）：第一方包 `packages/mobile-hosts/` 承载 SSH 主机记录（身份键 `mobile-ssh:<uuid>`、名称唯一、载荷白名单无凭据字段）与连接状态机；vendor 补丁 M-004…M-008 将其接入上游 app。直连服务仍走上游原生注册表，credentialRef（M-005/M-006）为非机密引用；可选记住与凭据管理器随 issue #4 交付（M-009/M-010 与 M-007 修订，`packages/mobile-hosts/src/vault/` + `android/.../vault/`）。host-key 校验与 SSH 隧道为 fail-closed stub（恒拒绝），真实实现归 issue #6。设备级验证（G13–G15、C1–C5、live E2E）全部 BLOCKED。
-- 直连传输卫生与错误分类已实现（未验证，issue #5）：vendor 补丁 M-011…M-014（mobile 补丁总数 10→14）——validated-follow 重定向策略（跨主机/降级拒交付）、userinfo 凭据 URL 拒发、端点 probe 分类器（fail-closed stub 默认，Android 桥 ack 后可用）与 `dialog.server.error.<code>` 反馈；裁定（决策 [0002](decisions/0002-direct-connection-transport.md)）：TLS 信任=system CA 唯一锚（静态负断言在册，绝不 trust-all）、**明文 HTTP 直连本期不支持**、**自签/私有 CA HTTPS 直连本期不支持**（出路：正规 CA/SSH 隧道/per-connection pin 后续候选）。probe 桥 bring-up（G16）与错误矩阵端到端（G4/G5/G11）BLOCKED。
+- 主机注册表已实现（未验证，issue #3）：第一方包 `packages/mobile-hosts/` 承载 SSH 主机记录（身份键 `mobile-ssh:<uuid>`、名称唯一、载荷白名单无凭据字段；issue #6 增 servicePort 白名单字段）与连接状态机；vendor 补丁 M-004…M-008 将其接入上游 app。直连服务仍走上游原生注册表，credentialRef（M-005/M-006）为非机密引用；可选记住与凭据管理器随 issue #4 交付（M-009/M-010 与 M-007 修订，`packages/mobile-hosts/src/vault/` + `android/.../vault/`）。设备级验证（G13–G15、C1–C5、live E2E）全部 BLOCKED。
+- SSH 隧道传输已实现（未验证，issue #6）：内建 SSH（无外部 SSH App/跳板机）——密码/密钥认证（密钥导入经 #4 vault，口令与私钥同信封）、未知指纹显式确认（HostKeyPrompt 已挂载）、变更密钥严格拒绝+显式恢复、known_hosts 原生 OpenSSH 行格式（`filesDir/ssh/`，备份排除）、指纹与 `ssh-keygen -lf` 互通（固定向量）、本地转发到远端回环 `localhost:<servicePort>` 单跳、失败四层分类（可达/认证/隧道目标/服务）。SSH 库（jsch 2.28.8 Revised BSD + bcprov 1.80 Bouncy Castle Licence，均宽松、不触发 V4 停点）只在 Kotlin 桥内；共享层零平台 API；fail-closed stub 保留为无注入默认。裁定与支持矩阵/失败 UI/安全评审见决策 [0003](decisions/0003-ssh-transport.md)。**真机门禁全部 BLOCKED**（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/重连/远程任务存活；Kotlin 编译亦 BLOCKED——无 Android SDK）。
+- 直连传输卫生与错误分类已实现（未验证，issue #5）：vendor 补丁 M-011…M-014（mobile 补丁总数 10→14；issue #6 增 M-015 后为 15）——validated-follow 重定向策略（跨主机/降级拒交付）、userinfo 凭据 URL 拒发、端点 probe 分类器（fail-closed stub 默认，Android 桥 ack 后可用）与 `dialog.server.error.<code>` 反馈；裁定（决策 [0002](decisions/0002-direct-connection-transport.md)）：TLS 信任=system CA 唯一锚（静态负断言在册，绝不 trust-all）、**明文 HTTP 直连本期不支持**、**自签/私有 CA HTTPS 直连本期不支持**（出路：正规 CA/SSH 隧道/per-connection pin 后续候选）。probe 桥 bring-up（G16）与错误矩阵端到端（G4/G5/G11）BLOCKED。
 
 ## 已确认目标，尚未实现
 
 | 领域 | 目标 |
 | --- | --- |
 | 平台 | 优先交付 Android APK，后续允许适配其他移动平台 |
-| SSH | 连接远程主机，通过 SSH 隧道访问远程 OpenCode 服务（注册表/状态机层已实现（未验证），隧道归 issue #6） |
+| SSH | 连接远程主机，通过 SSH 隧道访问远程 OpenCode 服务（注册表/状态机/隧道传输已实现（未验证，issue #6）；真机 E2E BLOCKED） |
 | 直连 | 通过服务地址、端口和认证信息访问远程 OpenCode 服务 |
 | 工作界面 | 尽量复用 Desktop 的远程项目、会话、文件、Diff、权限与终端体验 |
 | 服务位置 | 不在手机本地运行 OpenCode 服务或项目工具链 |

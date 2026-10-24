@@ -1,6 +1,6 @@
 # 单元：server-list（服务器列表与项目选择）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据管理界面已实现（未验证）；issue #6 servicePort 契约已确认未实现）**。作为产品能力（在设备上查看服务器列表、选择远程项目并进入会话）尚未交付，依赖 connection 单元成立与 G1–G3 门禁；已实现部分：随闭包引入的持久化字段契约与上游 UI 代码，issue #3 的 SSH 主机注册表（`packages/mobile-hosts/src/registry.ts` + `storage.ts`）与管理界面（host-manager / host-dialog，M-008 挂载），以及 issue #4 的凭据管理器（credential-manager）与 host-dialog 凭据绑定块重构，全部未经设备运行验证（真机归 G13/G15）。
+状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据管理界面已实现（未验证）；issue #6 servicePort 契约与 passphrase 位已实现（未验证））**。作为产品能力（在设备上查看服务器列表、选择远程项目并进入会话）尚未交付，依赖 connection 单元成立与 G1–G3 门禁；已实现部分：随闭包引入的持久化字段契约与上游 UI 代码，issue #3 的 SSH 主机注册表（`packages/mobile-hosts/src/registry.ts` + `storage.ts`）与管理界面（host-manager / host-dialog，M-008 挂载），以及 issue #4 的凭据管理器（credential-manager）与 host-dialog 凭据绑定块重构，全部未经设备运行验证（真机归 G13/G15）。
 
 ## 字段契约（已实现）
 
@@ -25,12 +25,12 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 | `name` | String（唯一，1–100 字符） | 展示名，重名校验拒绝 |
 | `target` | String（SSH 目标，`[user@]host[:port]` 形，≤500 字符） | 连接目标；格式校验失败拒收 |
 | `credentialRef` | optional String（`mobile-credential:<id>` 形，≤500 字符） | 非机密引用，不是凭据；解析经 vault-backed resolver（issue #4 已实现（未验证），默认 UnavailableVault fail-closed） |
-| `servicePort` | optional Number（1–65535，白名单整数；默认 4096） | **远端 OpenCode 服务端口**（issue #6，已确认未实现）：隧道转发目标 = 远端回环 `localhost:<servicePort>`；载荷白名单整数（非整数/越界拒收）；缺省载荷按默认 4096 读取（旧载荷往返兼容） |
+| `servicePort` | optional Number（1–65535，白名单整数；默认 4096） | **远端 OpenCode 服务端口**（issue #6，已实现（未验证））：隧道转发目标 = 远端回环 `localhost:<servicePort>`；载荷白名单整数（非整数/越界拒收）；缺省载荷按默认 4096 读取（旧载荷往返兼容） |
 | `createdAt` / `updatedAt` | String（ISO 时间戳） | 审计元数据；更新不改 id/createdAt |
 
 **双端口去混淆（F7）**：SSH 主机有两个语义不同的端口——①**SSH 端口**（连接主机所用，位于 `target` 的 `:port` 段，缺省 22）；②**服务端口**（`servicePort`，隧道转发目标在**远端**回环上的 OpenCode 服务端口，缺省 4096）。host-dialog 以两个独立输入位+明确标签区分（「SSH 端口」在 target 内、「服务端口」单独字段），文案明示转发目标是远端回环 `localhost:<servicePort>` 单跳（无跳板机）。
 
-**passphrase 位（issue #6，已确认未实现）**：host-dialog 私钥导入后显示可选 passphrase 输入位（可能加密时出现，不强制）；passphrase 不进注册表/持久化载荷——它随私钥同入 vault 信封（`{"v":1,"key":…,"passphrase":…}`，Keystore AES-GCM 同层保护；三方案对比与裁定见[决策记录 0003 §4](../../decisions/0003-ssh-transport.md)）。`FORBIDDEN_INPUT_KEYS` 不动。
+**passphrase 位（issue #6，已实现（未验证））**：host-dialog 私钥导入后显示可选 passphrase 输入位（可能加密时出现，不强制）；passphrase 不进注册表/持久化载荷——它随私钥同入 vault 信封（`{"v":1,"key":…,"passphrase":…}`，Keystore AES-GCM 同层保护；三方案对比与裁定见[决策记录 0003 §4](../../decisions/0003-ssh-transport.md)）。`FORBIDDEN_INPUT_KEYS` 不动。
 
 - 凭据形字段（password/secret/token/privateKey 等）在载荷校验层拒收：**测试断言**持久化往返与重启恢复后的记录不含任何 password 形字段。
 - 存储降级不静默：注入存储不可用（或拒绝写入）时注册表落到内存后备，`storageVolatile` 标志经 host-manager 以行内提示明示（i18n 键 `hostManager.volatileStorage`，EN/ZH）；单测覆盖降级路径。

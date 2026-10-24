@@ -1,6 +1,6 @@
 # 单元：connection（服务连接与凭据）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证）；issue #6 SSH 隧道传输契约已确认未实现，见[决策记录 0003](../../decisions/0003-ssh-transport.md)）**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16 门禁 BLOCKED）。
+状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证）；issue #6 SSH 隧道传输已实现（未验证），见[决策记录 0003](../../decisions/0003-ssh-transport.md)）**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），以及 issue #6 的 SSH 隧道传输（ssh 桥传输/verifier/transport、驱动装配 M-015 补丁、Kotlin `android/.../ssh/` 四件、jsch+bcprov 桥内依赖），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16/G17 门禁 BLOCKED）。
 
 ## 字段契约（已实现）
 
@@ -21,9 +21,9 @@
 | `http.credentialRef` | optional String（位于 `ServerHttpBase` 内，即 `http.credentialRef` 层级） | 指向凭据条目的**非机密引用**（形如 `mobile-credential:<id>`），不是凭据本身 | 已实现（未验证）（M-005 字段 + M-006 对话框透传）；探针 `scripts/verify-credential-ref.ts` PASS |
 
 - 直连：M-005 在持久化 schema 增字段（encode 剥 password 的行为不变）；M-006 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
-- SSH：主机记录原生持有 `credentialRef`（载荷白名单字段，见 [server-list.md](server-list.md)）；编辑语义为「undefined=保留、空串=清空」。target/身份变更裁定（issue #4，已定）：**保留 ref + 显式移除**——target 变更不清 ref，由用户在编辑表单取消勾选或经凭据管理器删除（见失效矩阵）。
+- SSH：主机记录原生持有 `credentialRef` 与 `servicePort`（载荷白名单字段，见 [server-list.md](server-list.md)）；credentialRef 编辑语义为「undefined=保留、空串=清空」，servicePort 为「undefined=保留、合法整数=设置」。target/身份变更裁定（issue #4，已定）：**保留 ref + 显式移除**——target 变更不清 ref，由用户在编辑表单取消勾选或经凭据管理器删除（见失效矩阵）。
 - 引用解析（已实现（未验证）：issue #4）：resolver 默认 fail-closed——未注入 vault 时为 NullResolver（恒 undefined），注入 vault 时默认经 `createVaultResolver` 走 vault（vault 级 unavailable 抛错 → 主机显式 failed；条目级 corrupt/missing → undefined → 服务端认证路径）；Android 桥握手 ack 后由 vault 支撑的 resolver 解析（见下节 vault 契约）。解析结果只注入内存连接对象，永不回写持久化。
-- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据经 M-010 hydration 自动恢复（内存）；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接真实建立归 #6）；引用本身随记录保留。
+- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据经 M-010 hydration 自动恢复（内存）；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接已实现（未验证）：issue #6）；引用本身随记录保留。
 
 ## 凭据保险库契约（已实现（未验证）：issue #4）
 
@@ -107,9 +107,9 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 
 | # | 来源态 | 事件 | 守卫 | 动作 | 目标态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1 | idle \| failed \| incompatible | connect | — | 解析 credentialRef（vault resolver，产出内存凭据值）→ transport.open(target, credential) | connecting | failed/incompatible 保持可操作：重新发起即新尝试；source=idle。措辞修正（F-7，issue #4 评审）：动作列原写 `transport.open(target, credentialRef)` 易误读为把非机密引用直接交给传输层——实际驱动先经 resolver 解析为内存值再传入 transport（`packages/mobile-hosts/src/runtime.ts` attemptOpen），引用本身从不出驱动层。**修订（issue #6 计划，已确认未实现）：来源态扩为 `idle \| failed \| incompatible \| authRequired`**（修复 authRequired 死端：T1 原不接受 authRequired 来源，编辑凭据后「连接」按钮被状态机拒绝）——其余 13 行不动，随 SSH 传输实现落地 |
+| T1 | idle \| failed \| incompatible | connect | — | 解析 credentialRef（vault resolver，产出内存凭据值）→ transport.open(target, credential) | connecting | failed/incompatible 保持可操作：重新发起即新尝试；source=idle。措辞修正（F-7，issue #4 评审）：动作列原写 `transport.open(target, credentialRef)` 易误读为把非机密引用直接交给传输层——实际驱动先经 resolver 解析为内存值再传入 transport（`packages/mobile-hosts/src/runtime.ts` attemptOpen），引用本身从不出驱动层。**修订（issue #6，已实现（未验证））：来源态扩为 `idle \| failed \| incompatible \| authRequired`**（修复 authRequired 死端：T1 原不接受 authRequired 来源，编辑凭据后「连接」按钮被状态机拒绝）——其余 13 行不动（`packages/mobile-hosts/src/state-machine.ts`，单测锁定） |
 | T2 | connecting | hostKeyPending | — | 指纹存内存（不持久化） | hostKeyUnverified | 弹 host-key 确认（host-key-prompt） |
-| T3 | hostKeyUnverified | hostKeyConfirm | — | transport.open（携带已确认指纹） | connecting | 仅 stub 阶段不可达（stub 恒拒绝）；真实校验归 #6 |
+| T3 | hostKeyUnverified | hostKeyConfirm | — | transport.open（携带已确认指纹）；驱动对已钉固指纹**跳过重复 verify**（确认后立即 open——store 在钉固 open 前无记录，重复 verify 会永久重弹确认） | connecting | 确认指纹即钉固指纹（fast path，决策 0003 §3.3 勘误一；T4/T8/T13 均清指纹，钉固路径必经确认；Kotlin 侧权威比对并写入 store） |
 | T4 | hostKeyUnverified | hostKeyReject | — | 无 | failed | **拒绝后无任何连接尝试**（红线，测试断言） |
 | T5 | connecting | ready | — | 端点入内存（仅 ready 态持有） | ready | — |
 | T6 | connecting \| reconnecting | authRequired | — | — | authRequired | 行内认证按钮（上游 authenticate 路径） |
@@ -141,11 +141,12 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 - **直连 http**：**不展示 incompatible**——上游 web 原生行为（`checkServerHealth` 从不设置 incompatible 标志），本仓库不为其补齐判定；如后续需要补齐，归 issue #5。
 - 诚实边界：incompatible 的真机呈现（IncompatibleServerPanel）归 G14，未验证。
 
-### host-key 确认（已实现（未验证）的立桩，真实校验契约归 #6）
+### host-key 确认（已实现（未验证）：issue #6；真机核验 BLOCKED）
 
-- 状态机显式状态 `hostKeyUnverified` 已实现；确认 UI 组件（HostKeyPrompt）已立桩并随包导出，**挂载点与真实指纹数据源归 issue #6**（契约见[决策记录 0003 §3](../../decisions/0003-ssh-transport.md)：桥可用性先行 → 查 store → 未知走 fetchHostKey（仅 KEX scan、零认证材料）→ prompt(fingerprint) → 确认 → open(pinnedFingerprint) → Kotlin 权威比对并写入 known_hosts；变更=严格拒绝+显式恢复）。指纹只存内存。stub 阶段本组件不可达。
-- `HostKeyVerifier` 端口本期为 stub：**对任何主机恒返回"拒绝"**（fail-closed），不存在"跳过校验"路径；测试断言 stub 永不放行。stub 保留为默认注入，真实校验经 M-015 注入。
-- 真实指纹校验数据源与确认流归 issue #6，**BLOCKED**（真机核验归 G14/G17）。
+- 状态机显式状态 `hostKeyUnverified` 已实现；确认 UI（HostKeyPrompt）**挂载点已建**（host-manager 行内渲染，`runtime.fingerprintOf(id)` 供数）与真实指纹数据源（SshBridgeHostKeyVerifier 经第三桥 `fetchHostKey`）一并交付（流程见[决策记录 0003 §3](../../decisions/0003-ssh-transport.md)：桥可用性先行 → 查 store → 未知走 fetchHostKey（仅 KEX scan、零认证材料）→ prompt(fingerprint) → 确认 → open(pinnedFingerprint) → Kotlin 权威比对并写入 known_hosts；变更=严格拒绝+显式恢复）。指纹只存内存。
+- `HostKeyVerifier` 端口默认仍为 stub：**对任何主机恒返回"拒绝"**（fail-closed），不存在"跳过校验"路径；测试断言 stub 永不放行。真实校验经 M-015 注入（stub 保留为包内无注入默认）。
+- 变更恢复：host-manager 失败行内危险按钮（红色警示文案）→ 一次显式危险确认 → `forgetHostKey`（无桥注入时 fail-closed 返回 false）→ 下次连接回未知指纹确认流，行内提示已移除；桥不可用绝不误报为 host-key 拒绝（`bridge-unavailable` 显式失败）。
+- 真机核验（未知/已知/变更三态、桥 bring-up）**BLOCKED**（归 G14/G17）。
 
 ## 凭据流（已实现（未验证））
 
@@ -205,9 +206,9 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 以下两处不经 `platform.fetch`（不受 D1 校验），登记为已知残余面、本轮不修补：①`pairing.ts:87` `OpenCode.make({baseUrl})`（配对码兑换，无认证头——以一次性 code 换 token）；②`pairing.ts:129` `checkServerHealth(…, globalThis.fetch)`（配对地址优选，带 Basic 头）。out-of-scope 理由：浏览器规范对跨源重定向子请求剥头是底线，D1 校验为纵深；两处仅存在于配对流，地址来自 `opencode pair` 链接而非服务器列表，泄漏不成立、静默跟随的内容风险窗口极小。
 
-## SSH 隧道传输（已确认未实现：issue #6，裁定见[决策记录 0003](../../decisions/0003-ssh-transport.md)）
+## SSH 隧道传输（已实现（未验证）：issue #6，裁定见[决策记录 0003](../../decisions/0003-ssh-transport.md)）
 
-SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HANDSHAKE`=`opencode-mobile-ssh-handshake`，ops: connect/disconnect/fetchHostKey/removeHostKey/cancel）↔ Kotlin `SshTunnelBridge`/`SshTunnelManager`（JSch）/`SshHostKeyStore`（filesDir/ssh/known_hosts）/`SshErrorCode`。库（jsch+bcprov）只在 Kotlin 桥内；共享层零平台 API；`StubHostKeyVerifier`/`StubHostTransport` fail-closed stub 保留为默认注入。转发：listener 绑 `127.0.0.1:0` 动态回环端口，目标固定**远端**回环 `localhost:<servicePort>` 单跳（servicePort 是远端 OpenCode 服务端口，默认 4096；SSH 端口在 target 内，两者语义去混淆见 [server-list.md](server-list.md)）。状态机 T1 修订：来源态扩 `authRequired`（见上表）。upstream 镜像增可选 `reconnect`/`connect`（隧道端口重解析/行内认证装配）。
+SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HANDSHAKE`=`opencode-mobile-ssh-handshake`，ops: connect/disconnect/fetchHostKey/removeHostKey/cancel）↔ Kotlin `SshTunnelBridge`/`SshTunnelManager`（JSch）/`SshHostKeyStore`（filesDir/ssh/known_hosts）/`SshErrorCode`。库（jsch+bcprov）只在 Kotlin 桥内；共享层零平台 API；`StubHostKeyVerifier`/`StubHostTransport` fail-closed stub 保留为默认注入。转发：listener 绑 `127.0.0.1:0` 动态回环端口，目标固定**远端**回环 `localhost:<servicePort>` 单跳（servicePort 是远端 OpenCode 服务端口，默认 4096；SSH 端口在 target 内，两者语义去混淆见 [server-list.md](server-list.md)）。状态机 T1 修订：来源态扩 `authRequired`（见上表）。upstream 镜像增可选 `reconnect`（ensureTunnel：经 T10/T8 预算重试重解析端点；不可达即抛错，上游按其节奏重调，预算 RECONNECT_MAX_RETRIES 封顶无无限循环）/`connect`（connectInline：T1 修订来源态 → ready，供上游 authenticate 行内登录与 T12）。服务层权威=open 成功后有界 GET `<endpoint>/api/info`（10s 超时、redirect: error——端点为内核分配的 127.0.0.1 动态口，构造上不含 userinfo、重定向即敌意拒绝；401/403 视为服务存活，服务认证归上游流）：失败 → `service-unreachable`（T8）；版本可解析且不符 → markIncompatible（T7）。
 
 ### SSH 算法支持矩阵（静态文档；真机/服务端协商核对 BLOCKED）
 
@@ -259,8 +260,8 @@ SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HAND
 | 加载中 | 已确认未实现：直连建立过程反馈待真机定义（上游实现承载）；SSH：connecting/reconnecting 呈现已实现（未验证），真机归 G14 |
 | 空态 | 已确认未实现：无任何服务记录时的引导形态待真机核对 |
 | 错误态 | 已确认未实现（目标行为已存在）：认证失败、证书错误、CORS 失败、断网的反馈与恢复归 G4/G5/G11；缺失密码进入上游既有认证失败路径；SSH：failed/offline 呈现已实现（未验证），真机归 G14 |
-| 边界态 | 已确认未实现：不兼容 server——直连不展示（上游 web 原生行为，补齐归 #5）；SSH 由状态机判定（规则见上），真机归 G14；host-key 确认立桩，真实流归 #6（BLOCKED）；权限边界不适用（无角色体系） |
-| 过程态 | 已实现（未验证）：host-key 确认（host-key-prompt）是唯一多步交互，stub 阶段不可达（BLOCKED #6） |
+| 边界态 | 已确认未实现：不兼容 server——直连不展示（上游 web 原生行为，补齐归 #5）；SSH 由状态机判定（规则见上），真机归 G14；host-key 三态确认与变更恢复已实现（未验证），真机归 G14/G17（BLOCKED）；权限边界不适用（无角色体系） |
+| 过程态 | 已实现（未验证）：host-key 确认（host-key-prompt，host-manager 挂载）是唯一多步交互；M-015 注入后可达，真机归 G14/G17（BLOCKED） |
 | 恢复口径 | memory-only 基线 + 可选记住（issue #4）：未记住的密码刷新/重启需重输；已记住的凭据经 vault 解析自动恢复（unavailable/corrupt 时按上方失效矩阵呈现，无明文回退）；SSH 凭据引用重启后经 vault-backed resolver 解析（默认 UnavailableVault fail-closed）；Keystore 持久化已实现（未验证），真机归 C1–C5 |
 
 ## 文案口径

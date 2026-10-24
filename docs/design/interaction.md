@@ -74,8 +74,8 @@
 - **host-dialog（SSH 主机新增/编辑）**：字段 name（唯一校验，重名行内报错不写入）、target（格式校验 `[user@]host[:port]`）；凭据绑定块（issue #4 重构，见上）；保存前校验失败保留表单；**保存/健康检查失败保留原配置**（不写入注册表）。取消/关闭不产生任何变更。
 - **取消切换语义**：连接发起后取消（connect 过程、host-key 确认、重连过程）恢复进入前的来源态（idle 或 offline），无残留副作用（状态机 T13，测试锁定）。
 - **host-key-prompt（stub）**：状态机进入 hostKeyUnverified 时展示指纹确认；当前 stub 恒拒绝——确认 UI 组件已立桩但**挂载点未建**（无任何界面渲染它），在本构建不可达（真实校验与挂载归 #6，BLOCKED）；**不存在"跳过校验"选项**。
-- **host-key 三态交互与变更恢复（issue #6 契约，已确认未实现）**：①**未知**（首次连接）——HostKeyPrompt 行内挂载于 host-manager，展示 `SHA256:…` 指纹，仅「信任并连接」/「拒绝」两动作（确认先于任何认证材料发出）；②**已知**——store 命中即 trust，无弹窗；③**变更**——硬失败 `host-key-changed`，**永不自动覆盖**；恢复入口=行内危险按钮（红色警示，明示主机密钥已变化、可能中间人），一次显式危险确认后 `removeHostKey` → 下次连接回未知确认流。三态 UI 与挂载随 #6 实现交付，真机核验归 G14/G17。
-- **服务端口（issue #6 契约，已确认未实现）**：host-dialog 增 servicePort 输入位（默认 4096）并与 target 内 SSH 端口双标签去混淆（「SSH 端口」vs「服务端口（远端 OpenCode 服务）」，见 [units/server-list.md](units/server-list.md)）。
+- **host-key 三态交互与变更恢复（issue #6，已实现（未验证））**：①**未知**（首次连接）——HostKeyPrompt 行内挂载于 host-manager，展示 `SHA256:…` 指纹，仅「信任并连接」/「拒绝」两动作（确认先于任何认证材料发出）；②**已知**——store 命中即 trust，无弹窗；③**变更**——硬失败 `host-key-changed`，**永不自动覆盖**；恢复入口=行内危险按钮（红色警示，明示主机密钥已变化、可能中间人），一次显式危险确认后 `removeHostKey` → 下次连接回未知确认流。三态 UI 与挂载随 #6 实现交付，真机核验归 G14/G17。
+- **服务端口（issue #6，已实现（未验证））**：host-dialog 增 servicePort 输入位（默认 4096）并与 target 内 SSH 端口双标签去混淆（「SSH 端口」vs「服务端口（远端 OpenCode 服务）」，见 [units/server-list.md](units/server-list.md)）。
 - **凭据绑定与凭据管理器（已实现（未验证）：issue #4）**：
   - host-dialog 凭据绑定块取代 #3 的自由文本 ref 输入：表单不再存在任何凭据值/引用标识输入位；SSH 主机行内显示已绑定指示，凭据管理器入口在 host-manager 头部。
   - 直连服务的「记住」勾选随上游连接对话框（M-009，真值表见 [units/connection.md](units/connection.md)）；**healthPreview 附注**：连接前健康预览（输入过程中的探测）不解析凭据引用、不读 vault——预览只验证地址可达性，权威的凭据检查发生在保存时。

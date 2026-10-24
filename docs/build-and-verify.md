@@ -8,6 +8,8 @@
 
 记录日期：2026-10-24。issue #5 段（直连传输卫生与错误分类，M-011…M-014、V-conn 探针）的验证于同日在分支 `issue-5-direct-connection` 工作树执行（基线 dev @ f9cc526，计划 v1），全部为本机构建/静态/单测级验证；probe 桥 bring-up 与错误矩阵设备门禁（G4/G5/G11/G16）全部 BLOCKED。
 
+记录日期：2026-10-24。issue #6 段（SSH 隧道传输：ssh 桥/verifier/transport、驱动装配、Kotlin ssh 四件、M-015、V-ssh 探针）的验证于同日在分支 `issue-6-ssh-tunnel` 工作树执行（基线 dev @ 8d55bd2，计划 v1；S1–S8 提交链），全部为本机构建/静态/单测级验证；桥 bring-up（G17）与 SSH E2E 及 Kotlin 编译全部 BLOCKED。
+
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
 ## 工具链（本机真实版本）
@@ -82,7 +84,8 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 | 凭据绑定 UI + 凭据管理器（issue #4） | ✓ | ✓（V-css 令牌核验 + 单测） | BLOCKED（C2、G13） | BLOCKED |
 | connection / server-list 产品能力 | 已确认未实现 | BLOCKED | BLOCKED | BLOCKED |
 | NOTICE-THIRD-PARTY.md | 未生成（V4 BLOCKED） | — | — | — |
-| SSH 隧道 | 未开始（归 #6） | — | — | — |
+| SSH 隧道（认证/host-key/转发/四层分类，issue #6） | ✓ | ✓（V-mh 212 单测含 runtime-ssh 全流、V-ssh 全模式、V2/V3/V-conn 回归） | BLOCKED（G17 三桥 bring-up、SSH E2E） | BLOCKED |
+| Kotlin ssh 四件 + gradle 依赖（jsch/bcprov） | ✓（代码） | 静态验证 ✓（V-ssh native 断言 + 括号平衡）；编译 **BLOCKED**（无 SDK，无 APK） | BLOCKED（G17） | BLOCKED |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
 
 ## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
@@ -207,6 +210,41 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 - **probe 分类与 Chromium 漂移**：probe 仅为分类器，权威判定=真实 fetch/上游健康检查（决策 0002 D4；端口级单测锁定「绝不伪造分类、失败即退化」，冲突裁决次序位于 M-013 装配的 `connectErrorKey`——静态核验，勘误 N4）；分类错误（如 SSL 异常消息匹配）在 Android 版本间可能漂移，漂移的后果=退化为泛化文案，不会误放行。
 - **tree-shake 勘误**：M-011 首版 `void SECURE_FETCH_MARKER` 被最小化器删除（标记仅存 sourcemap）；已改为逃逸函数对象属性写入并实测压缩产物命中——该经验已写回 secure-fetch.ts 注释。
 
+## issue #6 段（内建 SSH 认证、host-key 校验与隧道）——2026-10-24 实测记录
+
+交付物：决策记录 [0003](decisions/0003-ssh-transport.md)（库选型/桥架构/host-key/认证/四层分类/线程契约 + 勘误一钉固 fast path、勘误二服务健康检查形态）、第一方 ssh 模块（`packages/mobile-hosts/src/ssh/`：fingerprint/known-hosts/bridge/host-key-verifier/transport 五件 + `src/transport/ssh-errors.ts` 十四码 + i18n `ssh.error.<code>` EN/ZH + servicePort 白名单（registry/storage F1）+ vault 私钥信封 v1（parsePrivateKeyEnvelope）+ 驱动装配（runtime 分类映射/钉固 fast path/post-open 健康检查/ensureTunnel/connectInline/forgetHostKey/fingerprintOf）+ T1 来源态修订（state-machine）+ upstream 镜像 reconnect/connect 钩子 + HostKeyPrompt 挂载与变更恢复 UI（host-manager/host-dialog））、Android ssh 四件（`android/app/src/main/java/ai/opencode/mobile/ssh/`：SshErrorCode/SshHostKeyStore/SshTunnelManager/SshTunnelBridge.kt + MainActivity 三桥接线 + `ssh/` 备份排除）、gradle 依赖 jsch 2.28.8 + bcprov-jdk18on 1.80（许可注释见下 F3 表）、vendor 补丁 M-015（登记于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches`，mobile 补丁总数 14→15）、静态探针 `scripts/verify-ssh.ts`（V-ssh，F3 分段策略 --pre-native/--pre-vendor）。提交链 `a46b634 → 365a3fa → 7b48562 → 996de0d → ab3ad91 → de27569 → e18212e`（分支 `issue-6-ssh-tunnel`，基于 dev @ 8d55bd2，未 push）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #6） | npm 侧零新依赖 | bun.lock 与 issue #5 终态逐字相同：`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`；SSH 库只进 gradle（jsch/bcprov，Android 侧），npm 闭包零变化 | 本文；`git diff 8d55bd2 HEAD -- bun.lock` 为空 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**212 tests / 212 pass / 0 fail，1508 expect()**（21 文件；issue #3/#4/#5 的 156 项 + issue #6 的 56 项：指纹 ssh-keygen 向量（ed25519+RSA）/格式守卫/known_hosts OpenSSH 行语义与 hashed 负例/ssh-errors 十四码全集与 i18n EN+ZH/桥隔离（三握手串互不误捕/ack 前零能力/超时显式 unavailable）/verifier 决策流（trust/prompt/changed/可达性错误不误报 host-key）/transport（loopback-only endpoint/servicePort 默认 4096/cancel-disconnect 相位/abort 即本地拆除）/registry servicePort 白名单与往返/vault 私钥信封双形态/runtime-ssh 全流（prompt→确认→单次 scan→pinned open→ready；变更=硬拒绝零连接+forgetHostKey 恢复；authRequired 分类与 T1 重驱；target-refused/refused/dns/timeout/unreachable/forward-failed 分类；service-unreachable；incompatible；connectionLost→T9→reconnect 换端口同身份；重连预算封顶；delete/disconnect 仅本地拆除红线；fetchHostKey 零凭据材料） | 本文；脚本输出 |
+| V-ssh SSH 静态验证（S5 提交点） | `bun run scripts/verify-ssh.ts --pre-native --pre-vendor` | PASS（rc=0）：①14 分类码 ↔ i18n EN/ZH 全集；②指纹向量 ssh-keygen 逐字复现；③known_hosts 行语义 round-trip + hashed/marker 负例；④三桥握手串两两互异；⑤android 负断言 13 个 .kt/.xml 零命中（无 StrictHostKeyChecking no/ask、无 ProxyJump/ProxyCommand/setProxy*、无 WSL 执行面、无 hashed-hostname 字面量、ssh 包无 serving 面） | 脚本输出 |
+| V-ssh SSH 静态验证（S6 后 native 段） | `bun run scripts/verify-ssh.ts --pre-vendor` | PASS（rc=0）：前述五段 + native 断言：F2 scanHostKey 函数体零认证材料（无 setPassword/addIdentity）、F3 gradle 许可注释（BSD/Bouncy Castle）、SshErrorCode 枚举逐串镜像、F8① 红线双写（teardown 本地/远端进程存活）、`ssh/` 备份排除两 XML 在册（4 个 Kotlin ssh 文件，17 个 android 文件扫描） | 脚本输出 |
+| V-ssh SSH 静态验证（S7 后全量） | `bun run scripts/verify-ssh.ts` | PASS（rc=0）：前述全部 + vendor 段：M-015 entry 接线断言（createWebMessageSshTransport/createSshHostKeyVerifier/createSshHostTransport/握手串/createMobileHosts）+ dist 标记 `opencode-mobile-ssh-handshake`、`mobile(ssh-v1)` 命中构建资产 | 脚本输出 |
+| V-conn 回归（S6/S7 后） | `bun run scripts/verify-direct-connection.ts` | PASS（rc=0，全模式）：android 负断言扩到 17 文件零命中（S6 期间曾因 Kotlin 注释含英文 "proceed" 一词误中 `SslErrorHandler.proceed` 宽匹配——已改词并记录为偏差行）；dist 标记三件完好 | 脚本输出 |
+| V2 冒烟（M-015 后） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0）；3480 文件 / 153,080,016 bytes 拷入 assets；`web-dist/manifest.json` sha256 `fc31da701fd6f1d6a0cbdaf26ea6dd434d5a0ace072ba1cd36446bb49b3804f8`（M-015 使 bundle 哈希刷新） | 本文 |
+| V3 闭包核对（M-015） | `bash scripts/verify-closure.sh` | PASS：树 == pin b4525d79bf + 已登记 15 patches 字节一致、`DANGLING=0`；M-015 为叠层补丁（生成基线=pin+M-001…M-014，entry.tsx 已被 M-007/M-014 改写），经 scratch 树 `git apply --check` round-trip 验证 | 本文 |
+| V5/V6 机械校验（issue #6 增量） | python3 json.tool / xml.dom.minidom | PASS：三个 manifest + `web-dist/manifest.json` 可解析且 diff 为纯追加；`data_extraction_rules.xml`、`full_backup_content.xml`（新增 `ssh/` 排除行）、Manifest、netsec 可解析 | 本文 |
+| V7 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；S4/S6/S7 后重跑） | 脚本输出 |
+| V-cRef / V-vault 回归 | 随 V-mh 全量 | PASS（212 项含 vault/credential-ref 全套回归；M-015 未触碰 M-007/M-009/M-010 断言面） | 本文 |
+| Kotlin 静态（无 SDK） | 括号平衡机械检查 + V-ssh/V-conn 负断言 + 人工审读 | 四个 ssh Kotlin 文件 + MainActivity 增量括号平衡 PASS；编译 **BLOCKED**（无 Android SDK） | 本文 |
+
+### Android 第三方依赖表（F3，2026-10-24 对 Maven Central 实测；issue #6 新增）
+
+| 依赖 | 版本 | jar 实测字节数 | 许可 | 审计判定 |
+| --- | --- | --- | --- | --- |
+| `com.github.mwiede:jsch` | 2.28.8 | 716,757（≈717 KB） | Revised BSD ×2（主许可 + JZlib；jBCrypt ISC 随源码捆绑） | 宽松，登记不 STOP |
+| `org.bouncycastle:bcprov-jdk18on` | 1.80 | 8,682,747（≈8.7 MB；R8 可裁） | Bouncy Castle Licence（MIT 改编） | 宽松，登记不 STOP |
+
+许可均宽松，不触发 V4 审计停点；登记于 `android/app/build.gradle.kts` 依赖行注释与上表。NOTICE-THIRD-PARTY.md 生成仍受 V4 既有 12 项用户决策阻塞，不受本轮影响。实施中如发现任一实际携带许可与登记不符或含传染性条款 → 立即停止并交用户决策（候选替换 sshj，Apache-2.0）。
+
+### 诚实边界（issue #6 段）
+
+- **设备级全部 BLOCKED**：G17 三桥并存 bring-up（三握手各自捕获/互不误捕/互不重置 ack、cancel 即时性、C1–C5/G14–G16 不受扰动复测）、SSH E2E（auth 成败端到端、未知/已知/变更三态真机流、目标拒绝、服务不可达与 incompatible 真服务、重连换端口同身份、**隧道/App 关闭后远程任务存活**）、真机 Kotlin 协商算法矩阵核对——均未执行。
+- **Kotlin 未编译**：无 Android SDK，ssh 四件与 MainActivity/gradle 改动仅静态（V-ssh 负断言 + 括号平衡 + 人工审读），BLOCKED 如实。JSch API 面（`HostKeyRepository.check(host, key, session)` 的 key 参数语义、`ChannelDirectTCPIP.setHost/setPort`、`UnknownHostKeyException` 消息分类）按库文档/上游实现比对，未经编译器验证。
+- **失败分类为最佳努力映射**：JSch 异常面 → wire 分类码的映射（`classifySessionException`）按消息关键词分类，真机漂移后果=落入 `io` 泛化文案，不会误放行（分类只选文案，不改变 fail-closed 行为）。
+- **钉固 fast path 的安全边界**：钉固指纹只能经 T2→T3 用户确认进入机器上下文（T4/T8/T13 均清除，单测锁定）；钉固 open 的权威比对在 Kotlin store（KEX 失配 fail-closed）；scan 会话零认证材料由 V-ssh 负断言锁定。运行期断言归 G17。
+
 ## 上游更新演练记录（S3，经 issue #27）
 
 完整记录以 `vendor/upstream/provenance.json#pinUpdateExercise` 与 `vendor/upstream/PROVENANCE.md` 为准，此处为摘要：
@@ -225,14 +263,14 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 | APK 构建（`:app:assembleDebug`、wrapper bootstrap） | Android SDK（compileSdk 36） | 后续环境准备；命令已记录于本文 |
 | G1–G12 设备门禁（清单见 [design/interaction.md](design/interaction.md)） | 真机/模拟器（+G3/G6/G7/G9/G11/G12 需授权远程服务） | issue #2 验收第 2 条 |
 | live 直连 HTTPS E2E（选项目/开会话/发提示/增量事件/PTY） | 授权服务 + 模型；不允许 fixture 替代 | issue #2 验收第 4 条 |
-| SSH E2E | SSH 适配未实现 | issue #6 / #21 |
+| SSH E2E（auth 成败端到端、未知/已知/变更三态、目标拒绝、服务不可达与 incompatible 真服务、重连换端口同身份、隧道/App 关闭后远程任务存活） | 真机/模拟器 + 授权 SSH 主机 + 授权服务；代码已实现（未验证），静态证据见 V-ssh 与决策 0003 | issue #6 / #21 |
 | 许可审计（V4）与 NOTICE-THIRD-PARTY.md 生成 | 12 项许可类别用户决策 | 用户决策，见下表 |
 | G13 多 host 一窗 + 隔离（issue #3） | 真机/模拟器（+授权远程服务） | issue #3 验收第 5/3 条 |
 | G14 连接状态呈现与恢复（issue #3） | 真机/模拟器 + 授权远程服务；host-key 真实流另归 #6 | issue #3 验收第 2 条 |
 | G15 SSH 身份稳定 + 注册表恢复（issue #3） | 真机/模拟器 + SSH 远程主机（依赖 #6 隧道） | issue #3 验收第 3 条 |
-| host-key 真实校验流 | SSH 适配未实现（stub fail-closed 已立桩，恒拒绝） | issue #6 |
+| host-key 真实校验流（未知/已知/变更三态 + 变更恢复） | 代码已实现（未验证）：HostKeyPrompt 挂载 + SshBridgeHostKeyVerifier + known_hosts；真机归 G14/G17 | issue #6 |
 | SSH 凭据引用真实解析 | ~~NullResolver 恒 undefined~~ 已随 issue #4 实现（未验证）：vault-backed resolver + Android 桥；**设备级归 C1/C2** | issue #4 |
-| SSH 端口变化后身份稳定真机验证 | 隧道重解析未实现（单测已锁定键不随端口变化） | issue #6（配合 G15） |
+| SSH 端口变化后身份稳定真机验证 | 代码已实现（未验证）：ensureTunnel/reconnect 单测锁定换端口同身份；真机归 G17（配合 G15） | issue #6（配合 G15） |
 | live 直连 E2E（含 incompatible 真服务差异核对） | 授权服务 + 模型；直连不展示 incompatible（上游 web 原生行为，补齐归 #5） | issue #2/#5 |
 | G16 probe 桥 bring-up（issue #5） | 真机/模拟器（API 23+）：probe 握手/ack/重试耗尽显式 unavailable/与 vault 桥并存互不误捕/probe 零日志值负例 | issue #5 |
 | G3 预检实测（修正后） / G4 坏证书分类呈现 / G5 明文阻断呈现 / G11 错误矩阵端到端（issue #5 细化） | 真机/模拟器 + 授权远程服务（G4 另需证书可控服务）；静态证据与单测已就位，见 V-conn 与决策 0002 | issue #5 |
@@ -244,6 +282,8 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 | 平台 WebMessage 细节 bring-up 实测（ack 到达时序、超时兜底真机复核） | 真机/模拟器 | issue #4（随 C1） |
 | Kotlin vault 三件 + MainActivity 编译 | Android SDK（compileSdk 36，minSdk 29） | 后续环境准备；命令已记录于本文 |
 | Kotlin probe 两件（DirectEndpointProbe/ProbeBridge）+ MainActivity 增量编译 | Android SDK（compileSdk 36，minSdk 29）；括号平衡与红线负断言（V-conn）为仅有的静态检查 | issue #5；命令已记录于本文 |
+| G17 三桥并存 bring-up（issue #6 新设门禁） | 真机/模拟器（API 23+）：vault/probe/ssh 三握手各自捕获互不误捕/互不重置 ack；ssh 桥 cancel/disconnect 即时响应（不依赖 executor 队列排空）；C1–C5 与 G14–G16 不受扰动复测 | issue #6 |
+| Kotlin ssh 四件（SshErrorCode/SshHostKeyStore/SshTunnelManager/SshTunnelBridge）+ MainActivity/gradle 增量编译 | Android SDK（compileSdk 36，minSdk 29）；括号平衡与红线负断言（V-ssh）为仅有的静态检查；JSch API 面未经理编译器验证 | issue #6；命令已记录于本文 |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -270,6 +310,7 @@ bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连
 
 | 项 | 说明 | 处置 |
 | --- | --- | --- |
+| V-conn 宽匹配负断言误中（issue #6 S6） | `verify-direct-connection.ts` 的 `/\bproceed\b/i`（本意捕 SslErrorHandler.proceed）误中 SshTunnelManager.kt 注释中的英文单词 "proceed to (2)"（与 SSL 无关） | 改注释措辞为 "continue to (2)"（保留宽断言不减负断言强度）；随 V-conn 全模式 PASS 复核 |
 | 返回键实现与计划表述差异 | 计划 §3 写 `onBackPressedDispatcher`，该 API 属 androidx，与「零 androidx」约束冲突；按框架 `onBackPressed` 实现（minSdk 29 全覆盖）。Android 16 起 targetSdk ≥ 36 默认开启 predictive back、`onBackPressed` 不再被调用，故 manifest 显式 `android:enableOnBackInvokedCallback="false"` 维持该行为；未来迁移 `OnBackInvokedCallback` 需 minSdk（API 33+）守卫 | 已在 [design/interaction.md](design/interaction.md) 交互基线记录；迁移留后续 issue |
 | 许可审计条目口径 | 交接摘要「lightningcss×2」为概数；实跑 12 项中 lightningcss 系为 6 项（2 个 JS 版本 + 4 个平台原生二进制包） | 按实跑输出记录（本文上表），以 `provenance.json` 的 12 项总数为准 |
 | 回滚比对计数口径 | 3138 = 前 pin（cec70f3）构建的 dist 文件基数（回滚重建后与之比对），3330 = 候选 pin（b4525d79）构建基数（当前 `web-dist/manifest.json`）——两次构建本就不同分母，3110/3138 是回滚重建相对其自身基数的字节一致数 | 结论句替代此前「待澄清」记录；不影响 fallback 判定结论 |

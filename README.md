@@ -2,7 +2,7 @@
 
 OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为其他移动平台保留适配空间。
 
-> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，host-key 校验与 SSH 隧道为 fail-closed stub，真实实现归 issue #6）；设备凭据保险库已实现（未验证，issue #4：vault 端口/信封 v1/Keystore 落盘/可选记住交互 + vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED）；直连传输卫生与错误分类已实现（未验证，issue #5：vendor 补丁 M-011…M-014——validated-follow 重定向策略、userinfo 凭据 URL 拒发、端点 probe 分类器与精确错误反馈；TLS=system CA 唯一信任锚，明文 HTTP 与自签/私有 CA 直连本期不支持，见 `docs/decisions/0002`；probe 桥 bring-up 与错误矩阵端到端 BLOCKED）。尚无 APK；两种连接方式与会话功能未实现，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
+> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，issue #6 增 SSH 隧道传输：host-key 校验/变更拒绝与恢复/本地转发，fail-closed stub 保留为无注入默认）；设备凭据保险库已实现（未验证，issue #4：vault 端口/信封 v1/Keystore 落盘/可选记住交互 + vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED）；直连传输卫生与错误分类已实现（未验证，issue #5：vendor 补丁 M-011…M-014——validated-follow 重定向策略、userinfo 凭据 URL 拒发、端点 probe 分类器与精确错误反馈；TLS=system CA 唯一信任锚，明文 HTTP 与自签/私有 CA 直连本期不支持，见 `docs/decisions/0002`；probe 桥 bring-up 与错误矩阵端到端 BLOCKED）；SSH 隧道传输已实现（未验证，issue #6：vendor 补丁 M-015 + Kotlin `android/.../ssh/`——内建 SSH 认证（密码/密钥+导入）、host-key 显式确认与变更严格拒绝（known_hosts 为 OpenSSH 行格式、指纹与 `ssh-keygen -lf` 互通）、到远端回环服务的本地转发与四层失败分类；SSH 库只在 Kotlin 桥内，见 `docs/decisions/0003`；G17 三桥 bring-up 与 SSH E2E、Kotlin 编译全部 BLOCKED）。尚无 APK；两种连接方式的设备验证与会话功能均未交付，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
 
 ## 产品目标
 
@@ -20,7 +20,7 @@ OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为
 ## 凭据与隐私
 
 - SSH 私钥和服务凭据可以保存在用户设备上，不嵌入 APK，也不上传到本仓库。
-- 设备侧加密存储已实现（未验证，issue #4）：Android Keystore（AES-256-GCM）加密的信封文件落盘，元数据索引永不存值；无额外解锁（不绑定生物识别/锁屏凭据）；vault 不可用是显式状态，不存在明文回退。SSH 密钥解析格式支持范围归 SSH 隧道实现（issue #6）。
+- 设备侧加密存储已实现（未验证，issue #4）：Android Keystore（AES-256-GCM）加密的信封文件落盘，元数据索引永不存值；无额外解锁（不绑定生物识别/锁屏凭据）；vault 不可用是显式状态，不存在明文回退。SSH 密钥解析格式支持范围随 issue #6 交付（支持矩阵见 [docs/design/units/connection.md](docs/design/units/connection.md) 与 [docs/decisions/0003](docs/decisions/0003-ssh-transport.md)，真机协商核对 BLOCKED）。
 - 服务密码默认 memory-only（M-002）；「记住」为可选项（勾选后经 vault 加密落盘，重启自动恢复）。
 - SSH 主机指纹必须校验；不得通过全局关闭 TLS 校验来兼容服务证书。
 - 日志、备份和诊断导出必须避免泄露密码、令牌、私钥与私钥口令；备份排除（allowBackup=false + data extraction rules）已实现（未验证）。

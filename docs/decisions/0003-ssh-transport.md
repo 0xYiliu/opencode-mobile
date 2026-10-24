@@ -89,6 +89,8 @@ Kotlin 校验 KEX 呈现键 == pinned → 写入 store（首次接受即存，�
 
 - **scan 机制契约（F2）**：`fetchHostKey` = 一次性 JSch Session + 自实现 `HostKeyRepository`，其 `check()` 捕获服务器 KEX 呈现的 K_S 后返回；`StrictHostKeyChecking` 恒 `"yes"`（scan 会话同样不禁用校验——仓库实现吃掉比对结果、session 按 yes 抛 Unknown/ChangedHostKeyException 属**预期路径**，不视为错误）。**scan 会话零认证材料**：不 setPassword、不 addIdentity、不经任何认证尝试；全部 connect/scan 路径显式超时。信任路径 Kotlin 仍以 store 为权威比对（纵深：即使 JS 侧状态漂移，native 比对兜底）。
 - **变更=严格拒绝 + 显式安全恢复**：KEX≠store → 硬失败 `host-key-changed`，**永不自动覆盖**；恢复 UI = 显式危险确认（红色警示文案，说明"服务器主机密钥已变化"）→ `removeHostKey(target)` → 下次连接回未知指纹确认流。**无任何"跳过校验"/"仅本次信任"路径**（负断言在册：无 `StrictHostKeyChecking=no/ask`、无自动 add、无 `addHostKey` 绕过确认流的调用面）。
+- **勘误一（实现期修订，已实现（未验证））——确认后的钉固 fast path**：store 只在钉固 open 时记录密钥，因此 T3 确认后的第二次 verify（再次 fetchHostKey）仍会得到 prompt → 永久重弹确认。驱动（`packages/mobile-hosts/src/runtime.ts` attemptOpen）据此对**机器上下文已持钉固指纹**的尝试跳过 verify 门、直接 `open(pinnedFingerprint)`，由 Kotlin 侧在 KEX 权威比对（失配 fail-closed）——即上流程图「确认 → open(pinnedFingerprint)」的直接落地。安全性论证：钉固指纹只能经 T2→T3 用户确认进入上下文（T4/T8/T13 均清除），钉固 open 由 Kotlin store 比对兜底；scan 会话仍零认证材料（凭据仅在钉固比对通过后的认证会话发出）。
+- **勘误二（实现期修订，已实现（未验证））——服务层健康检查形态**：open 成功后的服务层权威判定为有界 GET `<endpoint>/api/info`（10s 超时、`redirect: "error"`）。端点是内核分配的 `127.0.0.1:<dyn>` 回环口（`parseBridgeEndpoint` 构造校验仅接受回环），URL 构造上不含 userinfo、重定向只可能是敌意构造故直接拒绝——因此不走 secure-fetch 的 validated-follow 封装而以更严格的 redirect:error + 回环限定承载同等防线；401/403 视为服务存活（服务认证归上游流），SSH 凭据不用于服务请求。
 
 ## 4. 认证方案
 
@@ -150,6 +152,6 @@ hostId 单例：同一主机同时至多一个活跃 Session；新连接先拆�
 
 | 条目 | 状态 |
 | --- | --- |
-| 选型/桥架构/host-key/认证/四层分类/线程契约 代码承载 | `packages/mobile-hosts/src/ssh/*` + `android/.../ssh/*` + M-015（**静态实现（未验证）**） |
+| 选型/桥架构/host-key/认证/四层分类/线程契约 代码承载 | `packages/mobile-hosts/src/ssh|transport/*` + `android/.../ssh/*` + M-015（**已实现（未验证）**；本机验证=V-mh 212 单测（含 runtime-ssh 全流）、V-ssh 探针全模式 PASS、V2/V3/V-conn PASS；Kotlin 编译 BLOCKED 无 SDK） |
 | 设备级验证（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/服务不可达/incompatible 真服务/重连/远程任务存活） | **BLOCKED** |
 | 敏感信息 | 本文不含凭据、令牌、私钥或真实连接配置 |
