@@ -68,7 +68,16 @@ class DirectEndpointProbe(
     /** Classification result; null = unclassified (caller must degrade, never guess). */
     fun classify(baseUrl: String, password: String?): Code? {
         val endpoint = probeEndpointOf(baseUrl) ?: return null
-        val connection = open(endpoint, password)
+        // Connection construction is inside the guarded region too: URI()/toURL()/
+        // openConnection() can throw (malformed scheme details, unknown protocol), and no
+        // exception may escape classify() — the bridge maps a throw to an error response,
+        // but the contract here is to return null (unclassified) instead.
+        val connection = try {
+            open(endpoint, password)
+        } catch (e: Exception) {
+            Log.w(TAG, "probe: endpoint open failed")
+            return null
+        }
         return try {
             readVerdict(connection)
         } catch (e: IOException) {
