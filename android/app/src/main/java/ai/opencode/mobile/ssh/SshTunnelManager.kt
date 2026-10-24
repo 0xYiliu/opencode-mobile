@@ -64,7 +64,7 @@ class SshTunnelManager(context: android.content.Context) {
         private const val SCAN_TIMEOUT_MS = 15_000
         private const val FORWARD_PROBE_TIMEOUT_MS = 10_000
         private const val SERVER_ALIVE_INTERVAL_MS = 15_000
-        private const val WATCHDOG_INTERVAL_MS = 30_000
+        private const val WATCHDOG_INTERVAL_MS = 30_000L
         private const val MAX_CREDENTIAL_BYTES = 65_536 // the vault bound (decision 0003 §4)
         private const val MAX_PORT = 65_535
         private val FINGERPRINT = Regex("^SHA256:[A-Za-z0-9+/]{43}$")

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
@@ -16,6 +17,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import ai.opencode.mobile.probe.ProbeBridge
 import ai.opencode.mobile.ssh.SshTunnelBridge
+import ai.opencode.mobile.svcops.ServiceOpsBridge
 import ai.opencode.mobile.vault.CredentialVaultBridge
 import fi.iki.elonen.NanoHTTPD
 import java.io.IOException
@@ -34,6 +36,7 @@ class MainActivity : Activity() {
     private var vaultBridge: CredentialVaultBridge? = null
     private var probeBridge: ProbeBridge? = null
     private var sshBridge: SshTunnelBridge? = null
+    private var svcopsBridge: ServiceOpsBridge? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +67,12 @@ class MainActivity : Activity() {
         // page load alongside the vault and probe handshakes. Until the page acks, the ssh
         // transport stays unavailable (fail-closed stub on the JS side).
         sshBridge = SshTunnelBridge(this, webView)
+        // Service ops bridge (issue #7): the FOURTH protocol-isolated sibling — its own
+        // handshake string (opencode-mobile-svcops-handshake) and channel, restarted on
+        // every page load alongside the other three. Until the page acks, the service ops
+        // panel stays degraded-hidden (fail-closed stub on the JS side); its command face
+        // is a native-side whitelist (ServiceCommandValidator), never free commands.
+        svcopsBridge = ServiceOpsBridge(this, webView)
 
         webView.loadUrl(START_URL)
     }
@@ -103,6 +112,10 @@ class MainActivity : Activity() {
                 // The ssh bridge (issue #6) is the third protocol-isolated handshake round
                 // (see SshTunnelBridge); ack lifecycle navigation-scoped like the others.
                 sshBridge?.onPageFinished()
+                // The svcops bridge (issue #7) is the fourth protocol-isolated handshake
+                // round (see ServiceOpsBridge); ack lifecycle navigation-scoped like the
+                // others.
+                svcopsBridge?.onPageFinished()
             }
         }
 
@@ -197,6 +210,11 @@ class MainActivity : Activity() {
         // (AGENTS.md red line; F8① in decision 0003).
         sshBridge?.destroy()
         sshBridge = null
+        // The svcops bridge tears down locally too (exec channel + short-lived session
+        // close only) — the remote OpenCode service/process keeps running; a cancel never
+        // stops a remote task (AGENTS.md red line; decision 0004).
+        svcopsBridge?.destroy()
+        svcopsBridge = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {

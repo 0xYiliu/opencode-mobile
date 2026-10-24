@@ -214,7 +214,11 @@ class ProbeBridge(
                     val code = probe.classify(url, password)
                     // null = unclassified (transport answered oddly / 3xx left the route):
                     // an error response keeps the JS side honest — unavailable, not a guess.
-                    code?.name ?: throw ProbeRefusedException()
+                    // The enum is mapped to its JS wire string here (the respond face takes
+                    // the already-mapped name; first Kotlin compile probe of issue #7 S5
+                    // surfaced this latent type error from issue #5 — never compiled
+                    // before for lack of an SDK).
+                    code?.let { codeName(it) } ?: throw ProbeRefusedException()
                 }
             }
         }
@@ -233,7 +237,7 @@ class ProbeBridge(
                 JSONObject()
                     .put("id", requestId)
                     .put("ok", true)
-                    .put("result", JSONObject().put("code", codeName(block())))
+                    .put("result", JSONObject().put("code", block()))
             } catch (e: ProbeRefusedException) {
                 JSONObject().put("id", requestId).put("ok", false).put("code", "io").put("message", "")
             } catch (e: Exception) {

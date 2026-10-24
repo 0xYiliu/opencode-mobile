@@ -232,9 +232,6 @@ export function mergeServiceEvidence(input: { api?: ApiServiceEvidence; exec?: E
   if (exec?.os === "unknown") {
     return { status: { kind: "unsupported-os", os: "unknown" }, notes }
   }
-  if (exec?.os && exec.os !== "unknown") {
-    // (a known family: discovery proceeds)
-  }
 
   if (api?.reachable) {
     const version = api.version

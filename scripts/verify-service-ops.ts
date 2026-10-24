@@ -207,7 +207,10 @@ if (!PRE_NATIVE) {
       if (!validator!.text.includes(`"${template.id}"`)) fail(`ServiceCommandValidator.kt does not whitelist the template "${template.id}"`)
     }
     for (const [name, pattern] of Object.entries(SERVICE_PARAM_PATTERNS)) {
-      if (!validator!.text.includes(pattern)) fail(`ServiceCommandValidator.kt does not mirror the param pattern ${name} (${pattern})`)
+      // The Kotlin source stores the pattern in its STRING-LITERAL form: every backslash
+      // doubled relative to the JS regex value. Compare against that literal form.
+      const kotlinLiteral = pattern.replace(/\\/g, "\\\\")
+      if (!validator!.text.includes(kotlinLiteral)) fail(`ServiceCommandValidator.kt does not mirror the param pattern ${name} (${pattern})`)
     }
     // The OS applicability domains are mirrored (closed domain on the native side too).
     for (const domain of ["linux", "darwin", "windows", "any"] as const) {
