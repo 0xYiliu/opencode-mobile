@@ -14,7 +14,7 @@
 ## 2. 第四桥架构（决策 0003 §2 的第四座姊妹桥）
 
 - **协议隔离第四桥**：握手串 `opencode-mobile-svcops-handshake`，镜像 vault/probe/ssh 三桥机制（三层信任、ack 前零能力、requestId 关联、JSON 字符串双向、四桥握手串两两严格不等互不误捕——单测与探针双重锁定）。G17 的三桥并存语义升级为 **G18 四桥并存**（interaction.md）。
-- **短命独立 SSH 会话**：`ServiceOpsManager` 每条命令开一次性认证会话（`SshHostKeyStore` 权威 + `StrictHostKeyChecking="yes"` + pinnedFingerprint 强制），单命令、有界超时（连接 30s / 执行 60s）、有界输出（stdout/stderr 各 16 KiB 截断标记 + exitStatus）、用毕本地拆除。**不搭既有隧道会话便车**：发现/安装与隧道状态解耦（隧道断着也能修服务），且不扰动既有 watchdog/teardown 线程契约（0003 F6）。每主机至多一条在途 exec（host:port 键控，防御性——JS 驱动本身每主机串行）。
+- **短命独立 SSH 会话**：`ServiceOpsManager` 每条命令开一次性认证会话（`SshHostKeyStore` 权威 + `StrictHostKeyChecking="yes"` + pinnedFingerprint 强制），单命令、有界超时（连接 30s / 执行 60s）、有界输出（stdout/stderr 各 16 KiB 截断标记 + exitStatus）、用毕本地拆除。**不搭既有隧道会话便车**：发现/安装与隧道状态解耦（隧道断着也能修服务），且不扰动既有 watchdog/teardown 线程契约（0003 F6）。每主机至多一条在途 exec（host:port 键控，防御性——JS 驱动本身每主机串行）。**已知取舍（登记）**：桥侧为单工作 executor——跨主机的 exec 也在同一队列串行化；服务操作是低频管理动作，吞吐非目标，换得的强序消除了并发 exec 的簿记面（N6）。
 - **红线（双写于 Kotlin 注释与本文）**：所有拆除路径仅关闭本地 exec 通道与会话——**远端 OpenCode 服务/进程存活；客户端断开/取消永不停止远端任务**。执行中取消 → JS 侧流态进入 `cancelRequested`，诚实标注「远端可能已继续执行，以取消后强制重新发现的复核结果为准」，绝不谎称已中止（`cancel-uncertain`）。
 
 ## 3. 命令面安全架构（无自由命令注入面）
@@ -22,6 +22,7 @@
 - **白名单双门禁**：TS 侧纯函数模板表（`service-ops/commands.ts`，预览=执行逐字节一致）与 Kotlin `ServiceCommandValidator`（templateId 全集 + 逐模板参数正则逐字镜像 + 模板 OS 适用域）互为镜像，`scripts/verify-service-ops.ts` 断言两侧结构一致；漂移=Kotlin fail-closed 拒绝（安全侧倾）。**全仓 `setCommand` 唯一调用点**位于 `ServiceOpsManager.exec` 内、且其入参只能来自校验器输出（探针断言唯一性 + 门禁引用）。
 - **参数双闸**：先全量拒 shell 元字符/控制字符/cmd 转义（`; | & $ ( ) < > 反引号 引号 换行 `!` `^` `%`）与路径穿越（`..`）、越界端口；再按模板 allowlist 正则放行。无任何松散类型转换。
 - **OS 适用域闭域（B2/N2）**：每条模板携带 OS 适用域字段；向 windows 装配 POSIX 模板、向 POSIX 装配 windows 模板在 TS 装配与 Kotlin 校验双侧拒绝。OS 判定引导对（`uname -s`/`ver`）是仅有的 `"any"` 域行——发现的第一个命令尚不知道远端 OS，两条都是固定白名单串，输出决定归类，解析失败归 os-unknown 如实呈现，绝不猜测。
+- **进程探测局限（N5 落字）**：探测模板中的 `pgrep -x opencode` 仅匹配 comm==`opencode` 的进程；npm/bun 安装形态下服务进程是 node/bun 宿主（comm=`node`/`bun`），进程探测会**漏报**。处置：running 判定不单独依赖进程探测——端口探测 + `/api/info` 的 API 证据为权威（合并规则，0004 §2 的真实 fetch 原则），进程探测仅作补充证据；面板 limitation 文案直陈此漏报可能（`svcops.limitation.pgrep`），`discovery.ts` 的 limitation 集合强制携带该项。
 - **零删除类模板（N8 选型）**：模板表无 `rm`/`del`/`rmdir`/`Remove-Item`；无 uninstall 动作行；**卸载故事=结果面板可复制、不执行的命令文本**（i18n `svcops.uninstall.*`）。理由：自动删除模板的破坏面收益小于风险；fresh-install 失败的清理交给用户在自身终端执行（见 §5）。
 
 ### 3.1 上游动词出处（N6 落字）
@@ -45,7 +46,7 @@
 
 ## 6. 凭据边界（N7：显式继承 0003 §4）
 
-每条 exec 命令的认证材料由面板经 vault resolver 按该主机 credentialRef **逐命令解析**，过桥 JSON 单向一次、memory-only、零日志、零持久化、零回显（响应只回分类码/有界输出/exitStatus；Kotlin 错误响应 message 恒空串）。**仅 store 已知主机（或经连接流完成指纹确认的 pinnedFingerprint 主机）可发起**：未知/变更指纹在 Kotlin 侧即拒绝（`host-key-unknown`，引导回连接流；变更密钥由连接流自身的 store 校验硬拒绝并提供恢复 UI——第四桥不自建信任、绝不覆盖密钥），**凭据在指纹确认前不发出**。host-key 信任的唯一所有权仍属连接流（0003 §3.3），0003 §4 的全部原语义在第四桥逐字继承。
+桥协议增 `username` 字段（评审 B2）：target 的 `user@` 段是**路由事实而非凭据**，过桥供 `getSession` 认证定用户（修复既往密码被当作用户名的认证错位）；纳入既有形状校验（正则镜像）与零日志纪律。每条 exec 命令的认证材料由面板经 vault resolver 按该主机 credentialRef **逐命令解析**，过桥 JSON 单向一次、memory-only、零日志、零持久化、零回显（响应只回分类码/有界输出/exitStatus；Kotlin 错误响应 message 恒空串）。**仅 store 已知主机（或经连接流完成指纹确认的 pinnedFingerprint 主机）可发起**：未知/变更指纹在 Kotlin 侧即拒绝（`host-key-unknown`，引导回连接流；变更密钥由连接流自身的 store 校验硬拒绝并提供恢复 UI——第四桥不自建信任、绝不覆盖密钥），**凭据在指纹确认前不发出**。host-key 信任的唯一所有权仍属连接流（0003 §3.3），0003 §4 的全部原语义在第四桥逐字继承。
 
 ## 7. 安全评审节
 
@@ -55,7 +56,7 @@
 4. **凭据面**：N7 边界（§6）+ 零值日志（探针断言无 host/port/凭据插值）+ 备份排除不涉新目录（known_hosts 既有排除不变）。
 5. **降级面**：无桥=无能力（面板隐藏）；ack 前=零能力；校验器拒绝=显式 `exec-denied`；分类器不具体即降级泛化码并保留证据原文。
 6. **已接受的有界竞态**：确认与执行之间的 TOCTOU 残余（§4/N3）——缓解与声明如上，不可根除、影响有界（最坏=对已变化状态执行了一次已确认动作，绝不静默覆盖运行中服务：预检守卫拒绝）。
-7. **进程边界**：客户端断开/销毁仅本地拆除（§2 红线）；`occupied-port`/`permission-detach` 等真实路径的真机验证归 G18/BLOCKED。
+7. **进程边界**：客户端断开/销毁仅本地拆除（§2 红线）；`occupied-port`/`permission-denied` 等真实路径的真机验证归 G18/BLOCKED。
 
 ## 8. 验收⑤条件句映射
 

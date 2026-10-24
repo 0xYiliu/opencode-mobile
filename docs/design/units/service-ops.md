@@ -64,4 +64,4 @@ G18（interaction.md 完整枚举）：四桥并存 bring-up（四握手各自�
 
 - 入口：connection 单元的 `service-unreachable` 失败态与 host-manager 行内「服务操作」展开（[units/connection.md](connection.md) 交叉链接）。
 - 信任：host-key 唯一所有权归连接流（[决策 0003 §3.3](../../decisions/0003-ssh-transport.md)）；第四桥不自建信任。
-- 凭据：逐命令 vault 解析、单次过桥（[决策 0004 §6](../../decisions/0004-service-operations.md)）。
+- 凭据：逐命令 vault 解析、单次过桥（[决策 0004 §6](../../decisions/0004-service-operations.md)）；桥协议的 `username` 字段是 target `user@` 段的**路由事实而非凭据**（评审 B2：修复密码被当作用户名的认证错位；纳入形状校验与零日志纪律）。
