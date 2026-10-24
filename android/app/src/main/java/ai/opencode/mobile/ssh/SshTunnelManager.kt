@@ -328,22 +328,29 @@ class SshTunnelManager(context: android.content.Context) {
      * fail-closed implementation. add() is a NO-OP on purpose: the ONLY recording path is
      * store.record from the pinned-open flow; there is no auto-add bypass.
      *
-     * API surface note (review B1, verified by javap against the Maven Central
+     * API surface note (reviews B1 + B1', both verified against the Maven Central
      * com.github.mwiede:jsch 2.28.8 jar — no SDK needed): the fork modernized
      * HostKeyRepository — check takes (host, key) WITHOUT the legacy JCraft Session
      * parameter, the constant is NOT_INCLUDED (one word), and getKnownHostsRepositoryID()
-     * replaces the removed getStatus(). The session's port is captured in this factory's
-     * closure (one repository per session), so the 2-arg check loses nothing.
+     * replaces the removed getStatus(). Additionally (B1'), Kotlin does not resolve Java
+     * interface constants through the implementing class, so the constants are written
+     * qualified (HostKeyRepository.XXX) — confirmed compilable with
+     * kotlin-compiler-embeddable 2.2.20/2.3.21 on the real jar. The session's port is
+     * captured in this factory's closure (one repository per session), so the 2-arg check
+     * loses nothing.
      */
     private fun storeRepository(host: String, port: Int): HostKeyRepository = object : HostKeyRepository {
         override fun check(jhost: String?, presented: ByteArray?): Int {
-            if (jhost == null || presented == null) return NOT_INCLUDED
+            // Kotlin does NOT bring Java interface constants into the implementing class's
+            // lexical scope (review B1' — unresolved references on the unqualified names),
+            // so every constant is qualified with the interface name.
+            if (jhost == null || presented == null) return HostKeyRepository.NOT_INCLUDED
             val blob = Base64.encodeToString(presented, Base64.NO_WRAP)
-            val type = SshHostKeyStore.keyTypeOf(blob) ?: return NOT_INCLUDED
+            val type = SshHostKeyStore.keyTypeOf(blob) ?: return HostKeyRepository.NOT_INCLUDED
             return when (store.check(host, port, type, blob)) {
-                null -> OK
-                SshErrorCode.HOST_KEY_CHANGED -> CHANGED
-                else -> NOT_INCLUDED
+                null -> HostKeyRepository.OK
+                SshErrorCode.HOST_KEY_CHANGED -> HostKeyRepository.CHANGED
+                else -> HostKeyRepository.NOT_INCLUDED
             }
         }
 
