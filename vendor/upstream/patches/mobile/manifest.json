@@ -160,6 +160,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; probe classification precedence and degrade are unit-tested in packages/mobile-hosts/test/probe.test.ts (port level); V2 build smoke + dialog.server.error keys in dist language chunks; device behavior BLOCKED (G4/G5/G11).",
       "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts."
+    },
+    {
+      "id": "M-014",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Probe bridge wiring (issue #5). The entry creates the endpoint probe client over the protocol-isolated probe transport (independent opencode-mobile-probe-handshake string, shape-validated capture with exactly one port, port confined to the transport closure, acked immediately, later handshakes ignored, event.origin never consulted - embedder-posted messages carry an empty origin by platform construction) and passes it into createMobileHosts alongside the vault. The two bridges sit on the same window message events but each captures only its own handshake string, so neither can capture the other's port and the vault gates C1-C5 are not perturbed. Before the native ack the probe stays unavailable (fail-closed); a never-acked bridge degrades the dialog to the generic error message.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts M-007 assertions (listener-before-render, markers, no origin consultation) still pass; probe transport isolation and handshake shape are unit-tested in packages/mobile-hosts/test/probe.test.ts; dist markers opencode-mobile-probe-handshake and mobile(probe-v1) + scripts/verify-direct-connection.ts full mode; device behavior BLOCKED (G16).",
+      "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field)."
     }
   ]
 }
