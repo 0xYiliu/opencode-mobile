@@ -17,6 +17,7 @@ import { isSshErrorCode, sshErrorCodeMessageKey } from "../transport/ssh-errors"
 import { CredentialManager } from "./credential-manager"
 import { HostDialog } from "./host-dialog"
 import { HostKeyPrompt } from "./host-key-prompt"
+import { ServicePanel } from "./service-panel"
 
 function stateLabel(t: ReturnType<typeof createTranslator>, state: HostState): string {
   return t(`state.${state}` as Parameters<typeof t>[0])
@@ -28,6 +29,10 @@ export function MobileHostManager() {
   const [dialogOpen, setDialogOpen] = createSignal(false)
   const [editingId, setEditingId] = createSignal<string | undefined>(undefined)
   const [credentialsOpen, setCredentialsOpen] = createSignal(false)
+  // Issue #7: the inline service-operations panel expands per row (one open at a time).
+  // The panel itself degrades to nothing when no svcops bridge client is injected, so a
+  // client-only build shows the row without the toggle's target (stub fail-closed).
+  const [serviceOpenFor, setServiceOpenFor] = createSignal<string | undefined>(undefined)
   // Memory-only recovery bookkeeping: hosts whose stored key was removed in this session
   // (the row then shows the "connect to re-verify" hint instead of the danger entry).
   const [forgotten, setForgotten] = createSignal<Record<string, boolean>>({})
@@ -74,7 +79,8 @@ export function MobileHostManager() {
         <ul class="flex w-full min-w-0 flex-col gap-2">
           <For each={runtime.registry.list()}>
             {(host) => (
-              <li class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2">
+              <>
+                <li class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2">
                 <div class="flex min-w-0 flex-1 flex-col">
                   <span class="truncate text-12-medium text-text-strong">{host.name}</span>
                   <span class="truncate text-12-regular text-text-weak" dir="ltr">
@@ -135,11 +141,24 @@ export function MobileHostManager() {
                   <Button size="small" variant="neutral" onClick={() => openEdit(host.id)}>
                     {t("hostManager.edit")}
                   </Button>
+                  <Button
+                    size="small"
+                    variant="neutral"
+                    onClick={() => setServiceOpenFor((current) => (current === host.id ? undefined : host.id))}
+                  >
+                    {t("svcops.title")}
+                  </Button>
                   <Button size="small" variant="danger" onClick={() => runtime.remove(host.id)}>
                     {t("hostManager.delete")}
                   </Button>
                 </div>
               </li>
+              <Show when={serviceOpenFor() === host.id}>
+                <li class="w-full">
+                  <ServicePanel hostId={host.id} />
+                </li>
+              </Show>
+              </>
             )}
           </For>
         </ul>

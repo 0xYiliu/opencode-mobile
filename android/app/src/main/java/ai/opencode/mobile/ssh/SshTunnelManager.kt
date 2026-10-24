@@ -64,7 +64,7 @@ class SshTunnelManager(context: android.content.Context) {
         private const val SCAN_TIMEOUT_MS = 15_000
         private const val FORWARD_PROBE_TIMEOUT_MS = 10_000
         private const val SERVER_ALIVE_INTERVAL_MS = 15_000
-        private const val WATCHDOG_INTERVAL_MS = 30_000
+        private const val WATCHDOG_INTERVAL_MS = 30_000L
         private const val MAX_CREDENTIAL_BYTES = 65_536 // the vault bound (decision 0003 §4)
         private const val MAX_PORT = 65_535
         private val FINGERPRINT = Regex("^SHA256:[A-Za-z0-9+/]{43}$")
@@ -187,7 +187,7 @@ class SshTunnelManager(context: android.content.Context) {
      * Open the tunnel. Runs on the work executor (the bridge enforces this). Returns the
      * loopback endpoint URL. Every failure throws [SshException] with a wire code.
      */
-    fun connect(host: String, port: Int, servicePort: Int, credential: String?, pinnedFingerprint: String?): String {
+    fun connect(username: String?, host: String, port: Int, servicePort: Int, credential: String?, pinnedFingerprint: String?): String {
         val key = sessionKey(host, port)
         synchronized(lock) {
             if (destroyed) throw SshException(SshErrorCode.BRIDGE_UNAVAILABLE, "manager destroyed")
@@ -248,7 +248,12 @@ class SshTunnelManager(context: android.content.Context) {
                 throw SshException(SshErrorCode.KEY_DECRYPT_FAILED, "private key could not be loaded")
             }
         }
-        val session = jsch.getSession(password ?: "", host, port)
+        // Review B2 (issue #7): the username comes from the target's user@ segment via
+        // the connect request (a routing fact, not a credential) — the pre-B2 bug passed
+        // the PASSWORD here, so every session authenticated as the wrong user (or an
+        // empty one for key auth). Absent username = a user-less target (server default).
+        val sessionUser = username?.takeIf { it.isNotEmpty() } ?: ""
+        val session = jsch.getSession(sessionUser, host, port)
         session.setConfig("StrictHostKeyChecking", "yes")
         session.hostKeyRepository = storeRepository(host, port)
         session.setConfig("PreferredAuthentications", "publickey,password,keyboard-interactive")

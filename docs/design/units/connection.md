@@ -241,7 +241,7 @@ SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HAND
 | `host-key-changed` | host-key | **危险警示**：主机密钥与已存记录不符；永不自动覆盖 | 显式危险确认 → removeHostKey → 未知确认流 |
 | `host-key-rejected` | host-key | 用户已拒绝 | 重新连接时再次确认 |
 | `target-refused` / `forward-failed` | 隧道目标 | **SSH 认证成功但远端拒绝转发**（服务端口/服务状态核对） | 核对 servicePort 与远端服务 |
-| `service-unreachable` | 服务失败 | 隧道已建立但服务未应答 | 核对远端 OpenCode 服务（权威=有界 GET /api/info） |
+| `service-unreachable` | 服务失败 | 隧道已建立但服务未应答 | 核对远端 OpenCode 服务（权威=有界 GET /api/info）；**服务操作入口（issue #7）**：host-manager 行内「服务操作」展开可经 SSH exec 发现安装面并显式授权修复动作（发现/安装/启动），见 [units/service-ops.md](service-ops.md) 与[决策 0004](../../decisions/0004-service-operations.md) |
 | `io` | 传输面 | 传输错误（泛化） | 重试 |
 
 ### SSH 安全评审节

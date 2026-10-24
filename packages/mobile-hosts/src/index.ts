@@ -105,6 +105,7 @@ export {
   parseKnownHosts,
   parseKnownHostsLine,
   parseSshTargetHost,
+  parseSshTargetUser,
   serializeKnownHosts,
   serializeKnownHostsEntry,
   type KnownHostsEntry,
@@ -152,3 +153,92 @@ export { HostDialog } from "./ui/host-dialog"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
 export { MobileHostManager } from "./ui/host-manager"
 export { CredentialManager } from "./ui/credential-manager"
+export { ServicePanel } from "./ui/service-panel"
+// issue #7: service operations (fourth bridge) — taxonomy, whitelist command face,
+// discovery model, authorization flow, bridge transport, port + fail-closed defaults.
+export {
+  SERVICE_OPS_ERROR_CODES,
+  PERMISSION_DENIED_MARKERS,
+  ServiceOpsError,
+  classifyExecFailure,
+  isServiceOpsErrorCode,
+  serviceOpsErrorCodeMessageKey,
+  type ExecFailureClassification,
+  type ServiceOpsErrorCode,
+} from "./service-ops/errors"
+export {
+  COMMAND_TEMPLATES,
+  GOLDEN_VECTORS,
+  SERVICE_PARAM_PATTERNS,
+  assembleServiceCommand,
+  formatBackupStamp,
+  previewServiceCommand,
+  serviceCommandTemplate,
+  templateOsDomain,
+  templatesForAction,
+  type ServiceCommandTemplate,
+  type ServiceOpsAction,
+  type ServiceOsFamily,
+  type ServiceParamPatternName,
+  type TemplateOsDomain,
+} from "./service-ops/commands"
+export {
+  LIMITATION_KEYS,
+  inferInstallSource,
+  limitationKeysFor,
+  mergeServiceEvidence,
+  parseBinaryLookup,
+  parseOsFamily,
+  parsePortProbe,
+  parseProcessProbe,
+  parseVersionOutput,
+  unsupportedOsName,
+  type ApiServiceEvidence,
+  type ExecServiceEvidence,
+  type InstallSource,
+  type OsFamily,
+  type ServiceSnapshot,
+  type ServiceStatus,
+} from "./service-ops/discovery"
+export {
+  FLOW_FRESHNESS_MS,
+  INITIAL_FLOW_CONTEXT,
+  SERVICE_FLOW_TRANSITIONS,
+  transitionServiceFlow,
+  type ServiceFlowContext,
+  type ServiceFlowEvent,
+  type ServiceFlowState,
+  type ServiceFlowTransition,
+} from "./service-ops/flow"
+export {
+  SVCOPS_BRIDGE,
+  SVCOPS_HANDSHAKE,
+  bridgeErrorToServiceOpsError,
+  createWebMessageServiceOpsTransport,
+  parseBridgeExecResult,
+  type ServiceOpsBridgeOperation,
+  type ServiceOpsBridgeResponse,
+  type ServiceOpsBridgeTransport,
+  type ServiceOpsExecResult,
+  type WebMessageServiceOpsTransportOptions,
+} from "./service-ops/bridge"
+export {
+  StubServiceOpsPort,
+  activeServiceOpsPort,
+  createServiceOpsClient,
+  interpretExecResult,
+  setActiveServiceOpsPort,
+  serviceOpsBridgeInjected,
+  type ServiceOpsExecInput,
+  type ServiceOpsExecOutcome,
+  type ServiceOpsPort,
+} from "./service-ops/port"
+export { shouldRefreshServiceStatus } from "./service-ops/refresh"
+export {
+  createPanelDriver,
+  type PanelDriverDeps,
+  type PanelResult,
+  type PlanStep,
+  type Preview,
+  type PreviewAction,
+} from "./service-ops/panel-driver"

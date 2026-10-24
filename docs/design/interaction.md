@@ -1,6 +1,6 @@
 # 交互基线与设备门禁
 
-本文承载跨单元交互约束、G1–G17 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
+本文承载跨单元交互约束、G1–G18 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
 ## 交互基线
 
@@ -10,9 +10,9 @@
 - 深链：不实现（未注册 VIEW intent-filter，代码留 TODO）。
 - 返回手势：壳按 `onBackPressed` 实现，manifest 显式声明 `android:enableOnBackInvokedCallback="false"`——Android 16 起 targetSdk ≥ 36 的应用默认启用 predictive back，`onBackPressed` 将不再被调用，必须显式禁用才能维持该行为；迁移平台 `OnBackInvokedCallback` 需 minSdk 守卫（API 33+），为后续 issue 事项。与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
 
-## G1–G17 设备门禁（完整枚举）
+## G1–G18 设备门禁（完整枚举）
 
-每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16 与 issue #6 新设的 G17）。
+每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16、issue #6 新设的 G17 与 issue #7 新设的 G18）。
 
 | 门禁 | 验证目标 | 所需环境 | 状态 |
 | --- | --- | --- | --- |
@@ -33,6 +33,7 @@
 | G15 SSH 身份稳定（issue #3） | SSH 隧道端口变化后身份/scope/会话/设置不变（`mobile-ssh:<uuid>` 与端点解耦）；重启后主机记录恢复且无凭据形字段 | 真机/模拟器 + SSH 远程主机 | BLOCKED（依赖 #6 隧道） |
 | G16 probe 桥 bring-up（issue #5） | `onPageFinished` probe 握手（独立握手串 `opencode-mobile-probe-handshake`）→ JS 形状校验捕获 port → 回发 ack → probe 端口翻转 available；与 vault 握手并存互不误捕（双方 data 严格等值校验）；重试路径 5×500ms 通道重建；重试耗尽 probe 显式 `unavailable`（保存路径显式退化为上游泛化错误文案，不伪造分类）；probe 请求头/URL/桥消息零日志值、密码不持久化的真机负例核对 | 真机/模拟器（API 23+） | BLOCKED |
 | G17 三桥并存 bring-up（issue #6 **新设门禁**） | `onPageFinished` **三座桥同时**开握手轮（vault/probe/ssh 各自独立握手串）→ ack 时序真机核对（各自捕获各自 port、互不误捕、互不重置对方 ack 生命周期）；ssh 桥 cancel/disconnect 响应（拆除即时、不依赖 executor 队列排空）；**C1–C5（vault）与 G14–G16 不因第三桥扰动**的复测（bring-up 后 vault 读写、probe 分类、状态机交互行为与基线一致） | 真机/模拟器（API 23+） | BLOCKED |
+| G18 四桥并存 bring-up + 服务操作交互（issue #7 **新设门禁**） | `onPageFinished` **四座桥同时**开握手轮（vault/probe/svcops/ssh 各自独立握手串）→ ack 时序真机核对（各自捕获各自 port、互不误捕、互不重置对方 ack 生命周期）；**C1–C5（vault）与 G14–G17 不因第四桥扰动**的复测；svcops 面板真机交互：发现状态卡/预览=执行全文/危险确认/执行进度/回滚入口/cancel-uncertain 呈现、occupied-port 与 permission-denied 真实路径、`survivedDisconnect` 断开存活真机触发核对（B1 触发集：迁入 ready 且前态∈{offline,reconnecting,authRequired}；T5 不触发）、svcops 面板零日志值负例、Windows `start /b` detach 存活如实呈现（detach-uncertain）；三 OS 真实 exec/安装/回滚与「远端 bash=WSL 诱饵」负例（N2）另归真 OS E2E | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS | BLOCKED |
 
 ## C1–C5 凭据桥设备门禁（issue #4，全部 BLOCKED）
 
@@ -44,7 +45,7 @@
 | C4 备份排除负例 | `allowBackup=false` 主控制 + `data_extraction_rules`/`full_backup_content` 引用生效：`adb backup`/设备迁移不带走 `filesDir/vault/`；重装后 vault 空（无悬挂引用） | 真机/模拟器（adb） | BLOCKED |
 | C5 桥安全探针 | **C5a** targetOrigin 强制（错误 origin 握手不可达/正确 origin 可达；顺序见 C1；**禁止伪造 event.origin 断言**——平台证据链见 [architecture.md](architecture.md)，event.origin 恒空串）；**C5b** port confinement（window 无全局 port 引用；单测锁定）；**C5c** 握手 data/ports 形状校验（单测锁定，仅形状不涉 origin）；**C5d** ack 前 vault 恒 unavailable、无明文回退（单测+真机） | 真机/模拟器（C5a/C5d 真机面）+ 本机单测（C5b/C5c） | BLOCKED（单测部分已 PASS，见 build-and-verify） |
 
-补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立。
+补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）；服务操作真 OS E2E 与 G18 四桥 bring-up（归 issue #7，见上表：三 OS exec 发现、install/start/upgrade/replace 全链路、occupied-port/permission-denied 真实路径、真实文件系统回滚、bash=WSL 诱饵负例、断开存活真机核对）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」；**第四处落字（issue #7）**：G18+三 OS 真 OS E2E 通过前，issue #7 的全部交付只声称「静态边界已实现（未验证）」（[决策 0004 §8](../decisions/0004-service-operations.md)）——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立。
 
 ## 失败路径处置协议
 

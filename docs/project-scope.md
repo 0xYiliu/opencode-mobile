@@ -11,8 +11,9 @@
 - 许可审计 BLOCKED：12 项待用户决策，`NOTICE-THIRD-PARTY.md` 尚未生成。
 - 服务凭据默认 memory-only（M-002 补丁，刷新/重启需重新输入密码）；可选的安全记住已实现（未验证，issue #4）：Android Keystore（AES-256-GCM 信封 v1）加密落盘，元数据索引永不存值，无额外解锁，无明文回退，备份排除已实现（未验证）。
 - 主机注册表已实现（未验证，issue #3）：第一方包 `packages/mobile-hosts/` 承载 SSH 主机记录（身份键 `mobile-ssh:<uuid>`、名称唯一、载荷白名单无凭据字段；issue #6 增 servicePort 白名单字段）与连接状态机；vendor 补丁 M-004…M-008 将其接入上游 app。直连服务仍走上游原生注册表，credentialRef（M-005/M-006）为非机密引用；可选记住与凭据管理器随 issue #4 交付（M-009/M-010 与 M-007 修订，`packages/mobile-hosts/src/vault/` + `android/.../vault/`）。设备级验证（G13–G15、C1–C5、live E2E）全部 BLOCKED。
-- SSH 隧道传输已实现（未验证，issue #6）：内建 SSH（无外部 SSH App/跳板机）——密码/密钥认证（密钥导入经 #4 vault，口令与私钥同信封）、未知指纹显式确认（HostKeyPrompt 已挂载）、变更密钥严格拒绝+显式恢复、known_hosts 原生 OpenSSH 行格式（`filesDir/ssh/`，备份排除）、指纹与 `ssh-keygen -lf` 互通（固定向量）、本地转发到远端回环 `localhost:<servicePort>` 单跳、失败四层分类（可达/认证/隧道目标/服务）。SSH 库（jsch 2.28.8 Revised BSD + bcprov 1.80 Bouncy Castle Licence，均宽松、不触发 V4 停点）只在 Kotlin 桥内；共享层零平台 API；fail-closed stub 保留为无注入默认。裁定与支持矩阵/失败 UI/安全评审见决策 [0003](decisions/0003-ssh-transport.md)。**真机门禁全部 BLOCKED**（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/重连/远程任务存活；Kotlin 编译亦 BLOCKED——无 Android SDK）。
+- SSH 隧道传输已实现（未验证，issue #6）：内建 SSH（无外部 SSH App/跳板机）——密码/密钥认证（密钥导入经 #4 vault，口令与私钥同信封）、未知指纹显式确认（HostKeyPrompt 已挂载）、变更密钥严格拒绝+显式恢复、known_hosts 原生 OpenSSH 行格式（`filesDir/ssh/`，备份排除）、指纹与 `ssh-keygen -lf` 互通（固定向量）、本地转发到远端回环 `localhost:<servicePort>` 单跳、失败四层分类（可达/认证/隧道目标/服务）。SSH 库（jsch 2.28.8 Revised BSD + bcprov 1.80 Bouncy Castle Licence，均宽松、不触发 V4 停点）只在 Kotlin 桥内；共享层零平台 API；fail-closed stub 保留为无注入默认。裁定与支持矩阵/失败 UI/安全评审见决策 [0003](decisions/0003-ssh-transport.md)。**真机门禁全部 BLOCKED**（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/重连/远程任务存活）。**勘误（issue #7 S5）**：本机 SDK 在位，Kotlin 编译已过真实工具链（`:app:compileDebugKotlin` PASS）；APK 打包仅阻塞于 jsch+bcprov jar 元数据冲突（待 build.gradle.kts packaging 决策）。
 - 直连传输卫生与错误分类已实现（未验证，issue #5）：vendor 补丁 M-011…M-014（mobile 补丁总数 10→14；issue #6 增 M-015 后为 15）——validated-follow 重定向策略（跨主机/降级拒交付）、userinfo 凭据 URL 拒发、端点 probe 分类器（fail-closed stub 默认，Android 桥 ack 后可用）与 `dialog.server.error.<code>` 反馈；裁定（决策 [0002](decisions/0002-direct-connection-transport.md)）：TLS 信任=system CA 唯一锚（静态负断言在册，绝不 trust-all）、**明文 HTTP 直连本期不支持**、**自签/私有 CA HTTPS 直连本期不支持**（出路：正规 CA/SSH 隧道/per-connection pin 后续候选）。probe 桥 bring-up（G16）与错误矩阵端到端（G4/G5/G11）BLOCKED。
+- 远程服务发现与显式授权的安装/启动/版本处理已实现（未验证，issue #7）：第四座协议隔离桥（`opencode-mobile-svcops-handshake`）+ 白名单命令面（模板表 OS 闭域三分变体、参数双闸、全仓唯一 `setCommand` 调用点被 Kotlin 校验器门禁、零删除类模板）+ 授权流 O1–O14（无确认不执行、取消不确定性诚实呈现、回滚仅自 rollbackAvailable、**无 disconnect→stop 边——断开永不停止远端**）；两层发现（API 权威 + SSH exec 安装面，pgrep 漏报等限制直陈）；curl 管道安装仅 POSIX 且预览明示远程执行本质（N2）；凭据逐命令解析单次过桥（N7 继承 0003 §4）；断开存活复核（B1 触发集 watcher，`state-machine.ts`/`runtime.ts` 零改动）。裁定（[决策 0004](decisions/0004-service-operations.md)）：**客户端构建不隐含服务操作能力**（运行时桥下发、构建产物零执行面）；确认与执行间的 TOCTOU 残余为已接受有界竞态（exec 侧预检拒绝覆盖运行中服务）。设备/真 OS 门禁（G18 四桥 bring-up、三 OS E2E）BLOCKED；APK 打包阻塞于 jsch+bcprov jar 元数据冲突（需 build.gradle.kts packaging 块，待决策；Kotlin 编译已过真实工具链）。
 
 ## 已确认目标，尚未实现
 
@@ -50,7 +51,7 @@ WSL 排除与原生 Windows 保留是已确认的范围决策，见[决策记录
 
 1. **上游复用**：选择前端源码和客户端契约的引入方式、版本固定与更新策略；复用代码时保留许可证及版权声明。
 2. **SSH 兼容范围**：确认密码认证、私钥格式、加密私钥、交互认证、配置别名和跳板机需求，不默认等价于系统 OpenSSH 的全部功能。
-3. **远程引导**：确认远程服务发现、安装、启动和版本不兼容处理；替换现有远程服务需明确提示，不静默操作。
+3. **远程引导**：远程服务发现、安装、启动和版本不兼容处理已实现（未验证，issue #7，见[决策记录 0004](decisions/0004-service-operations.md)）：替换现有远程服务需显式危险确认且 exec 侧预检拒绝覆盖运行中服务，绝不静默；三 OS 真 OS E2E BLOCKED。
 4. **传输**：验证 HTTP、事件流和远程终端经过 SSH 转发及 Android WebView 的端到端行为。
 5. **安全存储**：确定 Keystore 保护方案、备份和卸载行为、私钥导入方式，以及生物识别解锁与后台重连的取舍。
 6. **直连安全**（issue #5 已裁定，见[决策记录 0002](decisions/0002-direct-connection-transport.md)，设备级验证待实测）：TLS 信任流程=system CA 唯一锚，链/过期/主机名严格校验，不关闭全局校验、绝不 trust-all；自签/私有 CA HTTPS 直连本期不支持（反馈正规 CA、SSH 隧道与 per-connection pin 候选三条出路）；局域网明文 HTTP 本期不支持，逐连接知情授权为前瞻方案、留用户决策；重定向跨主机/降级 fail-closed；凭据不进 URL（WS 单次票据为能力凭证，非凭据）。

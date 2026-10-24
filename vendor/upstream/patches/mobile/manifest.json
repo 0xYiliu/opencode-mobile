@@ -59,7 +59,7 @@
       "reason": "Adds an optional non-secret credential REFERENCE (http.credentialRef, inside ServerHttpBase) so a stored direct server can point at a keystore entry without storing any credential. The M-002 encode path still strips password; the reference is a pointer (mobile-credential:<id>), safe for every persistent backend, and resolves per session into memory only. Keystore-backed resolution is mobile issue #4; decoding tolerates absence for already-stored servers.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; targeted probe scripts/verify-credential-ref.ts (schema round-trip keeps the reference, still strips password) plus the upstream persistence.test.ts file as regression.",
-      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field. Review note (issue #3, round 2): clearing semantics are 'undefined keeps, empty string clears' in the first-party registry (packages/mobile-hosts/src/registry.ts); whether a changed host target/identity invalidates or re-confirms its credentialRef is an issue #4 boundary decision, deliberately out of scope here. Issue #4 ruling recorded: whether a changed host target/identity invalidates its credentialRef is resolved as KEEP + explicit removal (the user unchecks remember or deletes the entry in the credential manager); see docs/design/units/connection.md \u5931\u6548\u77e9\u9635."
+      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field. Review note (issue #3, round 2): clearing semantics are 'undefined keeps, empty string clears' in the first-party registry (packages/mobile-hosts/src/registry.ts); whether a changed host target/identity invalidates or re-confirms its credentialRef is an issue #4 boundary decision, deliberately out of scope here. Issue #4 ruling recorded: whether a changed host target/identity invalidates its credentialRef is resolved as KEEP + explicit removal (the user unchecks remember or deletes the entry in the credential manager); see docs/design/units/connection.md 失效矩阵."
     },
     {
       "id": "M-006",
@@ -184,6 +184,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts full mode (dist markers opencode-mobile-ssh-handshake + mobile(ssh-v1), entry wiring assertions); driver full-flow tests in packages/mobile-hosts/test/runtime-ssh.test.ts; device behavior BLOCKED (G17, SSH E2E).",
       "rebase": "New patch (issue #6); rebase target is the mobile(M-014) probe transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the createMobileHosts call, extended with the ssh transport, the bridge-backed hostKey/transport and the sshBridge handle)."
+    },
+    {
+      "id": "M-016",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Service ops bridge wiring (issue #7). The entry creates the fourth protocol-isolated sibling transport over the svcops handshake (opencode-mobile-svcops-handshake) and registers the bridge-backed client through the module-level service ops seam (setActiveServiceOpsPort) - the createMobileHosts option contract stays unchanged (plan zero-change list: runtime.ts untouched). Before the native ack the service ops panel stays degraded-hidden (fail-closed stub): a client-only build implies no service-operation surface. The bridge protocol carries {templateId, params, os} ONLY, never a command string - the command face is the native-side whitelist (ServiceCommandValidator) assembled behind the single gated setCommand call site; the credential is resolved per command by the panel and crosses one way, exactly once, never logged or echoed (N7).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-service-ops.ts full mode (dist markers opencode-mobile-svcops-handshake + mobile(svcops-v1), entry wiring assertions); V2 build smoke; device behavior BLOCKED (G18).",
+      "rebase": "New patch (issue #7); LAYERED patch - generated against pin b4525d79bf + M-001..M-015 (entry.tsx already rewritten by M-007/M-014/M-015), round-trip verified on that base; rebase target is the mobile(M-015) ssh transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new svcops block sits directly above the createMobileHosts call)."
     }
   ]
 }

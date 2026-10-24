@@ -9,6 +9,7 @@
 | shell-startup | 应用进程启动 → 回环资产服务 → WebView 首帧 | 仅 `INTERNET` 权限；零 androidx；凭据不入普通存储 | 启动本地 asset server，加载打包的上游 app，承载返回键与生命周期红线 | 已实现（未验证）；交互已确认未实现，见 [units/shell-startup.md](units/shell-startup.md) |
 | connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`）；凭据保险库条目（信封 v1 密文 + 元数据索引）；直连错误分类码（`DirectErrorCode` 十二码，`transport/connection-errors.ts`）；SSH 失败分类码（`SshErrorCode` 十四码，`transport/ssh-errors.ts` + Kotlin 镜像，issue #6 已实现（未验证）） | 凭据 memory-only（M-002）+ 可选记住经 vault 加密落盘（issue #4，无明文回退）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS（明文直连不支持，issue #5 D3）；TLS 校验不可关闭（system CA 唯一锚，D2）；重定向 validated-follow + userinfo 拒发（D1/D-URL）；host-key stub fail-closed 为默认注入（真实校验经第三桥注入，已实现（未验证）） | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机；承载凭据的设备侧加密存储（vault 端口/桥/Keystore）；承载直连传输卫生（secure-fetch/URL 策略）与端点 probe 分类器（probe 端口/桥传输） | 已实现（未验证）；设备交互 BLOCKED（G14、host-key/隧道归 #6、C1–C5 归 #4、G16 归 #5），见 [units/connection.md](units/connection.md) |
 | server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页）；凭据管理器（credential-manager，issue #4） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳）；凭据管理器仅展示元数据无值 | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口；凭据条目的元数据查看/删除与恢复 | 已实现（未验证）；设备交互 BLOCKED（G13/G15、C2 归 #4），见 [units/server-list.md](units/server-list.md) |
+| service-ops | 服务状态快照（`ServiceStatus` 六态 + `checkedAt`/`survivedDisconnect`/limitations）；白名单命令模板表（`ServiceOpsAction` × OS 三分变体，OS 适用域闭域）；授权流状态机（O1–O14）；服务操作错误分类码（`ServiceOpsErrorCode` 二十一码 + Kotlin 镜像，issue #7 已实现（未验证）） | 桥协议只传 `{templateId, params, os}` 永不传命令字符串（无自由命令注入面，双门禁白名单）；预览=执行逐字节一致（golden vectors）；零删除类模板（N8）；curl 管道模板 POSIX 闭域（N2）；凭据逐命令解析单次过桥（N7，继承 0003 §4）；无确认不执行；断开永不停止远端（O14 无 disconnect→stop 边） | 发现远端服务与版本（API 权威 + exec 安装面，诚实限制清单）；显式授权 install/start/upgrade/replace/stop（预览→危险确认→执行）；断开存活复核（B1 触发集 watcher） | 已实现（未验证）；设备/真 OS BLOCKED（G18、三 OS E2E），见 [units/service-ops.md](units/service-ops.md) 与[决策 0004](../decisions/0004-service-operations.md) |
 | 会话列表 | TODO | — | TODO | 未开始 |
 | 时间线 | TODO | — | TODO | 未开始 |
 | 终端 | TODO | — | TODO | 未开始 |
@@ -27,12 +28,17 @@
 │    │    └─ 提供打包资产 assets/web/（scripts/copy-web-dist.sh 拷入，含 PWA service worker）            │
 │    ├─ CredentialVaultBridge（issue #4：onPageFinished 握手 → WebMessageChannel port1/port2；          │
 │    │    VaultCrypto（AndroidKeyStore AES-256-GCM）+ VaultStore（filesDir/vault/ 原子落盘+index.json） │
-│    └─ ProbeBridge（issue #5：协议隔离的姊妹桥，独立握手串 opencode-mobile-probe-handshake；            │
-│         DirectEndpointProbe（HttpURLConnection 严格默认 + 有界侦嗅 + 分类枚举，单后台线程执行）        │
+│    ├─ ProbeBridge（issue #5：协议隔离的姊妹桥，独立握手串 opencode-mobile-probe-handshake；            │
+│    │    DirectEndpointProbe（HttpURLConnection 严格默认 + 有界侦嗅 + 分类枚举，单后台线程执行）         │
+│    ├─ SshTunnelBridge（issue #6：第三座协议隔离桥，独立握手串 opencode-mobile-ssh-handshake；             │
+│    │    SshTunnelManager（JSch 隧道）+ SshHostKeyStore（known_hosts）+ SshErrorCode）                     │
+│    └─ ServiceOpsBridge（issue #7：第四座协议隔离桥，独立握手串 opencode-mobile-svcops-handshake；          │
+│         ServiceOpsManager（短命会话+ChannelExec，有界读取）+ ServiceCommandValidator（白名单门禁，         │
+│         唯一 setCommand 调用点）+ ServiceOpsErrorCode）                                                   │
 │  WebView（javaScriptEnabled / domStorageEnabled；文件与内容访问关闭；geolocation 关闭）                │
 │    origin = http://127.0.0.1:18090（回环可信上下文；PWA SW 可注册，行为归 G10）                        │
 └──────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
-                                               │ 加载 UI（同源）+ vault/probe 双握手（平台 WebMessage channel，port 闭包）
+                                               │ 加载 UI（同源）+ vault/probe/svcops/ssh 四握手（平台 WebMessage channel，port 闭包）
                                                ▼
               第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3/#4/#5）
                 ├─ SSH 主机注册表（opencode-mobile.hosts.v1，载荷白名单：id/name/target/credentialRef/时间戳）
@@ -41,6 +47,9 @@
                 ├─ transport（issue #5）：connection-errors（DirectErrorCode/SecureFetchError）+ url-policy（userinfo/重定向判定）
                 │   + secure-fetch（validated-follow，M-011 注入面；mobile(M-011) dist 标记）
                 ├─ probe（issue #5）：ProbePort（StubProbePort fail-closed 默认）+ probe 桥传输（独立握手串）+ 分类→文案映射
+                ├─ service-ops（issue #7）：命令模板表（OS 闭域+参数双闸+golden vectors）+ ServiceStatus 模型与解析器
+                │   + 授权流 O1–O14 + svcops 桥传输/端口（Stub fail-closed 默认，模块级注入 seam）+ 二十一码分类
+                │   + service-panel（预览→确认→执行/回滚；B1 存活刷新 watcher，订阅侧实现）
                 └─ upstream-map：SSH 主机 → 上游 extension 型 ServerConnection（键 `mobile-ssh:<uuid>`），
                    经 props.servers 注入上游 ServersProvider；直连服务仍走上游原生注册表（M-010 hydration 注入内存密码）
                                                │
@@ -73,6 +82,7 @@
 - **直连传输卫生（已实现（未验证）：issue #5，决策 [0002](../decisions/0002-direct-connection-transport.md)）**：M-011 注入的 secure-fetch 与 M-012 的上传 XHR 校验执行 validated-follow——重定向后最终 origin 必须与请求 origin 一致（双向严格，http→https 升级亦拒）、https→http 降级拒绝、userinfo 凭据 URL 拒发；跨源重定向子请求被浏览器剥头是规范底线，我方校验是交付前的纵深。TLS 信任=system CA 唯一锚（netsec 不变，静态负断言在 `scripts/verify-direct-connection.ts`）；明文 HTTP 本期不支持（D3）。
 - **probe 桥（已实现（未验证）：issue #5，G16 BLOCKED）**：`ProbeBridge` 是 vault 桥的**协议隔离**姊妹桥——独立握手串 `opencode-mobile-probe-handshake`、独立通道、同用三层信任（平台 targetOrigin 强制/port 闭包 confinement/ack 前零能力），vault 门禁 C1–C5 不受牵连（双方按 data 严格等值校验握手，互不误捕；单测锁定）。`DirectEndpointProbe` 用平台默认栈（system CA、严格链/过期/主机名校验，**无任何自定义 trust/verifier 钩子**——静态负断言在册）；自动重定向跟随禁用，Authorization 头永不离开用户输入的 origin；**probe 是分类器不是权威**：仅在健康检查失败后选错误文案，冲突以真实 fetch 为准，分类绝不伪造。凭据边界（F1）：密码仅存活于单次请求（桥消息→内存头），头/URL/桥消息零日志值、不持久化、响应只回分类码。
 - **ssh 桥（已实现（未验证）：issue #6，G17 BLOCKED）**：`SshTunnelBridge` 是第三座**协议隔离**桥——独立握手串 `opencode-mobile-ssh-handshake`、独立通道、同用三层信任，与 vault/probe 互不误捕（三桥并存互不重置对方 ack 生命周期，C1–C5/G16 不受牵连）。SSH 库（jsch 2.28.8 + bcprov-jdk18on 1.80，许可见[决策记录 0003](../decisions/0003-ssh-transport.md)）只在 Kotlin 桥内；共享层零平台 API、零 SSH 依赖。host-key 校验永不禁用（`StrictHostKeyChecking="yes"`；认证会话自实现 HostKeyRepository 权威比对、scan 会话 strict 抛出后读 session.hostKey；filesDir/ssh/known_hosts，备份排除）；转发目标固定远端回环单跳；断开仅拆 SSH 传输（远端进程存活）；凭据过桥 JSON 单向一次/零日志/零持久化/零回显；scan 会话零认证材料；凭据在指纹确认前不发出。
+- **svcops 桥（已实现（未验证）：issue #7，G18 BLOCKED）**：`ServiceOpsBridge` 是第四座**协议隔离**桥——独立握手串 `opencode-mobile-svcops-handshake`、独立通道、同用三层信任，与 vault/probe/ssh 互不误捕（四桥并存互不重置对方 ack 生命周期，C1–C5/G14–G17 不受牵连）。桥协议只传 `{templateId, params, os}`，**永不传命令字符串**；命令由 Kotlin `ServiceCommandValidator`（TS 模板表的逐字镜像：templateId 全集 + 参数正则 + OS 适用域）白名单装配，全仓唯一 `setCommand` 调用点只执行校验器输出（fail-closed `exec-denied`）。短命独立 SSH 会话+`ChannelExec`（连接 30s/执行 60s、stdout/stderr 各 16 KiB 截断标记、exitStatus、每主机单飞）；host-key 信任唯一所有权归连接流（0003 §3.3），未知/变更指纹原生拒绝引导回连接流；**凭据逐命令解析、单次过桥、零日志零持久化零回显（N7 继承 0003 §4）**；生命周期红线双写：断开/取消仅本地拆除，远端服务/进程存活。
 - **身份键（已实现（未验证）：issue #3）**：直连服务沿用上游原生键（URL 本身，端口变化即新身份）；SSH 主机身份为 `mobile-ssh:<uuid4>`（创建即定、永不改），与隧道回环端口解耦——端口重解析（reconnect）不改变身份/scope/会话/设置键。
 - **日志纪律**：logcat 仅固定 tag（`OpencodeShell`）+ 控制台消息文本与行号；不写 URL 查询参数、请求头或凭据。
 - **进程边界**：壳 `onDestroy` 仅停本地回环 asset server；远程服务/任务永不因客户端断开而停止（代码注释与本文档双写）。
@@ -85,7 +95,7 @@
 
 ## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-014）
 
-上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线，每补丁一事：
+上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线；M-016（已实现（未验证）：issue #7）承载服务操作桥接线，每补丁一事：
 
 | 补丁 | 内容 | 理由 |
 | --- | --- | --- |
@@ -104,6 +114,7 @@
 | M-013 | `servers/connect/dialog.tsx` + i18n en/zh：保存路径 probe 先行分类 → `dialog.server.error.<code>` 行内精确错误；probe unavailable 显式退化为上游泛化文案；userinfo URL 保存前精确拒绝 | 错误反馈精确化（issue #5 D4）：probe 只选文案，健康检查仍是保存放行的唯一权威；分类冲突以真实 fetch 为准 |
 | M-014 | `entry.tsx`：probe 桥握手监听（独立握手串 `opencode-mobile-probe-handshake`）+ `createProbeClient` 注入 `createMobileHosts({probe})` | probe 分类器到达 UI 的接线（issue #5）：与 vault 桥并存互不误捕（双方 data 严格等值校验）；ack 前 fail-closed |
 | M-015 | `entry.tsx`：M-014 块内增 ssh 桥握手监听（独立握手串 `opencode-mobile-ssh-handshake`）+ `createWebMessageSshTransport` 与 `createSshHostKeyVerifier`/`createSshHostTransport` 注入 `createMobileHosts({hostKey, transport, sshBridge})`（替代显式 `StubHostKeyVerifier` 注入；stub 保留为包内默认） | SSH 隧道/host-key 真实校验到达驱动的接线（issue #6，已实现（未验证））：第三座协议隔离桥（与 vault/probe 互不误捕）；ack 前 fail-closed（stub 语义不变）；监听先于首渲染 |
+| M-016 | `entry.tsx`：M-015 块后增 svcops 桥握手监听（独立握手串 `opencode-mobile-svcops-handshake`）+ `createServiceOpsClient`/`createWebMessageServiceOpsTransport` 经模块级 seam `setActiveServiceOpsPort` 注册（`createMobileHosts` 选项契约不变，runtime.ts 零改动） | 服务操作到达面板的接线（issue #7，已实现（未验证））：第四座协议隔离桥（与三姊妹互不误捕）；ack 前面板降级隐藏（fail-closed）；「客户端构建不隐含服务操作能力」的结构承载 |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。
 
@@ -129,6 +140,8 @@
 | credential-manager（已实现（未验证）：issue #4） | 用户删除条目/一键清除 | vault（桥 remove） | ref | io/corrupt → 行内报错不静默 | 已实现（未验证）；真机归 C2 |
 | connection（已实现（未验证）） | SSH 主机发起连接 | 连接状态机（host-key-prompt） | target、credentialRef（引用） | host-key stub 恒拒绝 → failed（可重试/编辑），永不放行未确认指纹 | 已实现（未验证）；真实校验归 #6（BLOCKED） |
 | 连接状态机（已实现（未验证）） | 状态迁移 | 上游 server-list 行内状态 | extension 型 ServerConnection（state 映射） | offline/reconnecting 有反馈可恢复；取消恢复来源态；删除/断开零远程调用 | 已实现（未验证）；真机归 G14 |
+| service-ops 面板（已实现（未验证）） | 用户在 host-manager 行内展开「服务操作」/ `service-unreachable` 后引导 | svcops 发现（状态卡/limitations） | hostId（记录读取） | 无桥注入 → 面板整体降级隐藏（stub fail-closed）；OS 判定失败 → unsupported-os 如实呈现 | 已实现（未验证）；真机归 G18 |
+| service-ops 面板（已实现（未验证）） | 预览 → 危险确认勾选 → 确认 → 执行 | 第四桥 exec（白名单命令） | `{templateId, params, os}`（永不传命令字符串）+ 逐命令凭据（N7 单次过桥） | 校验器拒绝 → exec-denied；occupied-port 预检拒绝覆盖运行中服务；失败 → 分类码 + 有界 stderr 尾部 + 回滚入口 | 已实现（未验证）；真机归 G18 |
 | 会话列表 | 打开会话 | 时间线 | 会话 ID | — | 未开始 |
 | 时间线 | 权限请求到达 | 权限确认 | 请求内容 | 拒绝 → 任务按上游语义继续/中止 | 未开始 |
 | 时间线 | 打开文件/Diff | 文件与 Diff | 文件路径 | — | 未开始 |
