@@ -134,6 +134,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun unit tests for the wrapper (packages/mobile-hosts/test/secure-fetch.test.ts: cross-host refuse, downgrade refuse, credential-URL refuse, direct pass, same-origin redirect pass); V2 build smoke + dist marker mobile(M-011) + scripts/verify-direct-connection.ts (full mode); device behavior BLOCKED (G3/G4/G5/G11).",
       "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal)."
+    },
+    {
+      "id": "M-012",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0012-M-012-upload-xhr-redirect-validation.patch",
+      "targets": [
+        "packages/app/src/composer/attachments/destination.ts"
+      ],
+      "reason": "Validated-follow for the upload face (issue #5, decision 0002 D1). The attachment upload is the one request that bypasses the platform fetch seam (M-011) - it goes through XMLHttpRequest for progress and streaming - so the same URL policy from the first-party package is enforced here: userinfo credential URLs are refused before anything is sent (D-URL), and on load the FINAL xhr.responseURL must still be same-origin with the request and must not have downgraded https-to-http, else the body is rejected (SecureFetchError) instead of being read as the server's upload receipt. Cross-origin redirect sub-requests already lose the Authorization header by browser spec (the floor); this patch is the shell's own fail-closed layer on top.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
+      "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts."
     }
   ]
 }
