@@ -16,6 +16,8 @@
 
 记录日期：2026-10-25。issue #9 段（会话工作台：流式消息、上下文、工具与子任务的复用固化与安全语义/快照恢复口径文档化、V-probe 探针、三包上游子集与逐例归因门）的验证于同日在分支 `issue-9-session-workbench` 工作树执行（基线 dev @ a1bc7f1，计划 v2.1——v2 评审 PASS 后吸收 N-1..N-6；S1–S3 提交链），全部为本机构建/静态/单测级验证；G20 运行期门禁、真模型 live E2E（直连+SSH 双路由）与 session-ui component-tests/playwright 全部 BLOCKED。
 
+记录日期：2026-10-25。issue #10 段（权限请求与 Agent 提问：复用固化与安全语义/无歧义默认审批/留痕口径文档化、V-probe 探针、app 组合子集追加 3 文件首跑归因门）的验证于同日在分支 `issue-10-permission-approvals` 工作树执行（基线 dev @ a8c1f3b，计划 v1.1——v1 评审 PASS 后吸收 F1–F5；S1–S3 提交链），全部为本机构建/静态/单测级验证；G21 运行期门禁、真模型 live E2E（真实 `permission.asked` 依赖真实模型工具调用）与多客户端并发决策核对全部 BLOCKED。
+
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
 ## 工具链（本机真实版本）
@@ -121,6 +123,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | Kotlin svcops 四件 | ✓（代码） | 编译 PASS（真实工具链）；**APK 打包 BLOCKED**（jsch+bcprov jar 元数据冲突，需 build.gradle.kts packaging 块——零改动清单，待决策） | BLOCKED（G18） | BLOCKED |
 | 远程项目/工作区/会话生命周期（浏览选择远端目录、create/open/fork/rename/archive/切换、路径边界与状态保持，issue #8） | ✓（上游复用 + M-017/M-018） | ✓（V-mh 307 单测、V-upstream 子集 225 单测、V-probe、V2/V3） | **BLOCKED（G19 全部运行期行为，含 M-018 入口可达性）** | **BLOCKED（双路由 lifecycle E2E）** |
 | 会话工作台（流式消息/上下文/工具/子任务、发送/取消安全语义、快照恢复口径、草稿/滚动保持，issue #9） | ✓（零新建界面/零补丁，上游闭包承载 + 文档固化） | ✓（V-mh 307 单测、V-upstream 三包组合 579 单测、V-probe、V2 冒烟） | **BLOCKED（G20 全部运行期行为，含断开不中断远端机械核对）** | **BLOCKED（真模型 live E2E 直连+SSH 双路由）** |
+| 权限请求与 Agent 提问（请求呈现/决策三值/提问向导、duplicate/stale/expired 处置、请求身份会话作用域、auto-approve opt-in、断开零副作用、响应留痕，issue #10） | ✓（零新建界面/零补丁，上游闭包承载 + 文档固化） | ✓（V-mh 307 单测、V-upstream 三包组合 622 单测、V-probe+负例、V2 冒烟） | **BLOCKED（G21 全部运行期行为，含 client exit 红线机械核对与触摸目标首项核对）** | **BLOCKED（真模型 live E2E 直连+SSH 双路由；真实 permission.asked 依赖真实模型工具调用）** |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
 
 ## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
@@ -388,6 +391,36 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **V2 产物拷贝为本期偏差执行**：计划 §4 原定零源码变更免执行 copy-web-dist；按协调者指令执行并如实记录（数字复现一致，仅时间戳+sourcemap 哈希刷新，dist 数字跨文档零变化）。
 - 上游已知 TODO 边界（登记于单元文档）：`message-timeline.tsx` 会话内菜单无归档项（#8 N-3）；`session-ui` stories 文件内一处 ARIA 确认 TODO（非代码缺陷）。
 
+## issue #10 段（权限请求与 Agent 提问）——2026-10-25 实测记录
+
+交付物：单元文档 [design/units/permission-requests.md](design/units/permission-requests.md)（能力来源七面表/数据与事件契约表（六事件 + `PermissionRequest`/`FormInfo` 生成类型 + 六端点，全部引用 vendored 生成面）/状态矩阵八态（F2 分层 stale/expired 语义 + F5 按视图类型的模态范围）/**安全语义专节**（请求身份会话作用域双校验、duplicate 去重、F2 分层、reject 批量扩散、服务端 shutdown 全拒、**F1：`permission.reply` 六处分层穷举**、F3 per-location 聚合 + never-loaded 残例、留痕四层）/「无歧义默认审批」专节（四锚 + auto-approve opt-in + 移动端不改语义声明）/触摸目标与无障碍缺口如实（28/32px、8px 相邻、无 keyshortcuts、无焦点陷阱 → G21⑧ 首项核对））+ 新门禁 **G21**（[design/interaction.md](design/interaction.md) 九项真机清单 + permission-requests 失败路径节 + 第七处落字）+ architecture.md 单元行与流转矩阵三行（含跨客户端 Replied 行）+ 静态探针 `scripts/verify-permission-requests.ts`（V-probe）。**本期零新建界面、零运行时代码改动、零 vendor 补丁**（`patches/mobile/manifest.json` 维持 18 个；零依赖变更、bun.lock 不变）。提交链 `773701c → 5a20679 → 本提交（S3，docs）`（分支 `issue-10-permission-approvals`，基于 dev @ a8c1f3b，未 push）。计划版本 v1.1（v1 评审 PASS，IMPLEMENTER 开工前吸收 F1–F5：reply 六处分层表述 + session-ui/ui 零命中负断言、permission 决策侧无吞错与 form 侧 settleForm 吞错分层落字、sweep per-location 聚合 + never-loaded 残例、66 locale、composer 隐藏仅 primary 视图）。
+
+上游定向回归子集（app 组合 49 文件 = #9 已记录 46 + 本期新增 3，全部真实执行；新增 3 文件）：`session/requests/websearch.test.ts`、`settings/model.test.ts`、`runtime/server/global-sync/utils.test.ts`。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #10） | 未动依赖 | `git diff a8c1f3b HEAD -- bun.lock` 为空；零新增依赖（本期零补丁零运行时代码）；`bun install --frozen-lockfile` rc=0（1060 packages，fresh worktree） | 本文；git diff 为空 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**307 tests / 307 pass / 0 fail，2452 expect()**（28 文件；与基线一致，零新逻辑零新 fail——issue #10 无新增第一方逻辑） | 本文 |
+| V-upstream（app 组合 49 文件） | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <49 文件>`（在 `vendor/upstream/packages/app` 下） | PASS：**410 tests / 410 pass / 0 fail / rc=0**（5.30s；=#9 子集 367 + 本期新增 43）。M-002 基线 1 fail 文件（persistence.test.ts）不在子集；0 fail 符合预期，无新增 fail | 本文 |
+| V-upstream（本期新增 3 文件单独跑，B2 归因门） | 同上命令形态，显式列 3 文件 | PASS：**43 tests / 43 pass / 0 fail / 77 expect() / rc=0**（370ms，首跑）。**首跑零 fail → 逐例归因门未触发**（无需 pristine pin 树对照；`~/.cache/opencode-upstream` 物化预检未执行——无待归因 fail 时无对照对象，如实记录）。此后任何新增 fail 阻断合入 | 本文 |
+| V-upstream（client/session-ui 回归） | #9 已确立命令（client 8 文件 `--timeout 5000` + session-ui 6 文件） | PASS：client **98 tests / 0 fail（427 expect()，5.29s）** + session-ui **114 tests / 0 fail（340 expect()，200ms）**——含 `solid-eviction`（permission store 家族存活于 eviction）/`shared-events`（permission.asked fan-out）的 permission 覆盖；无新增 fail | 本文 |
+| V-probe 权限请求静态验证 | `bun run scripts/verify-permission-requests.ts` | PASS（rc=0）：①**决策调用面穷举集合相等断言**（换行容忍归一后 `api.permission.reply(` 线级命中集合恰为 {`session/requests/model.ts`（含 `decision: response`/`responding` 早退/`.finally` 复位/requestFailed toast 锚）、`session/requests/auto-approve.ts`（含 `decision: "once"`/`responded.has` 去重/`covers` 门锚）}）+ **F1 负断言**（`session-ui/src` 与 `ui/src` 零归一 `permission.reply` 命中）+ 分层单列（data.ts 包装层含 `isPermissionNotFoundError` 吞错与 `removePermission` 且**app 内零调用者**——app 全源扫描 `session.permission.reply(` 零命中、`connection.ts` 零 permission/reply/interrupt/form、`client.tsx` 无 `.permission`、protocol 端点定义与 plugin 适配面锚）；②duplicate/stale/expired **F2 分层锚**（asked/form.created 按 id 去重、replied/cancelled 移除、`settleForm` 两分类 + `error.id` 门、form.reply/cancel 经 settleForm；**decide() catch 仅 requestFailed toast 无吞错**——catch 链内断言无 `isPermissionNotFoundError`）+ question/elicitation dock `sending()` 守卫/disabled/Esc reject/`ScopedKey.from` 草稿；③恢复链三处相邻对锚（model.ts 会话/会话树/elicitation gate 的 `!== "connected") return` 紧邻 sync）+ tab-strip 错峰（`permission.sync`/`form.sync`/`300 + props.index * 50`/allSettled）+ auto-approve sweep（注释逐字「sweep on every connect while the setting is on」+ 归一 `api.permission.request.list({location:{directory:location.directory}})` + **残例注释锚「never loaded」**（F3））；④无歧义默认审批四锚（默认 `autoApprove: false`、ghost(Deny)/neutral(Always)/submit(Once) 序列恰 3 处 `disabled={props.responding}`、**vendored session 树全目录零 `autoFocus`**（负断言）、permission dock 无 `onKeyDown`（负断言）+ autoaccept toast 四键 en/zh 成对且 `project.*` 两键钉死 en-only（zh 增键即 FAIL 强制重审回退注记））；⑤生成面契约抽样（六事件 type + `PermissionRequest`/`FormInfo`/三 tagged error + permission/form reply 端点路径）。**负例控制实测三组**：①向 `session/timeline/model.ts` 临时注入线级 reply 调用 → FAIL rc=1（集合外命中）→ 恢复 PASS；②向 `session-ui/src/components/dock-prompt.tsx` 临时注入 `permission.reply` → FAIL rc=1（零命中负断言打穿）→ 恢复 PASS；③把 `settings/model.tsx` 默认改 `autoApprove: true` → FAIL rc=1（组 4 锚）→ 恢复 PASS。诚实标注：静态结构检查，对运行时行为无证明力 | 本文；脚本输出；负例日志 `logs-issue10-impl/vprobe-neg{1,2,3}.txt` |
+| R7 补丁相互作用机械核对（以 `patches/mobile/manifest.json` targets 全集为准） | 一次性脚本：对本期新增 3 个子集测试文件做包内传递 import 闭包（`@/`/相对别名解析），比对 M-001..M-018 目标文件集 | 结论：**直接重叠为零**（3 个 .test.ts 文件本身均非补丁目标——计划预期成立）；**传递触碰非零（如实记录）**：3 文件闭包共 138 文件，其中 4 个为补丁目标——`runtime/server/persistence.ts`（M-002/M-005）、`runtime/i18n/en.ts`/`zh.ts`（M-009/M-013/M-018，含 `global-sync/utils.test.ts` 闭包触达 i18n 的计划预判成立）、`runtime/server/registry.tsx`（M-010），并经 M-004 别名解析第一方 `@opencode-mobile/mobile-hosts`。**因 3 文件首跑 43/0 fail，无 fail 需要归因，blocking 处置未触发**；触碰面均为「补丁只增键/只改编码路径」型（与 #9 R7 结论同型） | 本文；核对输出留档 `logs-issue10-impl/r7-import-check.txt` |
+| V2 构建冒烟（回归） | `bun run build:web` | PASS（rc=0，6177 modules）——与 #8/#9 终态 module 数一致（零源码变更） | 本文 |
+| V2 产物拷贝（协调者指令执行，计划 §4 原定免执行——偏差记录见下） | `bash scripts/copy-web-dist.sh` | PASS（rc=0）：**3480 文件 / 153,316,573 bytes 与既有 manifest 数字完全同数**——重建在本机对 manifest 级数字完全复现；diff 仅 `generatedAt` 时间戳 + 19 个 `.js.map` 条目 sha256 刷新（sourcemap 不可字节复现的既有已接受限制，文件名与字节数均不变）。**全部文档 dist 数字零变化**（3480/153,316,573 维持），无跨文档同步需求 | `web-dist/manifest.json`（generatedAt 2026-10-25T11:16:03Z；fileCount 3480；totalBytes 153,316,573） |
+| 文档链接核对（issue #10 后） | docs/** 与 README.md 全部 markdown 文件的仓库内相对链接**引用数**逐一解析（口径：含重复引用、剥离 `#anchor`、排除 http/https/mailto 外链——评审 RF1 勘误后统一口径） | PASS：**196 引用 `missing=0`**（18 个 markdown 文件；修复前曾记中间时点值 191——该值为本期新增 build-and-verify 段落落盘前的旧树测值，#9 F3 同型勘误）；interaction.md 门禁表标题更新为 G1–G21；architecture.md 单元清单「权限确认」TODO 行改为 permission-requests | 本文 |
+
+### 诚实边界（issue #10 段）
+
+- **运行期全部 BLOCKED（G21）**：请求呈现到达、三决策真实效果、in-flight 误触、stale/expired 真机呈现、断连恢复过程、**client exit 红线机械核对**（请求 pending 时杀 App → 远端保持等待 → 重开 dock 仍在，双路由各一遍）、auto-approve 代答、通知设置呈现、**窄屏/读屏/焦点/触摸目标首项核对**（28/32px < 48dp 推荐、三按钮相邻 8px、permission 无 aria-keyshortcuts、无焦点陷阱——四项缺口的真机判定与处置归 G21⑧，不足则按四步协议交用户决策，候选含 M-020+，不预设）——V2/dist/静态探针/上游单测对以上均无证明力；G21 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」（F4 系列第七处落字）。
+- **真模型 live E2E BLOCKED**：真实 `permission.asked` 的产生依赖真实模型工具调用；直连+SSH 双路由需授权远程服务与模型，不允许 fixture 替代。
+- **多客户端并发决策核对 BLOCKED**：他端先答/reject 批量扩散呈现需第二客户端环境（G21④ 可选子项）；事件层语义由 `shared-events`/`solid-eviction` 子集测试部分锁定。
+- **dock 装配层无上游单测**：`requests/model.ts`/`auto-approve.ts`/三个 dock 组件上游零测试——覆盖口径=探针（结构）+ V2（构建）+ G21（真机）三层，与 #8 M-017 覆盖口径同型。
+- **服务端语义来源边界**：`packages/core/src/permission.ts`、`packages/server/src/handlers/permission.ts`、`packages/schema/src/permission.ts` 不在 vendored 闭包内，单元文档语义引自采集缓存 @ pin（`git cat-file -t` = commit 已核验）；vendored 侧仅生成类型/端点/事件消费面可静态断言；pin 更新时缓存引文需随 PROVENANCE 演练同步。
+- **新增 3 文件归因门为「零 fail 未触发」态**：首跑 43/0 全绿，pristine pin 树对照未实际执行（无待归因 fail 时无对照对象，如实记录）；基线即本次全绿记录，此后任何新增 fail 阻断。
+- **上游全量套件不作为门禁**：app 49 文件组合子集 + client 8 + session-ui 6 如实记录；测试期 `node_modules/@opencode-mobile/mobile-hosts` 符号链接为本机 seam（gitignored，不入 git）。
+- **V2 产物拷贝为本期偏差执行**：计划 §4 原定零源码变更免执行 copy-web-dist；按协调者指令执行并如实记录（数字复现一致，仅时间戳+sourcemap 哈希刷新，dist 数字跨文档零变化）。
+
 ## BLOCKED 总表
 
 
@@ -426,6 +459,9 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | G20 session-workbench 运行期门禁（issue #9 新设门禁） | 真机/模拟器 + 授权远程服务：流式增量呈现（叠加 G6）、长历史翻页、发送/停止（显式取消）、断开→重连快照恢复（含 queued inputs；offline 呈现充分性为 G20 首项核对）、**断开不中断远端机械核对四步**（真实长任务→断连三态→远端存活→快照补齐+零 interrupt 日志命中）、草稿/滚动/上下文跨切换恢复、三层失败反馈、窄屏/读屏/焦点/触摸目标核验；完整清单见 [design/interaction.md](design/interaction.md) G20 行。V2/探针/上游单测对以上运行时行为无证明力，勿以构建级证据替代 | issue #9 |
 | 真模型 live E2E（issue #9） | 直连+SSH 双路由真实会话收发（授权远程服务与模型，不允许 fixture 替代）：真实模型增量输出、工具执行与失败、子任务/后台任务、重连快照补齐的全流程；可与 G20 一并执行 | issue #9（验收第 4 条） |
 | session-ui component-tests/playwright（issue #9） | 需浏览器环境：上游 session-ui 组件级测试（component-tests/ + playwright 配置）不在本机单测覆盖面 | issue #9（沿用上游既有测试设施） |
+| G21 permission-requests 运行期门禁（issue #10 新设门禁） | 真机/模拟器 + 授权远程服务：请求呈现（dock 标题/操作说明/resources、composer 阻断隐藏（primary 视图；子会话视图 dock 与 composer 并存）、Working 抑制、会话树子代理请求、项目头像注意态）；三决策（once/always 落 saved+免批/reject 批量扩散；in-flight 快速连点仅一次 reply）；提问向导（多问题/自定义回答/Esc reject/切 tab 草稿恢复）；duplicate/stale/expired 三态（他端先答消失、服务重启清空、对已消失请求的操作呈现——失败 toast 充分性）；断连→重连 dock 恢复；**client exit 红线机械核对四步**（请求 pending 杀 App → 远端保持等待不 approve 不 reject 不 stop → 重开 dock 仍在；直连+SSH 各一遍）；auto-approve opt-in（开启代答+toast/关闭恢复）；**窄屏/读屏/焦点/触摸目标首项核对**（28/32px vs 48dp、相邻 8px、aria-keyshortcuts 缺席、焦点陷阱缺失——不足按四步协议交用户决策，候选 M-020+）；通知/声音设置呈现；SSH/直连双路由。完整清单见 [design/interaction.md](design/interaction.md) G21 行。V2/探针/上游单测对以上运行时行为无证明力，勿以构建级证据替代 | issue #10 |
+| 真模型 live E2E（issue #10） | 直连+SSH 双路由真实授权集成测试：真实模型触发工具 → `permission.asked` → 决策（once/always/reject）→ 任务继续/中止的全流程（**真实 permission.asked 依赖真实模型工具调用，不允许 fixture 替代**）；可与 G21 一并执行 | issue #10（验收第 4 条） |
+| 多客户端并发决策核对（issue #10） | 第二客户端（桌面/CLI）参与：他端先答 → 本端 dock 移除、reject 批量扩散的多端呈现 | issue #10（G21④ 可选子项，事件层语义已由 `shared-events`/`solid-eviction` 子集部分锁定） |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -506,6 +542,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | M-017 归档语义（可逆元数据、无确认、无 unarchive 面；N-3 会话内菜单边界） | `home/sessions/controller.tsx`（M-017）+ `home/sessions/archive.ts`（未改）+ `home/sessions/index.ts` 过滤（未改） | V-probe M-017 断言 + `archive.test.ts` helper 语义（子集内） + 单元文档边界补记 | 一致；服务端归档语义归 G19/live E2E |
 | M-018 入口+守卫修订（server-list 预登记债务承接） | `settings/shell.tsx` 两 hunk + `runtime/i18n/en.ts`/`zh.ts` | V-probe 守卫修订断言（负例控制 FAIL→恢复 PASS）+ 入口断言 + dist `sshHosts`/`SSH hosts`/`SSH 主机` 键命中 | 一致（静态/构建级）；可达性运行时证明归 G19 |
 | session-workbench 单元契约（[units/session-workbench.md](design/units/session-workbench.md)：能力来源六面/事件契约全集/状态矩阵/取消与断开安全语义/恢复口径） | 上游闭包（`session-ui` + `app/src/session|composer|shell` + `client/src/solid`，零补丁零新建）、`scripts/verify-session-workbench.ts` | V-probe 五组断言（穷举集合/相邻对/无 `default:` 负断言）+ 三包上游子集 579 单测（app 367 组合 + client 98 + session-ui 114）+ V2 冒烟 | 一致（静态/单测级）；SSE live-only 与快照恢复的运行期行为、断开不中断远端机械核对归 G20（BLOCKED）；真模型交互归 live E2E（BLOCKED） |
+| permission-requests 单元契约（[units/permission-requests.md](design/units/permission-requests.md)：能力来源七面/事件契约六事件+生成类型+端点/状态矩阵八态/安全语义专节（会话作用域身份/F1 六处分层穷举/F2 分层吞错口径/F3 per-location 聚合+残例）/「无歧义默认审批」专节） | 上游闭包（`app/src/session/requests/*` + `session/composer` + `client/src/solid/data.ts` permission/form 域 + `session-ui` dock-prompt/question-prompt，零补丁零新建）、`scripts/verify-permission-requests.ts` | V-probe 五组断言（穷举集合相等/两包零命中负断言/分层单列/相邻对/负例三组实测）+ app 组合子集 410 单测（含新增 3 文件 43 首跑全绿）+ client 98 + session-ui 114 + V2 冒烟（dist 数字同数复现） | 一致（静态/单测级）；全部运行期行为归 G21（BLOCKED）；真模型 live E2E 与多客户端并发核对 BLOCKED；服务端语义引上游 pin 缓存（非闭包）如实标注 |
 
 ### 机械检查记录（2026-10-24）
 
@@ -513,3 +550,4 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - 设计单元清单、索引表与 `design/units/` 实际文件一一对应；未决 TODO（会话列表/时间线/终端/设置/权限确认/文件与 Diff、深链、状态恢复、预测性返回）在索引与单元文档中可见；issue #3 的 host-manager/host-dialog 并入 server-list 单元、host-key-prompt 并入 connection 单元，清单未单列新行（机械核对一致）；issue #4 的 credential-manager 并入 server-list 单元、vault 契约并入 connection 单元，清单未单列新行（机械核对一致）。
 - issue #8 后重跑（2026-10-25）：`projects-sessions` 单元文档新增并进入清单/索引（architecture.md 清单「会话列表」行改为 projects-sessions，README 索引加行）；七个改动文档（units/projects-sessions.md、architecture.md、interaction.md、design/README.md、units/server-list.md、project-scope.md、build-and-verify.md）内 109 个仓库内相对链接逐一解析 `missing=0`；design/interaction.md 门禁表标题更新为 G1–G19；`docs/project-scope.md` 的 dist 数字刷新为 `web-dist/manifest.json` 当前值（3480 文件 / 153,316,573 bytes）。
 - issue #9 后重跑（2026-10-25）：`session-workbench` 单元文档新增并进入清单/索引（architecture.md 清单「时间线」TODO 行改为 session-workbench，README 索引加行）；docs/** 全部仓库内相对链接逐一解析 `missing=0`（172 链接，最终树复测值——评审 F3 勘误：曾记中间时点值 167）；design/interaction.md 门禁表标题更新为 G1–G20；dist 数字核对：重建后 `web-dist/manifest.json` 的 fileCount/totalBytes 与既有值**逐字节同数**（3480 / 153,316,573），全部文档 dist 数字零变化。
+- issue #10 后重跑（2026-10-25）：`permission-requests` 单元文档新增并进入清单/索引（architecture.md 清单「权限确认」TODO 行改为 permission-requests，README 索引加行）；docs/** 与 README.md 全部仓库内相对链接引用逐一解析 `missing=0`（**196 引用**，口径=含重复引用/剥离 anchor/排除外链，与上方 V 表行统一——评审 RF1 勘误：曾记中间时点值 191）；design/interaction.md 门禁表标题更新为 G1–G21（G21 新设）；dist 数字核对：重建+copy-web-dist 后 `web-dist/manifest.json` 的 fileCount/totalBytes 与既有值**同数**（3480 / 153,316,573），全部文档 dist 数字零变化。
