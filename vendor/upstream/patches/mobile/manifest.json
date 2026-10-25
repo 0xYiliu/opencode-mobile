@@ -196,6 +196,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-service-ops.ts full mode (dist markers opencode-mobile-svcops-handshake + mobile(svcops-v1), entry wiring assertions); V2 build smoke; device behavior BLOCKED (G18).",
       "rebase": "New patch (issue #7); LAYERED patch - generated against pin b4525d79bf + M-001..M-015 (entry.tsx already rewritten by M-007/M-014/M-015), round-trip verified on that base; rebase target is the mobile(M-015) ssh transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new svcops block sits directly above the createMobileHosts call)."
+    },
+    {
+      "id": "M-017",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
+      "targets": [
+        "packages/app/src/home/sessions/controller.tsx"
+      ],
+      "reason": "Wires the Home session row archive action to the real API (issue #8). The generated client has exposed session.update with an archived flag all along (PATCH /api/session/:id, body archived; the server stamps time.archived); the upstream UI kept a stub that always rejected ('Session archiving is unavailable' next to a TODO). The stub becomes a real call and the success path drops the row from the 'home-sessions' query cache and invalidates/re-syncs the canonical session record (so the locally known copy carries the archived stamp and is filtered by the home index merge, home/sessions/index.ts parseHomeSessionIndex); the tabs cleanup and the onError toast are the existing archiveHomeSession helper semantics (archive.test.ts), which this patch does not touch. Archiving is a reversible metadata operation, not a deletion: no danger confirmation (the zero-delete red line does not apply), and there is still no unarchive UI - the same gap exists upstream and is recorded as an accepted limitation in docs/design/units/projects-sessions.md.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web rc=0 after applying); upstream targeted regression src/home/sessions/{archive,index,records}.test.ts 16 pass / 0 fail (note: archive.test.ts exercises the INJECTED archiveHomeSession helper, not the M-017 rewrite point - helper semantics regression only); scripts/verify-projects-sessions.ts static probe (stub text gone, archived:true call shape, helper wiring kept). Runtime archive semantics on a real server (time.archived stamp, list filtering) are BLOCKED - G19 / live lifecycle E2E.",
+      "rebase": "New patch (issue #8); rebase target is the archive: async block inside the returned session controller of packages/app/src/home/sessions/controller.tsx (anchored by the archiveHomeSession call; single hunk)."
     }
   ]
 }
