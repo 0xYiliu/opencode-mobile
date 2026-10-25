@@ -14,6 +14,8 @@
 
 记录日期：2026-10-25。issue #8 段（远程项目、工作区与会话生命周期：M-017 归档接线/M-018 设置入口+守卫修订/路径边界与状态保持的复用固化/V-probe 探针）的验证于同日在分支 `issue-8-projects-sessions` 工作树执行（基线 dev @ 1e3fe60，计划 v2；S1–S5 提交链），全部为本机构建/静态/单测级验证；G19 运行期门禁、双路由 lifecycle E2E 与 session-resolution browser 测试全部 BLOCKED。
 
+记录日期：2026-10-25。issue #9 段（会话工作台：流式消息、上下文、工具与子任务的复用固化与安全语义/快照恢复口径文档化、V-probe 探针、三包上游子集与逐例归因门）的验证于同日在分支 `issue-9-session-workbench` 工作树执行（基线 dev @ a1bc7f1，计划 v2.1——v2 评审 PASS 后吸收 N-1..N-6；S1–S3 提交链），全部为本机构建/静态/单测级验证；G20 运行期门禁、真模型 live E2E（直连+SSH 双路由）与 session-ui component-tests/playwright 全部 BLOCKED。
+
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
 ## 工具链（本机真实版本）
@@ -47,8 +49,16 @@ bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明�
 bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连静态验证；补丁落地前用 --pre-vendor 分段）
 bun run scripts/verify-service-ops.ts                 # V-svcops（issue #7 服务操作静态验证；--pre-native/--pre-vendor 分段）
 bun run scripts/verify-projects-sessions.ts           # V-probe（issue #8 projects/sessions 静态验证：M-017/M-018/路径边界/N-5 白名单扫描）
-# 上游定向回归子集（issue #8；在 vendor/upstream/packages/app 下，22 文件见 issue #8 段）：
+bun run scripts/verify-session-workbench.ts           # V-probe（issue #9 会话工作台静态验证：取消调用面穷举集合/live-only SSE+快照恢复/按会话保持/事件面+无 default:/移动适配）
+# 上游定向回归子集（issue #9 组合 46 文件 = #8 的 22 + 本期新增 24，见 issue #9 段；在 vendor/upstream/packages/app 下）：
 #   bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <files>
+# client 包子集（issue #9；在 vendor/upstream/packages/client 下，显式列文件——包内另有子集外测试文件）：
+#   bun test --timeout 5000 test/solid-connection.test.ts test/solid-data.test.ts test/shared-events.test.ts \
+#     test/solid-inbox-race.test.ts test/solid-refresh.test.ts test/solid-pending-status.test.ts \
+#     test/solid-compaction.test.ts test/solid-eviction.test.ts
+# session-ui 包子集（issue #9；在 vendor/upstream/packages/session-ui 下，bunfig preload 生效，显式列文件——包共 20 个测试文件）：
+#   bun test src/timeline/projection.test.ts src/timeline/rows-current.test.ts src/message/current-tool-state.test.ts \
+#     src/message/current-message.test.ts src/tools/shell-output.test.ts src/components/markdown-stream.test.ts
 # 测试期解析 seam（本机、不入 git）：vendor/upstream/packages/app/node_modules/@opencode-mobile/mobile-hosts
 #   → 仓库根 packages/mobile-hosts 的符号链接（node_modules 已 gitignore），等价于 M-004 的 vite 别名——
 #   否则引用链（如 registry.tsx → @opencode-mobile/mobile-hosts，M-010）在 bun test 下无法解析。
@@ -110,6 +120,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | 服务操作（发现/显式授权安装/启动/升级/替换/停止，issue #7） | ✓ | ✓（V-mh 299 单测、V-svcops 全模式、V2/V3、Kotlin 编译探针+compileDebugKotlin PASS） | BLOCKED（G18 四桥 bring-up + 面板交互） | BLOCKED（三 OS 真 OS E2E） |
 | Kotlin svcops 四件 | ✓（代码） | 编译 PASS（真实工具链）；**APK 打包 BLOCKED**（jsch+bcprov jar 元数据冲突，需 build.gradle.kts packaging 块——零改动清单，待决策） | BLOCKED（G18） | BLOCKED |
 | 远程项目/工作区/会话生命周期（浏览选择远端目录、create/open/fork/rename/archive/切换、路径边界与状态保持，issue #8） | ✓（上游复用 + M-017/M-018） | ✓（V-mh 307 单测、V-upstream 子集 225 单测、V-probe、V2/V3） | **BLOCKED（G19 全部运行期行为，含 M-018 入口可达性）** | **BLOCKED（双路由 lifecycle E2E）** |
+| 会话工作台（流式消息/上下文/工具/子任务、发送/取消安全语义、快照恢复口径、草稿/滚动保持，issue #9） | ✓（零新建界面/零补丁，上游闭包承载 + 文档固化） | ✓（V-mh 307 单测、V-upstream 三包组合 579 单测、V-probe、V2 冒烟） | **BLOCKED（G20 全部运行期行为，含断开不中断远端机械核对）** | **BLOCKED（真模型 live E2E 直连+SSH 双路由）** |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
 
 ## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
@@ -345,6 +356,38 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **M-018 守卫修订语义外溢（R3，低风险已评估）**：若上游未来把其他功能挂到 "servers" tab 并依赖「多服务器下不可达」假设，行为改变；回滚=恢复列表项（单行）+移除入口。
 - **上游全量套件不作为门禁**：仅 22 文件定向子集如实记录；测试期 node_modules 符号链接为本机 seam（gitignored，不入 git）。
 
+## issue #9 段（会话工作台：流式消息、上下文、工具与子任务）——2026-10-25 实测记录
+
+交付物：单元文档 [design/units/session-workbench.md](design/units/session-workbench.md)（能力来源六面表/数据与事件契约表（`handleEvent` 71 case 全集 + 未知事件静默 fall-through 无 `default:` 口径）/状态矩阵（empty/loading/streaming/complete/error 三层/offline/reconnect/malformed/tool-failure）/**取消与断开安全语义专节**（interrupt 三处线级调用点枚举 + 断开零 API 调用 + SSE live-only、快照为恢复权威的验收落字））+ 新门禁 **G20**（[design/interaction.md](design/interaction.md)，含「断开不中断远端」机械核对四步与窄屏/读屏/焦点/触摸目标清单）+ architecture.md 单元行与流转矩阵细化 + 静态探针 `scripts/verify-session-workbench.ts`（V-probe）。**本期零新建界面、零运行时代码改动、零 vendor 补丁**（`patches/mobile/manifest.json` 维持 18 个；零依赖变更、bun.lock 不变）。提交链 `572e207 → 411cfe2 → 本提交（S3，docs）`（分支 `issue-9-session-workbench`，基于 dev @ a1bc7f1，未 push）。计划版本 v2.1（v2 评审 PASS，IMPLEMENTER 开工前吸收评审修正 N-1..N-6：失效 effect 相邻对锚、换行容忍匹配、ARIA TODO 事实、子集命令显式列文件、引文逐字、R7 以 manifest targets 全集为准）。
+
+上游定向回归子集（app 组合 46 文件 = #8 已记录 22 + 本期新增 24，全部真实执行；新增 24 文件清单）：`session/timeline/{controller-projection,model,turn-diffs,voice-delegation,observe-element-offset}`、`session/use-session-hash-scroll`、`session/list`、`session/session-domain`、`session/composer/{queue,selection}`、`session/requests/session-request-tree`、`composer/{submit,prompt,request,schema,client-slash-command,comment-note,comments}`、`composer/history/entry`、`runtime/server/{client,data}`、`runtime/server/server-sync/connection`、`runtime/server/request-queue`、`shell/titlebar/session-events` 各 `.test.ts`（`session/list` 实为 `src/session/list.test.ts`）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #9） | 未动依赖 | `git diff a1bc7f1 HEAD -- bun.lock` 为空；零新增依赖（本期零补丁零运行时代码） | 本文；git diff 为空 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**307 tests / 307 pass / 0 fail，2452 expect()**（28 文件；与基线一致，零新逻辑零新 fail——issue #9 无新增第一方逻辑） | 本文 |
+| V-upstream（app 组合 46 文件） | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <46 文件>`（在 `vendor/upstream/packages/app` 下） | PASS：**367 tests / 367 pass / 0 fail / rc=0**（5.35s；=#8 子集 225 + 本期新增 142）。M-002 基线 1 fail 文件（persistence.test.ts）不在子集；0 fail 符合预期，无新增 fail | 本文 |
+| V-upstream（本期新增 24 文件单独跑） | 同上命令形态 | PASS：**142 tests / 142 pass / 0 fail / rc=0**（2.79s）——时间线投影/模型、composer 提交/排队/请求、runtime server 装配与连接、titlebar 会话事件面首跑全绿 | 本文 |
+| V-upstream（client 子集首跑，B2 归因门） | `bun test --timeout 5000 test/solid-connection.test.ts test/solid-data.test.ts test/shared-events.test.ts test/solid-inbox-race.test.ts test/solid-refresh.test.ts test/solid-pending-status.test.ts test/solid-compaction.test.ts test/solid-eviction.test.ts`（在 `vendor/upstream/packages/client` 下；N-4：显式列文件，不裸跑） | PASS：**98 tests / 98 pass / 0 fail / rc=0**（5.20s，首跑）。**solid-js 解析条件核验**：上游包 `package.json` 自声明命令形态（无 bunfig preload、无附加 conditions）即可解析——解析产物为响应式 dev 构建（`$PROXY/$TRACK/DEV` 在导出面），且子集 7/8 文件经 `createRoot` 驱动真实响应式数据层（98 tests / 427 expect()，store/失效/重连语义全部通过佐证）。**首跑零 fail → B2 归因门未触发**（无需 pristine pin 对照；`~/.cache/opencode-upstream` 物化预检未执行——无待归因 fail 时无必要，如实记录）。此后任何新增 fail 阻断合入 | 本文 |
+| V-upstream（session-ui 子集首跑，B2 归因门） | `bun test src/timeline/projection.test.ts src/timeline/rows-current.test.ts src/message/current-tool-state.test.ts src/message/current-message.test.ts src/tools/shell-output.test.ts src/components/markdown-stream.test.ts`（在 `vendor/upstream/packages/session-ui` 下；包内 bunfig.toml `preload=["../ui/test/solid-jsx.ts"]` 生效；N-4：显式列文件——包共 20 个测试文件，子集仅 6） | PASS：**114 tests / 114 pass / 0 fail / rc=0**（263ms，首跑）。**首跑零 fail → B2 归因门未触发**；此后任何新增 fail 阻断合入 | 本文 |
+| R7 补丁相互作用机械核对（①import 链核对，以 `patches/mobile/manifest.json` targets 全集为准——N-6） | 一次性脚本：对 24+8+6 个子集测试文件做包内传递 import 闭包（相对/`@`/`~` 别名解析），比对 M-001..M-018 目标文件集 | 结论：**直接重叠为零**（无任何子集测试文件本身是补丁目标）——与计划预期一致；**传递触碰非零（如实修正计划预期）**：app 24 文件中 12 个的 import 闭包经 runtime 装配链传递到达 `registry.tsx`（M-010）/`persistence.ts`（M-002/M-005）与 i18n `en.ts`/`zh.ts`（M-009/M-013/M-018），并经 M-004 别名解析第一方 `@opencode-mobile/mobile-hosts`；client 8 文件与 session-ui 6 文件闭包零触碰。**因三包子集全部 0 fail，无 fail 需要归因，R7②（blocking 处置）未触发**；传递触碰为事实记录而非缺陷（触碰面均为「补丁只增键/只改编码路径」型，测试语义不受扰动——0 fail 佐证） | 本文；核对脚本输出留档 `logs-issue9-impl/r7-import-check.txt` |
+| V-probe 会话工作台静态验证 | `bun run scripts/verify-session-workbench.ts` | PASS（rc=0）：①取消调用面**穷举集合相等断言**（换行容忍归一后 `api.session.interrupt(` 线级命中集合恰为 {session/composer/adapter.ts, session/header/session-running-menu.tsx, session/revert.ts}，含各点形态锚：`resume: true`+吞错、子会话前置注释、revert stage 的 interrupt→wait→revert.stage 序列与逐字「both are idle no-ops.」、未投递 prompt 走 `inbox.cancel`）+ submit.ts 两处 adapter 触发面 + connection.ts stop/resync/pagehide 零 API 调用 + client.tsx 零 interrupt；②SSE live-only（capacity 4096、仅 server.connected 迟到补偿、无 replay/backlog）+ data.ts 失效 effect **相邻对锚**（N-1：`status() === "connected") return` 紧邻 `sync.invalidate()`）+ `server.connected` case 内 `session.active()` 快照 + session-resolution/requests 的 connected gate；③按会话保持（`Persist.serverScoped(...,"prompt")` + `previousKey`、`sessionView` + `SessionStateKey.is`）；④事件面抽样（tool.failed/step.failed/execution.interrupted/inbox.cancelled/retry.scheduled）+ 未加载行丢弃锚 + **data.ts 全文无 `default:` 负断言**；⑤移动适配（isDesktop 门控、767px matchMedia）。**负例控制实测**：向 `session/timeline/model.ts` 临时注入一条线级 interrupt 调用 → 探针 FAIL rc=1（集合外命中）→ 恢复 PASS rc=0——断言有牙齿。诚实标注：静态结构检查，对运行时行为无证明力 | 本文；脚本输出 |
+| V2 构建冒烟（回归） | `bun run build:web` | PASS（rc=0，6177 modules，13.55s）——与 #8 终态 module 数一致（零源码变更） | 本文 |
+| V2 产物拷贝（协调者指令执行，计划 §4 原定免执行——偏差记录见下） | `bash scripts/copy-web-dist.sh` | PASS（rc=0）：**3480 文件 / 153,316,573 bytes 与既有 manifest 逐字节同数**——重建在本机对 manifest 级数字完全复现；diff 仅 `generatedAt` 时间戳 + 27 个 `.js.map` 条目 sha256 刷新（sourcemap 不可字节复现的既有已接受限制，文件名与字节数均不变）。**全部文档 dist 数字零变化**（3480/153,316,573 维持），无跨文档同步需求 | `web-dist/manifest.json`（generatedAt 2026-10-25T09:23:31Z；fileCount 3480；totalBytes 153,316,573） |
+| V5 JSON 校验（issue #9 增量） | python3 json.tool | PASS：刷新后的 `web-dist/manifest.json` 可解析（fileCount/totalBytes 复核一致） | 本文 |
+| 文档链接核对（issue #9 后） | docs/** 仓库内相对链接逐一 `test -f` | PASS：172 链接 `missing=0`（最终树复测值；评审 F3——修复前曾记中间时点值 167）；interaction.md 门禁表标题更新为 G1–G20；architecture.md 单元清单「时间线」TODO 行改为 session-workbench | 本文 |
+
+### 诚实边界（issue #9 段）
+
+- **运行期全部 BLOCKED（G20）**：流式增量在 WebView 的到达节奏、断开→重连快照恢复的用户可见过程、长历史翻页手感、软键盘/视口交互、读屏/焦点/触摸目标、「断开不中断远端」的远端存活机械核对（真实长任务→断连三态→远端存活→快照补齐+零 interrupt 日志命中）、offline 呈现充分性首项核对——V2/dist/静态探针/上游单测对以上均无证明力；G20 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」（F4 系列第六处落字）。
+- **真模型 live E2E BLOCKED**：直连+SSH 双路由真实会话收发需授权远程服务与模型，不允许 fixture 替代。
+- **session-ui component-tests/playwright BLOCKED**：需浏览器环境；本期子集仅覆盖其纯逻辑测试面（6 文件）。
+- **client/session-ui 归因门为「零 fail 未触发」态**：首跑全绿，pristine pin 树对照未实际执行（无待归因 fail 时无对照对象，如实记录）；基线即本次全绿记录，此后任何新增 fail 阻断。
+- **R7 传递触碰为计划预期的如实修正**：计划 R7 写「#9 子集文件与补丁触碰面预期零直接重叠」（成立）并要求机械核对 import 链；实测 12/24 个 app 子集文件的传递闭包经 runtime 装配与 i18n 字典到达 M-002/M-005/M-009/M-010/M-013/M-018 目标——因零 fail 无干扰证据，不构成 blocking，但「传递隔离」的隐含预期不成立，已按实测记录。
+- **上游全量套件不作为门禁**：app 46 文件组合子集 + client 8 + session-ui 6 如实记录；测试期 `node_modules/@opencode-mobile/mobile-hosts` 符号链接为本机 seam（gitignored，不入 git）。
+- **V2 产物拷贝为本期偏差执行**：计划 §4 原定零源码变更免执行 copy-web-dist；按协调者指令执行并如实记录（数字复现一致，仅时间戳+sourcemap 哈希刷新，dist 数字跨文档零变化）。
+- 上游已知 TODO 边界（登记于单元文档）：`message-timeline.tsx` 会话内菜单无归档项（#8 N-3）；`session-ui` stories 文件内一处 ARIA 确认 TODO（非代码缺陷）。
+
 ## BLOCKED 总表
 
 
@@ -380,6 +423,9 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | G19 projects-sessions 运行期门禁（issue #8 新设门禁） | 真机/模拟器 + 授权远程服务：单窗口切换保持（tabs/草稿/滚动/导航栈）、同名项目隔离、空项目空态、错误恢复（stale ID/不可达路径/失败变更）、归档反馈（M-017：行消失/tab 关闭/失败 toast/服务端 `time.archived` 过滤）、**M-018 入口在 multiple() 布局可达且不弹回 general**、`addProjects` 静默疑点核对（缺陷成立追加 M-019）；完整清单见 [design/interaction.md](design/interaction.md) G19 行。V2/dist/静态探针对以上运行时行为无证明力，勿以构建级证据替代 | issue #8 |
 | 双路由 lifecycle E2E（issue #8） | SSH/直连各完整一遍：选项目→建会话→fork→重命名→归档→切换→错误恢复；依赖授权远程服务与真机（可随 G19 一并执行） | issue #8 |
 | `test-browser/session-resolution.test.ts` | 需浏览器环境（happy-dom 不覆盖其断言面）；stale session ID 的浏览器级回归 | issue #8（沿用上游既有测试文件） |
+| G20 session-workbench 运行期门禁（issue #9 新设门禁） | 真机/模拟器 + 授权远程服务：流式增量呈现（叠加 G6）、长历史翻页、发送/停止（显式取消）、断开→重连快照恢复（含 queued inputs；offline 呈现充分性为 G20 首项核对）、**断开不中断远端机械核对四步**（真实长任务→断连三态→远端存活→快照补齐+零 interrupt 日志命中）、草稿/滚动/上下文跨切换恢复、三层失败反馈、窄屏/读屏/焦点/触摸目标核验；完整清单见 [design/interaction.md](design/interaction.md) G20 行。V2/探针/上游单测对以上运行时行为无证明力，勿以构建级证据替代 | issue #9 |
+| 真模型 live E2E（issue #9） | 直连+SSH 双路由真实会话收发（授权远程服务与模型，不允许 fixture 替代）：真实模型增量输出、工具执行与失败、子任务/后台任务、重连快照补齐的全流程；可与 G20 一并执行 | issue #9（验收第 4 条） |
+| session-ui component-tests/playwright（issue #9） | 需浏览器环境：上游 session-ui 组件级测试（component-tests/ + playwright 配置）不在本机单测覆盖面 | issue #9（沿用上游既有测试设施） |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -459,9 +505,11 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | projects-sessions 单元契约（[units/projects-sessions.md](design/units/projects-sessions.md)） | M-017/M-018 patches、`scripts/verify-projects-sessions.ts`、上游复用面（picker/fork-dialog/home controller/resolution/location-missing） | V-probe（M-017/M-018/路径边界/N-5 白名单 28 文件 + 负例控制）+ V-upstream 子集 225 pass + V2 dist 键/调用面命中 | 一致（静态/构建级）；全部运行期行为归 G19（BLOCKED）；`addProjects` 反馈形态待 G19 核对（M-019 预留） |
 | M-017 归档语义（可逆元数据、无确认、无 unarchive 面；N-3 会话内菜单边界） | `home/sessions/controller.tsx`（M-017）+ `home/sessions/archive.ts`（未改）+ `home/sessions/index.ts` 过滤（未改） | V-probe M-017 断言 + `archive.test.ts` helper 语义（子集内） + 单元文档边界补记 | 一致；服务端归档语义归 G19/live E2E |
 | M-018 入口+守卫修订（server-list 预登记债务承接） | `settings/shell.tsx` 两 hunk + `runtime/i18n/en.ts`/`zh.ts` | V-probe 守卫修订断言（负例控制 FAIL→恢复 PASS）+ 入口断言 + dist `sshHosts`/`SSH hosts`/`SSH 主机` 键命中 | 一致（静态/构建级）；可达性运行时证明归 G19 |
+| session-workbench 单元契约（[units/session-workbench.md](design/units/session-workbench.md)：能力来源六面/事件契约全集/状态矩阵/取消与断开安全语义/恢复口径） | 上游闭包（`session-ui` + `app/src/session|composer|shell` + `client/src/solid`，零补丁零新建）、`scripts/verify-session-workbench.ts` | V-probe 五组断言（穷举集合/相邻对/无 `default:` 负断言）+ 三包上游子集 579 单测（app 367 组合 + client 98 + session-ui 114）+ V2 冒烟 | 一致（静态/单测级）；SSE live-only 与快照恢复的运行期行为、断开不中断远端机械核对归 G20（BLOCKED）；真模型交互归 live E2E（BLOCKED） |
 
 ### 机械检查记录（2026-10-24）
 
 - 文档相对链接：对 `README.md`、`docs/design/**`、`docs/project-scope.md` 中的仓库内相对链接逐一 `test -f`，全部存在（issue #3 交付后 2026-10-24 重跑，含 `docs/build-and-verify.md` 与 `docs/design/units/*` 的新增链接；issue #4 交付后再次重跑通过）。
 - 设计单元清单、索引表与 `design/units/` 实际文件一一对应；未决 TODO（会话列表/时间线/终端/设置/权限确认/文件与 Diff、深链、状态恢复、预测性返回）在索引与单元文档中可见；issue #3 的 host-manager/host-dialog 并入 server-list 单元、host-key-prompt 并入 connection 单元，清单未单列新行（机械核对一致）；issue #4 的 credential-manager 并入 server-list 单元、vault 契约并入 connection 单元，清单未单列新行（机械核对一致）。
 - issue #8 后重跑（2026-10-25）：`projects-sessions` 单元文档新增并进入清单/索引（architecture.md 清单「会话列表」行改为 projects-sessions，README 索引加行）；七个改动文档（units/projects-sessions.md、architecture.md、interaction.md、design/README.md、units/server-list.md、project-scope.md、build-and-verify.md）内 109 个仓库内相对链接逐一解析 `missing=0`；design/interaction.md 门禁表标题更新为 G1–G19；`docs/project-scope.md` 的 dist 数字刷新为 `web-dist/manifest.json` 当前值（3480 文件 / 153,316,573 bytes）。
+- issue #9 后重跑（2026-10-25）：`session-workbench` 单元文档新增并进入清单/索引（architecture.md 清单「时间线」TODO 行改为 session-workbench，README 索引加行）；docs/** 全部仓库内相对链接逐一解析 `missing=0`（172 链接，最终树复测值——评审 F3 勘误：曾记中间时点值 167）；design/interaction.md 门禁表标题更新为 G1–G20；dist 数字核对：重建后 `web-dist/manifest.json` 的 fileCount/totalBytes 与既有值**逐字节同数**（3480 / 153,316,573），全部文档 dist 数字零变化。
