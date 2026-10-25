@@ -16,9 +16,9 @@
 | 设置 | TODO | — | TODO | 未开始 |
 | permission-requests（权限请求与 Agent 提问） | 权限请求（`permission.asked`/`replied` SSE 事件 + HTTP 快照，`PermissionRequest` 生成类型）与表单类请求（`form.created`/`replied`/`cancelled`，`FormInfo` 三 kind：question/websearch.provider/mcp-elicitation）；决策三值 `once`/`always`/`reject` + form reply/cancel | 决策三值语义上游承载；请求身份会话作用域（服务端 `per_` ID + `requireOwnedRequest` 双校验）；auto-approve 默认关、显式 opt-in 才代答；断开路径零 reply 调用（线级调用点穷举恰两处，均显式动作/显式 opt-in）；事件 ephemeral、恢复靠 HTTP 快照（per-location 聚合枚举 + never-loaded 残例如实）；服务端 shutdown 全拒不静默批准 | 呈现权限/提问请求上下文与决策集（dock 三家族）、处理 approve/reject/answer、duplicate/stale/expired 处置、auto-approve opt-in、跨会话注意态、响应留痕（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G21，见 [units/permission-requests.md](units/permission-requests.md) |
 | files（远程文件浏览/搜索/查看与上下文引用） | 远程文件树/搜索/查看（`file.list`/`file.find`/`file.read` 三端点 + `filesystem.changed` 事件）；path identity=workspace 相对路径 + `location` 作用域；行范围选择与 @-引用；文件 tab/滚动/行选择按 workspace 恢复（`SessionStateKey` 键控 + `file-view` scoped store） | 读取路径服务端围栏归一 404（NUL/词法/realpath 三重，引上游 pin 缓存）；`fs.list` 允许父/兄弟目录为上游有意设计（如实披露）；写面唯一调用点归 #16（穷举断言恰 `composer/attachments/destination.ts`）；恢复键控 `SessionStateKey`/`file-view`；移动专属面 MobileFiles；新面零 OS 条件分支（探针白名单扫描）；搜索失败吞为空结果（如实） | 浏览远程项目文件树、按名称/内容搜索、查看文本/媒体文件（四态：loading/empty/loaded/error + notFound/large/binary/encoding/stale 处置）、把选中文件/行范围附入会话上下文、恢复打开的文件 tab 与行选择（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；真机归 G22，见 [units/files.md](units/files.md) |
-| diff | TODO | — | TODO | 未开始 |
+| diff（远程 Git 审查与 worktree 操作） | review 三模式（`ChangeMode` git/branch/turn——`vcs.diff` working/branch + `session.diff` turn）+ `vcs.status` working-copy 变更 + `vcs.branch.list` 分支候选 + worktree 四端点（list/create/remove/refresh）+ revert 三端点（stage/clear/commit）+ `filesystem.changed`/`worktree.updated`/`session.revert.*` 事件 | staged/unstaged 分解与 git commit 无上游客户端面（能力边界如实登记）；worktree.remove 显式五层确认链（唯一不可逆操作）；undo/redo 可逆对+失败即停；破坏性操作零静默；移动面 MobileReview+wrap 设置（Changes 为 tab 条一级 tab）；新面零 OS 条件分支（六域白名单探针）；远程路径恒经 `location` 作用域读取、绝不映射本地 IDE | 渲染远程 Git 变更审查（移动 Changes 一级 tab + 桌面 review 面板：三模式/大 diff 占位/二进制占位/媒体/行评论）、details 的 changes 行与 worktree/branch 上下文、worktree 迁移/创建/删除/refresh、undo/redo 与 staged revert 自动 commit（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G23，见 [units/diff.md](units/diff.md) |
 
-终端、设置与 diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付（会话工作台/时间线已于 issue #9、权限请求与 Agent 提问已于 issue #10、远程文件浏览/搜索/查看与上下文引用已于 issue #11 建立契约，见 [units/session-workbench.md](units/session-workbench.md)、[units/permission-requests.md](units/permission-requests.md) 与 [units/files.md](units/files.md)）。
+终端与设置的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付（会话工作台/时间线已于 issue #9、权限请求与 Agent 提问已于 issue #10、远程文件浏览/搜索/查看与上下文引用已于 issue #11、远程 Git 审查与 worktree 操作已于 issue #12 建立契约，见 [units/session-workbench.md](units/session-workbench.md)、[units/permission-requests.md](units/permission-requests.md)、[units/files.md](units/files.md) 与 [units/diff.md](units/diff.md)）。
 
 ## 结构图
 
@@ -150,7 +150,8 @@
 | permission-requests | 请求决策（once/always/reject 或 form reply/cancel） | 远程服务（POST reply 端点） | `{decision}` / `FormAnswer` | 网络失败 → 失败 toast（`common.requestFailed`），请求保留待重试；stale → 见上行；in-flight 全按钮 disabled 幂等 | 已实现（未验证）；真机归 G21 |
 | 任意客户端 | 同会话请求被他端先答 | permission-requests | `permission.replied` 广播 | 本端 dock 移除，无需操作（他端先答后本端操作的呈现归 G21④） | 已实现（未验证） |
 | session-workbench/composer/消息链接 | 打开文件（树/搜索/@-引用/消息内链接） | files | 路径+行范围 | 远程路径恒经 `location` 作用域读取，绝不当作手机本地路径；文件缺失→notFound 呈现 | 已实现（未验证）；真机归 G22 |
-| session-workbench | 打开 Diff | diff | — | — | 未开始 |
+| session-workbench/details/review tab | 审查变更（diff 面三模式 git/branch/turn + 行评论 + 大 diff/二进制占位） | diff | 会话 ID + location + 模式 | noGit 空态带 initGit；四类吞错如实（detailsQuery/loadDiff/branch.list 候选→空、toast 族）；503 git 不可用声明面 | 已实现（未验证）；真机归 G23 |
+| settings-workspaces/details 菜单 | worktree 删除/迁移/创建 | diff | projectID + directory | remove 五层确认链（preflight 三态拦截→确认对话框 danger 按钮 stale/pending/error disabled→force 显式执行）+ 失败 toast + tab 重指向；move 迁移 running 禁用；创建后 syncInfo 预填 | 已实现（未验证）；真机归 G23 |
 | 会话列表/会话工作台 | 打开终端 | 终端 | PTY 会话 | — | 未开始 |
 | 任意单元 | 用户进入设置 | 设置 | — | — | 未开始 |
 | 任意单元 | 网络断开/切换 | 失败恢复路径 | — | 有反馈可恢复，见 [interaction.md](interaction.md) 负例矩阵（G11） | 未开始 |
