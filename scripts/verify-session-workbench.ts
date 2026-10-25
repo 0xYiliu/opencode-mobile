@@ -202,6 +202,7 @@ const CLIENT = "vendor/upstream/packages/client/"
 {
   const data = await read(`${CLIENT}src/solid/data.ts`)
   for (const branch of [
+    'case "session.permissions"',
     'case "session.tool.failed"',
     'case "session.step.failed"',
     'case "session.execution.interrupted"',
@@ -234,7 +235,7 @@ console.log(
     "1: linear interrupt call sites form exactly the closed 3-file set {composer/adapter, header/session-running-menu, revert} with per-site shapes; submit.ts stop/empty-submit adapter faces present; connection.ts stop/resync/pagehide paths carry zero API calls; client.tsx has no interrupt; " +
     "2: shared-events live-only fan-out (capacity 4096, no replay/backlog), data.ts disconnect full-invalidate adjacent pair + server.connected session.active() snapshot, session-resolution/requests connected gates; " +
     "3: per-session prompt persistence (Persist.serverScoped) + sessionView scroll persistence; " +
-    "4: failure/interrupt event branches sampled, never-loaded-row drop anchor, NO default: (silent fall-through); " +
+    "4: failure/interrupt/permissions event branches sampled, never-loaded-row drop anchor, NO default: (silent fall-through); " +
     "5: isDesktop() gating + 767px matchMedia; " +
     "STATIC check - streaming arrival, reconnect recovery, and remote-task survival on device are G20)",
 )

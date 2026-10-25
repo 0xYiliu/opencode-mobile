@@ -30,6 +30,7 @@
 | `project.updated` / `session.created` / `session.deleted` / `session.usage.updated` | 项目/会话索引与用量记录维护 |
 | `session.agent.selected` / `session.model.selected` | 代理/模型切换 → `agent-switched`/`model-switched` 系统消息 + composer 选择面状态 |
 | `session.renamed` / `session.archived` / `session.unarchived` / `session.moved` | 会话元数据（标题/归档/移动）索引更新 |
+| `session.permissions` | 会话权限状态写入会话 store（`store.session.info[sessionID]` 已加载时写 `permissions` 字段；评审 F1 补录——此前表格漏列该 case） |
 | `worktree.resolved` | worktree 状态（projects-sessions 单元消费） |
 | `session.inbox.delivered` / `.delivery.changed` / `.cancelled` / `.enqueued` | 排队输入（queue delivery）状态；排队撤销走 `session.inbox.cancel` API |
 | `session.instructions.updated` / `session.synthetic` | 会话指令与合成消息 |
@@ -86,7 +87,7 @@
 
 1. 断连全量失效：`client/src/solid/data.ts` 末段 effect——非 connected 即 `sync.invalidate()` 全量失效（相邻对源锚：`if (config.connection?.status() === "connected") return` 紧邻 `sync.invalidate()`；文件头注释「Reconnect invalidates cached reads; active UI owners decide what to sync again」）。
 2. `server.connected` handler：`session.active()` 快照 reconcile（与 hydration 期收到的事件合并）+ location/vcs/project 刷新。
-3. 会话面 connected-gated 再同步：`session/session-resolution.ts`（`options?.connected?.()` 依赖变化重跑 `message.sync`+`pending.sync`，注释锚「Queued inputs ride along so a reconnect refreshes them with the transcript」）、`session/requests/model.ts`（四处 `serverSDK.connection.status() !== "connected"` gate）、`session/timeline/model.ts`（挂载同步）。
+3. 会话面 connected-gated 再同步：`session/session-resolution.ts`（`options?.connected?.()` 依赖变化重跑 `message.sync`+`pending.sync`，注释锚「Queued inputs ride along so a reconnect refreshes them with the transcript」）、`session/requests/model.ts`（三处 `serverSDK.connection.status() !== "connected"` 早退 gate + 一处 `connected: () => …status() === "connected"` 正形 gate）、`session/timeline/model.ts`（挂载同步）。
 
 连接参数事实：连接超时 2s、重连退避 1s、idle watchdog 45s（`connection.ts`）；extension 型连接（`mobile-ssh:<uuid>`）的 `reconnect` 钩子=隧道端点重解析（`packages/mobile-hosts/src/upstream-map.ts` `ExtensionConnection.reconnect`，断流重连自动换端口同身份）。
 
