@@ -11,13 +11,13 @@
 | server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页）；凭据管理器（credential-manager，issue #4） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳）；凭据管理器仅展示元数据无值 | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口；凭据条目的元数据查看/删除与恢复 | 已实现（未验证）；设备交互 BLOCKED（G13/G15、C2 归 #4），见 [units/server-list.md](units/server-list.md) |
 | service-ops | 服务状态快照（`ServiceStatus` 六态 + `checkedAt`/`survivedDisconnect`/limitations）；白名单命令模板表（`ServiceOpsAction` × OS 三分变体，OS 适用域闭域）；授权流状态机（O1–O14）；服务操作错误分类码（`ServiceOpsErrorCode` 二十一码 + Kotlin 镜像，issue #7 已实现（未验证）） | 桥协议只传 `{templateId, params, os}` 永不传命令字符串（无自由命令注入面，双门禁白名单）；预览=执行逐字节一致（golden vectors）；零删除类模板（N8）；curl 管道模板 POSIX 闭域（N2）；凭据逐命令解析单次过桥（N7，继承 0003 §4）；无确认不执行；断开永不停止远端（O14 无 disconnect→stop 边） | 发现远端服务与版本（API 权威 + exec 安装面，诚实限制清单）；显式授权 install/start/upgrade/replace/stop（预览→危险确认→执行）；断开存活复核（B1 触发集 watcher） | 已实现（未验证）；设备/真 OS BLOCKED（G18、三 OS E2E），见 [units/service-ops.md](units/service-ops.md) 与[决策 0004](../decisions/0004-service-operations.md) |
 | projects-sessions（会话列表） | 会话记录（`SessionInfo`，`time.archived` 时间戳）；项目身份 = worktree 远端绝对路径（`pathKey`）+ `ServerScope` 双重键 | 路径语义全部经上游服务契约（`file.list`/`file.find`/`location`/worktree），web 平台目录选择恒远端模式（结构性保证）；客户端零手机 FS 参与代码、零 OS 条件分支（白名单负例探针）；归档为可逆元数据操作（无危险确认，本期无 unarchive 界面=上游能力边界） | 浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区（全部复用上游 UI/API）；M-017 归档接线；M-018 多服务器设置布局的 SSH hosts 入口+守卫修订（server-list 预登记债务承接） | 已实现（未验证）；运行期归 G19，见 [units/projects-sessions.md](units/projects-sessions.md) |
-| 时间线 | TODO | — | TODO | 未开始 |
+| session-workbench（会话工作台/时间线） | 会话消息与事件流（`session.*` SSE 事件全集 + HTTP 快照读，`client/src/solid/data.ts` `handleEvent`）；工具/子任务状态；草稿与滚动（`Persist.serverScoped(prompt)` + `sessionView`） | 取消仅在显式用户动作：`api.session.interrupt` 线级调用点全仓恰三处（composer 停止/空提交入口、running-menu 子会话入口、revert stage 前置序列），断开路径零 API 调用（不因客户端断开停止远程任务）；SSE live-only 无重放，恢复=服务端快照重放真相（`sync.invalidate()` + `server.connected` reconcile + connected-gated 再同步）；未知事件静默 fall-through（`handleEvent` 无 `default:`） | 渲染流式时间线与长历史、模型/代理/工具/子任务状态与失败、请求 dock 事件接线、composer 发送/排队/重试、草稿/滚动/上下文按会话保持（全部复用上游 `session-ui`+app+client 闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G20，见 [units/session-workbench.md](units/session-workbench.md) |
 | 终端 | TODO | — | TODO | 未开始 |
 | 设置 | TODO | — | TODO | 未开始 |
 | 权限确认 | TODO | — | TODO | 未开始 |
 | 文件与 Diff | TODO | — | TODO | 未开始 |
 
-时间线、终端、设置、权限确认、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付。
+终端、设置、权限确认、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付（会话工作台/时间线已于 issue #9 建立契约，见 [units/session-workbench.md](units/session-workbench.md)）。
 
 ## 结构图
 
@@ -144,9 +144,9 @@
 | 连接状态机（已实现（未验证）） | 状态迁移 | 上游 server-list 行内状态 | extension 型 ServerConnection（state 映射） | offline/reconnecting 有反馈可恢复；取消恢复来源态；删除/断开零远程调用 | 已实现（未验证）；真机归 G14 |
 | service-ops 面板（已实现（未验证）） | 用户在 host-manager 行内展开「服务操作」/ `service-unreachable` 后引导 | svcops 发现（状态卡/limitations） | hostId（记录读取） | 无桥注入 → 面板整体降级隐藏（stub fail-closed）；OS 判定失败 → unsupported-os 如实呈现 | 已实现（未验证）；真机归 G18 |
 | service-ops 面板（已实现（未验证）） | 预览 → 危险确认勾选 → 确认 → 执行 | 第四桥 exec（白名单命令） | `{templateId, params, os}`（永不传命令字符串）+ 逐命令凭据（N7 单次过桥） | 校验器拒绝 → exec-denied；occupied-port 预检拒绝覆盖运行中服务；失败 → 分类码 + 有界 stderr 尾部 + 回滚入口 | 已实现（未验证）；真机归 G18 |
-| projects-sessions | 打开会话 | 时间线 | 会话 ID | stale ID → resolution failed → 错误边界/关 tab（上游语义） | 已实现（未验证）；真机归 G19 |
-| 时间线 | 权限请求到达 | 权限确认 | 请求内容 | 拒绝 → 任务按上游语义继续/中止 | 未开始 |
-| 时间线 | 打开文件/Diff | 文件与 Diff | 文件路径 | — | 未开始 |
-| 会话列表/时间线 | 打开终端 | 终端 | PTY 会话 | — | 未开始 |
+| projects-sessions | 打开会话 | session-workbench（会话 tab） | 会话 ID | stale ID → resolution failed → 错误边界/关 tab（上游语义）；断开 → 服务端快照恢复（非 SSE 重放） | 已实现（未验证）；真机归 G19/G20 |
+| session-workbench | 权限请求到达（`permission.asked`/`form.*` dock 接线） | 权限确认 | 请求内容 | 拒绝 → 任务按上游语义继续/中止 | 未开始（接线事实见 [units/session-workbench.md](units/session-workbench.md)，确认单元本身未交付） |
+| session-workbench | 打开文件/Diff | 文件与 Diff | 文件路径 | — | 未开始 |
+| 会话列表/会话工作台 | 打开终端 | 终端 | PTY 会话 | — | 未开始 |
 | 任意单元 | 用户进入设置 | 设置 | — | — | 未开始 |
 | 任意单元 | 网络断开/切换 | 失败恢复路径 | — | 有反馈可恢复，见 [interaction.md](interaction.md) 负例矩阵（G11） | 未开始 |
