@@ -1,6 +1,6 @@
 # 交互基线与设备门禁
 
-本文承载跨单元交互约束、G1–G18 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
+本文承载跨单元交互约束、G1–G19 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
 ## 交互基线
 
@@ -10,9 +10,9 @@
 - 深链：不实现（未注册 VIEW intent-filter，代码留 TODO）。
 - 返回手势：壳按 `onBackPressed` 实现，manifest 显式声明 `android:enableOnBackInvokedCallback="false"`——Android 16 起 targetSdk ≥ 36 的应用默认启用 predictive back，`onBackPressed` 将不再被调用，必须显式禁用才能维持该行为；迁移平台 `OnBackInvokedCallback` 需 minSdk 守卫（API 33+），为后续 issue 事项。与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
 
-## G1–G18 设备门禁（完整枚举）
+## G1–G19 设备门禁（完整枚举）
 
-每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16、issue #6 新设的 G17 与 issue #7 新设的 G18）。
+每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16、issue #6 新设的 G17、issue #7 新设的 G18 与 issue #8 新设的 G19）。
 
 | 门禁 | 验证目标 | 所需环境 | 状态 |
 | --- | --- | --- | --- |
@@ -34,6 +34,7 @@
 | G16 probe 桥 bring-up（issue #5） | `onPageFinished` probe 握手（独立握手串 `opencode-mobile-probe-handshake`）→ JS 形状校验捕获 port → 回发 ack → probe 端口翻转 available；与 vault 握手并存互不误捕（双方 data 严格等值校验）；重试路径 5×500ms 通道重建；重试耗尽 probe 显式 `unavailable`（保存路径显式退化为上游泛化错误文案，不伪造分类）；probe 请求头/URL/桥消息零日志值、密码不持久化的真机负例核对 | 真机/模拟器（API 23+） | BLOCKED |
 | G17 三桥并存 bring-up（issue #6 **新设门禁**） | `onPageFinished` **三座桥同时**开握手轮（vault/probe/ssh 各自独立握手串）→ ack 时序真机核对（各自捕获各自 port、互不误捕、互不重置对方 ack 生命周期）；ssh 桥 cancel/disconnect 响应（拆除即时、不依赖 executor 队列排空）；**C1–C5（vault）与 G14–G16 不因第三桥扰动**的复测（bring-up 后 vault 读写、probe 分类、状态机交互行为与基线一致） | 真机/模拟器（API 23+） | BLOCKED |
 | G18 四桥并存 bring-up + 服务操作交互（issue #7 **新设门禁**） | `onPageFinished` **四座桥同时**开握手轮（vault/probe/svcops/ssh 各自独立握手串）→ ack 时序真机核对（各自捕获各自 port、互不误捕、互不重置对方 ack 生命周期）；**C1–C5（vault）与 G14–G17 不因第四桥扰动**的复测；svcops 面板真机交互：发现状态卡/预览=执行全文/危险确认/执行进度/回滚入口/cancel-uncertain 呈现、occupied-port 与 permission-denied 真实路径、`survivedDisconnect` 断开存活真机触发核对（B1 触发集：迁入 ready 且前态∈{offline,reconnecting,authRequired}；T5 不触发）、svcops 面板零日志值负例、Windows `start /b` detach 存活如实呈现（detach-uncertain）；三 OS 真实 exec/安装/回滚与「远端 bash=WSL 诱饵」负例（N2）另归真 OS E2E | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS | BLOCKED |
+| G19 projects-sessions 运行期门禁（issue #8 **新设门禁**） | 单窗口切换状态保持（tabs/草稿/滚动/导航栈跨切换与重启）；同名项目隔离（不同主机/不同目录同名不混淆、无数据泄漏）；空项目空态与新建门控；删除路径（确认对话框/失败 toast/行保留）；stale session ID（错误边界/notFound toast/关 tab 恢复）；并发更新（切网恢复后不覆盖本地脏值）；**归档反馈（M-017）**：归档后行消失、关联 tab 关闭、失败 toast 行保留、服务端 `time.archived` 列表过滤；**M-018 入口在 multiple() 布局下可达且不弹回 general**（守卫修订的运行时行为）；不可达/已删除路径的 `SessionLocationMissing` 恢复流与 `home.project.missing` 反馈（含 `addProjects` 静默疑点核对，缺陷成立追加 M-019）；**SSH/直连双路由各完整一遍**（选项目→建会话→fork→重命名→归档→切换→错误恢复 lifecycle E2E）。**V2/探针/构建三层对以上运行时行为均无证明力，全部归本门禁** | 真机/模拟器 + 授权远程服务（直连与 SSH 各一） | BLOCKED |
 
 ## C1–C5 凭据桥设备门禁（issue #4，全部 BLOCKED）
 
@@ -45,7 +46,7 @@
 | C4 备份排除负例 | `allowBackup=false` 主控制 + `data_extraction_rules`/`full_backup_content` 引用生效：`adb backup`/设备迁移不带走 `filesDir/vault/`；重装后 vault 空（无悬挂引用） | 真机/模拟器（adb） | BLOCKED |
 | C5 桥安全探针 | **C5a** targetOrigin 强制（错误 origin 握手不可达/正确 origin 可达；顺序见 C1；**禁止伪造 event.origin 断言**——平台证据链见 [architecture.md](architecture.md)，event.origin 恒空串）；**C5b** port confinement（window 无全局 port 引用；单测锁定）；**C5c** 握手 data/ports 形状校验（单测锁定，仅形状不涉 origin）；**C5d** ack 前 vault 恒 unavailable、无明文回退（单测+真机） | 真机/模拟器（C5a/C5d 真机面）+ 本机单测（C5b/C5c） | BLOCKED（单测部分已 PASS，见 build-and-verify） |
 
-补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）；服务操作真 OS E2E 与 G18 四桥 bring-up（归 issue #7，见上表：三 OS exec 发现、install/start/upgrade/replace 全链路、occupied-port/permission-denied 真实路径、真实文件系统回滚、bash=WSL 诱饵负例、断开存活真机核对）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」；**第四处落字（issue #7）**：G18+三 OS 真 OS E2E 通过前，issue #7 的全部交付只声称「静态边界已实现（未验证）」（[决策 0004 §8](../decisions/0004-service-operations.md)）——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立。
+补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）；服务操作真 OS E2E 与 G18 四桥 bring-up（归 issue #7，见上表：三 OS exec 发现、install/start/upgrade/replace 全链路、occupied-port/permission-denied 真实路径、真实文件系统回滚、bash=WSL 诱饵负例、断开存活真机核对）；**G19 projects-sessions 运行期门禁与双路由 lifecycle E2E、`test-browser/session-resolution.test.ts`（需浏览器环境）与三 OS 真 OS E2E（归 issue #7 环境组）、Windows Desktop 行为映射（归 issue #1）**（issue #8，见上表 G19 行）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」；**第四处落字（issue #7）**：G18+三 OS 真 OS E2E 通过前，issue #7 的全部交付只声称「静态边界已实现（未验证）」（[决策 0004 §8](../decisions/0004-service-operations.md)）——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立；**第五处落字（issue #8）**：G19 与双路由 lifecycle E2E 通过前，issue #8 的全部交付只声称「已实现（未验证）」。
 
 ## 失败路径处置协议
 
@@ -55,6 +56,10 @@
 2. **影响范围**：明确失败影响哪些单元与验收项，哪些不受影响。
 3. **备选方案**：列出可行替代（如 G3 的预案 A/B/C），含各自代价与安全影响；备选不得默认「原生重写」或「关闭浏览器/传输安全」。
 4. **用户决策**：由用户选定处置后再继续产品化工作；未获决策前该路径停在那里并如实标注。
+
+### projects-sessions 变更失败路径（issue #8）
+
+会话/项目侧变更（create/open/fork/rename/archive/delete/移动/切换）的失败反馈**全部复用上游既有通道**，不新造错误分类：失败 toast + 行内反馈、remove/archive 前后置确认与恢复（remove 确认对话框；archive 失败不 remove，行保留）、finally invalidate 保证列表与服务端一致、stale ID 走 resolution failed 错误边界、路径缺失走 `SessionLocationMissing` 恢复流（详见 [units/projects-sessions.md](units/projects-sessions.md) 状态矩阵）。这些通道的**运行期可达性本身**归 G19；真机核对中出现的新失败形态按上述四步协议处置，不预设第三补丁（`addProjects` 静默失败疑点已预留 M-019 追加位，确认缺陷后另议）。
 
 ## 凭据 notice（修订：可选记住，issue #4）
 
@@ -82,6 +87,6 @@
   - 直连服务的「记住」勾选随上游连接对话框（M-009，真值表见 [units/connection.md](units/connection.md)）；**healthPreview 附注**：连接前健康预览（输入过程中的探测）不解析凭据引用、不读 vault——预览只验证地址可达性，权威的凭据检查发生在保存时。
   - 凭据管理器：仅元数据（kind/label/时间，无值）；unavailable 横幅、corrupt/recovery-needed 标红与恢复动作（重输/一键清除）；孤儿区（无宿主引用的条目）列出对账并可删除。
   - **link 流 stale-ref 附注（issue #4 评审）**：link/redeem 重配对产生的新连接会带原条目的 credentialRef 透传（M-006/M-009 prior 语义）；若该 ref 已成孤儿（条目已删/换绑），M-010 hydration 解析不到值 → unauthorized → 用户重输自愈（重输后重存 in-place，ref 稳定）；孤儿条目本身由凭据管理器孤儿区兜底呈现。重配对后旧 ref 注入失败不静默、不阻断，恢复路径始终可达。
-- **已知入口缺口（M-008）**：上游多 server 布局下，设置导航以 per-server 条目取代 "servers" 标签页，host-manager 在该布局不可达（单 server/空列表布局可达，且空列表时可创建首个 SSH 主机）。补齐导航入口归后续 issue，先以 G13 真机核对实际布局。
+- **已知入口缺口（M-008）——已由 M-018 承接（未验证）**：上游多 server 布局下，设置导航以 per-server 条目取代 "servers" 标签页，host-manager 在该布局不可达（单 server/空列表布局可达，且空列表时可创建首个 SSH 主机）。issue #8 的 M-018 以「入口 + 守卫修订」承接：`multiple()` 导航组加固定「SSH hosts」入口，重定向守卫 `includes` 列表移除 `"servers"`（守卫修订是入口可达性的前提）。运行期可达性（入口可达且不弹回 general）归 G19；M-018 同时是 [server-list.md](units/server-list.md) 预登记债务的承接，非 issue #8 验收项本身。
 - **断开语义**：ready 态的「断开」走状态机 T13（cancel）：恢复来源态 idle、清空内存端点，零 transport 调用；「删除」走 T14：仅删本地记录，零 transport 调用。两者均不向远程发出任何信号（红线，单测断言）。
 - **状态可见性**：SSH 主机行状态由状态机映射的上游 ServerState 呈现（starting/auth/ready/failed/incompatible）；offline/reconnecting 有明确反馈与恢复入口（重试/编辑/删除），不静默（G14 真机核验）。

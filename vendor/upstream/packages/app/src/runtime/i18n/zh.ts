@@ -457,6 +457,8 @@ export const dict = {
   "session.new.git.none": "无 Git",
 
   "settings.tab.servers": "服务器",
+  // mobile(M-018)：多服务器设置布局中进入 "servers" 标签页（第一方 SSH 主机管理）的入口。
+  "settings.tab.sshHosts": "SSH 主机",
   "settings.extensions.tab.plugins": "插件",
 
   "common.copied": "已复制",

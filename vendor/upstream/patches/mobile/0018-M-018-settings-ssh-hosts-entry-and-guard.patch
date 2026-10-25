@@ -1,0 +1,59 @@
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -623,6 +623,9 @@ export const dict = {
+   "session.header.reveal.containingFolder": "Open containing folder",
+ 
+   "settings.tab.servers": "Servers",
++  // mobile(M-018): entry to the "servers" tab (first-party SSH host manager) in the
++  // multi-server settings layout.
++  "settings.tab.sshHosts": "SSH hosts",
+   "settings.extensions.tab.plugins": "Plugins",
+ 
+   "common.copied": "Copied",
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -457,6 +457,8 @@ export const dict = {
+   "session.new.git.none": "无 Git",
+ 
+   "settings.tab.servers": "服务器",
++  // mobile(M-018)：多服务器设置布局中进入 "servers" 标签页（第一方 SSH 主机管理）的入口。
++  "settings.tab.sshHosts": "SSH 主机",
+   "settings.extensions.tab.plugins": "插件",
+ 
+   "common.copied": "已复制",
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -304,11 +304,16 @@ function RootSettings() {
+           {
+             label: language.t("settings.tab.servers"),
+             action: <AddServerMenu compact onAddServer={addServer} />,
+-            items: ordered().map((server) => ({
+-              value: `server:${server.key}`,
+-              icon: "server" as const,
+-              label: server.name,
+-            })),
++            items: [
++              // mobile(M-018): fixed entry to the "servers" tab (the first-party SSH
++              // host manager) — the guard above no longer redirects it in this layout.
++              { value: "servers", icon: "server" as const, label: language.t("settings.tab.sshHosts") },
++              ...ordered().map((server) => ({
++                value: `server:${server.key}`,
++                icon: "server" as const,
++                label: server.name,
++              })),
++            ],
+           },
+         ]
+       : [
+@@ -336,7 +341,10 @@ function RootSettings() {
+ 
+     if (view.type !== "root" || !loaded() || !multiple()) return
+ 
+-    if (["projects", "workspaces", "providers", "models", "extensions", "servers"].includes(view.tab))
++    // mobile(M-018): "servers" stays reachable in the multi-server layout — the tab
++    // hosts the first-party SSH host manager (M-008). The other five tabs are still
++    // redirected: their panels are per-server and carried by the per-server entries.
++    if (["projects", "workspaces", "providers", "models", "extensions"].includes(view.tab))
+       surface.open("general")
+   })
+ 

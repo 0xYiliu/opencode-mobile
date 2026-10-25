@@ -304,11 +304,16 @@ function RootSettings() {
           {
             label: language.t("settings.tab.servers"),
             action: <AddServerMenu compact onAddServer={addServer} />,
-            items: ordered().map((server) => ({
-              value: `server:${server.key}`,
-              icon: "server" as const,
-              label: server.name,
-            })),
+            items: [
+              // mobile(M-018): fixed entry to the "servers" tab (the first-party SSH
+              // host manager) — the guard above no longer redirects it in this layout.
+              { value: "servers", icon: "server" as const, label: language.t("settings.tab.sshHosts") },
+              ...ordered().map((server) => ({
+                value: `server:${server.key}`,
+                icon: "server" as const,
+                label: server.name,
+              })),
+            ],
           },
         ]
       : [
@@ -336,7 +341,10 @@ function RootSettings() {
 
     if (view.type !== "root" || !loaded() || !multiple()) return
 
-    if (["projects", "workspaces", "providers", "models", "extensions", "servers"].includes(view.tab))
+    // mobile(M-018): "servers" stays reachable in the multi-server layout — the tab
+    // hosts the first-party SSH host manager (M-008). The other five tabs are still
+    // redirected: their panels are per-server and carried by the per-server entries.
+    if (["projects", "workspaces", "providers", "models", "extensions"].includes(view.tab))
       surface.open("general")
   })
 

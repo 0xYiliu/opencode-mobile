@@ -61,7 +61,9 @@
     "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
     "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
     "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
-    "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch"
+    "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
+    "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
+    "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch"
   ],
   "excluded": {
     "packages": [
