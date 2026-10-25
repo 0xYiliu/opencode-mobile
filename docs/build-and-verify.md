@@ -12,6 +12,8 @@
 
 记录日期：2026-10-24。issue #6 段（SSH 隧道传输：ssh 桥/verifier/transport、驱动装配、Kotlin ssh 四件、M-015、V-ssh 探针）的验证于同日在分支 `issue-6-ssh-tunnel` 工作树执行（基线 dev @ 8d55bd2，计划 v1；S1–S8 提交链），全部为本机构建/静态/单测级验证；桥 bring-up（G17）与 SSH E2E 及 Kotlin 编译全部 BLOCKED。
 
+记录日期：2026-10-25。issue #8 段（远程项目、工作区与会话生命周期：M-017 归档接线/M-018 设置入口+守卫修订/路径边界与状态保持的复用固化/V-probe 探针）的验证于同日在分支 `issue-8-projects-sessions` 工作树执行（基线 dev @ 1e3fe60，计划 v2；S1–S5 提交链），全部为本机构建/静态/单测级验证；G19 运行期门禁、双路由 lifecycle E2E 与 session-resolution browser 测试全部 BLOCKED。
+
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
 ## 工具链（本机真实版本）
@@ -44,6 +46,12 @@ bun run scripts/verify-credential-vault.ts            # V-vault（issue #4 真�
 bun run scripts/audit-secret-persistence.ts           # V-secret（issue #4 明文持久化审计）
 bun run scripts/verify-direct-connection.ts           # V-conn（issue #5 直连静态验证；补丁落地前用 --pre-vendor 分段）
 bun run scripts/verify-service-ops.ts                 # V-svcops（issue #7 服务操作静态验证；--pre-native/--pre-vendor 分段）
+bun run scripts/verify-projects-sessions.ts           # V-probe（issue #8 projects/sessions 静态验证：M-017/M-018/路径边界/N-5 白名单扫描）
+# 上游定向回归子集（issue #8；在 vendor/upstream/packages/app 下，22 文件见 issue #8 段）：
+#   bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <files>
+# 测试期解析 seam（本机、不入 git）：vendor/upstream/packages/app/node_modules/@opencode-mobile/mobile-hosts
+#   → 仓库根 packages/mobile-hosts 的符号链接（node_modules 已 gitignore），等价于 M-004 的 vite 别名——
+#   否则引用链（如 registry.tsx → @opencode-mobile/mobile-hosts，M-010）在 bun test 下无法解析。
 ```
 
 Kotlin 编译探针（issue #7 S5 实测可用，替代既往「仅括号平衡」的静态检查）：
@@ -101,6 +109,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | Kotlin ssh 四件 + gradle 依赖（jsch/bcprov） | ✓（代码） | 静态验证 ✓（V-ssh native 断言 + 括号平衡）；编译 **BLOCKED**（无 SDK，无 APK） | BLOCKED（G17） | BLOCKED |
 | 服务操作（发现/显式授权安装/启动/升级/替换/停止，issue #7） | ✓ | ✓（V-mh 299 单测、V-svcops 全模式、V2/V3、Kotlin 编译探针+compileDebugKotlin PASS） | BLOCKED（G18 四桥 bring-up + 面板交互） | BLOCKED（三 OS 真 OS E2E） |
 | Kotlin svcops 四件 | ✓（代码） | 编译 PASS（真实工具链）；**APK 打包 BLOCKED**（jsch+bcprov jar 元数据冲突，需 build.gradle.kts packaging 块——零改动清单，待决策） | BLOCKED（G18） | BLOCKED |
+| 远程项目/工作区/会话生命周期（浏览选择远端目录、create/open/fork/rename/archive/切换、路径边界与状态保持，issue #8） | ✓（上游复用 + M-017/M-018） | ✓（V-mh 307 单测、V-upstream 子集 225 单测、V-probe、V2/V3） | **BLOCKED（G19 全部运行期行为，含 M-018 入口可达性）** | **BLOCKED（双路由 lifecycle E2E）** |
 | live 直连 HTTPS 会话 | 已确认目标 | BLOCKED（无授权服务/模型） | BLOCKED | BLOCKED |
 
 ## issue #3 段（主机注册表、身份键与连接状态机）——2026-10-24 实测记录
@@ -308,7 +317,36 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **回滚演示**（真实执行）：恢复前一 pin 的 manifest/provenance/patches/根配置/lock → `vendor-sync.sh` 重建 + 干净重装 + 全量重建。判定：首选标准（sha256 与已知良好清单一致）3110/3138 文件字节一致，28 个差异文件全部为 `.map`（vite/rolldown sourcemap 跨构建不可字节复现，已接受限制）；fallback 判定（V3 树等价 + V2 构建成功）满足 → 回滚 SUCCESS（附该限制记录）。运维发现：回换 `bun.lock` 前必须先删除 `node_modules`（bun 1.4.2 对超集 store 误报 no changes）。
 - **最终 pin**：`b4525d79bf`（上游默认分支 dev）。位置理由：触及 app/client 的移动相关修复 + 真实依赖漂移覆盖；gate 报告中 Gradle/Android、G1–G12、live E2E 一律 BLOCKED（not passed）。
 
+## issue #8 段（远程项目、工作区与会话生命周期）——2026-10-25 实测记录
+
+交付物：单元文档 [design/units/projects-sessions.md](design/units/projects-sessions.md)（含 N-3 补记：`session/timeline/message-timeline.tsx` 第二处上游 TODO——会话内菜单无归档项，M-017 后归档仅 home 会话行可达，本期不改）+ G19 新设门禁（[design/interaction.md](design/interaction.md)）+ vendor 补丁 M-017/M-018（登记于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches`，mobile 补丁总数 16→18；M-018 为 server-list.md 预登记「已知入口缺口（M-008）」债务的承接，**非 issue #8 验收项本身**）+ 静态探针 `scripts/verify-projects-sessions.ts`（V-probe）。提交链 `d6266d3 → caf4475 → 6678582 → bd4bf6f → 本提交（S5，docs）`（分支 `issue-8-projects-sessions`，基于 dev @ 1e3fe60，未 push）。计划版本 v2（PASS）。
+
+上游定向回归子集（22 文件，全部真实执行）：`home/sessions/{archive,index,records}`、`shell/tabs/tabs`、`shell/state/{layout,session-tabs,scroll}`、`runtime/server/{scope,registry,errors}`、`runtime/persistence/{persist,drafts,namespace,storage}`、`workspaces/{selection/domain,selection/picker,create,inventory,paths}`、`new-session/workspace/controller`、`servers/registry/{management,controller}` 各 `.test.ts`。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-lock（issue #8） | 未动依赖 | bun.lock 与既有终态逐字相同：`git diff 1e3fe60 HEAD -- bun.lock` 为空；`sha256sum bun.lock` = `b21f5cf1658a2df4f73e07f5388b0fc3141903bca8436c80947659db5abf782d`；`bun install --frozen-lockfile` rc=0（1060 packages installed，fresh worktree） | 本文；git diff 为空 |
+| V2 冒烟（M-017 后） | `bun run build:web` | PASS（rc=0，6177 modules）；M-017 调用面命中压缩产物：`archived:!0` 命中 `dist/_assets/index-CzQ9bkkO.js` | 本文 |
+| V2 最终产物（M-018 后） | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0，6177 modules）；3480 文件 / 153,316,573 bytes 拷入 assets；M-018 i18n 键命中：`sshHosts` 在 `language-Cwk-VMvM.js`（en 基表）+ `zh-49VEr5mD.js`（zh locale）+ `shell-hS5sBYhD.js`（消费方 chunk），en 值 `SSH hosts` 与 zh 值 `SSH 主机` 分别在 language/zh chunk 命中 | `web-dist/manifest.json`（fileCount 3480；manifest sha256 `3d6460b724a692f9504c6732cd23360636d0a79a228ba796c2f23cad0c00fd44`） |
+| V3 闭包核对（每补丁后） | `bash scripts/verify-closure.sh` | PASS ×2（M-017/M-018 登记后各一次）：树 == pin b4525d79bf + 已登记 18 个 mobile 补丁字节一致、LICENSE 一致、`DANGLING=0`、recordings 排除核对通过 | 本文 |
+| 补丁 round-trip | `git checkout -- <file>` 后 `git apply --directory=vendor/upstream --check` + apply + 字节比对 | PASS ×2：M-017（单文件）与 M-018（3 文件）均在 pristine pin+前序补丁树上干净应用并字节等值复现 | 本文 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**307 tests / 307 pass / 0 fail，2452 expect()**（28 文件；与基线一致，零新逻辑零新 fail——issue #8 无新增第一方逻辑） | 本文 |
+| V-upstream 上游定向回归子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <22 文件>`（在 `vendor/upstream/packages/app` 下） | PASS：**225 tests / 225 pass / 0 fail / rc=0**（2.51s）。计划允许的唯一 fail（M-002 基线 1 例）位于 `runtime/server/persistence.test.ts`，**不在本子集**（子集按计划 §2 为 persist/drafts/namespace/storage 四件），0 fail 在界内；测试期解析 seam = `node_modules/@opencode-mobile/mobile-hosts` 符号链接（gitignored，等价 M-004 vite 别名，见「构建流水线」段注记） | 本文 |
+| V-probe projects/sessions 静态验证 | `bun run scripts/verify-projects-sessions.ts` | PASS（rc=0）：①M-017——stub 文本（`Session archiving is unavailable` 与旁注 TODO）自 controller.tsx 消失、`session.update({ sessionID, archived: true })` 调用形态在位、`archiveHomeSession` 路由与 helper 契约（成功清 tabs/失败不 remove + onError）保留、查询缓存行移除 + invalidate/resync 在位；②M-018——**守卫修订断言**（redirect guard `includes` 列表解析后不含 `"servers"`，其余五项逐项在册）+ 入口断言（`multiple()` 组内 `value:"servers"` 项挂 `settings.tab.sshHosts`）+ en/zh 键成对；③路径边界——`directoryPickerKind` 仅 desktop&&local 返回 `"native"`（web 恒 `"server"`）、`useRevealProject` desktop 双门槛在位、`view.tsx` file-manager desktop 门槛在位、`web.ts` 无 `openDirectoryPickerDialog`；④N-5——白名单目录（`home/projects/**`、`workspaces/selection/**`、`new-session/**`、`session/composer/location-missing.tsx`）28 文件零 `process.platform`/`navigator.platform`/node os 引入（**不做全仓扫描**）。**负例控制实测**：临时回退守卫列表（重新加入 `"servers"`）→ 探针 FAIL rc=1 → 恢复后 PASS——断言有牙齿。诚实标注：静态结构检查，对运行时行为无证明力 | 本文；脚本输出 |
+| V5 JSON 校验（issue #8 增量） | `python3 -m json.tool` | PASS：`patches/mobile/manifest.json`、`vendor-manifest.json`、`web-dist/manifest.json` 可解析；两 vendor manifest 的 diff 为纯追加 | 本文 |
+| 覆盖口径（N-4，如实） | — | `archive.test.ts` 保护的是**注入式 helper `archiveHomeSession`**（失败不 remove、成功清理 tabs），**不经过 M-017 的改写点**（controller 调用位）；M-017 接线本身的覆盖 = 探针（结构）+ V2（构建）+ G19（真机，BLOCKED）三层，运行时语义（服务端 `time.archived` 盖章、列表过滤、归档后 tab 关闭呈现）全部未验证 | 本文 |
+
+### 诚实边界（issue #8 段）
+
+- **运行期全部 BLOCKED（G19）**：单窗口切换保持、同名隔离、空项目、错误恢复（stale ID/不可达路径/失败变更）、归档反馈（M-017）、**M-018 入口在 multiple() 布局可达且不弹回**、双路由各一遍——V2/dist/探针三层对运行时行为**均无证明力**（守卫是 Solid `createEffect`，归档语义需真实服务）；不声称「可用」。
+- **双路由 lifecycle E2E BLOCKED**：SSH/直连各完整一遍（选项目→建会话→fork→重命名→归档→切换→错误恢复）；`test-browser/session-resolution.test.ts` 需浏览器环境，BLOCKED。
+- **addProjects 静默疑点（R4）**：`home/projects/add.ts` 的 `file.list` 校验失败被 `catch(() => undefined)` 吞掉且 `projects.open(item)` 无条件执行——不可访问目录加入列表的真实反馈形态未知；本期不改（避免预设第三补丁），G19 首项核对，确认缺陷则追加 M-019。
+- **归档 API 服务端语义未证实（R2）**：生成客户端 `archived` 字段在册、构建级调用面正确，但服务端 `time.archived` 盖章与列表过滤行为未对真实服务验证；归档后本期无 unarchive 界面（上游同样没有，已接受限制，见单元文档）。
+- **M-018 守卫修订语义外溢（R3，低风险已评估）**：若上游未来把其他功能挂到 "servers" tab 并依赖「多服务器下不可达」假设，行为改变；回滚=恢复列表项（单行）+移除入口。
+- **上游全量套件不作为门禁**：仅 22 文件定向子集如实记录；测试期 node_modules 符号链接为本机 seam（gitignored，不入 git）。
+
 ## BLOCKED 总表
+
 
 | 项 | 缺失条件 | 归属 |
 | --- | --- | --- |
@@ -339,6 +377,9 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | G18 四桥并存 bring-up + 服务操作交互（issue #7 新设门禁） | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS：四握手各自捕获互不误捕/互不重置 ack；svcops 面板交互（预览=执行/确认/回滚/cancel-uncertain）；occupied-port/permission-denied 真实路径；survivedDisconnect 真机触发（B1）；零日志负例；C1–C5/G14–G17 不受扰动复测 | issue #7 |
 | 三 OS 服务操作真 OS E2E（issue #7） | 授权 Linux/原生 Windows/macOS SSH 主机：真实 exec 发现、install/start/upgrade/replace 全链路、真实回滚、Windows DefaultShell 非 cmd 变体、macOS nohup 与 Windows start /b detach 存活、bash=WSL 诱饵负例（N2） | issue #7 |
 | APK 打包（issue #7 精确化） | jsch+bcprov `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复：需 build.gradle.kts packaging 排除块（计划零改动清单内，待用户决策）；compileDebugKotlin/dex 已 PASS | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露） |
+| G19 projects-sessions 运行期门禁（issue #8 新设门禁） | 真机/模拟器 + 授权远程服务：单窗口切换保持（tabs/草稿/滚动/导航栈）、同名项目隔离、空项目空态、错误恢复（stale ID/不可达路径/失败变更）、归档反馈（M-017：行消失/tab 关闭/失败 toast/服务端 `time.archived` 过滤）、**M-018 入口在 multiple() 布局可达且不弹回 general**、`addProjects` 静默疑点核对（缺陷成立追加 M-019）；完整清单见 [design/interaction.md](design/interaction.md) G19 行。V2/dist/静态探针对以上运行时行为无证明力，勿以构建级证据替代 | issue #8 |
+| 双路由 lifecycle E2E（issue #8） | SSH/直连各完整一遍：选项目→建会话→fork→重命名→归档→切换→错误恢复；依赖授权远程服务与真机（可随 G19 一并执行） | issue #8 |
+| `test-browser/session-resolution.test.ts` | 需浏览器环境（happy-dom 不覆盖其断言面）；stale session ID 的浏览器级回归 | issue #8（沿用上游既有测试文件） |
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
@@ -415,8 +456,12 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | M-010 hydration 仅内存（[design/architecture.md](design/architecture.md) 补丁表） | M-010 patch（registry.tsx） | V-vault（setStore-only、无直接存储写入、M-002 标记在） | 一致；运行时执行归 C1 |
 | 直连裁定 D1–D5（[decisions/0002](decisions/0002-direct-connection-transport.md)） | `packages/mobile-hosts/src/transport/*`、`src/probe.ts`、M-011…M-014 patches、`scripts/verify-direct-connection.ts` | V-mh（url-policy/secure-fetch/probe 套件）+ V-conn（负断言/netsec/分类码/标记）+ V3 | 一致；G3–G5/G11/G16 设备级 BLOCKED |
 | 错误分类×反馈×恢复矩阵（[units/connection.md](design/units/connection.md)） | M-013 patch（dialog.tsx + en/zh i18n）、`packages/mobile-hosts/src/probe.ts`（directErrorCodeMessageKey） | V-mh 全集断言 + dist language/zh chunk 键命中 | 一致；矩阵每行文案键 EN/ZH 成对；设备端到端归 G11 |
+| projects-sessions 单元契约（[units/projects-sessions.md](design/units/projects-sessions.md)） | M-017/M-018 patches、`scripts/verify-projects-sessions.ts`、上游复用面（picker/fork-dialog/home controller/resolution/location-missing） | V-probe（M-017/M-018/路径边界/N-5 白名单 28 文件 + 负例控制）+ V-upstream 子集 225 pass + V2 dist 键/调用面命中 | 一致（静态/构建级）；全部运行期行为归 G19（BLOCKED）；`addProjects` 反馈形态待 G19 核对（M-019 预留） |
+| M-017 归档语义（可逆元数据、无确认、无 unarchive 面；N-3 会话内菜单边界） | `home/sessions/controller.tsx`（M-017）+ `home/sessions/archive.ts`（未改）+ `home/sessions/index.ts` 过滤（未改） | V-probe M-017 断言 + `archive.test.ts` helper 语义（子集内） + 单元文档边界补记 | 一致；服务端归档语义归 G19/live E2E |
+| M-018 入口+守卫修订（server-list 预登记债务承接） | `settings/shell.tsx` 两 hunk + `runtime/i18n/en.ts`/`zh.ts` | V-probe 守卫修订断言（负例控制 FAIL→恢复 PASS）+ 入口断言 + dist `sshHosts`/`SSH hosts`/`SSH 主机` 键命中 | 一致（静态/构建级）；可达性运行时证明归 G19 |
 
 ### 机械检查记录（2026-10-24）
 
 - 文档相对链接：对 `README.md`、`docs/design/**`、`docs/project-scope.md` 中的仓库内相对链接逐一 `test -f`，全部存在（issue #3 交付后 2026-10-24 重跑，含 `docs/build-and-verify.md` 与 `docs/design/units/*` 的新增链接；issue #4 交付后再次重跑通过）。
 - 设计单元清单、索引表与 `design/units/` 实际文件一一对应；未决 TODO（会话列表/时间线/终端/设置/权限确认/文件与 Diff、深链、状态恢复、预测性返回）在索引与单元文档中可见；issue #3 的 host-manager/host-dialog 并入 server-list 单元、host-key-prompt 并入 connection 单元，清单未单列新行（机械核对一致）；issue #4 的 credential-manager 并入 server-list 单元、vault 契约并入 connection 单元，清单未单列新行（机械核对一致）。
+- issue #8 后重跑（2026-10-25）：`projects-sessions` 单元文档新增并进入清单/索引（architecture.md 清单「会话列表」行改为 projects-sessions，README 索引加行）；七个改动文档（units/projects-sessions.md、architecture.md、interaction.md、design/README.md、units/server-list.md、project-scope.md、build-and-verify.md）内 109 个仓库内相对链接逐一解析 `missing=0`；design/interaction.md 门禁表标题更新为 G1–G19；`docs/project-scope.md` 的 dist 数字刷新为 `web-dist/manifest.json` 当前值（3480 文件 / 153,316,573 bytes）。
