@@ -8,6 +8,13 @@
 //          the redirect guard's includes list no longer contains "servers" (the
 //          reachability prerequisite) and the multiple() nav group carries a
 //          fixed SSH hosts entry, with the i18n key present in en and zh.
+//   Paths  the directory picker stays remote-side on the web platform
+//          (directoryPickerKind: only desktop&&local is "native"), the reveal /
+//          file-manager affordances keep their desktop gates, and the web
+//          platform object defines no openDirectoryPickerDialog — the phone
+//          filesystem never participates in project/session paths.
+//   N-5    zero host-OS conditionals (process.platform / navigator.platform /
+//          node os module) inside the whitelisted projects/sessions directories.
 //
 // HONEST BOUNDARY (same tradition as verify-credential-ref.ts): this is a static
 // STRUCTURE check (text anchors / regex on source files). It proves source shape,
@@ -89,6 +96,68 @@ const read = async (path: string) => await Bun.file(new URL(path, appRoot)).text
   }
 }
 
-console.log(
-  "verify-projects-sessions: PASS (M-017 home archive wiring: stub gone, session.update archived:true call shape, archiveHomeSession helper + cache row removal + invalidate/resync kept; M-018 guard revision: includes list without \"servers\" + fixed SSH hosts entry + en/zh keys; STATIC check - runtime semantics and navigation reachability are G19)",
-)
+// --- Path boundaries: the phone filesystem never participates (issue #8) ---
+{
+  // 1. directoryPickerKind: only desktop && local reaches the native picker;
+  //    every web build resolves to the "server" (remote) picker.
+  const policy = await read("src/workspaces/selection/policy.ts")
+  if (!/platform === "desktop" && ServerConnection\.local\(server\)\s*\n?\s*\)\s*return "native" as const/.test(policy))
+    fail('paths: directoryPickerKind does not gate "native" behind desktop && ServerConnection.local')
+  if (!policy.includes('return "server" as const'))
+    fail('paths: directoryPickerKind has no unconditional "server" fallback (the web branch)')
+
+  // 2. Reveal-in-file-manager keeps its desktop double gate.
+  const reveal = await read("src/home/projects/reveal.ts")
+  if (!/platform\.platform === "desktop" && !!platform\.revealPath && ServerConnection\.local\(conn\)/.test(reveal))
+    fail("paths: useRevealProject lost its desktop && local double gate")
+
+  // 3. The file-manager affordance maps a non-desktop platform to "unknown" (unreachable).
+  const projectView = await read("src/home/projects/view.tsx")
+  if (!projectView.includes('fileManagerApp(platform.platform === "desktop" ? (platform.os ?? "unknown") : "unknown")'))
+    fail("paths: the file-manager affordance lost its desktop gate in home/projects/view.tsx")
+
+  // 4. The web platform object defines no native directory-picker entry point.
+  const web = await read("src/runtime/platform/web.ts")
+  if (web.includes("openDirectoryPickerDialog"))
+    fail("paths: the web platform object must not define openDirectoryPickerDialog")
+}
+
+// --- N-5: zero host-OS conditionals in the whitelisted projects/sessions dirs ---
+{
+  const whitelist = [
+    "src/home/projects",
+    "src/workspaces/selection",
+    "src/new-session",
+    "src/session/composer/location-missing.tsx",
+  ]
+  const osPatterns: [RegExp, string][] = [
+    [/process\.platform/, "process.platform"],
+    [/navigator\.platform/, "navigator.platform"],
+    [/from ["']node:os["']/, 'import from "node:os"'],
+    [/require\(["']os["']\)/, 'require("os")'],
+  ]
+  let scanned = 0
+  for (const entry of whitelist) {
+    const full = new URL(entry, appRoot)
+    const stat = await Bun.file(full).exists()
+    const paths = stat
+      ? [entry]
+      : (await Array.fromAsync(new Bun.Glob("**/*.{ts,tsx}").scan({ cwd: new URL(entry, appRoot).pathname }))).map(
+          (file) => `${entry}/${file}`,
+        )
+    for (const path of paths) {
+      scanned++
+      const source = await read(path)
+      for (const [pattern, label] of osPatterns) {
+        if (pattern.test(source)) fail(`N-5: host-OS conditional (${label}) found in whitelisted ${path}`)
+      }
+    }
+  }
+  if (scanned < 20) fail(`N-5: whitelist scan covered only ${scanned} files — the directory set looks wrong`)
+
+  console.log(
+    "verify-projects-sessions: PASS (M-017 home archive wiring: stub gone, session.update archived:true call shape, archiveHomeSession helper + cache row removal + invalidate/resync kept; M-018 guard revision: includes list without \"servers\" + fixed SSH hosts entry + en/zh keys; path boundaries: web picker stays remote / reveal+file-manager desktop gates / web.ts has no openDirectoryPickerDialog; N-5: zero host-OS conditionals across " +
+      scanned +
+      " whitelisted files; STATIC check - runtime semantics and navigation reachability are G19)",
+  )
+}
