@@ -60,7 +60,7 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 - host-dialog 凭据绑定块（issue #4）：SSH 主机不再手输引用标识符——密码凭据通过上游连接对话框的「记住」勾选（M-009）或主机表单绑定；表单内不再存在任何凭据值输入位。
 - 诚实边界：
   - 多 host 一窗、设置页/home 内 extension 行渲染待真机核对，归 G13/G15。
-  - 已知展示缺口：上游多 server 布局下（`multiple()`），设置导航以 per-server 条目取代 "servers" 标签页，此时 host-manager 入口不可达（M-008 保持最小挂载；补齐导航入口归后续 issue，先以 G13 真机核对为准）。
+  - 已知展示缺口（M-008）——**已由 M-018 承接（未验证，issue #8）**：上游多 server 布局下（`multiple()`），设置导航以 per-server 条目取代 "servers" 标签页，host-manager 曾在该布局不可达。M-018 以「入口 + 守卫修订」承接（`multiple()` 组加 SSH hosts 入口；重定向守卫 `includes` 列表移除 `"servers"`——守卫修订是入口可达性的前提），详见 [projects-sessions.md](projects-sessions.md) 与 [../interaction.md](../interaction.md) G19；运行期可达性待真机核对（G19）。
   - 直连服务记录仍由上游原生注册表承载（含 M-005/M-006/M-009/M-010 的 credentialRef 行为），本单元的注册表只管理 SSH 主机。
 
 ## 结构与流转

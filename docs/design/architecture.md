@@ -10,14 +10,14 @@
 | connection | 服务记录（`url` + `password` + 可选 `credentialRef`/`authToken`/`displayName`/`label`）；SSH 主机记录（`mobile-ssh:<uuid>` 身份键 + `name`/`target`/`credentialRef`）；凭据保险库条目（信封 v1 密文 + 元数据索引）；直连错误分类码（`DirectErrorCode` 十二码，`transport/connection-errors.ts`）；SSH 失败分类码（`SshErrorCode` 十四码，`transport/ssh-errors.ts` + Kotlin 镜像，issue #6 已实现（未验证）） | 凭据 memory-only（M-002）+ 可选记住经 vault 加密落盘（issue #4，无明文回退）；credentialRef 是非机密引用不是凭据；远端仅 HTTPS（明文直连不支持，issue #5 D3）；TLS 校验不可关闭（system CA 唯一锚，D2）；重定向 validated-follow + userinfo 拒发（D1/D-URL）；host-key stub fail-closed 为默认注入（真实校验经第三桥注入，已实现（未验证）） | 建立到远程 OpenCode HTTP API 的认证连接；承载 host-key 确认交互（host-key-prompt）与 SSH 连接状态机；承载凭据的设备侧加密存储（vault 端口/桥/Keystore）；承载直连传输卫生（secure-fetch/URL 策略）与端点 probe 分类器（probe 端口/桥传输） | 已实现（未验证）；设备交互 BLOCKED（G14、host-key/隧道归 #6、C1–C5 归 #4、G16 归 #5），见 [units/connection.md](units/connection.md) |
 | server-list | 服务器列表 + 每服务器项目树；SSH 主机管理界面（host-manager/host-dialog，挂载于设置 servers 标签页）；凭据管理器（credential-manager，issue #4） | 同上；SSH 主机名唯一校验；持久化载荷白名单（id/name/target/credentialRef/时间戳）；凭据管理器仅展示元数据无值 | 选择远程服务器与项目、进入会话界面；SSH 主机增删改测的管理入口；凭据条目的元数据查看/删除与恢复 | 已实现（未验证）；设备交互 BLOCKED（G13/G15、C2 归 #4），见 [units/server-list.md](units/server-list.md) |
 | service-ops | 服务状态快照（`ServiceStatus` 六态 + `checkedAt`/`survivedDisconnect`/limitations）；白名单命令模板表（`ServiceOpsAction` × OS 三分变体，OS 适用域闭域）；授权流状态机（O1–O14）；服务操作错误分类码（`ServiceOpsErrorCode` 二十一码 + Kotlin 镜像，issue #7 已实现（未验证）） | 桥协议只传 `{templateId, params, os}` 永不传命令字符串（无自由命令注入面，双门禁白名单）；预览=执行逐字节一致（golden vectors）；零删除类模板（N8）；curl 管道模板 POSIX 闭域（N2）；凭据逐命令解析单次过桥（N7，继承 0003 §4）；无确认不执行；断开永不停止远端（O14 无 disconnect→stop 边） | 发现远端服务与版本（API 权威 + exec 安装面，诚实限制清单）；显式授权 install/start/upgrade/replace/stop（预览→危险确认→执行）；断开存活复核（B1 触发集 watcher） | 已实现（未验证）；设备/真 OS BLOCKED（G18、三 OS E2E），见 [units/service-ops.md](units/service-ops.md) 与[决策 0004](../decisions/0004-service-operations.md) |
-| 会话列表 | TODO | — | TODO | 未开始 |
+| projects-sessions（会话列表） | 会话记录（`SessionInfo`，`time.archived` 时间戳）；项目身份 = worktree 远端绝对路径（`pathKey`）+ `ServerScope` 双重键 | 路径语义全部经上游服务契约（`file.list`/`file.find`/`location`/worktree），web 平台目录选择恒远端模式（结构性保证）；客户端零手机 FS 参与代码、零 OS 条件分支（白名单负例探针）；归档为可逆元数据操作（无危险确认，本期无 unarchive 界面=上游能力边界） | 浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区（全部复用上游 UI/API）；M-017 归档接线；M-018 多服务器设置布局的 SSH hosts 入口+守卫修订（server-list 预登记债务承接） | 已实现（未验证）；运行期归 G19，见 [units/projects-sessions.md](units/projects-sessions.md) |
 | 时间线 | TODO | — | TODO | 未开始 |
 | 终端 | TODO | — | TODO | 未开始 |
 | 设置 | TODO | — | TODO | 未开始 |
 | 权限确认 | TODO | — | TODO | 未开始 |
 | 文件与 Diff | TODO | — | TODO | 未开始 |
 
-会话列表、时间线、终端、设置、权限确认、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付。
+时间线、终端、设置、权限确认、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付。
 
 ## 结构图
 
@@ -95,7 +95,7 @@
 
 ## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-014）
 
-上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线；M-016（已实现（未验证）：issue #7）承载服务操作桥接线，每补丁一事：
+上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线；M-016（已实现（未验证）：issue #7）承载服务操作桥接线；M-017/M-018（已实现（未验证）：issue #8）承载会话归档接线与设置入口可达性，每补丁一事：
 
 | 补丁 | 内容 | 理由 |
 | --- | --- | --- |
@@ -115,6 +115,8 @@
 | M-014 | `entry.tsx`：probe 桥握手监听（独立握手串 `opencode-mobile-probe-handshake`）+ `createProbeClient` 注入 `createMobileHosts({probe})` | probe 分类器到达 UI 的接线（issue #5）：与 vault 桥并存互不误捕（双方 data 严格等值校验）；ack 前 fail-closed |
 | M-015 | `entry.tsx`：M-014 块内增 ssh 桥握手监听（独立握手串 `opencode-mobile-ssh-handshake`）+ `createWebMessageSshTransport` 与 `createSshHostKeyVerifier`/`createSshHostTransport` 注入 `createMobileHosts({hostKey, transport, sshBridge})`（替代显式 `StubHostKeyVerifier` 注入；stub 保留为包内默认） | SSH 隧道/host-key 真实校验到达驱动的接线（issue #6，已实现（未验证））：第三座协议隔离桥（与 vault/probe 互不误捕）；ack 前 fail-closed（stub 语义不变）；监听先于首渲染 |
 | M-016 | `entry.tsx`：M-015 块后增 svcops 桥握手监听（独立握手串 `opencode-mobile-svcops-handshake`）+ `createServiceOpsClient`/`createWebMessageServiceOpsTransport` 经模块级 seam `setActiveServiceOpsPort` 注册（`createMobileHosts` 选项契约不变，runtime.ts 零改动） | 服务操作到达面板的接线（issue #7，已实现（未验证））：第四座协议隔离桥（与三姊妹互不误捕）；ack 前面板降级隐藏（fail-closed）；「客户端构建不隐含服务操作能力」的结构承载 |
+| M-017 | `home/sessions/controller.tsx`：home 会话行 `archive` 由 stub（恒 reject）改为真实调用 `session.update({ sessionID, archived: true })`，成功后从查询缓存移除该行 + invalidate/resync，复用 `archiveHomeSession` 的 tabs 清理与 onError toast | 归档接线（issue #8）：上游 API 现存而 UI 是 stub；行为语义见 [units/projects-sessions.md](units/projects-sessions.md) |
+| M-018 | `settings/shell.tsx` 两处：重定向守卫 `includes` 列表移除 `"servers"`（其余五项不动）+ `multiple()` 导航组加固定「SSH hosts」入口（`surface.select("servers")`）；`runtime/i18n/en.ts`/`zh.ts` 增 `settings.tab.sshHosts` | 多服务器设置布局下 host-manager 可达（issue #8）：仅入口不足以可达——守卫 effect 会把 "servers" 弹回 general；守卫修订是入口可达性的前提。[server-list.md](units/server-list.md) 预登记「已知入口缺口（M-008）」债务的承接 |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。
 
@@ -131,8 +133,8 @@
 | shell-startup | WebView 首帧 | 上游 app 启动流程 | 无 | — | 待验证（G1/G2） |
 | 上游 app（vendored） | 用户录入服务 | connection | url、password（内存） | 认证失败 → 上游认证失败路径（M-002 容忍缺失密码 → 失败路径成立），反馈形态待验证 | 待验证（G3/G4/G11） |
 | connection（成立后） | 认证通过 | server-list | 服务记录（无 password） | — | 已确认未实现 |
-| server-list | 选择服务器/项目 | 会话列表 | 项目元数据 | — | 已确认未实现 |
-| server-list（已实现（未验证）） | 用户进入设置 → servers 标签页 | host-manager（SSH 主机管理） | 无 | 列表为空 → 空态引导（新增主机）；多 server 布局下该标签被上游 per-server 导航取代（管理入口缺口，见 [interaction.md](interaction.md)） | 已实现（未验证）（M-008）；真机归 G13 |
+| server-list | 选择服务器/项目 | projects-sessions | 项目元数据 | — | 已实现（未验证）；见 [units/projects-sessions.md](units/projects-sessions.md) |
+| server-list（已实现（未验证）） | 用户进入设置 → servers 标签页 / SSH hosts 入口（M-018） | host-manager（SSH 主机管理） | 无 | 列表为空 → 空态引导（新增主机）；多 server 布局经 M-018 入口+守卫修订可达（原 M-008 缺口已承接，未验证，见 [interaction.md](interaction.md)） | 已实现（未验证）（M-008 + M-018）；真机归 G13/G19 |
 | host-manager（已实现（未验证）） | 新增/编辑 SSH 主机 | host-dialog | 主机记录（name/target/credentialRef） | 校验失败（重名/非法 target/超长）→ 行内错误，不写注册表；保存失败保留原配置 | 已实现（未验证）；真机归 G13 |
 | host-dialog（已实现（未验证）） | 保存 SSH 主机 | host-manager | 注册表记录（白名单载荷） | — | 已实现（未验证）；真机归 G13 |
 | 连接对话框（已实现（未验证）：issue #4，M-009） | 保存直连服务（勾选记住） | vault（桥 put） | kind=password、内存密码值、existingRef | put 失败 → 不关对话框+行内报错；vault unavailable → 勾选禁用+说明 | 已实现（未验证）；真机归 C1/C2 |
@@ -142,7 +144,7 @@
 | 连接状态机（已实现（未验证）） | 状态迁移 | 上游 server-list 行内状态 | extension 型 ServerConnection（state 映射） | offline/reconnecting 有反馈可恢复；取消恢复来源态；删除/断开零远程调用 | 已实现（未验证）；真机归 G14 |
 | service-ops 面板（已实现（未验证）） | 用户在 host-manager 行内展开「服务操作」/ `service-unreachable` 后引导 | svcops 发现（状态卡/limitations） | hostId（记录读取） | 无桥注入 → 面板整体降级隐藏（stub fail-closed）；OS 判定失败 → unsupported-os 如实呈现 | 已实现（未验证）；真机归 G18 |
 | service-ops 面板（已实现（未验证）） | 预览 → 危险确认勾选 → 确认 → 执行 | 第四桥 exec（白名单命令） | `{templateId, params, os}`（永不传命令字符串）+ 逐命令凭据（N7 单次过桥） | 校验器拒绝 → exec-denied；occupied-port 预检拒绝覆盖运行中服务；失败 → 分类码 + 有界 stderr 尾部 + 回滚入口 | 已实现（未验证）；真机归 G18 |
-| 会话列表 | 打开会话 | 时间线 | 会话 ID | — | 未开始 |
+| projects-sessions | 打开会话 | 时间线 | 会话 ID | stale ID → resolution failed → 错误边界/关 tab（上游语义） | 已实现（未验证）；真机归 G19 |
 | 时间线 | 权限请求到达 | 权限确认 | 请求内容 | 拒绝 → 任务按上游语义继续/中止 | 未开始 |
 | 时间线 | 打开文件/Diff | 文件与 Diff | 文件路径 | — | 未开始 |
 | 会话列表/时间线 | 打开终端 | 终端 | PTY 会话 | — | 未开始 |
