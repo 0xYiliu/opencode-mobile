@@ -14,10 +14,10 @@
 | session-workbench（会话工作台/时间线） | 会话消息与事件流（`session.*` SSE 事件全集 + HTTP 快照读，`client/src/solid/data.ts` `handleEvent`）；工具/子任务状态；草稿与滚动（`Persist.serverScoped(prompt)` + `sessionView`） | 取消仅在显式用户动作：`api.session.interrupt` 线级调用点全仓恰三处（composer 停止/空提交入口、running-menu 子会话入口、revert stage 前置序列），断开路径零 API 调用（不因客户端断开停止远程任务）；SSE live-only 无重放，恢复=服务端快照重放真相（`sync.invalidate()` + `server.connected` reconcile + connected-gated 再同步）；未知事件静默 fall-through（`handleEvent` 无 `default:`） | 渲染流式时间线与长历史、模型/代理/工具/子任务状态与失败、请求 dock 事件接线、composer 发送/排队/重试、草稿/滚动/上下文按会话保持（全部复用上游 `session-ui`+app+client 闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G20，见 [units/session-workbench.md](units/session-workbench.md) |
 | 终端 | TODO | — | TODO | 未开始 |
 | 设置 | TODO | — | TODO | 未开始 |
-| 权限确认 | TODO | — | TODO | 未开始 |
+| permission-requests（权限请求与 Agent 提问） | 权限请求（`permission.asked`/`replied` SSE 事件 + HTTP 快照，`PermissionRequest` 生成类型）与表单类请求（`form.created`/`replied`/`cancelled`，`FormInfo` 三 kind：question/websearch.provider/mcp-elicitation）；决策三值 `once`/`always`/`reject` + form reply/cancel | 决策三值语义上游承载；请求身份会话作用域（服务端 `per_` ID + `requireOwnedRequest` 双校验）；auto-approve 默认关、显式 opt-in 才代答；断开路径零 reply 调用（线级调用点穷举恰两处，均显式动作/显式 opt-in）；事件 ephemeral、恢复靠 HTTP 快照（per-location 聚合枚举 + never-loaded 残例如实）；服务端 shutdown 全拒不静默批准 | 呈现权限/提问请求上下文与决策集（dock 三家族）、处理 approve/reject/answer、duplicate/stale/expired 处置、auto-approve opt-in、跨会话注意态、响应留痕（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G21，见 [units/permission-requests.md](units/permission-requests.md) |
 | 文件与 Diff | TODO | — | TODO | 未开始 |
 
-终端、设置、权限确认、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付（会话工作台/时间线已于 issue #9 建立契约，见 [units/session-workbench.md](units/session-workbench.md)）。
+终端、设置、文件与 Diff 的能力由上游闭包携带（`packages/app` 对应源码目录），但本仓库尚未为它们建立设计契约，均不视为已交付（会话工作台/时间线已于 issue #9、权限请求与 Agent 提问已于 issue #10 建立契约，见 [units/session-workbench.md](units/session-workbench.md) 与 [units/permission-requests.md](units/permission-requests.md)）。
 
 ## 结构图
 
@@ -145,7 +145,9 @@
 | service-ops 面板（已实现（未验证）） | 用户在 host-manager 行内展开「服务操作」/ `service-unreachable` 后引导 | svcops 发现（状态卡/limitations） | hostId（记录读取） | 无桥注入 → 面板整体降级隐藏（stub fail-closed）；OS 判定失败 → unsupported-os 如实呈现 | 已实现（未验证）；真机归 G18 |
 | service-ops 面板（已实现（未验证）） | 预览 → 危险确认勾选 → 确认 → 执行 | 第四桥 exec（白名单命令） | `{templateId, params, os}`（永不传命令字符串）+ 逐命令凭据（N7 单次过桥） | 校验器拒绝 → exec-denied；occupied-port 预检拒绝覆盖运行中服务；失败 → 分类码 + 有界 stderr 尾部 + 回滚入口 | 已实现（未验证）；真机归 G18 |
 | projects-sessions | 打开会话 | session-workbench（会话 tab） | 会话 ID | stale ID → resolution failed → 错误边界/关 tab（上游语义）；断开 → 服务端快照恢复（非 SSE 重放） | 已实现（未验证）；真机归 G19/G20 |
-| session-workbench | 权限请求到达（`permission.asked`/`form.*` dock 接线） | 权限确认 | 请求内容 | 拒绝 → 任务按上游语义继续/中止 | 未开始（接线事实见 [units/session-workbench.md](units/session-workbench.md)，确认单元本身未交付） |
+| session-workbench | 权限请求到达（`permission.asked`/`form.*` dock 接线） | permission-requests | 请求内容（`PermissionRequest`/`FormInfo`） | 拒绝 → 上游语义：reject 批量扩散同会话全部 pending + CorrectedError 反馈；stale/expired → form 侧吞错自愈（settleForm）、permission 决策侧失败 toast + Replied 广播移除 | 已实现（未验证）；真机归 G21 |
+| permission-requests | 请求决策（once/always/reject 或 form reply/cancel） | 远程服务（POST reply 端点） | `{decision}` / `FormAnswer` | 网络失败 → 失败 toast（`common.requestFailed`），请求保留待重试；stale → 见上行；in-flight 全按钮 disabled 幂等 | 已实现（未验证）；真机归 G21 |
+| 任意客户端 | 同会话请求被他端先答 | permission-requests | `permission.replied` 广播 | 本端 dock 移除，无需操作（他端先答后本端操作的呈现归 G21④） | 已实现（未验证） |
 | session-workbench | 打开文件/Diff | 文件与 Diff | 文件路径 | — | 未开始 |
 | 会话列表/会话工作台 | 打开终端 | 终端 | PTY 会话 | — | 未开始 |
 | 任意单元 | 用户进入设置 | 设置 | — | — | 未开始 |

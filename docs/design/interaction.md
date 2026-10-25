@@ -1,6 +1,6 @@
 # 交互基线与设备门禁
 
-本文承载跨单元交互约束、G1–G20 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
+本文承载跨单元交互约束、G1–G21 与 C1–C5 设备门禁完整枚举、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
 ## 交互基线
 
@@ -10,9 +10,9 @@
 - 深链：不实现（未注册 VIEW intent-filter，代码留 TODO）。
 - 返回手势：壳按 `onBackPressed` 实现，manifest 显式声明 `android:enableOnBackInvokedCallback="false"`——Android 16 起 targetSdk ≥ 36 的应用默认启用 predictive back，`onBackPressed` 将不再被调用，必须显式禁用才能维持该行为；迁移平台 `OnBackInvokedCallback` 需 minSdk 守卫（API 33+），为后续 issue 事项。与计划中 onBackPressedDispatcher 表述的差异已记录（见 [docs/build-and-verify.md](../build-and-verify.md) 偏差表）。
 
-## G1–G20 设备门禁（完整枚举）
+## G1–G21 设备门禁（完整枚举）
 
-每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16、issue #6 新设的 G17、issue #7 新设的 G18、issue #8 新设的 G19 与 issue #9 新设的 G20）。
+每项列出验证目标、所需环境、当前状态。本轮全部 **BLOCKED：未执行**（无 Android SDK、无真机/模拟器、无授权远程服务；清单来源为 issue #2 验收项、计划 §5.2、issue #3 新增交互、issue #5 的 G16、issue #6 新设的 G17、issue #7 新设的 G18、issue #8 新设的 G19、issue #9 新设的 G20 与 issue #10 新设的 G21）。
 
 | 门禁 | 验证目标 | 所需环境 | 状态 |
 | --- | --- | --- | --- |
@@ -36,6 +36,7 @@
 | G18 四桥并存 bring-up + 服务操作交互（issue #7 **新设门禁**） | `onPageFinished` **四座桥同时**开握手轮（vault/probe/svcops/ssh 各自独立握手串）→ ack 时序真机核对（各自捕获各自 port、互不误捕、互不重置对方 ack 生命周期）；**C1–C5（vault）与 G14–G17 不因第四桥扰动**的复测；svcops 面板真机交互：发现状态卡/预览=执行全文/危险确认/执行进度/回滚入口/cancel-uncertain 呈现、occupied-port 与 permission-denied 真实路径、`survivedDisconnect` 断开存活真机触发核对（B1 触发集：迁入 ready 且前态∈{offline,reconnecting,authRequired}；T5 不触发）、svcops 面板零日志值负例、Windows `start /b` detach 存活如实呈现（detach-uncertain）；三 OS 真实 exec/安装/回滚与「远端 bash=WSL 诱饵」负例（N2）另归真 OS E2E | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS | BLOCKED |
 | G19 projects-sessions 运行期门禁（issue #8 **新设门禁**） | 单窗口切换状态保持（tabs/草稿/滚动/导航栈跨切换与重启）；同名项目隔离（不同主机/不同目录同名不混淆、无数据泄漏）；空项目空态与新建门控；删除路径（确认对话框/失败 toast/行保留）；stale session ID（错误边界/notFound toast/关 tab 恢复）；并发更新（切网恢复后不覆盖本地脏值）；**归档反馈（M-017）**：归档后行消失、关联 tab 关闭、失败 toast 行保留、服务端 `time.archived` 列表过滤；**M-018 入口在 multiple() 布局下可达且不弹回 general**（守卫修订的运行时行为）；不可达/已删除路径的 `SessionLocationMissing` 恢复流与 `home.project.missing` 反馈（含 `addProjects` 静默疑点核对，缺陷成立追加 M-019）；**SSH/直连双路由各完整一遍**（选项目→建会话→fork→重命名→归档→切换→错误恢复 lifecycle E2E）。**V2/探针/构建三层对以上运行时行为均无证明力，全部归本门禁** | 真机/模拟器 + 授权远程服务（直连与 SSH 各一） | BLOCKED |
 | G20 session-workbench 运行期门禁（issue #9 **新设门禁**） | 会话工作台全部运行期行为，与 G12 互补分工（G12=壳生命周期，G20=工作台行为）：**①流式增量呈现**（text/tool/reasoning delta 到达节奏与 Working shimmer，叠加 G6 传输前提）；**②长历史翻页**（`loadOlderTimeline` + cursor 分页，初始页 20/compact 40）；**③发送/停止**（仅显式用户取消可达；queued inputs 呈现与撤销）；**④断开→重连快照恢复**（含 queued inputs 刷新；offline 呈现充分性核对为**本门禁首项**——上游会话内无独立 offline 横幅，断连经由连接行/失败反馈呈现，若判定不足按失败路径四步协议交用户决策，不预设补丁）；**⑤断开不中断远端（红线机械核对四步）**：授权服务上发起真实长任务（直连与 SSH 各一遍）→ 客户端依次制造断连三态（锁屏/切后台至超时、飞行模式/断网、杀 App；SSH 路由另含隧道拆除）→ **远端侧核对任务继续执行至完成** → 恢复连接后核对时间线经服务端快照补齐缺口期消息/状态，并核对期间本地日志零 interrupt/stop 类请求命中；**⑥草稿/滚动/上下文跨切换恢复**（工作台内视角，与 G19 的 tabs 层互补）；**⑦失败反馈**（消息 retry/error、tool error 卡、执行失败三层可见且可恢复）；**⑧窄屏/读屏/焦点/触摸目标核验**（`isDesktop()` 单列布局、767px 提交 blur、reduced-motion 降级的运行期核对——README 无障碍行「后续 issue 可增补」的兑现位）。**真模型交互子项（增量呈现的真实内容）另需模型授权，单独分列**：真实模型收发的完整工作台交互（直连+SSH 双路由各一遍）。**V2/探针/上游单测三层对以上运行时行为均无证明力，全部归本门禁** | 真机/模拟器 + 授权远程服务；真模型交互子项另需模型授权 | BLOCKED |
+| G21 permission-requests 运行期门禁（issue #10 **新设门禁**） | 权限请求与 Agent 提问全部运行期行为，与 G12（壳生命周期）/G20（工作台行为）互补分工：**①请求呈现**（dock 标题/操作说明/resources 逐行、composer 阻断隐藏（primary 视图；subagent 子会话视图 dock 与 composer 并存）、Working shimmer 抑制、会话树子代理请求呈现、项目头像注意态）；**②三决策**（once 继续/always 落 saved 规则+后续免批/reject 终止+批量扩散；in-flight disabled 误触核对——快速双击/连点仅一次 reply）；**③提问向导**（单/多问题、自定义回答、Esc reject、提交后 dock 消失、切 tab 草稿恢复）；**④duplicate/stale/expired 三态**（他端先答→本端 dock 消失；服务重启 pending 清空→重连 sync 后消失；对已消失请求操作的呈现——permission 决策侧失败 toast 呈现充分性核对）；**⑤断连→重连 dock 恢复**（快照补齐）；**⑥client exit 红线机械核对四步**（请求 pending 时杀 App → 远端任务保持等待不 approve 不 reject 不 stop → 重开 App dock 仍在；直连与 SSH 各一遍）；**⑦auto-approve opt-in**（命令开启→代答+toast、关闭→恢复手动）；**⑧窄屏/读屏/焦点/触摸目标首项核对**（28/32px 按钮可达性 vs 48dp 推荐、Deny 与 Allow 相邻 8px 误触风险、焦点顺序/焦点陷阱——不足则按失败路径四步协议交用户决策，候选含 M-020+，不预设）；**⑨通知/声音设置**（`notifications.permissions` 开关）呈现。真模型交互子项（真实 permission.asked 的产生依赖真实模型工具调用）另需模型授权，单独分列。**V2/探针/上游单测三层对以上运行时行为均无证明力，全部归本门禁** | 真机/模拟器 + 授权远程服务（真模型交互子项另需模型授权；④的并发核对子项另需第二客户端）；SSH/直连双路由 | BLOCKED |
 
 ## C1–C5 凭据桥设备门禁（issue #4，全部 BLOCKED）
 
@@ -47,7 +48,7 @@
 | C4 备份排除负例 | `allowBackup=false` 主控制 + `data_extraction_rules`/`full_backup_content` 引用生效：`adb backup`/设备迁移不带走 `filesDir/vault/`；重装后 vault 空（无悬挂引用） | 真机/模拟器（adb） | BLOCKED |
 | C5 桥安全探针 | **C5a** targetOrigin 强制（错误 origin 握手不可达/正确 origin 可达；顺序见 C1；**禁止伪造 event.origin 断言**——平台证据链见 [architecture.md](architecture.md)，event.origin 恒空串）；**C5b** port confinement（window 无全局 port 引用；单测锁定）；**C5c** 握手 data/ports 形状校验（单测锁定，仅形状不涉 origin）；**C5d** ack 前 vault 恒 unavailable、无明文回退（单测+真机） | 真机/模拟器（C5a/C5d 真机面）+ 本机单测（C5b/C5c） | BLOCKED（单测部分已 PASS，见 build-and-verify） |
 
-补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）；服务操作真 OS E2E 与 G18 四桥 bring-up（归 issue #7，见上表：三 OS exec 发现、install/start/upgrade/replace 全链路、occupied-port/permission-denied 真实路径、真实文件系统回滚、bash=WSL 诱饵负例、断开存活真机核对）；**G19 projects-sessions 运行期门禁与双路由 lifecycle E2E、`test-browser/session-resolution.test.ts`（需浏览器环境）与三 OS 真 OS E2E（归 issue #7 环境组）、Windows Desktop 行为映射（归 issue #1）**（issue #8，见上表 G19 行）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」；**第四处落字（issue #7）**：G18+三 OS 真 OS E2E 通过前，issue #7 的全部交付只声称「静态边界已实现（未验证）」（[决策 0004 §8](../decisions/0004-service-operations.md)）——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立；**第五处落字（issue #8）**：G19 与双路由 lifecycle E2E 通过前，issue #8 的全部交付只声称「已实现（未验证）」；**G20 session-workbench 运行期门禁、真模型 live E2E（直连+SSH 双路由真实会话收发，需授权远程服务与模型，不允许 fixture 替代）与 session-ui component-tests/playwright（需浏览器环境）归 issue #9**（见上表 G20 行）；**第六处落字（issue #9）**：G20 与真模型 live E2E 通过前，issue #9 的全部交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
+补充 BLOCKED 项（非 G/C 组）：APK 构建（需 Android SDK，`cd android && ./gradlew :app:assembleDebug`）；live 直连 E2E（需授权服务与模型，不允许 fixture 替代）；SSH E2E（归 issue #6：auth 成败端到端、未知/已知/变更三态真机、目标拒绝、服务不可达与 incompatible 真服务、重连、**隧道/App 关闭后远程任务存活**）；host-key 真实校验流（归 issue #6）；SSH 端口变化真机验证（归 #6 配合 G15）；G17 三桥并存 bring-up（归 issue #6，见上表）；服务操作真 OS E2E 与 G18 四桥 bring-up（归 issue #7，见上表：三 OS exec 发现、install/start/upgrade/replace 全链路、occupied-port/permission-denied 真实路径、真实文件系统回滚、bash=WSL 诱饵负例、断开存活真机核对）；**G19 projects-sessions 运行期门禁与双路由 lifecycle E2E、`test-browser/session-resolution.test.ts`（需浏览器环境）与三 OS 真 OS E2E（归 issue #7 环境组）、Windows Desktop 行为映射（归 issue #1）**（issue #8，见上表 G19 行）。**验收⑤条件句（F4，第三处落字）**：G17+SSH E2E 通过前，issue #6 的全部交付只声称「静态边界已实现（未验证）」；**第四处落字（issue #7）**：G18+三 OS 真 OS E2E 通过前，issue #7 的全部交付只声称「静态边界已实现（未验证）」（[决策 0004 §8](../decisions/0004-service-operations.md)）——库/平台边界（共享层零平台 API、stub fail-closed 保留、库在 Kotlin 桥内）的最终断言依赖 G17 与 SSH E2E；门禁未过时该声称不成立；**第五处落字（issue #8）**：G19 与双路由 lifecycle E2E 通过前，issue #8 的全部交付只声称「已实现（未验证）」；**G20 session-workbench 运行期门禁、真模型 live E2E（直连+SSH 双路由真实会话收发，需授权远程服务与模型，不允许 fixture 替代）与 session-ui component-tests/playwright（需浏览器环境）归 issue #9**（见上表 G20 行）；**第六处落字（issue #9）**：G20 与真模型 live E2E 通过前，issue #9 的全部交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」；**G21 permission-requests 运行期门禁、真模型 live E2E（真实 permission.asked 依赖真实模型工具调用）与多客户端并发决策核对子项（需第二客户端）归 issue #10**（见上表 G21 行）；**第七处落字（issue #10）**：G21 与真模型 live E2E 通过前，issue #10 的全部交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 
 ## 失败路径处置协议
 
@@ -65,6 +66,10 @@
 ### session-workbench 失败路径（issue #9）
 
 会话工作台内的失败反馈（消息 retry/error、工具失败、执行失败、断连期间的陈旧数据与动作失败、重连自愈）**全部复用上游既有通道**（toast/错误边界/行内错误卡/重连快照恢复），不新增第一方错误分类；详见 [units/session-workbench.md](units/session-workbench.md) 状态矩阵与取消/断开安全语义专节。这些通道的**运行期可达性本身**归 G20（offline 呈现充分性核对为 G20 首项：上游会话内无独立 offline 横幅，若判定不足按上述四步协议交用户决策，候选含上游呈现强化 vs 新增 M-020+，不预设）；真模型交互子项另需模型授权。
+
+### permission-requests 失败路径（issue #10）
+
+权限请求与 Agent 提问的失败反馈**全部复用上游既有通道**，不新增第一方错误分类：决策/应答网络失败 → 行内错误 toast `common.requestFailed`（请求保留待重试）；stale/expired → form 侧 `settleForm` 吞错自愈（NotFound/AlreadySettled + resync）、permission 决策侧无吞错（失败 toast + `permission.replied` 广播移除）；恢复 → 断连后四处快照触发补齐（含后台 tab 错峰同步）。详见 [units/permission-requests.md](units/permission-requests.md) 状态矩阵与安全语义专节。这些通道的**运行期可达性本身**归 G21（④ 核对失败 toast 呈现充分性、⑧ 核对触摸目标/焦点缺口是否构成真机不可用——不足则按上述四步协议交用户决策，候选含 M-020+，不预设）；真模型交互子项另需模型授权。
 
 ## 凭据 notice（修订：可选记住，issue #4）
 
