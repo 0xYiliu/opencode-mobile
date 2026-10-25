@@ -208,6 +208,20 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web rc=0 after applying); upstream targeted regression src/home/sessions/{archive,index,records}.test.ts 16 pass / 0 fail (note: archive.test.ts exercises the INJECTED archiveHomeSession helper, not the M-017 rewrite point - helper semantics regression only); scripts/verify-projects-sessions.ts static probe (stub text gone, archived:true call shape, helper wiring kept). Runtime archive semantics on a real server (time.archived stamp, list filtering) are BLOCKED - G19 / live lifecycle E2E.",
       "rebase": "New patch (issue #8); rebase target is the archive: async block inside the returned session controller of packages/app/src/home/sessions/controller.tsx (anchored by the archiveHomeSession call; single hunk)."
+    },
+    {
+      "id": "M-018",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Restores the SSH hosts entry in the multi-server settings layout and revises the redirect guard (issue #8; this closes the gap M-008 pre-registered in docs/design/units/server-list.md - it is deliberately NOT an issue #8 acceptance item itself). Two same-file changes in shell.tsx: (i) the root-tab redirect guard's includes list drops \"servers\" (the other five entries keep their upstream redirect semantics - those panels are per-server and carried by the per-server nav entries); without this revision ANY navigation setting view.tab='servers' is bounced to general by the guard createEffect, so an entry alone would not be reachable; (ii) the multiple() nav group gains a fixed 'SSH hosts' entry that opens the existing 'servers' tab (surface.select('servers')), where the M-008 host-manager panel renders unconditionally. i18n key settings.tab.sshHosts added to en/zh (M-009/M-013 three-file precedent). Semantic spillover assessed low and recorded: if upstream ever mounts something else on the 'servers' tab relying on its multi-server unreachability, behavior changes; rollback is re-adding the list entry (one line) and dropping the entry item.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web rc=0 after applying); dist i18n key hit: settings.tab.sshHosts / 'SSH hosts' in language-Cwk-VMvM.js + shell chunk, 'SSH 主机' in zh-49VEr5mD.js; scripts/verify-projects-sessions.ts asserts BOTH the guard revision (includes list without \"servers\") and the entry item. HONEST BOUNDARY: build/dist/probe layers cannot prove runtime navigation reachability (the guard is a Solid createEffect) - 'entry reachable in multiple() layout and not bounced' is a G19 device check (docs/design/interaction.md).",
+      "rebase": "New patch (issue #8); rebase targets are the guard createEffect's includes list and the multiple() nav-group construction block in packages/app/src/settings/shell.tsx, plus the settings i18n region near settings.tab.servers in en.ts/zh.ts; the guard revision is the PREREQUISITE of the entry's reachability - keep both or neither."
     }
   ]
 }

@@ -623,6 +623,9 @@ export const dict = {
   "session.header.reveal.containingFolder": "Open containing folder",
 
   "settings.tab.servers": "Servers",
+  // mobile(M-018): entry to the "servers" tab (first-party SSH host manager) in the
+  // multi-server settings layout.
+  "settings.tab.sshHosts": "SSH hosts",
   "settings.extensions.tab.plugins": "Plugins",
 
   "common.copied": "Copied",
