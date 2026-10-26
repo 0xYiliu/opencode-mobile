@@ -385,6 +385,10 @@ const slice = (source: string, start: string, end: string) => {
       fail(`4: the dist closure lost the office worker chunk ${worker}*.js`)
   }
   const ttf = paths.filter((p) => p.endsWith(".ttf"))
+  // Hardened beyond the plan's D3④ "existence" spec (review N-1, recorded in
+  // the build-and-verify deviations): the exact count is THIS pin's closure
+  // baseline (same R8 direction as the 4-wasm set) — a pin update that changes
+  // the font asset set must FAIL here and trigger re-evaluation.
   if (ttf.length !== 86) fail(`4: the dist closure must carry exactly 86 .ttf font entries, got ${ttf.length}`)
   for (const family of ["Caladea", "Carlito"]) {
     const styles = ttf.filter((p) => p.includes(family))
