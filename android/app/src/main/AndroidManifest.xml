@@ -25,6 +25,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Issue #16 share face: minimal read-only provider for the cacheDir/share/
+             staging tree. exported=false + grantUriPermissions=true: a staged URI is
+             handed only through the ACTION_SEND chooser with FLAG_GRANT_READ_URI_PERMISSION
+             (set on BOTH the send and the chooser intent); nothing else can reach it. Zero
+             new permissions are introduced by this file. -->
+        <provider
+            android:name=".files.ShareFileProvider"
+            android:authorities="ai.opencode.mobile.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 
 </manifest>
