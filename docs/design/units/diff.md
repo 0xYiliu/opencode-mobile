@@ -111,7 +111,7 @@
 
 **已成立**：Changes 是移动 tab 条一级 tab（`kind: "tab"` order 10，无需进 More 抽屉）；窄屏恒 unified diff（无 split 选择负担）；**wrap/scroll 换行开关**（General 设置节 Switch，`aria-label`，en「Wrap long lines in mobile diffs instead of scrolling horizontally」/zh「在移动设备差异中换行，而不是水平滚动」——上游为移动显式设计的设置项）；`SessionReview` Accordion 行为可聚焦控件、行评论 menu `aria-label`、view-file button `aria-label`、大 diff `renderAnyway` Button、review 模式 Select、`ReviewEmpty` 三态文案；滚动恢复有 `touchstart` 等用户交互门控（防 restore 打架；`wheel`/`mousewheel` 监听在 `review/mobile.tsx:132-133`，为桌面交互语义补充，`touchstart`:135 已覆盖触屏——N3 归属勘误：监听在 review/mobile.tsx 非 session-review.tsx）。
 
-**缺口（如实，归 G23⑨）**：①移动 review 头部 `!h-10`≈40px、Accordion trigger 与行评论按钮触摸目标 vs 48dp 推荐——与 #10/#11 同型事实；②**触屏行选择→行评论**的可用性（`@pierre/diffs` 行选择与移动端文本选择句柄/长按的交互）未核验——diff 评论是本面核心交互，G23 首项；③模式 Select（Kobalte menu）窄屏触屏可用性未核验；④读屏焦点顺序/焦点陷阱未核验。**均归 G23⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 M-020+），本期不预设。
+**缺口（如实，归 G23⑨）**：①移动 review 头部 `!h-10`≈40px、Accordion trigger 与行评论按钮触摸目标 vs 48dp 推荐——与 #10/#11 同型事实；②**触屏行选择→行评论**的可用性（`@pierre/diffs` 行选择与移动端文本选择句柄/长按的交互）未核验——diff 评论是本面核心交互，G23 首项；③模式 Select（Kobalte menu）窄屏触屏可用性未核验；④读屏焦点顺序/焦点陷阱未核验。**均归 G23⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 M-022+），本期不预设。
 
 ## 门禁与验证
 
