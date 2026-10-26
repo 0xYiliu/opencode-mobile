@@ -49,7 +49,8 @@ import java.io.IOException
  *     URI is written ONCE through ContentResolver.openOutputStream — a non-persistable,
  *     activity-result-scoped grant whose lifecycle the system manages (nothing to revoke;
  *     no persistable permission is ever taken). Exactly one save may be in flight
- *     (pendingSave): a second request answers "busy" — refused, never queued, never
+ *     (the saveInFlight gate; the decoded payload waits in pendingSave): a second request
+ *     answers "busy" — refused, never queued, never
  *     overwritten (mirrors the file chooser's exactly-once discipline). Three-state
  *     contract with the upstream consumers: {saved:true} = written, {saved:false} =
  *     RESULT_CANCELED (the upstream "false = user cancel" contract), {ok:false,code} =
@@ -75,7 +76,10 @@ import java.io.IOException
  * writes run on ONE background HandlerThread (zero new dependencies); only the
  * startActivityForResult/startActivity calls and the port.postMessage replies run on the
  * main thread (the vault mainHandler precedent). Nothing large ever executes on the main
- * thread.
+ * thread. The port's onMessage callback fires on the main looper, so the raw message is
+ * handed to the parse thread before decoding (review F2): inbound dispatch is a
+ * backgroundHandler.post, and fields shared across the two loops (acked/destroyed/
+ * saveInFlight/pendingSave) are @Volatile.
  *
  * Zero-value logging red line: logs carry fixed tags and op names/counters only — never a
  * filename, never a payload, never a URI, never any content value.
@@ -127,11 +131,32 @@ class FilesBridge(
     private val backgroundHandler = Handler(backgroundThread.looper)
 
     private var port1: WebMessagePort? = null
-    /** True once the live session answered ack; suppressed handshakes and reset on navigation. */
+    /**
+     * True once the live session answered ack; suppressed handshakes and reset on navigation.
+     * Volatile (issue #16 review F2): the ack lands on the background parse thread while the
+     * handshake retry guards read it on the main looper.
+     */
+    @Volatile
     private var acked = false
     private var retryAttempt = 0
     private var handshakeRound = 0
+    /** Volatile (review F2): written on the main looper (destroy), read on the parse thread. */
+    @Volatile
     private var destroyed = false
+    /**
+     * The exactly-once gate for the SAF save face (review F2 threading): reserved on the
+     * background parse thread (all inbound messages are serialized there), cleared on every
+     * completion path. Volatile — also cleared from the main looper (onActivityResult/destroy).
+     */
+    @Volatile
+    private var saveInFlight = false
+    /**
+     * The decoded payload of the one in-flight save, installed on the main looper right
+     * before the SAF dialog starts and consumed by onActivityResult (B1: the dialog's
+     * result writes exactly this array — the slot NEVER holds a placeholder). Volatile —
+     * written on main, cleared from both loops.
+     */
+    @Volatile
     private var pendingSave: PendingSave? = null
 
     /**
@@ -149,6 +174,7 @@ class FilesBridge(
 
     fun destroy() {
         destroyed = true
+        saveInFlight = false
         pendingSave = null
         mainHandler.removeCallbacksAndMessages(null)
         backgroundHandler.removeCallbacksAndMessages(null)
@@ -168,6 +194,7 @@ class FilesBridge(
     fun onActivityResult(resultCode: Int, data: Intent?) {
         val pending = pendingSave
         pendingSave = null
+        saveInFlight = false
         if (pending == null) return // stale result for an already-answered request
         val uri = if (resultCode == Activity.RESULT_OK) data?.data else null
         if (uri == null) {
@@ -213,7 +240,15 @@ class FilesBridge(
         nativePort.setWebMessageCallback(
             object : WebMessagePort.WebMessageCallback() {
                 override fun onMessage(port: WebMessagePort, message: WebMessage) {
-                    handleClientMessage(message.data ?: return)
+                    // Review F2 (issue #16): the port callback runs on the main looper, but a
+                    // bridge message can carry a ~32 MiB payload (base64 of the bound ≈ tens
+                    // of MB of JSON) — JSONObject parsing must never run on the main thread
+                    // (plan M2). The raw string is handed to the single background thread for
+                    // parse + whitelist + dispatch; ordering is preserved by that thread's
+                    // FIFO queue, and every answer is posted back to the main looper by the
+                    // respond faces.
+                    val raw = message.data ?: return
+                    backgroundHandler.post { handleClientMessage(raw) }
                 }
             },
         )
@@ -248,7 +283,8 @@ class FilesBridge(
     }
 
     // ------------------------------------------------------------------
-    // Inbound dispatch (main thread) — whitelist + shape validation
+    // Inbound dispatch (single background parse thread — review F2) —
+    // whitelist + shape validation
     // ------------------------------------------------------------------
 
     private fun handleClientMessage(raw: String) {
@@ -379,49 +415,58 @@ class FilesBridge(
     // ------------------------------------------------------------------
 
     /**
-     * Validates the payload on the background thread, then starts the SAF dialog on the
-     * main thread. pendingSave is reserved SYNCHRONOUSLY (the message callbacks are
-     * serialized on the main thread) so a concurrent save answers busy before any work
-     * starts; validation failure releases the slot. No immediate response: the answer
-     * arrives through onActivityResult.
+     * Validates the payload on the background parse thread (this runs there — review F2
+     * moved inbound dispatch off the main looper), then starts the SAF dialog on the main
+     * thread. saveInFlight is reserved SYNCHRONOUSLY (all inbound messages are serialized
+     * on the single parse thread) so a concurrent save answers busy before any work starts;
+     * validation failure releases the slot. No immediate response: the answer arrives
+     * through onActivityResult.
+     *
+     * B1 (issue #16 code review): the exactly-once gate (saveInFlight) and the payload slot
+     * (pendingSave) are SEPARATE. The gate is reserved up front; the slot is installed on
+     * the main looper with the DECODED bytes immediately before startActivityForResult —
+     * onActivityResult writes exactly that array, so a placeholder slot must never exist.
      */
     private fun handleSave(requestId: String, params: JSONObject) {
-        if (pendingSave != null) {
+        if (saveInFlight) {
             Log.w(TAG, "files: save refused (busy)")
             respondError(requestId, "busy")
             return
         }
-        pendingSave = PendingSave(requestId, ByteArray(0)) // reserve the exactly-once slot
-        backgroundHandler.post {
-            try {
-                val name = validatedName(params)
-                val mime = validatedMime(params)
-                val bytes = validatedBytes(params)
-                mainHandler.post {
-                    val pending = pendingSave
-                    if (destroyed || pending == null || pending.requestId != requestId) return@post
-                    try {
-                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = mime
-                            putExtra(Intent.EXTRA_TITLE, name)
-                        }
-                        activity.startActivityForResult(intent, REQUEST_SAVE_DOCUMENT)
-                    } catch (e: ActivityNotFoundException) {
-                        pendingSave = null
-                        respondError(requestId, "unsupported")
-                    } catch (e: Exception) {
-                        pendingSave = null
-                        respondError(requestId, "io")
+        saveInFlight = true // reserve the exactly-once gate (serialized on the parse thread)
+        try {
+            val name = validatedName(params)
+            val mime = validatedMime(params)
+            val bytes = validatedBytes(params)
+            mainHandler.post {
+                if (destroyed || !saveInFlight) return@post
+                // Install the real payload BEFORE the dialog exists: onActivityResult can
+                // only fire after startActivityForResult, and both run on this looper, so
+                // the slot is fully populated before any result can observe it.
+                pendingSave = PendingSave(requestId, bytes)
+                try {
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = mime
+                        putExtra(Intent.EXTRA_TITLE, name)
                     }
+                    activity.startActivityForResult(intent, REQUEST_SAVE_DOCUMENT)
+                } catch (e: ActivityNotFoundException) {
+                    saveInFlight = false
+                    pendingSave = null
+                    respondError(requestId, "unsupported")
+                } catch (e: Exception) {
+                    saveInFlight = false
+                    pendingSave = null
+                    respondError(requestId, "io")
                 }
-            } catch (e: FilesOpException) {
-                pendingSave = null
-                respondError(requestId, e.code)
-            } catch (e: Exception) {
-                pendingSave = null
-                respondError(requestId, "io")
             }
+        } catch (e: FilesOpException) {
+            saveInFlight = false
+            respondError(requestId, e.code)
+        } catch (e: Exception) {
+            saveInFlight = false
+            respondError(requestId, "io")
         }
     }
 
