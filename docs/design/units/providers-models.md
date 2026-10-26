@@ -110,7 +110,7 @@
 3. **web 平台 `browserFailed` 不可达**（见 OAuth 专节）。
 4. **模型可见性/recent/variant 偏好跨服务器全局**（`Persist.global("model")`）。
 5. **in-flight OAuth attempt 无跨进程恢复**（冷杀后重新发起，旧 attempt 服务端过期）。
-6. **i18n zh 部分覆盖（上游实态）**：`provider.connect.*` en 全量在册；zh 恰 **21 键**（含 `oauth.code.*` 与 `auto.confirmationCode`）；**`provider.connect.console.*`、`provider.connect.remote.*`、`provider.connect.oauth.expired` 三族 zh 零命中**；运行期经 `runtime/i18n/language.tsx` 的 base 合并回退 en（`const base = flatten({ ...en, ...dict })` + `{ ...base, ...flatten(...) }`）——中文用户在 Console OAuth 流程/RemoteAuthNotice/过期提示处将见英文混排（已知局限；可接受性与恢复路径可发现性归 G25⑤ 观感核对）。
+6. **i18n zh 部分覆盖（上游实态）**：`provider.connect.*` en **71 键**；zh 恰 **21 键在册**（含 `oauth.code.*` 与 `auto.confirmationCode`），**其余 50 键缺失、经 base 合并回退 en**（缺 7 族：`console.*` 28 键、`oauth.*` 5 键【含 `oauth.expired`/`openBrowser` 与 auto/code description】、`chatgptWelcome.*` 4、`chatgptUsageLimit.*` 4、`models.*` 4、`opencode.*` 3、`remote.*` 2）；运行期经 `runtime/i18n/language.tsx` 的 base 合并回退 en（`const base = flatten({ ...en, ...dict })` + `{ ...base, ...flatten(...) }`）——中文用户在 Console OAuth 流程/RemoteAuthNotice/过期提示/欢迎与用量提示等处将见英文混排（已知局限；可接受性与恢复路径可发现性归 G25⑤ 观感核对）。
 7. **`integration.command.*` 认证方法**：依赖服务端本地进程执行命令认证，移动场景语义未核对（G25 如实登记，不预设）。
 
 ## 安全与边界专节
@@ -122,7 +122,7 @@
 
 ## 门禁与验证
 
-- **G25**（[../interaction.md](../interaction.md) 新设）：provider/model 面运行期真机清单十项（①移动入口可达双布局；②API key 连接全链（真实兼容服务）；③**OAuth 浏览器打开形态（本门禁首项）**——`window.open("_blank")` 壳内实态+热回跳+三回退；④冷回跳/取消/过期/失败呈现；⑤凭据刷新与 needs_auth 呈现充分性+跨回跳 host/project/session 上下文保持+i18n zh 缺失三族混排观感；⑥model 选择跨服务器作用域隔离机械核对（含偏好全局例外实态）；⑦断开/账号操作链；⑧limits/可用性呈现；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由+真实第三方 provider 授权+凭据负例）。
+- **G25**（[../interaction.md](../interaction.md) 新设）：provider/model 面运行期真机清单十项（①移动入口可达双布局；②API key 连接全链（真实兼容服务）；③**OAuth 浏览器打开形态（本门禁首项）**——`window.open("_blank")` 壳内实态+热回跳+三回退；④冷回跳/取消/过期/失败呈现；⑤凭据刷新与 needs_auth 呈现充分性+跨回跳 host/project/session 上下文保持+i18n zh 缺失 50 键（7 族）混排观感；⑥model 选择跨服务器作用域隔离机械核对（含偏好全局例外实态）；⑦断开/账号操作链；⑧limits/可用性呈现；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由+真实第三方 provider 授权+凭据负例）。
 - 探针：`scripts/verify-provider-models.ts` 六组断言 + 零 OS 首扫（凭据单向流穷举集合/持久化键穷举/OAuth 流形态/服务端权威事件锚/model 作用域/no local execution import 形态负断言）——**static STRUCTURE check, no runtime proof**。
 - 上游子集：app 组合 60 文件（#13 的 53 + 本期新增 7：`settings/providers/accounts.test.ts`、`settings/route.test.ts`、`settings/search-results.test.ts`、`providers/credentials/form.test.ts`、`providers/models/{agent,search,variant}.test.ts`——`settings/model.test.ts` 自 #10 起已在册回归，不适用首跑口径）；client 9/session-ui 8/gui-extensions 9 零新增回归；mobile-hosts 307 零新增。
 
@@ -131,7 +131,7 @@
 - **G25 全部运行期行为 BLOCKED**（入口双布局可达手感、API key 全链、`window.open` 壳内实态与热回跳、冷回跳/取消/过期/失败呈现、needs_auth 呈现充分性与 i18n 混排观感、跨回跳上下文保持、跨服务器作用域隔离、limits/可用性呈现、对话框族触屏形态、凭据存储负例）；G25 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **真实第三方 provider 服务测试 BLOCKED**（OpenAI/Anthropic/Console/Google 等真实账号授权的连接与模型调用——需真实凭据，不允许 fixture 替代）；连接后的真实模型调用子项另需模型授权，单列。
 - **壳层能力边界（本期不交付、不预设）**：deep-link 回跳（VIEW intent-filter）与外部浏览器拉起（ACTION_VIEW seam）当前不存在；上游协议流不依赖它们；若 G25 判定需要，归后续壳层 issue（候选含 M-020+），交用户决策。
-- **上游能力边界**：见能力边界专节七项——特别不声称「OAuth 回跳已适配移动」「provider 凭据已入保险库」「custom provider 可配置」「provider 连接文案已中文化」（zh 三族缺失回退 en）。
+- **上游能力边界**：见能力边界专节七项——特别不声称「OAuth 回跳已适配移动」「provider 凭据已入保险库」「custom provider 可配置」「provider 连接文案已中文化」（zh 缺失 50 键回退 en）。
 - **装配层上游单测覆盖有限**：providers.tsx/dialog.tsx/selection.tsx 等装配面无上游直接组件测试——覆盖=探针（结构）+ V2（构建）+ G25（真机）三层；纯逻辑部分（accounts/route/form/agent/search/variant/model）已入 app 子集。
 - **stories/浏览器测试**（select-dialog.stories、dialog.stories、unpaid.stories）需浏览器环境——BLOCKED。
 - 设置单元的其余标签页（general/appearance/notifications/shortcuts/extensions 的 LSP 子面/experimental/about）仍为 [../architecture.md](../architecture.md) 未建立契约面；本期仅 providers/models 配置面建立契约，不声称「设置」整体已交付。
