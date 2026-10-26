@@ -81,7 +81,7 @@
 2. **navigation/loading**：`did-fail-load` → loadError（见状态矩阵）；502 空响应 → failure。
 3. **renderer failure**：`render-process-gone` 与 debugger `detach` → `page_crashed`。
 4. **auth**：**无 login handler**（chromium.ts 全文零 `login` 命中——401 走 did-fail-load 通用路径）；URL 内嵌凭据在两端拒绝（tools.ts `normalizeAction` + policy.ts）；**服务端凭据只在主进程**（pane.ts 注释逐字「The renderer never holds the managed sidecar's password; Node requests bypass the webRequest header injection, so the host resolves the credential here in main.」）；页面权限请求全拒（`setPermissionRequestHandler(callback(false)` + permission check/device/display 同拒）。
-5. **attachment 生命周期错误**：`unsupported`（停止重试）/`replaced`（不可自动重连）/`suspended`（悬挂保持）——model 侧 `describe()` 映射 + `refused.credentials/workspace/web` i18n（browser/i18n/en.ts:13-15）。
+5. **attachment 生命周期错误**：`unsupported`（停止重试）/`replaced`（不可自动重连）/`suspended`（悬挂保持）——model 侧 `describe()` 映射 + `refused.credentials/workspace/web` i18n（browser/i18n/en.ts:12-14）。
 6. **工具侧错误**（模型收到、时间线 ToolErrorCard）：`[browser.disconnected]`/`[browser.tab_unavailable]`/`[browser.timeout]`/`invalidURL`（文案见状态矩阵）。
 
 **return-to-session**：attachment 键控 shell 会话 tab（访问 Settings/其他 tab 存活、关 tab 即闭）+ `dispose` 语义（pane.ts 注释「Windows keep each pane's tabs as a suspended attachment… and register again once the pane is back」）。

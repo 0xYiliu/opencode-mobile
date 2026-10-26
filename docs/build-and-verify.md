@@ -713,7 +713,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | 「replaced 不可重连」句出处勘误 | 计划 §0.c/§8 称该句为「README 逐字」——实测在 `plugin-browser/README.md:61-62`（跨行），非 v2 复核日志所记单行位置；units/browser.md 引文以实文为准（squash 命中） | units 引文与探针锚均对实文核验；无语义差异 |
 | gui-ext 新增 8 文件首跑实测数与预估差 | 计划预估 26 tests，实测 **33 tests / 129 expect()**；plugin-browser 计划预估 12 tests，实测 **44 tests / 142 expect()** | 以实测为准记入基线；预估偏差不影响归因门结论（首跑零 fail 未触发） |
 | 负例组数 | 计划 D3 预登记负例四组；实施按任务书「消费端静态锁破坏」要求增补第⑤组（flatMap file 项消费注入 → FAIL → 恢复 PASS）——消费端两静态锁是 F1 的承重交付，实证其牙齿 | 五组全实录（40–53 日志）；超出计划部分为加严非偏离 |
-| units/browser.md 行号勘误两处 | ①`composer/schema.ts` legacy 注释计划写 `session/composer/schema.ts`——实测路径为 `app/src/composer/schema.ts`（:184）；②browser i18n refused 三键计划写 :12-14→:13-15（v3 已订正）——实测 :13-15 正确 | units 以文本锚为准、路径按实文记录 |
+| units/browser.md 行号勘误两处 | ①`composer/schema.ts` legacy 注释计划写 `session/composer/schema.ts`——实测路径为 `app/src/composer/schema.ts`（:184）；②browser i18n refused 三键行号：计划 v1 写 :12-14、v3 订正为 :13-15——**实施期未独立实测即采信 v3 值并入 units 与本表「实测 :13-15 正确」的错误声称；CODE_REVIEWER LOW-1 两读法实证为 :12-14**（`grep -n` 复核：refused.web/workspace/credentials 恰在 :12/:13/:14），随 LOW-1 修正提交改回 :12-14 并作本勘误记录——行号仅定位、文本锚为准的纪律下该错误不影响任何断言证明力，但「错误值声称实测正确」的表述本身必须订正 | units 与本表行号改 :12-14；勘误记录以实文为准 |
 
 ### 诚实边界（issue #17 段）
 
