@@ -35,7 +35,10 @@
 //      recovery.md wording before keeping it. persist.ts: `persistSaveDelay =
 //      100`, `flushPersisted`, the hidden→flush pair and the pagehide→flush
 //      registration (backgrounding/leaving the page force-flushes; dirty
-//      window ≤ 100ms).
+//      window ≤ 100ms), and the dirty-value-priority guard (a real unsaved
+//      local change wins over another window's write — the stale-snapshot
+//      stance recovery.md's matrix row references; first lock here: persist.ts
+//      sits outside verify-session-workbench's assertion domain).
 //   3. Snapshot-authority cross-checks + the seq gap NEGATIVE: capacity 4096 +
 //      data.ts adjacent early-return/invalidate pair (cross-references, see
 //      above) and the NEW structural lock: every `durable` occurrence in
@@ -182,6 +185,12 @@ const HOSTS = "packages/mobile-hosts/"
     fail("2: persist.ts lost the pagehide → flushPersisted registration (leaving the page must force-flush)")
   if (!persist.includes('if (document.visibilityState === "hidden") flushPersisted()'))
     fail("2: persist.ts lost the hidden → flushPersisted pair (backgrounding must force-flush)")
+  // F-R1: the dirty guard is the stale-snapshot mechanism recovery.md's matrix row
+  // references ("本地脏值优先（persist dirty 守卫）") — first-locked HERE (RAW
+  // whitespace-tolerant; persist.ts is not in verify-session-workbench's domain,
+  // so this is no duplicate).
+  if (!/if \(dirty\) \{\s*remote = data\.newValue\s*return\s*\}/.test(persist))
+    fail("2: persist.ts lost the dirty-value-priority guard (a real unsaved local change must win over another window's write — the stale-snapshot stance recovery.md relies on)")
 }
 
 // --- 3. Snapshot-authority cross-checks + the seq-gap NEGATIVE ---
@@ -414,7 +423,7 @@ const HOSTS = "packages/mobile-hosts/"
 console.log(
   "verify-recovery: PASS (" +
     "1: connection constants 2s/1s/45s/20s verbatim, attempt-reset rule, forced-resync bypass comment+block, per-retry reconnect hook, fixed-wait anchor + NEGATIVE zero exponential form; " +
-    "2: four lifecycle/network listeners, pageshow→start, network-restored resync, CROSS-REFERENCE pagehide→stop + foreground resync (vsw first locks), NEGATIVE zero offline listener (file domain: connection.ts), persist flush timing (100ms debounce + hidden/pagehide force-flush); " +
+    "2: four lifecycle/network listeners, pageshow→start, network-restored resync, CROSS-REFERENCE pagehide→stop + foreground resync (vsw first locks), NEGATIVE zero offline listener (file domain: connection.ts), persist flush timing (100ms debounce + hidden/pagehide force-flush) + dirty-value-priority guard (F-R1); " +
     "3: CROSS-REFERENCE capacity 4096 + data.ts adjacent pair (vsw first locks), NEGATIVE durable consumed only inside the debug-log block (no seq-gap detection); " +
     "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + M-010 hydration block + five tabs stores + IndexedDB drafts + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
     "5: ensureTunnel bounded loop (ready/non-offline/retry) + ssh-tunnel-unavailable throw + RECONNECT_MAX_RETRIES budget + T9 remote-keeps-running + OFFLINE_ENDPOINT/managed/reconnect-forwarding + direct connections hook-free; " +

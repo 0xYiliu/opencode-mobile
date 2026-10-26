@@ -64,6 +64,8 @@
 
 ## 六、诚实边界（上游/第一方实态，本期不声称）
 
+本节共 **10 条 = 9 条上游/第一方实态 + 1 条范围外声明（R7）**（计数口径以本行为准）：
+
 - **SSH 主机无自动重连**：重启后主机记录恢复为 idle，连接需用户手动发起；`ensureTunnel` 对 idle 恒返回 undefined（连 reconnect 钩子路径都不产生真实尝试）。可接受性判定归 G30④（不足→四步协议，候选 M-022+，不预设）。**不得声称存在自动重连。**
 - **无 offline 监听**：上游事件流仅注册 pagehide/pageshow/online/visibilitychange 四监听；离线感知=fetch 失败重试 + 45s idle watchdog 兜底。**不得声称网络切换有 offline 事件感知。**
 - **事件缺口无 durable.seq 缺口检测**：`durable`（含 seq）在客户端仅进 debug 日志，无序列号比对/补拉——快照为唯一恢复权威（与 issue #19 原文「live-only events may not replay, fetch authoritative snapshot」一致）。**不得声称有序列号缺口检测。**
