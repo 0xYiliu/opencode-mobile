@@ -31,7 +31,7 @@
 
 **mcp 组（协议描述闭包内逐字；`mcp.list` 调用方按两段式登记）**：
 
-| 端点 | 方法+路径 | 调用方（归一化扫描；接收者容忍 `\b(api|client)\(\s*\)?\.mcp`） | 协议描述（闭包内逐字） |
+| 端点 | 方法+路径 | 调用方（归一化扫描；接收者容忍 `\b(api|client)\s*(\(\s*\))?\s*\.`——全可选括号组，与探针实现一致） | 协议描述（闭包内逐字） |
 | --- | --- | --- | --- |
 | `mcp.list` | GET `/api/mcp` | **UI 调用面恰五**（`providers/connect/mcp.ts`、`runtime/server/sync.tsx`、gui-ext `details/server-panel.tsx`、`new-session/mcp.ts`、`settings/providers/extensions.tsx`——末者为跨行书写 `serverSdk.api.mcp\n.list()`，归一化必查）**+ 数据层访问器恰一**（`client/src/solid/data.ts` `locationResource("mcpServer", (location) => api().mcp.list({ location }))`，函数调用式 `api()` 接收者）——**端点全调用面恰六文件** | "Retrieve configured MCP servers and their connection status." |
 | `mcp.add` | PUT `/api/experimental/mcp/:server` | **app/gui-extensions 源码零调用**（promise 生成客户端在册）——运行时只做 connect/disconnect/enable 切换，增删改指回 opencode.json（`manageConfig` 文案锚） | "Add an MCP server at runtime or replace an existing one, connecting it immediately." |
