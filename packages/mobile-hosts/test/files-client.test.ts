@@ -266,6 +266,19 @@ describe("createFilesClient.saveFile", () => {
     expect(params["data"]).toBe(Buffer.from('{"id":1}', "utf8").toString("base64"))
   })
 
+  test("B1 sentinel: the save payload crosses intact and non-empty — a {saved:true} answer always corresponds to the exact bytes sent", async () => {
+    const engine = createEngine(() => ({ ok: true, result: { saved: true } }))
+    engine.native.connect()
+    await drain()
+    const content = '{"session":"export","stages":["a","b"],"size":1234}'
+    const saved = await engine.client.saveFile({ defaultPath: "session.json" }, content)
+    expect(saved).toBeTrue()
+    const { params } = engine.requests[0]!
+    const data = params["data"] as string
+    expect(data.length).toBeGreaterThan(0) // never a zero-byte payload
+    expect(new TextDecoder().decode(base64ToBytes(data))).toBe(content) // the exact bytes the client sent
+  })
+
   test("saved:false resolves false (the upstream false = user cancel contract)", async () => {
     const engine = createEngine(() => ({ ok: true, result: { saved: false } }))
     engine.native.connect()

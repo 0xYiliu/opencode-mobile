@@ -271,6 +271,21 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!bridge.includes('uri.scheme != "content"'))
     fail("5: the clipboard content:// gate changed")
 
+  // B1 sentinels (issue #16 code-review round): the SAF save slot must be installed with
+  // the DECODED bytes right before the dialog starts, onActivityResult must consume that
+  // array, and the zero-byte placeholder construction must be gone — a saved:true answer
+  // must never correspond to an empty slot.
+  if (!bridge.includes("pendingSave = PendingSave(requestId, bytes)"))
+    fail("5: B1 sentinel — the save slot must be installed with the decoded bytes (pendingSave = PendingSave(requestId, bytes))")
+  if (bridge.includes("ByteArray(0)"))
+    fail("5: B1 sentinel — the zero-byte placeholder slot construction must be gone")
+  if (!bridge.includes("output.write(pending.bytes)"))
+    fail("5: B1 sentinel — onActivityResult must write the pending payload array")
+  // F2 sentinel (same review round): inbound parsing must hop to the background parse
+  // thread — the port callback must not call handleClientMessage inline.
+  if (!bridge.includes("backgroundHandler.post { handleClientMessage(raw) }"))
+    fail("5: F2 sentinel — inbound dispatch must hop to the background parse thread (backgroundHandler.post { handleClientMessage(raw) })")
+
   const provider = await read(`${SHELL_FILES}ShareFileProvider.kt`)
   if (!provider.includes('const val AUTHORITY = "ai.opencode.mobile.share"'))
     fail("5: the share provider authority changed")
@@ -400,7 +415,7 @@ console.log(
     "2: M-020 entry seam registration (M-016 shape, above createMobileHosts) + web.ts readClipboardImage/saveFile completion through per-call seam readers with both mobile(M-020) markers + platform.tsx optional declarations verbatim (zero Platform type change); " +
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
-    "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true; " +
+    "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
     "6: five handshakes pairwise distinct, M-020/M-021 registered (20 patches, pin baseline)" +
     (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
