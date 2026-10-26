@@ -264,6 +264,12 @@ const callSites = new Map<string, Set<string>>()
   const term = squash(await read(`${TERMINAL}terminal.tsx`))
   if (term.includes("pty.remove(") || term.includes("kill("))
     fail("3: RED LINE — terminal.tsx must contain zero pty.remove/kill calls on the disconnect/unmount paths")
+  // Counting caliber (review R4): this is a normalized SOURCE-TEXT count —
+  // the squashed file is matched for the literal "close(1000)", so a comment
+  // carrying that string would over-count and FAIL. That is the conservative,
+  // fail-closed direction: the caliber can never silently under-count a real
+  // teardown site. Measured on this pin: exactly the three code sites, zero
+  // comment occurrences.
   const closes = term.match(/close\(1000\)/g) ?? []
   if (closes.length !== 3)
     fail(`3: terminal.tsx must close its sockets with code 1000 at exactly 3 sites (got ${closes.length})`)
