@@ -19,8 +19,9 @@
 | permission-requests（权限请求与 Agent 提问） | 权限请求（`permission.asked`/`replied` SSE 事件 + HTTP 快照，`PermissionRequest` 生成类型）与表单类请求（`form.created`/`replied`/`cancelled`，`FormInfo` 三 kind：question/websearch.provider/mcp-elicitation）；决策三值 `once`/`always`/`reject` + form reply/cancel | 决策三值语义上游承载；请求身份会话作用域（服务端 `per_` ID + `requireOwnedRequest` 双校验）；auto-approve 默认关、显式 opt-in 才代答；断开路径零 reply 调用（线级调用点穷举恰两处，均显式动作/显式 opt-in）；事件 ephemeral、恢复靠 HTTP 快照（per-location 聚合枚举 + never-loaded 残例如实）；服务端 shutdown 全拒不静默批准 | 呈现权限/提问请求上下文与决策集（dock 三家族）、处理 approve/reject/answer、duplicate/stale/expired 处置、auto-approve opt-in、跨会话注意态、响应留痕（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G21，见 [units/permission-requests.md](units/permission-requests.md) |
 | files（远程文件浏览/搜索/查看与上下文引用） | 远程文件树/搜索/查看（`file.list`/`file.find`/`file.read` 三端点 + `filesystem.changed` 事件）；path identity=workspace 相对路径 + `location` 作用域；行范围选择与 @-引用；文件 tab/滚动/行选择按 workspace 恢复（`SessionStateKey` 键控 + `file-view` scoped store） | 读取路径服务端围栏归一 404（NUL/词法/realpath 三重，引上游 pin 缓存）；`fs.list` 允许父/兄弟目录为上游有意设计（如实披露）；写面唯一调用点归 #16（穷举断言恰 `composer/attachments/destination.ts`）；恢复键控 `SessionStateKey`/`file-view`；移动专属面 MobileFiles；新面零 OS 条件分支（探针白名单扫描）；搜索失败吞为空结果（如实） | 浏览远程项目文件树、按名称/内容搜索、查看文本/媒体文件（四态：loading/empty/loaded/error + notFound/large/binary/encoding/stale 处置）、把选中文件/行范围附入会话上下文、恢复打开的文件 tab 与行选择（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；真机归 G22，见 [units/files.md](units/files.md) |
 | diff（远程 Git 审查与 worktree 操作） | review 三模式（`ChangeMode` git/branch/turn——`vcs.diff` working/branch + `session.diff` turn）+ `vcs.status` working-copy 变更 + `vcs.branch.list` 分支候选 + worktree 四端点（list/create/remove/refresh）+ revert 三端点（stage/clear/commit）+ `filesystem.changed`/`worktree.updated`/`session.revert.*` 事件 | staged/unstaged 分解与 git commit 无上游客户端面（能力边界如实登记）；worktree.remove 显式五层确认链（唯一不可逆操作）；undo/redo 可逆对+失败即停；破坏性操作零静默；移动面 MobileReview+wrap 设置（Changes 为 tab 条一级 tab）；新面零 OS 条件分支（六域白名单探针）；远程路径恒经 `location` 作用域读取、绝不映射本地 IDE | 渲染远程 Git 变更审查（移动 Changes 一级 tab + 桌面 review 面板：三模式/大 diff 占位/二进制占位/媒体/行评论）、details 的 changes 行与 worktree/branch 上下文、worktree 迁移/创建/删除/refresh、undo/redo 与 staged revert 自动 commit（全部复用上游闭包，零新建第一方界面） | 已实现（未验证）；运行期归 G23，见 [units/diff.md](units/diff.md) |
+| attachments-artifacts（附件、工件与 Android 文件交互） | 附件导入三路分流（`MAX_INLINE_BYTES` 20 MiB inline/mime 嗅探/path 上传）+ 上传通道（`fs.write` 每上传 uuid 目录 + M-012 校验面）+ 进度/取消（进程级 upload 列表 + AbortController）+ 工件 14 kind 查看器双容器 + 会话导出（slug 文件名）+ files 桥三 op（clipboardImage/save/share）+ `FILES_ERROR_CODES` 六码 + `MAX_BRIDGE_BYTES` 32 MiB + 身份分离双类型（`ImageAttachmentPart.blob` 设备副本 / `PathAttachmentPart` 远程工件） | URI 权限一次性（chooser/剪贴板/SAF 均不取 persistable）；SAF 保存落点用户可达（`ACTION_CREATE_DOCUMENT`，三态 saved/cancelled/failed 与上游 export 契约逐字对齐，saveFile mime 由 client.ts 按扩展名推导 octet-stream 兜底）；share provider 授权与代际清理（`exported=false`+`grantUriPermissions=true`、保留当前代/新代成功后删旧代/onDestroy 全清、grant flag 双置于 send 与 chooser intent）；name 双层净化（JS `sanitizeFilename` + Kotlin `FILENAME` native re-check，六负例拒绝）；远程路径呈现 vs 泄漏精确界（零值日志/文件名仅上游 filename/零凭据过桥）；身份分离（M-021 仅触 data: 分支、file:// 零改动）；三界并列（20 MiB inline/32 MiB 桥/256 MiB 媒体）；manifest 零新权限；新面零 OS 条件分支（白名单探针） | 附件导入（chooser multiple/acceptTypes/GET_CONTENT 回退）、上传进度/取消/失败反馈、工件查看、会话导出经 SAF 保存到用户所选落点、timeline 附件 data: 分支分享、剪贴板图片喂上游 paste 链（字节判重）；remote artifact identity 与 device copy 区分呈现并报告 local/remote（上游复用 + 第五桥平台能力接入；mobile-hosts files 模块 + FilesBridge/ShareFileProvider Kotlin 面 + M-020/M-021） | 已实现（未验证）；运行期归 G27，见 [units/attachments-artifacts.md](units/attachments-artifacts.md) |
 
-设置的能力由上游闭包携带（`packages/app` 对应源码目录）。设置的 providers/models 配置面已建立契约（issue #14，见 [units/providers-models.md](units/providers-models.md)）；设置的 extensions 配置面（远程 Agent/commands/skills/MCP/插件呈现与启停、GUI 扩展边界）已建立契约（issue #15，见 [units/agent-capabilities.md](units/agent-capabilities.md)）；设置的其余标签页仍未建立契约，不视为已交付（会话工作台/时间线已于 issue #9、权限请求与 Agent 提问已于 issue #10、远程文件浏览/搜索/查看与上下文引用已于 issue #11、远程 Git 审查与 worktree 操作已于 issue #12、远程终端已于 issue #13 建立契约，见 [units/session-workbench.md](units/session-workbench.md)、[units/permission-requests.md](units/permission-requests.md)、[units/files.md](units/files.md)、[units/diff.md](units/diff.md) 与 [units/terminal.md](units/terminal.md)）。
+设置的能力由上游闭包携带（`packages/app` 对应源码目录）。设置的 providers/models 配置面已建立契约（issue #14，见 [units/providers-models.md](units/providers-models.md)）；设置的 extensions 配置面（远程 Agent/commands/skills/MCP/插件呈现与启停、GUI 扩展边界）已建立契约（issue #15，见 [units/agent-capabilities.md](units/agent-capabilities.md)）；设置的其余标签页仍未建立契约，不视为已交付（会话工作台/时间线已于 issue #9、权限请求与 Agent 提问已于 issue #10、远程文件浏览/搜索/查看与上下文引用已于 issue #11、远程 Git 审查与 worktree 操作已于 issue #12、远程终端已于 issue #13、附件/工件与 Android 文件交互已于 issue #16 建立契约，见 [units/session-workbench.md](units/session-workbench.md)、[units/permission-requests.md](units/permission-requests.md)、[units/files.md](units/files.md)、[units/diff.md](units/diff.md)、[units/terminal.md](units/terminal.md) 与 [units/attachments-artifacts.md](units/attachments-artifacts.md)）。
 
 ## 结构图
 
@@ -35,13 +36,18 @@
 │    │    DirectEndpointProbe（HttpURLConnection 严格默认 + 有界侦嗅 + 分类枚举，单后台线程执行）         │
 │    ├─ SshTunnelBridge（issue #6：第三座协议隔离桥，独立握手串 opencode-mobile-ssh-handshake；             │
 │    │    SshTunnelManager（JSch 隧道）+ SshHostKeyStore（known_hosts）+ SshErrorCode）                     │
-│    └─ ServiceOpsBridge（issue #7：第四座协议隔离桥，独立握手串 opencode-mobile-svcops-handshake；          │
-│         ServiceOpsManager（短命会话+ChannelExec，有界读取）+ ServiceCommandValidator（白名单门禁，         │
-│         唯一 setCommand 调用点）+ ServiceOpsErrorCode）                                                   │
+│    ├─ ServiceOpsBridge（issue #7：第四座协议隔离桥，独立握手串 opencode-mobile-svcops-handshake；          │
+│    │    ServiceOpsManager（短命会话+ChannelExec，有界读取）+ ServiceCommandValidator（白名单门禁，         │
+│    │    唯一 setCommand 调用点）+ ServiceOpsErrorCode）                                                   │
+│    ├─ FilesBridge（issue #16：第五座协议隔离桥，独立握手串 opencode-mobile-files-handshake；                │
+│    │    三 op 白名单（clipboardImage/save/share）+ FILENAME 正则 native re-check + MAX_BRIDGE_BYTES          │
+│    │    镜像校验 + HandlerThread 单后台线程执行 + SAF ACTION_CREATE_DOCUMENT（REQUEST_SAVE_DOCUMENT=41002）  │
+│    └─ ShareFileProvider（issue #16：手写最小 ContentProvider，零 androidx；exported=false +                  │
+│         grantUriPermissions=true；openFile 只服务 cacheDir/share/ 子树，路径穿越拒绝）                      │
 │  WebView（javaScriptEnabled / domStorageEnabled；文件与内容访问关闭；geolocation 关闭）                │
 │    origin = http://127.0.0.1:18090（回环可信上下文；PWA SW 可注册，行为归 G10）                        │
 └──────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
-                                               │ 加载 UI（同源）+ vault/probe/svcops/ssh 四握手（平台 WebMessage channel，port 闭包）
+                                               │ 加载 UI（同源）+ vault/probe/svcops/ssh/files 五握手（平台 WebMessage channel，port 闭包）
                                                ▼
               第一方 packages/mobile-hosts（@opencode-mobile/mobile-hosts，已实现（未验证）：issue #3/#4/#5）
                 ├─ SSH 主机注册表（opencode-mobile.hosts.v1，载荷白名单：id/name/target/credentialRef/时间戳）
@@ -53,6 +59,9 @@
                 ├─ service-ops（issue #7）：命令模板表（OS 闭域+参数双闸+golden vectors）+ ServiceStatus 模型与解析器
                 │   + 授权流 O1–O14 + svcops 桥传输/端口（Stub fail-closed 默认，模块级注入 seam）+ 二十一码分类
                 │   + service-panel（预览→确认→执行/回滚；B1 存活刷新 watcher，订阅侧实现）
+                ├─ files（issue #16）：files 桥传输/客户端/模块级 seam（`setActiveFilesPort`，Stub fail-closed 默认——
+                │   clipboardImage→null、saveFile→false、shareDataUrl→false）+ `sanitizeFilename` 净化
+                │   + `FILES_ERROR_CODES` 六码 + `MAX_BRIDGE_BYTES` 32 MiB 双侧上界
                 └─ upstream-map：SSH 主机 → 上游 extension 型 ServerConnection（键 `mobile-ssh:<uuid>`），
                    经 props.servers 注入上游 ServersProvider；直连服务仍走上游原生注册表（M-010 hydration 注入内存密码）
                                                │
@@ -98,7 +107,7 @@
 
 ## 补丁剥离面与运行时接缝（M-001 / M-003 / M-002 / M-004…M-014）
 
-上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线；M-016（已实现（未验证）：issue #7）承载服务操作桥接线；M-017/M-018（已实现（未验证）：issue #8）承载会话归档接线与设置入口可达性，每补丁一事：
+上游闭包的 M-001/M-003 仅剥离构建期/安装期依赖，M-002 只改凭据编码路径；M-004–M-010（M-004–M-008 已实现（未验证）：issue #3；M-009/M-010 已实现（未验证）：issue #4）是移动运行时接缝；M-011–M-014（已实现（未验证）：issue #5）承载直连传输卫生与错误分类；M-015（已实现（未验证）：issue #6）承载 SSH 桥接线；M-016（已实现（未验证）：issue #7）承载服务操作桥接线；M-017/M-018（已实现（未验证）：issue #8）承载会话归档接线与设置入口可达性；M-020/M-021（已实现（未验证）：issue #16）承载 files 桥平台能力接线与附件分享分支（M-019 保持 #8 `addProjects` 预留；在册「M-020+」占位自本期起改写「M-022+」），每补丁一事：
 
 | 补丁 | 内容 | 理由 |
 | --- | --- | --- |
@@ -120,6 +129,8 @@
 | M-016 | `entry.tsx`：M-015 块后增 svcops 桥握手监听（独立握手串 `opencode-mobile-svcops-handshake`）+ `createServiceOpsClient`/`createWebMessageServiceOpsTransport` 经模块级 seam `setActiveServiceOpsPort` 注册（`createMobileHosts` 选项契约不变，runtime.ts 零改动） | 服务操作到达面板的接线（issue #7，已实现（未验证））：第四座协议隔离桥（与三姊妹互不误捕）；ack 前面板降级隐藏（fail-closed）；「客户端构建不隐含服务操作能力」的结构承载 |
 | M-017 | `home/sessions/controller.tsx`：home 会话行 `archive` 由 stub（恒 reject）改为真实调用 `session.update({ sessionID, archived: true })`，成功后从查询缓存移除该行 + invalidate/resync，复用 `archiveHomeSession` 的 tabs 清理与 onError toast | 归档接线（issue #8）：上游 API 现存而 UI 是 stub；行为语义见 [units/projects-sessions.md](units/projects-sessions.md) |
 | M-018 | `settings/shell.tsx` 两处：重定向守卫 `includes` 列表移除 `"servers"`（其余五项不动）+ `multiple()` 导航组加固定「SSH hosts」入口（`surface.select("servers")`）；`runtime/i18n/en.ts`/`zh.ts` 增 `settings.tab.sshHosts` | 多服务器设置布局下 host-manager 可达（issue #8）：仅入口不足以可达——守卫 effect 会把 "servers" 弹回 general；守卫修订是入口可达性的前提。[server-list.md](units/server-list.md) 预登记「已知入口缺口（M-008）」债务的承接 |
+| M-020 | `entry.tsx` + `runtime/platform/web.ts`：entry 增 files 桥握手监听（独立握手串 `opencode-mobile-files-handshake`，M-016 svcops 块后）+ `setActiveFilesPort(createFilesClient(createWebMessageFilesTransport(…)))`；web.ts 平台对象增 `readClipboardImage: createPlatformClipboardReader()` 与 `saveFile: createPlatformFileSaver()` 两字段（无端口=fail-closed stub：clipboardImage→null、saveFile→false） | 附件/导出/剪贴板平台能力到达上游 seam（issue #16）：两字段均为 Platform 既有可选字段（**Platform 类型零改动**——`readClipboardImage` 注释锚「Read image from clipboard (desktop only)」的 web 实现补齐）；经模块级 seam（M-016 先例）注册；第五座协议隔离桥（与四姊妹互不误捕）；ack 前 fail-closed |
+| M-021 | `session/composer/region.tsx`：`openAttachment` 的 `download()` 前增 data: URL 分支优先桥接——`shareDataUrl(url, getFilename(file.name) || "attachment", file.mime)`（传入名与 anchor.download 同名来源 + client.ts 内 `sanitizeFilename` 净化）；成功即返回；取消（false）与失败（throw）/桥不可用 → 原样回退 anchor.download。**file:// URI 分支零改动**（远程路径工件不触发设备侧分享——身份分离防线） | timeline 附件分享能力（issue #16）：data: 分支 = 设备有字节（dataUrl base64 随消息）；file:// 分支 = 远程工件身份（设备无字节），保持「仅可经文件面板查看」；上游行为为回退基线，桥失败不劣化 |
 
 上游 npm 补丁按「上游 lock 解析版本 ∩ 上游 lock patchedDependencies 段」携带 9 项，清单与 not-carried 理由见 [vendor/upstream/PROVENANCE.md](../../vendor/upstream/PROVENANCE.md)。
 
@@ -157,5 +168,8 @@
 | 会话列表/会话工作台 More 抽屉/命令 | 打开终端（dock） | 终端 | PTY ID+server+directory | 断开仅拆 ws 远端存活（红线）；tab 关闭显式 remove 终止；服务重启探活 clone 恢复 | 已实现（未验证）；真机归 G24 |
 | 任意单元 | 用户进入设置 → providers/models 配置 | providers-models | 服务器上下文（`SettingsServerDataScope`：当前选中服务器 + 目录） | 连接/账号/模型操作失败 → `formatServerError` toast 与 OAuth 错误态/重试（上游通道）；凭据服务端存储、刷新不触碰 host/project/session 状态键 | 已实现（未验证）；真机归 G25 |
 | 任意单元 | 用户进入设置 → extensions 配置（设置三子 tab + 项目级四子 tab 双布局） | agent-capabilities | 服务器上下文（location 作用域：当前选中服务器 + 目录） | 列表失败 → `.catch(() => [])` 空态不崩页；toggle 失败 → `common.requestFailed` toast；LSP 读 config 失败 → loadFailed + retry；配置增删改指回 opencode.json（`manageConfig` 文案） | 已实现（未验证）；真机归 G26 |
+| composer attach | 附件按钮（`<input type="file">` 回退链） | 壳层 chooser（`onShowFileChooser`，`ACTION_OPEN_DOCUMENT`） | multiple + acceptTypes（MIME/扩展名映射口径） | chooser 取消/失败 → callback null（exactly-once）；`ACTION_OPEN_DOCUMENT` 失败 → `ACTION_GET_CONTENT` 回退 | 已实现（未验证）；真机归 G27② |
+| 会话导出（命令/GUI 扩展 save） | 导出命令 | SAF 保存对话框（files 桥 save op，`ACTION_CREATE_DOCUMENT`） | `{name, mime, data}`（name 经双层净化） | 用户取消 → false → 上游静默 return（无 toast）；IO 失败 → io 码 → 上游 failed toast；桥降级 → 静默取消（stub=false，M1 有意行为变更）；产物落用户所选系统可达位置 | 已实现（未验证）；真机归 G27④ |
+| timeline 附件芯片（data: 分支） | 附件芯片点击（`openAttachment`） | 分享目标 App（files 桥 share op + ShareFileProvider content://） | 临时文件（只读临时授权，代际清理） | 桥不可用/失败/取消 → 回退 anchor.download（壳内死点呈现）；name 非法 → unsupported 不落盘；file:// 分支零改动（远程工件不分享） | 已实现（未验证）；真机归 G27⑤ |
 | 会话/命令面板 | /mcp slash 或命令面板 mcp.toggle / new-session MCP 控件 | agent-capabilities | MCP server 名 + 期望态（draft 级记忆 + prepare 门） | pending 禁用；needs_auth → 重认证流（`openExternal` + `mcp.status.changed` 回推）；prepare 门三失败形态 toast；断开零副作用、远端 MCP server 存活 | 已实现（未验证）；真机归 G26 |
 | 任意单元 | 网络断开/切换 | 失败恢复路径 | — | 有反馈可恢复，见 [interaction.md](interaction.md) 负例矩阵（G11） | 未开始 |

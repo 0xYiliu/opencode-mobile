@@ -242,3 +242,36 @@ export {
   type Preview,
   type PreviewAction,
 } from "./service-ops/panel-driver"
+// issue #16: files bridge (fifth bridge) — attachment/export/clipboard platform
+// capabilities over the protocol-isolated transport, module-level seam + fail-closed
+// defaults, filename sanitization and the 32 MiB bound.
+export {
+  FILES_ERROR_CODES,
+  FilesError,
+  isFilesErrorCode,
+  type FilesErrorCode,
+} from "./files/errors"
+export {
+  FILES_BRIDGE,
+  FILES_HANDSHAKE,
+  bridgeErrorToFilesError,
+  createWebMessageFilesTransport,
+  type FilesBridgeOperation,
+  type FilesBridgeResponse,
+  type FilesBridgeTransport,
+  type WebMessageFilesTransportOptions,
+} from "./files/transport"
+export {
+  MAX_BRIDGE_BYTES,
+  StubFilesPort,
+  activeFilesPort,
+  base64ToBytes,
+  bytesToBase64,
+  createFilesClient,
+  filesBridgeInjected,
+  mimeFromFilename,
+  sanitizeFilename,
+  setActiveFilesPort,
+  type FilesPort,
+  type SaveFileInput,
+} from "./files/client"
