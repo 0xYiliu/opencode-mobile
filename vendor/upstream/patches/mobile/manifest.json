@@ -222,6 +222,31 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web rc=0 after applying); dist i18n key hit: settings.tab.sshHosts / 'SSH hosts' in language-Cwk-VMvM.js + shell chunk, 'SSH 主机' in zh-49VEr5mD.js; scripts/verify-projects-sessions.ts asserts BOTH the guard revision (includes list without \"servers\") and the entry item. HONEST BOUNDARY: build/dist/probe layers cannot prove runtime navigation reachability (the guard is a Solid createEffect) - 'entry reachable in multiple() layout and not bounced' is a G19 device check (docs/design/interaction.md).",
       "rebase": "New patch (issue #8); rebase targets are the guard createEffect's includes list and the multiple() nav-group construction block in packages/app/src/settings/shell.tsx, plus the settings i18n region near settings.tab.servers in en.ts/zh.ts; the guard revision is the PREREQUISITE of the entry's reachability - keep both or neither."
+    },
+    {
+      "id": "M-020",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
+      "targets": [
+        "packages/app/src/entry.tsx",
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "reason": "Files bridge wiring + platform file capabilities (issue #16). The entry creates the FIFTH protocol-isolated sibling transport over the files handshake (opencode-mobile-files-handshake) and registers the bridge-backed client through the module-level files seam (setActiveFilesPort) - the createMobileHosts option contract stays unchanged (the M-016 registration shape). web.ts completes the two Platform fields that were desktop-only declarations on web: readClipboardImage (comment anchor 'Read image from clipboard (desktop only)' - the desktop implementation is not in this closure) and saveFile (session export + GUI-extension system.save routes). Both read the port through the seam PER CALL; before the bridge acks the fail-closed stub answers (clipboardImage null / saveFile false / shareDataUrl false). Platform TYPES are untouched - both fields are pre-existing optional members, so the diff carries zero type-level change. The saveFile stub false vs the absent-field anchor fallback is an intentional behavior change (silent cancel instead of a fake-success toast for a download that is a dead point inside the WebView shell), registered in docs/design/units/attachments-artifacts.md and gated by G27 item 8.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0 (6180 modules); dist markers mobile(M-020) (function .marker properties, secure-fetch precedent), mobile(files-v1) and opencode-mobile-files-handshake (FILES_BRIDGE constants) found in the built assets; scripts/verify-attachments-artifacts.ts (stub shape, seam registration, three-field Platform completion); mobile-hosts test/files-client.test.ts locks the per-field stub semantics; device behavior BLOCKED (G27).",
+      "rebase": "New patch (issue #16); LAYERED patch - generated against pin b4525d79bf + M-001..M-018 (entry.tsx already rewritten by M-007/M-014/M-015/M-016), round-trip verified on that base; rebase targets are the mobile(M-016) svcops registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new files block sits directly above the createMobileHosts call) and the platform object literal / module tail of packages/app/src/runtime/platform/web.ts (the M-011 fetch field block, extended with the two capability fields and the two seam-reading factories)."
+    },
+    {
+      "id": "M-021",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
+      "targets": [
+        "packages/app/src/session/composer/region.tsx"
+      ],
+      "reason": "Timeline attachment share face (issue #16). openAttachment's data: branch - the only branch where the DEVICE holds the bytes (the base64 rides the message part) - prefers the bridge share before the anchor download; the passed name is the SAME source as the anchor.download (getFilename(file.name) || 'attachment') and is sanitized again inside the first-party client (JS sanitizeFilename + Kotlin FILENAME native re-check). Success resolves true (done); cancel (false), a throw, or a bridge-less environment all fall back to the upstream anchor.download verbatim - behavior is never worse than upstream (plan L6 fixed reading: false falls back). The file:// URI branch is REMOTELY-held identity: its bytes never entered the device (schema.ts PathAttachmentPart anchor 'its bytes never enter the draft store'), so the branch is byte-for-byte untouched - no device-side share or path resolution for remote artifacts.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist marker mobile(M-021) (marker property inside the patched branch) found in the built assets; scripts/verify-attachments-artifacts.ts (data:-only branch guard + getFilename same-source name anchor + file:// branch zero-diff adjacent anchors); device share-sheet behavior BLOCKED (G27 item 5).",
+      "rebase": "New patch (issue #16); rebase target is the openAttachment function of packages/app/src/session/composer/region.tsx (single hunk: the data: branch inserted between the download() closure and the absolute-path reveal logic; the import block gains the first-party seam import)."
     }
   ]
 }

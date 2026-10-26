@@ -13,6 +13,7 @@ import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import pkg from "../package.json"
 import {
+  createFilesClient,
   createMobileHosts,
   createProbeClient,
   createServiceOpsClient,
@@ -21,9 +22,11 @@ import {
   createVaultClient,
   createVaultResolver,
   createWebMessageChannelTransport,
+  createWebMessageFilesTransport,
   createWebMessageProbeTransport,
   createWebMessageServiceOpsTransport,
   createWebMessageSshTransport,
+  setActiveFilesPort,
   setActiveServiceOpsPort,
 } from "@opencode-mobile/mobile-hosts"
 
@@ -163,6 +166,27 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     setActiveServiceOpsPort(
       createServiceOpsClient(
         createWebMessageServiceOpsTransport({
+          subscribe: (handler) => {
+            window.addEventListener("message", handler as EventListener)
+            return () => window.removeEventListener("message", handler as EventListener)
+          },
+        }),
+      ),
+    )
+    // mobile(M-020): the files bridge (issue #16) — the FIFTH protocol-isolated sibling of
+    // the vault/probe/ssh/svcops bridges on the same window message events. Its handshake
+    // string ("opencode-mobile-files-handshake") is captured only by this transport
+    // (strict data equality + exactly one port), so none of the five bridges can capture
+    // another's handshake; event.origin is never consulted (embedder-posted messages
+    // carry an empty origin by platform construction). The port is captured into the
+    // transport closure and acked immediately; before that ack the platform file
+    // capabilities stay fail-closed stubs (clipboardImage null / saveFile false /
+    // shareDataUrl false). Registration goes through the module-level files seam
+    // (setActiveFilesPort) so the runtime bootstrap contract stays unchanged — the same
+    // shape as the service ops registration directly above.
+    setActiveFilesPort(
+      createFilesClient(
+        createWebMessageFilesTransport({
           subscribe: (handler) => {
             window.addEventListener("message", handler as EventListener)
             return () => window.removeEventListener("message", handler as EventListener)

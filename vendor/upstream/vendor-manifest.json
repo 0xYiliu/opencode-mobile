@@ -63,7 +63,9 @@
     "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
     "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
     "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
-    "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch"
+    "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
+    "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
+    "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch"
   ],
   "excluded": {
     "packages": [
