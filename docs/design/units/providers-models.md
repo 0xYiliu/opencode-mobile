@@ -54,7 +54,7 @@
 
 **取消双路径**：对话框卸载 `onCleanup` → `cancelAttempt()`（`oauth.cancel` DELETE 释放服务端资源）+ `cancelPolling()` generation 失效；授权请求迟到（已换代）时对返回的 attempt 补 cancel。
 
-**壳层能力边界（如实登记）**：壳无 VIEW intent-filter（`MainActivity.kt` 注释逐字「Not implemented (TODO): deep links (no VIEW intent-filter is registered)…」）、无外跳浏览器 ACTION_VIEW seam——`window.open("_blank")` 在壳 WebView 内的实际行为（同窗导航 vs 静默阻断）是唯一真实不确定点，归 **G25③ 首项**实测；若判定不可用，外部浏览器拉起属 Android 壳适配（候选 M-020+），归后续壳层 issue/用户决策，本期不预设能完成。协议流本身不依赖回跳（轮询），三回退中 copy-link 与 code 粘贴在「能切出 App 手动完成」的前提下可用。
+**壳层能力边界（如实登记）**：壳无 VIEW intent-filter（`MainActivity.kt` 注释逐字「Not implemented (TODO): deep links (no VIEW intent-filter is registered)…」）、无外跳浏览器 ACTION_VIEW seam——`window.open("_blank")` 在壳 WebView 内的实际行为（同窗导航 vs 静默阻断）是唯一真实不确定点，归 **G25③ 首项**实测；若判定不可用，外部浏览器拉起属 Android 壳适配（候选 M-022+），归后续壳层 issue/用户决策，本期不预设能完成。协议流本身不依赖回跳（轮询），三回退中 copy-link 与 code 粘贴在「能切出 App 手动完成」的前提下可用。
 
 **凭据刷新/过期**：OAuth token 刷新是服务端行为（`Credential.OAuth { refresh, access, expires }`——secret 只存服务端）；客户端可见的失效形态=`Connection.Status.needs_auth`（重新走 connect 流程）；服务端凭据变更经 SSE 事件推进客户端（见契约表）——凭据刷新不触碰客户端任何 host/project/session 状态键（host/project/session 由 ServerScope 机制承载，凭据面与状态面正交）。
 
@@ -130,7 +130,7 @@
 
 - **G25 全部运行期行为 BLOCKED**（入口双布局可达手感、API key 全链、`window.open` 壳内实态与热回跳、冷回跳/取消/过期/失败呈现、needs_auth 呈现充分性与 i18n 混排观感、跨回跳上下文保持、跨服务器作用域隔离、limits/可用性呈现、对话框族触屏形态、凭据存储负例）；G25 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **真实第三方 provider 服务测试 BLOCKED**（OpenAI/Anthropic/Console/Google 等真实账号授权的连接与模型调用——需真实凭据，不允许 fixture 替代）；连接后的真实模型调用子项另需模型授权，单列。
-- **壳层能力边界（本期不交付、不预设）**：deep-link 回跳（VIEW intent-filter）与外部浏览器拉起（ACTION_VIEW seam）当前不存在；上游协议流不依赖它们；若 G25 判定需要，归后续壳层 issue（候选含 M-020+），交用户决策。
+- **壳层能力边界（本期不交付、不预设）**：deep-link 回跳（VIEW intent-filter）与外部浏览器拉起（ACTION_VIEW seam）当前不存在；上游协议流不依赖它们；若 G25 判定需要，归后续壳层 issue（候选含 M-022+），交用户决策。
 - **上游能力边界**：见能力边界专节七项——特别不声称「OAuth 回跳已适配移动」「provider 凭据已入保险库」「custom provider 可配置」「provider 连接文案已中文化」（zh 缺失 50 键回退 en）。
 - **装配层上游单测覆盖有限**：providers.tsx/dialog.tsx/selection.tsx 等装配面无上游直接组件测试——覆盖=探针（结构）+ V2（构建）+ G25（真机）三层；纯逻辑部分（accounts/route/form/agent/search/variant/model）已入 app 子集。
 - **stories/浏览器测试**（select-dialog.stories、dialog.stories、unpaid.stories）需浏览器环境——BLOCKED。

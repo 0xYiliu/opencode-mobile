@@ -121,7 +121,7 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 ## 触摸目标与无障碍现状（缺口如实，G21⑧ 首项核对）
 
 - **已成立（结构面）**：in-flight 全按钮 disabled + 幂等早退；Deny 排首位（ghost 弱化）；无键盘默认审批、无 autoFocus；question dock 完整 role/aria-checked/aria-keyshortcuts/aria-label（minimize/restore、progress segments）；permission 按钮文本标签。
-- **缺口（如实，不预设补丁）**：①按钮高度 `normal=28px`（permission dock）/`large=32px`（question dock）（`ui/src/actions/button/button.css`），低于移动端 48dp 触摸目标推荐；②三按钮横排 gap 仅 8px（`session-ui/src/components/message-part.css` `[data-slot="permission-footer-actions"]`），Allow Once（submit 视觉强调）居最右，与高频滑动区重叠；③permission 三按钮无 `aria-keyshortcuts`（question dock 有）；④DockPrompt 无焦点陷阱（页面其余部分仍可聚焦）。**是否构成真机不可用需 G21⑧ 首项核对判定**；不足则按 [interaction.md](../interaction.md) 失败路径四步协议交用户决策（候选含上游 Button/dock 无障碍强化补丁 M-020+ vs 接受上游桌面语义），决策前不产品化。
+- **缺口（如实，不预设补丁）**：①按钮高度 `normal=28px`（permission dock）/`large=32px`（question dock）（`ui/src/actions/button/button.css`），低于移动端 48dp 触摸目标推荐；②三按钮横排 gap 仅 8px（`session-ui/src/components/message-part.css` `[data-slot="permission-footer-actions"]`），Allow Once（submit 视觉强调）居最右，与高频滑动区重叠；③permission 三按钮无 `aria-keyshortcuts`（question dock 有）；④DockPrompt 无焦点陷阱（页面其余部分仍可聚焦）。**是否构成真机不可用需 G21⑧ 首项核对判定**；不足则按 [interaction.md](../interaction.md) 失败路径四步协议交用户决策（候选含上游 Button/dock 无障碍强化补丁 M-022+ vs 接受上游桌面语义），决策前不产品化。
 
 ## 门禁与验证
 

@@ -101,7 +101,7 @@ Android 文件导入（附件上传 `composer/attachments/*` + `onShowFileChoose
 
 **已成立**：树/列表行均为真 `<button>`（可聚焦可激活）；目录行 `aria-expanded`；搜索过滤 `role="combobox"` + `aria-controls`/`aria-activedescendant`/`aria-expanded`；搜索结果 `role="listbox"`/`option`/`aria-selected`；loading/空态 `role="status"`；移动 tab 条与关闭按钮 `aria-label`；`tree.all` 按钮 `aria-pressed`；i18n 双字典齐备（gui-extensions `file/i18n` 实测 **63** 个语言文件（61 locale + en/zh），`mobile.title`（「Files」/「文件」）/`mobile.openTabs`（「Open files」/「打开文件」）/`tree.all`/`tab.notFound`/`selectToOpen` en+zh 在册；app `toast.file.*`/`command.file.open`/`session.files.selectToOpen` en+zh 在册）。
 
-**缺口（如实登记，归 G22⑨）**：①树/列表虚拟行高 28px（+2 gap=30px，`estimateSize: () => 28`）与移动打开文件 tab 条（`!h-10`≈40px 头部、tab 关闭按钮为小尺寸图标位）低于 48dp 触摸目标推荐——与 #10 permission 按钮 28/32px 同型事实；②树为扁平虚拟按钮列表，无 `role="tree"/"treeitem"/aria-level` 层级语义（目录展开态有 aria-expanded 但无树角色）；③移动过滤清除无触屏等价——`browser.tsx` Esc 清除过滤为唯一清除路径（`onFilterKeyDown` Esc 分支），过滤输入无自带清除钮（实测）；④读屏焦点顺序/焦点陷阱未核验。**均归 G22⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 M-020+），本期不预设。
+**缺口（如实登记，归 G22⑨）**：①树/列表虚拟行高 28px（+2 gap=30px，`estimateSize: () => 28`）与移动打开文件 tab 条（`!h-10`≈40px 头部、tab 关闭按钮为小尺寸图标位）低于 48dp 触摸目标推荐——与 #10 permission 按钮 28/32px 同型事实；②树为扁平虚拟按钮列表，无 `role="tree"/"treeitem"/aria-level` 层级语义（目录展开态有 aria-expanded 但无树角色）；③移动过滤清除无触屏等价——`browser.tsx` Esc 清除过滤为唯一清除路径（`onFilterKeyDown` Esc 分支），过滤输入无自带清除钮（实测）；④读屏焦点顺序/焦点陷阱未核验。**均归 G22⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 M-022+），本期不预设。
 
 ## 门禁与验证
 
