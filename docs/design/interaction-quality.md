@@ -70,7 +70,7 @@
   - `composer/commands.tsx` **3 键**：`/model`（模型选择→DialogSelectModel）、`/connect`（provider 连接→DialogConnectProvider）、`/agent`（agent 切换，以 `local.agent.visible()` 为条件 disabled——如实标注）。
   - **动态面声明**：扩展命令可经 `slashAfter` 机制动态挂入 slash 列表——静态探针只锁第一方静态注册 11 键（集合断言），动态挂入面不锁、本清单只声明其存在。
 - **移动菜单面清单**：More 抽屉（menu/drawer：Files/Terminal/details server 面板）+ 一级 tab（Diff）+ 设置（General 移动节/providers/models/extensions/SSH hosts（M-018）/keybinds/搜索）+ `/mcp` 对话框（G26① 四路入口之一）。
-- **桌面专属面既有映射（已文档化，引用不重裁定）**：browser pane=桌面专属，移动形态=时间线呈现（#17）；gui-extensions 设置 tab 移动不可达（上游实态，G26⑥）；pinchZoom 设置 desktop-only（§四）；外跳系统浏览器零第一方入口（#17⑦ 负例）；多窗/OS 级桌面动作不适用（单窗口壳，§一）；窗口管理类键位（tab.prev/next 等）依赖物理键盘。
+- **桌面专属面既有映射（已文档化，引用不重裁定）**：browser pane=桌面专属，移动形态=时间线呈现（#17）；gui-extensions 设置 tab 移动不可达（上游实态，G26⑥）；pinchZoom 设置 desktop-only（§四）；外跳系统浏览器零第一方入口（#17⑦ 负例）；多窗/OS 级桌面动作不适用（单窗口壳，§一）；窗口管理类键位（tab.prev/next 等）依赖物理键盘。命令与菜单面全景收口（七菜单/DesktopMenuAction/注册面全景/enablement 五层链/window.* 裁定）见 [commands-menus.md](commands-menus.md)（issue #24，G34）。
 - **映射缺口（如实登记两项）**：①命令面板触屏入口（keybind-only 实态，§八）；②全局键位命令的物理键盘依赖（软键盘无 mod 组合）——G31⑤ 实测判定 slash+移动菜单映射的可发现性充分性；不足→四步协议，候选 M-022+ 命令面板移动入口，本期不预设。
 - 探针：组 5（`DEFAULT_PALETTE_KEYBIND` 逐字+三文件 `id: "command.palette"` 且 `hidden: true`+slash 11 键两文件集合相等+全域「恰 11 处恰 2 文件」漂移哨兵+`dialog.show(() => <x.DialogCommandPalette />)` 锚）。
 
