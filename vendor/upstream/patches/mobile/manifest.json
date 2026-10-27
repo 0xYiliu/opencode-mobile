@@ -326,6 +326,18 @@
       "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
       "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
       "owner": "opencode-mobile maintainers"
+    },
+    {
+      "id": "M-028",
+      "patch": "patches/mobile/0027-M-028-connection-method-layout.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Mobile-only connection method layout (issue #55). On the initial connection screen, the pairing-link prompt occupies its own centered row and the Use password and SSH hosts actions share the next row. The desktop ConnectMethodSwitch, connection behavior, Pair/QR/password logic, SSH hosts route, and SSH transport remain unchanged; the shared connection dialog is not modified.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-027; focused screen/source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout and navigation behavior remain to be verified under G36.",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-027. Target is the mobile branch of ConnectServerScreen's method switch and its existing mobile SSH hosts action.",
+      "owner": "opencode-mobile maintainers"
     }
   ]
 }

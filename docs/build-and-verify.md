@@ -34,6 +34,22 @@
 
 记录日期：2026-10-28。issue #55 段（M-027 初始 SSH 入口，基于 origin/dev `3859bd5`；计划 T3 v4）实施于分支 `issue-55-initial-ssh-entry`：连接屏本地化 SSH hosts 动作、`/settings?tab=servers` 精确 root 路由判定、新 `connection-route.ts`、AppShell 空/签出守卫与路由单测。复用 M-008/M-018 的 MobileHostManager；无 SSH transport 改动。APK 已构建并安装到 MatePad，初始连接页与 SSH hosts 管理面已做设备冒烟；完整 G36、SSH E2E 与真服务验证仍 BLOCKED，结果见下表。
 
+本次 M-028 只调整移动初始连接屏的呈现：`No pairing link?` 独占居中行，`Use password` 与 `SSH hosts` 并排下一行；共享连接对话框、桌面布局、连接逻辑与 SSH transport 不变。MatePad 布局冒烟已执行并通过；完整 G36 仍保留未验证项。
+
+### issue #55 / M-028 实际结果
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| JSON 结构、差异空白 | `python3 -m json.tool`（三个 vendor manifest/provenance 文件）；`git diff --check` | PASS |
+| 分层闭包与 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-028，`DANGLING=0` |
+| 移动连接屏静态断言 | prompt 独占行、移动分支、SSH hosts 精确路径；shared dialog 未修改 | PASS |
+| M-028 基线 probes | `bun run scripts/verify-gui-extensions.ts`; `bun run scripts/verify-notifications.ts`; `bun run scripts/verify-commands-menus.ts`; `bun run scripts/verify-artifacts.ts` | PASS：四个 probes；dist 基线 **3482 文件 / 153447934 字节** |
+| 上游连接/路由单测 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts ...` | BLOCKED：当前工作树缺少 `@happy-dom/global-registrator` |
+| Web 构建（当前 M-028 基线） | `bun run build:web`；`bash scripts/copy-web-dist.sh` | PASS：当前 `web-dist/manifest.json` 为 **3482 文件 / 153447934 字节** |
+| Android APK | `ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle :app:assembleDebug` | PASS：APK SHA-256 `13f6c72aaf9799e2ad26a0e5c93684f815e1e52e54b6373c87c9f34e0d5fff01` |
+| MatePad M-028 布局冒烟 | `adb -s 192.168.3.145:5555 install -r .../app-debug.apk`；清数据、启动、UI dump | PASS：HUAWEI DBY2-AL00 / Android 12；`No pairing link?` bounds `y=1165–1203`，`Use password` 与 `SSH hosts` 均为下一行 `y=1219–1320` |
+| G36 完整连接门禁 | MatePad 上 SSH hosts 添加/编辑/连接、Pair/QR/password 保持与 SSH 失败路径 | BLOCKED：M-028 两行布局已通过；完整 SSH/host-key/返回流仍未执行 |
+
 ### issue #55 / M-027 实际结果
 
 | 检查 | 命令 | 结果 |

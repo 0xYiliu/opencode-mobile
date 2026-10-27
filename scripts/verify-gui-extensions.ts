@@ -509,14 +509,14 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 // --- 8. Build and sentinel reconciliation (mechanical witnesses) ---
 {
-  // Dist baseline re-recorded after this issue's build-input changes (M-027 initial SSH
-  // entry routes enter the Vite graph): 3482 files / 153445727 bytes measured at the
-  // issue #55 V2 run; the same values are the current revisions of the two dist sentinels
+  // Dist baseline re-recorded after this issue's build-input changes (M-028 connection
+  // method layout): 3482 files / 153447934 bytes measured at the issue #55 V2 run; the
+  // same values are the current revisions of the two dist sentinels
   // (verify-notifications group 8, verify-commands-menus group 8 — cross-references,
   // not re-locks). Earlier M-026 values remain historical in the build record.
   const distManifest = await read("web-dist/manifest.json")
-  if (!distManifest.includes('"fileCount": 3482') || !distManifest.includes('"totalBytes": 153445727'))
-    fail("8: web-dist manifest baseline drifted (3482/153445727 expected — the issue #55 M-027 current baseline)")
+  if (!distManifest.includes('"fileCount": 3482') || !distManifest.includes('"totalBytes": 153447934'))
+    fail("8: web-dist manifest baseline drifted (3482/153447934 expected — the issue #55 M-028 current baseline)")
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -565,6 +565,6 @@ console.log(
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability two-set mapping, interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
-    "8: build witnesses — dist baseline 3482/153445727 (issue #55 M-027 current baseline; M-026 3480/153441733 remains historical), runtime markers (guiext.v1 constant + en/zh i18n keys) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — dist baseline 3482/153447934 (issue #55 M-028 current baseline; M-027 3482/153445727 and M-026 3480/153441733 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows and dual-route consistency on a device are G35)",
 )

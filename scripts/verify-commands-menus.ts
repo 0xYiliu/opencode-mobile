@@ -606,26 +606,26 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   // Dist baseline read as the zero-build-input witness (first lock/sentinel:
   // verify-notifications group 8 — the numbers are re-observed, not re-sentineled).
   // Issue #55 revision (deliberate, NOT a bypass): the build inputs DID change in this
-  // issue (M-027 initial SSH entry routes enter the Vite graph), so the current baseline
-  // was re-recorded from web-dist/manifest.json after V2 — 3482 files / 153445727 bytes.
-  // The M-026 3480/153441733 value remains a historical build record.
+  // issue (M-028 connection method layout enters the Vite graph), so the current baseline
+  // was re-recorded from web-dist/manifest.json after V2 — 3482 files / 153447934 bytes.
+  // M-027 3482/153445727 and M-026 3480/153441733 remain historical build records.
   const distManifest = await read(WEB_DIST_MANIFEST)
-  if (!distManifest.includes('"fileCount": 3482') || !distManifest.includes('"totalBytes": 153445727'))
-    fail("8: web-dist manifest baseline drifted (3482/153445727 expected — issue #55 M-027 re-recorded the current baseline after its build-input changes; a further drift means an unregistered build input changed)")
+  if (!distManifest.includes('"fileCount": 3482') || !distManifest.includes('"totalBytes": 153447934'))
+    fail("8: web-dist manifest baseline drifted (3482/153447934 expected — issue #55 M-028 re-recorded the current baseline after its build-input changes; a further drift means an unregistered build input changed)")
 
-  // Patch count 26 as a set-equality cross-reference (first lock: verify-attachments-
+  // Patch count 27 as a set-equality cross-reference (first lock: verify-attachments-
   // artifacts upstreamBaseline; M-019 stays reserved-absent). Issue #55 revision
-  // (deliberate, NOT a bypass): expected set extended to M-001..M-027 when M-027
-  // registered (loop bound 26 -> 27, 26 members).
+  // (deliberate, NOT a bypass): expected set extended to M-001..M-028 when M-028
+  // registered (loop bound 27 -> 28, 27 members).
   const patches = await read(PATCHES_MANIFEST)
   const patchIds = new Set<string>()
   for (const m of patches.matchAll(/M-\d{3}/g)) patchIds.add(m[0]!)
   const expectedPatches = new Set<string>()
-  for (let i = 1; i <= 27; i++) {
+  for (let i = 1; i <= 28; i++) {
     if (i === 19) continue
     expectedPatches.add(`M-${String(i).padStart(3, "0")}`)
   }
-  setEq(patchIds, expectedPatches, "8: mobile patch id set (26 registered, M-019 reserved-absent)")
+  setEq(patchIds, expectedPatches, "8: mobile patch id set (27 registered, M-019 reserved-absent)")
 
   // bun.lock workspace registration anchor (zero-change itself is V-lock's git-diff
   // evidence in build-and-verify.md — this only proves the seam package is registered).
@@ -643,6 +643,6 @@ console.log(
     "5: enablement five layers — commandPaletteOptions filter + composer slash disabled filter + COMMON_COMMAND_IDS/order.has skip + extension enabled===false mapping + registries verbatim comment + windows-menu commandDisabled face + terminal/browser/debug enabled gates + never-on-the-web comment; " +
     "6: state restoration — command.catalog.v1 persisted store + keybindRenames cleanup + CommandCatalogItem metadata-only struct (no onSelect) + keybinds.tsx catalog consumption (settings.v3 segment cross-referenced to viq group 6); " +
     "7: docs closure — commands-menus.md ten sections + authority + four 不得声称 + 13-row table + four window.* rows + multi-window cross-reference, interaction.md G1–G35 + G34 row + twentieth wording + failure path, interaction-quality.md section-7 pointer, design README index, architecture flow row; " +
-    "8: build witnesses — dist baseline 3482/153445727 (cross-reference verify-notifications group 8; issue #55 M-027 current baseline; M-026 3480/153441733 remains historical) + patch set 26 (cross-reference verify-attachments-artifacts; issue #23 20→23, issue #26 23→25, issue #55 25→26) + bun.lock workspace anchor; " +
+    "8: build witnesses — dist baseline 3482/153447934 (cross-reference verify-notifications group 8; issue #55 M-028 current baseline; M-027 3482/153445727 and M-026 3480/153441733 remain historical) + patch set 27 (cross-reference verify-attachments-artifacts; issue #23 20→23, issue #26 23→25, issue #55 25→26→27) + bun.lock workspace anchor; " +
     "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
 )

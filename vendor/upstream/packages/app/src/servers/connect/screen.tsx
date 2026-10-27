@@ -240,20 +240,44 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
               </Button>
             </Show>
           </Show>
-          <ConnectMethodSwitch
-            method={state.method}
-            disabled={request.isPending}
-            onChange={(method) => setState({ method, error: "" })}
-          />
+          <Show
+            when={platform.platform !== "desktop"}
+            fallback={
+              <ConnectMethodSwitch
+                method={state.method}
+                disabled={request.isPending}
+                onChange={(method) => setState({ method, error: "" })}
+              />
+            }
+          >
+            <div class="flex min-h-7 flex-col items-center gap-1 text-[13px]">
+              <span class="text-v2-text-text-faint">
+                {language.t(state.method === "link" ? "server.connect.password.prompt" : "server.connect.link.prompt")}
+              </span>
+              <div class="flex items-center justify-center gap-1">
+                <Button
+                  variant="ghost-muted"
+                  disabled={request.isPending}
+                  onClick={() => setState({ method: state.method === "link" ? "password" : "link", error: "" })}
+                >
+                  {language.t(state.method === "link" ? "server.connect.password.use" : "server.connect.link.use")}
+                </Button>
+                <Show when={state.method === "link"}>
+                  <Button
+                    variant="ghost-muted"
+                    disabled={request.isPending}
+                    onClick={() => navigate("/settings?tab=servers")}
+                  >
+                    {language.t("settings.tab.sshHosts")}
+                  </Button>
+                </Show>
+              </div>
+            </div>
+          </Show>
           <Show when={state.method === "link"}>
             <footer>
               <p>{language.t("server.connect.pair.link")}</p>
               <code dir="ltr">opencode pair</code>
-              <Show when={platform.platform !== "desktop"}>
-                <Button variant="neutral" size="large" onClick={() => navigate("/settings?tab=servers")}>
-                  {language.t("settings.tab.sshHosts")}
-                </Button>
-              </Show>
             </footer>
           </Show>
         </Show>
