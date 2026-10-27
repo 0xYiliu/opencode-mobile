@@ -124,6 +124,14 @@ class MainActivity : Activity() {
     private fun consumePendingRoute() {
         val route = pendingRoute ?: return
         pendingRoute = null
+        // Review L1 (issue #23): the consumption side re-checks the route shape — the
+        // extra is only ever written by this app's own PendingIntent, but the activity is
+        // exported (launcher), so a forged extra must not reach loadUrl. A shape violation
+        // is dropped with a fixed-tag log (zero value content: the route is never logged).
+        if (!NotificationsBridge.ROUTE.matches(route)) {
+            Log.w(TAG, "notifications: dropping malformed navigation extra")
+            return
+        }
         if (::webView.isInitialized) {
             webView.loadUrl(START_URL + route)
         }

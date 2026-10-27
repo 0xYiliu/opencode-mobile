@@ -98,9 +98,11 @@ class NotificationsBridge(
          * Session-route whitelist (JS mirror: ROUTE_PATTERN). The route is CONSTRUCTED by
          * the JS side through the upstream sessionHref and re-checked here by shape only —
          * the base64url segments carry no separator characters, so the shape check is the
-         * whole defense (files-bridge two-layer calibration).
+         * whole defense (files-bridge two-layer calibration). INTERNAL (not private) so
+         * MainActivity's consumption side re-checks the same shape before loadUrl (review
+         * L1: the activity is exported, a forged extra must not reach the WebView).
          */
-        private val ROUTE = Regex("^/server/[A-Za-z0-9_-]{1,512}/session/[A-Za-z0-9_-]{1,128}$")
+        internal val ROUTE = Regex("^/server/[A-Za-z0-9_-]{1,512}/session/[A-Za-z0-9_-]{1,128}$")
 
         /** The one intent extra the contentIntent carries to MainActivity (exactly one). */
         const val EXTRA_ROUTE = "opencode.mobile.notifications.route"
