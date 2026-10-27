@@ -1,4 +1,4 @@
-import { Component } from "solid-js"
+import { Component, createSignal } from "solid-js"
 import { Select } from "@opencode/ui/select"
 import { Switch } from "@opencode/ui/switch"
 import { useLanguage } from "@/runtime/i18n/language"
@@ -10,6 +10,9 @@ import {
   soundOptions,
   type SoundSettingsController,
 } from "@/settings/general/controllers"
+// mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23) reads the notifications
+// bridge port through the module-level seam at call time.
+import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
 import "@/settings/settings.css"
 
 const soundSettings = {
@@ -58,6 +61,43 @@ export const SettingsNotifications: Component = () => {
   const language = useLanguage()
   const settings = useSettings()
   const sounds = createSoundSettingsController()
+  // mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23). Turning a notification
+  // switch ON is the user-in-foreground moment: if the bridge is available and the platform
+  // still needs the runtime permission (API 33+, enforced by the native side — below 33 or
+  // already granted it answers granted without a dialog), request it right here. Every
+  // outcome (granted / denied / bridge unavailable) surfaces in the explicit status row
+  // below; a denial degrades to the in-app faces only (no retry loop, no fabricated
+  // success). A request arriving while the app is backgrounded would be refused by the
+  // native side with code "foreground" — this face never triggers in the background.
+  const [androidPermission, setAndroidPermission] = createSignal<"idle" | "granted" | "denied" | "unavailable">("idle")
+
+  const requestAndroidPermissionIfNeeded = async () => {
+    try {
+      const outcome = await activeNotificationsPort().requestPermission()
+      if (outcome.granted) setAndroidPermission("granted")
+      else setAndroidPermission(outcome.code === "unavailable" ? "unavailable" : "denied")
+    } catch {
+      setAndroidPermission("unavailable")
+    }
+  }
+
+  const onNotificationSwitch = (apply: (checked: boolean) => void) => (checked: boolean) => {
+    apply(checked)
+    if (checked) void requestAndroidPermissionIfNeeded()
+  }
+
+  const androidPermissionDescription = () => {
+    switch (androidPermission()) {
+      case "granted":
+        return "settings.general.notifications.android.granted"
+      case "denied":
+        return "settings.general.notifications.android.denied"
+      case "unavailable":
+        return "settings.general.notifications.android.unavailable"
+      default:
+        return "settings.general.notifications.android.description"
+    }
+  }
 
   return (
     <>
@@ -83,7 +123,7 @@ export const SettingsNotifications: Component = () => {
               <div data-action="settings-notifications-agent">
                 <Switch
                   checked={settings.notifications.agent()}
-                  onChange={(checked) => settings.notifications.setAgent(checked)}
+                  onChange={onNotificationSwitch((checked) => settings.notifications.setAgent(checked))}
                 />
               </div>
             </SettingsRow>
@@ -95,7 +135,7 @@ export const SettingsNotifications: Component = () => {
               <div data-action="settings-notifications-permissions">
                 <Switch
                   checked={settings.notifications.permissions()}
-                  onChange={(checked) => settings.notifications.setPermissions(checked)}
+                  onChange={onNotificationSwitch((checked) => settings.notifications.setPermissions(checked))}
                 />
               </div>
             </SettingsRow>
@@ -107,9 +147,19 @@ export const SettingsNotifications: Component = () => {
               <div data-action="settings-notifications-errors">
                 <Switch
                   checked={settings.notifications.errors()}
-                  onChange={(checked) => settings.notifications.setErrors(checked)}
+                  onChange={onNotificationSwitch((checked) => settings.notifications.setErrors(checked))}
                 />
               </div>
+            </SettingsRow>
+
+            <SettingsRow
+              title={language.t("settings.general.notifications.android.title")}
+              description={language.t(androidPermissionDescription())}
+            >
+              {/* mobile(M-024): status-only row — the SettingsRow contract requires a
+                  control slot; the Android permission face has none (the request fires
+                  from the notification switches above). */}
+              <></>
             </SettingsRow>
           </SettingsList>
         </div>

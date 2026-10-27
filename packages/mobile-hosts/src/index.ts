@@ -275,3 +275,37 @@ export {
   type FilesPort,
   type SaveFileInput,
 } from "./files/client"
+// issue #23: notifications bridge (sixth bridge) — task completion/permission/error system
+// notifications over the protocol-isolated transport, module-level seam + fail-closed
+// defaults (equivalent to the pre-#23 WebView dead point), two-layer shape validation.
+export {
+  NOTIFICATIONS_ERROR_CODES,
+  isNotificationsErrorCode,
+  type NotificationsErrorCode,
+} from "./notifications/client"
+export {
+  NOTIFICATIONS_BRIDGE,
+  NOTIFICATIONS_HANDSHAKE,
+  createWebMessageNotificationsTransport,
+  type NotificationsBridgeOperation,
+  type NotificationsBridgeResponse,
+  type NotificationsBridgeTransport,
+  type WebMessageNotificationsTransportOptions,
+} from "./notifications/transport"
+export {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATIONS_MARKER,
+  BODY_MAX,
+  TITLE_MAX,
+  ROUTE_PATTERN,
+  StubNotificationsPort,
+  activeNotificationsPort,
+  createNotificationsClient,
+  notificationsBridgeInjected,
+  setActiveNotificationsPort,
+  type NotificationCategory,
+  type NotifyInput,
+  type NotifyOutcome,
+  type NotificationsPort,
+  type PermissionOutcome,
+} from "./notifications/client"

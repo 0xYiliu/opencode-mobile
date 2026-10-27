@@ -39,6 +39,16 @@
 // earlier probe uses (verify-recovery.ts / verify-interaction-quality.ts
 // anchor no build-and-verify/project-scope either).
 //
+// ISSUE #23 REVISION REGISTER (deliberate sentinel revisions, NOT bypasses):
+//   - group 3: the bare zero-onNewIntent negative became a paired anchor
+//     (onNewIntent only with the pendingRoute internal-route anchor) because
+//     the issue #23 notification tap consumer lands in MainActivity — tap is
+//     an IN-APP PendingIntent navigation (launch-only substance unchanged;
+//     zero VIEW intent-filter + opencode:// double zero still enforced).
+//   - group 6: the uses-permission drift sentinel 1 -> 2 (INTERNET +
+//     POST_NOTIFICATIONS; issue #23's manifest line). Any THIRD permission
+//     still fails — drift-gate semantics preserved.
+//
 //   1. Protocol + grammar layer: protocol/groups/server.ts pairing endpoints
 //      (PAIRING_CONNECT_PATH, server.pair POST /api/pair, token/expires_in
 //      schema fields) and pairing.ts four validation layers verbatim (scheme
@@ -57,8 +67,9 @@
 //      useRedeemPairing consumption set (exactly redeem.ts definition +
 //      dialog.tsx + screen.tsx; the scanner receives redeem via props —
 //      declared), exactly two `await redeem(` call faces per form file, and
-//      the NEGATIVE deep-link sentinels (manifest zero VIEW intent-filter,
-//      MainActivity zero onNewIntent).
+//      the NEGATIVE deep-link sentinels (manifest zero VIEW intent-filter;
+//      onNewIntent only with the pendingRoute internal-route anchor — issue
+//      #23 revision, see below).
 //   4. Custom-scheme double zero: `opencode://` zero hits across the six
 //      upstream packages' src (pin-update drift sentinel), plus the
 //      pairing.test.ts verbatim rejection anchors (opencode-ios:// and
@@ -69,7 +80,9 @@
 //      zero console/Log calls in pairing/redeem/scanner/camera, and the
 //      cross-reference M-002 strip marker + rows 6/11 passthrough comment.
 //   6. Camera-unavailable baseline: manifest zero CAMERA permission +
-//      exactly the INTERNET permission (drift sentinels), MainActivity zero
+//      exactly the INTERNET + POST_NOTIFICATIONS permission pair (drift
+//      sentinels; issue #23 added POST_NOTIFICATIONS — any THIRD permission
+//      still fails), MainActivity zero
 //      onPermissionRequest (drift sentinel), camera.ts gate line verbatim,
 //      the cameraHint() two-branch anchor, the scanner environment/
 //      inversion-mode closure evidence, and the dist manifest scanner chunk
@@ -86,9 +99,10 @@
 //      section with its eight subsection headings and the key sentences
 //      (zero-passive-import / LAN cleartext unsupported / scan unsupported /
 //      add-face ref split / three red lines), interaction.md G32 row +
-//      G1–G32 title + eighteenth honest wording + pairing failure-path
-//      subsection + :151 face qualification, architecture.md connection row,
-//      design README.md index row + baseline sentence.
+//      G1–G33 title (issue #23 revised the G1–G32 anchor when G33 was added
+//      — coverage semantics preserved) + eighteenth honest wording + pairing
+//      failure-path subsection + :151 face qualification, architecture.md
+//      connection row, design README.md index row + baseline sentence.
 //
 // HONEST BOUNDARY (same tradition as verify-recovery.ts): this is a static
 // STRUCTURE check (text anchors / regex on source and doc files). It proves
@@ -266,9 +280,16 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   const manifest = await read(MANIFEST)
   if (/android\.intent\.action\.VIEW/.test(manifest))
     fail("3: AndroidManifest.xml gained a VIEW intent-filter — external links would trigger app actions; re-review the zero-passive-import anchors and connection.md §⑦ before keeping it")
+  // Issue #23 revision (deliberate, NOT a bypass): the bare zero-onNewIntent negative
+  // became an internal-route-aware PAIRED anchor. onNewIntent is allowed ONLY alongside
+  // the pendingRoute internal-route anchor (the issue #23 notification tap consumer —
+  // an in-app PendingIntent navigation to a session route). The EXTERNAL import ban is
+  // unchanged and still enforced by three intact gates: zero VIEW intent-filter (above),
+  // the opencode:// six-domain double zero (group 4), and this pairing — an onNewIntent
+  // without a pendingRoute anchor still FAILS here.
   const mainActivity = await read(MAIN_ACTIVITY)
-  if (/onNewIntent/.test(mainActivity))
-    fail("3: MainActivity.kt gained onNewIntent handling — re-review the zero-passive-import anchors before keeping it")
+  if (/onNewIntent/.test(mainActivity) && !/pendingRoute/.test(mainActivity))
+    fail("3: MainActivity.kt gained onNewIntent handling without the pendingRoute internal-route anchor — onNewIntent is only allowed with the issue #23 notification internal-route consumer (tap = in-app PendingIntent navigation); external deep-link/passive import stays banned (zero VIEW intent-filter is asserted above)")
   if (!mainActivity.includes("deep links"))
     fail("3: MainActivity.kt lost the deep-links TODO comment")
 }
@@ -368,8 +389,8 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   if (!manifest.includes('<uses-permission android:name="android.permission.INTERNET" />'))
     fail("6: AndroidManifest.xml lost the INTERNET permission anchor")
   const permissionCount = manifest.match(/<uses-permission /g)?.length ?? 0
-  if (permissionCount !== 1)
-    fail(`6: AndroidManifest.xml uses-permission count changed (expected exactly 1 = INTERNET; got ${permissionCount}) — a new permission touches the security baseline; re-review`)
+  if (permissionCount !== 2)
+    fail(`6: AndroidManifest.xml uses-permission count changed (expected exactly 2 = INTERNET + POST_NOTIFICATIONS, issue #23; any third permission still fails; got ${permissionCount}) — a new permission touches the security baseline; re-review`)
   const mainActivity = await read(MAIN_ACTIVITY)
   if (/onPermissionRequest/.test(mainActivity))
     fail("6: MainActivity.kt gained onPermissionRequest (WebView getUserMedia authorization) — the scan-enable candidate (M-022+) is a user decision; re-review connection.md §⑦ before keeping it")
@@ -484,8 +505,12 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   }
 
   const interaction = await read("docs/design/interaction.md")
-  if (!interaction.includes("## G1–G32 设备门禁（完整枚举）"))
-    fail("8: interaction.md gate enumeration must cover G1–G32")
+  // Issue #23 revision (deliberate, NOT a bypass): the enumeration-title anchor moved
+  // G1–G32 -> G1–G33 when the issue #23 G33 gate row was appended to interaction.md —
+  // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
+  // preserved.
+  if (!interaction.includes("## G1–G33 设备门禁（完整枚举）"))
+    fail("8: interaction.md gate enumeration must cover G1–G33")
   if (!interaction.includes("| G32 配对/链接导入运行期门禁（issue #22"))
     fail("8: interaction.md lost the G32 gate row")
   if (!interaction.includes("第十八处落字（issue #22）"))
@@ -515,11 +540,11 @@ console.log(
   "verify-pairing: PASS (" +
     "1: protocol endpoints (PAIRING_CONNECT_PATH/server.pair/server.connect/token/expires_in) + four grammar layers verbatim (scheme whitelist, userinfo/search/hash rejection, CODE regex, /auth/connect/ path whitelist, legacy /connect# detection); " +
     "2: bounded multi-address redeem + 401→expired mapping + last.code reuse + scanner 3s rejected suppression + nine i18n keys + mixedContent https:-page early return (structurally unreachable in this shell); " +
-    "3: preview-cancel comment verbatim + checkbox render gate (dialog first lock) + useRedeemPairing consumption set equality (redeem.ts definition + dialog + screen; scanner via props) + exactly 2 redeem faces per form + NEGATIVE zero VIEW intent-filter / zero onNewIntent; " +
+    "3: preview-cancel comment verbatim + checkbox render gate (dialog first lock) + useRedeemPairing consumption set equality (redeem.ts definition + dialog + screen; scanner via props) + exactly 2 redeem faces per form + NEGATIVE zero VIEW intent-filter / onNewIntent only with the pendingRoute internal-route anchor (issue #23 — external launch stays banned); " +
     "4: NEGATIVE opencode:// zero hits across six upstream src domains + pairing.test.ts rejection anchors (opencode-ios://, /connect#abc); " +
     "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + M-002 and rows-6/11 cross-references; " +
-    "6: NEGATIVE zero CAMERA permission + exactly-1 uses-permission + zero onPermissionRequest (drift sentinels) + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
+    "6: NEGATIVE zero CAMERA permission + exactly-2 uses-permission (INTERNET + POST_NOTIFICATIONS, issue #23; any third still fails) + zero onPermissionRequest (drift sentinels) + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
     "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen ref-drop reality pair ({ ...existing, http } + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
-    "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G32 + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
+    "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G33 enumeration (issue #23 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
     "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref passthrough vs drop on re-pairing, cancel/cold/hot-start behavior and dual-route pass are G32)",
 )

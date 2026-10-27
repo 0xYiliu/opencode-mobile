@@ -16,6 +16,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import ai.opencode.mobile.files.FilesBridge
+import ai.opencode.mobile.notifications.NotificationsBridge
 import ai.opencode.mobile.probe.ProbeBridge
 import ai.opencode.mobile.ssh.SshTunnelBridge
 import ai.opencode.mobile.svcops.ServiceOpsBridge
@@ -39,7 +40,17 @@ class MainActivity : Activity() {
     private var sshBridge: SshTunnelBridge? = null
     private var svcopsBridge: ServiceOpsBridge? = null
     private var filesBridge: FilesBridge? = null
+    private var notificationsBridge: NotificationsBridge? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    /**
+     * The notification tap route (issue #23), consumed once: on a warm instance
+     * onNewIntent consumes it immediately; on a cold start the first onPageFinished
+     * consumes it after the shell page is up. The extra is written ONLY by the
+     * NotificationsBridge contentIntent (the route was already whitelist-validated
+     * there before anything was posted).
+     */
+    @Volatile
+    private var pendingRoute: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,8 +93,48 @@ class MainActivity : Activity() {
         // shareDataUrl false). It holds the activity reference (vault-bridge shape) for
         // the SAF save dialog (startActivityForResult) and the share intent launches.
         filesBridge = FilesBridge(this, webView)
+        // Notifications bridge (issue #23): the SIXTH protocol-isolated sibling — its own
+        // handshake string (opencode-mobile-notifications-handshake) and channel, restarted
+        // on every page load alongside the other five. Until the page acks, the notification
+        // port stays a fail-closed stub on the JS side (the pre-#23 dead point). The bridge
+        // is notification-ONLY: whitelist {notify, requestPermission}, zero action buttons,
+        // zero remote calls — a notification can never approve a permission or stop a task.
+        notificationsBridge = NotificationsBridge(this, webView)
+
+        // A cold start launched from a notification tap carries the route extra; it is
+        // consumed after the first page load (onPageFinished) so the SPA is up to take it.
+        pendingRoute = intent?.getStringExtra(NotificationsBridge.EXTRA_ROUTE)
 
         webView.loadUrl(START_URL)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Warm-instance notification tap (issue #23): CLEAR_TOP|SINGLE_TOP redelivers the
+        // existing instance. setIntent keeps the latest intent authoritative (mirrors the
+        // onSaveInstanceState TODO note — this is in-app PendingIntent navigation ONLY,
+        // never an external deep link: no VIEW intent-filter exists).
+        setIntent(intent)
+        val route = intent.getStringExtra(NotificationsBridge.EXTRA_ROUTE) ?: return
+        pendingRoute = route
+        consumePendingRoute()
+    }
+
+    /** Consumes the pending route exactly once (loadUrl is idempotent-safe: the slot is cleared first). */
+    private fun consumePendingRoute() {
+        val route = pendingRoute ?: return
+        pendingRoute = null
+        // Review L1 (issue #23): the consumption side re-checks the route shape — the
+        // extra is only ever written by this app's own PendingIntent, but the activity is
+        // exported (launcher), so a forged extra must not reach loadUrl. A shape violation
+        // is dropped with a fixed-tag log (zero value content: the route is never logged).
+        if (!NotificationsBridge.ROUTE.matches(route)) {
+            Log.w(TAG, "notifications: dropping malformed navigation extra")
+            return
+        }
+        if (::webView.isInitialized) {
+            webView.loadUrl(START_URL + route)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -128,6 +179,14 @@ class MainActivity : Activity() {
                 // The files bridge (issue #16) is the fifth protocol-isolated handshake
                 // round (see FilesBridge); ack lifecycle navigation-scoped like the others.
                 filesBridge?.onPageFinished()
+                // The notifications bridge (issue #23) is the sixth protocol-isolated
+                // handshake round (see NotificationsBridge); ack lifecycle navigation-scoped
+                // like the others.
+                notificationsBridge?.onPageFinished()
+                // A cold-start notification tap route rides the first finished page load
+                // (the warm path consumes immediately in onNewIntent; the slot is cleared
+                // first, so a double call is a no-op).
+                consumePendingRoute()
             }
         }
 
@@ -231,6 +290,18 @@ class MainActivity : Activity() {
         callback?.onReceiveValue(if (uris.isEmpty()) null else uris.toTypedArray())
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NotificationsBridge.REQUEST_NOTIFICATIONS) {
+            // Issue #23 POST_NOTIFICATIONS result: routed to the notifications bridge (its
+            // single pendingPermission slot answers the waiting request exactly once).
+            notificationsBridge?.onPermissionResult(
+                grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED,
+            )
+            return
+        }
+    }
+
     /**
      * The ACTION_OPEN_DOCUMENT intent for a file chooser request: CATEGORY_OPENABLE, the
      * multiple flag from the JS mode, and the mapped MIME face from acceptTypes (issue #16
@@ -331,6 +402,12 @@ class MainActivity : Activity() {
         // never reaches a remote service).
         filesBridge?.destroy()
         filesBridge = null
+        // The notifications bridge (issue #23) tears down locally only (channel +
+        // background thread + pending permission slot). It holds zero remote state and
+        // zero scheduled work — posted notifications are the system's, and remote
+        // services/tasks are never touched by this teardown (AGENTS.md red line).
+        notificationsBridge?.destroy()
+        notificationsBridge = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {
