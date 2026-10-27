@@ -25,6 +25,24 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // aapt2's default ignoreAssets pattern contains `<dir>_*`, which silently drops
+    // every underscore-prefixed directory — including the web build's entire `_assets/`
+    // chunk directory. Re-list the default pattern without that rule (dotfiles stay
+    // ignored) so the packaged web payload is complete.
+    androidResources {
+        ignoreAssetsPattern =
+            "!.svn:!.git:!.gitignore:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
+    packaging {
+        // jsch and bcprov both ship multi-release OSGi manifest entries at several
+        // version levels; they are jar metadata with no runtime role on Android, so
+        // packaging may drop the duplicates.
+        resources {
+            excludes += setOf("META-INF/versions/*/OSGI-INF/MANIFEST.MF")
+        }
+    }
 }
 
 kotlin {
