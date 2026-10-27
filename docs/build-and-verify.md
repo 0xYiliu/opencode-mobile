@@ -41,7 +41,7 @@
 | openjdk | 21.0.12.1 | 已安装；Android 构建需要 SDK（缺失，见 BLOCKED） |
 | python3 | 系统自带（xml.dom.minidom、json.tool） | V5/V6 结构校验 |
 | git / gh | 可用 | 闭包获取、issue 记录 |
-| Android SDK / Gradle | **在位**（`~/.android-sdk`，platforms/android-36 + build-tools；gradle 9.6.1 本地发行版，wrapper jar 不提交）；2026-10-24 起 `:app:compileDebugKotlin` 已实测 PASS（issue #7 S5 勘误，替代既往「未安装」记录） | Kotlin 编译经真实工具链；**APK 打包**现仅阻塞于 jsch+bcprov jar 元数据冲突（见 BLOCKED 总表），非 SDK 缺失 |
+| Android SDK / Gradle | **在位**（`~/.android-sdk`，platforms/android-36 + build-tools；gradle 9.6.1 本地发行版，wrapper jar 不提交）；2026-10-24 起 `:app:compileDebugKotlin` 已实测 PASS（issue #7 S5 勘误，替代既往「未安装」记录） | Kotlin 编译经真实工具链；APK 打包已随 v0.1.0 修复打通（packaging 排除块 + ignoreAssets `<dir>_*` 订正，2026-10-28；见 BLOCKED 总表 v0.1.0 行） |
 | kotlinc / gitleaks | kotlinc 经 `kotlin-compiler-embeddable`（gradle 发行版自带，2.3.21/2.4.21）；**gitleaks 未安装** | 编译探针可用；泄漏扫描以启发式脚本 `scripts/leak-scan.sh` 代替，明示非 gitleaks |
 
 ## 构建流水线（真实命令）
@@ -1028,7 +1028,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 
 | 项 | 缺失条件 | 归属 |
 | --- | --- | --- |
-| APK 打包（`:app:assembleDebug`） | jsch+bcprov `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复：需 build.gradle.kts packaging 排除块（计划零改动清单内，待用户决策）；**Kotlin 编译/dex 已 PASS**（issue #7 S5 勘误：SDK 在位，非「无 SDK」） | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露）；命令已记录于本文 |
+| ~~APK 打包（`:app:assembleDebug`）~~ 已随 v0.1.0 解决（2026-10-28，用户决策后实施）：①packaging 排除块 `META-INF/versions/*/OSGI-INF/MANIFEST.MF`（jsch+bcprov 多版本层 OSGi 元数据重复，jar 元数据无运行时角色）；②**新发现并修复 ignoreAssets 缺口**——aapt2 默认模式含 `<dir>_*`，静默丢弃全部下划线开头目录，web 构建的整个 `_assets/` chunk 目录（3457 文件）未入包（装机会白屏；`_headers` 等根文件不受影响故此前不可见）——ignoreAssets 模式重列去掉该规则。修复后 `:app:assembleDebug` PASS（v0.1.0 tag 构建，3480 资产全量入包、OSGI 重复 0） | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露）；命令已记录于本文 |
 | G1–G12 设备门禁（清单见 [design/interaction.md](design/interaction.md)） | 真机/模拟器（+G3/G6/G7/G9/G11/G12 需授权远程服务） | issue #2 验收第 2 条 |
 | live 直连 HTTPS E2E（选项目/开会话/发提示/增量事件/PTY） | 授权服务 + 模型；不允许 fixture 替代 | issue #2 验收第 4 条 |
 | SSH E2E（auth 成败端到端、未知/已知/变更三态、目标拒绝、服务不可达与 incompatible 真服务、重连换端口同身份、隧道/App 关闭后远程任务存活） | 真机/模拟器 + 授权 SSH 主机 + 授权服务；代码已实现（未验证），静态证据见 V-ssh 与决策 0003 | issue #6 / #21 |
@@ -1054,7 +1054,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | Kotlin ssh 四件（SshErrorCode/SshHostKeyStore/SshTunnelManager/SshTunnelBridge）+ MainActivity/gradle 增量编译 | ~~Android SDK~~ **编译已过**（issue #7 S5 起 `:app:compileDebugKotlin` 全源码集 PASS；首编译暴露的 watchdog Long 字面量潜伏错误已由 #7 修复——见 issue #6 段交叉引用）；运行期归 G17 | issue #6；命令已记录于本文 |
 | G18 四桥并存 bring-up + 服务操作交互（issue #7 新设门禁） | 真机/模拟器（API 23+）+ 授权 SSH 主机与授权远端 OS：四握手各自捕获互不误捕/互不重置 ack；svcops 面板交互（预览=执行/确认/回滚/cancel-uncertain）；occupied-port/permission-denied 真实路径；survivedDisconnect 真机触发（B1）；零日志负例；C1–C5/G14–G17 不受扰动复测 | issue #7 |
 | 三 OS 服务操作真 OS E2E（issue #7） | 授权 Linux/原生 Windows/macOS SSH 主机：真实 exec 发现、install/start/upgrade/replace 全链路、真实回滚、Windows DefaultShell 非 cmd 变体、macOS nohup 与 Windows start /b detach 存活、bash=WSL 诱饵负例（N2） | issue #7 |
-| APK 打包（issue #7 精确化） | jsch+bcprov `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复：需 build.gradle.kts packaging 排除块（计划零改动清单内，待用户决策）；compileDebugKotlin/dex 已 PASS | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露） |
+| ~~APK 打包（issue #7 精确化）~~ 已随 v0.1.0 解决（同上一行：packaging 排除块 + ignoreAssets `<dir>_*` 订正；assembleDebug PASS，v0.1.0 tag 构建） | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露） |
 | G19 projects-sessions 运行期门禁（issue #8 新设门禁） | 真机/模拟器 + 授权远程服务：单窗口切换保持（tabs/草稿/滚动/导航栈）、同名项目隔离、空项目空态、错误恢复（stale ID/不可达路径/失败变更）、归档反馈（M-017：行消失/tab 关闭/失败 toast/服务端 `time.archived` 过滤）、**M-018 入口在 multiple() 布局可达且不弹回 general**、`addProjects` 静默疑点核对（缺陷成立追加 M-019）；完整清单见 [design/interaction.md](design/interaction.md) G19 行。V2/dist/静态探针对以上运行时行为无证明力，勿以构建级证据替代 | issue #8 |
 | 双路由 lifecycle E2E（issue #8） | SSH/直连各完整一遍：选项目→建会话→fork→重命名→归档→切换→错误恢复；依赖授权远程服务与真机（可随 G19 一并执行） | issue #8 |
 | `test-browser/session-resolution.test.ts` | 需浏览器环境（happy-dom 不覆盖其断言面）；stale session ID 的浏览器级回归 | issue #8（沿用上游既有测试文件） |
