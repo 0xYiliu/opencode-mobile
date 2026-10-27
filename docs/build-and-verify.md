@@ -43,7 +43,7 @@
 | 分层闭包与 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-027，`DANGLING=0` |
 | 上游路由/连接单测 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/routes/connection-route.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts`（含测试期绝对路径 seam） | PASS：14 tests / 0 fail / 56 expect() |
 | 第一方移动包回归 | `bun test --conditions=browser packages/mobile-hosts` | PASS：371 tests / 0 fail / 2649 expect() |
-| Web 构建 | `bun run build:web` | PASS：构建完成（11.99s）；随后 `bash scripts/copy-web-dist.sh` PASS：3482 文件 / 153445727 字节 |
+| Web 构建（当前 M-027 基线） | `bun run build:web` | PASS：构建完成（11.99s）；随后 `bash scripts/copy-web-dist.sh` PASS：当前 `web-dist/manifest.json` 基线为 **3482 文件 / 153445727 字节**（M-026 的 3480/153441733 保留为历史记录） |
 | Android APK | `cd android && ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle :app:assembleDebug` | PASS：`android/app/build/outputs/apk/debug/app-debug.apk`；SHA-256 `f78f1a34cc8d6d0fdae77eed53317229c126a3187ded07be72390f77efc4fd1e`；62,553,620 bytes |
 | MatePad 安装与初始入口冒烟 | `adb -s 192.168.3.145:5555 install -r .../app-debug.apk`；清数据、启动、UI dump；MatePad `HUAWEI DBY2-AL00` / Android 12 | PASS：安装 Success；初始页显示 `SSH hosts`；点击后显示 `SSH hosts`、`Add host`、`No SSH hosts yet...`、`Service port (remote OpenCode service)` |
 | G36 完整设备门禁 | MatePad 上添加/编辑/连接、未知/变更 host key、SSH 失败恢复、Pair/QR/password 全矩阵 | BLOCKED：本次只验证入口和空态管理面；SSH 真服务/host-key 全链未执行 |
