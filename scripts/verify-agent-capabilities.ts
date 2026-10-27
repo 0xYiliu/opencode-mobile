@@ -93,8 +93,8 @@
 //      statusLabels literal + pending-disabled Switch, and the en+zh i18n
 //      pairing counts (settings.extensions 7=7, mcp.status 4/4, dialog.mcp
 //      3/3, session.summary.mcp 4/4, project.settings.extensions 20/20) with
-//      the HONEST gap: settings.guiExtensions.* en=8 / zh=0 (desktop+DEV-only
-//      face, no runtime impact on mobile — asserted as-is).
+//      settings.guiExtensions.* at 9/9 (issue #26 revised the en=8/zh=0 honest gap to a
+//      full en/zh pairing — deliberate revision, NOT a bypass).
 //   6. Config write boundary: the sync.tsx updateConfig stub (verbatim TODO
 //      + throw — the client cannot edit server opencode.json), the
 //      "Manage in opencode.json" copy, the THREE zero-call negatives with
@@ -375,14 +375,17 @@ let mhFiles = 0
     const got = specifiers.get(key) ?? -1
     if (got !== count) fail(`3: the @opencode/gui-extensions specifier set changed: "${key || "sdk(root)"}" expected ${count}, got ${got}`)
   }
-  // ④ settings entry double gate (DEV-only lazy + desktop-only + guard).
+  // ④ settings entry double gate (DEV-only lazy + desktop-only + guard). Issue #26
+  // revision (deliberate, NOT a bypass): the redirect guard gained the !mobileGuiExtensions
+  // term — on non-desktop builds the tab is taken by the first-party manager (M-026);
+  // the DEV-only lazy gate and the desktop-only upstream gate lines are UNTOUCHED.
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
   if (!shell.includes("constGuiExtensionsSettings=import.meta.env.DEV"))
     fail("3: the gui-extensions settings DEV-only lazy gate moved")
   if (!shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
     fail("3: the gui-extensions settings desktop-only gate moved")
-  if (!shell.includes('if(view.tab==="gui-extensions"&&!guiExtensions)surface.open("general")'))
-    fail("3: the gui-extensions redirect guard moved")
+  if (!shell.includes('if(view.tab==="gui-extensions"&&!guiExtensions&&!mobileGuiExtensions)surface.open("general")'))
+    fail("3: the gui-extensions redirect guard moved (issue #26 revised shape: !guiExtensions && !mobileGuiExtensions)")
   // Anti-overclaim: renderer side DOES run on web (os filter + bridge-less
   // inertness), and the details mobile drawer chain stays in place.
   const root = squash(await read(`${APP}src/runtime/extension/root.tsx`))
@@ -515,11 +518,15 @@ let mhFiles = 0
   assertPair("dialog.mcp", 3)
   assertPair("session.summary.mcp", 4)
   assertPair("project.settings.extensions", 20)
-  // Honest zh gap: the desktop+DEV-only gui-extensions settings face.
+  // Issue #26 revision (deliberate, NOT a bypass): the en8/zh0 honest gap CLOSED —
+  // M-026 added settings.guiExtensions.mobile.description to en (8->9) and the full
+  // nine-key block to zh (0->9); both counts now assert 9 with full key-set pairing.
   const guiExtEn = keySet(en, "settings.guiExtensions")
   const guiExtZh = keySet(zh, "settings.guiExtensions")
-  if (guiExtEn.size !== 8) fail(`5: settings.guiExtensions.* en key count ${guiExtEn.size} ≠ 8`)
-  if (guiExtZh.size !== 0) fail(`5: settings.guiExtensions.* zh key count ${guiExtZh.size} ≠ 0 (the registered honest gap moved — re-check the unit doc)`)
+  if (guiExtEn.size !== 9) fail(`5: settings.guiExtensions.* en key count ${guiExtEn.size} ≠ 9`)
+  if (guiExtZh.size !== 9) fail(`5: settings.guiExtensions.* zh key count ${guiExtZh.size} ≠ 9 (issue #26 aligned zh with en — the registered honest gap closed)`)
+  for (const key of guiExtEn) if (!guiExtZh.has(key)) fail(`5: settings.guiExtensions.${key} missing in zh`)
+  for (const key of guiExtZh) if (!guiExtEn.has(key)) fail(`5: settings.guiExtensions.${key} missing in en`)
   // Server-side presentation copy (verbatim en values).
   if (!en.includes("Manage extensions available on this server")) fail("5: the extensions description copy moved (verbatim)")
   if (!en.includes("Manage in opencode.json")) fail("5: the manageConfig copy moved (verbatim)")

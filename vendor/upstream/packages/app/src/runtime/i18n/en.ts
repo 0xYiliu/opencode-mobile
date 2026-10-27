@@ -707,6 +707,9 @@ export const dict = {
   "settings.guiExtensions.status.failed": "Failed",
   "settings.guiExtensions.status.disabled": "Disabled",
   "settings.guiExtensions.status.blocked": "Blocked",
+  // mobile(M-026): the first-party manager face on non-desktop builds (issue #26).
+  "settings.guiExtensions.mobile.description":
+    "Built-in GUI extensions of this app. Turn one off to hide its panels here; the remote server keeps working.",
   "settings.tab.about": "About",
   "settings.about.version": "Version {{version}}",
   "settings.about.devVersion": "development",

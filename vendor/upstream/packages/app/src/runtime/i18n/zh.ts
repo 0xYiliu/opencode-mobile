@@ -571,6 +571,17 @@ export const dict = {
   "settings.general.notifications.android.granted": "已获得 Android 通知权限",
   "settings.general.notifications.android.denied": "Android 通知权限被拒绝——应用内声音与徽标仍然可用",
   "settings.general.notifications.android.unavailable": "此环境不支持系统通知——应用内提示仍然可用",
+  // mobile(M-026)：非桌面构建的第一方 GUI 扩展管理面（issue #26）——上游八键的中文对齐 + 移动描述。
+  "settings.guiExtensions.title": "扩展",
+  "settings.guiExtensions.description": "本窗口的内建 GUI 扩展。仅开发构建可用。",
+  "settings.guiExtensions.reload": "重新加载",
+  "settings.guiExtensions.status.loading": "加载中",
+  "settings.guiExtensions.status.active": "活跃",
+  "settings.guiExtensions.status.failed": "失败",
+  "settings.guiExtensions.status.disabled": "已禁用",
+  "settings.guiExtensions.status.blocked": "被阻断",
+  "settings.guiExtensions.mobile.description":
+    "本应用的内建 GUI 扩展。关闭某个扩展会隐藏其在本设备上的面板；远程服务器不受影响。",
   "settings.general.sounds.agent.title": "智能体",
   "settings.general.sounds.agent.description": "当智能体完成或需要注意时播放声音",
   "settings.general.sounds.permissions.title": "权限",

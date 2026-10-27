@@ -285,6 +285,32 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; the new i18n keys present in the built language chunks; scripts/verify-notifications.ts group 5 (switch onChange wiring + user-in-foreground-only anchor); device behavior BLOCKED (G33 item 5).",
       "rebase": "New patch (issue #23); rebase targets are the SettingsNotifications component body (switch onChange handlers + the android permission status row) of packages/app/src/settings/notifications/notifications.tsx and the settings.general.notifications i18n region of en.ts/zh.ts (en.ts is on its fifth patch: M-009/M-013/M-018/M-024 - the region anchor sits after the errors.description key)."
+    },
+    {
+      "id": "M-025",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0024-M-025-root-disabled-merge.patch",
+      "targets": [
+        "packages/app/src/runtime/extension/root.tsx"
+      ],
+      "reason": "GUI extension disable-record union (issue #26). The disabled memo unions the desktop enable rows (extensionEnabled over installed.enableState(), the original fold unchanged) with the first-party device-local records (opencode-mobile.guiext.v1, packages/mobile-hosts/src/extensions/manager.ts), filtered to the CURRENT definition id set so ids unknown after an upstream rename self-heal away. The mobile settings manager (M-026) writes the records through the same shell-wide instance; the host watcher reacts to the merged set and deactivates/activates in the same frame. Desktop builds never render the mobile face and carry no such records - the union is empty there and behavior is unchanged (M-018 spillover precedent). The early-exit (`if (!state) return undefined`) is preserved verbatim: before the initial resource resolves neither the desktop rows nor the mobile records apply, matching today's web startup behavior. The VAC-anchored root.tsx faces (os gate, builtins OS filter, ipc bridge conditional, .ocdx comment) are untouched - the hunk sits in the disabled-memo domain.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-gui-extensions.ts group 4 (import anchor, createExtensionDisabled anchor, union+definitions-filter anchor, mobile(M-025) markers); packages/mobile-hosts/test/extension-manager.test.ts locks the record layer; scripts/verify-agent-capabilities.ts group 3 root.tsx anchors unchanged; device behavior BLOCKED (G35).",
+      "rebase": "New patch (issue #26); rebase target is the disabled createMemo in packages/app/src/runtime/extension/root.tsx (the union block after the extensionEnabled fold; the import block gains the first-party seam import)."
+    },
+    {
+      "id": "M-026",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Mobile settings face for GUI extensions (issue #26). shell.tsx gains one predicate line (mobileGuiExtensions = platform.platform !== \"desktop\" - the upstream guiExtensions gate line is UNTOUCHED), the redirect guard bounces the tab only where NEITHER face is mounted, the nav group opens for either face, and a second Tabs.Content branch lazily mounts the first-party ExtensionManager wrapper (useExtensionHost feeds definitions/status/failures/reload as props; the shared package never imports app internals). Mutual exclusion is structural: guiExtensions implies desktop, mobileGuiExtensions implies not - desktop behavior is unchanged (DEV face intact, prod redirect intact). i18n: en gains settings.guiExtensions.mobile.description (8->9); zh gains the full nine-key block (0->9) - the previously registered honest en8/zh0 gap closes. M-009/M-013/M-018/M-024 three-file patch precedent.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered (LAYERED round-trip: applies to pin+M-001..M-024 and byte-reproduces the implementation tree); bun run build:web rc=0 with the new keys in the built language chunks; scripts/verify-gui-extensions.ts group 4 (mobileGuiExtensions line, revised guard, nav condition, mount branch, M-008/M-018 hunks untouched) and scripts/verify-agent-capabilities.ts group 5 revised counts (9/9 - deliberate revision, issue #26); device behavior BLOCKED (G35).",
+      "rebase": "New patch (issue #26); LAYERED patch - generated against pin b4525d79bf + M-001..M-024 (shell.tsx already rewritten by M-008/M-018; en.ts on its sixth touch M-009/M-013/M-018/M-024/M-026, zh.ts fifth), round-trip verified on that base; rebase targets are the mobileGuiExtensions predicate line after the guiExtensions gate, the gui-extensions guard line, the nav-group conditional and the second gui-extensions Tabs.Content branch in packages/app/src/settings/shell.tsx, plus the settings.guiExtensions i18n region of en.ts/zh.ts (en anchor after status.blocked; zh anchor after the M-024 android notifications block)."
     }
   ]
 }

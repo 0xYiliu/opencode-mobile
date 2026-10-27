@@ -531,11 +531,14 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     fail("8: build.gradle.kts gained an androidx dependency (the zero-androidx constraint)")
 
   // Dist baseline (V2-produced; the cross-document numbers' authoritative source).
+  // Issue #26 revision (deliberate, NOT a bypass): the issue #26 build inputs (M-025/M-026
+  // vendored hunks + the mobile-hosts manager modules) changed the byte count — the
+  // baseline was re-recorded from web-dist/manifest.json after V2.
   const distManifest = await read(DIST_MANIFEST)
   if (!distManifest.includes('"fileCount": 3480'))
     fail("8: web-dist/manifest.json fileCount drifted from the recorded 3480 baseline (a rebuild changed the count — refresh the cross-document numbers first)")
-  if (!distManifest.includes('"totalBytes": 153407024'))
-    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153407024 baseline (refresh the cross-document numbers first)")
+  if (!distManifest.includes('"totalBytes": 153441733'))
+    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153441733 baseline (issue #26 re-recorded it after its build-input changes; refresh the cross-document numbers first)")
 
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname

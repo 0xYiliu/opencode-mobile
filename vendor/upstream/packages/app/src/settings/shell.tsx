@@ -48,6 +48,8 @@ import { settingsViewRedirect } from "./route"
 import { pageIcons } from "./pages"
 import { revealSettingsSearch } from "./search-reveal"
 import { ExtensionSettingsPages } from "@/runtime/extension/settings-page-view"
+// mobile(M-026): the extension host handle for the first-party GUI extension manager.
+import { useExtensionHost } from "@/runtime/extension/host"
 import "@/settings/settings.css"
 
 const GuiExtensionsSettings = import.meta.env.DEV
@@ -60,6 +62,28 @@ const GuiExtensionsSettings = import.meta.env.DEV
 const MobileHostManager = lazy(() =>
   import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
 )
+
+// mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
+// "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
+// props (the shared package never imports app internals).
+const ExtensionManager = lazy(() =>
+  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.ExtensionManager })),
+)
+
+function MobileExtensionManager() {
+  const host = useExtensionHost()
+
+  return (
+    <Suspense>
+      <ExtensionManager
+        definitions={host.definitions()}
+        statusOf={(id) => host.state.status[id]}
+        failureOf={(id) => host.state.failures[id]?.error}
+        onReload={(id) => host.reload(id)}
+      />
+    </Suspense>
+  )
+}
 
 const rootClientTabs = [
   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
@@ -273,6 +297,10 @@ function RootSettings() {
   const sourceDirectory = useSettingsDirectory(sourceServer)
   // Development builds list the built-in GUI extensions of this window.
   const guiExtensions = !!GuiExtensionsSettings && platform.platform === "desktop"
+  // mobile(M-026): non-desktop builds mount the first-party GUI extension manager (issue
+  // #26) on the same tab — the upstream DEV+desktop face above stays untouched, so desktop
+  // behavior is unchanged.
+  const mobileGuiExtensions = platform.platform !== "desktop"
   createEffect(() => {
     const view = surface.view()
 
@@ -280,7 +308,9 @@ function RootSettings() {
 
     if (view.tab === "experimental" && !experimentalSettingsAvailable) surface.open("general")
 
-    if (view.tab === "gui-extensions" && !guiExtensions) surface.open("general")
+    // mobile(M-026): the guard only bounces the tab where NEITHER face is mounted — on
+    // non-desktop builds the first-party manager takes the tab.
+    if (view.tab === "gui-extensions" && !guiExtensions && !mobileGuiExtensions) surface.open("general")
   })
 
   const addServer = () =>
@@ -332,7 +362,9 @@ function RootSettings() {
     ...(experimentalSettingsAvailable
       ? [{ items: experimentalTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
       : []),
-    ...(guiExtensions ? [{ items: guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) }] : []),
+    ...((guiExtensions || mobileGuiExtensions)
+      ? [{ items: guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
+      : []),
     { items: aboutTab.map((item) => ({ ...item, label: language.t(item.label) })) },
   ])
 
@@ -388,6 +420,17 @@ function RootSettings() {
         <Tabs.Content value="gui-extensions" class="settings-panel">
           <Suspense>
             <GuiExtensionsSettings />
+          </Suspense>
+        </Tabs.Content>
+      )}
+      {/* mobile(M-026): the first-party GUI extension manager on non-desktop builds — the
+          disable records feed root.tsx's disabled union (M-025). Mutual exclusion with the
+          upstream branch is structural: guiExtensions implies desktop, mobileGuiExtensions
+          implies not desktop. */}
+      {!guiExtensions && mobileGuiExtensions && (
+        <Tabs.Content value="gui-extensions" class="settings-panel">
+          <Suspense>
+            <MobileExtensionManager />
           </Suspense>
         </Tabs.Content>
       )}

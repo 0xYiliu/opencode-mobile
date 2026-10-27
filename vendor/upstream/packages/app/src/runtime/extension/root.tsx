@@ -1,6 +1,8 @@
 import { createMemo, lazy, onCleanup, Show, Suspense, type ParentProps } from "solid-js"
 import { extensionEnabled } from "@opencode/gui-extensions/sdk/bridge"
 import type { Definition } from "@opencode/gui-extensions/sdk"
+// mobile(M-025): the first-party mobile disable records feed the disabled union below.
+import { createExtensionDisabled } from "@opencode-mobile/mobile-hosts"
 import { builtins } from "./builtins"
 import { createInstalled } from "./installed"
 import { createMenubarItems, MenubarItemsProvider } from "./menubar-items"
@@ -35,6 +37,10 @@ export function ExtensionRoot(props: ParentProps) {
   const ipcs = createIpcClients(bridge)
   onCleanup(ipcs.dispose)
   const installed = createInstalled(bridge)
+  // mobile(M-025): one shell-wide record instance; the settings manager UI reads the same.
+  // WebView localStorage is the persistence candidate (M-007 shape); safeStorage degrades
+  // to memory and reports volatile when persistence is unavailable.
+  const mobileDisabled = createExtensionDisabled(window.localStorage)
 
   const os = platform.platform === "desktop" ? platform.os : undefined
 
@@ -49,7 +55,14 @@ export function ExtensionRoot(props: ParentProps) {
 
     if (!state) return undefined
 
-    return new Set(definitions.flatMap((definition) => (extensionEnabled(definition, state) ? [] : [definition.id])))
+    // mobile(M-025): union the desktop enable rows with the device-local mobile records,
+    // filtered to the current definitions so ids unknown after a rename self-heal away.
+    // Desktop builds never render the mobile face and carry no such records — the union is
+    // empty there and behavior is unchanged (M-018 spillover precedent).
+    const ids = new Set(definitions.map((definition) => definition.id))
+    const merged = new Set(definitions.flatMap((definition) => (extensionEnabled(definition, state) ? [] : [definition.id])))
+    for (const id of mobileDisabled.ids()) if (ids.has(id)) merged.add(id)
+    return merged
   })
 
   const failed = (id: string) => installed.list().some((item) => item.id === id && item.error !== undefined)
