@@ -65,7 +65,10 @@
     "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
     "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
-    "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch"
+    "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
+    "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
+    "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
+    "patches/mobile/0023-M-024-settings-android-permission-face.patch"
   ],
   "excluded": {
     "packages": [

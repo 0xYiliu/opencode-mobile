@@ -247,6 +247,44 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist marker mobile(M-021) (marker property inside the patched branch) found in the built assets; scripts/verify-attachments-artifacts.ts (data:-only branch guard + getFilename same-source name anchor + file:// branch zero-diff adjacent anchors); device share-sheet behavior BLOCKED (G27 item 5).",
       "rebase": "New patch (issue #16); rebase target is the openAttachment function of packages/app/src/session/composer/region.tsx (single hunk: the data: branch inserted between the download() closure and the absolute-path reveal logic; the import block gains the first-party seam import)."
+    },
+    {
+      "id": "M-022",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Notifications bridge wiring (issue #23). The entry creates the SIXTH protocol-isolated sibling transport over the notifications handshake (opencode-mobile-notifications-handshake) and registers the bridge-backed client through the module-level notifications seam (setActiveNotificationsPort) - the createMobileHosts option contract stays unchanged (the M-016/M-020 registration shape). Before the native ack the notifications port stays a fail-closed stub: notify answers {posted:false, code:'unavailable'} - the exact pre-issue state, because the Web Notification API behind platform.notify is a structural dead point in the Android WebView. The bridge is notification-ONLY (op whitelist {notify, requestPermission}, no reply/cancel/interrupt face), so a notification can never approve a permission or stop a task.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist markers mobile(M-022)/mobile(notifications-v1)/opencode-mobile-notifications-handshake (marker constants) found in the built assets; scripts/verify-notifications.ts (entry seam registration + six-handshake pairwise isolation); mobile-hosts test/notifications-client.test.ts locks the stub semantics; device behavior BLOCKED (G33).",
+      "rebase": "New patch (issue #23); LAYERED patch - generated against pin b4525d79bf + M-001..M-021 (entry.tsx already rewritten by M-007/M-014/M-015/M-016/M-020), round-trip verified on that base; rebase target is the mobile(M-020) files registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new notifications block sits directly above the createMobileHosts call)."
+    },
+    {
+      "id": "M-023",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
+      "targets": [
+        "packages/app/src/shell/notifications/notification.tsx"
+      ],
+      "reason": "Notification delivery reroute + the permission notification face (issue #23). (1) The two system-notification call faces in handleSessionIdle/handleSessionError move from platform.notify (whose Web Notification API implementation is a structural dead point in the Android WebView; its title/description/onClick signature also cannot carry the category and tap route) to activeNotificationsPort().notify({category, title, body, route: sessionHref(input.key, sessionID)}) - the coordinator.system wrapper is UNCHANGED (event dedup + the JS front-focus suppression stay first-layer); the route is built at the only scope that knows the server key + sessionID (the onClick closure could not cross the bridge - the native side constructs the tap navigation from the route). (2) A FOURTH event listener (handlePermissionAsked) completes the upstream dead switch: the settings toggle, the sound setting and the i18n key shipped with ZERO runtime trigger in the closure; the guard chain mirrors the agent/error branches plus the auto-approve guard (project-avatar-state precedent) so a project whose requests are auto-approved NEVER notifies - the approval wire-level call sites (auto-approve + dock decide) and this face stay double-touch free. The permission payload (action/resources/message) is deliberately NOT consumed - only the session title crosses into the body; the face has no reply/cancel action (tap navigates to the session's permission dock). i18n/settings keys are all pre-existing - zero new keys in this patch.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-notifications.ts groups 1/2/4 (upstream face anchors, permission dead-switch completion set, safety negatives: zero .reply( in the notification domain, zero addAction in the bridge); approval-path exhaustion stays exactly two wire-level call sites (verify-permission-requests); device behavior BLOCKED (G33).",
+      "rebase": "New patch (issue #23); rebase target is the handleSessionIdle/handleSessionError system-notification branches, the event.listen dispatch block and the import block of packages/app/src/shell/notifications/notification.tsx (single file, additive fourth listener + two delivery-face rewrites)."
+    },
+    {
+      "id": "M-024",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0023-M-024-settings-android-permission-face.patch",
+      "targets": [
+        "packages/app/src/settings/notifications/notifications.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Android POST_NOTIFICATIONS request face (issue #23). Turning a notification switch ON is the user-in-foreground moment: the settings face calls the bridge requestPermission op, whose NATIVE side enforces the platform conditions - API < 33 or already granted answers {granted:true} without a dialog; a request arriving without window focus answers {granted:false, code:'foreground'} and NEVER opens a dialog (the platform does not allow background permission prompts and the shell never tries). Every outcome (granted / denied / bridge unavailable) surfaces in an explicit status row (settings.general.notifications.android.* keys, en+zh, missing-key fallback to en is the in-registry mechanism); a denial degrades to the in-app faces only (no retry loop, no fabricated success). M-009/M-013/M-018 three-file patch precedent.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; the new i18n keys present in the built language chunks; scripts/verify-notifications.ts group 5 (switch onChange wiring + user-in-foreground-only anchor); device behavior BLOCKED (G33 item 5).",
+      "rebase": "New patch (issue #23); rebase targets are the SettingsNotifications component body (switch onChange handlers + the android permission status row) of packages/app/src/settings/notifications/notifications.tsx and the settings.general.notifications i18n region of en.ts/zh.ts (en.ts is on its fifth patch: M-009/M-013/M-018/M-024 - the region anchor sits after the errors.description key)."
     }
   ]
 }
