@@ -309,3 +309,27 @@ export {
   type NotificationsPort,
   type PermissionOutcome,
 } from "./notifications/client"
+// issue #26: GUI extension management — device-local disable records (`guiext.v1`) and the
+// settings manager face. The reactive records instance is created once by the vendored shell
+// bootstrap (root.tsx, M-025) and read by the manager UI through the shared accessor; the
+// pure parse/normalize/merge layer is exported separately for the unit tests.
+export {
+  GUIEXT_STORAGE_KEY,
+  createExtensionDisabled,
+  createExtensionDisabledStore,
+  isValidExtensionId,
+  loadGuiext,
+  mergeDisabledRecords,
+  normalizeGuiextPayload,
+  parseGuiext,
+  saveGuiext,
+  sharedExtensionDisabled,
+  type ExtensionDisabled,
+  type GuiextPayload,
+} from "./extensions/manager"
+export {
+  capabilityOf,
+  ExtensionManager,
+  type ExtensionCapability,
+  type ExtensionManagerProps,
+} from "./ui/extension-manager"

@@ -531,11 +531,14 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     fail("8: build.gradle.kts gained an androidx dependency (the zero-androidx constraint)")
 
   // Dist baseline (V2-produced; the cross-document numbers' authoritative source).
+  // Issue #26 revision (deliberate, NOT a bypass): the issue #26 build inputs (M-025/M-026
+  // vendored hunks + the mobile-hosts manager modules) changed the byte count — the
+  // baseline was re-recorded from web-dist/manifest.json after V2.
   const distManifest = await read(DIST_MANIFEST)
   if (!distManifest.includes('"fileCount": 3480'))
     fail("8: web-dist/manifest.json fileCount drifted from the recorded 3480 baseline (a rebuild changed the count — refresh the cross-document numbers first)")
-  if (!distManifest.includes('"totalBytes": 153407024'))
-    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153407024 baseline (refresh the cross-document numbers first)")
+  if (!distManifest.includes('"totalBytes": 153441733'))
+    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153441733 baseline (issue #26 re-recorded it after its build-input changes; refresh the cross-document numbers first)")
 
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
@@ -597,12 +600,13 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   }
 
   const interaction = await read("docs/design/interaction.md")
-  // Issue #24 revision (deliberate, NOT a bypass): the enumeration-title anchor moved
-  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended to interaction.md —
+  // Issue #24/#26 revisions (deliberate, NOT a bypass): the enumeration-title anchor moved
+  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended, and
+  // G1–G34 -> G1–G35 when the issue #26 G35 gate row was appended to interaction.md —
   // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
   // preserved.
-  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
-    fail("9: interaction.md gate enumeration must cover G1–G34")
+  if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
+    fail("9: interaction.md gate enumeration must cover G1–G35")
   if (!interaction.includes("| G33 通知运行期门禁（issue #23 **新设门禁**）"))
     fail("9: interaction.md lost the G33 gate row")
   if (!interaction.includes("第十九处落字（issue #23）"))
@@ -638,7 +642,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3480/153407024) + staged dist markers; " +
-    "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G34 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
+    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3480/153441733, issue #26 re-recorded) + staged dist markers; " +
+    "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )

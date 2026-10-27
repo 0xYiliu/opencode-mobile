@@ -29,10 +29,11 @@
 //      exported=false + grantUriPermissions=true).
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
-//      M-020/M-021 with the upstream pin (23 patches total — issue #23 revised the count
-//      sentinel 20 -> 23 when M-022/M-023/M-024 registered; every registration carries
-//      exactly one upstreamBaseline field, so count == registration count and any drift
-//      still fails); dist markers
+//      M-020/M-021 with the upstream pin (25 patches total — issue #23 revised the count
+//      sentinel 20 -> 23 when M-022/M-023/M-024 registered; issue #26 revised 23 -> 25
+//      when M-025/M-026 registered — deliberate revision, NOT a bypass; every registration
+//      carries exactly one upstreamBaseline field, so count == registration count and any
+//      drift still fails); dist markers
 //      (opencode-mobile-files-handshake / mobile(files-v1) / mobile(M-020) / mobile(M-021))
 //      are present in the built assets when a dist exists.
 //   7. No-leak negatives: the new-face sources (mobile-hosts files module + shell files
@@ -338,10 +339,11 @@ let distAssetCount = 0
   if (!patchManifest.includes('"id": "M-020"') || !patchManifest.includes('"id": "M-021"'))
     fail("6: the patch manifest lost the M-020/M-021 registrations")
   // Issue #23 revision (deliberate, NOT a bypass): 20 -> 23 when M-022/M-023/M-024
+  // registered. Issue #26 revision (deliberate, NOT a bypass): 23 -> 25 when M-025/M-026
   // registered (every registration carries exactly one upstreamBaseline field, so the
   // count equals the registration count; any unregistered/extra registration still fails).
-  if ((patchManifest.match(/upstreamBaseline/g) ?? []).length !== 23)
-    fail("6: the patch manifest must register exactly 23 patches with the upstream baseline")
+  if ((patchManifest.match(/upstreamBaseline/g) ?? []).length !== 25)
+    fail("6: the patch manifest must register exactly 25 patches with the upstream baseline")
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
@@ -422,7 +424,7 @@ console.log(
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-    "6: five handshakes pairwise distinct, M-020/M-021 registered (23 patches, pin baseline — issue #23 revised the count sentinel 20→23)" +
+    "6: five handshakes pairwise distinct, M-020/M-021 registered (25 patches, pin baseline — issue #23 revised the count sentinel 20→23; issue #26 revised 23→25, deliberate NOT a bypass)" +
     (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +

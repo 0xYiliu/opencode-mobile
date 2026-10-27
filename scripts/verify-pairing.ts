@@ -99,8 +99,9 @@
 //      section with its eight subsection headings and the key sentences
 //      (zero-passive-import / LAN cleartext unsupported / scan unsupported /
 //      add-face ref split / three red lines), interaction.md G32 row +
-//      G1–G34 title (issue #23 revised the G1–G32 anchor when G33 was added,
-//      issue #24 revised G1–G33 -> G1–G34 when G34 was added
+//      G1–G35 title (issue #23 revised the G1–G32 anchor when G33 was added,
+//      issue #24 revised G1–G33 -> G1–G34 when G34 was added, issue #26
+//      revised G1–G34 -> G1–G35 when G35 was added
 //      — coverage semantics preserved) + eighteenth honest wording + pairing
 //      failure-path subsection + :151 face qualification, architecture.md
 //      connection row, design README.md index row + baseline sentence.
@@ -506,13 +507,14 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   }
 
   const interaction = await read("docs/design/interaction.md")
-  // Issue #23/#24 revisions (deliberate, NOT a bypass): the enumeration-title anchor
-  // moved G1–G32 -> G1–G33 when the issue #23 G33 gate row was appended, and
-  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended to interaction.md —
+  // Issue #23/#24/#26 revisions (deliberate, NOT a bypass): the enumeration-title anchor
+  // moved G1–G32 -> G1–G33 when the issue #23 G33 gate row was appended,
+  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended, and
+  // G1–G34 -> G1–G35 when the issue #26 G35 gate row was appended to interaction.md —
   // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
   // preserved.
-  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
-    fail("8: interaction.md gate enumeration must cover G1–G34")
+  if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
+    fail("8: interaction.md gate enumeration must cover G1–G35")
   if (!interaction.includes("| G32 配对/链接导入运行期门禁（issue #22"))
     fail("8: interaction.md lost the G32 gate row")
   if (!interaction.includes("第十八处落字（issue #22）"))
@@ -547,6 +549,6 @@ console.log(
     "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + M-002 and rows-6/11 cross-references; " +
     "6: NEGATIVE zero CAMERA permission + exactly-2 uses-permission (INTERNET + POST_NOTIFICATIONS, issue #23; any third still fails) + zero onPermissionRequest (drift sentinels) + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
     "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen ref-drop reality pair ({ ...existing, http } + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
-    "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G34 enumeration (issue #24 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
+    "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G35 enumeration (issue #26 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
     "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref passthrough vs drop on re-pairing, cancel/cold/hot-start behavior and dual-route pass are G32)",
 )

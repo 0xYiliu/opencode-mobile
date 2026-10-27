@@ -68,7 +68,9 @@
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
     "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
     "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
-    "patches/mobile/0023-M-024-settings-android-permission-face.patch"
+    "patches/mobile/0023-M-024-settings-android-permission-face.patch",
+    "patches/mobile/0024-M-025-root-disabled-merge.patch",
+    "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch"
   ],
   "excluded": {
     "packages": [

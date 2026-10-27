@@ -212,6 +212,21 @@ export const messages = {
     "svcops.error.backup-failed": "The backup step failed. The replace plan aborted before changing the service.",
     "svcops.error.rollback-failed": "The rollback failed. The output tail below shows what happened; nothing was deleted.",
     "svcops.error.rollback-available": "A rollback entry is available.",
+    // issue #26: GUI extension manager (self-contained keys, host-manager precedent —
+    // deliberately not wired into the upstream i18n provider).
+    "guiext.title": "GUI extensions",
+    "guiext.description":
+      "Built-in extensions of this app. Turning one off hides its panels on this device; the remote server and its tasks keep working.",
+    "guiext.status.loading": "Loading",
+    "guiext.status.active": "Active",
+    "guiext.status.failed": "Failed",
+    "guiext.status.disabled": "Disabled",
+    "guiext.status.blocked": "Blocked",
+    "guiext.reload": "Reload",
+    "guiext.capability.web": "Runs on this device",
+    "guiext.capability.desktopHost": "Desktop only",
+    "guiext.desktopHostHint": "Its main process runs in the desktop app; this device presents no surface for it.",
+    "guiext.volatile": "Persistent storage is unavailable: disabled extensions re-enable after this session.",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -413,6 +428,19 @@ export const messages = {
     "svcops.error.backup-failed": "备份步骤失败。替换计划在改动服务之前已中止。",
     "svcops.error.rollback-failed": "回滚失败。下方输出尾部展示所发生的情况；未删除任何内容。",
     "svcops.error.rollback-available": "有可用的回滚入口。",
+    // issue #26：GUI 扩展管理面（第一方自包含键，host-manager 先例——不接入上游 i18n provider）。
+    "guiext.title": "GUI 扩展",
+    "guiext.description": "本应用的内建扩展。关闭某个扩展会隐藏其在本设备上的面板；远程服务器与其任务不受影响。",
+    "guiext.status.loading": "加载中",
+    "guiext.status.active": "活跃",
+    "guiext.status.failed": "失败",
+    "guiext.status.disabled": "已禁用",
+    "guiext.status.blocked": "被阻断",
+    "guiext.reload": "重新加载",
+    "guiext.capability.web": "在本设备运行",
+    "guiext.capability.desktopHost": "仅桌面",
+    "guiext.desktopHostHint": "其主进程运行在桌面应用中；本设备不提供它的界面。",
+    "guiext.volatile": "持久存储不可用：被禁用的扩展将在本会话结束后恢复启用。",
   },
 } as const
 

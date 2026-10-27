@@ -87,9 +87,10 @@
 //      authority declaration and the four honest-state sentences (back key =
 //      ends the Activity with the same-window-navigation CLASS exception /
 //      command palette keybind-only / rotation = Activity rebuild / touch
-//      target gaps on record); interaction.md carries the G1–G34 enumeration
+//      target gaps on record); interaction.md carries the G1–G35 enumeration
 //      (issue #23 revised the G1–G31 title anchor when G33 was added, issue #24
-//      revised G1–G33 -> G1–G34 when G34 was added — coverage semantics preserved),
+//      revised G1–G33 -> G1–G34 when G34 was added, issue #26 revised
+//      G1–G34 -> G1–G35 when G35 was added — coverage semantics preserved),
 //      the G31 gate row, the seventeenth honest wording, the back-key
 //      real-state baseline sentence and the issue #20 failure-path
 //      subsection; recovery.md carries the user-preferences row; README.md
@@ -543,13 +544,14 @@ function walk(dir: string, out: string[] = []): string[] {
   }
 
   const interaction = await read("docs/design/interaction.md")
-  // Issue #23/#24 revisions (deliberate, NOT a bypass): the enumeration-title anchor
-  // moved G1–G31 -> G1–G33 when the issue #23 G33 gate row was appended, and
-  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended to interaction.md —
+  // Issue #23/#24/#26 revisions (deliberate, NOT a bypass): the enumeration-title anchor
+  // moved G1–G31 -> G1–G33 when the issue #23 G33 gate row was appended,
+  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended, and
+  // G1–G34 -> G1–G35 when the issue #26 G35 gate row was appended to interaction.md —
   // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
   // preserved.
-  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
-    fail("8: interaction.md gate enumeration must cover G1–G34")
+  if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
+    fail("8: interaction.md gate enumeration must cover G1–G35")
   if (!interaction.includes("| G31 移动交互质量 walkthrough 门禁（issue #20"))
     fail("8: interaction.md lost the G31 gate row")
   if (!interaction.includes("第十七处落字（issue #20）"))
@@ -579,6 +581,6 @@ console.log(
     "5: DEFAULT_PALETTE_KEYBIND + three hidden command.palette registrations + slash set equality (8-key + 3-key files, undo/redo pair CROSS-REFERENCE verify-diff group 3) + GLOBAL sentinel exactly 11 registrations in exactly 2 files + DialogCommandPalette /open route; " +
     "6: settings.v3 key + seven schema segments + mobileTitlebarPosition default + language store/loadInitialLocale/setLocale + oc-theme-preload three localStorage keys + Persist.global(\"model\") CROSS-REFERENCE (verify-provider-models); " +
     "7: createMobileViews + entries/tabs/menu/find return keys + lazy MobilePanelDrawer; " +
-    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G34 enumeration (issue #24 revision) + G31 row + seventeenth honest wording + back-key baseline (class wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
+    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G35 enumeration (issue #26 revision) + G31 row + seventeenth honest wording + back-key baseline (class wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
     "STATIC check - back-key semantics, soft-keyboard viewport behavior, IME, screen-reader walkthrough, contrast, touch-target usability, rotation rebuild chains and slash discoverability on a device are G31)",
 )

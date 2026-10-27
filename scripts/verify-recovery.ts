@@ -409,14 +409,14 @@ const HOSTS = "packages/mobile-hosts/"
     fail("7: architecture.md flow-matrix network-switch row must point at recovery.md and G30")
 
   // interaction.md carries the G30 gate and the sixteenth honest wording. The
-  // enumeration-title anchor was revised G1–G30 -> G1–G33 by issue #23 and
-  // G1–G33 -> G1–G34 by issue #24 (deliberate
+  // enumeration-title anchor was revised G1–G30 -> G1–G33 by issue #23,
+  // G1–G33 -> G1–G34 by issue #24 and G1–G34 -> G1–G35 by issue #26 (deliberate
   // sentinel revisions, NOT a bypass: each issue's commit-1 renamed the interaction.md
   // gate enumeration title when its gate row was added — the anchor's coverage
   // semantics are preserved, it tracks the FULL gate set).
   const interaction = await read("docs/design/interaction.md")
-  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
-    fail("7: interaction.md gate enumeration must cover G1–G34")
+  if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
+    fail("7: interaction.md gate enumeration must cover G1–G35")
   if (!interaction.includes("| G30 recovery 横切恢复门禁（issue #19"))
     fail("7: interaction.md lost the G30 gate row")
   if (!interaction.includes("第十六处落字（issue #19）"))
@@ -433,6 +433,6 @@ console.log(
     "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + M-010 hydration block + five tabs stores + IndexedDB drafts + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
     "5: ensureTunnel bounded loop (ready/non-offline/retry) + ssh-tunnel-unavailable throw + RECONNECT_MAX_RETRIES budget + T9 remote-keeps-running + OFFLINE_ENDPOINT/managed/reconnect-forwarding + direct connections hook-free; " +
     "6: host-manager action Match set in order + host-key-changed danger recovery + PendingSessionState skeleton + svcops B1 watcher + survivedDisconnect evidence bit; " +
-    "7: recovery.md structure + four honest-state sentences + four 不得声称 red lines + idle-hook-spin sentence, architecture.md network-switch row pointing at recovery.md/G30, interaction.md G1–G34 enumeration (issue #24 revision) + G30 row + sixteenth honest wording + recovery failure path; " +
+    "7: recovery.md structure + four honest-state sentences + four 不得声称 red lines + idle-hook-spin sentence, architecture.md network-switch row pointing at recovery.md/G30, interaction.md G1–G35 enumeration (issue #26 revision) + G30 row + sixteenth honest wording + recovery failure path; " +
     "STATIC check - retry cadence, resync/flush timing, cold-start chains, tunnel re-resolution, credential/host-key recovery presentation and remote-task survival on a device are G30)",
 )
