@@ -642,7 +642,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3480/153407024) + staged dist markers; " +
+    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3480/153441733, issue #26 re-recorded) + staged dist markers; " +
     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )

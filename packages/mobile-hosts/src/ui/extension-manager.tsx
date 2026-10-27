@@ -40,9 +40,14 @@ const DESKTOP_HOST_EXTENSIONS: ReadonlySet<string> = new Set(["browser", "pairin
 
 export type ExtensionCapability = "web" | "desktop-host"
 
-/** First-party static capability mapping (probe group 7 locks both sets). */
+/** First-party static capability mapping (probe group 7 locks both sets). Both sets are
+ * consulted: the desktop-host blacklist decides the presented-not-toggleable rows, the
+ * web-active whitelist documents the toggleable eight. An id in NEITHER set (a future
+ * builtin the table has not met yet) classifies "web" — the renderer-side default — so
+ * the mapping stays conservative-by-default exactly as shipped. */
 export function capabilityOf(id: string): ExtensionCapability {
   if (DESKTOP_HOST_EXTENSIONS.has(id)) return "desktop-host"
+  if (WEB_ACTIVE_EXTENSIONS.has(id)) return "web"
   return "web"
 }
 
