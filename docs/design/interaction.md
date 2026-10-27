@@ -4,7 +4,7 @@
 
 ## G36 初始 SSH 入口运行期门禁（issue #55）
 
-连接屏在移动平台显示本地化的 SSH hosts 动作；点击后必须导航到精确 `/settings?tab=servers`，空列表可创建首个 SSH 主机，签出状态仍保留 `ConnectServerScreen url={signedOut()?.http.url}` 的直连回连语义。非精确设置视图、服务器/项目嵌套视图和其他路径不得绕过空/签出壳守卫。真机/模拟器核对按钮可达、空态创建、签出回连与返回行为；M-027 静态/单测级已实现，运行期 BLOCKED。
+连接屏在移动平台将 `No pairing link?` 单独居中显示在一行，并在下一行并排显示 `Use password` 与本地化的 `SSH hosts` 动作；点击 SSH hosts 必须导航到精确 `/settings?tab=servers`，空列表可创建首个 SSH 主机，签出状态仍保留 `ConnectServerScreen url={signedOut()?.http.url}` 的直连回连语义。非精确设置视图、服务器/项目嵌套视图和其他路径不得绕过空/签出壳守卫。真机/模拟器核对两行布局、按钮可达、空态创建、签出回连与返回行为；M-027/M-028 静态级已实现，运行期 BLOCKED。
 
 ### G36 失败路径处置
 

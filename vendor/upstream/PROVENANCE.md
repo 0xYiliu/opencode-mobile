@@ -78,6 +78,10 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   `ConnectServerScreen` URL anchor. The implementation is layered after M-026
   (`0026-M-027-initial-ssh-entry.patch`); M-008/M-018's `MobileHostManager` and the SSH transport
   are unchanged.
+- M-028 (issue #55): the mobile connection screen centers `No pairing link?` on its own row and
+  places `Use password` beside `SSH hosts` on the next row. The desktop method switch, shared
+  dialog, connection flows, route behavior, and SSH transport are unchanged. This layer is
+  `0027-M-028-connection-method-layout.patch`, after M-027.
 
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).

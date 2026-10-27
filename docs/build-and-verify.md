@@ -34,6 +34,20 @@
 
 记录日期：2026-10-28。issue #55 段（M-027 初始 SSH 入口，基于 origin/dev `3859bd5`；计划 T3 v4）实施于分支 `issue-55-initial-ssh-entry`：连接屏本地化 SSH hosts 动作、`/settings?tab=servers` 精确 root 路由判定、新 `connection-route.ts`、AppShell 空/签出守卫与路由单测。复用 M-008/M-018 的 MobileHostManager；无 SSH transport 改动。APK 已构建并安装到 MatePad，初始连接页与 SSH hosts 管理面已做设备冒烟；完整 G36、SSH E2E 与真服务验证仍 BLOCKED，结果见下表。
 
+本次 M-028 只调整移动初始连接屏的呈现：`No pairing link?` 独占居中行，`Use password` 与 `SSH hosts` 并排下一行；共享连接对话框、桌面布局、连接逻辑与 SSH transport 不变。设备布局冒烟尚未执行，归入 G36。
+
+### issue #55 / M-028 实际结果
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| JSON 结构、差异空白 | `python3 -m json.tool`（三个 vendor manifest/provenance 文件）；`git diff --check` | PASS |
+| 分层闭包与 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-028，`DANGLING=0` |
+| 移动连接屏静态断言 | prompt 独占行、移动分支、SSH hosts 精确路径；shared dialog 未修改 | PASS |
+| M-028 基线 probes | `bun run scripts/verify-gui-extensions.ts`; `bun run scripts/verify-notifications.ts`; `bun run scripts/verify-commands-menus.ts`; `bun run scripts/verify-artifacts.ts` | PASS：四个 probes；dist 基线 **3482 文件 / 153447934 字节** |
+| 上游连接/路由单测 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts ...` | BLOCKED：当前工作树缺少 `@happy-dom/global-registrator` |
+| Web 构建（当前 M-028 基线） | `bun run build:web`；`bash scripts/copy-web-dist.sh` | PASS：当前 `web-dist/manifest.json` 为 **3482 文件 / 153447934 字节** |
+| G36 移动布局冒烟 | 真机/模拟器初始连接屏 | 未执行；归入 G36 |
+
 ### issue #55 / M-027 实际结果
 
 | 检查 | 命令 | 结果 |

@@ -125,6 +125,18 @@
       "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
       "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
       "summary": "Mobile connection screen SSH hosts action and exact root servers route guard for empty/signed-out AppShell."
+    },
+    {
+      "id": "M-028",
+      "file": "patches/mobile/0027-M-028-connection-method-layout.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Mobile-only connection method layout (issue #55): the pairing-link prompt is centered on its own row and Use password plus SSH hosts share the following row. Desktop ConnectMethodSwitch, connection behavior, pairing/QR/password logic, the SSH hosts route, and SSH transport are unchanged; the shared dialog is untouched.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-027; focused source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout verification remains part of G36.",
+      "rebase": "New LAYERED patch generated against pin b4525d79bf + M-001..M-027; target is the mobile method-switch branch in ConnectServerScreen.",
+      "summary": "Mobile initial connection method prompt/actions use two centered rows."
     }
   ],
   "upstreamPatches": {

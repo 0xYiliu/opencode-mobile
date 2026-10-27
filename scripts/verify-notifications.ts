@@ -531,14 +531,15 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     fail("8: build.gradle.kts gained an androidx dependency (the zero-androidx constraint)")
 
   // Dist baseline (V2-produced; the cross-document numbers' authoritative source).
-  // Issue #55 revision (deliberate, NOT a bypass): the M-027 initial SSH entry build
-  // inputs changed the file and byte counts — the current baseline was re-recorded from
-  // web-dist/manifest.json after V2. The M-026 3480/153441733 value remains historical.
+  // Issue #55 revision (deliberate, NOT a bypass): the M-028 connection method layout
+  // build inputs changed the byte count — the current baseline was re-recorded from
+  // web-dist/manifest.json after V2. M-027 3482/153445727 and M-026 3480/153441733
+  // remain historical.
   const distManifest = await read(DIST_MANIFEST)
   if (!distManifest.includes('"fileCount": 3482'))
     fail("8: web-dist/manifest.json fileCount drifted from the recorded 3482 baseline (a rebuild changed the count — refresh the cross-document numbers first)")
-  if (!distManifest.includes('"totalBytes": 153445727'))
-    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153445727 baseline (issue #55 M-027 re-recorded it after its build-input changes; refresh the cross-document numbers first)")
+  if (!distManifest.includes('"totalBytes": 153447934'))
+    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153447934 baseline (issue #55 M-028 re-recorded it after its build-input changes; refresh the cross-document numbers first)")
 
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
@@ -642,7 +643,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3482/153445727, issue #55 M-027 current baseline; M-026 3480/153441733 remains historical) + staged dist markers; " +
+    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3482/153447934, issue #55 M-028 current baseline; M-027 3482/153445727 and M-026 3480/153441733 remain historical) + staged dist markers; " +
     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )
