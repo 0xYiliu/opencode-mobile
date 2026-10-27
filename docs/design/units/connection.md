@@ -1,6 +1,6 @@
 # 单元：connection（服务连接与凭据）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证）；issue #6 SSH 隧道传输已实现（未验证），见[决策记录 0003](../../decisions/0003-ssh-transport.md)）**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），以及 issue #6 的 SSH 隧道传输（ssh 桥传输/verifier/transport、驱动装配 M-015 补丁、Kotlin `android/.../ssh/` 四件、jsch+bcprov 桥内依赖），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16/G17 门禁 BLOCKED）。
+状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证）；issue #6 SSH 隧道传输已实现（未验证），见[决策记录 0003](../../decisions/0003-ssh-transport.md)）**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），以及 issue #6 的 SSH 隧道传输（ssh 桥传输/verifier/transport、驱动装配 M-015 补丁、Kotlin `android/.../ssh/` 四件、jsch+bcprov 桥内依赖），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16/G17 门禁 BLOCKED）；issue #22 配对链接导入面已固化（未验证，上游闭包承载，见下方「配对与连接导入」专节与 G32）。
 
 ## 字段契约（已实现）
 
@@ -205,6 +205,86 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 ### 残余 fetch 面（评审备注 F2 登记）
 
 以下两处不经 `platform.fetch`（不受 D1 校验），登记为已知残余面、本轮不修补：①`pairing.ts:87` `OpenCode.make({baseUrl})`（配对码兑换，无认证头——以一次性 code 换 token）；②`pairing.ts:129` `checkServerHealth(…, globalThis.fetch)`（配对地址优选，带 Basic 头）。out-of-scope 理由：浏览器规范对跨源重定向子请求剥头是底线，D1 校验为纵深；两处仅存在于配对流，地址来自 `opencode pair` 链接而非服务器列表，泄漏不成立、静默跟随的内容风险窗口极小。
+
+## 配对与连接导入（已实现（未验证）：issue #22——上游闭包承载，零新建界面/零补丁/零运行时代码/零依赖变更；文档与静态探针收口，运行期归 G32）
+
+配对（pairing）是 connection 单元「建立认证连接」职责的导入面：桌面/CLI 发起端（`opencode pair`、桌面 app Pair 对话框）产出一次性配对链接/QR，移动端只承担**接收导入**——粘贴或扫描链接 → 语法与信任校验 → 向服务器兑换会话 token → 健康检查 → 写入 http 服务记录。上游拥有完整协议且已随闭包在本壳内（`platform: "web"`，M-007 entry 装配）功能完备；本期固化其安全语义与验证面，不新增任何传输面。本节三条安全红线逐条落字：**①scheme/host 校验不放宽**（四层校验见②）；**②秘密不经日志/剪贴板/历史**（token 纪律见④）；**③TLS/host-key 校验不绕过**（见⑤——零绕过负断言由 `scripts/verify-pairing.ts` 锁定）。
+
+### ① 协议链路
+
+- 端点（`vendor/upstream/packages/protocol/src/groups/server.ts`）：`server.pair` = `POST /api/pair`（"Create a short-lived, single-use code for a /auth/connect/:code pairing link"，返回 `PairingCode {code, expires_in}`）；`server.connect` = `GET /auth/connect/:code`（`PAIRING_CONNECT_PATH`，"Redeem a pairing code. Browsers receive a session cookie and a redirect to the web app; requests that accept JSON receive a session token to use as the password"，返回 `PairingSession {token}`，错误=UnauthorizedError）。
+- 单次码语义（客户端证据在闭包）：`redeemPairingLink` 注释逐字「Every address may reach the same server, but the code is single-use, so at most one attempt succeeds」与「Only a server's answer proves the code is spent」。**服务端实现层交叉证据（引上游 pin 提交树采集缓存 `~/.cache/opencode-upstream` @ `b4525d79bf`，非闭包——vendored 闭包按策略不含 `packages/server`）**：`packages/server/src/pairing.ts` 的 `TTL = Duration.minutes(5)` 与 `consume = Cache.invalidateWhen(cache, code, () => true)`（取用即从缓存移除=结构性单次）+ consume 失败返回 `UnauthorizedError({ message: "Pairing link expired or already used" })`——**expired 与 replayed（他端已用）同落 401、同源同文案**，与客户端 401 映射互证。
+- 发起端（桌面/CLI 自身面——移动端只核对接收导入，发起端产出形态归 G32① 环境前提如实记录）：CLI `opencode pair` 打印链接并出 QR；桌面 gui-ext（`packages/gui-extensions/src/pairing/`）设置页 Pair 按钮 → 开启 remote access（OpenTunnel 隧道）→ 对话框渲染 QR（`uqr` `renderSVG(JSON.stringify({ code, urls: [tunnel] }))`，QR 载荷即 `{"code","urls"}` JSON）+ 复制链接 `/auth/connect/<code>` + 有效期倒计时与到期自动换码。上游配对链接是**纯 `http(s)://<host>/auth/connect/<code>` URL**——上游六包 src 全域 `opencode://` 零命中（零自定义 scheme），壳层零 deep-link。
+- 兑换与地址优选：`redeemPairingLink`（`app/src/servers/connect/pairing.ts`）对多地址 `Promise.any` 并发兑换（每地址 `AbortSignal.timeout(5_000)` 有界），401（`isUnauthorizedError`）→ `expired`，其余失败 → `unreachable`；`preferFirst` 在 token 全地址有效时优先保持用户所选首地址（本地网地址离开该网络即失效；1 秒不答不等待）。
+
+### ② 四层校验与零被动导入（explicit confirmation）
+
+四层校验全部上游既有（`pairing.ts` + 兑换接线），链接导入的唯一网络动作=对已校验 origin 的协议端点 `GET /auth/connect/:code`——**不存在「对链接任意 GET/执行任意链接动作」的通路**：
+
+| 层 | 机制 | 拒绝结果 |
+| --- | --- | --- |
+| 地址层 `serverAddress` | 含 `://` 但非 `^https?://` → undefined（**scheme 白名单，`opencode-ios://` 类即拒**）；`URL.canParse` 失败 → undefined；非 http/https 协议 → undefined；**userinfo/search/hash 任一存在 → undefined**（凭据 URL 在解析层即拒） | 该地址不可用 |
+| 链接层 `pairingLink` | JSON 形 → `Schema.Struct({code, urls})` 解码 + `CODE = /^[A-Za-z0-9_-]+$/` 逐码校验 + urls 全过 serverAddress + 去重，任一非法整体 undefined；URL 形 → 仅 `/^\/auth\/connect\/([^/]+)$/` 路径命中取码（**路径即动作白名单**） | 非 legacy → `server.connect.link.invalid` 行内错误，零网络动作 |
+| 遗留流 `legacyPairingLink` | 识别旧 `/connect#<credentials>` 与 `/connect?data=<credentials>` 凭据链接 | **识别、报错（`server.connect.link.legacy`）、零兑换动作**——旧链接 fragment 内嵌凭据绝不执行 |
+| 误入判定 `bareServerAddress` | 无路径的裸服务器地址才转交密码表单（"a bare code or a cut-off link is not mistaken for a server"） | — |
+
+**零被动导入三锚（explicit confirmation 的落点）**：①壳零 deep-link（manifest 唯一 LAUNCHER intent-filter，注释逐字「Launcher activity only; deep links are not implemented (TODO in MainActivity)」；MainActivity 零 intent 处理）——外部打开链接不可能触发 App 动作；②零剪贴板监听导入；③**零自动兑换**——对话框 `preview()` 注释逐字「A pairing link is not a server address until it is redeemed, and redeeming spends it.」，link 方法输入过程中健康预览显式取消、兑换仅发生在用户提交（screen 同构：仅 form onSubmit/按钮触发）。导入成功的确认链=**粘贴+提交（两次显式用户动作）** → 语法校验 → 兑换（服务器对单次码的裁决）→ 健康检查 → `servers.add`——任一步失败无注册表写入（screen `connect()` 先 `check` 后 add；dialog 同序且 vault 操作在健康检查之后）。**不新增「配对确认对话框」**——确认语义即上述显式动作链，不虚构不存在的 UI；扫描路径的确认=用户取景动作本身（扫描当前不可用，见⑦）。
+
+### ③ 兑换错误分类×呈现（六形态本壳可达 + 一形态结构性不可达注记）
+
+| 形态 | 机制 | 用户可见（i18n 键，en 基表 + 40 余 locale 在册） |
+| --- | --- | --- |
+| 无效串 | `pairingLink` undefined 且非 legacy | `server.connect.link.invalid`（行内错误，零网络动作） |
+| 过期/已用（replayed） | 兑换 401 → `{type:"expired"}` | `server.connect.link.expired`（"expired or was already used" 一词双关覆盖两态） |
+| 不可达 | 全地址无应答（`AbortSignal.timeout(5_000)` 亦有界） | `server.connect.link.unreachable`（附 URL 列表）；**本壳 LAN 明文配对失败恒落此形态**（netsec 阻断见⑦） |
+| 遗留链接 | `legacyPairingLink` 命中 | `server.connect.link.legacy`（识别不执行） |
+| 扫描无效码 | scanner 解码后 redeem 返回 error | `server.connect.scan.invalid`；解码失败 `server.connect.scan.failed`（三秒抑制防每帧重兑：`rejected` Map + `Date.now() + 3000`） |
+| 相机错误 | `scanner.start()` 失败 | `server.connect.camera.error`；上游降级提示 `cameraHint()`（secure context 下 `server.connect.camera.unavailable`——"Enter your connection details manually"） |
+| 混合内容 | `isMixedContent`（`redeem.ts`/`dialog.tsx`/`screen.tsx` web 全地址明文时） | **本壳结构性不可达注记**：`browser.ts` 的 `isMixedContent` 要求页面 origin 为 `https:` 才可能 true，本壳页面 origin 恒 `http://127.0.0.1:18090`（回环）→ 分支不可达，仅 https 页面上游场景可达——LAN 明文配对失败恒呈现 unreachable，不算本壳可达形态 |
+
+### ④ token 秘密纪律（红线：秘密不经日志/剪贴板/历史）
+
+- **token 流向 memory-only**：兑换得 `session.token` → 以 `password` 形进入内存连接对象（`Pairing {url, password}`）→ **link 方法不渲染「记住」勾选框**（对话框渲染门 `checkboxRendered: store.method === "password" && vaultAvailable()`——link 流恒 false → `evaluateRemember` 走 passthrough，真值表行 6/11；决策核心首锁在 `scripts/verify-credential-vault.ts`，本期探针只锁 dialog 侧渲染门锚作交叉引用）→ **配对 token 永不经 vault 落盘** → 持久化 encode 恒剥 password（M-002）→ 重启后该服务 unauthorized → 重配对自愈（单次码设计内，非缺陷；**不得声称配对 token 持久化**）。
+- **prior `credentialRef` 语义分面（add 面两挂载面实态不同——上游实态例外句）**：**dialog 连接对话框面=passthrough 保 ref**（`credentialRef: decision.action === "passthrough" ? decision.ref : undefined`，M-006/M-009 prior 语义）；**screen 独立连接屏面=重配对丢弃 prior `http.credentialRef`**——机制=`servers.add(existing ? { ...existing, http } : { type: "http", http })` 的 shorthand `http`（`HttpBase {url, password}` 恒不含 ref）整体覆盖 `existing.http`，且注册表 `add()` 命中既有项时 `setStore("list", existing, conn)` 整体替换、不与旧条目合并 ref（顶层 displayName 经展开保留）；后果=该服务记录与 vault 条目的 ref 绑定静默丢失 → vault 条目转孤儿（凭据管理器孤儿区呈现）→ 重启后 unauthorized → 重配对自愈。**无安全泄漏**（ref 非机密、丢绑定只降级为重认证，不入日志不入剪贴板）；实态可接受性归 G32⑤ 双面核对，不预设行为变更补丁。
+- **剪贴板分域口径**：**配对/导入面零剪贴板写**——`servers/connect/` 全目录 + `packages/mobile-hosts/src` 域内 `navigator.clipboard.write|writeText` 零命中（探针组 5 锁定；mobile-hosts 的剪贴板接触是 issue #16 `clipboardImage` **读取**面）。**域外事实（上游 app 自有剪贴板写，均不在配对流，如实声明不进断言域）**：`providers/connect/dialog.tsx`（provider OAuth copy-link 回退）、`runtime/extension/host-apis.tsx`（宿主 copy API）、`session/commands/use-session-commands.tsx`×2（sessionID/projectID 复制）。桌面 gui-ext 的「copy link」是发送端桌面自身剪贴板，不属本客户端面。TextInput 链接值仅存组件 store（`reset()` 即清），零持久化零草稿存储。
+- **日志零值**：pairing/redeem/scanner/camera 四文件零 `console.`/`Log.` 类调用（探针负断言）；壳层 `onReceivedSslError` 仅记错误类、console 仅 message+行号、`setSavePassword(false)`（MainActivity）既有锚在册。
+- **历史零渗漏**：兑换经 `fetch()` 非导航 → 零 WebView 历史/前进后退列表条目；链接输入 `spellcheck={false} autocapitalize="off"`；密码输入 `type="password"` + 壳 `setSavePassword(false)`。
+- **direct/SSH 二分**：配对只产 **http 身份**（上游 URL 键）；SSH 主机（`mobile-ssh:<uuid>`）有独立凭据流——`servers/connect/` 全域零 known_hosts/HostKeyVerifier/hostKey 命中（探针负断言，SSH 域零交）。
+
+### ⑤ 路由与信任保持（红线：TLS/host-key 校验不绕过）
+
+- **host 路由**：兑换成功 → `target()`（screen）/`paired()`（dialog）——重签入保持既有地址（注释逐字 "A pairing token works on every address of its server. Signing in again to the server that signed out keeps its address"）；签出态 `shell/routes/routes.tsx` 以 `signedOut()?.http.url` 回连**同一服务器**。
+- **project/session 路由**：导入只建 http 服务器记录；项目/会话选择走既有 `ServerScope` 机制（权威见 [projects-sessions.md](projects-sessions.md)，同名项目/会话不混淆），本期引用不重裁定。
+- **`servers.add` 前置健康检查**：screen/dialog 四调用位均先 `check`/`checkServerHealth` 后 add——健康检查失败零注册表写入。
+- **TLS 校验不绕过**：导入路径**零新增传输面**——兑换/健康检查后的一切请求走既有通道（API/SSE=platform.fetch+M-011 secure-fetch、上传=M-012）；TLS=WebView system CA（netsec trust-anchors，`onReceivedSslError` 恒 CANCEL 在册）；明文=netsec 阻断（G5）；`servers/connect/` 域内零 `rejectUnauthorized|disableCert|insecure` 命中（探针负断言）。**host-key 校验属 SSH 域**（三态流，[决策 0003](../../decisions/0003-ssh-transport.md)），配对流零触碰；配对流不引入任何「跳过校验」选项。
+- 残余面引用（#5 F2 两处 raw fetch，见上「残余 fetch 面」节）：引用其 out-of-scope 在册结论，不重裁定；真机负例核对归 G32⑦。
+
+### ⑥ 取消与冷热启动
+
+| 形态 | 机制（全部上游在册） | 用户可见后果 |
+| --- | --- | --- |
+| 取消 | 对话框取消钮关闭/扫描 `onCancel` 停止扫码并 refetch 相机可用性 | 关闭即弃，无注册表残留（add 仅在健康检查后） |
+| 冷启动（配对中杀 App） | 表单态组件内存、零持久化 | 重启无半成品记录；单次码或已耗（他端/已兑）→ 重跑 `opencode pair`；已导入服务 unauthorized → 重配对自愈 |
+| 热启动（旋转/后台） | 旋转=Activity 重建（[interaction-quality.md](../interaction-quality.md) §一）→ 表单态丢失；后台返回不重复兑换（`last` 缓存：同 code 复用 token，用户后改地址优先） | 旋转后需重新粘贴（表单态非持久化=上游实态，如实记录） |
+
+### ⑦ 不支持流清单（验收 4 本体——如实登记，零 parity 声称）
+
+以下六项为本壳**不支持**的桌面配对流形态，每项带机制原因与替代路径；运行期呈现归 G32 判定，不得静默声称对等：
+
+1. **LAN 明文配对链接不可达**：`opencode pair` 默认输出形如 `http://192.168.1.2:49374/auth/connect/…` 的局域网明文地址——netsec base-config `cleartextTrafficPermitted="false"`（仅 127.0.0.1/localhost 例外）在 WebView 平台层阻断 → 兑换失败呈现 unreachable。这是[决策 0002](../../decisions/0002-direct-connection-transport.md) D3「明文直连不支持」的既有立场对配对流的自然延伸。**支持路径=桌面 remote access 的 HTTPS OpenTunnel 隧道链接（或既有 SSH 隧道经 #6 凭据流的直连记录）**。
+2. **相机扫描不可用（壳层能力缺席）**：manifest 仅 INTERNET 权限（零 CAMERA）、`WebChromeClient` 零 `onPermissionRequest`（getUserMedia 在 WebView 内无法获得授权）——上游门控链 `createCameraAvailability` 止步于授权，扫描入口当前不可用；上游自带降级提示在册（`cameraHint()` → "Enter your connection details manually"）。失败呈现形态（显式错误 vs "Opening camera…" 挂起）未判定，归 G32⑧；**QR 扫描使能（manifest CAMERA + `onPermissionRequest` 运行时授权，resource+origin 双白名单、拒绝与撤销三态）登记 M-022+ 候选（隐私可见的产品决策，设计草图随候选登记），本期不实施不预设**。
+3. **经隧道端点手工兑换不支持**：把 SSH 隧道回环端口当配对地址手工兑换属误用形态（隧道端口动态、身份键错配）——不支持，如实登记。
+4. **外部链接拉起 App 不支持**：零 VIEW intent-filter（manifest 唯一 LAUNCHER）——外部打开配对链接不会进入 App；需求与 #14 OAuth 回跳同族合并 M-022+ 候选，不新增独立候选。替代路径=App 内粘贴导入。
+5. **消息内点按配对链接=同窗导航至远端 web app**：WebView 同窗导航类既有行为（G25③ 类，见 [interaction-quality.md](../interaction-quality.md) §一）——点按消息内的配对链接导航到远端 web app 而非本壳导入流。引导口径=粘贴导入，不新增断言；实态归 G32⑨。
+6. **旧版 `/connect#<credentials>` 凭据链接导入=识别即拒绝**：`legacyPairingLink` 检测 → `server.connect.link.legacy` 文案（"Update OpenCode on the server, then run opencode pair again"），零兑换动作——本客户端不承接旧流。
+
+### ⑧ 残余面与验证面（诚实边界）
+
+- **残余 fetch 面**：`pairing.ts` 两处 raw fetch（①`OpenCode.make` 兑换、②`checkServerHealth(…, globalThis.fetch)` 地址优选）为 #5 评审 F2 在册残余（out-of-scope 理由见上节），本期引用不重裁定；真机负例核对归 G32⑦。
+- **上游单测**：`pairing.test.ts`（6 个 test 块：链接解析/QR 多地址/他类 URL 拒绝/畸形 QR 拒绝/裸地址判定/遗留链接识别）已入 app 上游回归子集（66→67 文件）真跑；`dialog.tsx`/`scanner.tsx`/`redeem.ts` 无上游单测（上游实态，如实登记）——语法层由 pairing.test.ts 承接、运行期归 G32，不为上游补测试。
+- **静态探针**：`scripts/verify-pairing.ts`（八组断言+负例四组）锁定本节结构事实；docs 锚断言只防文档-代码漂移，探针为静态结构检查、对运行时行为零证明力。
+- **运行期门禁**：G32 十项（扫描实态/LAN 明文呈现/ref 双面核对等判定点）全部 BLOCKED——G32 未过前本节只声称「已实现（未验证）」。
+- **范围边界**：「相机使能实施/deep-link intent-filter 实施/pairing redeem 迁移 secure-fetch/screen 面丢 ref 行为变更/配对 token 持久化策略变更」明确不在 issue #22 范围。
 
 ## SSH 隧道传输（已实现（未验证）：issue #6，裁定见[决策记录 0003](../../decisions/0003-ssh-transport.md)）
 
