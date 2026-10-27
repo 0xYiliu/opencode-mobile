@@ -597,8 +597,12 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   }
 
   const interaction = await read("docs/design/interaction.md")
-  if (!interaction.includes("## G1–G33 设备门禁（完整枚举）"))
-    fail("9: interaction.md gate enumeration must cover G1–G33")
+  // Issue #24 revision (deliberate, NOT a bypass): the enumeration-title anchor moved
+  // G1–G33 -> G1–G34 when the issue #24 G34 gate row was appended to interaction.md —
+  // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
+  // preserved.
+  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
+    fail("9: interaction.md gate enumeration must cover G1–G34")
   if (!interaction.includes("| G33 通知运行期门禁（issue #23 **新设门禁**）"))
     fail("9: interaction.md lost the G33 gate row")
   if (!interaction.includes("第十九处落字（issue #23）"))
@@ -635,6 +639,6 @@ console.log(
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
     "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3480/153407024) + staged dist markers; " +
-    "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G33 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
+    "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G34 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )
