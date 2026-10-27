@@ -1,6 +1,6 @@
 # 单元：远程 Agent 能力与扩展配置（agent-capabilities）
 
-覆盖范围：远程 Agent、commands、skills、MCP 与插件配置的呈现与运行时启停（设置 extensions 三子 tab、项目级 extensions 四子 tab 含 LSP、`DialogSelectMcp`（/mcp）、new-session MCP 控件与 prepare 门、会话「更多」抽屉 details server 面板、composer @skill/@agent//slash 注入）、MCP 五态状态机与重认证流、断开语义、GUI 扩展主进程零执行边界。能力**全部由上游闭包承载**（issue #15，零新建界面、零运行时代码改动、零 vendor 补丁）；本文固化契约、状态矩阵与安全语义，并把「远程服务器扩展配置」（设置 extensions tab）与「GUI 扩展宿主」（gui-extensions tab，desktop+DEV 专属）两套上游同名概念显式区分（验收 1 落字）。Agent/Command/Skill 的**配置增删改无客户端 UI**（上游实态，见能力边界专节）——本文不虚构「可在手机上编辑 opencode.json」。
+覆盖范围：远程 Agent、commands、skills、MCP 与插件配置的呈现与运行时启停（设置 extensions 三子 tab、项目级 extensions 四子 tab 含 LSP、`DialogSelectMcp`（/mcp）、new-session MCP 控件与 prepare 门、会话「更多」抽屉 details server 面板、composer @skill/@agent//slash 注入）、MCP 五态状态机与重认证流、断开语义、GUI 扩展主进程零执行边界。能力**全部由上游闭包承载**（issue #15，零新建界面、零运行时代码改动、零 vendor 补丁）；本文固化契约、状态矩阵与安全语义，并把「远程服务器扩展配置」（设置 extensions tab）与「GUI 扩展宿主」（gui-extensions tab——上游面 desktop+DEV 专属；其生命周期管理面自 issue #26 起以第一方移动面存在，见 [gui-extensions.md](gui-extensions.md)）两套上游同名概念显式区分（验收 1 落字）。Agent/Command/Skill 的**配置增删改无客户端 UI**（上游实态，见能力边界专节）——本文不虚构「可在手机上编辑 opencode.json」。
 
 ## 能力来源表
 
@@ -88,11 +88,11 @@ provider 面的 `providers/connect/controller.ts` 合法共存 `integration.get`
 1. **web 平台无 Bridge**：`runtime/platform/web.ts` `createWebPlatform` 的 `Platform` 对象**无 `extensions` 字段**（实锚）；`gui-extensions/src/sdk/bridge.ts` 的 `extensions?: Bridge` 文档逐字「What the desktop preload exposes to the renderer host; undefined on the web.」——Bridge（Ipc call/subscribe/manager list/enable/disable/reload/install/remove/embed/capture）只由 packages/desktop 的 preload 提供。**desktop 包源码不在闭包**——闭包内 `vendor/upstream/packages/desktop/` 仅存 106 个 icons 资产文件（2 icns + 2 ico + 98 png + 4 xml），无源码/preload/package.json（实测）。
 2. **Ipc 在 web 恒 inactive**：`gui-extensions/src/sdk/core.ts` Ipc 定义文档逐字「On the web, where no main process runs, it is always inactive.」
 3. **main 入口不进 app**：`gui-extensions/src/main.ts` 的 main compose（debug/browser/pairing/updater/ssh/wsl 六个 `main:` 入口）只被 desktop main host 消费；app 全源 `@opencode/gui-extensions` import specifier 集合**恰为 `{sdk(34), sdk/bridge(8), renderer(2), updater(1)}`**——**零 `main`/`sdk/main` import**；app/src `from "electron"` import 形态零命中（唯一 grep 命中为许可证文本内的无关词）。
-4. **设置入口双门槛**：`settings/shell.tsx` `const GuiExtensionsSettings = import.meta.env.DEV ? lazy(…) : undefined`（**DEV 构建才存在**）+ `const guiExtensions = !!GuiExtensionsSettings && platform.platform === "desktop"`（**desktop 平台才可达**）+ 守卫 `view.tab === "gui-extensions" && !guiExtensions → surface.open("general")`——**生产 web 构建（手机）三重不可达**。
+4. **设置入口双门槛**：`settings/shell.tsx` `const GuiExtensionsSettings = import.meta.env.DEV ? lazy(…) : undefined`（**DEV 构建才存在**——上游面）+ `const guiExtensions = !!GuiExtensionsSettings && platform.platform === "desktop"`（**desktop 平台才可达**——上游面）+ 守卫 `view.tab === "gui-extensions" && !guiExtensions && !mobileGuiExtensions → surface.open("general")`（**issue #26 修订：非桌面平台经 `mobileGuiExtensions` 放行第一方管理面**；上游设置页本身在 prod web 构建仍结构性缺席——本条证据链的「main 进程面不进 app」结论不变）。
 
-**防「全排除」误述——web 上真实运行的是 renderer 侧**：`ExtensionRoot`（`runtime/extension/root.tsx`，`app.tsx` 挂载锚）在 web 照常挂载，`builtins.filter(… !definition.os || (!!os && definition.os.includes(os)))` 仅按 OS 过滤（唯一 os 过滤项 = wsl `os: ["windows"]`，全树唯一）；web 上 `os = platform.platform === "desktop" ? platform.os : undefined` → undefined。renderer 侧贡献（panels/slots/commands/settings pages——**含 details 的移动抽屉**）是**纯 SolidJS UI，经 `useServerSDK()`/client API 读服务端数据**，不存在本地进程执行；`installed.ts` 在无 bridge 时 `bridge ? bridge.manager.initial… : []`、`if (!bridge) return`、`list()=[]`——无 bridge 即无安装/启停生命周期，**GUI 扩展生命周期（install/enable/disable/reload/.ocdx）整体不在 web/手机存在**（root.tsx 注释逐字「Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.」——archive 执行同样挂在 bridge manager 之下，web 不可达）。
+**防「全排除」误述——web 上真实运行的是 renderer 侧**：`ExtensionRoot`（`runtime/extension/root.tsx`，`app.tsx` 挂载锚）在 web 照常挂载，`builtins.filter(… !definition.os || (!!os && definition.os.includes(os)))` 仅按 OS 过滤（唯一 os 过滤项 = wsl `os: ["windows"]`，全树唯一）；web 上 `os = platform.platform === "desktop" ? platform.os : undefined` → undefined。renderer 侧贡献（panels/slots/commands/settings pages——**含 details 的移动抽屉**）是**纯 SolidJS UI，经 `useServerSDK()`/client API 读服务端数据**，不存在本地进程执行；`installed.ts` 在无 bridge 时 `bridge ? bridge.manager.initial… : []`、`if (!bridge) return`、`list()=[]`——无 bridge 即无安装/启停生命周期，**GUI 扩展生命周期中依赖主进程 Bridge 的 install/remove/.ocdx 面仍不在 web/手机存在；enable/disable/reload/状态呈现的管理面自 issue #26 起以第一方移动面存在**（见 [gui-extensions.md](gui-extensions.md)；root.tsx 注释逐字「Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.」——archive 执行同样挂在 bridge manager 之下，web 不可达）。
 
-**与 #26 的边界（验收 4 显式声明）**：GUI 扩展**生命周期**（Bridge.manager 的 enable/disable/reload/install/remove、设置 gui-extensions 页、menubar/titlebar/embed 等窗口集成）归 issue #26；本期只固化「移动不执行主进程扩展代码」的结构性负断言与「两套 extension 面」的区分素材，不实现、不虚构任何 GUI 扩展管理能力。
+**与 #26 的边界（自 issue #26 起为承接声明）**：#15 预留的 GUI 扩展**生命周期管理面**（enable/disable/reload/状态呈现/设置 gui-extensions tab 移动可达）已由 issue #26 交付（M-025 禁用集合并集 + M-026 设置 tab 移动挂载 + mobile-hosts manager 模块，见 [gui-extensions.md](gui-extensions.md)）；本期（#15）只固化「移动不执行主进程扩展代码」的结构性负断言与「两套 extension 面」的区分素材。install/remove/.ocdx 与零扩展商店声明保持（#26 §七）。
 
 ## 断开语义专节（验收 3 落字）
 
@@ -131,13 +131,13 @@ provider 面的 `providers/connect/controller.ts` 合法共存 `integration.get`
 3. **agents/commands/skills 只读呈现**：无任何客户端配置 UI（源头是服务端 opencode.json/文件，注册语义引缓存分层）。
 4. **`plugin.check`/`plugin.update` 零 UI 调用方**（promise 生成客户端在册，`check:`/`update:` 行在册）。
 5. **`session.skill` 端点零 UI 调用**（experimental，生成客户端在册）。
-6. **GUI 扩展管理器 desktop+DEV-only**：`settings.guiExtensions.*` i18n en 8 键 / **zh 0 键**（grep 实测）——该面移动不可达，zh 缺失无运行期影响，如实登记。
+6. **GUI 扩展上游设置面 desktop+DEV-only**：`settings.guiExtensions.*` i18n en 9 键 / zh 9 键（issue #26 起对齐——此前 en 8/zh 0 的诚实缺口已由 M-026 mobile.description 与 zh 全量补齐关闭，见 [gui-extensions.md](gui-extensions.md) §四）；上游设置页本体仍 desktop+DEV 专属，移动可达的是 #26 第一方管理面。
 7. **`mcp-dialog` pending 态无行内标签**（Switch disabled；details 面有 `connecting` 标签——两呈现面粒度差异如实）。
 8. **`mcp.clientToken`/`mcp.client`** 客户端反向托管 MCP（浏览器作 MCP server）experimental 面移动语义未核对（归 G26 备查，不预设）。
 
 ## 门禁与验证
 
-- **G26**（[../interaction.md](../interaction.md) 新设）：agent 能力面运行期真机清单十项（①移动入口可达四路（设置 extensions 双布局 + 项目级 extensions + /mcp + 更多抽屉 details server 面板）；②MCP 五态呈现与 toggle 全链（真实远端 MCP 服务）；③MCP needs_auth 重认证（`window.open` 壳内实态与 G25③ 同源核对 + `mcp.status.changed` 回推 + interactiveForm 错误呈现）；④new-session MCP 控件与 prepare 门三失败形态；⑤agents/commands/skills 呈现（@-mention//slash/设置只读列表/外链）；⑥区分断言呈现核对（「Manage in opencode.json」文案、gui-extensions 设置 tab 移动不可达、零 GUI 扩展安装/启停入口）；⑦断开红线机械核对（MCP 会话中杀 App/断网→远端 MCP server 与任务存活→重连状态快照补齐；直连+SSH 各一遍）；⑧错误路径矩阵；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由 + 真实 MCP 服务（remote OAuth 型 + local stdio 型各一）+ 配置安全负例）。
+- **G26**（[../interaction.md](../interaction.md) 新设）：agent 能力面运行期真机清单十项（①移动入口可达四路（设置 extensions 双布局 + 项目级 extensions + /mcp + 更多抽屉 details server 面板）；②MCP 五态呈现与 toggle 全链（真实远端 MCP 服务）；③MCP needs_auth 重认证（`window.open` 壳内实态与 G25③ 同源核对 + `mcp.status.changed` 回推 + interactiveForm 错误呈现）；④new-session MCP 控件与 prepare 门三失败形态；⑤agents/commands/skills 呈现（@-mention//slash/设置只读列表/外链）；⑥区分断言呈现核对（「Manage in opencode.json」文案、移动 gui-extensions tab=#26 第一方管理面（与远程 extensions 三子 tab 的区分保持）；零 GUI 扩展安装入口保持）；⑦断开红线机械核对（MCP 会话中杀 App/断网→远端 MCP server 与任务存活→重连状态快照补齐；直连+SSH 各一遍）；⑧错误路径矩阵；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由 + 真实 MCP 服务（remote OAuth 型 + local stdio 型各一）+ 配置安全负例）。
 - 探针：`scripts/verify-agent-capabilities.ts` 七组断言（调用面穷举——具名包含断言+集合外零命中/重认证三处包含断言/GUI 扩展负断言组/数据面五事件/错误恢复链/配置写入边界/零 OS 首扫）——**static STRUCTURE check, no runtime proof**。
 - 上游子集：app 组合 64 文件（#14 的 60 + 本期新增 4：`runtime/server/global-sync/mcp.test.ts`、`runtime/server/global-sync/child-store.test.ts`、`settings/workspaces/project-lsp.test.ts`、`runtime/extension/ipc.test.ts`——首跑逐例归因门适用）；gui-extensions 9/session-ui 8/client 9 零新增回归；mobile-hosts 307 零新增。
 
@@ -146,7 +146,7 @@ provider 面的 `providers/connect/controller.ts` 合法共存 `integration.get`
 - **G26 全部运行期行为 BLOCKED**（四路入口可达手感、MCP 五态真实呈现与 toggle、`window.open` 壳内实态与重认证回推、prepare 门失败形态、agents/commands/skills 注入呈现、区分断言呈现、断开红线远端存活、错误路径矩阵、抽屉/popover 触屏形态、双路由+真实 MCP 服务+配置安全负例）；G26 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **真实 MCP 服务测试 BLOCKED**（remote OAuth 型需真实 OAuth MCP 服务；local stdio 型需远端主机配置——不允许 fixture 替代）。
 - **服务端实现语义来源边界**：agent/command/skill 注册、MCP client 进程管理、plugin 加载在服务端（packages/server、packages/core 不在 `vendor/upstream/packages`——引 `~/.cache/opencode-upstream` @ pin，来源表述同 [../architecture.md](../architecture.md) 先例）；协议/schema/客户端连接器/设置 UI/details 扩展全在闭包内可静态锚定——两类来源在本文显式分层。pin 更新时缓存引文随 PROVENANCE 演练同步。
-- **上游能力边界**：见能力边界专节八项——特别不声称「MCP 配置可在手机上增删改」「GUI 扩展已支持管理」「MCP headers 已受 #4 保险库保护」（正确表述=服务端存储+客户端零回显）。
+- **上游能力边界**：见能力边界专节八项——特别不声称「MCP 配置可在手机上增删改」「MCP headers 已受 #4 保险库保护」（正确表述=服务端存储+客户端零回显）；GUI 扩展管理面（enable/disable/reload/状态呈现）自 #26 起为第一方移动面实态（[gui-extensions.md](gui-extensions.md)），但 **install/remove/扩展商店（marketplace）仍为零**——不声称移动存在任何扩展安装能力。
 - **details 面装配层无上游直接单测**（server-panel/renderer/panel 上游零直接测试——`configured-lsp.test.ts` 纯逻辑在册）：覆盖=探针（结构）+ V2（构建）+ G26（真机）三层，与 #10–#13 同型。
 - **stories/浏览器测试**（pairing/page.stories、ssh/dialog.stories 等）需浏览器环境——BLOCKED；`session-ui` component-tests/playwright 既有账本不变。
 - 设置单元的其余标签页（general/appearance/notifications/shortcuts/experimental/about）仍为 [../architecture.md](../architecture.md) 未建立契约面；本期仅 extensions 配置面（+gui-extensions tab 的边界事实）建立契约，不声称「设置」整体已交付。
