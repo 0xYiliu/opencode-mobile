@@ -70,7 +70,8 @@
     "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
     "patches/mobile/0023-M-024-settings-android-permission-face.patch",
     "patches/mobile/0024-M-025-root-disabled-merge.patch",
-    "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch"
+    "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch",
+    "patches/mobile/0026-M-027-initial-ssh-entry.patch"
   ],
   "excluded": {
     "packages": [

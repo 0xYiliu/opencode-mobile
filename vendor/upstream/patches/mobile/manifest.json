@@ -311,6 +311,21 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered (LAYERED round-trip: applies to pin+M-001..M-024 and byte-reproduces the implementation tree); bun run build:web rc=0 with the new keys in the built language chunks; scripts/verify-gui-extensions.ts group 4 (mobileGuiExtensions line, revised guard, nav condition, mount branch, M-008/M-018 hunks untouched) and scripts/verify-agent-capabilities.ts group 5 revised counts (9/9 - deliberate revision, issue #26); device behavior BLOCKED (G35).",
       "rebase": "New patch (issue #26); LAYERED patch - generated against pin b4525d79bf + M-001..M-024 (shell.tsx already rewritten by M-008/M-018; en.ts on its sixth touch M-009/M-013/M-018/M-024/M-026, zh.ts fifth), round-trip verified on that base; rebase targets are the mobileGuiExtensions predicate line after the guiExtensions gate, the gui-extensions guard line, the nav-group conditional and the second gui-extensions Tabs.Content branch in packages/app/src/settings/shell.tsx, plus the settings.guiExtensions i18n region of en.ts/zh.ts (en anchor after status.blocked; zh anchor after the M-024 android notifications block)."
+    },
+    {
+      "id": "M-027",
+      "patch": "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/routes/connection-route.ts",
+        "packages/app/src/shell/routes/connection-route.test.ts"
+      ],
+      "reason": "Initial SSH entry (issue #55, T3 v4). The mobile ConnectServerScreen adds a localized SSH hosts action that navigates to the exact /settings?tab=servers root view. AppShell permits that root servers view while the server list is empty or the sole HTTP server is signed out, while preserving the signed-out ConnectServerScreen url anchor. The route helper delegates parsing to parseSettingsView and rejects other paths/scopes/subtabs. M-008/M-018 MobileHostManager remains the management face; no SSH transport changes.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
+      "owner": "opencode-mobile maintainers"
     }
   ]
 }

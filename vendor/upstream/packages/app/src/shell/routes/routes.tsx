@@ -1,4 +1,4 @@
-import { Route, useParams } from "@solidjs/router"
+import { Route, useLocation, useParams } from "@solidjs/router"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
 import { ServerProvider } from "@/runtime/server/current"
@@ -10,6 +10,7 @@ import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
 import { ExtensionAttachment } from "@/runtime/extension/root"
+import { isConnectionRoute } from "./connection-route"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -42,7 +43,7 @@ export function preloadRoute(url: string) {
 
 export function AppRoutes() {
   return (
-    <Route component={AppLayout}>
+    <Route component={AppShell}>
       <Route path="/" component={Home} />
       <Route path="/settings" component={SettingsScreen} />
       <Route
@@ -83,9 +84,10 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
-function AppLayout(props: ParentProps) {
+function AppShell(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
+  const location = useLocation()
 
   // A lone server that rejects our credentials (e.g. the web app before pairing) has nothing else to show.
   const signedOut = () => {
@@ -97,7 +99,10 @@ function AppLayout(props: ParentProps) {
   }
 
   return (
-    <Show when={servers.list.length > 0 && !signedOut()} fallback={<ConnectServerScreen url={signedOut()?.http.url} />}>
+    <Show
+      when={(servers.list.length > 0 && !signedOut()) || isConnectionRoute(location.pathname, location.search)}
+      fallback={<ConnectServerScreen url={signedOut()?.http.url} />}
+    >
       <LayoutProvider>
         <SettingsSurfaceProvider>
           <ExtensionAttachment>

@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router"
 import { lazy, Show, Suspense } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useMutation } from "@tanstack/solid-query"
@@ -18,6 +19,7 @@ import "./screen.css"
 const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
 
 export function ConnectServerScreen(props: { url?: string } = {}) {
+  const navigate = useNavigate()
   const language = useLanguage()
   const platform = usePlatform()
   const servers = useServers()
@@ -247,6 +249,11 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
             <footer>
               <p>{language.t("server.connect.pair.link")}</p>
               <code dir="ltr">opencode pair</code>
+              <Show when={platform.platform !== "desktop"}>
+                <Button variant="neutral" size="large" onClick={() => navigate("/settings?tab=servers")}>
+                  {language.t("settings.tab.sshHosts")}
+                </Button>
+              </Show>
             </footer>
           </Show>
         </Show>

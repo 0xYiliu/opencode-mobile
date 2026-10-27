@@ -32,6 +32,21 @@
 
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
+记录日期：2026-10-28。issue #55 段（M-027 初始 SSH 入口，基于 origin/dev `3859bd5`；计划 T3 v4）实施于分支 `issue-55-initial-ssh-entry`：连接屏本地化 SSH hosts 动作、`/settings?tab=servers` 精确 root 路由判定、新 `connection-route.ts`、AppShell 空/签出守卫与路由单测。复用 M-008/M-018 的 MobileHostManager；无 SSH transport 改动。设备/模拟器 G36、SSH E2E 与真服务验证 BLOCKED，构建和闭包结果见文末 issue #55 段。
+
+### issue #55 / M-027 实际结果
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| JSON 结构 | `python3 -m json.tool`（三个 vendor manifest/provenance 文件） | PASS |
+| 差异空白 | `git diff --check` | PASS |
+| 分层闭包与 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-027，`DANGLING=0` |
+| 上游路由单测 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/routes/connection-route.test.ts src/settings/route.test.ts` | BLOCKED：当前 worktree 依赖缺少 `@happy-dom/global-registrator`（0 pass，2 errors）；未伪称通过 |
+| Web 构建 | `bun run build:web` | BLOCKED：当前 worktree 未提供 `vite`（`vite: command not found`） |
+| Android/APK 与 G36 | `cd android && ./gradlew :app:assembleDebug`；真机/模拟器 | 未执行：本期未改变 Android 输入；G36 及 SSH E2E 仍 BLOCKED |
+
+本期没有 screen 测试：该界面依赖完整 Solid/WebView 测试装配，当前依赖缺口下不稳定；路由纯函数测试已加入补丁并纳入闭包 round-trip。
+
 ## 工具链（本机真实版本）
 
 | 工具 | 版本 | 用途 |
