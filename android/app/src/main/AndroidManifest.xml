@@ -5,6 +5,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Issue #23 notifications: runtime permission on API 33+ (requested in-app from the
+         settings face, user-in-foreground only); API 29-32 needs no prompt, channels only. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"

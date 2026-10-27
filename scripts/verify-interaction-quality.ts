@@ -24,7 +24,8 @@
 //   1. Shell window & back key (MainActivity.kt + AndroidManifest.xml):
 //      onBackPressed / canGoBack / goBack / super.onBackPressed, the
 //      predictive-back comment, the single-WebView `setContentView(webView)`,
-//      the sole LAUNCHER intent filter, the sole INTERNET permission,
+//      the sole LAUNCHER intent filter, the INTERNET + POST_NOTIFICATIONS
+//      permission pair (issue #23 revision of the sole-INTERNET sentinel),
 //      `enableOnBackInvokedCallback="false"`, and NEGATIVE zero
 //      `configChanges` (rotation = Activity rebuild is structural), zero
 //      multi-window faces (setSupportMultipleWindows/onCreateWindow);
@@ -86,7 +87,9 @@
 //      authority declaration and the four honest-state sentences (back key =
 //      ends the Activity with the same-window-navigation CLASS exception /
 //      command palette keybind-only / rotation = Activity rebuild / touch
-//      target gaps on record); interaction.md carries the G1–G31 enumeration,
+//      target gaps on record); interaction.md carries the G1–G33 enumeration
+//      (issue #23 revised the G1–G31 title anchor when G33 was added —
+//      coverage semantics preserved),
 //      the G31 gate row, the seventeenth honest wording, the back-key
 //      real-state baseline sentence and the issue #20 failure-path
 //      subsection; recovery.md carries the user-preferences row; README.md
@@ -172,10 +175,15 @@ function walk(dir: string, out: string[] = []): string[] {
   if (manifest.includes("configChanges"))
     fail("1: AndroidManifest.xml gained a configChanges declaration — rotation is documented as Activity rebuild (interaction-quality.md §1); re-review the rotation wording before keeping it")
 
-  // Single permission: INTERNET only.
+  // Permission pair: INTERNET + POST_NOTIFICATIONS (issue #23 added the latter; the
+  // drift-gate semantics are preserved — any THIRD permission still fails).
   const permissions = manifest.match(/<uses-permission\s+android:name="([^"]+)"/g) ?? []
-  if (permissions.length !== 1 || !permissions[0]!.includes("android.permission.INTERNET"))
-    fail(`1: AndroidManifest.xml must carry exactly one permission (INTERNET), got ${JSON.stringify(permissions)}`)
+  if (
+    permissions.length !== 2 ||
+    !permissions.includes('<uses-permission android:name="android.permission.INTERNET"') ||
+    !permissions.includes('<uses-permission android:name="android.permission.POST_NOTIFICATIONS"')
+  )
+    fail(`1: AndroidManifest.xml must carry exactly the permission pair {INTERNET, POST_NOTIFICATIONS} (issue #23), got ${JSON.stringify(permissions)}`)
 }
 
 // --- 2. Web-layer navigation form (drift sentinels) ---
@@ -535,8 +543,12 @@ function walk(dir: string, out: string[] = []): string[] {
   }
 
   const interaction = await read("docs/design/interaction.md")
-  if (!interaction.includes("## G1–G31 设备门禁（完整枚举）"))
-    fail("8: interaction.md gate enumeration must cover G1–G31")
+  // Issue #23 revision (deliberate, NOT a bypass): the enumeration-title anchor moved
+  // G1–G31 -> G1–G33 when the issue #23 G33 gate row was appended to interaction.md —
+  // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
+  // preserved.
+  if (!interaction.includes("## G1–G33 设备门禁（完整枚举）"))
+    fail("8: interaction.md gate enumeration must cover G1–G33")
   if (!interaction.includes("| G31 移动交互质量 walkthrough 门禁（issue #20"))
     fail("8: interaction.md lost the G31 gate row")
   if (!interaction.includes("第十七处落字（issue #20）"))
@@ -559,13 +571,13 @@ function walk(dir: string, out: string[] = []): string[] {
 
 console.log(
   "verify-interaction-quality: PASS (" +
-    "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET-only + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
+    "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS pair (issue #23) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
     "2: NEGATIVE zero History-API writes across the four upstream src trees (drift sentinel) + pwa.ts replaceState sole touchpoint + exactly two target=\"_blank\" tool-link anchors (same-window navigation class paths); " +
     "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (verify-terminal group 6); " +
     "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/14 hits, 20 files + host-apis comment anchor = 23 hits / 21 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
     "5: DEFAULT_PALETTE_KEYBIND + three hidden command.palette registrations + slash set equality (8-key + 3-key files, undo/redo pair CROSS-REFERENCE verify-diff group 3) + GLOBAL sentinel exactly 11 registrations in exactly 2 files + DialogCommandPalette /open route; " +
     "6: settings.v3 key + seven schema segments + mobileTitlebarPosition default + language store/loadInitialLocale/setLocale + oc-theme-preload three localStorage keys + Persist.global(\"model\") CROSS-REFERENCE (verify-provider-models); " +
     "7: createMobileViews + entries/tabs/menu/find return keys + lazy MobilePanelDrawer; " +
-    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G31 + G31 row + seventeenth honest wording + back-key baseline (class wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
+    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G33 enumeration (issue #23 revision) + G31 row + seventeenth honest wording + back-key baseline (class wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
     "STATIC check - back-key semantics, soft-keyboard viewport behavior, IME, screen-reader walkthrough, contrast, touch-target usability, rotation rebuild chains and slash discoverability on a device are G31)",
 )
