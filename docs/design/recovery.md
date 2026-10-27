@@ -17,6 +17,7 @@
 | 视图与滚动 | `Persist` web 存储 | `sessionView`（`SessionStateKey.is(key)` 白名单过滤）+ scroll state（per 会话/workspace） | 冷启动 / 切换回视图 | 白名单外键不恢复（有意收敛） | [units/session-workbench.md](units/session-workbench.md) |
 | 终端快照 | 上游 tabs store + ghostty-web 序列化 | workspace 键 `${server}\0${directory}`；2000 行序列化 | 杀 App 重开 / tab 恢复时 clone 或 replay | 服务重启 → 探活三态 → clone 恢复；隧道重建期间终端独立 250ms→4s 退避重试（引用不重定义） | [units/terminal.md](units/terminal.md) |
 | 文件 tab 与行选择 | `Persist` web 存储 | `SessionStateKey` 键控 + `file-view` scoped store（per workspace） | 冷启动 / 切换回文件 tab | 远端变更 → stale 五重链重读 | [units/files.md](units/files.md) |
+| 用户偏好（issue #20 回修增行） | `Persist` web 存储 + localStorage（theme） | `settings.v3`（七段）/`Persist.global("language")`/`opencode-theme-id`/`opencode-color-scheme`/`opencode-theme-css-<mode>`/`Persist.global("model")` | 启动 hydrate（settings.v3）/首帧前（theme preload）/进入相应界面（model） | schema `catchDecoding` → 默认值回落（defaultSettings 兜底）；语言/主题回落 en/system | [interaction-quality.md](interaction-quality.md) §六 与各单元文档 |
 
 凭据边界：secrets 永不进入上表除「凭据」行以外的任何恢复通道——持久化编码路径恒剥 password（M-002）、vault 是唯一设备侧持久形态且仅经 #4 契约存取；本文对凭据只做索引，零新增口径。
 
