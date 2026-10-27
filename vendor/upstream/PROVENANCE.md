@@ -72,6 +72,12 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   `opencode-mobile-ssh-handshake`; the bridge-backed host-key verifier and tunnel transport replace
   the fail-closed stubs in the shipped wiring only). Rationale and trust design:
   `docs/decisions/0003-ssh-transport.md`.
+- M-027 (issue #55): the mobile connection screen's localized SSH hosts action navigates to the
+  exact `/settings?tab=servers` root view. `AppShell` allows only that parsed root servers view
+  while the server list is empty or signed out, while retaining the signed-out
+  `ConnectServerScreen` URL anchor. The implementation is layered after M-026
+  (`0026-M-027-initial-ssh-entry.patch`); M-008/M-018's `MobileHostManager` and the SSH transport
+  are unchanged.
 
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).

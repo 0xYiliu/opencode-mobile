@@ -1,6 +1,6 @@
 # 单元：projects-sessions（远程项目、工作区与会话生命周期）
 
-状态：**已实现（未验证）**（issue #8）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库增量仅两个最小 vendor 补丁：**M-017**（home 会话行归档接线，替换上游 stub）与 **M-018**（多服务器设置布局的 SSH hosts 入口 + 重定向守卫修订——此项是 [server-list.md](server-list.md) 预登记「已知入口缺口（M-008）」债务的承接，**不是 issue #8 的验收项本身**）。全部能力未经设备运行验证；真机门禁见 **G19**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
+状态：**已实现（未验证）**（issue #8）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库增量仅两个最小 vendor 补丁：**M-017**（home 会话行归档接线，替换上游 stub）与 **M-018**（多服务器设置布局的 SSH hosts 入口 + 重定向守卫修订——此项是 [server-list.md](server-list.md) 预登记「已知入口缺口（M-008）」债务的承接，**不是 issue #8 的验收项本身**）。issue #55 的 M-027 只补齐空/签出连接屏的首个 SSH hosts 入口，未改变项目/会话生命周期或 SSH 传输。全部能力未经设备运行验证；真机门禁见 **G19/G36**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
 
 ## 能力来源（复用面，无新建第一方会话逻辑）
 

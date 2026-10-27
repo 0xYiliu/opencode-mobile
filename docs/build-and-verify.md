@@ -32,6 +32,24 @@
 
 记录日期：2026-10-24。S0–S4 段的验证于 2026-10-23 执行（首跑记录见 `vendor/upstream/provenance.json` 的 `pinUpdateExercise.regression`），本文引用其结果；V4/V5/V6/V7 与文档机械检查在 2026-10-24 于分支 `issue-2-android-shell-upstream-closure` 工作树重跑确认。
 
+记录日期：2026-10-28。issue #55 段（M-027 初始 SSH 入口，基于 origin/dev `3859bd5`；计划 T3 v4）实施于分支 `issue-55-initial-ssh-entry`：连接屏本地化 SSH hosts 动作、`/settings?tab=servers` 精确 root 路由判定、新 `connection-route.ts`、AppShell 空/签出守卫与路由单测。复用 M-008/M-018 的 MobileHostManager；无 SSH transport 改动。APK 已构建并安装到 MatePad，初始连接页与 SSH hosts 管理面已做设备冒烟；完整 G36、SSH E2E 与真服务验证仍 BLOCKED，结果见下表。
+
+### issue #55 / M-027 实际结果
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| JSON 结构 | `python3 -m json.tool`（三个 vendor manifest/provenance 文件） | PASS |
+| 差异空白 | `git diff --check` | PASS |
+| 分层闭包与 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-027，`DANGLING=0` |
+| 上游路由/连接单测 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/routes/connection-route.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts`（含测试期绝对路径 seam） | PASS：14 tests / 0 fail / 56 expect() |
+| 第一方移动包回归 | `bun test --conditions=browser packages/mobile-hosts` | PASS：371 tests / 0 fail / 2649 expect() |
+| Web 构建（当前 M-027 基线） | `bun run build:web` | PASS：构建完成（11.99s）；随后 `bash scripts/copy-web-dist.sh` PASS：当前 `web-dist/manifest.json` 基线为 **3482 文件 / 153445727 字节**（M-026 的 3480/153441733 保留为历史记录） |
+| Android APK | `cd android && ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle :app:assembleDebug` | PASS：`android/app/build/outputs/apk/debug/app-debug.apk`；SHA-256 `f78f1a34cc8d6d0fdae77eed53317229c126a3187ded07be72390f77efc4fd1e`；62,553,620 bytes |
+| MatePad 安装与初始入口冒烟 | `adb -s 192.168.3.145:5555 install -r .../app-debug.apk`；清数据、启动、UI dump；MatePad `HUAWEI DBY2-AL00` / Android 12 | PASS：安装 Success；初始页显示 `SSH hosts`；点击后显示 `SSH hosts`、`Add host`、`No SSH hosts yet...`、`Service port (remote OpenCode service)` |
+| G36 完整设备门禁 | MatePad 上添加/编辑/连接、未知/变更 host key、SSH 失败恢复、Pair/QR/password 全矩阵 | BLOCKED：本次只验证入口和空态管理面；SSH 真服务/host-key 全链未执行 |
+
+本期没有 screen 测试：该界面依赖完整 Solid/WebView 测试装配；入口点击与空态管理面已在 MatePad UI dump 上验证，路由纯函数测试已加入补丁并纳入闭包 round-trip。
+
 ## 工具链（本机真实版本）
 
 | 工具 | 版本 | 用途 |

@@ -110,6 +110,21 @@
       "reason": "Referenced packages are outside the acquired closure (generated code committed; theme not in runtime closure; http-recorder is a test tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
       "verification": "V1 install succeeds; V3(b) workspace scan reports DANGLING=0.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+    },
+    {
+      "id": "M-027",
+      "file": "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/routes/connection-route.ts",
+        "packages/app/src/shell/routes/connection-route.test.ts"
+      ],
+      "reason": "Initial SSH entry (issue #55, T3 v4). The mobile ConnectServerScreen adds a localized SSH hosts action that navigates to the exact /settings?tab=servers root view. AppShell permits that root servers view while the server list is empty or the sole HTTP server is signed out, while preserving the signed-out ConnectServerScreen url anchor. The route helper delegates parsing to parseSettingsView and rejects other paths/scopes/subtabs. M-008/M-018 MobileHostManager remains the management face; no SSH transport changes.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
+      "summary": "Mobile connection screen SSH hosts action and exact root servers route guard for empty/signed-out AppShell."
     }
   ],
   "upstreamPatches": {
