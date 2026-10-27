@@ -575,8 +575,12 @@ const PROJECT_OPEN_CONSUMERS = new Set([
     fail("7: commands-menus.md lost the multi-window negative cross-reference declaration")
 
   const interaction = await read(INTERACTION_DOC)
-  if (!interaction.includes("## G1–G34 设备门禁（完整枚举）"))
-    fail("7: interaction.md gate enumeration must cover G1–G34")
+  // Issue #26 revision (deliberate, NOT a bypass): the enumeration-title anchor moved
+  // G1–G34 -> G1–G35 when the issue #26 G35 gate row was appended to interaction.md —
+  // the anchor's coverage semantics (the enumeration must cover the FULL gate set) are
+  // preserved.
+  if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
+    fail("7: interaction.md gate enumeration must cover G1–G35")
   if (!interaction.includes("| G34 命令与菜单面运行期门禁（issue #24 **新设门禁**；命令菜单收口文档见 [commands-menus.md](commands-menus.md)）"))
     fail("7: interaction.md lost the G34 gate row")
   if (!interaction.includes("第二十处落字（issue #24）"))
@@ -638,7 +642,7 @@ console.log(
     "4: edit/zoom/nav families — M-020 wiring anchor + terminal execCommand copy + parent-toggle comment + selectAll form file-set exactly {desktop-menu, search-keydown} (i18n label-key domain excluded by declaration) + MainActivity zero zoom-configuration negative + viewport zero user-scalable negative (four-segment anchor cross-referenced to viq group 3) + common.goBack exactly-2 drift sentinel + history.ts three anchors; " +
     "5: enablement five layers — commandPaletteOptions filter + composer slash disabled filter + COMMON_COMMAND_IDS/order.has skip + extension enabled===false mapping + registries verbatim comment + windows-menu commandDisabled face + terminal/browser/debug enabled gates + never-on-the-web comment; " +
     "6: state restoration — command.catalog.v1 persisted store + keybindRenames cleanup + CommandCatalogItem metadata-only struct (no onSelect) + keybinds.tsx catalog consumption (settings.v3 segment cross-referenced to viq group 6); " +
-    "7: docs closure — commands-menus.md ten sections + authority + four 不得声称 + 13-row table + four window.* rows + multi-window cross-reference, interaction.md G1–G34 + G34 row + twentieth wording + failure path, interaction-quality.md section-7 pointer, design README index, architecture flow row; " +
+    "7: docs closure — commands-menus.md ten sections + authority + four 不得声称 + 13-row table + four window.* rows + multi-window cross-reference, interaction.md G1–G35 + G34 row + twentieth wording + failure path, interaction-quality.md section-7 pointer, design README index, architecture flow row; " +
     "8: build witnesses — dist baseline 3480/153441733 (cross-reference verify-notifications group 8; issue #26 re-recorded after its build-input changes) + patch set 25 (cross-reference verify-attachments-artifacts; issue #23 20→23, issue #26 23→25) + bun.lock workspace anchor; " +
     "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
 )
