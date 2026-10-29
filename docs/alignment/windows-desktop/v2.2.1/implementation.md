@@ -14,6 +14,8 @@ issue-58 (`5a46934e7f17a32d3df5d354d18424034785efc3`) 已通过 PR #59 合并，
 
 ## 证据索引
 
+E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 `5a46934`（main `4c2ec43` 包含该提交）为依据。后者用于覆盖同项的旧架构与历史结论；本次为源码/台账核对，未重跑设备或构建测试。
+
 | 编号 | 固定快照内路径 | 已核事实与限制 |
 | --- | --- | --- |
 | E01 | `vendor/upstream/PROVENANCE.md`、`docs/project-scope.md`、`docs/decisions/0001-wsl-exclusion.md` | vendor pin 为 b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43；已有 11 包闭包及移动补丁；WSL 排除包括 Windows 主机的发现/启停/管理。访问已暴露的远程服务与管理 WSL 是不同能力 |
@@ -28,7 +30,11 @@ issue-58 (`5a46934e7f17a32d3df5d354d18424034785efc3`) 已通过 PR #59 合并，
 | E10 | `docs/decisions/0002-direct-connection-transport.md`、`docs/decisions/0003-ssh-transport.md`、`docs/decisions/0004-service-operations.md`、`docs/design/units/connection.md`、`packages/mobile-hosts/src/registry.ts`、`packages/mobile-hosts/src/state-machine.ts`、`packages/mobile-hosts/src/ssh/transport.ts`、`packages/mobile-hosts/src/ssh/host-key-verifier.ts`、`packages/mobile-hosts/src/service-ops/flow.ts`、`packages/mobile-hosts/src/vault/vault.ts`、`android/app/src/main/java/ai/opencode/mobile/vault/VaultCrypto.kt`、`vendor/upstream/packages/app/src/servers/connect/pairing.ts` | 已有直连、SSH、指纹、服务操作、Keystore 和链接配对。密码/密钥兼容与错误路径按已有 ADR/实现验收；相机扫码与外链唤起不能从链接导入推定。完整 G36/SSH E2E 未完成 |
 | E11 | `android/app/build.gradle.kts`、`android/app/src/main/java/ai/opencode/mobile/MainActivity.kt`、`docs/design/interaction-quality.md`、`docs/design/recovery.md`、`docs/design/commands-menus.md` | Kotlin/WebView 壳；ai.opencode.mobile，minSdk 29，compile/target 36，versionName 0.1.0；已有返回/恢复/命令契约，不是待选框架的空项目 |
 | E12 | `docs/build-and-verify.md` | M-027/M-028 的历史构建、安装和 MatePad 入口/布局冒烟；完整 G36 与多个运行门禁仍 BLOCKED |
-| E13 | `android/app/src/main/java/ai/opencode/mobile/ShellWorkerPolicy.kt`、`packages/mobile-hosts/src/ssh/`、`vendor/upstream/patches/mobile/manifest.json`、`docs/build-and-verify.md` issue-58 段 | 当前 main 已集成 M-029–M-031；inline SSH form render G37 PASS，桥接、WebView worker 和凭据修复有对应构建/设备记录；主机密钥及真实 SSH 服务认证仍未完成验收 |
+| E13 | `packages/mobile-hosts/src/ui/initial-ssh-setup.tsx`、`packages/mobile-hosts/src/initial-handoff.ts`、`vendor/upstream/packages/app/src/servers/connect/screen.tsx`、`vendor/upstream/packages/app/src/settings/shell.tsx`、`vendor/upstream/patches/mobile/manifest.json` | M-029/M-030 原地三模式与 SSH 表单；exact-owner/代际/认证 handoff，编辑中不跳转；撤销 M-027 无连接 Settings 例外；修复 keyed Show accessor 误用。G37 有局部 UI 历史证据 |
+| E14 | `packages/mobile-hosts/src/ui/service-auth-prompt.tsx`、`packages/mobile-hosts/src/runtime.ts`、`packages/mobile-hosts/src/transport/basic-auth.ts`、`vendor/upstream/packages/app/src/runtime/server/api.ts`、`packages/mobile-hosts/test/runtime-ssh.test.ts`、`packages/mobile-hosts/test/service-auth-prompt.rendered.tsx`、`vendor/upstream/packages/app/src/runtime/server/client.test.ts` | 服务密码显式 Check again；仅运行期内存存储，断开/编辑/删除清除；重连再 health 后发布 endpoint，异步请求代际与取消保护；M-031 UTF-8 Basic auth。台账记录合成竞态、渲染及共享客户端测试通过，不替代真机重连 |
+| E15 | `packages/mobile-hosts/src/vault/transport.ts`、`android/app/src/main/java/ai/opencode/mobile/vault/CredentialVaultBridge.kt`、`android/app/src/main/java/ai/opencode/mobile/vault/VaultGenerationGate.kt`、`android/app/src/main/java/ai/opencode/mobile/vault/VaultOriginPolicy.kt`、`android/app/src/main/java/ai/opencode/mobile/vault/VaultPayloadFiles.kt`、`android/app/src/main/java/ai/opencode/mobile/vault/VaultCrypto.kt`、`packages/mobile-hosts/test/vault-androidx-transport.test.ts` | M-032 AndroidX listener v2 取代旧 vault port 握手；精确 origin/main-frame gate、导航代际与主线程回复、请求/队列限制；OPMV1 格式不变，由 Keystore 生成 IV；删除失败保留元数据、后续写入结果不确定报 UNKNOWN，无新增事务/journal。C1–C6 设备门禁未验全 |
+| E16 | `packages/mobile-hosts/src/ui/host-key-binding.ts`、`packages/mobile-hosts/src/ui/host-key-recovery-flow.ts`、`packages/mobile-hosts/src/ssh/bridge.ts`、`android/app/src/main/java/ai/opencode/mobile/ssh/SshTunnelBridge.kt`、`android/app/src/main/java/ai/opencode/mobile/ssh/SshHostKeyStore.kt`、`android/app/src/test/java/ai/opencode/mobile/ssh/SshHostKeyStoreTest.kt` | SSH 同步订阅后用独立 AndroidX bootstrap 请求 ack-gated channel；确认绑定目标/端口/指纹；known_hosts 以 Line.raw 序列化，JVM 测试覆盖写入回读、变更拒绝及外来行保留。最终设备提示与独立参考不一致，未继续信任和认证 |
+| E17 | `android/app/src/main/java/ai/opencode/mobile/ShellWorkerPolicy.kt`、`android/app/src/main/java/ai/opencode/mobile/MainActivity.kt`、`android/app/src/test/java/ai/opencode/mobile/ShellWorkerPolicyTest.kt`、`scripts/verify-connection-inline-ssh.ts`、`docs/build-and-verify.md` | 修复 APK/旧 worker 资源不同步；仅操作精确 shell origin/root scope/packaged sw.js，异步回调重检身份，无清数据；worker 有策略/JVM/模拟测试及特定旧构建 CDP 证据，不将某次 UI dump 当作 worker 状态验证 |
 
 ## 历史构建证据的适用范围
 
@@ -37,3 +43,10 @@ issue-58 (`5a46934e7f17a32d3df5d354d18424034785efc3`) 已通过 PR #59 合并，
 - 设备记录为 HUAWEI DBY2-AL00 / Android 12。这里只引用去除设备网络地址后的证据摘要。
 - 上述结果不能证明所有连接/主机指纹/失败恢复/真模型任务流程已经验收，也不能证明已对齐 Windows v2.2.1。
 - issue-58 的设备及构建结果按 `docs/build-and-verify.md` 对应记录引用；历史/受限冒烟只适用于列明的 APK 和步骤，不外推为 SSH 服务连接通过。
+
+### issue-58 验证记录的分界
+
+- **入口与设置**：G37 inline form render 有历史通过；Server 设置页崩溃修复后有设备主机行/提示呈现记录。
+- **一次认证后观察**：台账记录用户在设备上私下完成服务认证后，只读 CDP 确认 home route 和非空 session row；没有发送任务，没有做 disconnect/reconnect。不能写成“从未认证成功”，也不能据此判定完整任务或重连通过。
+- **后续已知主机修复**：known_hosts 序列化修复有 JVM 证据；对应无诊断 APK 安装后，当前提示仍未与独立参考匹配，因此未信任，最终实连复验继续 BLOCKED。
+- **多构建边界**：台账同时保留 built-not-installed、特定 APK 的安装/UI/CDP 记录及后续补充；不汇总为统一的“最新 APK 全部通过”。TypeScript 全项目检查仍有既存诊断。
