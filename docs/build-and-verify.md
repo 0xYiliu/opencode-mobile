@@ -141,6 +141,11 @@ Initial handoff form-open review follow-up (2026-10-29): `canHandoffInitialSsh` 
 - **Nit（docs）**：build-and-verify「真机 QA」表行结果列改为直陈「未执行（设备被占用…）」。
 - **复测**：上表数字已按本轮实测更新（tests 422/0/2880；dist 3480/153563194；APK `7c041987…`；探针/闭包/diff-check 全绿）；设备 QA 仍待协调执行（interaction.md G35⑦⑨ 段 APK SHA 同步更新）。
 
+### 复审修复轮（`in` 原型链成员名误判 MINOR → 修复，2026-10-30）
+
+- `excludedReasonKey` 与 `capabilityOf` 的成员检查由 `id in EXCLUDED_EXTENSIONS` 改为 `Object.hasOwn`（own-property only，"constructor"/"toString" 等原型链成员名不再误判 excluded、不再经 as keyof 取到继承成员）；「cannot miss」注释同步说明 hasOwn 免疫原型链。rendered 新增负例：`capabilityOf("constructor")`/`("toString")` 均为 "web" 非 "excluded"，DOM 级无 prototype 成员名行、排除行恰 1。
+- **复测**：tests **423 pass / 0 fail / 2885 expect()**（+1 用例）；dist 重建 **3480/153563460**（+266 字节，组 8 已按实测更新）；**APK SHA-256 `b5c65c750f79b34fdbea03a1a3ba9ba69df5b3dce71eaf8296e2e52dad34b2db`**（64,109,077 bytes，终构建，zh 原因串命中）；探针/闭包/diff-check 全绿；interaction.md G35⑦⑨ 段 SHA 同步；设备 QA 仍待协调执行。
+
 ### 诚实边界（issue #62 段）
 
 - 静态排除行是**第一方合成呈现**，不是宿主状态：不读 statusOf/failureOf/disabledIds；「已禁用/Disabled」复用既有状态键是呈现选择（用户禁用行仍可切换，wsl 行零控件且原因文案点明「产品决策排除」——可区分）。
