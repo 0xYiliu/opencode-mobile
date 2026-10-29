@@ -120,7 +120,7 @@ E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 
 1. **v2.2.1 newIcons 还有 gui-plugins 消费点未随行（评审 MINOR-2）**：v2.2.1 新文件 `gui-plugins/src/browser/panel.tsx` import `newIcons`（外跳/浏览器面板插件的图标选择不随实验开关切换，gui-plugins 包亦不在本仓库 vendor 11 包闭包内）——登记为已知偏差：移动端实验开关覆盖 app/session-ui/ui 三包消费面，gui-plugins 面不存在也无从切换。
 2. **timeline 大重写不移植**：user-runs（`run={joined()}`/`data-run-folded`/`arriving`/`grow`）、quote 一族（quote.tsx/`commentCardTarget`/`quoteTooltip`/`outline-quote`）、sources-chip（`useSources`/`SourcesChip`/`linkSegments`）、plugin 迁移（`PluginSlot`）、springStyle/userRunSpring 动效、meta 行重写、session.rename/delete 命令族均不取——fold-only 垂直切片，探针多重负断言锁定三文件零混入。
 3. **catalog 其余变更不采纳**：`sidebar-right` 删除、15 个新增名、trash/copy/reset/outline-reset body 改写全部按 pin 保留（body 改写是 v2.2.1 已「转正」的新图标默认化，pin 保持旧 artwork 才使实验开关产生可见差异；pin trash body `M2.44434 4.22224H13.5554…` 与 copy body `M4.14908 11.0081H1.76282…` 探针逐字锁定）。
-4. **sprite 常驻成本**：icon.tsx sprite 构建对 70 个替换名无条件追加 new symbol（约 +56,657 bytes dist 实测增量 153,581,483→153,638,140 的主要构成），实验关闭也存在——上游同态，接受并登记。
+4. **sprite 常驻成本**：icon.tsx sprite 构建对 70 个替换名无条件追加 new symbol（约 +56,655 bytes dist 实测增量 153,581,483→153,638,138 的主要构成；首轮构建 153,638,140，fix 轮 −2 bytes 为空行收敛，见 build-and-verify.md #64 段 fix 轮小节），实验关闭也存在——上游同态，接受并登记。
 5. **降级不可移植**：v2.2.1 写入的 `newIcons:true`/`foldUserMessages:true` 被旧构建（无该字段 schema）读到时 general 段 decode 失败、defaultSettings 兜底（外观/通用偏好回落）——上游自身同态；升级方向（pin→本补丁语义）无此问题。`recover()` 逐字段回落语义见 S04 小节，本两字段同为新增字段缺省回落 false。
 6. **zh（及全部非 en 语言）6 个新键回退英文**：app 4 + ui 2（**ui 包 i18n 为首次被移动补丁触碰**）；上游 v2.2.1 实态即 en-only，双包 fallback 锚逐字在位（探针组 8）。
 7. **桌面行为不变**：本仓库无桌面构建产物；「桌面不变」= (a) 逐字移植使上游桌面语义按构造成立（常量无平台门控、桌面/移动同帧出现实验标签），(b) M-026 的 `mobileGuiExtensions` 面（gui-extensions 标签）与实验标签无交互、settings/shell.tsx 零触碰（探针锁 ：309/:362 逐字）。

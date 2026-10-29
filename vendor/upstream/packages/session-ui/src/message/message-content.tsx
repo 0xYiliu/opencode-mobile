@@ -548,7 +548,6 @@ export function CurrentUserMessageDisplay(props: {
   )
 }
 
-
 // The OpenCode iOS app's fold (UserBubbleFold): a message past 12 lines shows its first 8, so a fold always hides at
 // least 5 lines and a message just past the limit never folds away a line or two.
 const USER_MESSAGE_FOLD = { over: 12, show: 8 }
