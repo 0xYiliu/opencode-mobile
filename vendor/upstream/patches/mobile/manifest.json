@@ -379,6 +379,16 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-credential-vault.ts, vault transport tests, bun run build:web, and V3 layered closure. Direct-server UNKNOWN caller keeps the prior connection uncommitted and surfaces recoveryRef. Isolated device readiness smoke is historical; synthetic storage instrumentation timed out and is BLOCKED.",
       "rebase": "Layered after M-031; replaces the vault transport wiring in entry.tsx and updates the credential-change failure copy/recoveryRef in connect/dialog.tsx and en/zh i18n."
+    },
+    {
+      "id": "M-033",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0033-M-033-interface-mode-setting.patch",
+      "targets": ["packages/app/src/settings/model.tsx", "packages/app/src/shell/shell.tsx", "packages/app/src/settings/general/general.tsx", "packages/app/src/settings/general/interface-mode.tsx", "packages/app/src/settings/general/interface-mode.css", "packages/app/src/settings/search-catalog.ts", "packages/app/src/runtime/i18n/en.ts"],
+      "reason": "Issue #63 S04: align the v2.2.1 Top/Side/Inbox interface mode. appearance.tabLayout gains the upstream 'inbox' literal (default stays 'horizontal', settings.v3 key unchanged); the shell sidebar predicate becomes tabLayout !== \"horizontal\" so inbox takes the side rail at desktop widths; the General section replaces the TabLayoutSetting select with the upstream InterfaceModeSetting fieldset (three preview cards, radio semantics, same settings-tab-layout anchor, Experimental badge on inbox); the search catalog entry and eight en i18n keys follow v2.2.1 verbatim (zh falls back to en at runtime, matching upstream's real v2.2.1 shape). The SidebarInbox grouping family (~5300 lines) is intentionally not ported: at >=768px inbox renders the same session rail as side, registered as a delta.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-interface-mode.ts probe (enum/predicate/mount/catalog/en keys/zh fallback/negative assertions), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts under --conditions=solid), V3 closure round-trip (git apply --check to pristine pin), bun run build:web, first-party bun test --conditions=browser packages/mobile-hosts.",
+      "rebase": "Layered after M-032. en.ts hunk anchors at :746-749 (after settings.appearance.row.tabs.vertical); the six registered en.ts patches (M-009 @@353, M-013 @@347, M-018 @@623, M-024 @@926, M-026 @@707+3, M-032 @@373) all end at least 36 lines away, no context overlap. general.tsx is a cherry-pick of four hunks: TerminalPlacementSetting and ExtensionSettingsSections naming are intentionally kept (v2.2.1 renames and terminal-plugin migration belong to other matrix rows)."
     }
   ]
 }

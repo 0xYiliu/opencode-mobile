@@ -1,0 +1,568 @@
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index d1b702e..1b9e92e 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -747,6 +747,15 @@ export const dict = {
+   "settings.appearance.row.tabs.description": "Choose how session tabs are arranged",
+   "settings.appearance.row.tabs.horizontal": "Horizontal",
+   "settings.appearance.row.tabs.vertical": "Vertical",
++  "settings.general.row.interfaceMode.title": "Interface",
++  "settings.general.row.interfaceMode.top": "Top tabs",
++  "settings.general.row.interfaceMode.top.description": "Browser-style tabs across the top of the window.",
++  "settings.general.row.interfaceMode.side": "Side tabs",
++  "settings.general.row.interfaceMode.side.description": "Browser-style tabs in a sidebar.",
++  "settings.general.row.interfaceMode.inbox": "Inbox",
++  "settings.general.row.interfaceMode.inbox.description":
++    "Every session across your servers, sorted by what needs you next.",
++  "settings.general.row.interfaceMode.experimental": "Experimental",
+   "settings.notifications.description": "Choose when to receive notifications and hear sounds",
+   "settings.shortcuts.description": "Customize shortcuts for common actions",
+   "settings.servers.description": "Manage server connections",
+diff --git a/packages/app/src/settings/general/general.tsx b/packages/app/src/settings/general/general.tsx
+index 02099ac..5d62f23 100644
+--- a/packages/app/src/settings/general/general.tsx
++++ b/packages/app/src/settings/general/general.tsx
+@@ -16,10 +16,9 @@ import { formatKeybind } from "@/shell/commands/command"
+ import { SettingsList } from "@/settings/list"
+ import { SettingsRow } from "@/settings/row"
+ import { createShellOptions, type ShellSettingsController } from "./controllers"
++import { InterfaceModeSetting } from "./interface-mode"
+ import "@/settings/settings.css"
+ 
+-const tabLayoutOptions: ("horizontal" | "vertical")[] = ["horizontal", "vertical"]
+-
+ const AutoApprovePermissionsSetting: Component = () => {
+   const language = useLanguage()
+   const settings = useSettings()
+@@ -190,33 +189,6 @@ const LanguageSetting = () => {
+   )
+ }
+ 
+-const TabLayoutSetting = () => {
+-  const language = useLanguage()
+-  const settings = useSettings()
+-
+-  return (
+-    <SettingsRow
+-      title={language.t("settings.appearance.row.tabs.title")}
+-      description={language.t("settings.appearance.row.tabs.description")}
+-    >
+-      <Select
+-        data-action="settings-tab-layout"
+-        options={tabLayoutOptions}
+-        current={tabLayoutOptions.find((option) => option === settings.appearance.tabLayout())}
+-        aria-label={language.t("settings.appearance.row.tabs.title")}
+-        placement="bottom-end"
+-        gutter={6}
+-        label={(option) =>
+-          option === "horizontal"
+-            ? language.t("settings.appearance.row.tabs.horizontal")
+-            : language.t("settings.appearance.row.tabs.vertical")
+-        }
+-        onSelect={(option) => option && settings.appearance.setTabLayout(option)}
+-      />
+-    </SettingsRow>
+-  )
+-}
+-
+ export const SettingsGeneral: Component = () => {
+   const language = useLanguage()
+   const platform = usePlatform()
+@@ -241,9 +213,9 @@ export const SettingsGeneral: Component = () => {
+   const GeneralSection = () => (
+     <div class="settings-section">
+       <h3 class="settings-section-title">{language.t("settings.general.section.general")}</h3>
++      <InterfaceModeSetting />
+       <SettingsList>
+         <LanguageSetting />
+-        <TabLayoutSetting />
+ 
+         <WorkspaceDestinationSetting />
+         <AutoApprovePermissionsSetting />
+diff --git a/packages/app/src/settings/general/interface-mode.css b/packages/app/src/settings/general/interface-mode.css
+new file mode 100644
+index 0000000..e78230a
+--- /dev/null
++++ b/packages/app/src/settings/general/interface-mode.css
+@@ -0,0 +1,259 @@
++[data-component="interface-mode"] {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
++  gap: 12px;
++  min-width: 0;
++  margin: 0;
++  padding: 0;
++  border: 0;
++
++  [data-slot="interface-mode-option"] {
++    position: relative;
++    display: flex;
++    min-width: 0;
++    flex-direction: column;
++    gap: 12px;
++    padding: 12px;
++    border-radius: 8px;
++    background-color: var(--v2-background-bg-layer-01);
++    box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
++    cursor: pointer;
++    transition: box-shadow 120ms ease;
++
++    &:hover {
++      box-shadow: inset 0 0 0 1px var(--v2-border-border-strong);
++    }
++
++    &[data-checked] {
++      box-shadow: inset 0 0 0 1.5px var(--v2-border-border-focus);
++    }
++
++    &:has(input:focus-visible) {
++      outline: 2px solid var(--v2-border-border-focus);
++      outline-offset: 2px;
++    }
++
++    input {
++      position: absolute;
++      inset: 0;
++      margin: 0;
++      opacity: 0;
++      pointer-events: none;
++    }
++  }
++
++  [data-slot="interface-mode-copy"] {
++    display: flex;
++    flex-direction: column;
++    gap: 4px;
++    padding-inline: 2px;
++  }
++
++  [data-slot="interface-mode-title"] {
++    display: flex;
++    align-items: center;
++    gap: 8px;
++    font-size: 13px;
++    font-weight: 530;
++    line-height: var(--line-height-compact);
++    letter-spacing: -0.04px;
++    color: var(--v2-text-text-base);
++  }
++
++  [data-slot="interface-mode-radio"] {
++    flex-shrink: 0;
++    box-sizing: border-box;
++    width: 14px;
++    height: 14px;
++    border: 1px solid var(--v2-border-border-strong);
++    border-radius: 50%;
++    transition: border 120ms ease;
++  }
++
++  [data-checked] [data-slot="interface-mode-radio"] {
++    border: 4px solid var(--v2-background-bg-accent);
++  }
++
++  [data-slot="interface-mode-badge"] {
++    padding: 0 5px;
++    border-radius: 4px;
++    font-size: 11px;
++    font-weight: 500;
++    line-height: var(--line-height-compact);
++    color: var(--v2-text-text-muted);
++    background-color: var(--v2-background-bg-layer-03);
++  }
++
++  [data-slot="interface-mode-description"] {
++    padding-inline-start: 22px;
++    font-size: 13px;
++    font-weight: 440;
++    line-height: var(--line-height-base);
++    color: var(--v2-text-text-muted);
++  }
++}
++
++[data-slot="interface-mode-preview"] {
++  --preview-fill: var(--v2-background-bg-layer-02);
++  --preview-ink: var(--v2-background-bg-layer-03);
++  --preview-ink-strong: var(--v2-background-bg-layer-04);
++  display: flex;
++  flex-direction: column;
++  overflow: hidden;
++  aspect-ratio: 16 / 9;
++  border: 1px solid var(--v2-border-border-base);
++  border-radius: 6px;
++  background-color: var(--v2-background-bg-base);
++
++  span,
++  i {
++    display: block;
++    flex-shrink: 0;
++  }
++
++  [data-slot="preview-body"] {
++    display: flex;
++    min-height: 0;
++    min-width: 0;
++    flex: 1;
++  }
++
++  [data-slot="preview-line"] {
++    height: 3px;
++    border-radius: 1.5px;
++    background-color: var(--preview-ink);
++  }
++
++  [data-slot="preview-tab"] {
++    display: flex;
++    align-items: center;
++    gap: 4px;
++    padding: 3px;
++    border-radius: 2px;
++
++    &[data-active] {
++      background-color: var(--preview-fill);
++    }
++
++    i {
++      width: 5px;
++      height: 5px;
++      border-radius: 1px;
++      background-color: var(--preview-ink-strong);
++    }
++
++    span {
++      height: 3px;
++      border-radius: 1.5px;
++      background-color: var(--preview-ink);
++    }
++  }
++
++  [data-slot="preview-tabs"] {
++    display: flex;
++    gap: 3px;
++    padding: 4px 6px;
++    border-bottom: 0.5px solid var(--v2-border-border-base);
++    background-color: var(--v2-overlay-simple-overlay-pressed);
++
++    [data-slot="preview-tab"] {
++      width: 22%;
++    }
++  }
++
++  [data-slot="preview-rail"] {
++    display: flex;
++    width: 24%;
++    flex-direction: column;
++    gap: 3px;
++    padding: 6px 4px;
++    border-inline-end: 0.5px solid var(--v2-border-border-base);
++    background-color: var(--v2-overlay-simple-overlay-pressed);
++  }
++
++  [data-slot="preview-rail-heading"] {
++    width: 30%;
++    height: 3px;
++    margin: 4px 3px 1px;
++    border-radius: 1.5px;
++    background-color: var(--preview-ink-strong);
++    opacity: 0.6;
++
++    &:first-child {
++      margin-top: 0;
++    }
++  }
++
++  [data-slot="preview-tab"] i[data-status] {
++    border-radius: 50%;
++
++    &[data-status="approval"] {
++      background-color: var(--v2-state-fg-warning);
++    }
++
++    &[data-status="done"] {
++      background-color: var(--v2-state-fg-success);
++    }
++
++    &[data-status="working"] {
++      background-color: var(--v2-state-fg-info);
++    }
++  }
++
++  [data-slot="preview-main"] {
++    display: flex;
++    min-width: 0;
++    flex: 1;
++    flex-direction: column;
++    gap: 4px;
++    padding: 6px 8px;
++  }
++
++  [data-slot="preview-toolbar"] {
++    display: flex;
++    justify-content: flex-end;
++    gap: 3px;
++    margin-bottom: 3px;
++
++    i {
++      width: 6px;
++      height: 6px;
++      border-radius: 1.5px;
++      background-color: var(--preview-ink-strong);
++    }
++  }
++
++  [data-slot="preview-composer"] {
++    display: flex;
++    align-items: center;
++    justify-content: flex-end;
++    gap: 3px;
++    height: 12px;
++    margin-top: auto;
++    padding-inline: 3px;
++    border-radius: 5px;
++    background-color: var(--preview-fill);
++    box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
++
++    i {
++      width: 5px;
++      height: 5px;
++      border-radius: 1px;
++      background-color: var(--preview-ink-strong);
++    }
++  }
++
++  [data-slot="preview-panel"] {
++    display: flex;
++    width: 26%;
++    flex-direction: column;
++    gap: 4px;
++    padding: 8px 6px;
++    border-inline-start: 0.5px solid var(--v2-border-border-base);
++    background-color: var(--v2-overlay-simple-overlay-pressed);
++  }
++}
++
++[data-checked] [data-slot="interface-mode-preview"] {
++  --preview-ink-strong: color-mix(in srgb, var(--v2-background-bg-accent) 70%, transparent);
++}
+diff --git a/packages/app/src/settings/general/interface-mode.tsx b/packages/app/src/settings/general/interface-mode.tsx
+new file mode 100644
+index 0000000..6cba5f6
+--- /dev/null
++++ b/packages/app/src/settings/general/interface-mode.tsx
+@@ -0,0 +1,173 @@
++import { For, Match, Show, Switch, createUniqueId } from "solid-js"
++import { useLanguage } from "@/runtime/i18n/language"
++import { type TabLayout, useSettings } from "@/settings/model"
++import "./interface-mode.css"
++
++const modes = [
++  { id: "top", layout: "horizontal" },
++  { id: "side", layout: "vertical" },
++  { id: "inbox", layout: "inbox" },
++] as const satisfies { id: string; layout: TabLayout }[]
++
++export function InterfaceModeSetting() {
++  const language = useLanguage()
++  const settings = useSettings()
++  const id = createUniqueId()
++
++  return (
++    <fieldset data-component="interface-mode" data-action="settings-tab-layout">
++      <legend class="sr-only">{language.t("settings.general.row.interfaceMode.title")}</legend>
++      <For each={modes}>
++        {(mode) => (
++          <label
++            data-slot="interface-mode-option"
++            data-checked={settings.appearance.tabLayout() === mode.layout ? "" : undefined}
++          >
++            <input
++              type="radio"
++              name={id}
++              value={mode.id}
++              checked={settings.appearance.tabLayout() === mode.layout}
++              aria-labelledby={`${id}-${mode.id}-title`}
++              aria-describedby={`${id}-${mode.id}`}
++              onChange={() => settings.appearance.setTabLayout(mode.layout)}
++            />
++            <div data-slot="interface-mode-preview" data-mode={mode.id} aria-hidden="true">
++              <Switch>
++                <Match when={mode.id === "top"}>
++                  <TopTabsPreview />
++                </Match>
++                <Match when={mode.id === "side"}>
++                  <SideTabsPreview />
++                </Match>
++                <Match when={mode.id === "inbox"}>
++                  <InboxPreview />
++                </Match>
++              </Switch>
++            </div>
++            <div data-slot="interface-mode-copy">
++              <span data-slot="interface-mode-title">
++                <span data-slot="interface-mode-radio" />
++                <span id={`${id}-${mode.id}-title`}>{language.t(`settings.general.row.interfaceMode.${mode.id}`)}</span>
++                <Show when={mode.id === "inbox"}>
++                  <span data-slot="interface-mode-badge">
++                    {language.t("settings.general.row.interfaceMode.experimental")}
++                  </span>
++                </Show>
++              </span>
++              <span id={`${id}-${mode.id}`} data-slot="interface-mode-description">
++                {language.t(`settings.general.row.interfaceMode.${mode.id}.description`)}
++              </span>
++            </div>
++          </label>
++        )}
++      </For>
++    </fieldset>
++  )
++}
++
++// The modes differ only in where sessions are listed, so every preview shares one workspace.
++function TopTabsPreview() {
++  return (
++    <>
++      <div data-slot="preview-tabs">
++        <For each={[60, 44, 52]}>
++          {(width, index) => (
++            <span data-slot="preview-tab" data-active={index() === 0 ? "" : undefined}>
++              <i />
++              <span style={{ width: `${width}%` }} />
++            </span>
++          )}
++        </For>
++      </div>
++      <PreviewWorkspace />
++    </>
++  )
++}
++
++function SideTabsPreview() {
++  return (
++    <div data-slot="preview-body">
++      <div data-slot="preview-rail">
++        <For each={[70, 52, 64, 44, 58, 36]}>
++          {(width, index) => (
++            <span data-slot="preview-tab" data-active={index() === 1 ? "" : undefined}>
++              <i />
++              <span style={{ width: `${width}%` }} />
++            </span>
++          )}
++        </For>
++      </div>
++      <PreviewWorkspace />
++    </div>
++  )
++}
++
++// Mirrors the inbox: sessions that need you, then finished work, then sessions still running.
++const inboxSections = [
++  { rows: [{ width: 68, status: "approval" }] },
++  {
++    rows: [
++      { width: 56, status: "done" },
++      { width: 72, status: "done" },
++    ],
++  },
++  {
++    rows: [
++      { width: 48, status: "working" },
++      { width: 62, status: "working" },
++    ],
++  },
++] as const
++
++function InboxPreview() {
++  return (
++    <div data-slot="preview-body">
++      <div data-slot="preview-rail">
++        <For each={inboxSections}>
++          {(section, sectionIndex) => (
++            <>
++              <span data-slot="preview-rail-heading" />
++              <For each={section.rows}>
++                {(row, index) => (
++                  <span data-slot="preview-tab" data-active={sectionIndex() === 1 && index() === 0 ? "" : undefined}>
++                    <i data-status={row.status} />
++                    <span style={{ width: `${row.width}%` }} />
++                  </span>
++                )}
++              </For>
++            </>
++          )}
++        </For>
++      </div>
++      <PreviewWorkspace />
++    </div>
++  )
++}
++
++function PreviewWorkspace() {
++  return (
++    <div data-slot="preview-body">
++      <div data-slot="preview-main">
++        <div data-slot="preview-toolbar">
++          <i />
++          <i />
++          <i />
++          <i />
++        </div>
++        <For each={[92, 78, 84, 60, 88, 70, 40]}>
++          {(width) => <span data-slot="preview-line" style={{ width: `${width}%` }} />}
++        </For>
++        <span data-slot="preview-composer">
++          <i />
++          <i />
++        </span>
++      </div>
++      <div data-slot="preview-panel">
++        <For each={[80, 64, 72, 50, 68]}>
++          {(width) => <span data-slot="preview-line" style={{ width: `${width}%` }} />}
++        </For>
++      </div>
++    </div>
++  )
++}
+diff --git a/packages/app/src/settings/model.tsx b/packages/app/src/settings/model.tsx
+index 8efa301..6950a3b 100644
+--- a/packages/app/src/settings/model.tsx
++++ b/packages/app/src/settings/model.tsx
+@@ -129,7 +129,8 @@ const appearanceSchema = Persistence.struct({
+   mono: Schema.String,
+   sans: Schema.String,
+   terminal: Schema.String,
+-  tabLayout: Schema.Literals(["horizontal", "vertical"]),
++  // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
++  tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
+ })
+ 
+ const permissionsSchema = Persistence.struct({
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index 590c572..738fc64 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -24,9 +24,9 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+   { tab: "general", label: "settings.general.row.language.title", target: "settings-language" },
+   {
+     tab: "general",
+-    label: "settings.appearance.row.tabs.title",
++    label: "settings.general.row.interfaceMode.title",
+     target: "settings-tab-layout",
+-    keywords: "vertical horizontal tabs",
++    keywords: "top side tabs inbox sidebar mode layout vertical horizontal focus pro",
+   },
+   {
+     tab: "general",
+diff --git a/packages/app/src/shell/shell.tsx b/packages/app/src/shell/shell.tsx
+index 25bc495..cda13aa 100644
+--- a/packages/app/src/shell/shell.tsx
++++ b/packages/app/src/shell/shell.tsx
+@@ -23,7 +23,7 @@ export default function Layout(props: ParentProps) {
+     tabsMount: undefined,
+   })
+ 
+-  const verticalTabs = () => preferences.appearance.tabLayout() === "vertical" && !mobile()
++  const verticalTabs = () => preferences.appearance.tabLayout() !== "horizontal" && !mobile()
+   const bottomTitlebar = () => mobile() && preferences.general.mobileTitlebarPosition() === "bottom"
+ 
+   return (

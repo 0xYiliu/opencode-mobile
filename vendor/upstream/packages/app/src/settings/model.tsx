@@ -129,7 +129,8 @@ const appearanceSchema = Persistence.struct({
   mono: Schema.String,
   sans: Schema.String,
   terminal: Schema.String,
-  tabLayout: Schema.Literals(["horizontal", "vertical"]),
+  // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
+  tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
 })
 
 const permissionsSchema = Persistence.struct({
