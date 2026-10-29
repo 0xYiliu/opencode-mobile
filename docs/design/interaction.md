@@ -17,6 +17,13 @@ G36（issue #55）的 Settings 例外与跳转入口由 M-030 撤销；其历史
 - 冒烟清单：窄屏三模式来回切换并检查草稿；有效 SSH 首连通过 unknown key 显式确认后进入 shell；分别拒绝 unknown key、模拟 changed key、SSH auth failure、service 401/403、不可达/不兼容，验证对应提示、重试/编辑/本地断开；切回直连验证 signed-out URL；替换凭据后检查 orphan 元数据且无旧条目被静默删除。
 - APK provenance/SW cache mismatch 已定位并修复：最初 MatePad 安装包不是当时源码构建，且旧 Workbox worker (`skipWaiting=false`) 控制 WebView、当前 worker waiting，导致旧 chunk 仍可见。Android shell 现在只在当前 origin 上 promote 等待 worker，并在 activation 后 reload；更新不清 app data/localStorage/vault。经最新 `install -r` 后 WebView active worker 为 packaged build、waiting 为空；实际点击 SSH 模式按钮显示 inline `Add SSH host` 表单且 URL 不变。Pairing↔SSH 模式往返以非机密 `example.invalid` 草稿验证保留并清空、未提交或保存。G37 inline entry/form render **PASS**（未提交真实凭据）；host-key 信任、真实 SSH auth、服务 401/403 与远端任务存活 E2E 仍 BLOCKED，需用户授权的远端主机/服务。
 
+### G36 真机执行结果（issue #61，2026-10-30）
+
+- **指纹根因闭环**：E1 bastion 端点审计（两地址×三算法 6/6 指纹==独立参考）+ E2 提示双通道采样（uiautomator dump 与 CDP DOM 同轮一致且==ED25519 参考）+ E3 known_hosts 取证（4/4 行 blob==参考、无一 host 字段等于当前地址）→ 历史「提示与参考不匹配」裁定为**比对过程错位（H2）**，应用呈现与存储的一直是 bastion 真实公钥；历史「信任永不生效→重复提示」根因为早期构建 `SshHostKeyStore.writeLines()` 序列化缺陷（`Line(raw=` 包装行，已修 4a9e096），设备 store 现存 3 行 verbatim 残留（never-rewrite 契约保留、永不匹配）。无代码修复（分支 A）。
+- **已实测 PASS**（主应用包，Settings→Server host-manager 面）：#a 添加（SAF 导入→vault 写→凭据管理器私钥元数据出现→push 文件 rm 回查）；#b 编辑（pending prompt 存活中改身份→prompt 与 attempt 取消；恢复原值）；#c 连接+unknown key（Reject→failed+零落盘；Confirm→信任写入→服务未启动期 `target-refused`）；#d changed key（DANGER 警示+两步危险确认+forget→回 unknown→Reject→新密钥不入 store）；#e SSH 认证失败（无凭据/错密码→authRequired+可编辑重试）；#f 不可达（`refused`+可恢复）；g2 哑监听（`service-unreachable`）；#g 分界（pre=`target-refused`/post=隧道 ready+401 认证提示）；#i 全链（401→认证→ready→handoff→远端会话列表与工作台可达，G3 CORS 正向首实证）；#j 断开红线（Disconnect→远端进程/端口存活+请求级日志零 stop/interrupt+杀 App 重连重认证后会话恢复）；#k 信任稳定（3 轮零 prompt）。
+- **#h BLOCKED**：连接屏（`ConnectServerScreen`，唯一承载 Pairing/QR/password/SSH 三模式的界面）在存在 ≥1 条 SSH 主机记录的设备上不可达——AppShell fallback 门（M-030 形态）要求 `servers.list.length>0` 才渲染 shell，而每条 SSH 主机记录恒注册一条 extension server 条目；`signedOut` 仅认 lone http server；`initialScreenOwned` 只能从连接屏自身 claim。三模式草稿保持与 G37 冒烟清单的连接屏项因此无执行面（属门设计实态，改进归四步协议/用户决策）；Pairing↔SSH 草稿保留的既有历史证据仅适用于无记录设备状态。
+- **证据**：[build-and-verify.md](../build-and-verify.md) issue #61 段（value-free 布尔/计数台账；地址/凭据/密码不入台账）。任务级存活未验（归 G20⑤/G12）。
+
 ## 交互基线
 
 - 交互主要由上游 app（vendored 静态构建）承载；issue #58 的 first-party InitialSshSetup 是连接屏内的共享 SSH 配置/恢复单元，调用 MobileHostManager/HostDialog/HostKeyPrompt 的现有能力。控件可用性不因构建通过而预声称。

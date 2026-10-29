@@ -2,7 +2,7 @@
 
 本文记录 issue #6（内建 SSH 认证、host-key 校验与隧道）的库选型、桥架构、host-key 方案、认证方案与失败分类裁定。裁定以文档承载；除文末状态表外，本文不声称任何功能已在真机可用。
 
-- 状态：已确认的技术裁定（**全部代码为静态实现（未验证）**；设备级验证 BLOCKED——最终边界断言依赖 G17 三桥 bring-up + SSH 端到端，见文末"验收⑤条件句映射"）
+- 状态：已确认的技术裁定（**全部代码为静态实现（未验证）**；设备级验证部分完成——issue #61（2026-10-30）真机覆盖 SSH E2E 主链与 G36 矩阵主体，见文末 §9 状态表；最终边界断言仍依赖 G17 三桥 bring-up 复测，见"验收⑤条件句映射"）
 - 记录日期：2026-10-24
 - 来源议题：[issue #6](https://github.com/0xYiliu/opencode-mobile/issues/6)
 - 关联：[0001](0001-wsl-exclusion.md)、[0002](0002-direct-connection-transport.md)、[../design/units/connection.md](../design/units/connection.md)、[../design/architecture.md](../design/architecture.md)、[../design/interaction.md](../design/interaction.md)
@@ -157,5 +157,5 @@ hostId 单例：同一主机同时至多一个活跃 Session；新连接先拆�
 | 条目 | 状态 |
 | --- | --- |
 | 选型/桥架构/host-key/认证/四层分类/线程契约 代码承载 | `packages/mobile-hosts/src/ssh|transport/*` + `android/.../ssh/*` + M-015（**已实现（未验证）**；本机验证=V-mh 212 单测（含 runtime-ssh 全流）、V-ssh 探针全模式 PASS、V2/V3/V-conn PASS；Kotlin 编译 BLOCKED 无 SDK） |
-| 设备级验证（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/服务不可达/incompatible 真服务/重连/远程任务存活） | **BLOCKED** |
-| 敏感信息 | 本文不含凭据、令牌、私钥或真实连接配置 |
+| 设备级验证（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/服务不可达/incompatible 真服务/重连/远程任务存活） | **部分完成（issue #61，2026-10-30，MatePad 真机）**：SSH E2E 主链（信任→SSH 认证→隧道→服务认证→远端会话）、auth 成败、未知/已知/变更三态、目标拒绝（`target-refused`）、服务不可达（`service-unreachable`，哑监听）、断开红线（传输层拆除+远端进程/端口存活+请求级日志零 stop/interrupt+重启重连后会话恢复）、信任稳定性 3 轮零 prompt——见 `docs/build-and-verify.md` issue #61 段（value-free 台账）。**仍未验**：G17 三桥并存 bring-up 复测（保持 BLOCKED/未复测，本表不写成通过）、incompatible 真服务、重连换端口同身份真机、任务级存活（归 G20⑤/G12）、G36 #h 三模式（连接屏不可达，归四步协议） |
+| 敏感信息 | 本文不含凭据、令牌、私钥或真实连接配置（issue #61 台账同口径：地址以「bastion」指代，仅指纹入账） |
