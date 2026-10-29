@@ -77,7 +77,7 @@
     "patches/mobile/0029-M-030-inline-ssh-setup.patch",
     "patches/mobile/0030-M-031-utf8-basic-auth.patch",
     "patches/mobile/0032-M-032-vault-androidx-listener.patch",
-  "patches/mobile/0033-M-033-interface-mode-setting.patch"
+    "patches/mobile/0033-M-033-interface-mode-setting.patch"
   ],
   "excluded": {
     "packages": [

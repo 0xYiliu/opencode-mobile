@@ -24,8 +24,9 @@
 //      key, target stays settings-tab-layout, v2.2.1 keywords).
 //   5. i18n: exactly EIGHT new en keys (nine physical lines —
 //      inbox.description wraps), inserted right after the legacy
-//      settings.appearance.row.tabs.* block which stays; zh and every other
-//      locale carry ZERO interfaceMode keys and language.tsx merges the en base
+//      settings.appearance.row.tabs.* block which stays; the sampled locales
+//      (zh/zht/ko/de/fr — not a full sweep of every non-en locale) carry ZERO
+//      interfaceMode keys and language.tsx merges the en base
 //      FIRST, so non-en locales fall back to English (upstream v2.2.1's real
 //      shape — registered delta, NOT a missing translation to fix).
 //   6. Patch/manifest face: M-033 is registered in BOTH manifests; the patch
