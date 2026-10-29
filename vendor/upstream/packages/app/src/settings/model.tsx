@@ -1,5 +1,6 @@
 import { produce, reconcile, unwrap } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
+import { createMediaQuery } from "@solid-primitives/media"
 import { Effect, Option, Predicate, Schema, SchemaGetter } from "effect"
 import { createSimpleContext } from "@opencode/ui/context"
 import { setNewIcons } from "@opencode/ui/icon"
@@ -19,6 +20,8 @@ export type TerminalPlacement = Settings["general"]["terminalPlacement"]
 export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
 
 export type TabLayout = Settings["appearance"]["tabLayout"]
+
+export type ReduceMotion = Settings["appearance"]["reduceMotion"]
 
 export type NotificationSettings = Settings["notifications"]
 
@@ -136,6 +139,7 @@ const appearanceSchema = Persistence.struct({
   terminal: Schema.String,
   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
+  reduceMotion: Schema.Literals(["system", "on", "off"]),
 })
 
 const permissionsSchema = Persistence.struct({
@@ -292,7 +296,7 @@ export const defaultSettings: Settings = {
     terminalPlacement: "side",
     followUpBehavior: "steer",
   },
-  appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal" },
+  appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", reduceMotion: "system" },
   keybinds: {},
   permissions: { autoApprove: false, autoApproveProjects: {} },
   workspaces: { defaultDestination: "last-used", lastUsed: {} },
@@ -336,6 +340,16 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
 
     const newIcons = withFallback(() => store.general?.newIcons, defaultSettings.general.newIcons)
     createEffect(() => setNewIcons(newIcons()))
+
+    const reduceMotion = withFallback(() => store.appearance?.reduceMotion, defaultSettings.appearance.reduceMotion)
+    const systemReducedMotion = createMediaQuery("(prefers-reduced-motion: reduce)")
+
+    // Motion styles key off this attribute instead of the media query so the setting can override the system.
+    createEffect(() => {
+      if (typeof document === "undefined") return
+      const reduce = reduceMotion() === "system" ? systemReducedMotion() : reduceMotion() === "on"
+      document.documentElement.dataset.motion = reduce ? "reduce" : "full"
+    })
 
     const autoApproveDefault = withFallback(
       () => store.permissions?.autoApprove,
@@ -419,6 +433,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         tabLayout: withFallback(() => store.appearance?.tabLayout, defaultSettings.appearance.tabLayout),
         setTabLayout(value: TabLayout) {
           setStore("appearance", "tabLayout", value)
+        },
+        reduceMotion,
+        setReduceMotion(value: ReduceMotion) {
+          setStore("appearance", "reduceMotion", value)
         },
       },
       keybinds: {

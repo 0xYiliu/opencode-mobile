@@ -8,11 +8,14 @@ import {
   sansDefault,
   sansFontFamily,
   sansInput,
+  type ReduceMotion,
   terminalDefault,
   terminalFontFamily,
   terminalInput,
   useSettings,
 } from "@/settings/model"
+import { usePlatform } from "@/runtime/platform/platform"
+import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"
 import { playSoundById, SOUND_OPTIONS } from "@/shell/notifications/sound"
 import { createSoundPreviewController } from "./behavior"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -75,6 +78,8 @@ export function createServerShellController(server: Accessor<ServerConnection.An
 
 export function createAppearanceSettingsController() {
   const settings = useSettings()
+  const platform = usePlatform()
+  const language = useLanguage()
   const theme = useTheme()
   const themes = createMemo(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
 
@@ -89,6 +94,17 @@ export function createAppearanceSettingsController() {
       options: themes,
       current: createMemo(() => themes().find((option) => option.id === theme.themeId())),
       select: (option: { id: string } | null) => option && theme.setTheme(option.id),
+    },
+    zoom: {
+      available: () => platform.zoomLevel !== undefined,
+      options: [...desktopZoomLevels],
+      current: () => platform.zoomLevel?.() ?? 1,
+      label: (level: DesktopZoomLevel) => new Intl.NumberFormat(language.intl(), { style: "percent" }).format(level),
+      select: (level: DesktopZoomLevel) => void platform.setZoomLevel?.(level),
+    },
+    reduceMotion: {
+      current: settings.appearance.reduceMotion,
+      select: (value: ReduceMotion) => settings.appearance.setReduceMotion(value),
     },
     fonts: {
       ui: createMemo(() => ({

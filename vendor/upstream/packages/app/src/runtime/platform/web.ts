@@ -3,6 +3,8 @@ import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
 // through the module-level seam at call time, so a bridge that comes up after bootstrap
 // is picked up without a re-render.
 import { activeFilesPort, createSecureFetch } from "@opencode-mobile/mobile-hosts"
+import { createSignal, type Accessor } from "solid-js"
+import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"
 import type { Platform } from "./platform"
 
 export function createWebPlatform(version: string) {
@@ -32,6 +34,15 @@ export function createWebPlatform(version: string) {
     // one patch plus the entry wiring.
     readClipboardImage: createPlatformClipboardReader(),
     saveFile: createPlatformFileSaver(),
+    // mobile(M-035): the interface zoom faces (issue #65). Upstream declares
+    // zoomLevel/setZoomLevel desktop-only (Electron webContents zoom plus main-process
+    // storage); this closure ships the web shell only, so the faces are implemented here
+    // per the M-020 precedent: CSS `zoom` on the document element, persisted in
+    // localStorage (a non-sensitive UI preference, not a credential), values validated
+    // against desktopZoomLevels. Platform TYPES are unchanged; the faces join the
+    // platform object through a spread so no excess property is introduced on the
+    // annotated literal.
+    ...createUiZoomLevel(),
     draftStore: createBrowserDraftStore(),
     version,
     openExternal(value) {
@@ -112,4 +123,53 @@ function createPlatformFileSaver(): Platform["saveFile"] {
   ;(saveFile as unknown as { marker: string }).marker =
     "mobile(M-020): platform file saver over the files bridge seam (issue #16)"
   return saveFile
+}
+
+/**
+ * mobile(M-035): the interface zoom faces (issue #65). `zoomLevel` mirrors the upstream
+ * desktop contract: an accessor over the saved level, applied as CSS `zoom` on the
+ * document element (level 1 removes the property so the shell renders unzoomed), applied
+ * synchronously when the platform is constructed and persisted in localStorage under
+ * `opencode-ui-zoom-level`. Stored values are validated against `desktopZoomLevels`;
+ * anything unreadable or out of set falls back to 1. `setZoomLevel` applies, persists and
+ * resolves (the Platform face is async; storage failures leave the in-memory level
+ * applied for the session rather than throwing into the settings Select).
+ */
+const UI_ZOOM_KEY = "opencode-ui-zoom-level"
+
+function createUiZoomLevel(): {
+  zoomLevel: Accessor<DesktopZoomLevel>
+  setZoomLevel: (level: DesktopZoomLevel) => Promise<void>
+} {
+  const readStored = (): DesktopZoomLevel => {
+    try {
+      const raw = localStorage.getItem(UI_ZOOM_KEY)
+      const parsed = raw === null ? Number.NaN : Number.parseFloat(raw)
+      return (desktopZoomLevels as readonly number[]).includes(parsed) ? (parsed as DesktopZoomLevel) : 1
+    } catch {
+      return 1
+    }
+  }
+
+  const [zoomLevel, setZoomLevel] = createSignal<DesktopZoomLevel>(readStored())
+
+  const apply = (level: DesktopZoomLevel) => {
+    if (level === 1) document.documentElement.style.removeProperty("zoom")
+    else document.documentElement.style.setProperty("zoom", String(level))
+  }
+
+  apply(zoomLevel())
+
+  return {
+    zoomLevel,
+    setZoomLevel: async (level) => {
+      setZoomLevel(level)
+      apply(level)
+      try {
+        localStorage.setItem(UI_ZOOM_KEY, String(level))
+      } catch {
+        // Persistence unavailable (storage disabled): keep the session-level zoom applied.
+      }
+    },
+  }
 }

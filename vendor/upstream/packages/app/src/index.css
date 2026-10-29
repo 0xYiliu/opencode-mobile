@@ -136,7 +136,7 @@
     animation: terminal-panel-size-out 200ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="reduce"] {
     [data-slot="terminal-panel-presence"],
     [data-slot="side-terminal-panel-presence"],
     [data-slot="session-side-panel-presence"],
@@ -340,7 +340,7 @@
     transform-origin: 50% 50%;
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="reduce"] {
     [data-slot="titlebar-update-loader"] {
       animation: none;
     }
@@ -424,7 +424,7 @@
     --session-dropzone-card: var(--v2-background-bg-layer-01);
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :root[data-motion="reduce"] {
     [data-component="session-dropzone"][data-visible="true"],
     [data-component="session-dropzone"][data-visible="true"] [data-slot="session-dropzone-content"],
     [data-component="session-dropzone"][data-visible="true"] [data-slot="session-dropzone-upload"],

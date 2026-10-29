@@ -119,6 +119,18 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     keywords: "terminal typeface",
   },
   {
+    tab: "appearance",
+    label: "settings.appearance.row.zoom.title",
+    target: "settings-zoom",
+    keywords: "scale size text font larger bigger accessibility",
+  },
+  {
+    tab: "appearance",
+    label: "settings.appearance.row.reduceMotion.title",
+    target: "settings-reduce-motion",
+    keywords: "animation accessibility",
+  },
+  {
     tab: "notifications",
     label: "settings.general.notifications.agent.title",
     target: "settings-notifications-agent",
