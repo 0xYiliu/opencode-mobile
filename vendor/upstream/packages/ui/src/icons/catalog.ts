@@ -78,6 +78,10 @@ const icons = {
     viewBox: "0 0 16 16",
     body: `<path d="M2 8H14M2 4.664H14M2 11.336H14" stroke="currentColor"/>`,
   },
+  minus: {
+    viewBox: "0 0 16 16",
+    body: `<path d="M2.88867 8H13.1109" stroke="currentColor" stroke-linejoin="round"/>`,
+  },
   plus: {
     viewBox: "0 0 16 16",
     body: `<path d="M8 2.88867V13.1109" stroke="currentColor" stroke-linejoin="round"/><path d="M2.88867 8H13.1109" stroke="currentColor" stroke-linejoin="round"/>`,
@@ -137,6 +141,10 @@ const icons = {
   "outline-chevron-down": {
     viewBox: "0 0 16 16",
     body: `<path d="M5 6.5L8 9.5L11 6.5" stroke="currentColor"/>`,
+  },
+  "outline-chevron-right": {
+    viewBox: "0 0 16 16",
+    body: `<path d="M6.5 11L9.5 8L6.5 5" stroke="currentColor"/>`,
   },
   "outline-dots": {
     viewBox: "0 0 16 16",

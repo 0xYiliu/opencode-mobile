@@ -80,6 +80,20 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     section: "settings.general.section.general",
   },
   {
+    tab: "experimental",
+    label: "settings.experimental.row.newIcons.title",
+    target: "settings-new-icons",
+    description: "settings.experimental.row.newIcons.description",
+    keywords: "icons iconography glyphs redesign",
+  },
+  {
+    tab: "experimental",
+    label: "settings.experimental.row.foldUserMessages.title",
+    target: "settings-fold-user-messages",
+    description: "settings.experimental.row.foldUserMessages.description",
+    keywords: "fold collapse long messages prompts read more",
+  },
+  {
     tab: "appearance",
     label: "settings.general.row.colorScheme.title",
     target: "settings-color-scheme",
