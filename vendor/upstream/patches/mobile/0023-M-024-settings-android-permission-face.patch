@@ -1,0 +1,139 @@
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index c299f99..410e6e5 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -926,6 +926,14 @@ export const dict = {
+   "settings.general.notifications.permissions.description": "Show system notification when a permission is required",
+   "settings.general.notifications.errors.title": "Errors",
+   "settings.general.notifications.errors.description": "Show system notification when an error occurs",
++  "settings.general.notifications.android.title": "System notifications (Android)",
++  "settings.general.notifications.android.description":
++    "Turning a notification switch on asks Android for the notification permission when needed",
++  "settings.general.notifications.android.granted": "Android notification permission granted",
++  "settings.general.notifications.android.denied":
++    "Android notification permission denied — in-app sounds and badges still work",
++  "settings.general.notifications.android.unavailable":
++    "System notifications are unavailable in this environment — in-app faces still work",
+ 
+   "settings.general.sounds.agent.title": "Agent",
+   "settings.general.sounds.agent.description": "Play sound when the agent is complete or needs attention",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index e0b9831..3b67ab8 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -566,6 +566,11 @@ export const dict = {
+   "settings.general.notifications.permissions.description": "当需要权限时显示系统通知",
+   "settings.general.notifications.errors.title": "错误",
+   "settings.general.notifications.errors.description": "发生错误时显示系统通知",
++  "settings.general.notifications.android.title": "系统通知（Android）",
++  "settings.general.notifications.android.description": "开启任一通知开关时，按需向 Android 请求通知权限",
++  "settings.general.notifications.android.granted": "已获得 Android 通知权限",
++  "settings.general.notifications.android.denied": "Android 通知权限被拒绝——应用内声音与徽标仍然可用",
++  "settings.general.notifications.android.unavailable": "此环境不支持系统通知——应用内提示仍然可用",
+   "settings.general.sounds.agent.title": "智能体",
+   "settings.general.sounds.agent.description": "当智能体完成或需要注意时播放声音",
+   "settings.general.sounds.permissions.title": "权限",
+diff --git a/packages/app/src/settings/notifications/notifications.tsx b/packages/app/src/settings/notifications/notifications.tsx
+index a87733a..1f14743 100644
+--- a/packages/app/src/settings/notifications/notifications.tsx
++++ b/packages/app/src/settings/notifications/notifications.tsx
+@@ -1,4 +1,4 @@
+-import { Component } from "solid-js"
++import { Component, createSignal } from "solid-js"
+ import { Select } from "@opencode/ui/select"
+ import { Switch } from "@opencode/ui/switch"
+ import { useLanguage } from "@/runtime/i18n/language"
+@@ -10,6 +10,9 @@ import {
+   soundOptions,
+   type SoundSettingsController,
+ } from "@/settings/general/controllers"
++// mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23) reads the notifications
++// bridge port through the module-level seam at call time.
++import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
+ import "@/settings/settings.css"
+ 
+ const soundSettings = {
+@@ -58,6 +61,43 @@ export const SettingsNotifications: Component = () => {
+   const language = useLanguage()
+   const settings = useSettings()
+   const sounds = createSoundSettingsController()
++  // mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23). Turning a notification
++  // switch ON is the user-in-foreground moment: if the bridge is available and the platform
++  // still needs the runtime permission (API 33+, enforced by the native side — below 33 or
++  // already granted it answers granted without a dialog), request it right here. Every
++  // outcome (granted / denied / bridge unavailable) surfaces in the explicit status row
++  // below; a denial degrades to the in-app faces only (no retry loop, no fabricated
++  // success). A request arriving while the app is backgrounded would be refused by the
++  // native side with code "foreground" — this face never triggers in the background.
++  const [androidPermission, setAndroidPermission] = createSignal<"idle" | "granted" | "denied" | "unavailable">("idle")
++
++  const requestAndroidPermissionIfNeeded = async () => {
++    try {
++      const outcome = await activeNotificationsPort().requestPermission()
++      if (outcome.granted) setAndroidPermission("granted")
++      else setAndroidPermission(outcome.code === "unavailable" ? "unavailable" : "denied")
++    } catch {
++      setAndroidPermission("unavailable")
++    }
++  }
++
++  const onNotificationSwitch = (apply: (checked: boolean) => void) => (checked: boolean) => {
++    apply(checked)
++    if (checked) void requestAndroidPermissionIfNeeded()
++  }
++
++  const androidPermissionDescription = () => {
++    switch (androidPermission()) {
++      case "granted":
++        return "settings.general.notifications.android.granted"
++      case "denied":
++        return "settings.general.notifications.android.denied"
++      case "unavailable":
++        return "settings.general.notifications.android.unavailable"
++      default:
++        return "settings.general.notifications.android.description"
++    }
++  }
+ 
+   return (
+     <>
+@@ -83,7 +123,7 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-agent">
+                 <Switch
+                   checked={settings.notifications.agent()}
+-                  onChange={(checked) => settings.notifications.setAgent(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setAgent(checked))}
+                 />
+               </div>
+             </SettingsRow>
+@@ -95,7 +135,7 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-permissions">
+                 <Switch
+                   checked={settings.notifications.permissions()}
+-                  onChange={(checked) => settings.notifications.setPermissions(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setPermissions(checked))}
+                 />
+               </div>
+             </SettingsRow>
+@@ -107,10 +147,20 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-errors">
+                 <Switch
+                   checked={settings.notifications.errors()}
+-                  onChange={(checked) => settings.notifications.setErrors(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setErrors(checked))}
+                 />
+               </div>
+             </SettingsRow>
++
++            <SettingsRow
++              title={language.t("settings.general.notifications.android.title")}
++              description={language.t(androidPermissionDescription())}
++            >
++              {/* mobile(M-024): status-only row — the SettingsRow contract requires a
++                  control slot; the Android permission face has none (the request fires
++                  from the notification switches above). */}
++              <></>
++            </SettingsRow>
+           </SettingsList>
+         </div>
+ 

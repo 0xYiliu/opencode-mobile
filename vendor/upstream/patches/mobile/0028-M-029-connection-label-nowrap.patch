@@ -1,0 +1,28 @@
+diff --git a/packages/app/src/servers/connect/screen.tsx b/packages/app/src/servers/connect/screen.tsx
+index 09d92cd..2290c33 100644
+--- a/packages/app/src/servers/connect/screen.tsx
++++ b/packages/app/src/servers/connect/screen.tsx
+@@ -250,13 +250,14 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
+               />
+             }
+           >
+-            <div class="flex min-h-7 flex-col items-center gap-1 text-[13px]">
++            <div data-component="server-connect-method" class="flex min-h-7 flex-col items-center gap-1 text-[13px]">
+               <span class="text-v2-text-text-faint">
+                 {language.t(state.method === "link" ? "server.connect.password.prompt" : "server.connect.link.prompt")}
+               </span>
+               <div class="flex items-center justify-center gap-1">
+                 <Button
+                   variant="ghost-muted"
++                  class="whitespace-nowrap"
+                   disabled={request.isPending}
+                   onClick={() => setState({ method: state.method === "link" ? "password" : "link", error: "" })}
+                 >
+@@ -265,6 +266,7 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
+                 <Show when={state.method === "link"}>
+                   <Button
+                     variant="ghost-muted"
++                    class="whitespace-nowrap"
+                     disabled={request.isPending}
+                     onClick={() => navigate("/settings?tab=servers")}
+                   >

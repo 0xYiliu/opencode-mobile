@@ -1,0 +1,159 @@
+--- a/packages/app/src/servers/connect/dialog.tsx
++++ b/packages/app/src/servers/connect/dialog.tsx
+@@ -36,7 +36,17 @@
+ // mobile(M-009): the optional "remember credential" branch runs on the shell's device vault
+ // (bootstrapped in the entry by M-007). The truth table lives in the first-party package so
+ // it is unit-tested and probe-able; this dialog only translates the decision.
+-import { evaluateRemember, getMobileHosts, initialRemember } from "@opencode-mobile/mobile-hosts"
++// mobile(M-013): the save path also consumes the shell's endpoint probe (issue #5) — the
++// probe classifies a failed transport so the inline error names the actual cause, and the
++// URL policy pre-check refuses userinfo credential addresses before anything is sent.
++import {
++  assertNoUrlCredentials,
++  evaluateRemember,
++  getMobileHosts,
++  initialRemember,
++  type DirectErrorCode,
++  type ProbeResult,
++} from "@opencode-mobile/mobile-hosts"
+ import "@/settings/settings.css"
+ 
+ const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
+@@ -301,6 +311,48 @@
+     }
+   })()
+   const vaultAvailable = () => vault !== undefined && vault.status() === "available"
++  // mobile(M-013): the shell's endpoint probe port (fail-closed stub by default, the
++  // bridge-backed client when the native probe handshake was acked). Outside the shell
++  // there is no bootstrap, so the probe is undefined — classification then degrades to
++  // the generic message, the same explicit-availability pattern as the vault above.
++  const probe = (() => {
++    try {
++      return getMobileHosts().probe
++    } catch {
++      return undefined
++    }
++  })()
++
++  // mobile(M-013): probe-first error classification for the save path (issue #5, decision
++  // 0002 D4). The upstream health check stays THE authority: its verdict alone decides
++  // whether the save proceeds, and a probe verdict can never pass a save it refused. The
++  // probe (dispatched before the check so its classification is usually already resolved)
++  // only chooses the error WORDING after the check failed, in a fixed precedence: the
++  // upstream mixed-content structural signal first, then the check's own unauthorized
++  // flag (authoritative 401), then the probe's transport classification
++  // (dialog.server.error.<code>), and the generic upstream message as the EXPLICIT
++  // degrade when the probe is unavailable, answered ok, or when its classification
++  // conflicts with the real fetch — a classification is never fabricated. App-i18n keys
++  // only (en base merged with the locale table; a missing key falls back to en, then to
++  // the key itself — the first-party mobile-hosts keys are a separate set).
++  type ConnectErrorKey =
++    | "server.connect.mixedContent"
++    | "dialog.server.add.error"
++    | "dialog.server.error.credential-url"
++    | `dialog.server.error.${Exclude<DirectErrorCode, "ok">}`
++  const connectErrorKey = async (
++    http: { url: string },
++    unauthorized: boolean | undefined,
++    probePromise: Promise<ProbeResult> | undefined,
++  ): Promise<ConnectErrorKey> => {
++    if (platform.platform === "web" && isMixedContent(location.href, http.url)) return "server.connect.mixedContent"
++    if (unauthorized) return "dialog.server.error.unauthorized"
++    const probeResult = await probePromise
++    if (probeResult && probeResult.status === "available" && probeResult.code !== "ok") {
++      return `dialog.server.error.${probeResult.code}`
++    }
++    return "dialog.server.add.error"
++  }
+ 
+   const [store, setStore] = createStore<{
+     mode: FormMode
+@@ -432,6 +484,17 @@
+       const name = store.values.name.trim() || undefined
+       const password = http.password
+ 
++      // mobile(M-013): URL policy pre-check (decision 0002 D-URL). A userinfo credential
++      // URL is refused with the precise message before any request is built — no probe,
++      // no health check; the address itself has to be fixed first.
++      try {
++        assertNoUrlCredentials(normalized)
++      } catch {
++        setStore("error", language.t("dialog.server.error.credential-url"))
++
++        return
++      }
++
+       // mobile(M-009): resolve the remember decision BEFORE the early exit. The prior
+       // carries the ref semantics for both the edit and the add flow (URL lookup, not
+       // method-gated). The checkbox only participates when rendered AND the vault is
+@@ -483,17 +546,16 @@
+         },
+       }
+ 
++      // mobile(M-013): the probe is dispatched FIRST (before the authoritative health
++      // check) so its classification is usually already resolved when the verdict
++      // arrives. The password crosses the probe bridge once, lives for the duration of
++      // the request, and is never logged or persisted (decision 0002 F1).
++      const probePromise = probe?.probe({ url: normalized, password: password ?? undefined })
++
+       const result = await checkServerHealth(connection.http)
+ 
+       if (!result.healthy) {
+-        setStore(
+-          "error",
+-          language.t(
+-            platform.platform === "web" && isMixedContent(location.href, normalized)
+-              ? "server.connect.mixedContent"
+-              : "dialog.server.add.error",
+-          ),
+-        )
++        setStore("error", language.t(await connectErrorKey(connection.http, result.unauthorized, probePromise)))
+ 
+         return
+       }
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -347,6 +347,21 @@
+   "dialog.server.add.url": "Server address",
+   "dialog.server.add.placeholder": "http://localhost:4096",
+   "dialog.server.add.error": "Could not connect to server",
++  // mobile(M-013): probe-classified connect errors (issue #5, decision 0002 D4). One
++  // actionable line per transport classification plus the URL-policy refusal; consumed
++  // ONLY by the connect dialog (the first-party mobile-hosts keys are a separate set).
++  "dialog.server.error.cert-expired": "The server's certificate has expired. Renew the certificate (for example with Let's Encrypt) or connect through an SSH tunnel.",
++  "dialog.server.error.cert-hostname": "The certificate does not match this host's name. Check the address or issue a certificate for this exact host.",
++  "dialog.server.error.cert-untrusted": "The certificate is not from a trusted authority (self-signed or private CA). Direct HTTPS to such servers is not supported: use a publicly trusted certificate or an SSH tunnel.",
++  "dialog.server.error.cleartext-blocked": "Plaintext HTTP direct connections are not supported (credentials would cross the network unencrypted). Use HTTPS or an SSH tunnel.",
++  "dialog.server.error.refused": "Nothing answered at this address and port. Check that the OpenCode service is running and the port is correct.",
++  "dialog.server.error.timeout": "The server did not answer in time. Check the address, the port and the network path.",
++  "dialog.server.error.dns": "The server's name could not be resolved. Check the hostname for typos.",
++  "dialog.server.error.unauthorized": "The server rejected the credentials (401). Check the password and try again.",
++  "dialog.server.error.forbidden": "The server refused access (403). Check the account and its permissions.",
++  "dialog.server.error.not-found": "No OpenCode service answered at this address (404). Check the address and port.",
++  "dialog.server.error.html-response": "A web page answered instead of the OpenCode service \u2014 likely a proxy or captive portal. Check the address.",
++  "dialog.server.error.credential-url": "The address carries embedded credentials (user:password@host). Remove them from the address and use the password field instead.",
+   "dialog.server.add.checking": "Checking…",
+   "dialog.server.add.button": "Add server",
+   "dialog.server.add.name": "Server name (optional)",
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -329,6 +329,19 @@
+   "dialog.server.add.url": "服务器 URL",
+   "dialog.server.add.placeholder": "http://localhost:4096",
+   "dialog.server.add.error": "无法连接到服务器",
++  // mobile(M-013)：探测分类的连接错误文案（issue #5，决策 0002 D4）。每个传输分类一条可操作建议，外加 URL 策略拒绝；仅由连接对话框消费（第一方 mobile-hosts 键为另一套）。
++  "dialog.server.error.cert-expired": "服务器证书已过期。请续期证书（例如使用 Let's Encrypt）或改用 SSH 隧道。",
++  "dialog.server.error.cert-hostname": "证书与该主机名不匹配。请检查地址，或为本主机签发证书。",
++  "dialog.server.error.cert-untrusted": "证书并非来自受信任的机构（自签名或私有 CA）。不支持直连此类 HTTPS 服务：请使用公开受信任的证书或 SSH 隧道。",
++  "dialog.server.error.cleartext-blocked": "不支持明文 HTTP 直连（凭据将明文过网）。请使用 HTTPS 或 SSH 隧道。",
++  "dialog.server.error.refused": "该地址与端口无服务应答。请确认 OpenCode 服务正在运行且端口正确。",
++  "dialog.server.error.timeout": "服务器未在时限内应答。请检查地址、端口与网络路径。",
++  "dialog.server.error.dns": "无法解析服务器主机名。请检查主机名是否有误。",
++  "dialog.server.error.unauthorized": "服务器拒绝了凭据（401）。请检查密码后重试。",
++  "dialog.server.error.forbidden": "服务器拒绝访问（403）。请检查账号与权限。",
++  "dialog.server.error.not-found": "该地址无 OpenCode 服务应答（404）。请检查地址与端口。",
++  "dialog.server.error.html-response": "应答的是网页而非 OpenCode 服务——可能是代理或门户页。请检查地址。",
++  "dialog.server.error.credential-url": "地址中内嵌了凭据（user:password@host）。请从地址中移除，改在密码栏填写密码。",
+   "dialog.server.add.checking": "检查中…",
+   "dialog.server.add.button": "添加服务器",
+   "dialog.server.add.name": "服务器名称（可选）",

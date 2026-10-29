@@ -1,0 +1,40 @@
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -17,2 +17,5 @@
+   createProbeClient,
++  createSshHostKeyVerifier,
++  createSshHostTransport,
++  SSH_BOOTSTRAP_MESSAGE,
+   createVaultClient,
+@@ -21,3 +24,3 @@
+   createWebMessageProbeTransport,
+-  StubHostKeyVerifier,
++  createWebMessageSshTransport,
+ } from "@opencode-mobile/mobile-hosts"
+@@ -57 +60,14 @@
++// Install the SSH window-message listener before asynchronous locale startup; native's
++// AndroidX origin/frame bootstrap requests the confined port only after this subscribe.
++const ssh = createWebMessageSshTransport({
++  subscribe: (handler) => {
++    window.addEventListener("message", handler as EventListener)
++    return () => window.removeEventListener("message", handler as EventListener)
++  },
++  requestNativeHandshake: () => {
++    const bootstrap = (window as any).opencodeMobileSshBootstrapV2
++    if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
++  },
++})
++
+ if (import.meta.env.PROD && "serviceWorker" in navigator) {
+@@ -135,3 +151,9 @@
+       resolver: createVaultResolver(vault),
+-      hostKey: StubHostKeyVerifier,
++      // Issue #6: the fail-closed stubs (StubHostKeyVerifier / StubHostTransport) give way
++      // to the bridge-backed counterparts ONLY in this shipped wiring. Without the acked
++      // bridge no connection is attempted beyond an explicit failure; the stubs remain the
++      // package's no-injection default (fail-closed posture unchanged).
++      hostKey: createSshHostKeyVerifier(ssh),
++      transport: createSshHostTransport(ssh),
++      sshBridge: ssh,
+     })

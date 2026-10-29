@@ -1,0 +1,75 @@
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -56,6 +56,11 @@
+     )
+   : undefined
+ 
++// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
++const MobileHostManager = lazy(() =>
++  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
++)
++
+ const rootClientTabs = [
+   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
+   { value: "appearance", icon: pageIcons.appearance, label: "settings.general.section.appearance" },
+@@ -424,13 +429,15 @@
+           </SettingsServerDataScope>
+         )}
+       </Show>
+-      <Show when={singleEntry()}>
+-        {(entry) => (
+-          <Tabs.Content value="servers" class="settings-panel">
+-            <SettingsServerGeneral entry={entry()} onAddServer={addServer} />
+-          </Tabs.Content>
+-        )}
+-      </Show>
++      {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
++          upstream single-server panel; it renders even with an empty upstream list so the
++          first SSH host can be created. */}
++      <Tabs.Content value="servers" class="settings-panel">
++        <MobileHostManager />
++        <Show when={singleEntry()} keyed>
++          {(entry) => <SettingsServerGeneral entry={entry} onAddServer={addServer} />}
++        </Show>
++      </Tabs.Content>
+     </SettingsNavigation>
+   )
+ }
+
+diff --git a/packages/app/src/settings/keyed-server-entry.test.tsx b/packages/app/src/settings/keyed-server-entry.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/settings/keyed-server-entry.test.tsx
+@@ -0,0 +1,32 @@
++import { describe, expect, test } from "bun:test"
++import { createComponent, Show } from "solid-js"
++import { render } from "solid-js/web"
++
++describe("root Settings Server keyed entry", () => {
++  test("renders and passes the keyed entry value directly to the root server panel", async () => {
++    const entry = { key: "synthetic-server", name: "Synthetic server" }
++    const host = document.createElement("div")
++    const dispose = render(
++      () => createComponent(Show, {
++        get when() { return entry },
++        keyed: true,
++        get children() {
++          return (value: typeof entry) => {
++            const heading = document.createElement("h2")
++            heading.dataset.testid = "server-name"
++            heading.textContent = value.name
++            return heading
++          }
++        },
++      }),
++      host,
++    )
++
++    expect(host.querySelector("[data-testid=server-name]")?.textContent).toBe("Synthetic server")
++    const source = await Bun.file(new URL("./shell.tsx", import.meta.url)).text()
++    expect(source).toContain("<Show when={singleEntry()} keyed>")
++    expect(source).toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
++    expect(source).not.toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
++    dispose()
++  })
++})

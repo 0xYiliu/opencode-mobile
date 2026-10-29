@@ -1,0 +1,289 @@
+// Host record registry (issue #3): the persisted SSH host inventory.
+//
+// Storage discipline (AGENTS.md red lines):
+// - The persisted payload is whitelist-only: id / name / target / credentialRef / createdAt /
+//   updatedAt. Credential-shaped fields (password, secret, token, ...) are rejected on input
+//   and dropped when read back — tests lock both directions.
+// - credentialRef is a non-secret pointer (see ./credential-ref), not a credential.
+// - Deleting a host is a local operation: this layer has no transport reach at all, so a
+//   delete can never make a remote call (red line; asserted in tests).
+
+import { createStore } from "solid-js/store"
+import { assertValidCredentialRef } from "./credential-ref"
+import { isValidHostId, makeHostId } from "./identity"
+import type { StoragePort } from "./storage"
+import { loadHosts, saveHosts } from "./storage"
+
+export interface HostRecord {
+  /** Stable identity: uuid v4, fixed at creation, never rewritten. */
+  id: string
+  /** Display name, unique across the registry, 1..100 characters after trim. */
+  name: string
+  /** SSH target, `[user@]host[:port]` shape, at most 500 characters. */
+  target: string
+  /** Non-secret credential reference (mobile-credential:<id>), optional. */
+  credentialRef?: string
+  /**
+   * Remote OpenCode service port (issue #6): the tunnel forwards to the REMOTE loopback
+   * `localhost:<servicePort>`. Non-secret, whitelist payload field, optional — absent
+   * means the default applies (DEFAULT_SERVICE_PORT). Distinct from the SSH port inside
+   * `target` (dialog labels disambiguate the two).
+   */
+  servicePort?: number
+  /** ISO-8601 creation timestamp. */
+  createdAt: string
+  /** ISO-8601 last-update timestamp. */
+  updatedAt: string
+}
+
+/** Default remote OpenCode service port (issue #6, F7): applied when a record omits it. */
+export const DEFAULT_SERVICE_PORT = 4096
+
+export type HostRecordInput = { name: string; target: string; credentialRef?: string; servicePort?: number }
+
+export type RegistryErrorCode =
+  | "empty-name"
+  | "name-too-long"
+  | "duplicate-name"
+  | "duplicate-target"
+  | "empty-target"
+  | "invalid-target"
+  | "target-too-long"
+  | "invalid-credential-ref"
+  | "invalid-service-port"
+  | "invalid-id"
+  | "not-found"
+  | "forbidden-field"
+  | "invalid-record"
+
+export class HostRegistryError extends Error {
+  constructor(
+    readonly code: RegistryErrorCode,
+    detail?: string,
+  ) {
+    super(`host registry: ${code}${detail ? ` (${detail})` : ""}`)
+    this.name = "HostRegistryError"
+  }
+}
+
+const NAME_MAX = 100
+const TARGET_MAX = 500
+const CREDENTIAL_REF_MAX = 500 // belt-and-braces on top of the pattern's own 128-char id
+
+// Exact-match (lowercased) rejection list for input keys. `credentialRef` is allowed and is
+// NOT a credential value — see ./credential-ref.
+const FORBIDDEN_INPUT_KEYS = new Set([
+  "password",
+  "secret",
+  "token",
+  "authtoken",
+  "privatekey",
+  "private_key",
+  "passphrase",
+  "apikey",
+  "api_key",
+  "credential",
+])
+
+const TARGET_PATTERN = /^[A-Za-z0-9._~-]+@[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(:\d{1,5})?$|^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(:\d{1,5})?$/
+
+/** Validate an SSH target (`[user@]host[:port]`; IPv6 literals are not supported this phase). */
+export function validateTarget(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) throw new HostRegistryError("empty-target")
+  if (trimmed.length > TARGET_MAX) throw new HostRegistryError("target-too-long")
+  if (!TARGET_PATTERN.test(trimmed)) throw new HostRegistryError("invalid-target")
+  const port = trimmed.lastIndexOf(":") === -1 ? undefined : trimmed.slice(trimmed.lastIndexOf(":") + 1)
+  if (port !== undefined) {
+    const n = Number(port)
+    if (!Number.isInteger(n) || n < 1 || n > 65535) throw new HostRegistryError("invalid-target")
+  }
+  return trimmed
+}
+
+function validateName(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) throw new HostRegistryError("empty-name")
+  if (trimmed.length > NAME_MAX) throw new HostRegistryError("name-too-long")
+  return trimmed
+}
+
+function assertNoForbiddenKeys(input: object): void {
+  for (const key of Object.keys(input)) {
+    if (FORBIDDEN_INPUT_KEYS.has(key.toLowerCase())) throw new HostRegistryError("forbidden-field", String(key))
+  }
+}
+
+function normalizeCredentialRef(input: string | undefined): string | undefined {
+  if (input === undefined) return undefined
+  const trimmed = input.trim()
+  if (!trimmed) return undefined
+  if (trimmed.length > CREDENTIAL_REF_MAX) throw new HostRegistryError("invalid-credential-ref")
+  assertValidCredentialRef(trimmed) // throws CredentialRefError-shaped values out
+  return trimmed
+}
+
+/**
+ * Validate the remote service port (issue #6): an integer 1..65535. `undefined` is the
+ * default path (DEFAULT_SERVICE_PORT applies at the consumer). The service port is NOT
+ * the SSH port — that one lives inside `target` and is validated there.
+ */
+export function validateServicePort(input: number | undefined): number | undefined {
+  if (input === undefined) return undefined
+  if (typeof input !== "number" || !Number.isInteger(input) || input < 1 || input > 65535) {
+    throw new HostRegistryError("invalid-service-port", String(input))
+  }
+  return input
+}
+
+function checkShape(record: HostRecord): void {
+  if (!isValidHostId(record.id)) throw new HostRegistryError("invalid-id")
+  if (typeof record.name !== "string" || !record.name) throw new HostRegistryError("invalid-record", "name")
+  if (typeof record.target !== "string" || !record.target) throw new HostRegistryError("invalid-record", "target")
+  if (typeof record.createdAt !== "string" || !record.createdAt)
+    throw new HostRegistryError("invalid-record", "createdAt")
+  if (typeof record.updatedAt !== "string" || !record.updatedAt)
+    throw new HostRegistryError("invalid-record", "updatedAt")
+}
+
+export interface HostRegistryOptions {
+  storage: StoragePort
+  /** Injectable clock for tests. Defaults to Date.now ISO timestamps. */
+  now?: () => string
+}
+
+export function createHostRegistry(options: HostRegistryOptions) {
+  const now = options.now ?? (() => new Date().toISOString())
+  const [store, setStore] = createStore<{ hosts: HostRecord[] }>({
+    hosts: loadHosts(options.storage).hosts,
+  })
+  const listeners = new Set<(change: { id: string; previous?: HostRecord; next?: HostRecord }) => void>()
+
+  const persist = () => saveHosts(options.storage, store.hosts)
+
+  const list = () => store.hosts
+
+  const get = (id: string): HostRecord | undefined => store.hosts.find((host) => host.id === id)
+
+  const findByName = (name: string): HostRecord | undefined =>
+    store.hosts.find((host) => host.name.toLowerCase() === name.trim().toLowerCase())
+
+  function assertUniqueName(name: string, exceptId?: string): void {
+    const existing = findByName(name)
+    if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-name", name)
+  }
+
+  /**
+   * Targets are unique across the registry (issue #6 review N5): two records with the same
+   * target would address ONE ssh host through two identities, and a connect for one would
+   * tear down the other's active tunnel (the transport keys live sessions by host:port).
+   * Comparison is case-insensitive on the whole target: the hostname part is
+   * case-insensitive by RFC, and treating the user part the same way is the predictable
+   * UX choice (the same discipline as the name uniqueness check).
+   */
+  function assertUniqueTarget(target: string, exceptId?: string): void {
+    const normalized = target.trim().toLowerCase()
+    const existing = store.hosts.find((host) => host.target.toLowerCase() === normalized)
+    if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-target", target)
+  }
+
+  /** Validate a prospective record without publishing it or touching credential storage. */
+  function validate(input: HostRecordInput, exceptId?: string): void {
+    assertNoForbiddenKeys(input)
+    const name = validateName(input.name)
+    assertUniqueName(name, exceptId)
+    const target = validateTarget(input.target)
+    assertUniqueTarget(target, exceptId)
+    normalizeCredentialRef(input.credentialRef)
+    validateServicePort(input.servicePort)
+  }
+
+  function add(input: HostRecordInput): HostRecord {
+    assertNoForbiddenKeys(input)
+    const name = validateName(input.name)
+    assertUniqueName(name)
+    const target = validateTarget(input.target)
+    assertUniqueTarget(target)
+    const credentialRef = normalizeCredentialRef(input.credentialRef)
+    const servicePort = validateServicePort(input.servicePort)
+    const timestamp = now()
+    const record: HostRecord = {
+      id: makeHostId(),
+      name,
+      target,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+    if (credentialRef !== undefined) record.credentialRef = credentialRef
+    if (servicePort !== undefined) record.servicePort = servicePort
+    setStore("hosts", [...store.hosts, record])
+    persist()
+    return record
+  }
+
+  /**
+   * Update the mutable fields of a record. `id` and `createdAt` are never rewritten.
+   * Reference semantics for `credentialRef`: `undefined` keeps the current value; an
+   * explicit empty string clears it (persisted payload drops the field). For
+   * `servicePort` (issue #6): `undefined` keeps the current value; a valid integer sets
+   * it (there is no "clear to non-default" state — the default applies when absent).
+   */
+  function update(id: string, patch: Partial<HostRecordInput> & { credentialRef?: string | undefined }): HostRecord {
+    const index = store.hosts.findIndex((host) => host.id === id)
+    if (index === -1) throw new HostRegistryError("not-found", id)
+    assertNoForbiddenKeys(patch)
+    const current = store.hosts[index]!
+    const name = patch.name !== undefined ? validateName(patch.name) : current.name
+    assertUniqueName(name, id)
+    const target = patch.target !== undefined ? validateTarget(patch.target) : current.target
+    assertUniqueTarget(target, id)
+    const credentialRef =
+      patch.credentialRef !== undefined ? normalizeCredentialRef(patch.credentialRef) : current.credentialRef
+    const servicePort = patch.servicePort !== undefined ? validateServicePort(patch.servicePort) : current.servicePort
+    // id and createdAt are never rewritten by an update.
+    const next: HostRecord = { ...current, name, target, updatedAt: now() }
+    if (credentialRef !== undefined) next.credentialRef = credentialRef
+    else delete next.credentialRef
+    if (servicePort !== undefined) next.servicePort = servicePort
+    else delete next.servicePort
+    checkShape(next)
+    // Replace the array node (not the element): setStore with an object path MERGES, which
+    // would resurrect a deleted `credentialRef` key from the previous proxy.
+    setStore(
+      "hosts",
+      [...store.hosts.slice(0, index), next, ...store.hosts.slice(index + 1)],
+    )
+    for (const listener of listeners) listener({ id, previous: current, next })
+    persist()
+    return next
+  }
+
+  /** Local-only delete. No transport, no network, no remote signal — by construction. */
+  function remove(id: string): boolean {
+    const index = store.hosts.findIndex((host) => host.id === id)
+    if (index === -1) return false
+    const previous = store.hosts[index]!
+    setStore(
+      "hosts",
+      store.hosts.filter((host) => host.id !== id),
+    )
+    for (const listener of listeners) listener({ id, previous })
+    persist()
+    return true
+  }
+
+  return {
+    list,
+    get,
+    add,
+    update,
+    remove,
+    validate,
+    subscribe(listener: (change: { id: string; previous?: HostRecord; next?: HostRecord }) => void) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+export type HostRegistry = ReturnType<typeof createHostRegistry>

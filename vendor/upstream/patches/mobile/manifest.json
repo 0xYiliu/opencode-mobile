@@ -1,0 +1,384 @@
+{
+  "version": 1,
+  "owner": "opencode-mobile maintainers",
+  "patches": [
+    {
+      "id": "M-001",
+      "patch": "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+      "targets": [
+        "packages/gui-extensions/package.json"
+      ],
+      "reason": "Remove Electron-only dev tooling (electron, @lydell/node-pty, devtools-protocol) from devDependencies. They are used only by gui-extensions' own tests/typecheck, and electron's postinstall pulls ~110MB of binaries that the web build never needs.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 (bun run build:web) succeeds without the removed devDependencies.",
+      "rebase": "S3 exercise: regenerated at b4525d79bf (upstream bumped electron 44.4.5->44.9.1 in the devDependencies block; same three removals, context lines updated; no semantic change)."
+    },
+    {
+      "id": "M-002",
+      "patch": "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts"
+      ],
+      "reason": "Memory-only credentials: the encode (write) path of the server persistence schema drops `password`, so no persistent backend (web localStorage, desktop storage, drafts) ever receives one. Decoding still tolerates stored passwords from legacy files; a missing password reaches the existing authentication-failure path. Keystore persistence is owned by mobile issue #4. The embedded marker string 'mobile(M-002): password stripped at encode (memory-only)' survives minification and anchors V-cred dist verification.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V-cred: (a) encode-path strip present in source with marker; (b) marker string found in built dist assets; semantic probe of the codec against effect@4.0.1 confirmed strip on encode, tolerance on decode.",
+      "rebase": "S3 exercise: no rebase needed - packages/app/src/runtime/server/persistence.ts is unchanged at b4525d79bf; the patch applies verbatim."
+    },
+    {
+      "id": "M-003",
+      "patch": "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+      "targets": [
+        "packages/client/package.json",
+        "packages/plugin/package.json",
+        "packages/ai/package.json"
+      ],
+      "reason": "Strip the three workspace references that dangle after closure acquisition (their targets are excluded packages): client devDependency @opencode/httpapi-codegen (generated code is committed), plugin devDependency+peerDependency+peerDependenciesMeta @opencode/theme (not in the runtime closure), ai devDependency @opencode/http-recorder (test recording tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V1 (bun install) succeeds and V3(b) workspace-reference scan reports zero dangling refs.",
+      "rebase": "S3 exercise: regenerated at b4525d79bf (the three target package.json files shifted line numbers upstream; all three dangling refs still present with identical semantics; hunks re-derived, no semantic change)."
+    },
+    {
+      "id": "M-004",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
+      "targets": [
+        "packages/app/vite.js"
+      ],
+      "reason": "Build-time seam so the vendored app can import the first-party host registry (@opencode-mobile/mobile-hosts, issue #3). The alias value is expressed as fileURLToPath(new URL(\"../../../../packages/mobile-hosts/src/index.ts\", import.meta.url)) - importer-relative like the existing fonts-cjk stub, so the four .. segments land on the repository root's packages/; a bare relative string would resolve against the importer and miss. Dependency direction stays one-way: the vendored packages themselves do not depend on the first-party package; only this alias resolves the specifier at build time.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 (verify-closure) tree equivalence with the patch registered; V2 build smoke after applying: `bun run build:web` succeeds and the built entry chunk resolves the mobile-hosts modules (no unresolved import errors).",
+      "rebase": "New patch (issue #3); rebase target is the resolve.alias block in packages/app/vite.js."
+    },
+    {
+      "id": "M-005",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0005-M-005-server-persistence-credential-ref.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts"
+      ],
+      "reason": "Adds an optional non-secret credential REFERENCE (http.credentialRef, inside ServerHttpBase) so a stored direct server can point at a keystore entry without storing any credential. The M-002 encode path still strips password; the reference is a pointer (mobile-credential:<id>), safe for every persistent backend, and resolves per session into memory only. Keystore-backed resolution is mobile issue #4; decoding tolerates absence for already-stored servers.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; targeted probe scripts/verify-credential-ref.ts (schema round-trip keeps the reference, still strips password) plus the upstream persistence.test.ts file as regression.",
+      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field. Review note (issue #3, round 2): clearing semantics are 'undefined keeps, empty string clears' in the first-party registry (packages/mobile-hosts/src/registry.ts); whether a changed host target/identity invalidates or re-confirms its credentialRef is an issue #4 boundary decision, deliberately out of scope here. Issue #4 ruling recorded: whether a changed host target/identity invalidates its credentialRef is resolved as KEEP + explicit removal (the user unchecks remember or deletes the entry in the credential manager); see docs/design/units/connection.md 失效矩阵."
+    },
+    {
+      "id": "M-006",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0006-M-006-dialog-preserve-credential-ref.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx"
+      ],
+      "reason": "The connect dialog constructs a fresh connection object on save; without this patch the M-005 credential reference would be dropped on the first edit of a server (both the same-url add path and the key-changing replace path). The original's reference is forwarded into the new connection; the form never edits it (it is a non-secret pointer, there is no reference input in the dialog). The 'nothing changed' early-exit comparison deliberately stays without the reference: it is never user-editable here, so it cannot be the only change, and adding it would keep the dialog open pointlessly.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-credential-ref.ts (schema round-trip keeps credentialRef + password still stripped + dialog forwards original.http.credentialRef and keeps it out of the early-exit comparison); upstream persistence.test.ts targeted run unchanged vs the M-002 baseline (same 4 pass / 1 pre-existing M-002 round-trip expectation).",
+      "rebase": "New patch (issue #3); rebase target is the request.mutationFn connection construction block in packages/app/src/servers/connect/dialog.tsx. Issue #4 amendment note: M-009 extends the reference passthrough to the ADD flow (prior found by normalized URL from server.list, not method-gated) and the reference now comes from the remember decision; the early-exit comparison still never consults it."
+    },
+    {
+      "id": "M-007",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0007-M-007-mobile-hosts-bootstrap-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Shell bootstrap (issue #3). (1) Removes the assembly of location.origin into a ServerConnection: in this Android WebView shell the asset origin http://127.0.0.1:18090 is a static asset server, not an OpenCode service, so that connection could only fail its health check. The ?auth_token URL passthrough is inapplicable for the same reason (no assembled server to authenticate) and is removed with its cleanup helper. (2) Bootstraps the first-party host registry via createMobileHosts (fail-closed host-key stub + Null credential resolver; real counterparts are issues #6/#4) and injects hosts.upstreamConnections() - a solid-store-derived reactive value - as the app's servers prop; direct servers are added through the app's own dialog into the upstream persisted list. Not implemented via the VITE_OPENCODE_SERVER_MODE=none build-time variable on purpose: that would hide the behavior behind build configuration and complicate rebasing; this patch keeps the change visible and rebaseable in one place. M-007 amendment (issue #4): the entry now also creates the device credential vault client (createVaultClient over createWebMessageChannelTransport) with the handshake listener registered before first render - shape-validated only (event.origin is never consulted: embedder-posted messages carry an empty origin by platform construction), port captured inside the transport closure, acked immediately, later handshakes ignored - and passes the vault plus a vault-backed resolver into createMobileHosts. Before the ack the vault is unavailable (explicit state, no plaintext fallback).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke after applying: bun run build:web succeeds and the built entry chunk contains the mobile-hosts bootstrap (dist marker mobile-ssh / opencode-mobile.hosts.v1). Runtime behavior on device is BLOCKED (G1/G13). Amendment verified by V2 build smoke after M-009/M-010 registration and scripts/verify-credential-vault.ts (M-007 listener + wiring probe).",
+      "rebase": "New patch (issue #3); rebase target is the render block of packages/app/src/entry.tsx. Amendment (issue #4): the vault wiring block inside the loadInitialLocale callback of packages/app/src/entry.tsx."
+    },
+    {
+      "id": "M-008",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0008-M-008-mount-mobile-host-manager-in-server-settings.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx"
+      ],
+      "reason": "Mounts the first-party SSH host manager (lazy import) in the settings 'servers' tab, above the upstream single-server panel and also when the upstream list is empty, so the first SSH host can be created. The manager reads the runtime bootstrapped by M-007 through getMobileHosts(). Known gap, documented in docs/design/interaction.md: in the multiple-servers layout the upstream nav replaces the 'servers' tab with per-server entries, so the manager is not reachable there; the injected extension rows themselves render through the upstream home/settings inventory (device verification: G13/G15).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web) with the lazy chunk resolving through the M-004 alias; manager rendering and interactions on device are BLOCKED (G13).",
+      "rebase": "New patch (issue #3); rebase targets are the lazy-import block after GuiExtensionsSettings and the 'servers' Tabs.Content block in packages/app/src/settings/shell.tsx."
+    },
+    {
+      "id": "M-009",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0009-M-009-remember-credential-branch-in-connect-dialog.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Optional 'remember credential' for the connect dialog's password method (issue #4). The checkbox participates only when rendered AND the shell vault is available; the decision itself (truth table v3, 12 rows) lives in the first-party package (packages/mobile-hosts src/vault/remember.ts) so it is unit-tested and probe-able, and this patch only translates it into vault put/remove calls and the constructed connection. Add flow resolves the ref-bearing prior by normalized URL from server.list regardless of the connect method (password AND link/redeem) - otherwise the M-006 original is undefined on add and re-adding a remembered server would orphan its reference. Rows 2/12 abort the save with an inline needs-password message (never cast an empty value); the early-exit is forced off when the checkbox state differs from the prior's remembered flag; a failed put/remove keeps the dialog open with an inline error. Vault unavailable renders the checkbox disabled plus an explicit-state note - no plaintext fallback anywhere.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun test truth-table suite (packages/mobile-hosts); scripts/verify-credential-vault.ts probes rows 1-12 + early-exit forcing + initial value through the in-process vault engine; V2 build smoke after registration.",
+      "rebase": "New patch (issue #4); rebase targets are the request.mutationFn block, the form controller state exports, the password-method JSX block, and the dialog.server i18n sections in packages/app/src/servers/connect/dialog.tsx."
+    },
+    {
+      "id": "M-010",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0010-M-010-registry-hydration-credential-resolution.patch",
+      "targets": [
+        "packages/app/src/runtime/server/registry.tsx"
+      ],
+      "reason": "Hydration credential resolution (issue #4). After the persisted server list hydrates, stored http entries that carry a credential reference but no password get the password resolved from the shell vault and injected into the in-memory solid store ONLY - the M-002 encode path runs on every persist write, so the value can never reach a persistent backend; it merely spares re-typing within the session. Vault-level unavailability and per-entry corrupt/unsupported resolve to nothing and the server's own authentication flow takes over (docs/design/units/connection.md failure matrix; no plaintext fallback).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts asserts the injection is setStore-only (no direct storage writes) and that the M-002 encode still strips (memory-only); runtime behavior on device is BLOCKED (C1).",
+      "rebase": "New patch (issue #4); rebase target is the ServersProvider init block in packages/app/src/runtime/server/registry.tsx, directly after the persisted() call."
+    },
+    {
+      "id": "M-011",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch",
+      "targets": [
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "reason": "Platform fetch injection with the validated-follow policy (issue #5, decision 0002 D1). createSecureFetch from the first-party package keeps redirect:\"follow\" (legitimate same-origin reverse proxies keep working) and validates the FINAL response before body delivery: a cross-host final URL is refused with the body cancelled, an https-to-http downgrade is refused, and a request URL carrying userinfo credentials is refused before anything is sent. Coverage: platform.fetch feeds createServerTransport (API/SSE/binary reads) and the health checks; the upload XHR is validated separately by M-012 with the same rules, and the pairing-flow residual fetch surface (OpenCode.make + checkServerHealth(globalThis.fetch) in pairing.ts) is registered out-of-scope in docs/design/units/connection.md. Auth-header semantics are untouched (the Basic header is built upstream exactly as before); cross-origin redirect sub-requests already lose the Authorization header by browser spec, so the wrapper is the shell's own fail-closed layer, not a leak fix. The embedded marker 'mobile(M-011): platform fetch validated-follow (origin + downgrade checked before body delivery)' survives minification and anchors V-conn dist verification.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun unit tests for the wrapper (packages/mobile-hosts/test/secure-fetch.test.ts: cross-host refuse, downgrade refuse, credential-URL refuse, direct pass, same-origin redirect pass); V2 build smoke + dist marker mobile(M-011) + scripts/verify-direct-connection.ts (full mode); device behavior BLOCKED (G3/G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal)."
+    },
+    {
+      "id": "M-012",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0012-M-012-upload-xhr-redirect-validation.patch",
+      "targets": [
+        "packages/app/src/composer/attachments/destination.ts"
+      ],
+      "reason": "Validated-follow for the upload face (issue #5, decision 0002 D1). The attachment upload is the one request that bypasses the platform fetch seam (M-011) - it goes through XMLHttpRequest for progress and streaming - so the same URL policy from the first-party package is enforced here: userinfo credential URLs are refused before anything is sent (D-URL), and on load the FINAL xhr.responseURL must still be same-origin with the request and must not have downgraded https-to-http, else the body is rejected (SecureFetchError) instead of being read as the server's upload receipt. Cross-origin redirect sub-requests already lose the Authorization header by browser spec (the floor); this patch is the shell's own fail-closed layer on top.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
+      "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts."
+    },
+    {
+      "id": "M-013",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
+      "targets": [
+        "packages/app/src/servers/connect/dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Probe-classified connect errors on the save path (issue #5, decision 0002 D4). The endpoint probe is dispatched BEFORE the authoritative health check (so its classification is usually already resolved when the verdict arrives) but only chooses the error WORDING after the check failed - the health check stays the sole authority for whether a save proceeds, and a probe verdict can never pass a save it refused. Error-message precedence: the upstream mixed-content structural signal, then the check's own unauthorized flag (authoritative 401), then the probe's transport classification (dialog.server.error.<code>), then the generic upstream message as the EXPLICIT degrade when the probe is unavailable, answered ok, or conflicts with the real fetch - a classification is never fabricated. A userinfo credential URL is refused up front with the precise credential-url message (D-URL). App-i18n keys only (en base merged with the locale table; missing key falls back to en, then to the key itself) - the first-party mobile-hosts direct.error.* keys are a separate set for first-party UI surfaces (F5).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; probe classification precedence and degrade are unit-tested in packages/mobile-hosts/test/probe.test.ts (port level); V2 build smoke + dialog.server.error keys in dist language chunks; device behavior BLOCKED (G4/G5/G11).",
+      "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts."
+    },
+    {
+      "id": "M-014",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Probe bridge wiring (issue #5). The entry creates the endpoint probe client over the protocol-isolated probe transport (independent opencode-mobile-probe-handshake string, shape-validated capture with exactly one port, port confined to the transport closure, acked immediately, later handshakes ignored, event.origin never consulted - embedder-posted messages carry an empty origin by platform construction) and passes it into createMobileHosts alongside the vault. The two bridges sit on the same window message events but each captures only its own handshake string, so neither can capture the other's port and the vault gates C1-C5 are not perturbed. Before the native ack the probe stays unavailable (fail-closed); a never-acked bridge degrades the dialog to the generic error message.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts M-007 assertions (listener-before-render, markers, no origin consultation) still pass; probe transport isolation and handshake shape are unit-tested in packages/mobile-hosts/test/probe.test.ts; dist markers opencode-mobile-probe-handshake and mobile(probe-v1) + scripts/verify-direct-connection.ts full mode; device behavior BLOCKED (G16).",
+      "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field)."
+    },
+    {
+      "id": "M-015",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "SSH tunnel bridge wiring (issue #6). The entry creates the ssh transport synchronously during module evaluation, before asynchronous locale loading, so its window-message listener cannot miss native startup. It signals readiness through an AndroidX WebMessageListener bootstrap; native restricts that bootstrap to the exact configured loopback origin and main frame before posting the existing protocol-isolated channel (`opencode-mobile-ssh-handshake`). The transferred port stays closure-confined, is ack-gated, and retains the existing JSON/requestId operation API. createMobileHosts receives the bridge-backed hostKey verifier, tunnel transport and sshBridge handle; fail-closed stubs remain the package's no-injection default.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts checks the AndroidX origin/frame bootstrap and that the listener subscribes before locale loading; SSH transport tests cover handshake request ordering/readiness replay and request/event behavior; synthetic isolated-device loopback test reached native SSH and returned connection refused (no external host). Real SSH/host-key confirmation remains unverified.",
+      "rebase": "New patch (issue #6); bridge transport bootstrap lives at entry module initialization before loadInitialLocale; createMobileHosts receives the bridge-backed hostKey/transport and sshBridge handle inside the existing startup callback."
+    },
+    {
+      "id": "M-016",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Service ops bridge wiring (issue #7). The entry creates the fourth protocol-isolated sibling transport over the svcops handshake (opencode-mobile-svcops-handshake) and registers the bridge-backed client through the module-level service ops seam (setActiveServiceOpsPort) - the createMobileHosts option contract stays unchanged (plan zero-change list: runtime.ts untouched). Before the native ack the service ops panel stays degraded-hidden (fail-closed stub): a client-only build implies no service-operation surface. The bridge protocol carries {templateId, params, os} ONLY, never a command string - the command face is the native-side whitelist (ServiceCommandValidator) assembled behind the single gated setCommand call site; the credential is resolved per command by the panel and crosses one way, exactly once, never logged or echoed (N7).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-service-ops.ts full mode (dist markers opencode-mobile-svcops-handshake + mobile(svcops-v1), entry wiring assertions); V2 build smoke; device behavior BLOCKED (G18).",
+      "rebase": "New patch (issue #7); LAYERED patch - generated against pin b4525d79bf + M-001..M-015 (entry.tsx already rewritten by M-007/M-014/M-015), round-trip verified on that base; rebase target is the mobile(M-015) ssh transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new svcops block sits directly above the createMobileHosts call)."
+    },
+    {
+      "id": "M-017",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
+      "targets": [
+        "packages/app/src/home/sessions/controller.tsx"
+      ],
+      "reason": "Wires the Home session row archive action to the real API (issue #8). The generated client has exposed session.update with an archived flag all along (PATCH /api/session/:id, body archived; the server stamps time.archived); the upstream UI kept a stub that always rejected ('Session archiving is unavailable' next to a TODO). The stub becomes a real call and the success path drops the row from the 'home-sessions' query cache and invalidates/re-syncs the canonical session record (so the locally known copy carries the archived stamp and is filtered by the home index merge, home/sessions/index.ts parseHomeSessionIndex); the tabs cleanup and the onError toast are the existing archiveHomeSession helper semantics (archive.test.ts), which this patch does not touch. Archiving is a reversible metadata operation, not a deletion: no danger confirmation (the zero-delete red line does not apply), and there is still no unarchive UI - the same gap exists upstream and is recorded as an accepted limitation in docs/design/units/projects-sessions.md.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web rc=0 after applying); upstream targeted regression src/home/sessions/{archive,index,records}.test.ts 16 pass / 0 fail (note: archive.test.ts exercises the INJECTED archiveHomeSession helper, not the M-017 rewrite point - helper semantics regression only); scripts/verify-projects-sessions.ts static probe (stub text gone, archived:true call shape, helper wiring kept). Runtime archive semantics on a real server (time.archived stamp, list filtering) are BLOCKED - G19 / live lifecycle E2E.",
+      "rebase": "New patch (issue #8); rebase target is the archive: async block inside the returned session controller of packages/app/src/home/sessions/controller.tsx (anchored by the archiveHomeSession call; single hunk)."
+    },
+    {
+      "id": "M-018",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Restores the SSH hosts entry in the multi-server settings layout and revises the redirect guard (issue #8; this closes the gap M-008 pre-registered in docs/design/units/server-list.md - it is deliberately NOT an issue #8 acceptance item itself). Two same-file changes in shell.tsx: (i) the root-tab redirect guard's includes list drops \"servers\" (the other five entries keep their upstream redirect semantics - those panels are per-server and carried by the per-server nav entries); without this revision ANY navigation setting view.tab='servers' is bounced to general by the guard createEffect, so an entry alone would not be reachable; (ii) the multiple() nav group gains a fixed 'SSH hosts' entry that opens the existing 'servers' tab (surface.select('servers')), where the M-008 host-manager panel renders unconditionally. i18n key settings.tab.sshHosts added to en/zh (M-009/M-013 three-file precedent). Semantic spillover assessed low and recorded: if upstream ever mounts something else on the 'servers' tab relying on its multi-server unreachability, behavior changes; rollback is re-adding the list entry (one line) and dropping the entry item.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V2 build smoke (bun run build:web rc=0 after applying); dist i18n key hit: settings.tab.sshHosts / 'SSH hosts' in language-Cwk-VMvM.js + shell chunk, 'SSH 主机' in zh-49VEr5mD.js; scripts/verify-projects-sessions.ts asserts BOTH the guard revision (includes list without \"servers\") and the entry item. HONEST BOUNDARY: build/dist/probe layers cannot prove runtime navigation reachability (the guard is a Solid createEffect) - 'entry reachable in multiple() layout and not bounced' is a G19 device check (docs/design/interaction.md).",
+      "rebase": "New patch (issue #8); rebase targets are the guard createEffect's includes list and the multiple() nav-group construction block in packages/app/src/settings/shell.tsx, plus the settings i18n region near settings.tab.servers in en.ts/zh.ts; the guard revision is the PREREQUISITE of the entry's reachability - keep both or neither."
+    },
+    {
+      "id": "M-020",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
+      "targets": [
+        "packages/app/src/entry.tsx",
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "reason": "Files bridge wiring + platform file capabilities (issue #16). The entry creates the FIFTH protocol-isolated sibling transport over the files handshake (opencode-mobile-files-handshake) and registers the bridge-backed client through the module-level files seam (setActiveFilesPort) - the createMobileHosts option contract stays unchanged (the M-016 registration shape). web.ts completes the two Platform fields that were desktop-only declarations on web: readClipboardImage (comment anchor 'Read image from clipboard (desktop only)' - the desktop implementation is not in this closure) and saveFile (session export + GUI-extension system.save routes). Both read the port through the seam PER CALL; before the bridge acks the fail-closed stub answers (clipboardImage null / saveFile false / shareDataUrl false). Platform TYPES are untouched - both fields are pre-existing optional members, so the diff carries zero type-level change. The saveFile stub false vs the absent-field anchor fallback is an intentional behavior change (silent cancel instead of a fake-success toast for a download that is a dead point inside the WebView shell), registered in docs/design/units/attachments-artifacts.md and gated by G27 item 8.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0 (6180 modules); dist markers mobile(M-020) (function .marker properties, secure-fetch precedent), mobile(files-v1) and opencode-mobile-files-handshake (FILES_BRIDGE constants) found in the built assets; scripts/verify-attachments-artifacts.ts (stub shape, seam registration, three-field Platform completion); mobile-hosts test/files-client.test.ts locks the per-field stub semantics; device behavior BLOCKED (G27).",
+      "rebase": "New patch (issue #16); LAYERED patch - generated against pin b4525d79bf + M-001..M-018 (entry.tsx already rewritten by M-007/M-014/M-015/M-016), round-trip verified on that base; rebase targets are the mobile(M-016) svcops registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new files block sits directly above the createMobileHosts call) and the platform object literal / module tail of packages/app/src/runtime/platform/web.ts (the M-011 fetch field block, extended with the two capability fields and the two seam-reading factories)."
+    },
+    {
+      "id": "M-021",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
+      "targets": [
+        "packages/app/src/session/composer/region.tsx"
+      ],
+      "reason": "Timeline attachment share face (issue #16). openAttachment's data: branch - the only branch where the DEVICE holds the bytes (the base64 rides the message part) - prefers the bridge share before the anchor download; the passed name is the SAME source as the anchor.download (getFilename(file.name) || 'attachment') and is sanitized again inside the first-party client (JS sanitizeFilename + Kotlin FILENAME native re-check). Success resolves true (done); cancel (false), a throw, or a bridge-less environment all fall back to the upstream anchor.download verbatim - behavior is never worse than upstream (plan L6 fixed reading: false falls back). The file:// URI branch is REMOTELY-held identity: its bytes never entered the device (schema.ts PathAttachmentPart anchor 'its bytes never enter the draft store'), so the branch is byte-for-byte untouched - no device-side share or path resolution for remote artifacts.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist marker mobile(M-021) (marker property inside the patched branch) found in the built assets; scripts/verify-attachments-artifacts.ts (data:-only branch guard + getFilename same-source name anchor + file:// branch zero-diff adjacent anchors); device share-sheet behavior BLOCKED (G27 item 5).",
+      "rebase": "New patch (issue #16); rebase target is the openAttachment function of packages/app/src/session/composer/region.tsx (single hunk: the data: branch inserted between the download() closure and the absolute-path reveal logic; the import block gains the first-party seam import)."
+    },
+    {
+      "id": "M-022",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
+      "targets": [
+        "packages/app/src/entry.tsx"
+      ],
+      "reason": "Notifications bridge wiring (issue #23). The entry creates the SIXTH protocol-isolated sibling transport over the notifications handshake (opencode-mobile-notifications-handshake) and registers the bridge-backed client through the module-level notifications seam (setActiveNotificationsPort) - the createMobileHosts option contract stays unchanged (the M-016/M-020 registration shape). Before the native ack the notifications port stays a fail-closed stub: notify answers {posted:false, code:'unavailable'} - the exact pre-issue state, because the Web Notification API behind platform.notify is a structural dead point in the Android WebView. The bridge is notification-ONLY (op whitelist {notify, requestPermission}, no reply/cancel/interrupt face), so a notification can never approve a permission or stop a task.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist markers mobile(M-022)/mobile(notifications-v1)/opencode-mobile-notifications-handshake (marker constants) found in the built assets; scripts/verify-notifications.ts (entry seam registration + six-handshake pairwise isolation); mobile-hosts test/notifications-client.test.ts locks the stub semantics; device behavior BLOCKED (G33).",
+      "rebase": "New patch (issue #23); LAYERED patch - generated against pin b4525d79bf + M-001..M-021 (entry.tsx already rewritten by M-007/M-014/M-015/M-016/M-020), round-trip verified on that base; rebase target is the mobile(M-020) files registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new notifications block sits directly above the createMobileHosts call)."
+    },
+    {
+      "id": "M-023",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
+      "targets": [
+        "packages/app/src/shell/notifications/notification.tsx"
+      ],
+      "reason": "Notification delivery reroute + the permission notification face (issue #23). (1) The two system-notification call faces in handleSessionIdle/handleSessionError move from platform.notify (whose Web Notification API implementation is a structural dead point in the Android WebView; its title/description/onClick signature also cannot carry the category and tap route) to activeNotificationsPort().notify({category, title, body, route: sessionHref(input.key, sessionID)}) - the coordinator.system wrapper is UNCHANGED (event dedup + the JS front-focus suppression stay first-layer); the route is built at the only scope that knows the server key + sessionID (the onClick closure could not cross the bridge - the native side constructs the tap navigation from the route). (2) A FOURTH event listener (handlePermissionAsked) completes the upstream dead switch: the settings toggle, the sound setting and the i18n key shipped with ZERO runtime trigger in the closure; the guard chain mirrors the agent/error branches plus the auto-approve guard (project-avatar-state precedent) so a project whose requests are auto-approved NEVER notifies - the approval wire-level call sites (auto-approve + dock decide) and this face stay double-touch free. The permission payload (action/resources/message) is deliberately NOT consumed - only the session title crosses into the body; the face has no reply/cancel action (tap navigates to the session's permission dock). i18n/settings keys are all pre-existing - zero new keys in this patch.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-notifications.ts groups 1/2/4 (upstream face anchors, permission dead-switch completion set, safety negatives: zero .reply( in the notification domain, zero addAction in the bridge); approval-path exhaustion stays exactly two wire-level call sites (verify-permission-requests); device behavior BLOCKED (G33).",
+      "rebase": "New patch (issue #23); rebase target is the handleSessionIdle/handleSessionError system-notification branches, the event.listen dispatch block and the import block of packages/app/src/shell/notifications/notification.tsx (single file, additive fourth listener + two delivery-face rewrites)."
+    },
+    {
+      "id": "M-024",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0023-M-024-settings-android-permission-face.patch",
+      "targets": [
+        "packages/app/src/settings/notifications/notifications.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Android POST_NOTIFICATIONS request face (issue #23). Turning a notification switch ON is the user-in-foreground moment: the settings face calls the bridge requestPermission op, whose NATIVE side enforces the platform conditions - API < 33 or already granted answers {granted:true} without a dialog; a request arriving without window focus answers {granted:false, code:'foreground'} and NEVER opens a dialog (the platform does not allow background permission prompts and the shell never tries). Every outcome (granted / denied / bridge unavailable) surfaces in an explicit status row (settings.general.notifications.android.* keys, en+zh, missing-key fallback to en is the in-registry mechanism); a denial degrades to the in-app faces only (no retry loop, no fabricated success). M-009/M-013/M-018 three-file patch precedent.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; the new i18n keys present in the built language chunks; scripts/verify-notifications.ts group 5 (switch onChange wiring + user-in-foreground-only anchor); device behavior BLOCKED (G33 item 5).",
+      "rebase": "New patch (issue #23); rebase targets are the SettingsNotifications component body (switch onChange handlers + the android permission status row) of packages/app/src/settings/notifications/notifications.tsx and the settings.general.notifications i18n region of en.ts/zh.ts (en.ts is on its fifth patch: M-009/M-013/M-018/M-024 - the region anchor sits after the errors.description key)."
+    },
+    {
+      "id": "M-025",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0024-M-025-root-disabled-merge.patch",
+      "targets": [
+        "packages/app/src/runtime/extension/root.tsx"
+      ],
+      "reason": "GUI extension disable-record union (issue #26). The disabled memo unions the desktop enable rows (extensionEnabled over installed.enableState(), the original fold unchanged) with the first-party device-local records (opencode-mobile.guiext.v1, packages/mobile-hosts/src/extensions/manager.ts), filtered to the CURRENT definition id set so ids unknown after an upstream rename self-heal away. The mobile settings manager (M-026) writes the records through the same shell-wide instance; the host watcher reacts to the merged set and deactivates/activates in the same frame. Desktop builds never render the mobile face and carry no such records - the union is empty there and behavior is unchanged (M-018 spillover precedent). The early-exit (`if (!state) return undefined`) is preserved verbatim: before the initial resource resolves neither the desktop rows nor the mobile records apply, matching today's web startup behavior. The VAC-anchored root.tsx faces (os gate, builtins OS filter, ipc bridge conditional, .ocdx comment) are untouched - the hunk sits in the disabled-memo domain.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-gui-extensions.ts group 4 (import anchor, createExtensionDisabled anchor, union+definitions-filter anchor, mobile(M-025) markers); packages/mobile-hosts/test/extension-manager.test.ts locks the record layer; scripts/verify-agent-capabilities.ts group 3 root.tsx anchors unchanged; device behavior BLOCKED (G35).",
+      "rebase": "New patch (issue #26); rebase target is the disabled createMemo in packages/app/src/runtime/extension/root.tsx (the union block after the extensionEnabled fold; the import block gains the first-party seam import)."
+    },
+    {
+      "id": "M-026",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch",
+      "targets": [
+        "packages/app/src/settings/shell.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "reason": "Mobile settings face for GUI extensions (issue #26). shell.tsx gains one predicate line (mobileGuiExtensions = platform.platform !== \"desktop\" - the upstream guiExtensions gate line is UNTOUCHED), the redirect guard bounces the tab only where NEITHER face is mounted, the nav group opens for either face, and a second Tabs.Content branch lazily mounts the first-party ExtensionManager wrapper (useExtensionHost feeds definitions/status/failures/reload as props; the shared package never imports app internals). Mutual exclusion is structural: guiExtensions implies desktop, mobileGuiExtensions implies not - desktop behavior is unchanged (DEV face intact, prod redirect intact). i18n: en gains settings.guiExtensions.mobile.description (8->9); zh gains the full nine-key block (0->9) - the previously registered honest en8/zh0 gap closes. M-009/M-013/M-018/M-024 three-file patch precedent.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 tree equivalence with the patch registered (LAYERED round-trip: applies to pin+M-001..M-024 and byte-reproduces the implementation tree); bun run build:web rc=0 with the new keys in the built language chunks; scripts/verify-gui-extensions.ts group 4 (mobileGuiExtensions line, revised guard, nav condition, mount branch, M-008/M-018 hunks untouched) and scripts/verify-agent-capabilities.ts group 5 revised counts (9/9 - deliberate revision, issue #26); device behavior BLOCKED (G35).",
+      "rebase": "New patch (issue #26); LAYERED patch - generated against pin b4525d79bf + M-001..M-024 (shell.tsx already rewritten by M-008/M-018; en.ts on its sixth touch M-009/M-013/M-018/M-024/M-026, zh.ts fifth), round-trip verified on that base; rebase targets are the mobileGuiExtensions predicate line after the guiExtensions gate, the gui-extensions guard line, the nav-group conditional and the second gui-extensions Tabs.Content branch in packages/app/src/settings/shell.tsx, plus the settings.guiExtensions i18n region of en.ts/zh.ts (en anchor after status.blocked; zh anchor after the M-024 android notifications block)."
+    },
+    {
+      "id": "M-027",
+      "patch": "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/routes/connection-route.ts",
+        "packages/app/src/shell/routes/connection-route.test.ts"
+      ],
+      "reason": "Initial SSH entry (issue #55, T3 v4). The mobile ConnectServerScreen adds a localized SSH hosts action that navigates to the exact /settings?tab=servers root view. AppShell permits that root servers view while the server list is empty or the sole HTTP server is signed out, while preserving the signed-out ConnectServerScreen url anchor. The route helper delegates parsing to parseSettingsView and rejects other paths/scopes/subtabs. M-008/M-018 MobileHostManager remains the management face; no SSH transport changes.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
+      "owner": "opencode-mobile maintainers"
+    },
+    {
+      "id": "M-028",
+      "patch": "patches/mobile/0027-M-028-connection-method-layout.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Mobile-only connection method layout (issue #55). On the initial connection screen, the pairing-link prompt occupies its own centered row and the Use password and SSH hosts actions share the next row. The desktop ConnectMethodSwitch, connection behavior, Pair/QR/password logic, SSH hosts route, and SSH transport remain unchanged; the shared connection dialog is not modified.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-027; focused screen/source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout and navigation behavior remain to be verified under G36.",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-027. Target is the mobile branch of ConnectServerScreen's method switch and its existing mobile SSH hosts action.",
+      "owner": "opencode-mobile maintainers"
+    }
+    ,
+    {
+      "id": "M-029",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0028-M-029-connection-label-nowrap.patch",
+      "targets": ["packages/app/src/servers/connect/screen.tsx"],
+      "reason": "Carry forward the approved issue-55 M-029 correction: keep the mobile Use password and SSH method actions on one line when possible. Layered after M-028 and before the inline SSH method patch.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-connection-inline-ssh.ts asserts the labels retain whitespace-nowrap in the mobile initial screen; V3 layered closure verification.",
+      "rebase": "Layered after M-028; applies to the mobile connection method row in packages/app/src/servers/connect/screen.tsx."
+    },
+    {
+      "id": "M-030",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0029-M-030-inline-ssh-setup.patch",
+      "targets": ["packages/app/src/servers/connect/screen.tsx", "packages/app/src/shell/routes/routes.tsx", "packages/app/src/shell/routes/connection-route.ts", "packages/app/src/shell/routes/connection-route.test.ts"],
+      "reason": "Issue #58: add an inline switchable SSH setup mode to ConnectServerScreen; restore the original no-server/signed-out Settings guard; AppShell-owned SSH onboarding retains the initial screen until the specifically owned host reaches ready with authenticated /api/info health. Reuses the existing host registry, credential dialog, host-key prompt, and SSH runtime.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-connection-inline-ssh.ts, mobile-host tests and V2 build smoke; MatePad APK/SW hash comparison located stale active worker (old `screen-Cz2Jyo6j.js`, new packaged worker waiting). Android worker rollover now promotes current build without clearing user storage; after install -r, DOM click rendered the inline host form at the same URL (G37 PASS). Synthetic unsubmitted drafts were cleared; no real credentials/hosts submitted. Real host-key/service-auth E2E remains BLOCKED.",
+      "rebase": "Layered after M-029; ConnectServerScreen method panel and AppShell in routes.tsx. Removes the M-027 settings exception/helper/test; keeps signed-out HTTP URL anchoring."
+    },
+    {
+      "id": "M-031",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0030-M-031-utf8-basic-auth.patch",
+      "targets": ["packages/app/src/runtime/server/api.ts", "packages/app/src/runtime/server/api.test.ts", "packages/app/src/runtime/server/client.test.ts"],
+      "reason": "Encode OpenCode Basic-auth credentials as UTF-8 bytes before base64 instead of calling btoa on Unicode code units; keeps legacy ASCII behavior and enables safe memory-only service authentication for Unicode passwords.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "api.test.ts covers ASCII compatibility, non-ASCII UTF-8 byte round-trips, and a real OpenCode client file.read request using a mapped SSH password; client.test.ts verifies Unicode credentials survive transport.update for a subsequent API request; V3 layered closure verification.",
+      "rebase": "Layered after M-030; target authTokenFromCredentials in packages/app/src/runtime/server/api.ts and its adjacent test."
+    },
+    {
+      "id": "M-032",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0032-M-032-vault-androidx-listener.patch",
+      "targets": ["packages/app/src/entry.tsx", "packages/app/src/servers/connect/dialog.tsx", "packages/app/src/runtime/i18n/en.ts", "packages/app/src/runtime/i18n/zh.ts"],
+      "reason": "Issue #58 vault boundary replacement: use the origin-bound AndroidX WebViewCompat.addWebMessageListener injected object and protocol v2 readiness roundtrip instead of the bespoke window-message WebMessageChannel handshake. The direct-server caller surfaces candidate recovery refs without retry/commit on error; other five native bridges are unchanged.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-credential-vault.ts, vault transport tests, bun run build:web, and V3 layered closure. Direct-server UNKNOWN caller keeps the prior connection uncommitted and surfaces recoveryRef. Isolated device readiness smoke is historical; synthetic storage instrumentation timed out and is BLOCKED.",
+      "rebase": "Layered after M-031; replaces the vault transport wiring in entry.tsx and updates the credential-change failure copy/recoveryRef in connect/dialog.tsx and en/zh i18n."
+    }
+  ]
+}

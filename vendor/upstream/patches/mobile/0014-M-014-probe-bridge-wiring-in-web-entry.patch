@@ -1,0 +1,47 @@
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -12,7 +12,15 @@
+ import en from "@/runtime/i18n/en"
+ import zh from "@/runtime/i18n/zh"
+ import pkg from "../package.json"
+-import { createMobileHosts, createVaultClient, createVaultResolver, createWebMessageChannelTransport, StubHostKeyVerifier } from "@opencode-mobile/mobile-hosts"
++import {
++  createMobileHosts,
++  createProbeClient,
++  createVaultClient,
++  createVaultResolver,
++  createWebMessageChannelTransport,
++  createWebMessageProbeTransport,
++  StubHostKeyVerifier,
++} from "@opencode-mobile/mobile-hosts"
+ 
+ const getLocale = () => {
+   if (typeof navigator === "undefined") return "en" as const
+@@ -103,10 +111,27 @@
+         },
+       }),
+     )
++    // mobile(M-014): the endpoint probe bridge (issue #5) — a protocol-isolated sibling of
++    // the vault bridge on the same window message events. The handshake strings differ
++    // ("opencode-mobile-probe-handshake" vs the vault's) and each transport captures only
++    // its own string with exactly one port, so neither can capture the other's handshake;
++    // neither consults event.origin (platform carries an empty origin by construction).
++    // The port is captured into the transport closure and acked immediately; before that
++    // ack the probe stays unavailable (fail-closed), and when the bridge never comes up
++    // the dialog degrades to the generic error — no fabricated classification.
++    const probe = createProbeClient(
++      createWebMessageProbeTransport({
++        subscribe: (handler) => {
++          window.addEventListener("message", handler as EventListener)
++          return () => window.removeEventListener("message", handler as EventListener)
++        },
++      }),
++    )
+     const hosts = createMobileHosts({
+       storage: window.localStorage,
+       fetch: globalThis.fetch.bind(globalThis),
+       vault,
++      probe,
+       resolver: createVaultResolver(vault),
+       hostKey: StubHostKeyVerifier,
+     })

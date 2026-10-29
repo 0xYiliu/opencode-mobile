@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Credential vault backup exclusion (issue #4, decision D7) and SSH host-key store
+     backup exclusion (issue #6, decision 0003 §3.1).
+     android:allowBackup="false" in the manifest is the PRIMARY control; this rule file is
+     defense in depth referenced by android:dataExtractionRules (API 31+): if allowBackup is
+     ever flipped, the encrypted vault payloads (filesDir/vault/) and their metadata index
+     still must not travel to cloud backups or device-to-device transfers. A restored vault
+     from another device would be undecryptable anyway (the Keystore key never migrates),
+     and issue #4's red line is that secrets never enter backup channels at all.
+     The ssh/ directory (filesDir/ssh/known_hosts, issue #6) is excluded for a different
+     reason: host keys are a TRUST ANCHOR, not a credential — trust state belongs to this
+     device and must never silently travel to (or come back from) another one. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="vault/" />
+        <exclude domain="file" path="ssh/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="vault/" />
+        <exclude domain="file" path="ssh/" />
+    </device-transfer>
+</data-extraction-rules>

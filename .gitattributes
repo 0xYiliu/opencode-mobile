@@ -1,0 +1,4 @@
+# Unified-diff patch files require a single space for context-only blank lines.
+# Ignore only blank-at-EOL on patch documents; source files and all other whitespace
+# classes remain checked by `git diff --check`.
+vendor/upstream/patches/mobile/*.patch whitespace=-blank-at-eol

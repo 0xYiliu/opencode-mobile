@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "upstream": {
+    "repository": "https://github.com/anomalyco/opencode",
+    "branch": "dev",
+    "pin": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+    "pinDate": "2026-10-23T10:28:20-07:00",
+    "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
+    "acquisition": "git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE | tar -x"
+  },
+  "packages": [
+    "app",
+    "client",
+    "protocol",
+    "schema",
+    "session-ui",
+    "ui",
+    "util",
+    "gui-extensions",
+    "plugin-browser",
+    "plugin",
+    "ai"
+  ],
+  "topLevelFiles": [
+    "LICENSE"
+  ],
+  "partialPackages": [
+    {
+      "path": "packages/desktop/icons/dev",
+      "reason": "Correction loop (S2/V2): packages/app/vite.icons.ts reads ../desktop/icons/dev/* unconditionally at vite config load to emit favicons/webmanifest icons for the PWA, and packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/dev/64x64.png. Only the dev and beta channel subtrees are carried; OPENCODE_CHANNEL=prod builds are not supported by this vendor set."
+    },
+    {
+      "path": "packages/desktop/icons/beta",
+      "reason": "Correction loop (S2/V2): packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/beta/64x64.png for the beta channel titlebar icon (unconditional import, resolved at build)."
+    }
+  ],
+  "upstreamPatches": {
+    "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
+    "@dnd-kit/dom@0.5.0": "patches/@dnd-kit%2Fdom@0.5.0.patch",
+    "@npmcli/agent@4.0.2": "patches/@npmcli%2Fagent@4.0.2.patch",
+    "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
+    "@tanstack/virtual-core@3.17.8": "patches/@tanstack%2Fvirtual-core@3.17.8.patch",
+    "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "patches/ghostty-web@0.3.0.patch",
+    "pacote@21.5.1": "patches/pacote@21.5.1.patch",
+    "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
+    "vite@8.2.2": "patches/vite@8.2.2.patch"
+  },
+  "mobilePatches": [
+    "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+    "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+    "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+    "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
+    "patches/mobile/0005-M-005-server-persistence-credential-ref.patch",
+    "patches/mobile/0006-M-006-dialog-preserve-credential-ref.patch",
+    "patches/mobile/0007-M-007-mobile-hosts-bootstrap-in-web-entry.patch",
+    "patches/mobile/0008-M-008-mount-mobile-host-manager-in-server-settings.patch",
+    "patches/mobile/0009-M-009-remember-credential-branch-in-connect-dialog.patch",
+    "patches/mobile/0010-M-010-registry-hydration-credential-resolution.patch",
+    "patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch",
+    "patches/mobile/0012-M-012-upload-xhr-redirect-validation.patch",
+    "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
+    "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
+    "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
+    "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
+    "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
+    "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
+    "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
+    "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
+    "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
+    "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
+    "patches/mobile/0023-M-024-settings-android-permission-face.patch",
+    "patches/mobile/0024-M-025-root-disabled-merge.patch",
+    "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch",
+    "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+    "patches/mobile/0027-M-028-connection-method-layout.patch",
+    "patches/mobile/0028-M-029-connection-label-nowrap.patch",
+    "patches/mobile/0029-M-030-inline-ssh-setup.patch",
+    "patches/mobile/0030-M-031-utf8-basic-auth.patch",
+    "patches/mobile/0032-M-032-vault-androidx-listener.patch"
+  ],
+  "excluded": {
+    "packages": [
+      "cli",
+      "codemode",
+      "console",
+      "containers",
+      "core",
+      "desktop",
+      "effect-drizzle-sqlite",
+      "function",
+      "http-recorder",
+      "httpapi-codegen",
+      "identity",
+      "latex",
+      "merman",
+      "plugins",
+      "posts",
+      "script",
+      "sdk",
+      "server",
+      "simulation",
+      "stats",
+      "storybook",
+      "theme",
+      "tui",
+      "web"
+    ],
+    "fileLevel": [
+      {
+        "path": "packages/ai/test/fixtures/recordings/",
+        "files": 274,
+        "reason": "HTTP recorder test fixtures (~13.7 MiB); unused by the web build."
+      }
+    ]
+  }
+}

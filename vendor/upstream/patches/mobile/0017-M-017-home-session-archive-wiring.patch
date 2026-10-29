@@ -1,0 +1,25 @@
+--- a/packages/app/src/home/sessions/controller.tsx
++++ b/packages/app/src/home/sessions/controller.tsx
+@@ -366,9 +366,19 @@ export function createHomeSessionsController(home: HomeController) {
+         await archiveHomeSession({
+           server: ServerConnection.key(conn),
+           session,
+-          // TODO: Restore archiving when the V2 client exposes a session archive API.
+-          archive: async (_sessionID) => Promise.reject(new Error("Session archiving is unavailable")),
+-          remove() {},
++          // mobile(M-017): the generated client exposes session.update with an
++          // archived flag; the server stamps time.archived on success.
++          archive: (sessionID) => ctx.sdk.api.session.update({ sessionID, archived: true }),
++          remove() {
++            // Drop the row from the Home index cache immediately and re-sync the
++            // canonical record so the locally known copy either carries the
++            // archived stamp (filtered by the index merge) or is gone.
++            queryClient.setQueryData<SessionInfo[]>(["home-sessions", conn], (current) =>
++              current?.filter((item) => item.id !== session.id),
++            )
++            ctx.data.session.invalidate(session.id)
++            void ctx.data.session.sync(session.id).catch(() => {})
++          },
+           onError: (cause) =>
+             showToast({
+               title: language.t("common.requestFailed"),

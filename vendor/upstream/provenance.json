@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "generator": "scripts/vendor-sync.sh",
+  "upstream": {
+    "repository": "https://github.com/anomalyco/opencode",
+    "branch": "dev",
+    "pin": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+    "pinDate": "2026-10-23T10:28:20-07:00",
+    "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
+    "cache": "~/.cache/opencode-upstream (clone --filter=blob:none)",
+    "acquisitionCommand": "scripts/vendor-sync.sh  (git -C <cache> archive <pin> -- packages/<p>... LICENSE | tar -x --exclude=packages/ai/test/fixtures/recordings)"
+  },
+  "closure": {
+    "packages": [
+      "app",
+      "client",
+      "protocol",
+      "schema",
+      "session-ui",
+      "ui",
+      "util",
+      "gui-extensions",
+      "plugin-browser",
+      "plugin",
+      "ai"
+    ],
+    "fileCount": 4473,
+    "fileCountBasis": "git ls-files count under packages/ at the pin (review correction N1: 4460 was an intermediate-state residue)",
+    "packagesTreeSizeMB": 45,
+    "excludedPackages": [
+      "cli",
+      "codemode",
+      "console",
+      "containers",
+      "core",
+      "desktop",
+      "effect-drizzle-sqlite",
+      "function",
+      "http-recorder",
+      "httpapi-codegen",
+      "identity",
+      "latex",
+      "merman",
+      "plugins",
+      "posts",
+      "script",
+      "sdk",
+      "server",
+      "simulation",
+      "stats",
+      "storybook",
+      "theme",
+      "tui",
+      "web"
+    ],
+    "excludedPackagesReason": "Only the Electron-rendered frontend (packages/app) and its transitive workspace closure are acquired. desktop/web are alternative renderers; core/server/cli/tui/sdk run the local service the phone never hosts; theme/httpapi-codegen/http-recorder are excluded tooling (see mobilePatches M-003); the rest is unrelated to the app build.",
+    "fileLevelExclusions": [
+      {
+        "path": "packages/ai/test/fixtures/recordings/",
+        "files": 274,
+        "approxSizeMB": 13.7,
+        "reason": "HTTP recorder test fixtures; unused by the web build."
+      }
+    ],
+    "partialPackages": [
+      {
+        "path": "packages/desktop/icons/dev",
+        "files": 53,
+        "reason": "Closure correction (correction loop, discovered at first V2 build): packages/app/vite.icons.ts reads ../desktop/icons/<channel>/* at vite config load to emit favicons and webmanifest icons for the PWA, and packages/app/src/shell/titlebar/titlebar.tsx imports the dev 64x64 icon. The desktop package itself stays excluded; the dev and beta icon subtrees are carried, so OPENCODE_CHANNEL=beta builds are supported by this vendor set while prod builds are not (icons/prod is not carried)."
+      },
+      {
+        "path": "packages/desktop/icons/beta",
+        "files": 53,
+        "reason": "Review correction (N5): registered in vendor-manifest.json but missing here. packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/beta/64x64.png for the beta channel titlebar icon (unconditional import, resolved at build)."
+      }
+    ]
+  },
+  "mobilePatches": [
+    {
+      "id": "M-001",
+      "file": "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+      "targets": [
+        "packages/gui-extensions/package.json"
+      ],
+      "summary": "devDependencies: remove electron, @lydell/node-pty, devtools-protocol",
+      "reason": "Electron-only dev tooling (own tests/typecheck); electron postinstall pulls ~110MB binaries.",
+      "verification": "V2 web build succeeds.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+    },
+    {
+      "id": "M-002",
+      "file": "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts"
+      ],
+      "summary": "Server persistence encode path strips password (memory-only); marker string 'mobile(M-002): password stripped at encode (memory-only)' embedded in reachable encode code (M002.stripped counter).",
+      "reason": "Web platform default storage is localStorage; persisting credentials there violates AGENTS.md. Default delivery state must be memory-only. Keystore persistence is owned by issue #4.",
+      "verification": "V-cred(a) source grep + semantic probe against effect@4.0.1 (strip on encode, tolerance on decode); V-cred(b) marker found in built dist; G9 device check BLOCKED (no device).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+    },
+    {
+      "id": "M-003",
+      "file": "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+      "targets": [
+        "packages/client/package.json",
+        "packages/plugin/package.json",
+        "packages/ai/package.json"
+      ],
+      "summary": "Remove dangling workspace refs: client devDep @opencode/httpapi-codegen; plugin devDep+peerDep+peerDependenciesMeta @opencode/theme; ai devDep @opencode/http-recorder",
+      "reason": "Referenced packages are outside the acquired closure (generated code committed; theme not in runtime closure; http-recorder is a test tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
+      "verification": "V1 install succeeds; V3(b) workspace scan reports DANGLING=0.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+    },
+    {
+      "id": "M-027",
+      "file": "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/routes/connection-route.ts",
+        "packages/app/src/shell/routes/connection-route.test.ts"
+      ],
+      "reason": "Initial SSH entry (issue #55, T3 v4). The mobile ConnectServerScreen adds a localized SSH hosts action that navigates to the exact /settings?tab=servers root view. AppShell permits that root servers view while the server list is empty or the sole HTTP server is signed out, while preserving the signed-out ConnectServerScreen url anchor. The route helper delegates parsing to parseSettingsView and rejects other paths/scopes/subtabs. M-008/M-018 MobileHostManager remains the management face; no SSH transport changes.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
+      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
+      "summary": "Mobile connection screen SSH hosts action and exact root servers route guard for empty/signed-out AppShell."
+    },
+    {
+      "id": "M-028",
+      "file": "patches/mobile/0027-M-028-connection-method-layout.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Mobile-only connection method layout (issue #55): the pairing-link prompt is centered on its own row and Use password plus SSH hosts share the following row. Desktop ConnectMethodSwitch, connection behavior, pairing/QR/password logic, the SSH hosts route, and SSH transport are unchanged; the shared dialog is untouched.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 layered round-trip after M-027; focused source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout verification remains part of G36.",
+      "rebase": "New LAYERED patch generated against pin b4525d79bf + M-001..M-027; target is the mobile method-switch branch in ConnectServerScreen.",
+      "summary": "Mobile initial connection method prompt/actions use two centered rows."
+    }
+  ],
+  "upstreamPatches": {
+    "derivationRule": "carried = (packages resolved by upstream bun.lock at the active pin) intersect (patchedDependencies segment recorded in upstream bun.lock at the active pin). Upstream package.json declares 17 patchedDependencies at both pins; the lock segment holds 13 at both; the closure dependency graph uses 9 (identical set and versions at both pins).",
+    "carried": {
+      "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
+      "@dnd-kit/dom@0.5.0": "patches/@dnd-kit%2Fdom@0.5.0.patch",
+      "@npmcli/agent@4.0.2": "patches/@npmcli%2Fagent@4.0.2.patch",
+      "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
+      "@tanstack/virtual-core@3.17.8": "patches/@tanstack%2Fvirtual-core@3.17.8.patch",
+      "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "patches/ghostty-web@0.3.0.patch",
+      "pacote@21.5.1": "patches/pacote@21.5.1.patch",
+      "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
+      "vite@8.2.2": "patches/vite@8.2.2.patch"
+    },
+    "applicationStatus": "effective: V1 (bun install, rc=0, 1057 packages) recorded all 9 keys in bun.lock patchedDependencies segment (PATCH_SEGMENT_MATCH=true) and store contents confirm applied patches (e.g. solid-js dist marker); no silent skip",
+    "notCarried": [
+      {
+        "patch": "gcp-metadata@8.1.2",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment (lock resolves gcp-metadata@8.1.4). Bun silently skips keys whose version does not match resolution, so carrying it would be a dead entry. Recorded as explicit deviation per plan \u00a72."
+      },
+      {
+        "patch": "@ai-sdk/google@3.0.73",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@ai-sdk/mistral@3.0.51",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@standard-community/standard-openapi@0.2.9",
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment; not resolved by the closure."
+      },
+      {
+        "patch": "@modelcontextprotocol/client@2.3.1 (was 2.0.0 at the previous pin)",
+        "reason": "In the upstream lock patchedDependencies segment (key moved 2.0.0 -> 2.3.1 between the pins) but outside the closure dependency graph (MCP client tooling). Upstream's removal of the 2.0.0 patch during the update exercise required no action on our side because we never carried it."
+      },
+      {
+        "patch": "@silvia-odwyer/photon-node@0.3.4",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (wasm image tooling)."
+      },
+      {
+        "patch": "@ff-labs/fff-bun@0.10.5",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph."
+      },
+      {
+        "patch": "@ai-sdk/openai-compatible@2.0.41",
+        "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (server-side AI providers)."
+      }
+    ]
+  },
+  "gitDependencies": {
+    "ghostty-web": {
+      "spec": "github:anomalyco/ghostty-web#83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+      "resolvedCommit": "83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+      "installedVersion": "0.3.0",
+      "note": "Resolved commit from the package.json spec at pin; bun install fetched the git dep successfully (V1 at both pins)."
+    }
+  },
+  "lockfile": {
+    "bunLockSha256": "05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4",
+    "bunLockOrigin": "initial lock copied from the upstream bun.lock at the active pin, then reconciled by bun 1.4.2 install (extraneous workspace entries pruned); re-reconciliation after the rollback demo reproduced the identical sha256 (deterministic)",
+    "lockfileVersion": 1
+  },
+  "license": {
+    "upstreamLicense": "MIT",
+    "file": "LICENSE",
+    "copyright": "Copyright (c) 2025 opencode",
+    "notice": "NOTICE-THIRD-PARTY.md generation is BLOCKED pending user decisions: scripts/license-audit.ts audits 1089 installed packages and stops on 12 entries (9 distinct packages, 6 families when platform binaries are folded) that are unknown or weak-copyleft \u2014 lightningcss 1.32.0/1.33.0 + platform binaries (MPL-2.0, transitive of vite and tailwindcss), dompurify 3.4.14 (MPL-2.0, runtime transitive of mermaid), axe-core 4.13.0 (MPL-2.0, via lighthouse, build-time only), @sentry/cli + @sentry/cli-linux-x64 2.58.6 (FSL-1.1-MIT, build-time only, Sentry disabled), json-schema 0.4.0 (AFL-2.1 OR BSD-3-Clause), khroma 2.1.0 (no license field). Per AGENTS.md the audit halts instead of deciding; no NOTICE is written until the user rules on these. MPL-2.0 is file-level copyleft and commonly accepted for NOTICE inclusion with source availability, but that classification is the user's call, not the tooling's."
+  },
+  "discipline": {
+    "wholeRepoCopied": false,
+    "upstreamModified": false,
+    "nodeModulesHandPatched": false,
+    "correctionLoop": "closure gaps are fixed by amending the manifest + provenance and re-running scripts/vendor-sync.sh, never by hand-editing node_modules"
+  },
+  "pinUpdateExercise": {
+    "performed": "S3 of issue #2 implementation (issue #27 lifecycle exercised end-to-end)",
+    "selection": {
+      "fullSha": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "date": "2026-10-23T10:28:20-07:00",
+      "subject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
+      "rationale": "Touches the two closure packages the mobile shell renders (packages/app runtime, packages/client solid stores) with a self-contained fix; 241 commits were available on origin/dev since the previous pin, and this one was the planner-designated example of an app/client-touching update. It also exercises upstream lock/patch-segment drift (upstream moved the @modelcontextprotocol/client patch 2.0.0 -> 2.3.1 and changed the @silvia-odwyer/photon-node patch between the two pins).",
+      "candidateRelease": "v2.1.4 release cycle (upstream package.json version 2.1.4; nearest tag github-v1.2.27-145-gb4525d79bf)",
+      "compatibilityEvidence": "All 9 carried upstream patch keys appear in the candidate bun.lock patchedDependencies segment with byte-identical versions (vite 8.2.2, solid-js 1.9.15, @corvu/drawer 0.2.4, @dnd-kit/dom 0.5.0, @pierre/trees 1.0.0-beta.4, @tanstack/virtual-core 3.17.8, pacote 21.5.1, @npmcli/agent 4.0.2, ghostty-web#83c0a07); M-002 target packages/app/src/runtime/server/persistence.ts is unchanged between the pins; candidate is an ancestor of origin/dev; upstream bun.lock changed 1033 lines between pins so the exercise covers real dependency drift."
+    },
+    "closureRefresh": {
+      "vendorTreeDiff": "289 files changed across the 11 closure packages (8313 insertions, 3282 deletions); packages/desktop/icons/{dev,beta} subtrees unchanged",
+      "rootConfigDiff": "catalog/overrides re-synced from the candidate root package.json (new @pierre/highlights=0.2.0; @pierre/diffs 1.5.1->1.6.1; @opentui/* 0.5.17->0.6.8; @playwright/test 1.60.0; @types/bun 1.4.3; @typescript/native -> typescript@7.1.0-beta; overrides bun-types 1.4.2->1.4.4)",
+      "bunfigDiff": "[install] section mirrored from the candidate: minimumReleaseAge unchanged at 259200; upstream added @pierre/highlights, bun-types, typescript@7.1.0-beta to minimumReleaseAgeExcludes (mirroring upstream's own policy decision, not a local relaxation). First install attempt failed on @pierre/highlights@0.2.0 (published <3 days before the exercise) until the candidate bunfig was mirrored.",
+      "lockDiff": "root bun.lock (candidate upstream lock reconciled by bun 1.4.2): 82 insertions / 76 deletions vs the previous pin's reconciled lock; reconciled sha256 05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4; re-reconciliation after the rollback demo produced the identical sha (deterministic)",
+      "licenseRefresh": "license-audit re-run at the candidate: 1089 packages audited, same 12 stop items as at the previous pin (9 distinct packages, 6 families folded; MPL-2.0 x8 incl. lightningcss/dompurify/axe-core, FSL-1.1-MIT x2 @sentry/cli, AFL-2.1 OR BSD-3-Clause json-schema, khroma no license field). No new license class introduced by the update."
+    },
+    "patchLifecycle": {
+      "mobilePatches": {
+        "M-001": "rebased: regenerated at the candidate (upstream bumped electron 44.4.5->44.9.1 inside the devDependencies hunk context); conflict resolution = context-line update only, no semantic change",
+        "M-002": "applied verbatim: target file unchanged between pins, zero conflicts",
+        "M-003": "rebased: regenerated at the candidate (target package.json hunks shifted line numbers; all three dangling workspace refs still present upstream); conflict resolution = hunk re-derivation only, no semantic change"
+      },
+      "upstreamPatches": "carried subset re-derived from the candidate bun.lock patchedDependencies segment: identical 9 keys with identical versions and byte-identical patch file contents (sha256-compared). Upstream removed @modelcontextprotocol/client@2.0.0 (moved to 2.3.1) and changed @silvia-odwyer/photon-node@0.3.4 - both were already in our explicit not-carried set, so nothing we carry was removed or changed upstream."
+    },
+    "regression": {
+      "V1_install": "PASS - bun install rc=0 (21 packages installed, 50 pruned); our bun.lock patchedDependencies segment == the 9 configured keys (PATCH_SEGMENT_MATCH=true, no silent skip); store spot check confirms solid-js patch applied",
+      "V2_build": "PASS - vite build rc=0, 6138 modules, 3330 dist files (~152.6 MB with sourcemaps), PWA service worker generated",
+      "V3_verifyClosure": "PASS - tree == candidate pin + registered patches (install/build artifact dirs excluded from the diff), LICENSE byte-identical, workspace refs DANGLING=0, recordings excluded",
+      "V_cred": "PASS - marker string present in built dist (dist/_assets/health-6k7mPhm6.js + .map); semantic probe of the real vendored persistence.ts: encode strips password, decode tolerates legacy values",
+      "V4_licenseAudit": "BLOCKED (pre-existing, unchanged) - 12 stop items need user decisions; no regression introduced by the update",
+      "V7_leakScan": "PASS - no high-confidence secrets beyond 3 filtered documented AWS example-credential hits; check-ignore spot checks all ignored"
+    },
+    "rollbackDemo": {
+      "procedure": "git restore of vendor/upstream manifest/provenance/mobile patches, root package.json, bunfig.toml and bun.lock to the previous-pin commit (733cfa2), then scripts/vendor-sync.sh rebuild, bun install, verify-closure, full rebuild",
+      "operationalFinding": "after swapping the lock back, `bun install` reported 'no changes' while node_modules still held candidate leftovers (superset state) - the rollback procedure must include removing node_modules (and workspace-internal node_modules) before installing; a clean reinstall restored exactly the 1057-package previous-pin set",
+      "judgment": "preferred criterion (byte-identical sha256 manifest vs the known-good web-dist/manifest.json) NOT met in full: 3110/3138 files byte-identical, 28 differing files are all .map sourcemaps (vite/rolldown sourcemap emission is not byte-reproducible across runs); fallback criterion per plan (V3 tree equivalence + V2 build success) met => rollback demonstrated SUCCESS with the sourcemap reproducibility caveat recorded"
+    },
+    "gateReport": {
+      "gradleAndroidBuild": "BLOCKED - no Android SDK in this environment",
+      "deviceGates_G1_G12": "BLOCKED - no device/emulator",
+      "liveServiceE2E": "BLOCKED - no authorized service/model",
+      "note": "per issue #2 acceptance #5, these gates are marked BLOCKED (not passed) in the exercise gate report"
+    },
+    "finalPinDecision": {
+      "decision": "pin advanced to b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "reason": "the update exercise passed every executable gate (V1/V2/V3/V-cred/V7) with trivially rebasable mobile patches, an unchanged carried upstream patch set, and no new license class; rollback was demonstrated successfully; the selection touches the closure packages the mobile shell renders"
+    }
+  }
+}

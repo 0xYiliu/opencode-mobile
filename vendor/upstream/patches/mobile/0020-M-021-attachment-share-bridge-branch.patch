@@ -1,0 +1,42 @@
+diff --git a/packages/app/src/session/composer/region.tsx b/packages/app/src/session/composer/region.tsx
+index 1315a86..5381825 100644
+--- a/packages/app/src/session/composer/region.tsx
++++ b/packages/app/src/session/composer/region.tsx
+@@ -1,5 +1,8 @@
+ import type { SessionUserActions } from "@opencode/session-ui/message"
+ import { getFilename, sameDirectory } from "@opencode/util/path"
++// mobile(M-021): the timeline attachment share face reads the files bridge through the
++// module-level seam (the M-012 vendor-import precedent; Platform types are untouched).
++import { activeFilesPort } from "@opencode-mobile/mobile-hosts"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { isScrollKeyTarget, scrollKey, scrollKeyOwner } from "@opencode/ui/scroll-view"
+ import { makeEventListener } from "@solid-primitives/event-listener"
+@@ -98,6 +101,28 @@ export function createActiveSessionRegion(input: {
+       anchor.click()
+     }
+ 
++    // mobile(M-021): the data: branch is the only branch where the DEVICE holds the bytes
++    // (the base64 rides the message part), so it is the only branch wired to the bridge
++    // share. The passed name is the SAME source as the anchor.download above
++    // (getFilename(file.name) || "attachment") and is sanitized again inside the first-party
++    // client. Success resolves true (done); cancel (false), a throw, or a bridge-less
++    // environment all fall back to the upstream anchor.download verbatim — behavior is
++    // never worse than upstream. The file:// branch below is REMOTELY-held identity: its
++    // bytes never entered the device, so no device-side share/path resolution is attempted
++    // for it (docs/design/units/attachments-artifacts.md identity separation).
++    if (url.startsWith("data:")) {
++      const share = activeFilesPort()
++      ;(share as unknown as { marker?: string }).marker =
++        "mobile(M-021): timeline attachment share over the files bridge (issue #16)"
++      void share
++        .shareDataUrl(url, getFilename(file.name) || "attachment", file.mime)
++        .then((shared) => {
++          if (shared) return
++          download()
++        }, download)
++      return
++    }
++
+     const path = file.name ?? ""
+     const absolute = path.startsWith("/") || path.startsWith("\\\\") || /^[a-zA-Z]:[\\/]/.test(path)
+ 

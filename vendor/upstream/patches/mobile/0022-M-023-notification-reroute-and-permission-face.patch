@@ -1,0 +1,110 @@
+diff --git a/packages/app/src/shell/notifications/notification.tsx b/packages/app/src/shell/notifications/notification.tsx
+index b841a20..04ae5ea 100644
+--- a/packages/app/src/shell/notifications/notification.tsx
++++ b/packages/app/src/shell/notifications/notification.tsx
+@@ -6,11 +6,15 @@ import type { ServerSDK } from "@/runtime/server/client"
+ import type { Data } from "@opencode/client/solid"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { useLanguage } from "@/runtime/i18n/language"
+-import { useSettings } from "@/settings/model"
++import { projectSettingsKey, useSettings } from "@/settings/model"
+ import { Persist, persisted, removePersisted } from "@/runtime/persistence/storage"
+ import { Persistence } from "@/runtime/persistence/schema"
+ import { playSoundById } from "@/shell/notifications/sound"
+ import type { createNotificationCoordinator } from "@/shell/notifications/coordinator"
++// mobile(M-023): the system-notification delivery face (issue #23) reads the notifications
++// bridge port through the module-level seam at call time; sessionHref builds the tap route.
++import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
++import { sessionHref } from "@/shell/routes/session"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import { sessionIDHasOpenTab, useTabs } from "@/shell/tabs/tabs"
+ import { useServer } from "@/runtime/server/current"
+@@ -232,9 +236,18 @@ export function createServerNotificationState(input: {
+ 
+       if (hasOpenTab && settings.notifications.agent()) {
+         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+-          platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
+-            openNotificationSession(tabs, input.key, sessionID),
+-          ),
++          // mobile(M-023): deliver through the notifications bridge (issue #23) — the
++          // platform.notify Web Notification API is a structural dead point in the shell
++          // WebView. The route is built HERE (only this scope knows the server key and
++          // session; the onClick closure could not cross the bridge — the native side
++          // constructs the tap navigation from the route instead). The body is the session
++          // title, never event payload content.
++          activeNotificationsPort().notify({
++            category: "agent",
++            title: language.t("notification.session.responseReady.title"),
++            body: session.title ?? sessionID,
++            route: sessionHref(input.key, sessionID),
++          }),
+         )
+       }
+     })
+@@ -256,9 +269,54 @@ export function createServerNotificationState(input: {
+ 
+       if (hasOpenTab && settings.notifications.errors()) {
+         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+-          platform.notify(language.t("notification.session.error.title"), description, () =>
+-            openNotificationSession(tabs, input.key, sessionID),
+-          ),
++          // mobile(M-023): bridge delivery (see the agent branch) — the description stays
++          // the session title or the generic fallback, never the error payload.
++          activeNotificationsPort().notify({
++            category: "errors",
++            title: language.t("notification.session.error.title"),
++            body: description,
++            route: sessionHref(input.key, sessionID),
++          }),
++        )
++      }
++    })
++  }
++
++  // mobile(M-023): the permission notification face (issue #23) — upstream shipped the
++  // settings toggle, the sound setting and the i18n key with ZERO runtime trigger (a dead
++  // switch in the closure); this handler is the shell's minimal completion. The guard chain
++  // mirrors the agent/error branches plus the auto-approve guard (project-avatar-state
++  // precedent): a project whose requests are auto-approved NEVER notifies, so the
++  // notification face cannot double-touch a request the approval face already answered.
++  // The permission payload itself (action/resources/message) is deliberately NOT consumed —
++  // only the session title crosses into the notification body. No reply/cancel action
++  // exists on this face: tapping navigates to the session's permission dock.
++  const handlePermissionAsked = (sessionID: string, eventID: string) => {
++    void lookup(sessionID).then((session) => {
++      if (disposed.value) return
++
++      if (!session) return
++
++      if (session.parentID) return
++
++      const hasOpenTab = sessionIDHasOpenTab(tabs.store, input.key, sessionID)
++
++      if (!hasOpenTab) return
++
++      if (settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session?.projectID))) return
++
++      if (settings.sounds.permissionsEnabled()) {
++        void input.coordinator.sound(`${input.key}\0${eventID}`, () => playSoundById(settings.sounds.permissions()))
++      }
++
++      if (settings.notifications.permissions()) {
++        void input.coordinator.system(`${input.key}\0${eventID}`, () =>
++          activeNotificationsPort().notify({
++            category: "permissions",
++            title: language.t("notification.permission.title"),
++            body: session?.title ?? sessionID,
++            route: sessionHref(input.key, sessionID),
++          }),
+         )
+       }
+     })
+@@ -272,6 +330,8 @@ export function createServerNotificationState(input: {
+     }
+ 
+     if (event.type === "session.execution.succeeded") handleSessionIdle(event.data.sessionID, event.id)
++
++    if (event.type === "permission.asked") handlePermissionAsked(event.data.sessionID, event.data.id)
+   })
+ 
+   onCleanup(() => {
