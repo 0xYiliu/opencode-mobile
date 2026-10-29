@@ -1,7 +1,7 @@
 // verify-notifications.ts — static probe for issue #23 (task completion, permission,
 // and error notifications).
 //
-// Asserts, against the REAL sources (vendored pin b4525d79bf… + registered M-001..M-033
+// Asserts, against the REAL sources (vendored pin b4525d79bf… + registered M-001..M-034
 // mobile patches, with M-019 reserved-absent), first-party packages/mobile-hosts, the
 // Android shell, web dist, and docs, the structural facts the notifications unit document
 // relies on.
@@ -533,8 +533,8 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
   if (distManifest.fileCount !== 3480)
     fail(`8: current web-dist fileCount drifted (expected 3480, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 153581483)
-    fail(`8: current web-dist totalBytes drifted (expected 153581483, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 153638140)
+    fail(`8: current web-dist totalBytes drifted (expected 153638140, got ${String(distManifest.totalBytes)})`)
 
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
@@ -642,7 +642,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3480/153581483; issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3480/153638140; issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +
      "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + M-022/M-023/M-024, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )
