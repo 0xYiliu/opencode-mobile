@@ -8,6 +8,7 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
 import android.util.Log
+import org.json.JSONObject
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
 import android.webkit.SslErrorHandler
@@ -69,17 +70,17 @@ class MainActivity : Activity() {
         }
         assetServer = server
 
-        // Credential vault bridge (issue #4): handshake is (re)started on every page load.
+        // Register the origin-bound AndroidX listener after binding loopback and before loadUrl.
         vaultBridge = CredentialVaultBridge(this, webView)
+        vaultBridge?.register()
         // Endpoint probe bridge (issue #5): protocol-isolated sibling of the vault bridge;
         // its own handshake string and channel, restarted on every page load alongside the
         // vault handshake. Until the page acks, the probe port stays unavailable.
         probeBridge = ProbeBridge(webView)
-        // SSH tunnel bridge (issue #6): the THIRD protocol-isolated sibling — its own
-        // handshake string (opencode-mobile-ssh-handshake) and channel, restarted on every
-        // page load alongside the vault and probe handshakes. Until the page acks, the ssh
-        // transport stays unavailable (fail-closed stub on the JS side).
+        // SSH tunnel bridge (issue #6): register its strict-origin AndroidX bootstrap before
+        // loadUrl so the page can request a confined channel as soon as its listener exists.
         sshBridge = SshTunnelBridge(this, webView)
+        if (sshBridge?.register() != true) Log.e(TAG, "ssh: bootstrap listener unavailable")
         // Service ops bridge (issue #7): the FOURTH protocol-isolated sibling — its own
         // handshake string (opencode-mobile-svcops-handshake) and channel, restarted on
         // every page load alongside the other three. Until the page acks, the service ops
@@ -160,18 +161,26 @@ class MainActivity : Activity() {
                 Log.w(TAG, "ssl error: primaryError=${error.primaryError}")
             }
 
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                vaultBridge?.onNavigationStarted()
+                sshBridge?.onNavigationStarted()
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                // Each page load opens a new vault handshake round; the ack flag resets here
-                // (ack lifecycle is navigation-scoped — see CredentialVaultBridge).
-                vaultBridge?.onPageFinished()
+                // APK updates can leave the previous PWA worker controlling the new WebView
+                // document. Workbox intentionally keeps a complete prior build until clients
+                // close (skipWaiting=false); Android has one shell document and APK replacement
+                // is the deployment boundary, so promote its waiting packaged worker and reload
+                // once it activates. This touches only worker lifecycle, not DOM storage/vault.
+                if (ShellWorkerPolicy.isTrustedShellPage(url, START_URL)) {
+                    activateWaitingShellWorker(view)
+                }
                 // The probe bridge (issue #5) runs its own, protocol-isolated handshake
                 // round alongside the vault one (see ProbeBridge); its ack lifecycle is
                 // likewise navigation-scoped.
                 probeBridge?.onPageFinished()
-                // The ssh bridge (issue #6) is the third protocol-isolated handshake round
-                // (see SshTunnelBridge); ack lifecycle navigation-scoped like the others.
-                sshBridge?.onPageFinished()
                 // The svcops bridge (issue #7) is the fourth protocol-isolated handshake
                 // round (see ServiceOpsBridge); ack lifecycle navigation-scoped like the
                 // others.
@@ -252,6 +261,90 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    /** Promote only the exact packaged shell root registration and packaged sw.js. */
+    private fun activateWaitingShellWorker(view: WebView) {
+        val trustedStartUrl = START_URL
+        val script = """
+            (async function() {
+              if (!("serviceWorker" in navigator)) return;
+              try {
+                const shellStartUrl = ${JSONObject.quote(trustedStartUrl)};
+                const shellOrigin = new URL(shellStartUrl).origin;
+                const shellScope = shellStartUrl;
+                const expectedScript = new URL("sw.js", shellStartUrl).href;
+                const trustedPage = () => new URL(location.href).origin === shellOrigin;
+                const registrations = () => navigator.serviceWorker.getRegistrations();
+                const workerUrls = (item) => [item.active, item.waiting, item.installing]
+                  .filter(Boolean).map((worker) => worker.scriptURL);
+                const trustedRegistration = (item) => trustedPage()
+                  && item.scope === shellScope
+                  && workerUrls(item).length > 0
+                  && workerUrls(item).every((url) => url === expectedScript);
+                const registration = async () => {
+                  if (!trustedPage()) return undefined;
+                  return (await registrations()).find(trustedRegistration);
+                };
+                let reloaded = false;
+                const reloadOnce = () => {
+                  if (reloaded || !trustedPage()) return;
+                  reloaded = true;
+                  location.reload();
+                };
+                const promote = async () => {
+                  const current = await registration();
+                  const waiting = current && current.waiting;
+                  if (!waiting || !trustedRegistration(current)) return false;
+                  const onControllerChange = () => {
+                    if (trustedPage() && navigator.serviceWorker.controller?.scriptURL === expectedScript) reloadOnce();
+                  };
+                  navigator.serviceWorker.addEventListener("controllerchange", onControllerChange, { once: true });
+                  if (waiting.state === "activated") {
+                    if (trustedPage() && trustedRegistration(current)
+                      && navigator.serviceWorker.controller?.scriptURL === expectedScript) reloadOnce();
+                    return true;
+                  }
+                  waiting.addEventListener("statechange", () => {
+                    void (async () => {
+                      const latest = await registration();
+                      if (waiting.state === "activated" && latest === current
+                        && latest.waiting === waiting && trustedRegistration(latest)
+                        && navigator.serviceWorker.controller?.scriptURL === expectedScript) reloadOnce();
+                    })();
+                  });
+                  const latest = await registration();
+                  if (latest !== current || latest.waiting !== waiting || !trustedRegistration(latest)) return false;
+                  waiting.postMessage({ type: "SKIP_WAITING" });
+                  return true;
+                };
+                const watchInstalling = (worker) => {
+                  if (!worker || worker.scriptURL !== expectedScript || !trustedPage()) return;
+                  const check = () => {
+                    if (worker.scriptURL === expectedScript && trustedPage() && worker.state === "installed") void promote();
+                  };
+                  worker.addEventListener("statechange", check);
+                  check();
+                };
+                if (!trustedPage()) return "untrusted-page";
+                const current = await registration();
+                if (!current) return "no-registration";
+                if (await promote()) return "promoted";
+                current.addEventListener("updatefound", () => watchInstalling(current.installing));
+                watchInstalling(current.installing);
+                // The entry registers on window.load. Check its packaged script and keep
+                // state listeners active through the complete precache/install operation.
+                try { await current.update(); } catch (_) {}
+                if (await promote()) return "promoted";
+                watchInstalling(current.installing);
+                return current.installing ? "watching-installation" : "no-waiting-worker";
+              } catch (_) {
+                // Fail closed to the currently controlled complete build; never clear user data.
+                return "error";
+              }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     @Deprecated("Deprecated in Java")

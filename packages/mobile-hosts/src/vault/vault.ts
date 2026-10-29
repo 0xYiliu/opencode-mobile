@@ -15,9 +15,17 @@
 import { createSignal } from "solid-js"
 import { isValidCredentialRef } from "../credential-ref"
 import { formatVaultRef, MAX_SECRET_BYTES, parseVaultRef, VaultError, type CredentialVault, type VaultEntryMetadata, type VaultKind, type VaultPutInput, type VaultStatus } from "./types"
-import type { VaultTransport } from "./transport"
+import type { VaultResponse, VaultTransport } from "./transport"
 
 const PEM_HEADER_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/
+
+function newEntryId(): string {
+  const crypto = globalThis.crypto
+  if (!crypto) throw new VaultError("unavailable", "secure random source unavailable")
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+}
 
 function assertAvailable(vault: { status(): VaultStatus }): void {
   if (vault.status() !== "available") throw new VaultError("unavailable")
@@ -103,9 +111,9 @@ export function createVaultClient(transport: VaultTransport): CredentialVault {
 
   const request = async (op: Parameters<VaultTransport["request"]>[0], params: Record<string, unknown>): Promise<unknown> => {
     assertAvailable({ status })
-    const response = await transport.request(op, params)
+    const response: VaultResponse = await transport.request(op, params)
     if (response.ok) return response.result
-    throw new VaultError(response.code, response.message)
+    throw new VaultError(response.code, response.message, response.recoveryRef)
   }
 
   return {
@@ -118,19 +126,35 @@ export function createVaultClient(transport: VaultTransport): CredentialVault {
         existingId = parseVaultRef(input.existingRef)
         if (existingId === undefined) throw new VaultError("io", "existingRef is not a mobile-credential:<id> reference")
       }
-      const id = (await request("put", {
+      const candidateId = existingId ?? newEntryId()
+      const candidateRef = formatVaultRef(candidateId)
+      let id: unknown
+      try {
+        id = await request("put", {
         kind: input.kind,
         value: input.value,
         ...(input.label !== undefined ? { label: input.label } : {}),
         ...(existingId !== undefined ? { existingId } : {}),
-      })) as string
-      if (typeof id !== "string" || !isValidCredentialRef(id)) throw new VaultError("io", "bridge returned a malformed credential reference")
+        candidateId,
+        })
+      } catch (error) {
+        if (error instanceof VaultError && error.code === "unknown")
+          throw new VaultError("unknown", error.message, error.recoveryRef ?? candidateRef)
+        throw error
+      }
+      if (typeof id !== "string" || !isValidCredentialRef(id))
+        throw new VaultError("unknown", "credential write outcome unknown; retain this reference for inspection", candidateRef)
       return id
     },
     async remove(ref: string): Promise<void> {
       const id = parseVaultRef(ref)
       if (id === undefined) throw new VaultError("io", "ref is not a mobile-credential:<id> reference")
-      await request("remove", { id })
+      try { await request("remove", { id }) }
+      catch (error) {
+        if (error instanceof VaultError && error.code === "unknown")
+          throw new VaultError("unknown", error.message, error.recoveryRef ?? formatVaultRef(id))
+        throw error
+      }
     },
     async get(ref: string): Promise<string | undefined> {
       if (!isValidCredentialRef(ref)) return undefined

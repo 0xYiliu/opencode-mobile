@@ -56,7 +56,7 @@ scripts/vendor-sync.sh
 
 Runtime seam patches beyond the closure set — M-004…M-015 (issues #3/#4/#5/#6) — are registered with
 owner/reason/upstreamBaseline/verification/rebase in `patches/mobile/manifest.json` (mirrored in
-`vendor-manifest.json#mobilePatches`, 15 mobile patches since issue #6); the table above lists only the
+`vendor-manifest.json#mobilePatches`, 31 registered mobile patches at this revision); the table above lists only the
 three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itself. In one line:
 
 - M-004–M-008 (issue #3): app vite alias to the first-party package, credentialRef field, dialog
@@ -68,20 +68,48 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   server dialog (`dialog.server.error.<code>`), and the endpoint-probe bridge wiring in the web entry
   (independent `opencode-mobile-probe-handshake` string, protocol-isolated from the vault bridge).
   Rationale and trust design: `docs/decisions/0002-direct-connection-transport.md`.
-- M-015 (issue #6): the ssh tunnel bridge wiring in the web entry (third protocol-isolated handshake
-  `opencode-mobile-ssh-handshake`; the bridge-backed host-key verifier and tunnel transport replace
-  the fail-closed stubs in the shipped wiring only). Rationale and trust design:
+- M-015 (issue #6): the ssh tunnel bridge wiring in the web entry. Its listener subscribes
+  synchronously before asynchronous locale loading and requests the existing port channel through a
+  strict-origin/main-frame AndroidX bootstrap; the channel retains its `opencode-mobile-ssh-handshake`
+  protocol and ack-gated bridge-backed host-key verifier/tunnel transport. Rationale and trust design:
   `docs/decisions/0003-ssh-transport.md`.
-- M-027 (issue #55): the mobile connection screen's localized SSH hosts action navigates to the
-  exact `/settings?tab=servers` root view. `AppShell` allows only that parsed root servers view
-  while the server list is empty or signed out, while retaining the signed-out
-  `ConnectServerScreen` URL anchor. The implementation is layered after M-026
-  (`0026-M-027-initial-ssh-entry.patch`); M-008/M-018's `MobileHostManager` and the SSH transport
-  are unchanged.
-- M-028 (issue #55): the mobile connection screen centers `No pairing link?` on its own row and
-  places `Use password` beside `SSH hosts` on the next row. The desktop method switch, shared
-  dialog, connection flows, route behavior, and SSH transport are unchanged. This layer is
-  `0027-M-028-connection-method-layout.patch`, after M-027.
+- M-027 (issue #55, historical and superseded by M-030): originally introduced the mobile
+  `/settings?tab=servers` SSH hosts detour and special empty/signed-out guard exception.
+  M-030 removes the exception and the navigation helper/test; only the historical patch remains
+  in the chain to preserve rebase provenance.
+- M-028 (issue #55, historical layout layer): centered `No pairing link?` and put password/SSH
+  controls on a row. The new three-mode screen from M-030 revises that row; its no-wrap intent is
+  carried forward in M-029 (`0028-M-029-connection-label-nowrap.patch`).
+- M-029 (carried forward from the uncommitted issue-55-layout worktree): preserve the
+  single-line mobile method actions with `whitespace-nowrap`; no source was changed in that
+  worktree. Registered as `0028-M-029-connection-label-nowrap.patch` after M-028.
+- M-030 (issue #58): replace the Settings detour with in-place Pairing/address/SSH modes on
+  `ConnectServerScreen`, restore the original no-server/signed-out Settings guard, and let
+  AppShell retain the initial connection surface while a specifically owned SSH host is
+  connecting. The first-party runtime claims ownership before host publication and hands off
+  only after tunnel readiness plus authenticated `/api/info` health; unknown/changed host-key
+  and service-auth paths reuse existing security components. Registered as
+  `0029-M-030-inline-ssh-setup.patch`, layered after M-029. The implementation does not alter
+  SSH transport or permit auto-connect on restart.
+- M-031 (issue #58 review): encode upstream Basic-auth username/password as UTF-8 bytes before
+  base64, so Unicode service passwords survive both the SSH `/api/info` recheck and subsequent
+  upstream API/SSE requests. Existing ASCII behavior is unchanged. The layered patch is
+  `0030-M-031-utf8-basic-auth.patch`; `api.test.ts` verifies UTF-8 byte vectors and a mapped
+  SSH API request, while `client.test.ts` verifies that `transport.update` carries a Unicode
+  service password into the subsequent API request.
+- M-032 (issue #58): replace only the credential vault's bespoke window-message channel
+  handshake with the native AndroidX WebKit origin/frame-bound listener and v2 readiness;
+  other five bridge protocols remain unchanged. The bridge sends a non-secret candidate id
+  before put. Existing `<id>.bin`, metadata index and envelope formats remain unchanged;
+  no storage journal, format migration, or automatic retry is introduced. Uncertain put or
+  remove outcomes are reported as `UNKNOWN` with a non-secret credential reference.
+  Serialized JSON is bounded for worst-case escaping and independently checks UTF-8 secret
+  bytes before queueing.
+  Registered layered patch `0032-M-032-vault-androidx-listener.patch`; AndroidX WebKit 1.14.0
+  is Apache-2.0. JS tests, Android JVM unit tests, web build, and V3 closure pass. An
+  isolated ephemeral build exercised synthetic AndroidX-listener/Keystore CRUD and reload
+  on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
+  No main-app/device data was cleared; real SSH E2E remains BLOCKED.
 
 The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
 zero other diff (checked by `scripts/verify-closure.sh` V3(a)).

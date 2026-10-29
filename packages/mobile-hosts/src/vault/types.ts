@@ -18,17 +18,19 @@ export type VaultStatus = "unavailable" | "available"
 
 /**
  * Error taxonomy (docs/design/units/connection.md 失效矩阵):
- * - unavailable: bridge handshake not acked / retries exhausted / non-Android shell.
+ * - unavailable: AndroidX listener/readiness unavailable, request rejected before dispatch, or non-Android shell.
  * - corrupt: envelope damaged, GCM authentication failed, AAD (entry id) mismatch.
  * - unsupported: envelope version not recognized (a future envelope).
  * - io: native keystore/filesystem failures and client-side invalid input.
  */
-export type VaultErrorCode = "unavailable" | "corrupt" | "unsupported" | "io"
+export type VaultErrorCode = "unavailable" | "corrupt" | "unsupported" | "io" | "unknown"
 
 export class VaultError extends Error {
   constructor(
     readonly code: VaultErrorCode,
     message?: string,
+    /** Known non-secret ref associated with an uncertain mutation outcome. */
+    readonly recoveryRef?: string,
   ) {
     super(message ?? `credential vault: ${code}`)
     this.name = "VaultError"

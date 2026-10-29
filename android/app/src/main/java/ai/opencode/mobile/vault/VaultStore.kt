@@ -14,9 +14,9 @@ import org.json.JSONObject
  * (red line; asserted by scripts/audit-secret-persistence.ts expectations on the metadata
  * shape and by C4 backup exclusion probing the whole directory).
  *
- * Writes are atomic: payload and index go to a `.tmp` sibling first and are renamed into
- * place, so a failed in-place update preserves the previous ciphertext (D6: re-save keeps
- * the binding stable). The 64 KiB value bound is re-checked here even though the JS side
+ * Payload and index files are individually written via temporary siblings; this is not a
+ * transaction across both files, and a failed mutation may have an uncertain outcome. The
+ * 64 KiB value bound is re-checked here even though the JS side
  * pre-checks — the bound is an application decision double-written on both sides of the
  * bridge (C3 probes the exact boundary on device).
  */
@@ -126,17 +126,18 @@ class VaultStore(context: Context) {
         return "mobile-credential:$targetId"
     }
 
-    /** Delete an entry (payload + index row). Unknown ids are a silent success (idempotent). */
+    /** Delete temp and payload before the row; known file-delete failure leaves the row intact. */
     fun remove(id: String) {
         assertId(id)
-        entryFile(id).delete()
         val index = readIndex()
+        VaultPayloadFiles.deleteBeforeIndex(entryFile(id), File(dir, "$id.bin.tmp"))
         val next = JSONArray()
         for (i in 0 until index.length()) {
             val row = index.getJSONObject(i)
             if (row.optString("id") != id) next.put(row)
         }
-        writeIndex(next)
+        try { writeIndex(next) }
+        catch (_: Exception) { throw VaultException("unknown", "credential removal outcome unknown") }
     }
 
     /** Decrypt to memory. Missing -> null; corrupt/unsupported throw their taxonomy codes. */

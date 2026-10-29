@@ -20,10 +20,12 @@ async function softwareVaultNative() {
         const kind = params["kind"]
         const value = params["value"]
         const existingId = params["existingId"]
+        const candidateId = params["candidateId"]
         if (kind !== "password" && kind !== "privateKey") throw new VaultError("io", "unknown kind")
         if (typeof value !== "string" || value.length === 0) throw new VaultError("io", "empty value (native re-check)")
         if (encoder.encode(value).length > MAX_SECRET_BYTES) throw new VaultError("io", "value too large (native re-check)")
-        const id = typeof existingId === "string" ? existingId : crypto.randomUUID()
+        const id = typeof existingId === "string" ? existingId
+          : typeof candidateId === "string" ? candidateId : crypto.randomUUID()
         const envelope = await sealEnvelope(key, id, encoder.encode(value))
         const meta: VaultEntryMetadata = { id, kind, createdAt: "2026-10-24T00:00:00.000Z" }
         entries.set(id, { envelope, meta })
@@ -75,7 +77,7 @@ describe("runtime wiring (vault option, credentials accessor, remove linkage)", 
     expect(hosts.stateOf(host.id)).toBe("failed")
   })
 
-  test("delete (T14) clears the vault entry; still zero transport calls", async () => {
+  test("delete (T14) keeps the credential as an orphan; still zero transport calls", async () => {
     const { engine } = await softwareVaultNative()
     const vault = createVaultClient(engine.client)
     engine.native.connect()
@@ -94,10 +96,38 @@ describe("runtime wiring (vault option, credentials accessor, remove linkage)", 
     })
     const ref = await vault.put({ kind: "password", value: "t14-secret" })
     const host = hosts.registry.add({ name: "h", target: "user@example.invalid", credentialRef: ref })
-    hosts.remove(host.id)
+    await expect(hosts.remove(host.id)).resolves.toBe(true)
     expect(hosts.registry.get(host.id)).toBeUndefined()
     await new Promise<void>((resolve) => setTimeout(resolve, 0))
-    expect(await vault.list()).toHaveLength(0)
+    expect(await vault.list()).toHaveLength(1)
+    expect(await vault.get(ref)).toBe("t14-secret")
     expect(transportCalls).toBe(0) // T14 red line: delete never touches the transport
   })
+
+  for (const [failure, failureCode] of [
+    [new VaultError("unknown"), "unknown"],
+    [new VaultError("unavailable", "vault busy"), "unavailable/busy"],
+    [new VaultError("io", "known pre-execution storage rejection"), "io"],
+    [new Error("unexpected vault failure"), "unexpected"],
+  ] as const) {
+    test(`vault failure ${failureCode} cannot block local host deletion or remove the credential`, async () => {
+      let removeCalls = 0
+      const vault = {
+        status: () => "available" as const,
+        put: async () => "mobile-credential:new",
+        get: async () => undefined,
+        list: async () => [],
+        remove: async () => { removeCalls++; throw failure },
+      }
+      const hosts = createMobileHosts({
+        storage: createMemoryStorage(), vault,
+        hostKey: { verify: async () => ({ action: "trust" as const }) },
+        transport: { open: async () => ({ url: "http://127.0.0.1:0" }) },
+      })
+      const host = hosts.registry.add({ name: "h", target: "user@example.invalid", credentialRef: "mobile-credential:existing" })
+      await expect(hosts.remove(host.id)).resolves.toBe(true)
+      expect(hosts.registry.get(host.id)).toBeUndefined()
+      expect(removeCalls).toBe(0)
+    })
+  }
 })

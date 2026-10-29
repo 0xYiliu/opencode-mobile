@@ -1,19 +1,20 @@
 // Host key prompt: confirmation UI for the state machine's `hostKeyUnverified` state.
 //
-// This phase it is a stub-only stakeout: the HostKeyVerifier stub rejects everything, so
-// the state machine never reaches hostKeyUnverified and this prompt is unreachable in the
-// shipped build. There is deliberately NO "skip verification" affordance — real fingerprint
-// verification data arrives with the SSH transport (issue #6, BLOCKED).
+// First-contact confirmation for a native-verified unknown host key. Host ID and fingerprint
+// are snapshotted together; the prompt never offers a skip-verification path. Changed-key
+// recovery is a separate, two-step danger-confirmed flow.
 
-import { Show, createSignal } from "solid-js"
+import { Show } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { createTranslator } from "../i18n"
 import type { MobileHosts } from "../runtime"
+import { bindHostKeyPrompt } from "./host-key-binding"
 
-export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; fingerprint: string; onClose: () => void }) {
+export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; onClose: () => void }) {
   const t = createTranslator(props.runtime.locale)
-  // The fingerprint lives in memory only; keeping it in a signal mirrors that lifetime.
-  const [fingerprint] = createSignal(props.fingerprint)
+  // Snapshot the host ID and fingerprint together; even a stale mounted component can never
+  // render one host's fingerprint while confirming another host's trust.
+  const binding = bindHostKeyPrompt(props.runtime, props.hostId)
 
   return (
     <div
@@ -22,10 +23,28 @@ export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; fin
       aria-label={t("hostKey.title")}
     >
       <h4 class="text-14-medium text-text-strong">{t("hostKey.title")}</h4>
+      <dl class="flex min-w-0 flex-col gap-2">
+        <div class="flex min-w-0 flex-col gap-1">
+          <dt class="text-12-regular text-text-weak">{t("hostKey.hostName")}</dt>
+          <dd class="break-all whitespace-normal text-12-regular text-text-strong">{binding.hostName}</dd>
+        </div>
+        <div class="flex min-w-0 flex-col gap-1">
+          <dt class="text-12-regular text-text-weak">{t("hostKey.hostTarget")}</dt>
+          <dd class="break-all whitespace-normal text-12-regular text-text-strong" dir="ltr">{binding.target}</dd>
+        </div>
+        <div class="flex min-w-0 flex-col gap-1">
+          <dt class="text-12-regular text-text-weak">{t("hostKey.sshPort")}</dt>
+          <dd class="text-12-regular text-text-strong" dir="ltr">{binding.sshPort}</dd>
+        </div>
+        <div class="flex min-w-0 flex-col gap-1">
+          <dt class="text-12-regular text-text-weak">{t("hostDialog.servicePort")}</dt>
+          <dd class="text-12-regular text-text-strong" dir="ltr">{binding.servicePort}</dd>
+        </div>
+      </dl>
       <div class="flex min-w-0 flex-col gap-1">
         <span class="text-12-regular text-text-weak">{t("hostKey.fingerprint")}</span>
-        <code class="truncate text-12-mono text-text-strong" dir="ltr">
-          {fingerprint()}
+        <code class="w-full min-w-0 break-all whitespace-normal select-text text-12-mono text-text-strong" dir="ltr">
+          {binding.fingerprint}
         </code>
       </div>
       <p class="text-12-regular text-text-weak">{t("hostKey.note")}</p>
@@ -34,7 +53,7 @@ export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; fin
           <Button
             variant="neutral"
             onClick={() => {
-              props.runtime.rejectHostKey(props.hostId)
+              binding.reject()
               props.onClose()
             }}
           >
@@ -43,7 +62,7 @@ export function HostKeyPrompt(props: { runtime: MobileHosts; hostId: string; fin
           <Button
             variant="contrast"
             onClick={() => {
-              props.runtime.confirmHostKey(props.hostId)
+              binding.confirm()
               props.onClose()
             }}
           >

@@ -373,7 +373,7 @@ export const dict = {
   "dialog.server.remember": "Remember the password on this device",
   "dialog.server.remember.unavailable": "Credential storage is unavailable right now. The password stays memory-only for this session.",
   "dialog.server.remember.needsPassword": "Enter a password to remember it.",
-  "dialog.server.remember.saveFailed": "Could not save the credential. Nothing was changed.",
+  "dialog.server.remember.saveFailed": "Could not confirm the credential change. If a reference is shown, inspect it in Credentials; it may be absent if metadata persistence failed. No automatic retry was made.",
 
   "server.connect.title": "Connect to a server",
   "server.connect.description": "Enter your server address and password to get started.",

@@ -14,7 +14,7 @@ import { For, Show, createSignal, onMount } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { createTranslator } from "../i18n"
 import type { MobileHosts } from "../runtime"
-import { formatVaultRef, type VaultEntryMetadata } from "../vault/types"
+import { formatVaultRef, VaultError, type VaultEntryMetadata } from "../vault/types"
 
 export function CredentialManager(props: { runtime: MobileHosts; onClose: () => void }) {
   const t = createTranslator(props.runtime.locale)
@@ -22,6 +22,8 @@ export function CredentialManager(props: { runtime: MobileHosts; onClose: () => 
   const [metas, setMetas] = createSignal<VaultEntryMetadata[] | undefined>(undefined)
   const [loadFailed, setLoadFailed] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
+  const [mutationFailed, setMutationFailed] = createSignal(false)
+  const [mutationRecoveryRef, setMutationRecoveryRef] = createSignal<string>()
 
   const refresh = async () => {
     try {
@@ -39,10 +41,14 @@ export function CredentialManager(props: { runtime: MobileHosts; onClose: () => 
 
   const remove = async (id: string) => {
     setBusy(true)
+    setMutationFailed(false)
+    setMutationRecoveryRef(undefined)
     try {
       await vault.remove(formatVaultRef(id))
       await refresh()
-    } catch {
+    } catch (error) {
+      setMutationFailed(true)
+      setMutationRecoveryRef(error instanceof VaultError ? error.recoveryRef : undefined)
       await refresh() // a failed delete re-renders the current state; never silent success
     } finally {
       setBusy(false)
@@ -89,9 +95,12 @@ export function CredentialManager(props: { runtime: MobileHosts; onClose: () => 
           {t("credentialManager.unavailable")}
         </p>
       </Show>
+      <Show when={mutationFailed()}>
+        <p role="alert" class="text-12-regular text-text-strong">{t("credentialManager.operationFailed")} {mutationRecoveryRef()}</p>
+      </Show>
       <Show when={vault.status() === "available" && loadFailed()}>
         <p role="alert" class="text-12-regular text-text-strong">
-          {t("hostDialog.error.putFailed")}
+          {t("credentialManager.loadFailed")}
         </p>
       </Show>
       <Show when={metas() !== undefined && metas()!.length === 0}>

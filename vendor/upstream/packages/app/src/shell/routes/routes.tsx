@@ -1,4 +1,4 @@
-import { Route, useLocation, useParams } from "@solidjs/router"
+import { Route, useParams } from "@solidjs/router"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
 import { ServerProvider } from "@/runtime/server/current"
@@ -10,7 +10,7 @@ import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
 import { ExtensionAttachment } from "@/runtime/extension/root"
-import { isConnectionRoute } from "./connection-route"
+import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -87,7 +87,6 @@ function TargetServerRoute(props: ParentProps) {
 function AppShell(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
-  const location = useLocation()
 
   // A lone server that rejects our credentials (e.g. the web app before pairing) has nothing else to show.
   const signedOut = () => {
@@ -100,7 +99,7 @@ function AppShell(props: ParentProps) {
 
   return (
     <Show
-      when={(servers.list.length > 0 && !signedOut()) || isConnectionRoute(location.pathname, location.search)}
+      when={!getMobileHosts().initialScreenOwned() && servers.list.length > 0 && !signedOut()}
       fallback={<ConnectServerScreen url={signedOut()?.http.url} />}
     >
       <LayoutProvider>

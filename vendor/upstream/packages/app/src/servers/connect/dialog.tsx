@@ -570,16 +570,22 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
             value: password!,
             ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}),
           })
-        } catch {
-          setStore("error", language.t("dialog.server.remember.saveFailed"))
+        } catch (error) {
+          const recoveryRef = error && typeof error === "object" && "recoveryRef" in error && typeof error.recoveryRef === "string"
+            ? error.recoveryRef
+            : ""
+          setStore("error", `${language.t("dialog.server.remember.saveFailed")}${recoveryRef ? ` ${recoveryRef}` : ""}`)
 
           return
         }
       } else if (decision.action === "clear") {
         try {
           await vault!.remove(decision.ref)
-        } catch {
-          setStore("error", language.t("dialog.server.remember.saveFailed"))
+        } catch (error) {
+          const recoveryRef = error && typeof error === "object" && "recoveryRef" in error && typeof error.recoveryRef === "string"
+            ? error.recoveryRef
+            : ""
+          setStore("error", `${language.t("dialog.server.remember.saveFailed")}${recoveryRef ? ` ${recoveryRef}` : ""}`)
 
           return
         }

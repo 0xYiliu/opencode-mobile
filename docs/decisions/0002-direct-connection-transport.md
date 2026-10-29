@@ -58,8 +58,8 @@ probe 是**分类器不是权威**：`/api/info`（与上游健康检查同路�
 1. **头不进日志**：请求头（含 Authorization）零日志；URL 与查询参数零日志；日志仅固定 tag + op 名/计数器（Kotlin 与桥两侧同律）。
 2. **不持久化**：密码仅存在于桥消息与 probe 请求的内存生命周期内，probe 侧零写盘、零 SharedPreferences；probe 响应只回 `{code}` 分类码，无自由文本、无回显值。
 3. **桥消息零日志值**：ProbeBridge 入站/出站消息不记值，仅记形状裁决结果（与 vault 桥同一纪律）。
-4. **信任模型复用 vault 桥三层信任**：①平台 targetOrigin 强制（`postWebMessage` 的 targetOrigin 平台强制，非该 origin 的 frame 收不到 port）；②port 能力 confinement（port 引用入 JS 闭包，不挂 window 全局）；③ack 前零能力（握手捕获并回发 ack 前，native 不受理 probe 操作）。probe 桥与 vault 桥协议隔离：独立握手串 `opencode-mobile-probe-handshake`（与 vault 的 `opencode-mobile-vault-handshake` 互不误捕——双方均按 data 严格等值 + 单 port 形状校验）、独立通道、互不重置对方的 ack 生命周期；vault 门禁 C1–C5 不受牵连。
-5. 时序与 vault 桥镜像：`onPageFinished` 开新握手轮；未收 ack 的重试**重建通道**（已转移的 port2 不可重投）；有界重试 5×500ms；耗尽后 probe 显式 `unavailable`（见 D4）。
+4. **probe 桥自身的信任边界**：①`postWebMessage` 的 targetOrigin 由平台执行，非目标 origin 收不到 transferred port；②port 引用限制在对应 JS transport 闭包；③ack 前 native 不受理 probe 操作。probe 与旧 vault WebMessageChannel 协议曾通过独立握手串隔离；issue #58 vault 已改为 AndroidX origin/frame-bound listener v2，两者不再共享握手或生命周期。以上描述只适用于 probe 自身，不代表 vault v2 的安全机制。
+5. **probe 时序**：`onPageFinished` 开新握手轮；未收 ack 的重试**重建通道**（已转移的 port2 不可重投）；有界重试 5×500ms；耗尽后 probe 显式 `unavailable`（见 D4）。
 
 ## D3 明文 HTTP：本期不支持
 

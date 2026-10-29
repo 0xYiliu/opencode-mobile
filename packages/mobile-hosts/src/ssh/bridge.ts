@@ -1,18 +1,16 @@
 // SSH bridge transport (issue #6, decision 0003 §2) — the JS side of the THIRD
 // protocol-isolated WebMessage bridge.
 //
-// This module is a deliberate mirror of the probe bridge transport (./probe.ts), which is
-// itself a mirror of the vault bridge (./vault/transport.ts): same channel mechanics,
-// entirely separate protocol. The three bridges share one window message event stream but
-// each transport captures ONLY its own handshake string with exactly one port (strict
-// data equality), so none can capture another's handshake and none can reset another's
-// ack lifecycle — the vault gates (C1–C5) and probe gates (G16) are not perturbed by this
-// bridge's existence (G17 covers the three-bridge bring-up on device).
+// The SSH request transport retains the probe/vault transferable-port pattern, but its
+// bootstrap now uses AndroidX WebMessageListener. Native accepts that bootstrap only from
+// the exact configured loopback origin and main frame, eliminating the race where the
+// onPageFinished channel handshake arrived before asynchronous app startup installed this
+// module's window-message listener. The request channel remains protocol-isolated and ack-gated.
 //
-// Trust model (docs/design/architecture.md, three-layer trust; identical to vault/probe):
-// - event.origin is NEVER consulted: embedder-posted messages carry an empty origin by
-//   platform construction. Trust = platform-enforced targetOrigin + port confinement
-//   (closure, never a global) + zero capability before the handshake is captured/acked.
+// Trust model (docs/design/architecture.md):
+// - AndroidX bootstrap gates exact source origin + main frame; native channel post uses the
+//   platform-enforced targetOrigin; the returned port is confined to this closure; there is
+//   zero SSH capability before the page acks the port.
 // - Messages are JSON strings both ways with requestId correlation. Zero binary.
 //
 // Credential red lines (decision 0003 §4): the `connect` request carries the resolved
@@ -26,8 +24,10 @@
 import { DEFAULT_SERVICE_PORT } from "../registry"
 import { isSshErrorCode, SshTransportError } from "../transport/ssh-errors"
 
-/** The handshake string the native side posts with the transferable port. */
+/** The second-stage handshake string native posts with the transferable request port. */
 export const SSH_HANDSHAKE = "opencode-mobile-ssh-handshake"
+/** AndroidX source-origin/main-frame signal that the page listener is ready for the port channel. */
+export const SSH_BOOTSTRAP_MESSAGE = "opencode-mobile-ssh-bootstrap-v2"
 
 /**
  * Bridge constants; `marker` anchors the dist audit (mobile(ssh-v1)) the same way
@@ -65,6 +65,8 @@ export interface SshBridgeTransport {
 export interface WebMessageSshTransportOptions {
   /** Subscribe to candidate handshake events (the entry wires this to window messages). */
   subscribe(handler: (event: { data: unknown; ports?: unknown }) => void): () => void
+  /** Ask native to post a channel only after the page has installed its message listener. */
+  requestNativeHandshake?: () => void
   /**
    * Per-request timeout. Must exceed the native bounds (connect 30s, key scan 15s —
    * decision 0003 F6/F2); default 45000ms. A hung bridge dies into an explicit
@@ -87,11 +89,11 @@ function defaultRequestId(): string {
 }
 
 /**
- * The production transport: listens for the native ssh handshake, captures the port into
- * this closure (never a global), acks immediately, serves requestId-correlated requests
- * and routes unsolicited native events (connectionLost). The vault and probe handshake
- * strings are NOT captured here and this module's handshake is not captured by them —
- * strict data equality on both sides keeps the three bridges isolated.
+ * The production request transport: subscribes to window messages first, then signals the
+ * native AndroidX bootstrap to post the SSH channel. It captures that channel into this
+ * closure (never a global), acks immediately, serves requestId-correlated requests and
+ * routes unsolicited native events (connectionLost). The vault/probe channel handshakes
+ * are not captured here; strict data equality keeps each transferred-port protocol isolated.
  */
 export function createWebMessageSshTransport(options: WebMessageSshTransportOptions): SshBridgeTransport {
   const timeoutMs = options.timeoutMs ?? 45000
@@ -152,6 +154,11 @@ export function createWebMessageSshTransport(options: WebMessageSshTransportOpti
     for (const listener of readyListeners) listener(true)
   })
 
+  // Android injects this AndroidX object under an exact-origin rule. The page requests the
+  // transferable port only after its listener exists, avoiding onPageFinished/async-bootstrap
+  // races while retaining the confined, ack-gated request channel for the SSH API.
+  try { options.requestNativeHandshake?.() } catch { /* fail closed; status remains unavailable */ }
+
   const failAll = (error: unknown) => {
     for (const [, entry] of pending) {
       clearTimeout(entry.timer)
@@ -177,6 +184,9 @@ export function createWebMessageSshTransport(options: WebMessageSshTransportOpti
     status: () => (port && !dead ? "available" : "unavailable"),
     onReady(listener) {
       readyListeners.add(listener)
+      // Replay current state: the native handshake may complete before createMobileHosts
+      // subscribes (the shell now registers this listener before asynchronous locale load).
+      listener(!!port && !dead)
       return () => readyListeners.delete(listener)
     },
     onEvent(listener) {

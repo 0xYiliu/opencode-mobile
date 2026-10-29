@@ -33,14 +33,17 @@
 
 ## 2. 桥架构（第三座协议隔离桥）
 
-复用 vault/probe 两座桥的通道机制（平台 WebMessage channel、三层信任、ack 生命周期、5×500ms 重建式重试、JSON+requestId、单 executor、零值日志），**独立握手串 `opencode-mobile-ssh-handshake`**——与 vault/probe 互不误捕（双方均按 data 严格等值 + 单 port 形状校验），ack 生命周期互不重置，vault 门禁 C1–C5 与 probe 门禁 G16 不受牵连。
+SSH 的 request/response 仍使用独立的 WebMessageChannel（`opencode-mobile-ssh-handshake`、JSON+requestId、单 worker executor、零值日志）；native 不再在 `onPageFinished` 抢先发送该握手。JS entry 模块同步安装 window message listener 后，通过独立 AndroidX `WebMessageListener` bootstrap 请求 native 创建 channel。bootstrap feature 不可用时 fail-closed；native 对每条 bootstrap 消息校验精确 loopback origin、scheme/port/userinfo 与 `isMainFrame`，再按 existing 5×500ms budget 重建传输端口；该端口仍须收到 ack 才开放 SSH operations。Bootstrap object/marker 与 vault/probe/channel protocols 隔离；其余两桥生命周期不受 SSH bridge 影响。
 
 ```text
+JS entry 同步安装 listener 并请求 AndroidX bootstrap（`opencodeMobileSshBootstrapV2`）
+  → native origin/frame gate 后 postMessageChannel（严格 `opencode-mobile-ssh-handshake`）
+  → JS captures port + ack；无 ack 则 fail-closed
 JS runtime.attemptOpen（packages/mobile-hosts/src/runtime.ts）
   → resolver.resolve(credentialRef)                # vault-backed，内存值
   → HostKeyVerifier.verify({host})                 # SshBridgeHostKeyVerifier（默认=stub fail-closed 不变）
   → HostTransport.open({target,credential,pinnedFingerprint,signal,onEvent})
-       ↕ 第三桥（握手串 opencode-mobile-ssh-handshake）
+       ↕ 第三桥（AndroidX origin/frame bootstrap + 独立 SSH channel）
 Kotlin：SshTunnelBridge.kt（ProbeBridge 协议隔离镜像）
   → SshTunnelManager.kt（JSch Session）
       · StrictHostKeyChecking="yes"（永不禁用校验）：scan 会话=默认空库抛出后读 session.hostKey；

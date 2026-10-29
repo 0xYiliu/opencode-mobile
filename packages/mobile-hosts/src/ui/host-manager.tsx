@@ -3,9 +3,9 @@
 // Delete and disconnect are local-only operations (see createMobileHosts); the component
 // has no transport reach of its own. Issue #4 adds the credential manager entry point and
 // the per-row bound-credential indicator. Issue #6 mounts the host-key confirmation
-// prompt inline (hostKeyUnverified), surfaces the classified failure reason, and adds the
-// changed-key recovery entry (one explicit danger confirmation -> forgetHostKey; never an
-// automatic overwrite, no skip-verification affordance anywhere).
+// prompt inline (hostKeyUnverified), surfaces the classified failure reason, and adds shared
+// two-step changed-key recovery (danger entry -> explicit confirmation -> forgetHostKey;
+// never an automatic overwrite, no skip-verification affordance anywhere).
 
 import { For, Show, createSignal } from "solid-js"
 import { Match, Switch } from "solid-js"
@@ -17,6 +17,8 @@ import { isSshErrorCode, sshErrorCodeMessageKey } from "../transport/ssh-errors"
 import { CredentialManager } from "./credential-manager"
 import { HostDialog } from "./host-dialog"
 import { HostKeyPrompt } from "./host-key-prompt"
+import { HostKeyRecovery } from "./host-key-recovery"
+import { ServiceAuthPrompt } from "./service-auth-prompt"
 import { ServicePanel } from "./service-panel"
 
 function stateLabel(t: ReturnType<typeof createTranslator>, state: HostState): string {
@@ -33,9 +35,7 @@ export function MobileHostManager() {
   // The panel itself degrades to nothing when no svcops bridge client is injected, so a
   // client-only build shows the row without the toggle's target (stub fail-closed).
   const [serviceOpenFor, setServiceOpenFor] = createSignal<string | undefined>(undefined)
-  // Memory-only recovery bookkeeping: hosts whose stored key was removed in this session
-  // (the row then shows the "connect to re-verify" hint instead of the danger entry).
-  const [forgotten, setForgotten] = createSignal<Record<string, boolean>>({})
+  const [removeFailed, setRemoveFailed] = createSignal(false)
 
   const openAdd = () => {
     setEditingId(undefined)
@@ -53,13 +53,6 @@ export function MobileHostManager() {
   const reasonLine = (reason: string | undefined): string | undefined => {
     if (!reason) return undefined
     return isSshErrorCode(reason) ? t(sshErrorCodeMessageKey(reason)) : t("hostManager.failedGeneric")
-  }
-
-  const recoverHostKey = async (id: string) => {
-    // The danger copy renders next to this button; this click is the single explicit
-    // confirmation. A failed removal keeps the danger entry visible (failure matrix).
-    const removed = await runtime.forgetHostKey(id)
-    if (removed) setForgotten((current) => ({ ...current, [id]: true }))
   }
 
   return (
@@ -92,19 +85,7 @@ export function MobileHostManager() {
                     </span>
                   </Show>
                   <Show when={runtime.stateOf(host.id) === "failed" && runtime.failureReasonOf(host.id) === "host-key-changed"}>
-                    <Show
-                      when={!forgotten()[host.id]}
-                      fallback={<span class="text-12-regular text-text-weak">{t("hostKey.changed.removed")}</span>}
-                    >
-                      <div class="flex items-center gap-2">
-                        <span class="text-12-regular text-text-strong" role="alert">
-                          {t("hostKey.changed.note")}
-                        </span>
-                        <Button size="small" variant="danger" onClick={() => void recoverHostKey(host.id)}>
-                          {t("hostKey.changed.recover")}
-                        </Button>
-                      </div>
-                    </Show>
+                    <HostKeyRecovery runtime={runtime} hostId={host.id} />
                   </Show>
                 </div>
                 <Show when={host.credentialRef !== undefined}>
@@ -148,11 +129,16 @@ export function MobileHostManager() {
                   >
                     {t("svcops.title")}
                   </Button>
-                  <Button size="small" variant="danger" onClick={() => runtime.remove(host.id)}>
+                  <Button size="small" variant="danger" onClick={() => void runtime.remove(host.id).then((removed) => setRemoveFailed(!removed)).catch(() => setRemoveFailed(true))}>
                     {t("hostManager.delete")}
                   </Button>
                 </div>
               </li>
+              <Show when={runtime.serviceAuthRequiredOf(host.id)}>
+                <li class="w-full">
+                  <ServiceAuthPrompt runtime={runtime} hostId={() => host.id} showDisconnect={false} />
+                </li>
+              </Show>
               <Show when={serviceOpenFor() === host.id}>
                 <li class="w-full">
                   <ServicePanel hostId={host.id} />
@@ -165,15 +151,18 @@ export function MobileHostManager() {
       </Show>
       <For each={runtime.registry.list().filter((host) => runtime.stateOf(host.id) === "hostKeyUnverified")}>
         {(host) => (
-          <HostKeyPrompt runtime={runtime} hostId={host.id} fingerprint={runtime.fingerprintOf(host.id) ?? ""} onClose={() => {}} />
+          <HostKeyPrompt runtime={runtime} hostId={host.id} onClose={() => {}} />
         )}
       </For>
       <Show when={runtime.storageVolatile}>
         <p role="status" class="text-12-regular text-text-strong">{t("hostManager.volatileStorage")}</p>
       </Show>
+      <Show when={removeFailed()}>
+        <p role="alert" class="text-12-regular text-text-strong">{t("hostManager.removeFailed")}</p>
+      </Show>
       <p class="text-12-regular text-text-weak">{t("hostManager.deleteHint")}</p>
-      <Show when={dialogOpen()}>
-        <HostDialog runtime={runtime} hostId={editingId()} onClose={() => setDialogOpen(false)} />
+      <Show when={dialogOpen() ? editingId() ?? "__new-host__" : undefined} keyed>
+        {(id) => <HostDialog runtime={runtime} hostId={id === "__new-host__" ? undefined : id} onClose={() => setDialogOpen(false)} />}
       </Show>
       <Show when={credentialsOpen()}>
         <CredentialManager runtime={runtime} onClose={() => setCredentialsOpen(false)} />

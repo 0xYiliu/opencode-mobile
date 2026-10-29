@@ -35,6 +35,16 @@ describe("host registry validation", () => {
     expect(() => registry.add({ ...VALID, name: "   " })).toThrow(HostRegistryError)
   })
 
+  test("preflight validation is side-effect free", () => {
+    const storage = createMemoryStorage()
+    const registry = createHostRegistry({ storage })
+    registry.validate(VALID)
+    expect(registry.list()).toHaveLength(0)
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).toBeNull()
+    expect(() => registry.validate({ ...VALID, target: "invalid target" })).toThrow(/invalid-target/)
+    expect(registry.list()).toHaveLength(0)
+  })
+
   test("duplicate names are rejected (unique-name rule)", () => {
     const registry = createHostRegistry({ storage: createMemoryStorage() })
     registry.add(VALID)
@@ -226,5 +236,19 @@ describe("host registry persistence", () => {
     const registry = createHostRegistry({ storage })
     expect(registry.list().length).toBe(1)
     expect(registry.list()[0]?.name).toBe("first")
+  })
+})
+
+describe("initial connection ownership", () => {
+  test("pre-publication ownership is generation guarded", () => {
+    const hosts = createMobileHosts({ storage: createMemoryStorage() })
+    const generation = hosts.claimInitialScreen()
+    expect(hosts.initialScreenOwned()).toBe(true)
+    const host = hosts.registry.add(VALID)
+    hosts.ownInitialHost(host.id)
+    hosts.releaseInitialScreen(host.id, generation + 1)
+    expect(hosts.initialScreenOwned()).toBe(true)
+    hosts.releaseInitialScreen(host.id, generation)
+    expect(hosts.initialScreenOwned()).toBe(false)
   })
 })

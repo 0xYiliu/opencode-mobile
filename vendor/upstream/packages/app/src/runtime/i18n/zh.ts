@@ -351,7 +351,7 @@ export const dict = {
   "dialog.server.remember": "在这台设备上记住密码",
   "dialog.server.remember.unavailable": "凭据保管库当前不可用：密码仅保留在本次会话内存中。",
   "dialog.server.remember.needsPassword": "需要密码才能记住。",
-  "dialog.server.remember.saveFailed": "凭据保存失败，未做任何更改。",
+  "dialog.server.remember.saveFailed": "无法确认凭据变更。若显示了引用，请在“凭据”中检查；若元数据写入失败，该条目可能不会显示。应用未自动重试。",
   "dialog.server.edit.title": "编辑服务器",
   "dialog.server.menu.edit": "编辑",
 

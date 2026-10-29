@@ -42,7 +42,7 @@ describe("credential resolution", () => {
     expect(await NullCredentialResolver.resolve("")).toBeUndefined()
   })
 
-  test("a failing resolver lands the host in failed, which stays actionable", async () => {
+  test("a failing resolver stays actionable and host deletion preserves its credential as an orphan", async () => {
     const failing: CredentialResolver = {
       resolve: async () => {
         throw new Error("keystore unavailable")
@@ -61,9 +61,10 @@ describe("credential resolution", () => {
     hosts.connect(host.id)
     await new Promise<void>((resolve) => setTimeout(resolve, 1))
     expect(hosts.stateOf(host.id)).toBe("failed")
-    // Actionable recovery: the host can be deleted (local-only) and the record edited.
+    // The credential remains user-managed in Credentials; deleting a host does not depend
+    // on vault availability or erase the referenced encrypted entry.
     expect(() => hosts.registry.update(host.id, { name: "renamed" })).not.toThrow()
-    hosts.remove(host.id)
+    await expect(hosts.remove(host.id)).resolves.toBe(true)
     expect(hosts.registry.get(host.id)).toBeUndefined()
   })
 

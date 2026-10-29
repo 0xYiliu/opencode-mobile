@@ -29,11 +29,9 @@
 //      exported=false + grantUriPermissions=true).
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
-//      M-020/M-021 with the upstream pin (25 patches total — issue #23 revised the count
-//      sentinel 20 -> 23 when M-022/M-023/M-024 registered; issue #26 revised 23 -> 25
-//      when M-025/M-026 registered — deliberate revision, NOT a bypass; every registration
-//      carries exactly one upstreamBaseline field, so count == registration count and any
-//      drift still fails); dist markers
+//      M-020/M-021 and exactly the registered ID set M-001..M-032 except reserved M-019
+//      (31 patches total; issue #23/#26/#55 count revisions remain documented history —
+//      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
 //      (opencode-mobile-files-handshake / mobile(files-v1) / mobile(M-020) / mobile(M-021))
 //      are present in the built assets when a dist exists.
 //   7. No-leak negatives: the new-face sources (mobile-hosts files module + shell files
@@ -335,21 +333,34 @@ let distAssetCount = 0
   if (!handshakes.includes("opencode-mobile-files-handshake"))
     fail("6: the files handshake literal moved")
 
-  const patchManifest = await read("vendor/upstream/patches/mobile/manifest.json")
-  if (!patchManifest.includes('"id": "M-020"') || !patchManifest.includes('"id": "M-021"'))
+  const patchManifest = JSON.parse(await read("vendor/upstream/patches/mobile/manifest.json")) as {
+    patches?: Array<{ id?: unknown; patch?: unknown; upstreamBaseline?: unknown }>
+  }
+  const patchRows = patchManifest.patches ?? []
+  const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
+  const expectedPatchIds = new Set(Array.from({ length: 32 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))
+  const actualPatchIds = new Set(patchIds)
+  if (patchRows.length !== 31 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 31 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
+  for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
+  if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
+    fail("6: every registered mobile patch must retain its upstreamBaseline")
+  if (!actualPatchIds.has("M-020") || !actualPatchIds.has("M-021"))
     fail("6: the patch manifest lost the M-020/M-021 registrations")
-  // Issue #23 revision (deliberate, NOT a bypass): 20 -> 23 when M-022/M-023/M-024
-  // registered. Issue #26 revision (deliberate, NOT a bypass): 23 -> 25 when M-025/M-026
-  // registered (every registration carries exactly one upstreamBaseline field, so the
-  // count equals the registration count; any unregistered/extra registration still fails).
-  if ((patchManifest.match(/upstreamBaseline/g) ?? []).length !== 25)
-    fail("6: the patch manifest must register exactly 25 patches with the upstream baseline")
-  const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
+  const vendorManifest = JSON.parse(await read("vendor/upstream/vendor-manifest.json")) as { mobilePatches?: unknown }
+  const vendorPatchPaths = Array.isArray(vendorManifest.mobilePatches)
+    ? vendorManifest.mobilePatches.filter((path): path is string => typeof path === "string")
+    : []
+  const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
+  if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
+      registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
+    fail("6: vendor-manifest mobilePatches paths must equal the 31 unique registered patch paths")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
   ]) {
-    if (!vendorManifest.includes(patch)) fail(`6: vendor-manifest.json lost ${patch}`)
+    if (!vendorPatchPaths.includes(patch)) fail(`6: vendor-manifest.json lost ${patch}`)
   }
 
   // Dist markers (only when a build exists — staged like verify-direct-connection full mode).
@@ -424,7 +435,7 @@ console.log(
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-    "6: five handshakes pairwise distinct, M-020/M-021 registered (25 patches, pin baseline — issue #23 revised the count sentinel 20→23; issue #26 revised 23→25, deliberate NOT a bypass)" +
+     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact 31-ID set (M-001..M-032 minus reserved M-019), vendor path set equal; historical issue #23/#26/#55 count revisions retained in build records" +
     (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +

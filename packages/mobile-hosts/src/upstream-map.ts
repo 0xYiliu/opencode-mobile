@@ -95,9 +95,8 @@ export function toExtensionConnection(input: ToExtensionConnectionInput): Extens
     connecting: input.state === "connecting" || input.state === "reconnecting" || input.state === "hostKeyUnverified",
     authenticationRequired: input.state === "authRequired",
     managed: true,
-    // Endpoint lives in memory only and only ever surfaces on the ready state — a non-ready
-    // connection must never expose a real endpoint URL. The password (never present this
-    // phase) never persists.
+    // Endpoint and service password live in memory only and only surface on the ready state.
+    // A non-ready connection never exposes a real endpoint URL; no credential enters storage.
     http:
       input.state === "ready" && input.endpoint
         ? { url: input.endpoint.url, password: input.endpoint.password }

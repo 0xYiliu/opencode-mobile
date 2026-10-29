@@ -1,249 +1,182 @@
 package ai.opencode.mobile.vault
 
-import android.net.Uri
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.webkit.WebMessage
-import android.webkit.WebMessagePort
 import android.webkit.WebView
+import ai.opencode.mobile.BuildConfig
+import ai.opencode.mobile.WebAssetServer
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
-/**
- * The native side of the credential vault bridge (issue #4, decision D1).
- *
- * Channel establishment is NATIVE-initiated over the platform WebMessage channel (API 23+,
- * zero new dependencies, zero androidx — the androidx WebMessageListener does not exist on
- * this platform and addJavascriptInterface is rejected: no origin constraint):
- *
- *  1. onPageFinished -> createWebMessageChannel() -> [port1, port2]; port1 gets the inbound
- *     callback; the handshake string + port2 are posted with a targetOrigin of
- *     http://127.0.0.1:18090 (the platform ENFORCES targetOrigin: frames on other origins
- *     never receive port2 — trust layer 1; see docs/design/architecture.md).
- *  2. The page validates the handshake shape, captures port2 into its closure and answers
- *     {"op":"ack"} over port2. Until that ack arrives the page-side vault reports
- *     unavailable and this side serves no operations (zero capability before ack — trust
- *     layer 3). NOTE: embedder-posted messages carry an EMPTY event.origin by platform
- *     construction (AwContents.postMessageToMainFrame hardcodes sourceOrigin=null), which
- *     is why the handshake is shape-validated instead of origin-compared.
- *  3. Retries: a transferred port2 can NEVER be re-posted (IllegalStateException), so every
- *     retry REBUILDS the channel (new port pair) and closes the old port1 first. Budget:
- *     5 attempts x 500 ms. After the budget, a session that was NEVER acked is demoted to
- *     unavailable (explicit state, no plaintext fallback); an already-acked session is
- *     never demoted by the retry path.
- *  4. Ack lifecycle resets on navigation: every onPageFinished starts a new handshake
- *     round (the previous page's port is dead; acked=false again).
- *
- * Messages are JSON strings in both directions (zero binary across the bridge) with a
- * requestId correlation. Inbound operations run through a strict whitelist and shape
- * validation below — no eval, no dynamic routing, no reflection. Logs carry fixed tags and
- * op names/counters only, NEVER values (zero-value logging red line).
- */
-class CredentialVaultBridge(
-    context: android.content.Context,
-    private val webView: WebView,
-) {
+/** Origin/frame constrained AndroidX WebKit vault message listener (protocol v2). */
+class CredentialVaultBridge(context: Context, private val webView: WebView) {
     companion object {
+        const val JS_OBJECT = "opencodeMobileVaultV2"
+        private const val PROTOCOL_MARKER = "mobile(vault-v2): Keystore envelope v1 over origin-bound AndroidX WebMessageListener"
         private const val TAG = "OpencodeShell"
-        const val HANDSHAKE = "opencode-mobile-vault-handshake"
-        private val TARGET_ORIGIN: Uri = Uri.parse("http://127.0.0.1:18090")
-        private const val MAX_RETRIES = 5
-        private const val RETRY_DELAY_MS = 500L
-        private val ENTRY_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-        private val KINDS = setOf("password", "privateKey")
-        private val OPERATIONS = setOf("put", "remove", "get", "list")
+        private val worker = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            ArrayBlockingQueue(8), { r -> Thread(r, "vault-serial").apply { isDaemon = true } },
+            ThreadPoolExecutor.AbortPolicy())
     }
 
-    private val store = VaultStore(context)
+    private val store = VaultStore(context.applicationContext)
+    private val lifecycle = VaultGenerationGate()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val replyDispatcher = VaultReplyDispatcher(lifecycle) { task -> mainHandler.post(task) }
 
-    private var port1: WebMessagePort? = null
-    /** True once the live session answered ack; suppressed handshakes and reset on navigation. */
-    private var acked = false
-    private var retryAttempt = 0
-    private var handshakeRound = 0
-    private var destroyed = false
-
-    /**
-     * Start one handshake round. Called from WebViewClient.onPageFinished. The ack flag
-     * resets here BY DESIGN: each page load opens a new handshake round (ack lifecycle
-     * reset — see class doc point 4).
-     */
-    fun onPageFinished() {
-        if (destroyed) return
-        closeChannel()
-        acked = false
-        retryAttempt = 0
-        startHandshake()
+    /** Register after the asset listener is bound, before the first loadUrl. */
+    fun register(): Boolean {
+        if (!VaultOriginPolicy.canRegister(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))) {
+            Log.e(TAG, "vault: WebMessageListener unsupported; unavailable")
+            return false
+        }
+        return try {
+            WebViewCompat.addWebMessageListener(webView, JS_OBJECT, setOf("http://${WebAssetServer.LOOPBACK_HOST}:${BuildConfig.WEB_ASSET_PORT}")) { _, message, sourceOrigin, isMainFrame, replyProxy ->
+                if (lifecycle.isDestroyed() || !VaultOriginPolicy.shouldAcceptMessage(isMainFrame, sourceOrigin.scheme, sourceOrigin.host, sourceOrigin.port, sourceOrigin.userInfo)) return@addWebMessageListener
+                val token = lifecycle.snapshot()
+                val raw = message.data ?: return@addWebMessageListener
+                val preflightFailure = preflight(raw)
+                if (preflightFailure != null) {
+                    replyDispatcher.post(token, preflightFailure.toString()) { response ->
+                        try { replyProxy.postMessage(response) }
+                        catch (_: Exception) { /* navigation may have invalidated this frame */ }
+                    }
+                    return@addWebMessageListener
+                }
+                try {
+                    worker.execute {
+                        if (!lifecycle.isCurrent(token)) return@execute
+                        val response = process(raw, token)
+                        replyDispatcher.post(token, response.toString()) { mainResponse ->
+                            try { replyProxy.postMessage(mainResponse) }
+                            catch (_: Exception) { /* navigation may have invalidated this frame */ }
+                        }
+                    }
+                } catch (_: java.util.concurrent.RejectedExecutionException) {
+                    val response = errorResponse(JSONObject(raw).optString("id"), "unavailable", "vault busy").toString()
+                    replyDispatcher.post(token, response) { mainResponse ->
+                        try { replyProxy.postMessage(mainResponse) }
+                        catch (_: Exception) { /* navigation may have invalidated this frame */ }
+                    }
+                }
+            }
+            Log.i(TAG, "vault: AndroidX listener registered")
+            true
+        } catch (_: Exception) {
+            Log.e(TAG, "vault: listener registration failed; unavailable")
+            false
+        }
     }
+
+    /** Called on top-level navigation start; running storage work finishes but cannot reply. */
+    fun onNavigationStarted() { lifecycle.onNavigationStarted() }
 
     fun destroy() {
-        destroyed = true
-        mainHandler.removeCallbacksAndMessages(null)
-        closeChannel()
+        lifecycle.destroy()
+        try { WebViewCompat.removeWebMessageListener(webView, JS_OBJECT) } catch (_: Exception) { }
     }
 
-    private fun closeChannel() {
-        handshakeRound += 1 // invalidate any in-flight retry for the previous round
-        try {
-            port1?.close()
-        } catch (e: Exception) {
-            // Closing a dead port must never mask the handshake flow.
+    /** Reject oversized and oversized-secret requests before they occupy a worker queue slot. */
+    private fun preflight(raw: String): JSONObject? {
+        if (!VaultRequestLimits.isEnvelopeWithinBound(raw)) {
+            val id = VaultRequestLimits.leadingRequestId(raw)
+            return id?.let { errorResponse(it, "io", "request too large") }
+                ?: JSONObject().put("id", "").put("ok", false).put("code", "io").put("message", "request too large")
         }
-        port1 = null
+        val request = try { JSONObject(raw) } catch (_: Exception) {
+            val id = VaultRequestLimits.leadingRequestId(raw)
+            return JSONObject().put("id", id ?: "").put("ok", false).put("code", "io").put("message", "malformed request")
+        }
+        val id = request.optString("id")
+        if (!id.matches(Regex("^[A-Za-z0-9._-]{1,128}$"))) return JSONObject().put("id", id).put("ok", false).put("code", "io").put("message", "malformed request id")
+        if (request.optString("op") == "put") {
+            val value = request.optJSONObject("params")?.opt("value") as? String
+                ?: return errorResponse(id, "io", "invalid credential value")
+            if (value.isEmpty()) return errorResponse(id, "io", "invalid credential value")
+            if (VaultRequestLimits.utf8Bytes(value) > VaultStore.MAX_VALUE_BYTES)
+                return JSONObject().put("id", id).put("ok", false).put("code", "io").put("message", "value exceeds the 64 KiB bound")
+        }
+        return null
     }
 
-    private fun startHandshake() {
-        val round = handshakeRound
-        val channel = webView.createWebMessageChannel()
-        val nativePort = channel[0]
-        val pagePort = channel[1]
-        nativePort.setWebMessageCallback(
-            object : WebMessagePort.WebMessageCallback() {
-                override fun onMessage(port: WebMessagePort, message: WebMessage) {
-                    handleClientMessage(message.data ?: return)
-                }
-            },
-        )
-        port1 = nativePort
-        try {
-            // platform-enforced targetOrigin: the page on another origin never sees pagePort.
-            webView.postWebMessage(WebMessage(HANDSHAKE, arrayOf(pagePort)), TARGET_ORIGIN)
-        } catch (e: Exception) {
-            Log.w(TAG, "vault: handshake post failed")
-            // Do NOT close/bump the round here: scheduleRetry(round) must see the live round
-            // or the guard would swallow this retry and the page load would get ZERO retries.
-            // The retry callback itself closes the old channel before rebuilding.
-            scheduleRetry(round)
-            return
-        }
-        scheduleRetry(round)
-    }
+    private fun errorResponse(id: String, code: String, message: String): JSONObject =
+        JSONObject().put("id", id).put("ok", false).put("code", code).put("message", message)
 
-    /**
-     * One bounded retry: rebuild the channel (the transferred port2 cannot be re-posted) and
-     * re-post the handshake — but only while this round is current and still un-acked. A
-     * never-acked session that exhausts the budget stays unavailable (explicit state); an
-     * acked session never reaches this path (ack cancels the pending retry).
-     */
-    private fun scheduleRetry(round: Int) {
-        if (destroyed || acked || round != handshakeRound) return
-        retryAttempt += 1
-        if (retryAttempt > MAX_RETRIES) {
-            Log.w(TAG, "vault: handshake retries exhausted; vault stays unavailable")
-            closeChannel()
-            return
-        }
-        mainHandler.postDelayed({
-            if (destroyed || acked || round != handshakeRound) return@postDelayed
-            Log.w(TAG, "vault: handshake retry (no ack yet)")
-            closeChannel() // closes the old port1 BEFORE rebuilding (rebuild, not re-post)
-            startHandshake()
-        }, RETRY_DELAY_MS)
-    }
-
-    private fun handleClientMessage(raw: String) {
-        val json = try {
-            JSONObject(raw)
-        } catch (e: Exception) {
-            Log.w(TAG, "vault: dropping malformed message")
-            return
-        }
-        when (json.optString("op")) {
-            "ack" -> {
-                if (!acked) {
-                    acked = true
-                    mainHandler.removeCallbacksAndMessages(null)
-                    Log.i(TAG, "vault: channel acked")
-                }
-                // Duplicate acks are ignored (suppression mirror of the page side).
+    private fun process(raw: String, requestGeneration: Long): JSONObject {
+        val request = try { JSONObject(raw) } catch (_: Exception) { return errorResponse("", "io", "malformed request") }
+        val id = request.optString("id")
+        if (!id.matches(Regex("^[A-Za-z0-9._-]{1,128}$"))) return errorResponse(id, "io", "malformed request id")
+        val op = request.optString("op")
+        val p = request.optJSONObject("params") ?: JSONObject()
+        if (op == "ready") {
+            if (p.optString("protocol") != PROTOCOL_MARKER) return JSONObject().put("id", id).put("ok", false).put("code", "unavailable").put("message", "vault protocol mismatch")
+            if (lifecycle.markReady(requestGeneration)) {
+                Log.i(TAG, "vault: protocol v2 ready")
             }
-            else -> {
-                // Zero capability before ack (trust layer 3, docs/design/units/connection.md):
-                // operations are only served from a session that answered the handshake.
-                if (!acked) {
-                    Log.w(TAG, "vault: dropping operation before ack")
-                    return
-                }
-                val op = json.optString("op")
-                if (op !in OPERATIONS) {
-                    Log.w(TAG, "vault: dropping non-whitelisted op")
-                    return
-                }
-                val id = json.optString("id")
-                if (!ENTRY_ID.matches(id) || id.length > 128) {
-                    Log.w(TAG, "vault: dropping request with malformed requestId")
-                    return
-                }
-                respond(id) { dispatch(op, json.optJSONObject("params") ?: JSONObject()) }
-            }
+            return JSONObject().put("id", id).put("ok", true).put("result", "vault-v2")
         }
-    }
-
-    /** Runs [block] off the response path's happy case and answers exactly one JSON response. */
-    private fun respond(requestId: String, block: () -> Any?) {
-        val response = try {
-            JSONObject().put("id", requestId).put("ok", true).put("result", block() ?: JSONObject.NULL)
+        if (!lifecycle.isReady(requestGeneration)) return JSONObject().put("id", id).put("ok", false).put("code", "unavailable").put("message", "vault not ready")
+        return try {
+            val result: Any? = when (op) {
+                "put" -> {
+                    val kind = p.optString("kind")
+                    val value = p.opt("value") as? String ?: throw VaultException("io", "invalid credential")
+                    if (kind !in setOf("password", "privateKey") || value.isEmpty() || VaultRequestLimits.utf8Bytes(value) > VaultStore.MAX_VALUE_BYTES)
+                        throw VaultException("io", "invalid credential")
+                    val rawLabel = p.opt("label")
+                    if (rawLabel != null && rawLabel !is String) throw VaultException("io", "invalid label")
+                    val label = (rawLabel as? String)?.takeIf { it.isNotEmpty() }
+                    if (label != null && label.length > 256) throw VaultException("io", "invalid label")
+                    val rawExisting = p.opt("existingId")
+                    if (rawExisting != null && rawExisting !is String) throw VaultException("io", "invalid reference")
+                    val existing = (rawExisting as? String)?.takeIf { it.isNotEmpty() }
+                    if (existing != null && !existing.matches(Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"))) throw VaultException("io", "invalid reference")
+                    val candidateId = p.opt("candidateId") as? String ?: throw VaultException("io", "malformed candidate id")
+                    if (!candidateId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"))) throw VaultException("io", "malformed candidate id")
+                    val targetId = existing ?: candidateId
+                    try { store.put(candidateId, kind, value.toByteArray(Charsets.UTF_8), label, existing) }
+                    catch (_: Exception) {
+                        throw VaultException("unknown", "mutation outcome unknown", "mobile-credential:$targetId")
+                    }
+                }
+                "remove" -> {
+                    val idValue = requireId(p)
+                    try { store.remove(idValue); null }
+                    catch (e: VaultException) {
+                        if (e.code == "io") throw e
+                        throw VaultException("unknown", "mutation outcome unknown", "mobile-credential:$idValue")
+                    }
+                    catch (_: Exception) { throw VaultException("unknown", "mutation outcome unknown", "mobile-credential:$idValue") }
+                }
+                "get" -> store.get(requireId(p))?.let { String(it, Charsets.UTF_8) }
+                "list" -> store.list()
+                else -> throw VaultException("io", "unsupported operation")
+            }
+            JSONObject().put("id", id).put("ok", true).put("result", result ?: JSONObject.NULL)
         } catch (e: VaultException) {
-            JSONObject().put("id", requestId).put("ok", false).put("code", e.code).put("message", e.message ?: "")
-        } catch (e: Exception) {
-            Log.w(TAG, "vault: operation failed (io)")
-            JSONObject().put("id", requestId).put("ok", false).put("code", "io").put("message", "")
-        }
-        postToPage(response)
-    }
-
-    /** Strict operation whitelist + shape validation before anything touches the store. */
-    private fun dispatch(op: String, params: JSONObject): Any? {
-        return when (op) {
-            "put" -> {
-                val kind = params.optString("kind")
-                if (kind !in KINDS) throw VaultException("io", "unknown credential kind")
-                val value = params.optString("value")
-                if (value.isEmpty()) throw VaultException("io", "empty value (native re-check)")
-                val bytes = value.toByteArray(Charsets.UTF_8)
-                if (bytes.size > VaultStore.MAX_VALUE_BYTES) throw VaultException("io", "value exceeds the 64 KiB bound (native re-check)")
-                val label = if (params.has("label") && !params.isNull("label")) params.optString("label").takeIf { it.isNotEmpty() } else null
-                val existingId = if (params.has("existingId") && !params.isNull("existingId")) params.optString("existingId") else null
-                if (existingId != null && !ENTRY_ID.matches(existingId)) throw VaultException("io", "malformed existingId")
-                val newId = existingId ?: java.util.UUID.randomUUID().toString()
-                store.put(newId, kind, bytes, label, existingId)
-            }
-            "remove" -> {
-                store.remove(requireEntryId(params))
-                null
-            }
-            "get" -> {
-                val value = store.get(requireEntryId(params)) ?: return null
-                String(value, Charsets.UTF_8) // empty plaintexts are never sealed, so this is total
-            }
-            "list" -> {
-                val result = store.list()
-                JSONArray().also { out ->
-                    for (i in 0 until result.length()) out.put(result.getJSONObject(i))
+            JSONObject().put("id", id).put("ok", false).put("code", e.code).put("message", e.message ?: "")
+                .also { e.recoveryRef?.let { ref -> it.put("recoveryRef", ref) } }
+        } catch (_: Exception) {
+            JSONObject().put("id", id).put("ok", false).put("code", if (op == "put" || op == "remove") "unknown" else "io").put("message", "")
+                .also {
+                    when (op) {
+                        "put" -> it.put("recoveryRef", "mobile-credential:${p.optString("existingId").ifEmpty { p.optString("candidateId") }}")
+                        "remove" -> it.put("recoveryRef", "mobile-credential:${p.optString("id")}")
+                    }
                 }
-            }
-            else -> throw VaultException("io", "unknown op") // unreachable behind the whitelist
         }
     }
 
-    private fun requireEntryId(params: JSONObject): String {
-        val id = params.optString("id")
-        if (!ENTRY_ID.matches(id)) throw VaultException("io", "malformed entry id")
+    private fun requireId(p: JSONObject): String {
+        val id = p.optString("id")
+        if (!id.matches(Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"))) throw VaultException("io", "invalid entry id")
         return id
-    }
-
-    private fun postToPage(json: JSONObject) {
-        val port = port1
-        if (port == null) {
-            Log.w(TAG, "vault: no channel to answer on")
-            return
-        }
-        try {
-            port.postMessage(WebMessage(json.toString()))
-        } catch (e: Exception) {
-            Log.w(TAG, "vault: response post failed")
-        }
     }
 }

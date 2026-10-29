@@ -157,6 +157,7 @@ export function createHostRegistry(options: HostRegistryOptions) {
   const [store, setStore] = createStore<{ hosts: HostRecord[] }>({
     hosts: loadHosts(options.storage).hosts,
   })
+  const listeners = new Set<(change: { id: string; previous?: HostRecord; next?: HostRecord }) => void>()
 
   const persist = () => saveHosts(options.storage, store.hosts)
 
@@ -184,6 +185,17 @@ export function createHostRegistry(options: HostRegistryOptions) {
     const normalized = target.trim().toLowerCase()
     const existing = store.hosts.find((host) => host.target.toLowerCase() === normalized)
     if (existing && existing.id !== exceptId) throw new HostRegistryError("duplicate-target", target)
+  }
+
+  /** Validate a prospective record without publishing it or touching credential storage. */
+  function validate(input: HostRecordInput, exceptId?: string): void {
+    assertNoForbiddenKeys(input)
+    const name = validateName(input.name)
+    assertUniqueName(name, exceptId)
+    const target = validateTarget(input.target)
+    assertUniqueTarget(target, exceptId)
+    normalizeCredentialRef(input.credentialRef)
+    validateServicePort(input.servicePort)
   }
 
   function add(input: HostRecordInput): HostRecord {
@@ -241,6 +253,7 @@ export function createHostRegistry(options: HostRegistryOptions) {
       "hosts",
       [...store.hosts.slice(0, index), next, ...store.hosts.slice(index + 1)],
     )
+    for (const listener of listeners) listener({ id, previous: current, next })
     persist()
     return next
   }
@@ -249,15 +262,28 @@ export function createHostRegistry(options: HostRegistryOptions) {
   function remove(id: string): boolean {
     const index = store.hosts.findIndex((host) => host.id === id)
     if (index === -1) return false
+    const previous = store.hosts[index]!
     setStore(
       "hosts",
       store.hosts.filter((host) => host.id !== id),
     )
+    for (const listener of listeners) listener({ id, previous })
     persist()
     return true
   }
 
-  return { list, get, add, update, remove }
+  return {
+    list,
+    get,
+    add,
+    update,
+    remove,
+    validate,
+    subscribe(listener: (change: { id: string; previous?: HostRecord; next?: HostRecord }) => void) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
 }
 
 export type HostRegistry = ReturnType<typeof createHostRegistry>

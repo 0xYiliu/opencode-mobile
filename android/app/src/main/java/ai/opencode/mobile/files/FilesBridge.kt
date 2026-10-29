@@ -1,5 +1,6 @@
 package ai.opencode.mobile.files
 
+import ai.opencode.mobile.WebAssetServer
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -91,7 +92,7 @@ class FilesBridge(
     companion object {
         private const val TAG = "OpencodeShell"
         const val HANDSHAKE = "opencode-mobile-files-handshake"
-        private val TARGET_ORIGIN: Uri = Uri.parse("http://127.0.0.1:18090")
+        private val TARGET_ORIGIN: Uri = Uri.parse("http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}")
         private const val MAX_RETRIES = 5
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")

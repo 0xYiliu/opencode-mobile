@@ -1,8 +1,8 @@
 package ai.opencode.mobile.ssh
 
-import android.util.Base64
 import android.util.Log
 import java.io.File
+import java.util.Base64
 import java.security.MessageDigest
 
 /**
@@ -42,7 +42,7 @@ class SshHostKeyStore(private val baseDir: File) {
         /** The documented OpenSSH fingerprint form: `SHA256:<base64_nopad(SHA-256(blob))>`. */
         fun fingerprintOf(blobBase64: String): String? {
             val blob = try {
-                Base64.decode(blobBase64, Base64.DEFAULT)
+                Base64.getDecoder().decode(blobBase64)
             } catch (e: IllegalArgumentException) {
                 return null
             }
@@ -50,13 +50,13 @@ class SshHostKeyStore(private val baseDir: File) {
             val digest = MessageDigest.getInstance("SHA-256").digest(blob)
             // NO_PADDING: 32 bytes -> 43 base64 chars (the trailing '=' dropped), the exact
             // `ssh-keygen -lf` output. Locked to fixed vectors by scripts/verify-ssh.ts.
-            return "SHA256:" + Base64.encodeToString(digest, Base64.NO_PADDING or Base64.NO_WRAP).trimEnd('=')
+            return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(digest)
         }
 
         /** The wire key type is the first field of the SSH key blob: int32 length + UTF-8. */
         fun keyTypeOf(blobBase64: String): String? {
             val blob = try {
-                Base64.decode(blobBase64, Base64.DEFAULT)
+                Base64.getDecoder().decode(blobBase64)
             } catch (e: IllegalArgumentException) {
                 return null
             }
@@ -149,7 +149,7 @@ class SshHostKeyStore(private val baseDir: File) {
     private fun writeLines(lines: List<Line>) {
         baseDir.mkdirs()
         val tmp = File(baseDir, "$FILE_NAME.tmp")
-        tmp.writeText(lines.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
+        tmp.writeText(lines.joinToString(separator = "\n", postfix = "\n") { it.raw }, Charsets.UTF_8)
         if (!tmp.renameTo(file)) {
             tmp.delete()
             throw SshException(SshErrorCode.IO, "host key store write failed")

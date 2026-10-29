@@ -1,5 +1,6 @@
 package ai.opencode.mobile.ssh
 
+import ai.opencode.mobile.WebAssetServer
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -7,6 +8,9 @@ import android.util.Log
 import android.webkit.WebMessage
 import android.webkit.WebMessagePort
 import android.webkit.WebView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import ai.opencode.mobile.vault.VaultOriginPolicy
 import org.json.JSONObject
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -22,14 +26,11 @@ import java.util.concurrent.Executors
  * ack lifecycles: the vault gates C1-C5 and the probe gate G16 are not perturbed by this
  * bridge's existence (G17 covers the three-bridge bring-up on device).
  *
- * Channel establishment is NATIVE-initiated over the platform WebMessage channel — the same
- * three-layer trust as vault/probe (docs/design/architecture.md):
- *   1. platform-enforced targetOrigin (frames on other origins never receive port2);
- *   2. port confinement (the page captures port2 into its closure, never a global);
- *   3. zero capability before ack (no operation is served from an un-acked session).
- * event.origin is never consulted (embedder-posted messages carry an empty origin by
- * platform construction). Retries rebuild the channel (a transferred port2 can never be
- * re-posted); budget 5 x 500 ms; the ack lifecycle resets on every navigation.
+ * The page requests channel creation via an AndroidX bootstrap that checks exact source
+ * origin and main-frame status. Native then posts the transferred port with a platform-enforced
+ * targetOrigin; the page confines it in this transport closure and must ack before operations
+ * are served. Retries rebuild the channel (a transferred port2 can never be re-posted);
+ * budget 5 x 500 ms.
  *
  * Messages are JSON strings both ways with requestId correlation (zero binary). Operations:
  *   fetchHostKey {host, port}                      -> {decision:trust|prompt, fingerprint}
@@ -55,8 +56,10 @@ class SshTunnelBridge(
 ) {
     companion object {
         private const val TAG = "OpencodeShell"
+        const val BOOTSTRAP_JS_OBJECT = "opencodeMobileSshBootstrapV2"
+        const val BOOTSTRAP_MESSAGE = "opencode-mobile-ssh-bootstrap-v2"
         const val HANDSHAKE = "opencode-mobile-ssh-handshake"
-        private val TARGET_ORIGIN: Uri = Uri.parse("http://127.0.0.1:18090")
+        private val TARGET_ORIGIN: Uri = Uri.parse("http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}")
         private const val MAX_RETRIES = 5
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -95,11 +98,34 @@ class SshTunnelBridge(
         }
     }
 
-    /**
-     * Start one handshake round. Called from WebViewClient.onPageFinished. The ack flag
-     * resets here BY DESIGN (navigation-scoped ack lifecycle, mirroring vault/probe).
-     */
-    fun onPageFinished() {
+    /** Register an exact-origin/main-frame bootstrap before the first page load. */
+    fun register(): Boolean {
+        if (!VaultOriginPolicy.canRegister(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))) {
+            Log.e(TAG, "ssh: AndroidX WebMessageListener unsupported; bridge unavailable")
+            return false
+        }
+        return try {
+            WebViewCompat.addWebMessageListener(webView, BOOTSTRAP_JS_OBJECT, setOf(TARGET_ORIGIN.toString())) { _, message, sourceOrigin, isMainFrame, _ ->
+                if (destroyed
+                    || !VaultOriginPolicy.shouldAcceptMessage(isMainFrame, sourceOrigin.scheme, sourceOrigin.host, sourceOrigin.port, sourceOrigin.userInfo)
+                    || message.data != BOOTSTRAP_MESSAGE) return@addWebMessageListener
+                val round = handshakeRound
+                mainHandler.post {
+                    if (destroyed || round != handshakeRound || acked || port1 != null) return@post
+                    Log.i(TAG, "ssh: AndroidX bootstrap received")
+                    startHandshake()
+                }
+            }
+            Log.i(TAG, "ssh: AndroidX bootstrap listener registered")
+            true
+        } catch (_: Exception) {
+            Log.e(TAG, "ssh: AndroidX bootstrap registration failed; bridge unavailable")
+            false
+        }
+    }
+
+    /** Navigation invalidates old ports; the new JS document re-arms through AndroidX. */
+    fun onNavigationStarted() {
         if (destroyed) return
         closeChannel()
         acked = false
@@ -113,6 +139,7 @@ class SshTunnelBridge(
         manager.destroy()
         work.shutdownNow()
         closeChannel()
+        try { WebViewCompat.removeWebMessageListener(webView, BOOTSTRAP_JS_OBJECT) } catch (_: Exception) { }
     }
 
     private fun closeChannel() {
