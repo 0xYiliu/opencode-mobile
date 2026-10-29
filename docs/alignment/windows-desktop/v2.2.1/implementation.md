@@ -14,7 +14,7 @@ issue-58 (`5a46934e7f17a32d3df5d354d18424034785efc3`) 已通过 PR #59 合并，
 
 ## 证据索引
 
-E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 `5a46934`（main `4c2ec43` 包含该提交）为依据。后者用于覆盖同项的旧架构与历史结论；本次为源码/台账核对，未重跑设备或构建测试。E18 为 issue #61（分支 `issue-61-g36-ssh-e2e`，基线 dev @ 61322dd）的真机运行证据，依据为 `docs/build-and-verify.md` issue #61 段（2026-10-30）。
+E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 `5a46934`（main `4c2ec43` 包含该提交）为依据。后者用于覆盖同项的旧架构与历史结论；本次为源码/台账核对，未重跑设备或构建测试。E18 为 issue #61（分支 `issue-61-g36-ssh-e2e`，基线 dev @ 61322dd）的真机运行证据，依据为 `docs/build-and-verify.md` issue #61 段（2026-10-30）。E19 以本仓库 dev 基线 `61322dd`（vendor 树 = pin `b4525d79bf` + 在册补丁 M-001..M-032）与上游 v2.2.1 `3ebcf9a` 的逐文件实测 diff 为依据，随 issue #63（S04）实施写入；行号均为两侧源码实测值。
 
 | 编号 | 固定快照内路径 | 已核事实与限制 |
 | --- | --- | --- |
@@ -36,6 +36,7 @@ E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 
 | E16 | `packages/mobile-hosts/src/ui/host-key-binding.ts`、`packages/mobile-hosts/src/ui/host-key-recovery-flow.ts`、`packages/mobile-hosts/src/ssh/bridge.ts`、`android/app/src/main/java/ai/opencode/mobile/ssh/SshTunnelBridge.kt`、`android/app/src/main/java/ai/opencode/mobile/ssh/SshHostKeyStore.kt`、`android/app/src/test/java/ai/opencode/mobile/ssh/SshHostKeyStoreTest.kt` | SSH 同步订阅后用独立 AndroidX bootstrap 请求 ack-gated channel；确认绑定目标/端口/指纹；known_hosts 以 Line.raw 序列化，JVM 测试覆盖写入回读、变更拒绝及外来行保留。~~最终设备提示与独立参考不一致，未继续信任和认证~~ **该差异已由 issue #61 裁定关闭（E18）：提示与独立参考相等布尔 true，历史不匹配为比对过程错位；known_hosts 取证证实应用一贯存储 bastion 真实公钥（历史重复提示根因=de27569 引入的 writeLines 序列化缺陷，已由 5a46934 修复——`{ it.raw }` transform，基线内）** |
 | E17 | `android/app/src/main/java/ai/opencode/mobile/ShellWorkerPolicy.kt`、`android/app/src/main/java/ai/opencode/mobile/MainActivity.kt`、`android/app/src/test/java/ai/opencode/mobile/ShellWorkerPolicyTest.kt`、`scripts/verify-connection-inline-ssh.ts`、`docs/build-and-verify.md` | 修复 APK/旧 worker 资源不同步；仅操作精确 shell origin/root scope/packaged sw.js，异步回调重检身份，无清数据；worker 有策略/JVM/模拟测试及特定旧构建 CDP 证据，不将某次 UI dump 当作 worker 状态验证 |
 | E18 | `docs/build-and-verify.md`（issue #61 段，2026-10-30） | issue #61 真机运行证据（MatePad DBY2-AL00，主应用包 `install -r`，APK SHA-256 `d3bcd579…733ab`）：E1 bastion 端点六形式指纹 6/6 相等；E2 提示双通道采样（uiautomator+CDP）==ED25519 参考且两通道一致；E3 known_hosts 取证 4/4 blob==参考（H1/H3 排除、H2 裁定）；G36 矩阵 #a–#g、#i–#k PASS（含 unknown/changed key 拒绝、两步确认+forget、authRequired 可编辑重试、refused/target-refused/service-unreachable 分类、全链 401→认证→远端会话/工作台、断开红线三通道证据、3 轮信任稳定零 prompt）；#h 三模式草稿保持以临时 isolated applicationId 隔离包（`ai.opencode.mobile.sshg36h20261030`，APK SHA-256 `bea7ba14…ced90`，C6 先例方法，构建后 applicationId 已恢复）补验 PASS——无记录初始态连接屏可达、example.invalid 草稿两轮全往复三模式各自保留、零连接动作；主应用有记录态连接屏不可达（AppShell fallback 门 + extension 条目常驻 servers.list + signedOut 仅认 lone http server）为门设计实态注记、可选 UX 改进候选；任务级存活未验（归 G20⑤/G12）；incompatible 真服务未验 |
+| E19 | `vendor/upstream/patches/mobile/0033-M-033-interface-mode-setting.patch`、`vendor/upstream/packages/app/src/settings/model.tsx`、`vendor/upstream/packages/app/src/shell/shell.tsx`、`vendor/upstream/packages/app/src/settings/general/general.tsx`、`vendor/upstream/packages/app/src/settings/general/interface-mode.tsx`、`vendor/upstream/packages/app/src/settings/general/interface-mode.css`、`vendor/upstream/packages/app/src/settings/search-catalog.ts`、`vendor/upstream/packages/app/src/runtime/i18n/en.ts`、`scripts/verify-interface-mode.ts`、`docs/build-and-verify.md` | S04（issue #63）：M-033（manifest.json 与 vendor-manifest.json#mobilePatches 双登记 31→**32**，对 pristine pin + M-001..M-032 树 `git apply --check` 硬门禁）把 v2.2.1 的 Interface 三模式设置面对齐进 pin 树：`appearance.tabLayout` 三值枚举 + InterfaceModeSetting 三预览卡（逐字移植）+ 搜索目录条目 + en 八键；shell 谓词对齐 `!== "horizontal"`。上游定向子集 41/0、第一方 414/0、web 构建、V3 闭包与负例演练通过；设备 QA 未跑（详见 build-and-verify.md issue #63 段诚实边界） |
 
 ## 历史构建证据的适用范围
 
@@ -51,3 +52,33 @@ E01–E12 以原始盘点快照 `cf1504d` 为依据；E13–E17 以已集成的 
 - **一次认证后观察**：台账记录用户在设备上私下完成服务认证后，只读 CDP 确认 home route 和非空 session row；没有发送任务，没有做 disconnect/reconnect。不能写成“从未认证成功”，也不能据此判定完整任务或重连通过。
 - **后续已知主机修复**：known_hosts 序列化修复有 JVM 证据；对应无诊断 APK 安装后，当前提示仍未与独立参考匹配，因此未信任，最终实连复验继续 BLOCKED。
 - **多构建边界**：台账同时保留 built-not-installed、特定 APK 的安装/UI/CDP 记录及后续补充；不汇总为统一的“最新 APK 全部通过”。TypeScript 全项目检查仍有既存诊断。
+
+### S04 差异核对与实施记录（issue #63，E19）
+
+方法：`git -C <上游克隆> diff b4525d79 3ebcf9a -- <path>` 逐文件核对；vendor 工作树在实施前经 V3 闭包证明 == pin + 在册补丁。以下行号为两侧源码实测（pin 行号取 61322dd 的 vendor 树，v2.2.1 行号取 `3ebcf9a`）。
+
+#### 目标语义 vs 现有实现（逐文件）
+
+| 项 | v2.2.1 事实（实测） | pin 现有实现（实测） | S04 处置 |
+| --- | --- | --- | --- |
+| 枚举 | `appearanceSchema.tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"])`，前带注释 `// "inbox" is experimental: …`（model.tsx:145-146）；默认仍 `"horizontal"`（defaultSettings :306） | 两值 `["horizontal", "vertical"]`（model.tsx:132）；默认 `"horizontal"`（:287） | M-033 采纳：三值 + 注释逐字，默认与 `settings.v3` 键不变（persisted v2.2.1 :330 / pin :310，键名两侧一致） |
+| 设置 UI | `TabLayoutSetting`（Select 两项，pin general.tsx:193-218）删除，换 `InterfaceModeSetting`（interface-mode.tsx 新 173 行）：fieldset 三张预览卡（radio 语义）、`data-action="settings-tab-layout"` 保持、Inbox 带 "Experimental" 徽标；置于 General 分节 `<h3>` 后、`<SettingsList>` 前（v2.2.1 general.tsx:255） | Select 形态，挂载于 `<LanguageSetting />` 之后（pin general.tsx:244-246） | M-033 cherry-pick 四 hunk（删 `tabLayoutOptions` :21、加 import、删 `TabLayoutSetting`、插 `<InterfaceModeSetting />`）；`TerminalPlacementSetting` 与 `ExtensionSettingsSections` 命名按 pin 保留（v2.2.1 的删除/重命名属 S37/S41 域，不采纳） |
+| 预览卡 CSS | interface-mode.css 新 259 行：`repeat(auto-fit, minmax(220px, 1fr))` 自适应网格（窄屏单列堆叠），预览为纯静态图形；全部设计令牌在 pin 的 ui 包 theme.css 已有定义 | 无 | M-033 逐字移植 |
+| shell 消费 | `verticalTabs = tabLayout !== "horizontal" && !mobile()`（shell.tsx:62）——Inbox 在桌面宽度走侧栏路径；窄屏（≤767px）三模式均不启用侧栏 | `=== "vertical" && !mobile()`（pin shell.tsx:26，全树唯一消费点） | M-033 一行谓词对齐；`!mobile()` 两侧一致 |
+| Inbox 专属呈现 | `tabLayout === "inbox"` 时 titlebar 侧栏用 `SidebarInbox`（needs-you → done → running 分组，inbox-model.ts 377 行 + inbox.tsx 381 行）+ sidebar-toggle/sidebar-peek/panel-motion 一族（合计约 5300 行） | 无 | **不移植**（W05 桌壳域，见下方差异登记第 1 条） |
+| 搜索目录 | tabs 条目换 interfaceMode 条目：label `settings.general.row.interfaceMode.title`（:28）、target 仍 `settings-tab-layout`（:29）、keywords `"top side tabs inbox sidebar mode layout vertical horizontal focus pro"`；同时删除 terminalPlacement 条目（pin search-catalog.ts:45-50 即 pin 的 terminalPlacement 条目区，v2.2.1 已删） | tabs 条目 label `settings.appearance.row.tabs.title`（pin :25-30，target :28）；terminalPlacement 条目在册（pin :45-50） | M-033 采纳 interfaceMode 条目（target 不变，保上游 search-results.test.ts:59 断言绿）；**terminalPlacement 条目按 pin 保留**（S04 不动终端域，与设置行保留同口径） |
+| i18n | **8 个新键 9 行只存在于 en.ts**（:835-843；`inbox.description` 值跨两行）：interfaceMode.title/top/top.description/side/side.description/inbox/inbox.description/experimental；旧 `settings.appearance.row.tabs.*` 四键未删；zh 等其余语言 `satisfies Partial<Record<Keys,string>>` 不含新键，`language.tsx` merge 为 base（en）先展开（`const base = flatten({ ...en, ...dict })`，`{ ...base, ...flatten({ ...a.dict, ...b.dict }) }`）→ 缺键回退英文（上游 v2.2.1 对 zh 用户的真实形态） | 无 interfaceMode 键；tabs 四键 :746-749 | M-033 在 pin :749 后插入同 8 键 9 行（逐字）；zh 不加（差异登记第 4 条） |
+| 上游测试 | v2.2.1 未给 interface-mode 增加任何测试文件；`settings/model.test.ts` 仍只测 horizontal/vertical（与枚举扩容兼容）；`settings/search-results.test.ts` 断言 target `settings-tab-layout` 存在 | 同左（pin 侧测试同样绿） | 实跑验证：三文件定向子集 41 tests / 0 fail / 98 expect()（`--conditions=solid --isolate` 在册形态） |
+| 持久化 | 键不变 `settings.v3`；`withFallback` 读路径不变（v2.2.1 model.tsx:447） | 同构（pin :310/:400） | 零迁移代码；降级语义见下 |
+
+#### 降级语义（逐字段回落，实测 pin `runtime/persistence/schema.ts` recover()）
+
+`recover()` 对 objects AST 沿 `ast.propertySignatures` **逐字段**递归（`recover(field.type, value[field.name], defaults)`），单字段 decode 失败仅回落该字段的 defaultSettings 初始值，同层其余字段原样保留，与上游自身同态。因此旧构建（两值枚举）读到 v2.2.1 写入的 `tabLayout: "inbox"` 时，**仅该字段回落 `"horizontal"`**，`appearance` 段的 fontSize/mono/sans/terminal 及其余各段偏好全部保留——不是「appearance 段整体 decode 失败重置」。升级方向（pin → 本补丁的三值枚举）读旧值无任何回落。
+
+#### 差异登记（Inbox 呈现与保留项，QA 不得越线宣称）
+
+1. **Inbox 分组列表未移植**：needs-you/done/running 分组、跨服务器聚合、unread 徽标（sidebar-toggle/peek/panel-motion 一族，约 5300 行）不移植。≥768px 选 Inbox 的呈现 = 与 Side 相同的普通竖排会话 rail；Experimental 徽标如实传达实验状态。**QA 不得宣称分组列表存在。**
+2. TerminalPlacement 设置行与 search-catalog 条目按 pin 保留（v2.2.1 已删该行与 schema 字段；属终端→插件迁移域，S04 不动）。
+3. v2.2.1 general.tsx 同期新增的 TimelineWidth/BackgroundActivity 行、controllers.ts 的 zoom/reduceMotion、`experimental.config` 变更、`ExtensionSettingsSections`→`PluginSettingsSections` 重命名均不采纳（各自矩阵行 S11/S17/S42/S41）。
+4. zh（及所有非 en 语言）的 Interface 卡文案回退英文——与上游 v2.2.1 对 zh 的实际形态一致（merge base 先展开保证非空），不是待补翻译缺口。
+5. en.ts hunk 隔离论证：触碰 en.ts 的在册补丁共 6 个——M-009（@@ -353）、M-013（@@ -347）、M-018（@@ -623）、M-024（@@ -926）、M-026（@@ -707，+3 行）、M-032（@@ -373）。M-033 插入锚在 pin :746-749（`settings.appearance.row.tabs.vertical` 行后），与最近邻 M-026 末行（:709）相距 36 行以上、与 M-024（:926 起）相距 176 行以上，均大于 3 行上下文窗口，无交叠；补丁对「pin + M-001..M-032」树经 V3 `git apply --check` 硬门禁与撤销-还原实测双向验证。
