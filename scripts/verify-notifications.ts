@@ -1,9 +1,10 @@
 // verify-notifications.ts — static probe for issue #23 (task completion, permission,
 // and error notifications).
 //
-// Asserts, against the REAL sources (vendored pin b4525d79bf… + M-001..M-024, the
-// first-party packages/mobile-hosts, the Android shell, the web dist and the docs), the
-// structural facts the notifications unit document relies on.
+// Asserts, against the REAL sources (vendored pin b4525d79bf… + registered M-001..M-032
+// mobile patches, with M-019 reserved-absent), first-party packages/mobile-hosts, the
+// Android shell, web dist, and docs, the structural facts the notifications unit document
+// relies on.
 //
 // DIVISION OF LABOR (per the in-registry dedup convention):
 //   1. CROSS-REFERENCE re-checks (referencing, NOT first locks — the originals live
@@ -517,29 +518,23 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
 
 // --- 8. Build and dist baseline ---
 {
-  // Zero new dependencies: the sole-runtime-dependency + zero-androidx comment and the
-  // three implementation lines are unchanged (the bridge is platform-API only).
+  // AndroidX WebKit is the single deliberate AndroidX dependency for the vault boundary.
   const gradle = await read(GRADLE)
   for (const anchor of [
-    "// Sole runtime dependency (Apache-2.0, belongs in the third-party notice). Zero androidx.",
     'implementation("org.nanohttpd:nanohttpd:2.3.1")',
     'implementation("com.github.mwiede:jsch:2.28.8")',
+    'implementation("androidx.webkit:webkit:1.14.0")',
   ]) {
     if (!gradle.includes(anchor)) fail(`8: build.gradle.kts lost the dependency baseline anchor ${JSON.stringify(anchor)}`)
   }
-  if (/androidx/.test(gradle.replace(/Zero androidx\./g, "").replace(/zero androidx/gi, "")))
-    fail("8: build.gradle.kts gained an androidx dependency (the zero-androidx constraint)")
 
-  // Dist baseline (V2-produced; the cross-document numbers' authoritative source).
-  // Issue #55 revision (deliberate, NOT a bypass): the M-028 connection method layout
-  // build inputs changed the byte count — the current baseline was re-recorded from
-  // web-dist/manifest.json after V2. M-027 3482/153445727 and M-026 3480/153441733
-  // remain historical.
-  const distManifest = await read(DIST_MANIFEST)
-  if (!distManifest.includes('"fileCount": 3482'))
-    fail("8: web-dist/manifest.json fileCount drifted from the recorded 3482 baseline (a rebuild changed the count — refresh the cross-document numbers first)")
-  if (!distManifest.includes('"totalBytes": 153447934'))
-    fail("8: web-dist/manifest.json totalBytes drifted from the recorded 153447934 baseline (issue #55 M-028 re-recorded it after its build-input changes; refresh the cross-document numbers first)")
+  // Current baseline is read from a fresh Vite build of the tracked source tree.
+  // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
+  const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
+  if (distManifest.fileCount !== 3480)
+    fail(`8: current web-dist fileCount drifted (expected 3480, got ${String(distManifest.fileCount)})`)
+  if (distManifest.totalBytes !== 153555364)
+    fail(`8: current web-dist totalBytes drifted (expected 153555364, got ${String(distManifest.totalBytes)})`)
 
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
@@ -618,11 +613,15 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   const architecture = await read("docs/design/architecture.md")
   for (const anchor of [
     "| notifications（通知面） |",
-    "NotificationsBridge（issue #23：第六座协议隔离桥",
+    "CredentialVaultBridge（issue #58：AndroidX origin/frame-bound WebMessageListener v2",
+    "ProbeBridge（issue #5：协议隔离的姊妹桥，独立握手串 opencode-mobile-probe-handshake",
+    "SshTunnelBridge（issue #6：AndroidX exact-origin/frame bootstrap + 独立 SSH channel/ack",
+    "ServiceOpsBridge（issue #7：第四座协议隔离桥，独立握手串 opencode-mobile-svcops-handshake",
+    "FilesBridge（issue #16：第五座协议隔离桥，独立握手串 opencode-mobile-files-handshake",
+    "NotificationsBridge（issue #23：第六座协议隔离桥，独立握手串 opencode-mobile-notifications-handshake",
     "| M-022 |",
     "| M-023 |",
     "| M-024 |",
-    "vault/probe/svcops/ssh/files/notifications 六握手",
   ]) {
     if (!architecture.includes(anchor)) fail(`9: architecture.md lost the anchor ${JSON.stringify(anchor)}`)
   }
@@ -643,7 +642,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle zero-new-dependency baseline + zero androidx + dist fileCount/totalBytes recorded baseline (3482/153447934, issue #55 M-028 current baseline; M-027 3482/153445727 and M-026 3480/153441733 remain historical) + staged dist markers; " +
-    "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + sixth bridge + M-022/M-023/M-024 + six-handshake line, design README index + baseline; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3480/153555364; M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +
+     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + M-022/M-023/M-024, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )

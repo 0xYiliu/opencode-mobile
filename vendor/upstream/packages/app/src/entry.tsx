@@ -20,9 +20,10 @@ import {
   createServiceOpsClient,
   createSshHostKeyVerifier,
   createSshHostTransport,
+  SSH_BOOTSTRAP_MESSAGE,
   createVaultClient,
   createVaultResolver,
-  createWebMessageChannelTransport,
+  createAndroidXVaultTransport,
   createWebMessageFilesTransport,
   createWebMessageNotificationsTransport,
   createWebMessageProbeTransport,
@@ -65,6 +66,20 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 
 const web = createWebPlatform(pkg.version)
 
+// Create the SSH message listener synchronously during module evaluation. Native currently
+// starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here
+// can miss that window on a slow device and leave every later connect unavailable.
+const ssh = createWebMessageSshTransport({
+  subscribe: (handler) => {
+    window.addEventListener("message", handler as EventListener)
+    return () => window.removeEventListener("message", handler as EventListener)
+  },
+  requestNativeHandshake: () => {
+    const bootstrap = (window as any).opencodeMobileSshBootstrapV2
+    if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
+  },
+})
+
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
 }
@@ -105,22 +120,10 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     // ?auth_token passthrough is inapplicable in this shell (no assembled server to
     // authenticate), so its handling is removed with this patch.
     //
-    // mobile(M-007 amendment, issue #4): wire the device credential vault. The transport
-    // subscribes BEFORE first render so the native handshake (posted from
-    // onPageFinished with a transferable port) cannot be missed: the handler validates the
-    // handshake SHAPE only — event.origin is never consulted because embedder-posted
-    // messages carry an empty origin by platform construction (see
-    // docs/design/architecture.md, three-layer trust). The port is captured inside the
-    // transport's closure (never a global), acked immediately, and later handshakes are
-    // ignored. Before that ack the vault is unavailable — an explicit state; there is no
-    // plaintext fallback anywhere.
+    // mobile vault protocol v2 uses the native origin-bound AndroidX listener. It remains
+    // unavailable until its non-mutating readiness roundtrip completes.
     const vault = createVaultClient(
-      createWebMessageChannelTransport({
-        subscribe: (handler) => {
-          window.addEventListener("message", handler as EventListener)
-          return () => window.removeEventListener("message", handler as EventListener)
-        },
-      }),
+      createAndroidXVaultTransport((window as any).opencodeMobileVaultV2),
     )
     // mobile(M-014): the endpoint probe bridge (issue #5) — a protocol-isolated sibling of
     // the vault bridge on the same window message events. The handshake strings differ
@@ -146,12 +149,6 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     // origin by platform construction). The port is captured into the transport closure and
     // acked immediately; before that ack every ssh attempt fails explicitly
     // (bridge-unavailable) — no tunnel can exist unverified.
-    const ssh = createWebMessageSshTransport({
-      subscribe: (handler) => {
-        window.addEventListener("message", handler as EventListener)
-        return () => window.removeEventListener("message", handler as EventListener)
-      },
-    })
     // mobile(M-016): the service ops bridge (issue #7) — the FOURTH protocol-isolated
     // sibling of the vault/probe/ssh bridges on the same window message events. Its
     // handshake string ("opencode-mobile-svcops-handshake") is captured only by this

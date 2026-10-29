@@ -14,7 +14,7 @@ import javax.crypto.spec.GCMParameterSpec
  * src/vault/types.ts). `code` crosses the bridge verbatim in error responses; messages are
  * diagnostic only and never contain credential values (zero-value logging red line).
  */
-class VaultException(val code: String, message: String) : Exception(message)
+class VaultException(val code: String, message: String, val recoveryRef: String? = null) : Exception(message)
 
 /**
  * Keystore-backed envelope crypto (issue #4, decision D2) — the Kotlin mirror of
@@ -61,12 +61,16 @@ object VaultCrypto {
     fun seal(id: String, plaintext: ByteArray): ByteArray {
         if (plaintext.isEmpty()) throw VaultException("io", "refusing to seal an empty credential value")
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, ByteArray(IV_BYTES).also { java.security.SecureRandom().nextBytes(it) }))
+        // AndroidKeyStore with randomized encryption rejects caller-provided IVs. Let the
+        // provider generate the GCM IV, then persist that IV in the unchanged OPMV1 envelope.
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val iv = cipher.iv
+        if (iv == null || iv.size != IV_BYTES) throw VaultException("io", "keystore returned an invalid GCM IV")
         cipher.updateAAD(id.toByteArray(Charsets.UTF_8))
         val encrypted = cipher.doFinal(plaintext)
         val envelope = ByteArray(MAGIC.size + IV_BYTES + encrypted.size)
         System.arraycopy(MAGIC, 0, envelope, 0, MAGIC.size)
-        System.arraycopy(cipher.iv, 0, envelope, MAGIC.size, IV_BYTES)
+        System.arraycopy(iv, 0, envelope, MAGIC.size, IV_BYTES)
         System.arraycopy(encrypted, 0, envelope, MAGIC.size + IV_BYTES, encrypted.size)
         return envelope
     }

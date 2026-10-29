@@ -18,12 +18,52 @@ function anyPort() {
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 describe("ssh bridge handshake capture (three-bridge isolation)", () => {
+  test("requests the native channel only after listener installation and replays early readiness", () => {
+    let installed = false
+    let nativeReadyRequested = false
+    let receiveWindowMessage: ((event: { data: unknown; ports?: unknown }) => void) | undefined
+    const sent: string[] = []
+    const port = {
+      postMessage(message: string) { sent.push(message) },
+      onmessage: null as ((event: { data: unknown }) => void) | null,
+      close() {},
+    }
+    const transport = createWebMessageSshTransport({
+      subscribe(handler) {
+        installed = true
+        receiveWindowMessage = handler
+        return () => { receiveWindowMessage = undefined }
+      },
+      requestNativeHandshake() {
+        expect(installed).toBe(true)
+        nativeReadyRequested = true
+        receiveWindowMessage?.({ data: SSH_HANDSHAKE, ports: [port] })
+      },
+    })
+
+    expect(nativeReadyRequested).toBe(true)
+    expect(transport.status()).toBe("available")
+    expect(sent).toEqual([JSON.stringify({ op: "ack" })])
+    const readiness: boolean[] = []
+    transport.onReady((ready) => readiness.push(ready))
+    expect(readiness).toEqual([true])
+    transport.dispose()
+  })
+
   test("captures only the ssh handshake with exactly one port and acks immediately", () => {
     const { native } = createFakeSshBridge()
     expect(native.acked()).toBe(false)
     native.connect()
     expect(native.acked()).toBe(true)
     expect(native.sent()).toEqual([JSON.stringify({ op: "ack" })])
+  })
+
+  test("replays available state when a subscriber attaches after the handshake", () => {
+    const { transport, native } = createFakeSshBridge()
+    native.connect()
+    const readiness: boolean[] = []
+    transport.onReady((available) => readiness.push(available))
+    expect(readiness).toEqual([true])
   })
 
   test("vault and probe handshakes are NOT captured by the ssh transport (and vice versa)", async () => {

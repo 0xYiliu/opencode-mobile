@@ -180,10 +180,10 @@
       "targets": [
         "packages/app/src/entry.tsx"
       ],
-      "reason": "SSH tunnel bridge wiring (issue #6). The entry creates the ssh bridge transport over the protocol-isolated ssh handshake (opencode-mobile-ssh-handshake) - the third sibling of the vault and probe transports on the same window message events, each capturing only its own handshake string with exactly one port, none consulting event.origin (embedder-posted messages carry an empty origin by platform construction). Port captured in the transport closure, acked immediately, later handshakes ignored. createMobileHosts now receives the bridge-backed hostKey verifier, tunnel transport and sshBridge handle; the fail-closed stubs stay the package's no-injection default. Before the native ack every ssh attempt fails explicitly (bridge-unavailable) - no tunnel can exist unverified.",
+      "reason": "SSH tunnel bridge wiring (issue #6). The entry creates the ssh transport synchronously during module evaluation, before asynchronous locale loading, so its window-message listener cannot miss native startup. It signals readiness through an AndroidX WebMessageListener bootstrap; native restricts that bootstrap to the exact configured loopback origin and main frame before posting the existing protocol-isolated channel (`opencode-mobile-ssh-handshake`). The transferred port stays closure-confined, is ack-gated, and retains the existing JSON/requestId operation API. createMobileHosts receives the bridge-backed hostKey verifier, tunnel transport and sshBridge handle; fail-closed stubs remain the package's no-injection default.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts full mode (dist markers opencode-mobile-ssh-handshake + mobile(ssh-v1), entry wiring assertions); driver full-flow tests in packages/mobile-hosts/test/runtime-ssh.test.ts; device behavior BLOCKED (G17, SSH E2E).",
-      "rebase": "New patch (issue #6); rebase target is the mobile(M-014) probe transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the createMobileHosts call, extended with the ssh transport, the bridge-backed hostKey/transport and the sshBridge handle)."
+      "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts checks the AndroidX origin/frame bootstrap and that the listener subscribes before locale loading; SSH transport tests cover handshake request ordering/readiness replay and request/event behavior; synthetic isolated-device loopback test reached native SSH and returned connection refused (no external host). Real SSH/host-key confirmation remains unverified.",
+      "rebase": "New patch (issue #6); bridge transport bootstrap lives at entry module initialization before loadInitialLocale; createMobileHosts receives the bridge-backed hostKey/transport and sshBridge handle inside the existing startup callback."
     },
     {
       "id": "M-016",
@@ -338,6 +338,47 @@
       "verification": "V3 layered round-trip after M-027; focused screen/source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout and navigation behavior remain to be verified under G36.",
       "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-027. Target is the mobile branch of ConnectServerScreen's method switch and its existing mobile SSH hosts action.",
       "owner": "opencode-mobile maintainers"
+    }
+    ,
+    {
+      "id": "M-029",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0028-M-029-connection-label-nowrap.patch",
+      "targets": ["packages/app/src/servers/connect/screen.tsx"],
+      "reason": "Carry forward the approved issue-55 M-029 correction: keep the mobile Use password and SSH method actions on one line when possible. Layered after M-028 and before the inline SSH method patch.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-connection-inline-ssh.ts asserts the labels retain whitespace-nowrap in the mobile initial screen; V3 layered closure verification.",
+      "rebase": "Layered after M-028; applies to the mobile connection method row in packages/app/src/servers/connect/screen.tsx."
+    },
+    {
+      "id": "M-030",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0029-M-030-inline-ssh-setup.patch",
+      "targets": ["packages/app/src/servers/connect/screen.tsx", "packages/app/src/shell/routes/routes.tsx", "packages/app/src/shell/routes/connection-route.ts", "packages/app/src/shell/routes/connection-route.test.ts"],
+      "reason": "Issue #58: add an inline switchable SSH setup mode to ConnectServerScreen; restore the original no-server/signed-out Settings guard; AppShell-owned SSH onboarding retains the initial screen until the specifically owned host reaches ready with authenticated /api/info health. Reuses the existing host registry, credential dialog, host-key prompt, and SSH runtime.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-connection-inline-ssh.ts, mobile-host tests and V2 build smoke; MatePad APK/SW hash comparison located stale active worker (old `screen-Cz2Jyo6j.js`, new packaged worker waiting). Android worker rollover now promotes current build without clearing user storage; after install -r, DOM click rendered the inline host form at the same URL (G37 PASS). Synthetic unsubmitted drafts were cleared; no real credentials/hosts submitted. Real host-key/service-auth E2E remains BLOCKED.",
+      "rebase": "Layered after M-029; ConnectServerScreen method panel and AppShell in routes.tsx. Removes the M-027 settings exception/helper/test; keeps signed-out HTTP URL anchoring."
+    },
+    {
+      "id": "M-031",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0030-M-031-utf8-basic-auth.patch",
+      "targets": ["packages/app/src/runtime/server/api.ts", "packages/app/src/runtime/server/api.test.ts", "packages/app/src/runtime/server/client.test.ts"],
+      "reason": "Encode OpenCode Basic-auth credentials as UTF-8 bytes before base64 instead of calling btoa on Unicode code units; keeps legacy ASCII behavior and enables safe memory-only service authentication for Unicode passwords.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "api.test.ts covers ASCII compatibility, non-ASCII UTF-8 byte round-trips, and a real OpenCode client file.read request using a mapped SSH password; client.test.ts verifies Unicode credentials survive transport.update for a subsequent API request; V3 layered closure verification.",
+      "rebase": "Layered after M-030; target authTokenFromCredentials in packages/app/src/runtime/server/api.ts and its adjacent test."
+    },
+    {
+      "id": "M-032",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0032-M-032-vault-androidx-listener.patch",
+      "targets": ["packages/app/src/entry.tsx", "packages/app/src/servers/connect/dialog.tsx", "packages/app/src/runtime/i18n/en.ts", "packages/app/src/runtime/i18n/zh.ts"],
+      "reason": "Issue #58 vault boundary replacement: use the origin-bound AndroidX WebViewCompat.addWebMessageListener injected object and protocol v2 readiness roundtrip instead of the bespoke window-message WebMessageChannel handshake. The direct-server caller surfaces candidate recovery refs without retry/commit on error; other five native bridges are unchanged.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-credential-vault.ts, vault transport tests, bun run build:web, and V3 layered closure. Direct-server UNKNOWN caller keeps the prior connection uncommitted and surfaces recoveryRef. Isolated device readiness smoke is historical; synthetic storage instrumentation timed out and is BLOCKED.",
+      "rebase": "Layered after M-031; replaces the vault transport wiring in entry.tsx and updates the credential-change failure copy/recoveryRef in connect/dialog.tsx and en/zh i18n."
     }
   ]
 }

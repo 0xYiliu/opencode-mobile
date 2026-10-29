@@ -1,15 +1,15 @@
 diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
-index a2ec6cd..1db3334 100644
 --- a/packages/app/src/entry.tsx
 +++ b/packages/app/src/entry.tsx
-@@ -15,13 +15,16 @@ import pkg from "../package.json"
+@@ -15,6 +15,7 @@
  import {
    createMobileHosts,
    createProbeClient,
 +  createServiceOpsClient,
    createSshHostKeyVerifier,
    createSshHostTransport,
-   createVaultClient,
+   SSH_BOOTSTRAP_MESSAGE,
+@@ -22,7 +23,9 @@
    createVaultResolver,
    createWebMessageChannelTransport,
    createWebMessageProbeTransport,
@@ -19,10 +19,10 @@ index a2ec6cd..1db3334 100644
  } from "@opencode-mobile/mobile-hosts"
  
  const getLocale = () => {
-@@ -143,6 +146,30 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
-         return () => window.removeEventListener("message", handler as EventListener)
-       },
-     })
+@@ -143,6 +146,30 @@
+         },
+       }),
+     )
 +    // mobile(M-016): the service ops bridge (issue #7) — the FOURTH protocol-isolated
 +    // sibling of the vault/probe/ssh bridges on the same window message events. Its
 +    // handshake string ("opencode-mobile-svcops-handshake") is captured only by this

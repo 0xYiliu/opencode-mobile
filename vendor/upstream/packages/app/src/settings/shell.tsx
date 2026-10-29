@@ -486,7 +486,7 @@ function RootSettings() {
       <Tabs.Content value="servers" class="settings-panel">
         <MobileHostManager />
         <Show when={singleEntry()} keyed>
-          {(entry) => <SettingsServerGeneral entry={entry()} onAddServer={addServer} />}
+          {(entry) => <SettingsServerGeneral entry={entry} onAddServer={addServer} />}
         </Show>
       </Tabs.Content>
     </SettingsNavigation>

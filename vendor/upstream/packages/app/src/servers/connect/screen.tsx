@@ -1,4 +1,3 @@
-import { useNavigate } from "@solidjs/router"
 import { lazy, Show, Suspense } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useMutation } from "@tanstack/solid-query"
@@ -14,21 +13,25 @@ import { useRedeemPairing } from "./redeem"
 import { isMixedContent } from "./browser"
 import { cameraHint, createCameraAvailability } from "./camera"
 import { ConnectMethodSwitch, type ConnectMethod } from "./method"
+import { getMobileHosts, InitialSshSetup } from "@opencode-mobile/mobile-hosts"
 import "./screen.css"
 
 const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
 
 export function ConnectServerScreen(props: { url?: string } = {}) {
-  const navigate = useNavigate()
   const language = useLanguage()
   const platform = usePlatform()
   const servers = useServers()
   const check = useCheckServerHealth()
   const redeem = useRedeemPairing()
   const camera = createCameraAvailability()
+  const mobileHosts = getMobileHosts()
+  const chooseMethod = (method: ConnectMethod | "ssh") => {
+    setState({ method, error: "" })
+  }
 
   const [state, setState] = createStore<{
-    method: ConnectMethod
+    method: ConnectMethod | "ssh"
     link: string
     url: string
     password: string
@@ -67,6 +70,9 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
     )
 
     servers.add(existing ? { ...existing, http } : { type: "http", http })
+    // An earlier SSH mode switch may own the initial screen. A successful authenticated
+    // direct connection is also a valid initial handoff; merely switching modes is not.
+    mobileHosts.releaseInitialScreen()
   }
 
   const connectionError = (url: string) =>
@@ -143,6 +149,7 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
             </Suspense>
           }
         >
+          <Show when={state.method !== "ssh"}>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -225,6 +232,10 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
               {language.t(request.isPending ? "dialog.server.add.checking" : "server.connect.button")}
             </Button>
           </form>
+          </Show>
+          <div hidden={state.method !== "ssh"}>
+            <InitialSshSetup runtime={mobileHosts} active={() => state.method === "ssh"} />
+          </div>
           <Show when={state.method === "link" && platform.platform === "web"}>
             <Show
               when={camera.available.latest || camera.available.loading}
@@ -244,7 +255,7 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
             when={platform.platform !== "desktop"}
             fallback={
               <ConnectMethodSwitch
-                method={state.method}
+                method={state.method === "ssh" ? "link" : state.method}
                 disabled={request.isPending}
                 onChange={(method) => setState({ method, error: "" })}
               />
@@ -254,23 +265,25 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
               <span class="text-v2-text-text-faint">
                 {language.t(state.method === "link" ? "server.connect.password.prompt" : "server.connect.link.prompt")}
               </span>
-              <div class="flex items-center justify-center gap-1">
+              <div data-component="server-connect-method" class="flex flex-wrap items-center justify-center gap-1">
                 <Button
+                  type="button"
                   variant="ghost-muted"
+                  class="whitespace-nowrap"
                   disabled={request.isPending}
-                  onClick={() => setState({ method: state.method === "link" ? "password" : "link", error: "" })}
+                  onClick={() => chooseMethod(state.method === "link" ? "password" : "link")}
                 >
                   {language.t(state.method === "link" ? "server.connect.password.use" : "server.connect.link.use")}
                 </Button>
-                <Show when={state.method === "link"}>
-                  <Button
-                    variant="ghost-muted"
-                    disabled={request.isPending}
-                    onClick={() => navigate("/settings?tab=servers")}
-                  >
-                    {language.t("settings.tab.sshHosts")}
-                  </Button>
-                </Show>
+                <Button type="button" variant="ghost-muted" class="whitespace-nowrap" disabled={request.isPending} onClick={() => chooseMethod("link")}>
+                  {language.t("server.connect.link")}
+                </Button>
+                <Button type="button" variant="ghost-muted" class="whitespace-nowrap" disabled={request.isPending} onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  mobileHosts.claimInitialScreen()
+                  setState({ method: "ssh", error: "", scanning: false })
+                }}>{language.t("settings.tab.sshHosts")}</Button>
               </div>
             </div>
           </Show>

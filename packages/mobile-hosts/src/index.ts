@@ -69,6 +69,7 @@ export { ENVELOPE_MAGIC, generateEnvelopeKey, importEnvelopeKey, openEnvelope, s
 export {
   VAULT_BRIDGE,
   VAULT_HANDSHAKE,
+  createAndroidXVaultTransport,
   createInProcessVaultEngine,
   createWebMessageChannelTransport,
   type InProcessVaultEngine,
@@ -76,6 +77,7 @@ export {
   type VaultPortLike,
   type VaultResponse,
   type VaultTransport,
+  type VaultNativeListener,
 } from "./vault/transport"
 export { createVaultClient, createVaultResolver, parsePrivateKeyEnvelope, type PrivateKeyEnvelope } from "./vault/vault"
 export { evaluateRemember, initialRemember, type RememberDecision, type RememberInput } from "./vault/remember"
@@ -114,6 +116,7 @@ export {
 } from "./ssh/known-hosts"
 export {
   SSH_BRIDGE,
+  SSH_BOOTSTRAP_MESSAGE,
   SSH_HANDSHAKE,
   bridgeErrorToTransportError,
   bridgeServicePort,
@@ -134,6 +137,7 @@ export {
   type RedirectVerdict,
 } from "./transport/url-policy"
 export { SECURE_FETCH_MARKER, createSecureFetch } from "./transport/secure-fetch"
+export { basicAuthToken } from "./transport/basic-auth"
 export {
   PROBE_BRIDGE,
   PROBE_HANDSHAKE,
@@ -149,9 +153,17 @@ export {
   type WebMessageProbeTransportOptions,
 } from "./probe"
 export { createMobileHosts, getMobileHosts, type MobileHosts, type MobileHostsOptions } from "./runtime"
+export { canHandoffInitialSsh, canStartInitialSshAttempt, shouldSelectCreatedSshHost } from "./initial-handoff"
 export { HostDialog } from "./ui/host-dialog"
+export { decideHostCredential, persistHostCredential } from "./ui/host-credential"
 export { HostKeyPrompt } from "./ui/host-key-prompt"
+export { bindHostKeyPrompt } from "./ui/host-key-binding"
+export { KeyedHostKeyPrompt } from "./ui/keyed-host-key-prompt"
+export { HostKeyRecovery } from "./ui/host-key-recovery"
+export { createHostKeyRecoveryFlow, type HostKeyRecoveryPhase } from "./ui/host-key-recovery-flow"
 export { MobileHostManager } from "./ui/host-manager"
+export { InitialSshSetup } from "./ui/initial-ssh-setup"
+export { ServiceAuthPrompt } from "./ui/service-auth-prompt"
 export { CredentialManager } from "./ui/credential-manager"
 export { ServicePanel } from "./ui/service-panel"
 // issue #7: service operations (fourth bridge) — taxonomy, whitelist command face,

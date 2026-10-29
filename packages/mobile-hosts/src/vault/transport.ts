@@ -1,39 +1,110 @@
-// Vault bridge transport (issue #4, decision D1) — the JS side of the platform
-// WebMessage channel.
+// Vault bridge transports (issue #4 / issue #58). Production uses the origin-bound AndroidX
+// WebViewCompat listener (protocol v2). The old transferable-port transport below remains
+// only as an in-process test harness for legacy response semantics; native no longer serves it.
 //
-// Trust model (docs/design/architecture.md "vault 桥的三层信任"):
-// - event.origin is NEVER consulted: embedder-posted messages carry an empty origin by
-//   platform construction (Chromium AwContents.postMessageToMainFrame hardcodes
-//   sourceOrigin=null -> blink originForBindings() "" -> PostMessageTest SOURCE_ORIGIN="").
-//   Trust comes from (1) the platform-enforced targetOrigin on the native post, (2) port
-//   confinement (the port lives in this module's closure, never on a global), and
-//   (3) zero capability before the handshake is captured and acked.
-// - Handshake shape is validated strictly: data === "opencode-mobile-vault-handshake" and
-//   exactly one port. Malformed events never capture; after the first successful capture
-//   every later handshake is ignored (retry/multi-onPageFinished desync guard).
-// - Messages are JSON strings in both directions (zero binary across the bridge), with a
-//   requestId correlating responses.
+// Production trust is enforced natively by AndroidX WebKit's exact origin rules plus
+// per-message source-origin and main-frame checks. The legacy in-process harness below
+// deliberately retains the former shape-only handshake for unrelated fake-bridge tests;
+// it is not registered by the Android app and conveys no current production trust claim.
 
 import { VaultError, type VaultErrorCode } from "./types"
 
-/** The handshake string the native side posts with the transferable port. */
+/** @deprecated Test-only legacy handshake marker; production protocol v2 does not use it. */
 export const VAULT_HANDSHAKE = "opencode-mobile-vault-handshake"
 
 /**
- * Bridge constants object; `marker` anchors the V-secret dist audit (docs/build-and-verify.md):
+ * Bridge constants object; `marker` anchors the v2 dist audit (docs/build-and-verify.md):
  * the string survives minification inside this used object and lets the built bundle be
- * checked for the vault contract (mobile(vault-v1)) the same way mobile(M-002) is.
+ * checked for the vault contract (mobile(vault-v2)) the same way mobile(M-002) is.
  */
 export const VAULT_BRIDGE = {
-  marker: "mobile(vault-v1): keystore envelope v1 over the platform web message channel",
+  marker: "mobile(vault-v2): Keystore envelope v1 over origin-bound AndroidX WebMessageListener",
   handshake: VAULT_HANDSHAKE,
 } as const
 
 export type VaultOperation = "put" | "remove" | "get" | "list"
 
+/** AndroidX WebViewCompat.addWebMessageListener injected object (protocol v2). */
+export interface VaultNativeListener {
+  postMessage(message: string): void
+  onmessage: ((event: { data: unknown }) => void) | null
+}
+
+export function createAndroidXVaultTransport(listener: VaultNativeListener | undefined, options: { timeoutMs?: number; requestId?: () => string } = {}): VaultTransport {
+  const timeoutMs = options.timeoutMs ?? 15000
+  const nextId = options.requestId ?? defaultRequestId
+  let ready = false
+  let dead = !listener
+  const pending = new Map<string, { op: string; resolve: (value: VaultResponse) => void; reject: (error: unknown) => void; timer: ReturnType<typeof setTimeout> }>()
+  const readyListeners = new Set<(available: boolean) => void>()
+  const setReady = (value: boolean) => { if (ready !== value) { ready = value; for (const fn of readyListeners) fn(value) } }
+  const failAll = (reason: string) => {
+    for (const [id, entry] of pending) {
+      clearTimeout(entry.timer); pending.delete(id)
+      entry.reject(new VaultError(entry.op === "put" || entry.op === "remove" ? "unknown" : "unavailable", reason))
+    }
+  }
+  if (listener) {
+    listener.onmessage = (event) => {
+      if (typeof event?.data !== "string") { failAll("malformed vault response"); return }
+      let parsed: any
+      try { parsed = JSON.parse(event.data) } catch { failAll("malformed vault response"); return }
+      const entry = typeof parsed?.id === "string" ? pending.get(parsed.id) : undefined
+      if (!entry) return
+      clearTimeout(entry.timer); pending.delete(parsed.id)
+      if (typeof parsed.ok !== "boolean" || (parsed.ok && !("result" in parsed)) || (!parsed.ok && typeof parsed.code !== "string")) {
+        entry.reject(new VaultError(entry.op === "put" || entry.op === "remove" ? "unknown" : "io", "malformed vault response")); return
+      }
+      entry.resolve(parsed as VaultResponse)
+    }
+  }
+  const transport: VaultTransport = {
+    status: () => ready && !dead ? "available" : "unavailable",
+    onReady(fn) {
+      readyListeners.add(fn)
+      // Replay current readiness to close the subscribe race when the native roundtrip
+      // completes between the client's initial status() read and its listener registration.
+      fn(ready && !dead)
+      return () => readyListeners.delete(fn)
+    },
+    request(op, params) {
+      if (!listener || dead) return Promise.reject(new VaultError("unavailable", "vault listener unavailable"))
+      const id = nextId()
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(id); setReady(false)
+          const error = new VaultError(op === "put" || op === "remove" ? "unknown" : "unavailable", "vault response timed out; mutation outcome may be unknown")
+          failAll("vault response timed out"); reject(error)
+        }, timeoutMs)
+        pending.set(id, { op, resolve, reject, timer })
+        try { listener.postMessage(JSON.stringify({ id, op, params })) }
+        catch { clearTimeout(timer); pending.delete(id); reject(new VaultError(op === "put" || op === "remove" ? "unknown" : "unavailable", "vault post failed; outcome may be unknown")) }
+      })
+    },
+    dispose() { dead = true; setReady(false); failAll("vault transport disposed"); if (listener) listener.onmessage = null },
+  }
+  if (listener) {
+    const id = nextId()
+    const timer = setTimeout(() => { pending.delete(id) }, timeoutMs)
+    pending.set(id, {
+      op: "ready",
+      resolve: (response) => {
+        clearTimeout(timer)
+        if (response.ok && response.result === "vault-v2") {
+          setReady(true)
+        }
+      },
+      reject: () => { clearTimeout(timer) },
+      timer,
+    })
+    try { listener.postMessage(JSON.stringify({ id, op: "ready", params: { protocol: VAULT_BRIDGE.marker } })) } catch { clearTimeout(timer); pending.delete(id) }
+  }
+  return transport
+}
+
 export type VaultResponse =
   | { id: string; ok: true; result: unknown }
-  | { id: string; ok: false; code: VaultErrorCode; message?: string }
+  | { id: string; ok: false; code: VaultErrorCode; message?: string; recoveryRef?: string }
 
 /** Minimal view of the message event the subscriber receives (data/ports only — never origin). */
 export interface VaultHandshakeEvent {
@@ -49,7 +120,7 @@ export interface VaultPortLike {
 }
 
 export interface VaultTransport {
-  /** Current availability (available once the handshake was captured and ack was sent). */
+  /** Current availability (available after the v2 non-mutating readiness roundtrip). */
   status(): "unavailable" | "available"
   /** Subscribe to availability flips; returns an unsubscribe function. */
   onReady(listener: (available: boolean) => void): () => void
@@ -86,9 +157,8 @@ function defaultRequestId(): string {
 }
 
 /**
- * The production transport: listens for the native handshake, captures the port into this
- * closure (never a global), acks immediately and serves request/response with requestId
- * correlation. See the module header for the trust model; origin is deliberately absent.
+ * Legacy in-process test transport: listens for the former native handshake, captures its
+ * port and serves request/response correlation. Production never calls this function.
  */
 export function createWebMessageChannelTransport(options: WebMessageChannelTransportOptions): VaultTransport {
   const timeoutMs = options.timeoutMs ?? 15000
@@ -165,7 +235,9 @@ export function createWebMessageChannelTransport(options: WebMessageChannelTrans
       return () => readyListeners.delete(listener)
     },
     request(op, params) {
-      if (!port || dead) return Promise.reject(new VaultError("unavailable", "vault bridge handshake not captured"))
+      if (!port || dead) {
+        return Promise.reject(new VaultError("unavailable", "vault bridge handshake not captured"))
+      }
       const id = nextRequestId()
       return new Promise<VaultResponse>((resolve, reject) => {
         const timer = setTimeout(() => {

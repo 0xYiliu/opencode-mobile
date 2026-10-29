@@ -10,16 +10,48 @@
 // The remember decision reuses truth table v3 (src/vault/remember.ts): the same semantics
 // as the upstream connect dialog (M-009), evaluated for the SSH host form.
 
-import { Show, createSignal, onMount } from "solid-js"
+import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { TextInput } from "@opencode/ui/text-input"
 import { DEFAULT_SERVICE_PORT, HostRegistryError } from "../registry"
 import { createTranslator, type MessageKey } from "../i18n"
 import type { MobileHosts } from "../runtime"
-import { evaluateRemember, initialRemember } from "../vault/remember"
-import { MAX_SECRET_BYTES, parseVaultRef, type VaultEntryMetadata } from "../vault/types"
+import { initialRemember } from "../vault/remember"
+import { decideHostCredential, persistHostCredential } from "./host-credential"
+import { MAX_SECRET_BYTES, parseVaultRef, VaultError, type VaultEntryMetadata } from "../vault/types"
 
-export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClose: () => void }) {
+class PrivateKeyTooLargeError extends Error {}
+
+/** Stream actual file bytes to EOF with a bound; DocumentsUI File.size/slice metadata may lie. */
+async function readPrivateKeyFile(file: File): Promise<string> {
+  const reader = file.stream().getReader()
+  const chunks: Uint8Array[] = []
+  let length = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      length += value.byteLength
+      if (length > MAX_SECRET_BYTES) {
+        await reader.cancel().catch(() => {})
+        throw new PrivateKeyTooLargeError()
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const bytes = new Uint8Array(length)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(bytes)
+}
+
+export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClose: () => void; onCreated?: (id: string, generation?: number) => void; beforeCreate?: () => number | void }) {
   const t = createTranslator(props.runtime.locale)
   const vault = props.runtime.credentials
   const editing = props.hostId !== undefined ? props.runtime.registry.get(props.hostId) : undefined
@@ -32,16 +64,29 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
   const [servicePort, setServicePort] = createSignal(String(editing?.servicePort ?? DEFAULT_SERVICE_PORT))
   // Remember state: initialized from the prior ref (truth table "initial value").
   const [remember, setRemember] = createSignal(initialRemember(editing?.credentialRef))
+  // Once a bound private key is explicitly unchecked, allow the user to re-check and type
+  // a replacement password. The new credential gets a fresh vault entry; the old key stays
+  // discoverable as an orphan and is never overwritten or removed implicitly.
+  const [replaceBoundKey, setReplaceBoundKey] = createSignal(false)
   const [password, setPassword] = createSignal("")
-  // Key passphrase (issue #3): optional, shown with the import block — it wraps the
-  // imported key into the vault envelope form and is cleared from memory right after.
+  // Key passphrase (issue #6): optional form draft used to wrap an imported key before the
+  // vault write. It remains memory-only and clears after a successful put or form disposal.
   const [keyPassphrase, setKeyPassphrase] = createSignal("")
+  const [pendingKey, setPendingKey] = createSignal<string>()
   // The binding the save will work from; a key import re-points it before the save.
   const [boundRef, setBoundRef] = createSignal<string | undefined>(editing?.credentialRef)
   const [boundMeta, setBoundMeta] = createSignal<VaultEntryMetadata | undefined>(undefined)
   const [boundKnown, setBoundKnown] = createSignal<boolean | undefined>(undefined) // undefined: unknown (vault unavailable)
   const [importing, setImporting] = createSignal(false)
+  const [saving, setSaving] = createSignal(false)
   const [error, setError] = createSignal<string | undefined>(undefined)
+  let saveLock = false
+  let disposed = false
+  let generation = 0
+  onCleanup(() => {
+    disposed = true
+    generation++
+  })
   const vaultAvailable = () => vault.status() === "available"
 
   // Metadata lookup for the bound entry (kind display + missing-entry detection). The
@@ -83,34 +128,35 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
   }
 
   // Private key import: input[type=file] surfaces through the shell's file chooser
-  // (onShowFileChooser -> ACTION_OPEN_DOCUMENT); the plaintext crosses the bridge exactly
-  // once, is never persisted anywhere else and never leaves this closure. The URI/permission
-  // is not persisted (no takePersistableUriPermission) and the size bound is pre-checked.
-  // Issue #6: an optional key passphrase wraps the key into the vault envelope form
-  // ({"v":1,"key":...,"passphrase":...}) — same Keystore-encrypted value, never a registry
-  // field — and is cleared from this closure the moment the import settles either way.
+  // (onShowFileChooser -> ACTION_OPEN_DOCUMENT); the plaintext is staged only in this form,
+  // then crosses the vault bridge once on a validated Save. It is never otherwise persisted.
+  // The URI/permission
+  // is not persisted (no takePersistableUriPermission); bytes are read with a hard bound.
+  // An optional passphrase wraps the staged key in the vault envelope form
+  // ({"v":1,"key":...,"passphrase":...}) — never a registry field.
   const onKeyFile = async (file: File | undefined) => {
     if (!file) return // chooser cancelled: nothing happens
     setError(undefined)
-    if (file.size > MAX_SECRET_BYTES) {
-      setError(t("hostDialog.error.putFailed"))
-      return
-    }
     setImporting(true)
-    const passphrase = keyPassphrase()
-    setKeyPassphrase("") // the passphrase never lingers in memory beyond the import
     try {
-      const text = await file.text()
-      const value = passphrase.length > 0 ? JSON.stringify({ v: 1, key: text, passphrase }) : text
-      const ref = await vault.put({ kind: "privateKey", value, ...(boundRef() !== undefined ? { existingRef: boundRef() } : {}) })
-      setBoundRef(ref)
+      // Content providers may report an unknown/sentinel File.size or implement Blob.slice
+      // using that bad metadata. Stream actual bytes to EOF, stopping as soon as the bound is
+      // exceeded instead of trusting provider metadata or reading an unbounded document.
+      const text = await readPrivateKeyFile(file)
+      if (new TextEncoder().encode(text).byteLength > MAX_SECRET_BYTES) {
+        setError(t("hostDialog.error.keyTooLarge"))
+        return
+      }
+      if (!text.includes("-----BEGIN ")) throw new Error("invalid private key")
+      setPendingKey(text)
       setRemember(true)
-      const meta = await vault.list().then((metas) => metas.find((m) => m.id === parseVaultRef(ref)))
-      setBoundMeta(meta)
-      setBoundKnown(Boolean(meta))
-    } catch {
-      // Nothing was changed on disk unless the put itself partially succeeded; the dialog
-      // stays open with an inline error instead of silently dropping the binding.
+    } catch (error) {
+      if (error instanceof PrivateKeyTooLargeError) {
+        setError(t("hostDialog.error.keyTooLarge"))
+        return
+      }
+      // Import only stages the file in this form; a read/format failure changes no vault or
+      // registry entry and leaves the user with an inline retry path.
       setError(t("hostDialog.importKeyFailed"))
     } finally {
       setImporting(false)
@@ -122,8 +168,8 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
    * anything non-numeric or out of 1..65535 fails the save with an inline error — the
    * previously stored record stays untouched.
    */
-  const parseServicePort = (): number | undefined => {
-    const raw = servicePort().trim()
+  const parseServicePort = (input = servicePort()): number | undefined => {
+    const raw = input.trim()
     if (raw === "") return DEFAULT_SERVICE_PORT
     const parsed = Number(raw)
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return undefined
@@ -131,74 +177,119 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
   }
 
   const save = async () => {
+    // The lock is synchronous (before the first await), so rapid taps and Enter cannot
+    // start two vault writes using the same snapshot.
+    if (saveLock || saving() || importing() || disposed) return
+    saveLock = true
     setError(undefined)
-    // servicePort first: a malformed port fails the save before any vault call (the
-    // previously stored record stays untouched, acceptance: editing failure preserves it).
-    const port = parseServicePort()
-    if (port === undefined) {
-      setError(t("hostDialog.error.invalidServicePort"))
-      return
-    }
-    // Truth table v3 for the SSH form: add has no prior, edit's prior is the bound ref.
-    // boundKind lets an already-imported private key keep its binding on an empty value
-    // (row 13) instead of aborting the save and stranding the entry as an orphan.
-    const decision = evaluateRemember({
-      mode: editing ? "edit" : "add",
-      checkboxRendered: vaultAvailable(),
-      remember: remember(),
-      valueEmpty: password().length === 0,
-      priorRef: boundRef(),
-      ...(boundMeta() !== undefined ? { boundKind: boundMeta()!.kind } : {}),
-    })
-    if (decision.action === "abort") {
-      setError(t("hostDialog.needsPassword"))
-      return
-    }
-    let credentialRef: string | undefined
     try {
-      if (decision.action === "put") {
-        credentialRef = await vault.put({ kind: "password", value: password(), ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}) })
-      } else if (decision.action === "clear") {
-        await vault.remove(decision.ref)
-        credentialRef = undefined
-      } else if (decision.action === "passthrough") {
-        credentialRef = decision.ref
+      // Snapshot *all* mutable form values before the first await. The validated snapshot is
+      // the only data allowed to reach the vault or registry for this save attempt.
+      const draft = {
+        name: name(),
+        target: target(),
+        servicePort: servicePort(),
+        password: password(),
+        pendingKey: pendingKey(),
+        keyPassphrase: keyPassphrase(),
+        remember: remember(),
+        boundRef: boundRef(),
+        boundKind: boundMeta()?.kind,
       }
-    } catch {
-      // put/remove failure: keep the dialog open with an inline error — never silently
-      // close with a half-applied binding.
-      setError(t("hostDialog.error.putFailed"))
-      return
-    }
-    try {
-      if (editing) {
-        // Empty string means "clear": the registry's update treats an explicit empty value
-        // as removal (undefined would mean "keep the current value"). Never convert the
-        // empty string to undefined here — that would silently preserve the stored ref.
-        props.runtime.registry.update(editing.id, {
-          name: name(),
-          target: target(),
-          servicePort: port,
-          credentialRef: credentialRef ?? "",
-        })
-      } else {
-        props.runtime.registry.add({
-          name: name(),
-          target: target(),
-          servicePort: port,
-          ...(credentialRef !== undefined ? { credentialRef } : {}),
-        })
+      const port = parseServicePort(draft.servicePort)
+      if (port === undefined) {
+        setError(t("hostDialog.error.invalidServicePort"))
+        return
       }
-    } catch (error) {
-      const code = error instanceof HostRegistryError ? error.code : "invalid-target"
-      setError(t(errorCodeToMessage(code)))
-      return // keep the previously stored record untouched
+      try {
+        props.runtime.registry.validate({ name: draft.name, target: draft.target, servicePort: port }, editing?.id)
+      } catch (error) {
+        const code = error instanceof HostRegistryError ? error.code : "invalid-target"
+        setError(t(errorCodeToMessage(code)))
+        return
+      }
+      // Truth table v3 for the SSH form. A staged key is a non-empty credential even while
+      // the password editor is blank; boundKind preserves a prior imported key on edit.
+      const decision = decideHostCredential({
+        mode: editing ? "edit" : "add",
+        checkboxRendered: vaultAvailable(),
+        remember: draft.remember,
+        password: draft.password,
+        ...(draft.pendingKey !== undefined ? { pendingKey: draft.pendingKey } : {}),
+        priorRef: draft.boundRef,
+        ...(draft.boundKind !== undefined ? { boundKind: draft.boundKind } : {}),
+      })
+      if (decision.action === "abort") {
+        setError(t(decision.reason === "key-requires-vault" ? "hostDialog.keyRequiresRemember" : "hostDialog.needsPassword"))
+        return
+      }
+
+      const saveGeneration = generation
+      setSaving(true)
+      const createGeneration = editing ? undefined : props.beforeCreate?.()
+      let credentialRef: string | undefined
+      let savedKind: "password" | "privateKey" | undefined
+      try {
+        const saved = await persistHostCredential({
+          vault,
+          decision,
+          password: draft.password,
+          ...(draft.pendingKey !== undefined ? { pendingKey: draft.pendingKey } : {}),
+          keyPassphrase: draft.keyPassphrase,
+        })
+        credentialRef = saved.credentialRef
+        savedKind = saved.kind
+      } catch (error) {
+        if (!disposed && generation === saveGeneration) {
+          const recoveryRef = error instanceof VaultError ? error.recoveryRef : undefined
+          setError(`${t("hostDialog.error.putFailed")}${recoveryRef ? ` ${recoveryRef}` : ""}`)
+        }
+        return
+      }
+
+      // A parent route change can dispose the dialog while the vault promise is pending.
+      // Keep any newly encrypted value as an explicit orphan; never publish/connect after
+      // cancellation, and never delete an existing referenced credential to compensate.
+      if (disposed || generation !== saveGeneration) return
+
+      try {
+        if (editing) {
+          // Empty string clears only the registry reference. The existing vault entry stays
+          // available in CredentialManager's orphan list until an explicit user deletion.
+          props.runtime.registry.update(editing.id, {
+            name: draft.name,
+            target: draft.target,
+            servicePort: port,
+            credentialRef: credentialRef ?? "",
+          })
+        } else {
+          const created = props.runtime.registry.add({
+            name: draft.name,
+            target: draft.target,
+            servicePort: port,
+            ...(credentialRef !== undefined ? { credentialRef } : {}),
+          })
+          props.onCreated?.(created.id, typeof createGeneration === "number" ? createGeneration : undefined)
+        }
+      } catch (error) {
+        const code = error instanceof HostRegistryError ? error.code : "invalid-target"
+        setError(t(errorCodeToMessage(code)))
+        return // leave the previous record and any new vault orphan visible
+      }
+      if (savedKind === "privateKey") {
+        setPendingKey(undefined)
+        setKeyPassphrase("")
+      }
+      if (!disposed && generation === saveGeneration) props.onClose()
+    } finally {
+      saveLock = false
+      if (!disposed) setSaving(false)
     }
-    props.onClose()
   }
 
   const keyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" || event.isComposing) return
+    if (saving() || importing()) return
     event.preventDefault()
     void save()
   }
@@ -230,6 +321,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           value={name()}
           placeholder={t("hostDialog.namePlaceholder")}
           invalid={!!error()}
+          disabled={saving() || importing()}
           onInput={(event) => setName(event.currentTarget.value)}
           onKeyDown={keyDown}
         />
@@ -245,6 +337,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           spellcheck={false}
           autocapitalize="off"
           value={target()}
+          disabled={saving() || importing()}
           placeholder={t("hostDialog.targetPlaceholder")}
           invalid={!!error()}
           onInput={(event) => setTarget(event.currentTarget.value)}
@@ -266,6 +359,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
           spellcheck={false}
           autocapitalize="off"
           value={servicePort()}
+          disabled={saving() || importing()}
           placeholder={t("hostDialog.servicePortPlaceholder")}
           invalid={!!error()}
           onInput={(event) => setServicePort(event.currentTarget.value)}
@@ -280,12 +374,18 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
             <span class="text-12-regular text-text-weak" role="status">
               {t("hostDialog.bound")}: {boundLabel()}
             </span>
+            <span class="text-12-regular text-text-weak">{t("hostDialog.orphanHint")}</span>
           </Show>
           <label class="flex items-center gap-2">
             <input
               type="checkbox"
               checked={remember()}
-              onChange={(event) => setRemember(event.currentTarget.checked)}
+              disabled={saving() || importing()}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked
+                if (!checked && boundMeta()?.kind === "privateKey") setReplaceBoundKey(true)
+                setRemember(checked)
+              }}
             />
             <span class="text-12-regular text-text-weak">{t("hostDialog.remember")}</span>
           </label>
@@ -300,22 +400,24 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
               class="!w-full self-stretch"
               autocomplete="off"
               value={password()}
+              disabled={saving() || importing() || (boundMeta()?.kind === "privateKey" && !replaceBoundKey())}
               placeholder={t("hostDialog.credentialPasswordPlaceholder")}
               invalid={!!error()}
-              // A bound private key must never be silently in-place overwritten by a
-              // password (same entry id, kind would flip to password). The field is
-              // disabled while a key is bound; replacing the key with a password goes
-              // through uncheck (clears the binding) then check + type.
-              disabled={boundMeta()?.kind === "privateKey"}
+              // Never overwrite a private-key entry in place. After the explicit
+              // uncheck/re-check sequence, save creates a separate password entry.
               onInput={(event) => setPassword(event.currentTarget.value)}
               onKeyDown={keyDown}
             />
-            <Show when={boundMeta()?.kind === "privateKey"}>
+            <Show when={boundMeta()?.kind === "privateKey" && !replaceBoundKey()}>
               <span class="text-12-regular text-text-weak">{t("hostDialog.passwordDisabledForKey")}</span>
+            </Show>
+            <Show when={boundMeta()?.kind === "privateKey" && replaceBoundKey()}>
+              <span class="text-12-regular text-text-weak">{t("hostDialog.keyReplacementHint")}</span>
             </Show>
             <input
               ref={keyFileInput}
               type="file"
+              disabled={saving() || importing()}
               class="hidden"
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0]
@@ -323,7 +425,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
                 void onKeyFile(file)
               }}
             />
-            <Button size="small" variant="neutral" disabled={importing()} onClick={() => keyFileInput?.click()}>
+            <Button size="small" variant="neutral" disabled={saving() || importing()} onClick={() => keyFileInput?.click()}>
               {t("hostDialog.importKey")}
             </Button>
             {/* Issue #6: optional key passphrase — wraps the imported key into the vault
@@ -340,6 +442,7 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
               class="!w-full self-stretch"
               autocomplete="off"
               value={keyPassphrase()}
+              disabled={saving() || importing()}
               placeholder={t("hostDialog.passphrasePlaceholder")}
               onInput={(event) => setKeyPassphrase(event.currentTarget.value)}
               onKeyDown={keyDown}
@@ -358,11 +461,15 @@ export function HostDialog(props: { runtime: MobileHosts; hostId?: string; onClo
         </Show>
       </div>
       <div class="flex items-center justify-end gap-2">
-        <Button variant="neutral" onClick={() => props.onClose()}>
+        <Button variant="neutral" disabled={saving() || importing()} onClick={() => {
+          if (saving() || importing() || saveLock) return
+          generation++
+          props.onClose()
+        }}>
           {t("hostDialog.cancel")}
         </Button>
-        <Button variant="contrast" onClick={() => void save()}>
-          {t("hostDialog.save")}
+        <Button variant="contrast" disabled={saving() || importing()} onClick={() => void save()}>
+          {t(saving() ? "hostDialog.saving" : "hostDialog.save")}
         </Button>
       </div>
     </div>

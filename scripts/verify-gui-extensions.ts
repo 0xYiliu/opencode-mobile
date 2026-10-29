@@ -27,7 +27,7 @@
 //   - `api.session.interrupt` three-call-site exhaustion: FIRST LOCK verify-session-workbench
 //     (issue #9). Referenced, not re-locked.
 //   - the extension enablement five-layer chain: FIRST LOCK verify-commands-menus group 5.
-//   - the patch count 25: FIRST LOCK verify-attachments-artifacts (upstreamBaseline count)
+//   - the exact registered patch-ID set and count 31: FIRST LOCK verify-attachments-artifacts
 //     + verify-commands-menus group 8 (set-equality cross-reference) — both revised in the
 //     same commit as the M-025/M-026 registration (#23 same-commit precedent). Declared.
 //   - the @opencode/gui-extensions specifier set {34, 8, 2, 1}: FIRST LOCK
@@ -509,14 +509,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 // --- 8. Build and sentinel reconciliation (mechanical witnesses) ---
 {
-  // Dist baseline re-recorded after this issue's build-input changes (M-028 connection
-  // method layout): 3482 files / 153447934 bytes measured at the issue #55 V2 run; the
-  // same values are the current revisions of the two dist sentinels
-  // (verify-notifications group 8, verify-commands-menus group 8 — cross-references,
-  // not re-locks). Earlier M-026 values remain historical in the build record.
-  const distManifest = await read("web-dist/manifest.json")
-  if (!distManifest.includes('"fileCount": 3482') || !distManifest.includes('"totalBytes": 153447934'))
-    fail("8: web-dist manifest baseline drifted (3482/153447934 expected — the issue #55 M-028 current baseline)")
+  // Cross-reference the current baseline first-locked by verify-notifications group 8.
+  // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
+  const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
+  if (distManifest.fileCount !== 3480 || distManifest.totalBytes !== 153555364)
+    fail(`8: current web-dist baseline drifted (expected 3480/153555364, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -549,7 +546,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const bunLock = await read("bun.lock")
   if (!bunLock.includes("packages/mobile-hosts")) fail("8: bun.lock lost the mobile-hosts workspace registration anchor")
 
-  // Declared cross-references (no re-lock): patch count 25 = verify-attachments-artifacts
+  // Declared cross-references (no re-lock): exact registered patch-ID set, 31 entries,
+  // reserved M-019 absent = verify-attachments-artifacts
   // group 6 + verify-commands-menus group 8; @opencode/gui-extensions specifier set
   // {sdk:34, bridge:8, renderer:2, updater:1} unchanged = verify-agent-capabilities group 3;
   // the M-025 hunk does not touch the VAC root.tsx anchors (its group 3 stayed green in
@@ -565,6 +563,6 @@ console.log(
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability two-set mapping, interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
-    "8: build witnesses — dist baseline 3482/153447934 (issue #55 M-028 current baseline; M-027 3482/153445727 and M-026 3480/153441733 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3480/153555364 (M-028 3482/153447934, M-027 3482/153445727 and M-026 3480/153441733 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows and dual-route consistency on a device are G35)",
 )

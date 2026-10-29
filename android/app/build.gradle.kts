@@ -13,7 +13,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("int", "WEB_ASSET_PORT", "18090")
     }
+
+    buildFeatures { buildConfig = true }
 
     buildTypes {
         release {
@@ -52,7 +55,8 @@ kotlin {
 }
 
 dependencies {
-    // Sole runtime dependency (Apache-2.0, belongs in the third-party notice). Zero androidx.
+    testImplementation("junit:junit:4.13.2")
+    // Apache-2.0, belongs in the third-party notice.
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     // SSH transport (issue #6, decision 0003 §1). Revised BSD (3-clause) incl. the bundled
     // JZlib (BSD-style) and jBCrypt (ISC) components — permissive; belongs in the
@@ -63,4 +67,7 @@ dependencies {
     // API 29-32 where the platform JCE lacks XDH/Ed25519. Bouncy Castle Licence (MIT-
     // adapted, bouncycastle.org/licence.html); belongs in the third-party notice.
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
+    // AndroidX WebKit (Apache-2.0; notice remains subject to the repository's existing V4 gate).
+    // Origin- and frame-aware vault messaging; pinned stable artifact.
+    implementation("androidx.webkit:webkit:1.14.0")
 }

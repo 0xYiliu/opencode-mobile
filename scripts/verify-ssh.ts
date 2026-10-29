@@ -173,6 +173,29 @@ if (!PRE_NATIVE) {
   }
   if (sshFiles.length < 4) fail(`expected at least the four ssh Kotlin files, found ${sshFiles.length}`)
 
+  // The SSH channel bootstrap is origin-bound and frame-bound; the transferred port is
+  // requested only after the page's window-message listener has synchronously subscribed.
+  {
+    const bridge = sshFiles.find((file) => file.relative.includes("SshTunnelBridge"))
+    const activity = await Bun.file(path("android/app/src/main/java/ai/opencode/mobile/MainActivity.kt")).text()
+    const listenerRegistration = activity.indexOf("sshBridge?.register()")
+    const firstLoad = activity.indexOf("webView.loadUrl(START_URL)")
+    if (!bridge?.text.includes("WebViewCompat.addWebMessageListener")
+      || !bridge.text.includes("VaultOriginPolicy.shouldAcceptMessage(isMainFrame")
+      || !bridge.text.includes("BOOTSTRAP_MESSAGE")
+      || listenerRegistration < 0 || firstLoad < listenerRegistration
+      || !activity.includes("sshBridge?.onNavigationStarted()")) {
+      fail("SSH AndroidX bootstrap must use exact origin/main-frame checks and register before loadUrl")
+    }
+    const entry = await Bun.file(path("vendor/upstream/packages/app/src/entry.tsx")).text()
+    const subscribe = entry.indexOf("const ssh = createWebMessageSshTransport")
+    const localeWait = entry.indexOf("void loadInitialLocale().then")
+    if (subscribe < 0 || localeWait < 0 || subscribe > localeWait
+      || !entry.includes("requestNativeHandshake") || !entry.includes("SSH_BOOTSTRAP_MESSAGE")) {
+      fail("SSH JS listener/bootstrap must be ready before asynchronous locale loading")
+    }
+  }
+
   // F2: the scan session carries ZERO authentication material (no setPassword/addIdentity
   // inside the scanHostKey function body).
   {
@@ -243,6 +266,10 @@ if (!PRE_VENDOR) {
   ]) {
     if (!entrySrc.includes(needle)) fail(`vendored entry.tsx: M-015 wiring missing (${needle})`)
   }
+  const sshListenerAt = entrySrc.indexOf("const ssh = createWebMessageSshTransport")
+  const localeWaitAt = entrySrc.indexOf("void loadInitialLocale().then")
+  if (sshListenerAt < 0 || localeWaitAt < 0 || sshListenerAt > localeWaitAt)
+    fail("vendored entry.tsx: SSH handshake listener must subscribe before asynchronous locale loading")
   // Dist scan: the built bundle carries the handshake string and the minification-proof
   // marker (the same discipline as mobile(M-002)/mobile(vault-v1)/mobile(probe-v1)).
   const distDir = path("android/app/src/main/assets/web/")

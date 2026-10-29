@@ -1,6 +1,10 @@
 # 单元：connection（服务连接与凭据）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据保管契约与代码已实现（未验证）；issue #5 直连传输卫生与错误分类已实现（未验证）；issue #6 SSH 隧道传输已实现（未验证），见[决策记录 0003](../../decisions/0003-ssh-transport.md)）**。作为产品能力（用户在设备上完成一次到远程服务的认证连接）尚未交付，依赖 G3（CORS，静态证据修正为低风险待实测）、G4（TLS 拒绝）、G5（cleartext 拒绝）、G6（SSE）等门禁通过；已实现的部分：随闭包引入的字段契约与凭据纪律，issue #3 的 credentialRef 契约（M-005/M-006）、SSH 连接状态机与 host-key 确认立桩（host-key-prompt，stub fail-closed），issue #4 的凭据保险库（vault 端口/信封/桥协议/Android Keystore 落盘/可选记住交互，M-009/M-010 补丁），以及 issue #5 的直连传输裁定与实现（secure-fetch/probe 端口/Android probe 桥，M-011…M-014 补丁），以及 issue #6 的 SSH 隧道传输（ssh 桥传输/verifier/transport、驱动装配 M-015 补丁、Kotlin `android/.../ssh/` 四件、jsch+bcprov 桥内依赖），实现位置 `packages/mobile-hosts/` 与 `android/app/src/main/java/ai/opencode/mobile/`，全部未经设备运行验证（桥 bring-up 与 C1–C5/G16/G17 门禁 BLOCKED）；issue #22 配对链接导入面已固化（未验证，上游闭包承载，见下方「配对与连接导入」专节与 G32）；issue #55 增加空/签出状态下的 SSH hosts 入口与移动布局（M-027/M-028，未验证）：移动连接屏将 pairing prompt 独占居中行、密码与 SSH hosts 并排，按钮仍导航到精确 `/settings?tab=servers`；只放行该 root servers 视图进入设置壳，SSH 传输、Pair/QR/password 逻辑与 M-008/M-018 管理面不变。
+Review hardening: unknown-key confirmation snapshots host ID + exact target + effective SSH/service ports + fingerprint. Any relevant registry edit cancels the pending verification and aborts an open signal; confirmation arguments are checked again before connect, and the captured record identity is rechecked after async resolution and immediately before `transport.open`. The initial-screen handoff predicate explicitly requires the add/edit form to be closed; a ready/authenticated connection cannot dismiss an open form. Changed-target saves invalidate the old connection and require a new connect. Android SW promotion is limited to START_URL's origin, exact root scope, and packaged `/sw.js`; each async callback rechecks current page and worker identity. Fake-origin/script/scope/redirect and deferred initial-health/edit tests cover refusal and lifecycle paths.
+
+状态：**inline SSH 入口/form 与模式草稿恢复已在 MatePad 验证；host-key 确认及 SSH 隧道已到服务认证门；真实服务认证仍未验证**。共享连接单元代码承载配对链接、服务地址/密码与 inline SSH 三种可切换模式；首次 SSH 配置复用 host registry、vault、host-key prompt 与 SSH runtime。M-029 修正连接方式按钮窄屏换行，M-030（issue #58）恢复 no-server/signed-out Settings guard，并由 AppShell 在发布主机前持有初始屏所有权，直到该次所有权对应的 exact host tunnel 与 `/api/info` 健康且认证 ready 才交接；SSH 成功只在 SSH 模式 active 时交接，离开 SSH 模式的迟到回调不会窃取 Pairing/HTTP 草稿。SSH 服务返回 401/403 时保留 tunnel、InitialSshSetup 与 Settings → Server 共用独立 service-auth-prompt；重新检查成功后将密码仅放在 runtime endpoint / upstream extension 的会话内存字段，并用 UTF-8 Basic 编码；不写注册表/持久层/日志。unknown-key prompt 绑定 exact host ID/fingerprint，同时展示 host name、完整 target、SSH port、remote service port 和完整可选择/换行 fingerprint；changed key 需两步 danger confirmation 后才调用 forget。key-only import 可在首主机表单保存到 vault；更换/解绑凭据保留旧密文为凭据管理器可见的 orphan；保存前同步锁定、snapshot/validate，vault await 期间锁定编辑/Cancel，dispose 时迟到 continuation 不 publish/connect。现有 SSH/TLS 安全边界、host-key fail-closed 与远程任务断开语义不变。MatePad WebView 114 上实际点击呈现 inline host form、URL 未变；用户报告 Settings SSH tunnel Connected 且 OpenCode service authentication required，未输入服务密码；此前旧 screen 根因及 worker 更新证据见 [build-and-verify.md](../../build-and-verify.md)。真实服务认证结果、认证后连接/会话、远端存活 E2E 仍未验证。
+
+2026-10-29 补充：SSH saved-host HostKeyPrompt 核验并 Trust 后，已实测 SSH+key 隧道到达 OpenCode 服务 authentication required。Settings → Server 与 InitialSshSetup 共用 `ServiceAuthPrompt`；密码输入空值、显式 Check again。真实 service password 未提供/未输入，故服务认证成功、上游会话与远端任务行为仍未验证。
 
 ## 字段契约（已实现）
 
@@ -47,17 +51,15 @@
 
 ### 落盘与元数据（Android 侧，`vault/VaultStore.kt`）
 
-`filesDir/vault/<id>.bin` 密文文件 + `filesDir/vault/index.json`（`[{id, kind, label?, createdAt}]`，**永不存值**）。写入原子：临时文件 + rename，失败保留旧密文（in-place 更新失败不破坏既有条目）。64KiB 为应用自选 bound：JS 预检 + native 复检双写（临界值 65536 字节恰好允许、超限拒绝）。
+`filesDir/vault/<id>.bin` 保存单个 `OPMV1` 信封；`index.json` 仅保存 `id/kind/label/createdAt` 元数据，**永不存值**。既有文件名、索引和信封格式沿用，不做版本迁移或启动时清理。payload 与索引各自经临时文件写入并重命名，但这不是跨文件事务，也不保证失败时原值必然不变；put/remove 在无法确认 mutation 结果时以 `unknown` 返回，不自动重试。64KiB 为应用自选 bound：native 在入队前独立校验 UTF-8 value bytes，bridge envelope 上限 `6×64KiB + 8192` 字符覆盖 JSON control-byte 转义最坏情况；oversize 用前置 request id 相关拒绝且不入后台队列。
 
-### 桥协议（平台 WebMessage channel，三层信任替换 origin 校验）
+### 桥协议（vault v2：AndroidX origin/frame-bound WebMessageListener）
 
-通道：Android 平台 `WebView.createWebMessageChannel()` + `postWebMessage(WebMessage, targetOrigin)` + `WebMessagePort`（API 23+，零新依赖，零 androidx）。**勘误三（计划 F-1b，平台证据链）**：embedder 经 `postWebMessage` 投递的消息其 `event.origin` **恒为空串**——Chromium `AwContents.postMessageToMainFrame` 硬编码 sourceOrigin=null → blink `MessageEvent::originForBindings()` 返回 "" → 平台测试 `PostMessageTest` 断言 `SOURCE_ORIGIN=""`。因此 **JS 侧不做 origin 等值校验，模拟测试禁止伪造 origin 断言**。信任依据改用三层：
+通道：AndroidX WebKit `WebViewCompat.addWebMessageListener`（`androidx.webkit:webkit:1.14.0`，Apache-2.0），以精确 `http://127.0.0.1:<asset-port>` origin rule 注册独立的 `opencodeMobileVaultV2` listener。每条消息再次核对 source origin 的 scheme/host/port、`isMainFrame` 和 request shape；feature 不可用或注册失败时保持 unavailable。该 listener 在回环资产服务绑定后、首次 `loadUrl` 前注册。它只替换 vault handshake；其余五个 bridge 保持原协议。
 
-1. **平台 targetOrigin 强制**：非该 origin 的 frame 收不到 port2（native 侧 `postWebMessage` 的 targetOrigin 参数由平台强制）。
-2. **port 能力 confinement**：port 引用不暴露到 window 全局（单测锁定）。如实边界：同页监听者在事件层面可见握手字符串；confinement 的实际来源是 port 引用不暴露+页面仅第一方资产——页内脚本若能捕获 port ≈ 资产被篡改 = 应用已被攻破，与既有威胁边界一致，不新增攻击面。
-3. **ack 前零能力**：握手捕获并回发 ack 前，vault 恒 unavailable，native 不受理任何操作。
+trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/host/port + `isMainFrame` 重校验。它不是对恶意同源脚本的隔离，也不证明已加载 JS 的字节来源。
 
-握手时序：native `onPageFinished` → `createWebMessageChannel()` → `[port1, port2]`；port1 设回调并 `postWebMessage(handshake, Uri.parse("http://127.0.0.1:18090"))`；JS 校验 `event.data === "opencode-mobile-vault-handshake"` 且 `event.ports.length === 1`（不做 origin 校验，证据链如上）→ port 捕获入闭包（不挂全局）→ 立即回发 `{op:"ack"}` → **首次捕获成功后忽略后续握手**。native 未收 ack 的每次重试**必须重建通道**（已转移的 port2 不可重投——IllegalStateException；重建前 `close()` 旧 port1）；有界重试 5×500ms。**ack 生命周期**：ack 标志随页面导航重置（每次 `onPageFinished` 开启新一轮握手）；重试耗尽仅将**从未 ack** 的会话降级 unavailable——已 ack 的会话不被误降级（本节与 Kotlin 交付物注释双写）。消息面：双向 JSON 字符串、requestId 关联；native 入站形状+操作白名单校验（无 eval/无动态路由）；跨桥零二进制。
+协议 v2 使用 request/response JSON 与 request id，`ready` 只做非变更往返；JS 仅在收到 `vault-v2` readiness 回复后报告 available，并订阅时重放当前 ready 状态以覆盖响应先于 subscriber 的竞态。native 在回调线程做 envelope 上界/UTF-8 payload bound 预检，超限不入队；进程级单线程、8-entry 有界队列串行访问 `VaultStore`。navigation start/destroy 代际门使排队的陈旧请求跳过，运行中操作完成但不向旧页面回帖；每个闭包捕获原请求的 `JavaScriptReplyProxy`。put 在派发前生成并传输非秘密 candidate id；不支持自动重试。UNKNOWN response 可携带对应 credential ref，但不提供自动恢复/存储 journal。Same-origin script trust and lack of power-loss durability remain explicit limitations.
 
 ### 可选记住真值表 v3（M-009，连接对话框）
 

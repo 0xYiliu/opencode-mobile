@@ -10,12 +10,8 @@
 //   3. M-010 static: the hydration injection in the vendored registry writes the resolved
 //      password through setStore ONLY (memory-only; the M-002 encode path strips on every
 //      persist write) — no direct storage write in the injection block.
-//   4. M-007 amendment static + dynamic: the entry wires the vault with a handshake listener
-//      registered on window message events BEFORE first render; the handshake is validated by
-//      SHAPE only. event.origin is NEVER consulted and these probes NEVER fabricate an
-//      origin — platform evidence chain: embedder-posted messages carry an empty origin
-//      (AwContents.postMessageToMainFrame -> blink originForBindings() "" -> PostMessageTest
-//      SOURCE_ORIGIN=""), see docs/design/architecture.md.
+//   4. M-032 static: AndroidX vault listener is wired before render; native callback requires
+//      exact source origin + main frame and uses a bounded process-wide serial queue.
 //
 // Usage: bun run scripts/verify-credential-vault.ts  (exit 0 = PASS)
 
@@ -50,10 +46,12 @@ async function softwareVaultNative() {
         const kind = params["kind"]
         const value = params["value"]
         const existingId = params["existingId"]
+        const candidateId = params["candidateId"]
         if (kind !== "password" && kind !== "privateKey") throw new VaultError("io", "unknown kind")
         if (typeof value !== "string" || value.length === 0) throw new VaultError("io", "empty value (native re-check)")
         if (encoder.encode(value).length > MAX_SECRET_BYTES) throw new VaultError("io", "value too large (native re-check)")
-        const id = typeof existingId === "string" ? existingId : crypto.randomUUID()
+        const id = typeof existingId === "string" ? existingId
+          : typeof candidateId === "string" ? candidateId : crypto.randomUUID()
         const envelope = await sealEnvelope(key, id, encoder.encode(value))
         const meta: VaultEntryMetadata = { id, kind, createdAt: "2026-10-24T00:00:00.000Z" }
         entries.set(id, { envelope, meta })
@@ -218,48 +216,86 @@ async function softwareVaultNative() {
 // ---------------------------------------------------------------------------
 {
   const dialog = await Bun.file(new URL("../packages/mobile-hosts/src/ui/host-dialog.tsx", import.meta.url)).text()
-  // The save passes the bound entry's kind so a remembered private key keeps its binding.
-  if (!/boundKind:\s*boundMeta\(\)!?\.kind/.test(dialog)) {
-    fail("host-dialog: save() does not pass boundKind to the remember decision")
+  // The save snapshots the bound kind and passes that snapshot into the pure decision.
+  if (!/boundKind:\s*boundMeta\(\)\?\.kind/.test(dialog) || !/boundKind:\s*draft\.boundKind/.test(dialog)) {
+    fail("host-dialog: save() does not snapshot and pass boundKind to the remember decision")
   }
   // The checkbox participates only when the vault is available (remember.ts semantics).
   if (!/checkboxRendered:\s*vaultAvailable\(\)/.test(dialog)) {
     fail("host-dialog: checkboxRendered must be vaultAvailable(), not an unconditional true")
   }
-  // Secondary hazard: a password must never in-place overwrite a bound key entry — the
-  // field is disabled while a key is bound (explicit, review-chosen fix).
-  if (!/disabled=\{boundMeta\(\)\?\.kind === "privateKey"\}/.test(dialog)) {
-    fail("host-dialog: the password field is not disabled while a private key is bound")
+  // A bound key starts protected; after an explicit uncheck, the user can re-check and
+  // stage a replacement password into a fresh vault entry (the old ref is retained orphaned).
+  if (!/boundMeta\(\)\?\.kind === "privateKey" && !replaceBoundKey\(\)/.test(dialog)
+    || !/if \(!checked && boundMeta\(\)\?\.kind === "privateKey"\) setReplaceBoundKey\(true\)/.test(dialog)) {
+    fail("host-dialog: key-bound password replacement is not gated by explicit uncheck/re-check")
   }
-  console.log("3b OK: host-dialog assembly passes boundKind, gates the checkbox on vault availability and disables the password field for key bindings")
+  console.log("3b OK: host-dialog snapshots boundKind, gates checkbox on vault availability and requires explicit toggle before replacing a key")
 }
 
 // ---------------------------------------------------------------------------
-// 4: M-007 amendment — static wiring + dynamic handshake shape validation.
+// 4: M-007 amendment — AndroidX listener wiring + legacy transport test coverage.
 // ---------------------------------------------------------------------------
 {
   const entry = await Bun.file(new URL("../vendor/upstream/packages/app/src/entry.tsx", import.meta.url)).text()
   for (const marker of [
-    "createWebMessageChannelTransport",
-    "window.addEventListener(\"message\"",
+    "createAndroidXVaultTransport",
+    "opencodeMobileVaultV2",
     "createVaultClient",
     "createVaultResolver",
     "vault,",
   ]) {
     if (!entry.includes(marker)) fail(`M-007 amendment: entry.tsx is missing ${marker}`)
   }
-  // The vault listener must register before the render call in the bootstrap path.
-  const subscribeAt = entry.indexOf("createWebMessageChannelTransport")
+  // The listener client must be initialized before render, and no old window-message
+  // handshake is present in production wiring.
+  const subscribeAt = entry.indexOf("createAndroidXVaultTransport")
   const renderAt = entry.lastIndexOf("render(")
   if (subscribeAt === -1 || renderAt === -1 || subscribeAt > renderAt) {
-    fail("M-007 amendment: the handshake listener is not registered before first render")
+    fail("M-007 amendment: AndroidX listener client is not initialized before first render")
   }
-  // No origin consultation in the entry's bridge wiring CODE (comments may cite the chain).
-  if (/event\.origin|\.origin\b/.test(stripComments(entry))) {
-    fail("M-007 amendment: entry.tsx consults origin in code — forbidden (platform carries an empty origin)")
+  if (stripComments(entry).includes("createWebMessageChannelTransport"))
+    fail("M-007 amendment: production vault still uses bespoke channel transport")
+  const nativeBridge = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/CredentialVaultBridge.kt", import.meta.url)).text()
+  for (const marker of ["WebViewCompat.addWebMessageListener", "VaultOriginPolicy.shouldAcceptMessage", "VaultOriginPolicy.canRegister", "ArrayBlockingQueue(8)", "preflight(raw)", "candidateId", "recoveryRef", "replyProxy.postMessage", "VaultGenerationGate", "onNavigationStarted", '"unknown"']) {
+    if (!nativeBridge.includes(marker)) fail(`M-032 native vault boundary missing ${marker}`)
   }
+  const limits = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultRequestLimits.kt", import.meta.url)).text()
+  if (!limits.includes("MAX_VALUE_BYTES * 6 + 8192") || !limits.includes("leadingRequestId") || !limits.includes("utf8Bytes"))
+    fail("M-032 vault request cap must account for JSON escaping and independently enforce UTF-8 value bytes")
+  const store = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultStore.kt", import.meta.url)).text()
+  if (!store.includes('File(dir, "$id.bin")') || !store.includes('File(dir, "index.json")')
+    || store.includes("VaultEntryJournal") || store.includes("payloadFile"))
+    fail("M-032 vault storage format must remain the legacy id.bin + metadata index layout")
+  const nativePolicy = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultOriginPolicy.kt", import.meta.url)).text()
+  if (!nativePolicy.includes('scheme == "http"') || !nativePolicy.includes("BuildConfig.WEB_ASSET_PORT"))
+    fail("M-032 native vault origin policy is not exact HTTP loopback + configured port")
+  const directDialog = await Bun.file(new URL("../vendor/upstream/packages/app/src/servers/connect/dialog.tsx", import.meta.url)).text()
+  if (!directDialog.includes("connection.http.credentialRef = await vault!.put")
+    || !directDialog.includes('language.t("dialog.server.remember.saveFailed")')
+    || !directDialog.includes("await vault!.remove(decision.ref)"))
+    fail("M-032 direct-server credential caller lost its fail-closed save path")
+  const directPutStart = directDialog.indexOf('if (decision.action === "put")')
+  const directCommitStart = directDialog.indexOf('if (original?.type === "http")', directPutStart)
+  const directMutationBlock = directDialog.slice(directPutStart, directCommitStart)
+  if ((directDialog.match(/vault!\.put\(/g) ?? []).length !== 1
+    || (directDialog.match(/vault!\.remove\(/g) ?? []).length !== 1
+    || !directMutationBlock.includes("catch (error)")
+    || !directMutationBlock.includes("recoveryRef")
+    || !directMutationBlock.includes("return"))
+    fail("M-032 direct-server caller retries or commits a credential change after UNKNOWN")
+  const runtime = await Bun.file(new URL("../packages/mobile-hosts/src/runtime.ts", import.meta.url)).text()
+  const removeStart = runtime.indexOf("const remove = async (id: string)")
+  const registryDelete = runtime.indexOf("registry.remove(id)", removeStart)
+  const removeEnd = runtime.indexOf("const markIncompatible", removeStart)
+  const removeBody = runtime.slice(removeStart, removeEnd)
+  if (removeStart < 0 || registryDelete < removeStart
+    || removeBody.includes("vault.remove(")
+    || !removeBody.includes('send(id, { type: "delete" })'))
+    fail("M-032 SSH host removal must be local-only and retain saved credentials for explicit cleanup")
 
-  // Dynamic: a well-shaped handshake (data + ports only, NO origin field) captures and acks.
+  // Legacy test harness compatibility only: production uses AndroidX protocol v2 and does
+  // not register this handshake; these checks retain the old in-process envelope test engine.
   let handler: ((event: { data: unknown; ports?: unknown }) => void) | undefined
   const received: string[] = []
   const port = {
@@ -280,8 +316,8 @@ async function softwareVaultNative() {
   })
   handler!({ data: VAULT_BRIDGE.handshake, ports: [port] })
   await drain()
-  if (transport.status() !== "available") fail("M-007 dynamic: well-shaped handshake did not capture")
-  if (!JSON.parse(received[0] ?? "{}").op) fail("M-007 dynamic: no ack posted over the port")
+  if (transport.status() !== "available") fail("legacy harness: well-shaped handshake did not capture")
+  if (!JSON.parse(received[0] ?? "{}").op) fail("legacy harness: no ack posted over the port")
   // Malformed handshakes are ignored (shape validation is the only gate).
   const transport2 = createWebMessageChannelTransport({
     subscribe(handler_) {
@@ -316,8 +352,8 @@ for (const file of ["vault/transport.ts", "vault/vault.ts", "vault/types.ts", "v
 }
 
 const distMarker = VAULT_BRIDGE.marker
-if (!distMarker.startsWith("mobile(vault-v1)")) fail("vault dist marker missing from the transport module")
+if (!distMarker.startsWith("mobile(vault-v2)")) fail("vault protocol v2 marker missing from the transport module")
 
 console.log(
-  "verify-credential-vault: PASS (truth table v3 rows 1-12 + review-fix row 13 with in-process envelope-crypted vault effects; early-exit forcing + initial value; host-dialog assembly passes boundKind; M-010 setStore-only hydration injection; M-007 listener-before-render with shape-only handshake; no origin fabrication or consultation anywhere)",
+  "verify-credential-vault: PASS (truth table v3 rows 1-12 + review-fix row 13 with in-process envelope-crypted vault effects; early-exit forcing + initial value; host-dialog assembly passes boundKind; M-010 setStore-only hydration injection; M-032 AndroidX origin/frame gate + bounded preflight + non-secret candidate refs for uncertain mutations; legacy channel harness remains test-only)",
 )

@@ -3,7 +3,13 @@ import type { ServerConnection } from "@/runtime/server/registry"
 import { decode64 } from "@/runtime/persistence/base64"
 
 export function authTokenFromCredentials(input: { password: string }) {
-  return btoa(`opencode:${input.password}`)
+  const bytes = new TextEncoder().encode(`opencode:${input.password}`)
+  let binary = ""
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return btoa(binary)
 }
 
 export function authFromToken(token: string | null) {

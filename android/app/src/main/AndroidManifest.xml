@@ -36,7 +36,7 @@
              new permissions are introduced by this file. -->
         <provider
             android:name=".files.ShareFileProvider"
-            android:authorities="ai.opencode.mobile.share"
+            android:authorities="${applicationId}.share"
             android:exported="false"
             android:grantUriPermissions="true" />
     </application>

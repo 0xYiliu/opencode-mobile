@@ -1,0 +1,122 @@
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -23,7 +23,7 @@
+   SSH_BOOTSTRAP_MESSAGE,
+   createVaultClient,
+   createVaultResolver,
+-  createWebMessageChannelTransport,
++  createAndroidXVaultTransport,
+   createWebMessageFilesTransport,
+   createWebMessageNotificationsTransport,
+   createWebMessageProbeTransport,
+@@ -66,8 +66,9 @@
+ 
+ const web = createWebPlatform(pkg.version)
+ 
+-// Install the SSH window-message listener before asynchronous locale startup; native's
+-// AndroidX origin/frame bootstrap requests the confined port only after this subscribe.
++// Create the SSH message listener synchronously during module evaluation. Native currently
++// starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here
++// can miss that window on a slow device and leave every later connect unavailable.
+ const ssh = createWebMessageSshTransport({
+   subscribe: (handler) => {
+     window.addEventListener("message", handler as EventListener)
+@@ -119,22 +120,10 @@
+     // ?auth_token passthrough is inapplicable in this shell (no assembled server to
+     // authenticate), so its handling is removed with this patch.
+     //
+-    // mobile(M-007 amendment, issue #4): wire the device credential vault. The transport
+-    // subscribes BEFORE first render so the native handshake (posted from
+-    // onPageFinished with a transferable port) cannot be missed: the handler validates the
+-    // handshake SHAPE only — event.origin is never consulted because embedder-posted
+-    // messages carry an empty origin by platform construction (see
+-    // docs/design/architecture.md, three-layer trust). The port is captured inside the
+-    // transport's closure (never a global), acked immediately, and later handshakes are
+-    // ignored. Before that ack the vault is unavailable — an explicit state; there is no
+-    // plaintext fallback anywhere.
++    // mobile vault protocol v2 uses the native origin-bound AndroidX listener. It remains
++    // unavailable until its non-mutating readiness roundtrip completes.
+     const vault = createVaultClient(
+-      createWebMessageChannelTransport({
+-        subscribe: (handler) => {
+-          window.addEventListener("message", handler as EventListener)
+-          return () => window.removeEventListener("message", handler as EventListener)
+-        },
+-      }),
++      createAndroidXVaultTransport((window as any).opencodeMobileVaultV2),
+     )
+     // mobile(M-014): the endpoint probe bridge (issue #5) — a protocol-isolated sibling of
+     // the vault bridge on the same window message events. The handshake strings differ
+@@ -152,6 +141,14 @@
+         },
+       }),
+     )
++    // mobile(M-015): the ssh tunnel bridge (issue #6) — the THIRD protocol-isolated sibling
++    // of the vault and probe bridges on the same window message events. Its handshake
++    // string ("opencode-mobile-ssh-handshake") is captured only by this transport (strict
++    // data equality + exactly one port), so none of the three bridges can capture another's
++    // handshake; event.origin is never consulted (embedder-posted messages carry an empty
++    // origin by platform construction). The port is captured into the transport closure and
++    // acked immediately; before that ack every ssh attempt fails explicitly
++    // (bridge-unavailable) — no tunnel can exist unverified.
+     // mobile(M-016): the service ops bridge (issue #7) — the FOURTH protocol-isolated
+     // sibling of the vault/probe/ssh bridges on the same window message events. Its
+     // handshake string ("opencode-mobile-svcops-handshake") is captured only by this
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index b12af42..d1b702e 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -373,7 +373,7 @@ export const dict = {
+   "dialog.server.remember": "Remember the password on this device",
+   "dialog.server.remember.unavailable": "Credential storage is unavailable right now. The password stays memory-only for this session.",
+   "dialog.server.remember.needsPassword": "Enter a password to remember it.",
+-  "dialog.server.remember.saveFailed": "Could not save the credential. Nothing was changed.",
++  "dialog.server.remember.saveFailed": "Could not confirm the credential change. If a reference is shown, inspect it in Credentials; it may be absent if metadata persistence failed. No automatic retry was made.",
+ 
+   "server.connect.title": "Connect to a server",
+   "server.connect.description": "Enter your server address and password to get started.",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index 53de0cd..6a9d531 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -351,7 +351,7 @@ export const dict = {
+   "dialog.server.remember": "在这台设备上记住密码",
+   "dialog.server.remember.unavailable": "凭据保管库当前不可用：密码仅保留在本次会话内存中。",
+   "dialog.server.remember.needsPassword": "需要密码才能记住。",
+-  "dialog.server.remember.saveFailed": "凭据保存失败，未做任何更改。",
++  "dialog.server.remember.saveFailed": "无法确认凭据变更。若显示了引用，请在“凭据”中检查；若元数据写入失败，该条目可能不会显示。应用未自动重试。",
+   "dialog.server.edit.title": "编辑服务器",
+   "dialog.server.menu.edit": "编辑",
+ 
+diff --git a/packages/app/src/servers/connect/dialog.tsx b/packages/app/src/servers/connect/dialog.tsx
+index 2896116..e62504b 100644
+--- a/packages/app/src/servers/connect/dialog.tsx
++++ b/packages/app/src/servers/connect/dialog.tsx
+@@ -570,16 +570,22 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
+             value: password!,
+             ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}),
+           })
+-        } catch {
+-          setStore("error", language.t("dialog.server.remember.saveFailed"))
++        } catch (error) {
++          const recoveryRef = error && typeof error === "object" && "recoveryRef" in error && typeof error.recoveryRef === "string"
++            ? error.recoveryRef
++            : ""
++          setStore("error", `${language.t("dialog.server.remember.saveFailed")}${recoveryRef ? ` ${recoveryRef}` : ""}`)
+ 
+           return
+         }
+       } else if (decision.action === "clear") {
+         try {
+           await vault!.remove(decision.ref)
+-        } catch {
+-          setStore("error", language.t("dialog.server.remember.saveFailed"))
++        } catch (error) {
++          const recoveryRef = error && typeof error === "object" && "recoveryRef" in error && typeof error.recoveryRef === "string"
++            ? error.recoveryRef
++            : ""
++          setStore("error", `${language.t("dialog.server.remember.saveFailed")}${recoveryRef ? ` ${recoveryRef}` : ""}`)
+ 
+           return
+         }

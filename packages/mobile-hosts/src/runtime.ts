@@ -1,12 +1,12 @@
-import { createMemo } from "solid-js"
+import { createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { NullCredentialResolver } from "./credential-ref"
 import type { CredentialResolver } from "./credential-ref"
 import { UnavailableVault } from "./vault/types"
 import type { CredentialVault } from "./vault/types"
 import { createVaultResolver } from "./vault/vault"
+import { DEFAULT_SERVICE_PORT, createHostRegistry } from "./registry"
 import type { HostRecord, HostRegistry } from "./registry"
-import { createHostRegistry } from "./registry"
 import { StubHostKeyVerifier, StubHostTransport } from "./ports"
 import type { HostKeyVerifier, HostTransport, TransportEndpoint } from "./ports"
 import { safeStorage } from "./storage"
@@ -23,6 +23,7 @@ import { SshTransportError } from "./transport/ssh-errors"
 import { removeSshHostKey } from "./ssh/host-key-verifier"
 import type { SshBridgeTransport } from "./ssh/bridge"
 import { assessIncompatible } from "./health-wrapper"
+import { basicAuthToken } from "./transport/basic-auth"
 
 export interface MobileHostsOptions {
   /** WebView storage for the host registry (whitelist payload; no credentials, ever). */
@@ -86,10 +87,10 @@ export interface MobileHosts {
   disconnect: (id: string) => void
   /** Re-enter reconnecting from offline (T10). */
   retry: (id: string) => void
-  /** Delete the host record locally (T14). Zero remote calls — no transport reach at all. */
-  remove: (id: string) => void
+  /** Delete the host locally; retain its saved credential as an orphan for explicit cleanup. */
+  remove: (id: string) => Promise<boolean>
   /** Confirm a pending host key (T3). Stub phase: unreachable, verifier rejects first. */
-  confirmHostKey: (id: string) => void
+  confirmHostKey: (id: string, expected: HostKeyConfirmation) => void
   /** Reject a pending host key (T4). No connection attempt follows. */
   rejectHostKey: (id: string) => void
   /**
@@ -119,6 +120,24 @@ export interface MobileHosts {
    * it is derived from solid stores, so registry and state changes propagate.
    */
   upstreamConnections: () => ExtensionConnection[]
+  /** AppShell-owned initial SSH onboarding state; claimed before the host is published. */
+  initialScreenOwned: () => boolean
+  claimInitialScreen: () => number
+  initialGeneration: () => number
+  ownInitialHost: (id: string) => void
+  releaseInitialScreen: (id?: string, generation?: number) => void
+  initialHostId: () => string | undefined
+  initialHostGeneration: () => number | undefined
+  serviceAuthRequiredOf: (id: string) => boolean
+  /** Abort and invalidate any in-flight service re-authentication check for this host. */
+  cancelServiceAgain: (id: string) => void
+  checkServiceAgain: (id: string, password?: string) => Promise<boolean>
+}
+
+export interface HostKeyConfirmation {
+  target: string
+  servicePort: number
+  fingerprint: string
 }
 
 // The shell has exactly one host runtime, bootstrapped once in the app entry (M-007).
@@ -157,6 +176,11 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const [runtime, setRuntime] = createStore<
     Record<string, { state: HostState; ctx: MachineContext; endpoint?: { url: string; password?: string } }>
   >({})
+  const [initialOwned, setInitialOwned] = createSignal(false)
+  const [initialHost, setInitialHost] = createSignal<string>()
+  const [initialHostGeneration, setInitialHostGeneration] = createSignal<number>()
+  const [initialGeneration, setInitialGeneration] = createSignal(0)
+  const [serviceAuthRequired, setServiceAuthRequired] = createStore<Record<string, boolean>>({})
 
   const stateOf = (id: string): HostState => runtime[id]?.state ?? "idle"
   const ctxOf = (id: string): MachineContext => runtime[id]?.ctx ?? { source: "idle", retries: 0 }
@@ -182,11 +206,56 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   // Per-host attempt AbortControllers; aborted on cancel/delete so a stub/real transport
   // attempt stops without any remote signal.
   const attempts = new Map<string, AbortController>()
+  const pendingHostKey = new Map<string, HostKeyConfirmation>()
+  // Session-only service auth is independent from SSH credentials and never persisted.
+  const sessionServicePasswords = new Map<string, string>()
+  const serviceAuthCheckGeneration = new Map<string, number>()
+  const serviceAuthCheckControllers = new Map<string, AbortController>()
+  const cancelServiceAgain = (id: string) => {
+    serviceAuthCheckGeneration.set(id, (serviceAuthCheckGeneration.get(id) ?? 0) + 1)
+    serviceAuthCheckControllers.get(id)?.abort()
+    serviceAuthCheckControllers.delete(id)
+  }
+  // Invalidates reconnect promises that were already waiting when the user disconnects
+  // or changes/removes a host. Monotonic even if the same host ID is later reconnected.
+  const hostSessionGeneration = new Map<string, number>()
+  const invalidateHostSession = (id: string) => {
+    hostSessionGeneration.set(id, (hostSessionGeneration.get(id) ?? 0) + 1)
+    cancelServiceAgain(id)
+  }
 
   const stopAttempt = (id: string) => {
     attempts.get(id)?.abort()
     attempts.delete(id)
   }
+
+  // Editing or deleting a host invalidates any displayed first-contact confirmation and
+  // aborts an in-flight open. The confirmation remains scoped to the exact record identity
+  // that produced its fingerprint; no stale UI callback may open a newly edited target.
+  registry.subscribe(({ id, previous, next }) => {
+    if (!previous || !next) {
+      invalidateHostSession(id)
+      pendingHostKey.delete(id)
+      sessionServicePasswords.delete(id)
+      stopAttempt(id)
+      if (stateOf(id) !== "idle") send(id, { type: "cancel" })
+      setEndpoint(id, undefined)
+      setServiceAuthRequired(id, false)
+      return
+    }
+    const identityChanged = previous.name !== next.name
+      || previous.target !== next.target
+      || (previous.servicePort ?? DEFAULT_SERVICE_PORT) !== (next.servicePort ?? DEFAULT_SERVICE_PORT)
+      || previous.credentialRef !== next.credentialRef
+    if (!identityChanged) return
+    invalidateHostSession(id)
+    pendingHostKey.delete(id)
+    sessionServicePasswords.delete(id)
+    stopAttempt(id)
+    if (stateOf(id) !== "idle") send(id, { type: "cancel" })
+    setEndpoint(id, undefined)
+    setServiceAuthRequired(id, false)
+  })
 
   // ---------------------------------------------------------------------------
   // Post-open service health check (issue #6, decision 0003 §5 — the SERVICE layer)
@@ -202,26 +271,35 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const checkServiceHealth = async (
     endpoint: TransportEndpoint,
     signal: AbortSignal,
-  ): Promise<{ ok: true; version?: string } | { ok: false }> => {
+    fetcher: typeof fetch = fetchFn,
+  ): Promise<{ ok: true; version?: string; authenticated: boolean } | { ok: false; authenticated: false }> => {
     const controller = new AbortController()
     const abort = () => controller.abort()
     signal.addEventListener("abort", abort, { once: true })
     const timer = setTimeout(abort, SERVICE_HEALTH_TIMEOUT_MS)
     try {
       // The tunnel endpoint is loopback; a redirect there is hostile — fail closed.
-      const response = await fetchFn(`${endpoint.url}/api/info`, { signal: controller.signal, redirect: "error" })
-      if (response.status === 401 || response.status === 403) return { ok: true } // alive, auth-gated
-      if (!response.ok) return { ok: false }
+      const response = await fetcher(`${endpoint.url}/api/info`, { signal: controller.signal, redirect: "error" })
+      if (response.status === 401 || response.status === 403) return { ok: true, authenticated: false } // alive, auth-gated
+      if (!response.ok) return { ok: false, authenticated: false }
       const body = (await response.json().catch(() => undefined)) as { version?: unknown } | undefined
       const version = typeof body?.["version"] === "string" ? body["version"] : undefined
-      return { ok: true, version }
+      return { ok: true, version, authenticated: true }
     } catch {
-      return { ok: false }
+      return { ok: false, authenticated: false }
     } finally {
       clearTimeout(timer)
       signal.removeEventListener("abort", abort)
     }
   }
+
+  const serviceAuthFetch = (password?: string): typeof fetch => password
+    ? (input, init) => {
+        const headers = new Headers(init?.headers)
+        headers.set("authorization", `Basic ${basicAuthToken("opencode", password)}`)
+        return fetchFn(input, { ...init, headers })
+      }
+    : fetchFn
 
   // ---------------------------------------------------------------------------
   // Attempt pipeline (T1/T10 entry): verifier -> open -> post-open health -> ready
@@ -230,6 +308,20 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const attemptOpen = async (id: string) => {
     const record = registry.get(id)
     if (!record) return
+    const attemptIdentity = {
+      name: record.name,
+      target: record.target,
+      servicePort: record.servicePort ?? DEFAULT_SERVICE_PORT,
+      credentialRef: record.credentialRef,
+    }
+    const identityStillCurrent = () => {
+      const current = registry.get(id)
+      return !!current
+        && current.name === attemptIdentity.name
+        && current.target === attemptIdentity.target
+        && (current.servicePort ?? DEFAULT_SERVICE_PORT) === attemptIdentity.servicePort
+        && current.credentialRef === attemptIdentity.credentialRef
+    }
     // A new attempt supersedes whatever is registered for this host: aborting a LIVE
     // session's controller drives its local disconnect (the established case), aborting an
     // in-flight attempt drives cancel. A new connect for the same host:port is only legal
@@ -245,7 +337,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
       // Resolve the credential reference first (NullResolver: undefined). The resolved
       // value is the SSH credential (password or key envelope JSON) — memory-only.
       const credential = record.credentialRef ? await resolver.resolve(record.credentialRef) : undefined
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted || !identityStillCurrent()) return
       // Verify the host key BEFORE any connection attempt proceeds. The stub rejects
       // everything, so with the stub no transport.open call ever happens. A bridge-backed
       // verifier (issue #6) answers trust (store hit) / prompt (unknown) / reject+changed.
@@ -258,7 +350,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
       // reaches this branch without a confirmation — T4/T8/T13 all clear the fingerprint.
       if (!ctxOf(id).fingerprint) {
         const decision = await hostKeyVerifier.verify({ host: record.target })
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || !identityStillCurrent()) return
         if (decision.action === "reject") {
           // A changed key is the hard refusal (never an automatic overwrite); a plain
           // rejection covers the user's own T4 flow and the stub.
@@ -266,10 +358,19 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
           return
         }
         if (decision.action === "prompt") {
+          pendingHostKey.set(id, {
+            target: record.target,
+            servicePort: attemptIdentity.servicePort,
+            fingerprint: decision.fingerprint,
+          })
           send(id, { type: "hostKeyPending", fingerprint: decision.fingerprint })
           return // wait for hostKeyConfirm/hostKeyReject from the UI
         }
       }
+      // This check is adjacent to open() so edits while credential/verifier promises were
+      // pending cannot reuse a fingerprint against a different endpoint.
+      if (controller.signal.aborted || !identityStillCurrent()) return
+      pendingHostKey.delete(id)
       const endpoint = await transport.open({
         target: record.target,
         credential,
@@ -283,21 +384,29 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
       })
       if (controller.signal.aborted) return
       established = true // the tunnel is live; the controller stays registered (see above)
-      setEndpoint(id, endpoint)
       // Service-layer authority: only after the tunnel answered do we speak to the service.
-      const health = await checkServiceHealth(endpoint, controller.signal)
+      const sessionPassword = sessionServicePasswords.get(id)
+      const health = await checkServiceHealth(endpoint, controller.signal, serviceAuthFetch(sessionPassword))
       if (controller.signal.aborted) return
       if (!health.ok) {
+        setEndpoint(id, endpoint)
         send(id, { type: "fail", reason: "service-unreachable" })
         return
       }
+      if (!health.authenticated) {
+        sessionServicePasswords.delete(id)
+        setEndpoint(id, endpoint)
+      } else {
+        setEndpoint(id, sessionPassword === undefined ? endpoint : { ...endpoint, password: sessionPassword })
+      }
       // incompatible is OUR machine's decision for SSH hosts (health-wrapper predicate):
       // wired here so the upstream IncompatibleServerPanel can take over (T7).
-      if (assessIncompatible({ kind: "ssh", version: health.version })) {
+       if (assessIncompatible({ kind: "ssh", version: health.version })) {
         markIncompatible(id, health.version)
         return
-      }
-      send(id, { type: "ready" })
+       }
+       setServiceAuthRequired(id, !health.authenticated)
+       send(id, { type: "ready" })
     } catch (error) {
       if (controller.signal.aborted) return
       // Four-layer classification (decision 0003 §5): SSH-auth failures land in
@@ -327,9 +436,13 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   }
 
   const disconnect = (id: string) => {
+    invalidateHostSession(id)
+    pendingHostKey.delete(id)
+    sessionServicePasswords.delete(id)
     stopAttempt(id) // local teardown only: aborts the in-flight attempt, no remote signal
     send(id, { type: "cancel" })
     setEndpoint(id, undefined)
+    setServiceAuthRequired(id, false)
   }
 
   const retry = (id: string) => {
@@ -343,32 +456,82 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     void attemptOpen(id)
   }
 
-  const confirmHostKey = (id: string) => {
+  const confirmHostKey = (id: string, expected: HostKeyConfirmation) => {
+    const current = registry.get(id)
+    const pending = pendingHostKey.get(id)
+    if (!current || !pending
+      || pending.target !== expected.target
+      || pending.servicePort !== expected.servicePort
+      || pending.fingerprint !== expected.fingerprint
+      || current.target !== expected.target
+      || (current.servicePort ?? DEFAULT_SERVICE_PORT) !== expected.servicePort
+      || ctxOf(id).fingerprint !== expected.fingerprint
+      || stateOf(id) !== "hostKeyUnverified") {
+      pendingHostKey.delete(id)
+      stopAttempt(id)
+      if (stateOf(id) === "hostKeyUnverified") send(id, { type: "cancel" })
+      return
+    }
+    pendingHostKey.delete(id)
     if (!send(id, { type: "hostKeyConfirm" })) return
     void attemptOpen(id)
   }
 
   const rejectHostKey = (id: string) => {
+    pendingHostKey.delete(id)
     stopAttempt(id)
     send(id, { type: "hostKeyReject" })
   }
 
-  const remove = (id: string) => {
-    const record: HostRecord | undefined = registry.get(id)
-    stopAttempt(id) // delete is local-only; aborting a pending local attempt is not a remote call
+  const remove = async (id: string): Promise<boolean> => {
+    if (!registry.get(id)) return false
+    // Keep any bound credential in the vault. It becomes an explicit orphan, visible in
+    // Credentials, where the user can review and delete it separately. In particular, host
+    // deletion never awaits a destructive vault operation that could race an edit/rebind.
+    // Remove the registry node before notifying the runtime state so synchronous reactive
+    // observers cannot edit a still-present record between teardown and deletion.
+    if (!registry.remove(id)) return false
     send(id, { type: "delete" })
     setEndpoint(id, undefined)
-    registry.remove(id)
-    // Issue #4 linkage: deleting a host deletes its vault entry (T14 regression). Best
-    // effort and local-only: a failed cleanup leaves the entry visible in the credential
-    // manager's orphan zone instead of blocking or retrying anything remote.
-    if (record?.credentialRef) {
-      void vault.remove(record.credentialRef).catch(() => {})
-    }
+    return true
   }
 
   const markIncompatible = (id: string, version?: string) => {
     send(id, { type: "incompatible", version })
+  }
+
+  const checkServiceAgain = async (id: string, password?: string): Promise<boolean> => {
+    const endpoint = endpointOf(id)
+    const controller = attempts.get(id)
+    if (!endpoint || !controller || stateOf(id) !== "ready") return false
+    cancelServiceAgain(id)
+    const checkGeneration = (serviceAuthCheckGeneration.get(id) ?? 0) + 1
+    serviceAuthCheckGeneration.set(id, checkGeneration)
+    const checkController = new AbortController()
+    serviceAuthCheckControllers.set(id, checkController)
+    const abortWithAttempt = () => checkController.abort()
+    controller.signal.addEventListener("abort", abortWithAttempt, { once: true })
+    let health: Awaited<ReturnType<typeof checkServiceHealth>>
+    try {
+      health = await checkServiceHealth(endpoint, checkController.signal, serviceAuthFetch(password))
+    } finally {
+      controller.signal.removeEventListener("abort", abortWithAttempt)
+      if (serviceAuthCheckControllers.get(id) === checkController) serviceAuthCheckControllers.delete(id)
+    }
+    if (serviceAuthCheckGeneration.get(id) !== checkGeneration
+      || !health.ok
+      || !health.authenticated
+      || checkController.signal.aborted
+      || controller.signal.aborted
+      || attempts.get(id) !== controller
+      || endpointOf(id) !== endpoint) return false
+    // The service credential is session-only: it travels on the extension connection's
+    // in-memory http shape, never the registry record or persisted server list.
+    if (password !== undefined) sessionServicePasswords.set(id, password)
+    else sessionServicePasswords.delete(id)
+    setEndpoint(id, password === undefined ? endpoint : { ...endpoint, password })
+    setServiceAuthRequired(id, !health.authenticated)
+    return true
   }
 
   // ---------------------------------------------------------------------------
@@ -401,12 +564,19 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
 
   const waitForAttempt = (id: string, signal?: AbortSignal): Promise<HostState | "aborted" | "timeout"> =>
     new Promise((resolve) => {
+      // Each waiter owns only the controller current at creation. A signal from an older
+      // reconnect call must never cancel a later attempt that reused this host ID.
+      const watchedAttempt = attempts.get(id)
       const startedAt = Date.now()
       const timer = setInterval(() => {
         if (signal?.aborted) {
           clearInterval(timer)
           const state = stateOf(id)
-          if (state === "connecting" || state === "reconnecting") stopAttempt(id)
+          if (watchedAttempt && attempts.get(id) === watchedAttempt
+            && (state === "connecting" || state === "reconnecting")) {
+            stopAttempt(id)
+            send(id, { type: "cancel" })
+          }
           resolve("aborted")
           return
         }
@@ -432,11 +602,19 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
    * the vendored client's own loop re-calls it at its cadence. Bounded: at most
    * RECONNECT_MAX_RETRIES + 1 attempts, no infinite loop.
    */
-  const ensureTunnel = async (id: string, signal?: AbortSignal): Promise<TransportEndpoint | undefined> => {
+  const ensureTunnel = async (id: string, signal?: AbortSignal): Promise<{
+    endpoint: TransportEndpoint
+    attempt: AbortController
+  } | undefined> => {
     for (;;) {
       if (signal?.aborted) return undefined
       const state = stateOf(id)
-      if (state === "ready") return endpointOf(id)
+      if (state === "ready") {
+        const endpoint = endpointOf(id)
+        const attempt = attempts.get(id)
+        if (endpoint && attempt && !attempt.signal.aborted) return { endpoint, attempt }
+        return undefined
+      }
       if (state !== "offline") return undefined
       retry(id)
       const settled = await waitForAttempt(id, signal)
@@ -447,11 +625,29 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   }
 
   const reconnectEndpoint = async (id: string, signal: AbortSignal): Promise<ExtensionHttpBase> => {
-    const endpoint = await ensureTunnel(id, signal)
-    // The vendored client catches the throw, logs it and re-calls the hook; an undefined
-    // return would be passed to transport.update and must never happen.
-    if (!endpoint) throw new Error("ssh tunnel unavailable")
-    return { url: endpoint.url } // never a password — service auth is upstream's business
+    const recordAtStart = registry.get(id)
+    const generationAtStart = hostSessionGeneration.get(id) ?? 0
+    const session = await ensureTunnel(id, signal)
+    // The vendored client catches the throw and re-calls the hook. Revalidate after the
+    // await so disconnect/edit/delete/replacement cannot publish a stale endpoint or secret.
+    if (!session || signal.aborted || !recordAtStart) throw new Error("ssh tunnel unavailable")
+    const recordNow = registry.get(id)
+    if (!recordNow
+      || (hostSessionGeneration.get(id) ?? 0) !== generationAtStart
+      || stateOf(id) !== "ready"
+      || endpointOf(id) !== session.endpoint
+      || attempts.get(id) !== session.attempt
+      || session.attempt.signal.aborted
+      || recordNow.name !== recordAtStart.name
+      || recordNow.target !== recordAtStart.target
+      || (recordNow.servicePort ?? DEFAULT_SERVICE_PORT) !== (recordAtStart.servicePort ?? DEFAULT_SERVICE_PORT)
+      || recordNow.credentialRef !== recordAtStart.credentialRef) {
+      throw new Error("ssh tunnel unavailable")
+    }
+    // The current session map is authoritative. Never fall back to a password captured on
+    // an endpoint before the await; explicit teardown clears the map in flight.
+    const password = sessionServicePasswords.get(id)
+    return { url: session.endpoint.url, ...(password !== undefined ? { password } : {}) }
   }
 
   /** The upstream authenticate hook (T6 -> T1 revised -> ready/failed), "resolves true once ready". */
@@ -469,7 +665,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   // propagate (test/upstream-map.test.ts locks the propagation). The reconnect/connect
   // hooks (issue #6) ride along per host: reconnect re-resolves the tunnel endpoint
   // through the machine, connect backs the upstream inline sign-in (authenticate path).
-  const upstreamConnections = createMemo<ExtensionConnection[]>(() =>
+  const upstreamConnections = () =>
     registry.list().map((record: HostRecord) =>
       toExtensionConnection({
         record,
@@ -478,8 +674,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
         reconnect: (signal) => reconnectEndpoint(record.id, signal),
         connect: () => connectInline(record.id),
       }),
-    ),
-  )
+    )
 
   const instance: MobileHosts = {
     registry,
@@ -499,6 +694,29 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     fingerprintOf,
     failureReasonOf,
     upstreamConnections,
+    initialScreenOwned: initialOwned,
+    claimInitialScreen: () => {
+      if (!initialOwned()) setInitialGeneration((generation) => generation + 1)
+      setInitialOwned(true)
+      return initialGeneration()
+    },
+    initialGeneration,
+    ownInitialHost: (id) => {
+      setInitialHost(id)
+      setInitialHostGeneration(initialGeneration())
+    },
+    releaseInitialScreen: (id, generation) => {
+      if ((id === undefined || initialHost() === id) && (generation === undefined || initialGeneration() === generation)) {
+        setInitialOwned(false)
+        setInitialHost(undefined)
+        setInitialHostGeneration(undefined)
+      }
+    },
+    initialHostId: initialHost,
+    initialHostGeneration,
+    serviceAuthRequiredOf: (id) => serviceAuthRequired[id] === true,
+    cancelServiceAgain,
+    checkServiceAgain,
   }
   activeInstance = instance
   return instance

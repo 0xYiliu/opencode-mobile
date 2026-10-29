@@ -54,7 +54,8 @@ describe("vault put with the envelope form (client-side gate)", () => {
           const value = params["value"]
           if (typeof value !== "string" || value.length === 0) throw new VaultError("io", "empty value (native re-check)")
           if (new TextEncoder().encode(value).length > MAX_SECRET_BYTES) throw new VaultError("io", "too large")
-          const id = typeof params["existingId"] === "string" ? params["existingId"] : crypto.randomUUID()
+          const id = typeof params["existingId"] === "string" ? params["existingId"]
+            : typeof params["candidateId"] === "string" ? params["candidateId"] : crypto.randomUUID()
           entries.set(id, value)
           return formatVaultRef(id)
         }

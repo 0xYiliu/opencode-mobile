@@ -1,5 +1,6 @@
 package ai.opencode.mobile.notifications
 
+import ai.opencode.mobile.WebAssetServer
 import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
@@ -78,7 +79,7 @@ class NotificationsBridge(
     companion object {
         private const val TAG = "OpencodeShell"
         const val HANDSHAKE = "opencode-mobile-notifications-handshake"
-        private val TARGET_ORIGIN: Uri = Uri.parse("http://127.0.0.1:18090")
+        private val TARGET_ORIGIN: Uri = Uri.parse("http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}")
         private const val MAX_RETRIES = 5
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")

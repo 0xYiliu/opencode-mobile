@@ -32,6 +32,7 @@ async function softwareVaultNative(overrides?: Partial<InProcessVaultHandlers>) 
         const value = params["value"]
         const label = params["label"]
         const existingId = params["existingId"]
+        const candidateId = params["candidateId"]
         if (kind !== "password" && kind !== "privateKey") throw new VaultError("io", "unknown kind")
         if (typeof value !== "string" || value.length === 0) throw new VaultError("io", "empty value (native re-check)")
         if (encoder.encode(value).length > MAX_SECRET_BYTES) throw new VaultError("io", "value too large (native re-check)")
@@ -39,7 +40,7 @@ async function softwareVaultNative(overrides?: Partial<InProcessVaultHandlers>) 
         if (typeof existingId === "string") {
           id = existingId // in-place: the id (and therefore the ref) stays stable
         } else {
-          id = crypto.randomUUID()
+          id = typeof candidateId === "string" ? candidateId : crypto.randomUUID()
         }
         const envelope = await sealEnvelope(key, id, encoder.encode(value))
         const meta: VaultEntryMetadata = {

@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { createMobileHosts } from "../src/runtime"
 import type { MobileHosts } from "../src/runtime"
-import { createMemoryStorage } from "../src/storage"
+import { createMemoryStorage, HOSTS_STORAGE_KEY } from "../src/storage"
 import { createSshHostKeyVerifier } from "../src/ssh/host-key-verifier"
 import { createSshHostTransport } from "../src/ssh/transport"
 import type { SshBridgeTransport } from "../src/ssh/bridge"
+import type { CredentialVault } from "../src/vault/types"
 import { createFakeSshBridge } from "./fake-ssh-bridge"
 import type { FakeSshBridge } from "./fake-ssh-bridge"
 
@@ -29,6 +30,15 @@ const RSA_FINGERPRINT = "SHA256:abcdefghijklmnopqrstuvwxy0123456789ABCDEFGH"
 const TARGET = "deploy@example.invalid:22"
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 5))
+
+function confirmHost(hosts: MobileHosts, id: string) {
+  const record = hosts.registry.get(id)!
+  hosts.confirmHostKey(id, {
+    target: record.target,
+    servicePort: record.servicePort ?? 4096,
+    fingerprint: hosts.fingerprintOf(id)!,
+  })
+}
 
 /** Network-layer failures hit the TCP connect — they kill the key scan too (no TCP, no KEX). */
 const NETWORK_CODES = ["dns", "refused", "timeout", "unreachable"] as const
@@ -103,20 +113,89 @@ function fakeNativeService() {
   return { native, handlers }
 }
 
-function wireSshRuntime(handlers: Record<string, (params: Record<string, unknown>) => unknown>, fetch?: typeof globalThis.fetch) {
+function wireSshRuntime(
+  handlers: Record<string, (params: Record<string, unknown>) => unknown>,
+  fetch?: typeof globalThis.fetch,
+  storage = createMemoryStorage(),
+  vault?: CredentialVault,
+) {
   const bridge = createFakeSshBridge(handlers as never)
   bridge.native.connect() // handshake + ack: the bridge is up before the attempt starts
   const hosts = createMobileHosts({
-    storage: createMemoryStorage(),
+    storage,
     hostKey: createSshHostKeyVerifier(bridge.transport as SshBridgeTransport),
     transport: createSshHostTransport(bridge.transport as SshBridgeTransport),
     fetch: fetch ?? healthyServiceFetch(),
     sshBridge: bridge.transport as SshBridgeTransport,
+    ...(vault ? { vault } : {}),
   })
-  return { hosts, bridge: bridge as FakeSshBridge }
+  return { hosts, bridge: bridge as FakeSshBridge, storage }
 }
 
 describe("driver full flow over the ssh bridge (issue #6)", () => {
+  test.each([
+    ["target", { target: "attacker@example.invalid:2222" }],
+    ["SSH port", { target: "deploy@example.invalid:2222" }],
+    ["service port", { servicePort: 9443 }],
+  ])("editing the %s before confirmation invalidates the old fingerprint", async (_field, patch) => {
+    const opened: Array<{ target: string; pinnedFingerprint?: string }> = []
+    const hosts = createMobileHosts({
+      storage: createMemoryStorage(),
+      hostKey: { verify: async () => ({ action: "prompt", fingerprint: ED25519_FINGERPRINT }) },
+      transport: { open: async (input) => { opened.push(input); return { url: "http://127.0.0.1:45679" } } },
+      fetch: healthyServiceFetch(),
+    })
+    const host = hosts.registry.add({ name: "box", target: TARGET, servicePort: 8080 })
+    hosts.connect(host.id)
+    await settle()
+    const oldConfirmation = {
+      target: host.target,
+      servicePort: host.servicePort!,
+      fingerprint: ED25519_FINGERPRINT,
+    }
+    hosts.registry.update(host.id, patch)
+    hosts.confirmHostKey(host.id, oldConfirmation)
+    await settle()
+    expect(opened).toEqual([])
+    expect(hosts.stateOf(host.id)).toBe("idle")
+  })
+
+  test("editing target while pinned open is pending aborts that exact open and never opens the new target", async () => {
+    const opened: Array<{ target: string; pinnedFingerprint?: string; signal: AbortSignal }> = []
+    let resolveOpen!: (endpoint: { url: string }) => void
+    const hosts = createMobileHosts({
+      storage: createMemoryStorage(),
+      hostKey: { verify: async () => ({ action: "prompt", fingerprint: ED25519_FINGERPRINT }) },
+      transport: {
+        open: (input) => {
+          opened.push(input)
+          return new Promise((resolve) => { resolveOpen = resolve })
+        },
+      },
+      fetch: healthyServiceFetch(),
+    })
+    const host = hosts.registry.add({ name: "box", target: TARGET, servicePort: 8080 })
+    hosts.connect(host.id)
+    await settle()
+    hosts.confirmHostKey(host.id, {
+      target: host.target,
+      servicePort: host.servicePort!,
+      fingerprint: ED25519_FINGERPRINT,
+    })
+    expect(opened).toHaveLength(1)
+    expect(opened[0]?.target).toBe(TARGET)
+    expect(opened[0]?.pinnedFingerprint).toBe(ED25519_FINGERPRINT)
+
+    hosts.registry.update(host.id, { target: "attacker@example.invalid:2222" })
+    expect(opened[0]?.signal.aborted).toBe(true)
+    resolveOpen({ url: "http://127.0.0.1:45679" })
+    await settle()
+    expect(opened.map((attempt) => attempt.target)).toEqual([TARGET])
+    expect(hosts.stateOf(host.id)).toBe("idle")
+    expect(hosts.upstreamConnections()[0]?.state).toBe("stopped")
+    expect(hosts.upstreamConnections()[0]?.http.url).toBe("http://127.0.0.1:0")
+  })
+
   test("unknown host -> prompt -> confirm -> pinned open -> healthy -> ready (no re-scan after confirm)", async () => {
     const { native, handlers } = fakeNativeService()
     const { hosts, bridge } = wireSshRuntime(handlers)
@@ -130,7 +209,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     // Scan discipline: the key scan never carries credential material.
     const scan = bridge.native.requests().find((r) => r.op === "fetchHostKey")!
     expect("credential" in scan.params).toBe(false)
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     // T5: the pinned open succeeded and the service check passed.
     expect(hosts.stateOf(host.id)).toBe("ready")
@@ -158,7 +237,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("ready")
     const connectOp = native.ops.find((op) => op.op === "connect")!
@@ -172,7 +251,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     // First contact: establish the trust baseline.
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("ready")
     hosts.disconnect(host.id)
@@ -215,7 +294,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("ready")
     hosts.disconnect(host.id)
@@ -242,7 +321,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     hosts.disconnect(host.id)
     await settle()
@@ -264,7 +343,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
       // (auth/target/forward) surface only after the fingerprint was confirmed.
       if (hosts.stateOf(host.id) === "hostKeyUnverified") {
         expect(hosts.fingerprintOf(host.id)).toBe(ED25519_FINGERPRINT)
-        hosts.confirmHostKey(host.id)
+        confirmHost(hosts, host.id)
         await settle()
       }
       expect(hosts.stateOf(host.id)).toBe("failed")
@@ -278,12 +357,234 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("failed")
     expect(hosts.failureReasonOf(host.id)).toBe("service-unreachable")
     // The health check ran through the tunnel endpoint (its own authority face).
     expect(bridge.native.requests().some((r) => r.op === "connect")).toBe(true)
+  })
+
+  test("service 401 is reachability, not SSH failure; explicit authenticated recheck clears the gate", async () => {
+    const { handlers } = fakeNativeService()
+    const authHeaders: string[] = []
+    const fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const authorization = new Headers(init?.headers).get("authorization") ?? ""
+      authHeaders.push(authorization)
+      return authorization
+        ? new Response(JSON.stringify({ version: "2.1.4" }), { status: 200 })
+        : new Response("sign in", { status: 401 })
+    }) as typeof globalThis.fetch
+    const storage = createMemoryStorage()
+    const { hosts } = wireSshRuntime(handlers, fetch, storage)
+    const host = hosts.registry.add({ name: "auth box", target: TARGET })
+    hosts.connect(host.id)
+    await settle()
+    confirmHost(hosts, host.id)
+    await settle()
+    expect(hosts.stateOf(host.id)).toBe("ready")
+    expect(hosts.serviceAuthRequiredOf(host.id)).toBe(true)
+    expect(await hosts.checkServiceAgain(host.id)).toBe(false)
+    const unicodePassword = "service-秘密-🔐"
+    expect(await hosts.checkServiceAgain(host.id, unicodePassword)).toBe(true)
+    const sentToken = authHeaders[authHeaders.length - 1]!
+    const rawBasic = Uint8Array.from(atob(sentToken.slice("Basic ".length)), (character) => character.charCodeAt(0))
+    expect(new TextDecoder().decode(rawBasic)).toBe(`opencode:${unicodePassword}`)
+    expect(hosts.serviceAuthRequiredOf(host.id)).toBe(false)
+    expect(hosts.stateOf(host.id)).toBe("ready")
+    expect(hosts.upstreamConnections()[0]!.http.password).toBe(unicodePassword)
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).not.toContain(unicodePassword)
+    expect(JSON.stringify(hosts.registry.list())).not.toContain(unicodePassword)
+  })
+
+  test("overlapping service rechecks commit only the newest successful password, including reversed failures", async () => {
+    const { handlers } = fakeNativeService()
+    const pending: Array<{ authorization: string; resolve: (response: Response) => void }> = []
+    const fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const authorization = new Headers(init?.headers).get("authorization")
+      if (!authorization) return new Response("auth required", { status: 401 })
+      return new Promise<Response>((resolve) => pending.push({ authorization, resolve }))
+    }) as typeof globalThis.fetch
+    const storage = createMemoryStorage()
+    const { hosts } = wireSshRuntime(handlers, fetch, storage)
+    const host = hosts.registry.add({ name: "serialized auth", target: TARGET })
+    hosts.connect(host.id)
+    await settle()
+    confirmHost(hosts, host.id)
+    await settle()
+    expect(hosts.serviceAuthRequiredOf(host.id)).toBe(true)
+
+    const password1 = "auth-first-秘密"
+    const password2 = "auth-second-🔐"
+    const earlierSuccess = hosts.checkServiceAgain(host.id, password1)
+    const newerSuccess = hosts.checkServiceAgain(host.id, password2)
+    await settle()
+    expect(pending).toHaveLength(2)
+    pending[1]!.resolve(Response.json({ version: "2.1.4" }))
+    expect(await newerSuccess).toBe(true)
+    pending[0]!.resolve(Response.json({ version: "2.1.4" }))
+    expect(await earlierSuccess).toBe(false)
+    expect(hosts.upstreamConnections()[0]!.http.password).toBe(password2)
+    expect(hosts.serviceAuthRequiredOf(host.id)).toBe(false)
+
+    const staleSuccessPassword = "auth-stale-success"
+    const latestFailurePassword = "auth-latest-failure"
+    const staleSuccess = hosts.checkServiceAgain(host.id, staleSuccessPassword)
+    const latestFailure = hosts.checkServiceAgain(host.id, latestFailurePassword)
+    await settle()
+    expect(pending).toHaveLength(4)
+    pending[3]!.resolve(new Response("denied", { status: 403 }))
+    expect(await latestFailure).toBe(false)
+    pending[2]!.resolve(Response.json({ version: "2.1.4" }))
+    expect(await staleSuccess).toBe(false)
+    expect(hosts.upstreamConnections()[0]!.http.password).toBe(password2)
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).not.toContain(password1)
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).not.toContain(password2)
+    expect(JSON.stringify(hosts.registry.list())).not.toMatch(/auth-first|auth-second|auth-stale|auth-latest/)
+  })
+
+  test("Unicode service password survives event-stream reconnect and authenticated tunnel reconnect", async () => {
+    const { native, handlers } = fakeNativeService()
+    const healthAuthorization: Array<string | null> = []
+    const fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const authorization = new Headers(init?.headers).get("authorization")
+      healthAuthorization.push(authorization)
+      return authorization
+        ? Response.json({ version: "2.1.4" })
+        : new Response("auth required", { status: 401 })
+    }) as typeof globalThis.fetch
+    const { hosts, bridge, storage } = wireSshRuntime(handlers, fetch)
+    const host = hosts.registry.add({ name: "auth reconnect", target: TARGET })
+    hosts.connect(host.id)
+    await settle()
+    confirmHost(hosts, host.id)
+    await settle()
+    expect(hosts.stateOf(host.id)).toBe("ready")
+    expect(hosts.serviceAuthRequiredOf(host.id)).toBe(true)
+
+    const password = "service-秘密-🔐"
+    expect(await hosts.checkServiceAgain(host.id, password)).toBe(true)
+    const initialConnection = hosts.upstreamConnections()[0]!
+    // The event stream can reconnect without redialing SSH. Its hook result must preserve
+    // session auth so the upstream transport.update path can install an authenticated API.
+    const eventReconnect = await initialConnection.reconnect!(new AbortController().signal)
+    expect(eventReconnect.url).toBe("http://127.0.0.1:45679")
+    expect(eventReconnect.password).toBe(password)
+
+    // The SSH tunnel itself drops and reopens on a new local port. Post-open service health
+    // must use the same volatile password, and the returned hook value must keep that auth
+    // when the upstream transport rotates its client again.
+    native.nextConnect = { ok: true, port: 45701 }
+    bridge.native.pushEvent({ event: "connectionLost", host: "example.invalid", port: 22 })
+    await settle()
+    const reconnectingConnection = hosts.upstreamConnections()[0]!
+    const tunnelReconnect = await reconnectingConnection.reconnect!(new AbortController().signal)
+    expect(tunnelReconnect).toEqual({ url: "http://127.0.0.1:45701", password })
+    const authBytes = new TextEncoder().encode(`opencode:${password}`)
+    const authBinary = Array.from(authBytes, (byte) => String.fromCharCode(byte)).join("")
+    const expectedAuthorization = `Basic ${btoa(authBinary)}`
+    expect(healthAuthorization.at(-1)).toBe(expectedAuthorization)
+    expect(healthAuthorization.at(-2)).toBe(expectedAuthorization)
+    expect(hosts.upstreamConnections()[0]!.http.password).toBe(password)
+    expect(storage.getItem(HOSTS_STORAGE_KEY)).not.toContain(password)
+    expect(JSON.stringify(hosts.registry.list())).not.toContain(password)
+    expect(JSON.stringify(hosts.upstreamConnections().map(({ http }) => ({ url: http.url })))).not.toContain(password)
+  })
+
+  test.each(["disconnect", "edit", "remove"] as const)(
+    "a ready-session reconnect rejects stale endpoint/password when %s happens before its continuation",
+    async (mutation) => {
+      const { handlers } = fakeNativeService()
+      const hosts = wireSshRuntime(
+        handlers,
+        (async () => Response.json({ version: "2.1.4" })) as typeof globalThis.fetch,
+      ).hosts
+      const host = hosts.registry.add({ name: "teardown race", target: TARGET })
+      hosts.connect(host.id)
+      await settle()
+      confirmHost(hosts, host.id)
+      await settle()
+      const password = "private-service-秘密-🔐"
+      expect(await hosts.checkServiceAgain(host.id, password)).toBe(true)
+      const before = hosts.upstreamConnections()[0]!
+      expect(before.http.url).toBe("http://127.0.0.1:45679")
+      expect(before.http.password).toBe(password)
+
+      // ensureTunnel returns its already-ready session as a resolved promise. Mutate in the
+      // same turn, before reconnectEndpoint's post-await continuation can publish anything.
+      const pending = before.reconnect!(new AbortController().signal)
+      if (mutation === "disconnect") hosts.disconnect(host.id)
+      else if (mutation === "edit") hosts.registry.update(host.id, { target: "new@example.invalid:2200" })
+      else hosts.remove(host.id)
+
+      await expect(pending).rejects.toThrow("ssh tunnel unavailable")
+      const after = hosts.upstreamConnections().find((item) => item.key === before.key)
+      if (mutation === "remove") {
+        expect(after).toBeUndefined()
+      } else {
+        expect(after?.http.url).toBe("http://127.0.0.1:0")
+        expect(after?.http.password).toBeUndefined()
+      }
+    },
+  )
+
+  test("an aborted old attempt waiter cannot cancel a newer retry for the same host", async () => {
+    const openSignals: AbortSignal[] = []
+    const healthResolvers: Array<(response: Response) => void> = []
+    let healthCalls = 0
+    let reportConnectionLost: (() => void) | undefined
+    const hosts = createMobileHosts({
+      storage: createMemoryStorage(),
+      hostKey: { verify: async () => ({ action: "trust" }) },
+      transport: {
+        open: async (input) => {
+          openSignals.push(input.signal)
+          if (openSignals.length === 1) reportConnectionLost = () => input.onEvent({ type: "connectionLost" })
+          return { url: `http://127.0.0.1:${45670 + openSignals.length}` }
+        },
+      },
+      fetch: (async () => {
+        healthCalls++
+        if (healthCalls === 1) return Response.json({ version: "2.1.4" })
+        return new Promise<Response>((resolve) => healthResolvers.push(resolve))
+      }) as typeof globalThis.fetch,
+    })
+    const host = hosts.registry.add({ name: "waiter generation", target: TARGET })
+    hosts.connect(host.id)
+    await settle()
+    expect(hosts.stateOf(host.id)).toBe("ready")
+
+    reportConnectionLost!()
+    await settle()
+    const staleSignal = new AbortController()
+    const staleReconnect = hosts.upstreamConnections()[0]!.reconnect!(staleSignal.signal)
+    const staleOutcome = staleReconnect.then(() => "resolved", () => "rejected")
+    for (let count = 0; count < 30 && healthResolvers.length < 1; count++) await settle()
+    expect(healthResolvers).toHaveLength(1)
+    expect(hosts.stateOf(host.id)).toBe("reconnecting")
+
+    // Disconnecting attempt A returns to offline; start attempt B before the old waiter
+    // observes its aborted signal. Keep B in health-checking so its state is still transient
+    // when that old waiter polls.
+    hosts.disconnect(host.id)
+    hosts.retry(host.id)
+    for (let count = 0; count < 30 && healthResolvers.length < 2; count++) await settle()
+    expect(healthResolvers).toHaveLength(2)
+    expect(openSignals).toHaveLength(3)
+    const newAttemptSignal = openSignals[2]!
+    expect(newAttemptSignal.aborted).toBe(false)
+    staleSignal.abort()
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    expect(await staleOutcome).toBe("rejected")
+    expect(newAttemptSignal.aborted).toBe(false)
+    expect(hosts.stateOf(host.id)).toBe("reconnecting")
+
+    healthResolvers[1]!(Response.json({ version: "2.1.4" }))
+    await settle()
+    healthResolvers[0]!(Response.json({ version: "2.1.4" }))
+    await settle()
+    expect(newAttemptSignal.aborted).toBe(false)
+    expect(hosts.stateOf(host.id)).toBe("ready")
   })
 
   test("incompatible service version -> incompatible (T7; the upstream panel's driver)", async () => {
@@ -293,7 +594,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("incompatible")
     expect(hosts.upstreamConnections()[0]!.state).toBe("incompatible")
@@ -305,7 +606,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("ready")
     const keyBefore = hosts.upstreamConnections()[0]!.key
@@ -329,7 +630,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host = hosts.registry.add({ name: "box", target: TARGET })
     hosts.connect(host.id)
     await settle()
-    hosts.confirmHostKey(host.id)
+    confirmHost(hosts, host.id)
     await settle()
     expect(hosts.stateOf(host.id)).toBe("ready")
     // The tunnel drops -> offline (T9); then every redial fails.
@@ -367,7 +668,7 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     const host2 = hosts.registry.add({ name: "box2", target: "other@elsewhere.invalid" })
     hosts.connect(host2.id)
     await settle()
-    hosts.confirmHostKey(host2.id)
+    confirmHost(hosts, host2.id)
     await settle()
     expect(hosts.stateOf(host2.id)).toBe("ready")
     hosts.disconnect(host2.id)
@@ -376,6 +677,79 @@ describe("driver full flow over the ssh bridge (issue #6)", () => {
     expect(native.ops.filter((op) => op.op === "disconnect").length).toBe(1)
     expect(native.ops.filter((op) => op.op === "cancel").length).toBe(0)
     expect(native.ops.every((op) => op.op === "connect" || op.op === "disconnect")).toBe(true)
+  })
+
+  test.each([
+    ["same-reference edit", "mobile-credential:old"],
+    ["replacement-reference edit", "mobile-credential:new"],
+  ])("host deletion does not race a %s or destroy its credential", async (_case, editedRef) => {
+    const removeCalls: string[] = []
+    const vault: CredentialVault = {
+      status: () => "available",
+      put: async () => editedRef,
+      remove: async (ref) => {
+        removeCalls.push(ref)
+        throw new Error("synthetic vault removal failure")
+      },
+      get: async (ref) => ref === "mobile-credential:old" ? "synthetic retained value" : undefined,
+      list: async () => [{ id: "old", kind: "password", createdAt: "synthetic" }],
+    }
+    const { handlers } = fakeNativeService()
+    const { hosts } = wireSshRuntime(handlers, undefined, createMemoryStorage(), vault)
+    const host = hosts.registry.add({
+      name: "original",
+      target: "original@example.invalid",
+      credentialRef: "mobile-credential:old",
+    })
+
+    // remove() completes its local mutation before returning its promise; there is no
+    // asynchronous interval in which an edit can race a destructive credential delete.
+    const removal = hosts.remove(host.id)
+    const competingRemoval = hosts.remove(host.id)
+    expect(await competingRemoval).toBe(false)
+    expect(hosts.registry.get(host.id)).toBeUndefined()
+    expect(() => hosts.registry.update(host.id, {
+      name: "edited during deletion",
+      target: "edited@example.invalid",
+      credentialRef: editedRef,
+    })).toThrow("not-found")
+    expect(await removal).toBe(true)
+    expect(removeCalls).toEqual([])
+    expect(await vault.get("mobile-credential:old")).toBe("synthetic retained value")
+  })
+
+  test("deleting a ready host despite vault cleanup failure clears ready state and retains its credential", async () => {
+    const removeCalls: string[] = []
+    const vault: CredentialVault = {
+      status: () => "available",
+      put: async () => "mobile-credential:ready",
+      remove: async (ref) => {
+        removeCalls.push(ref)
+        throw new Error("synthetic ready-host vault removal failure")
+      },
+      get: async () => "synthetic retained ready credential",
+      list: async () => [],
+    }
+    const { handlers } = fakeNativeService()
+    const { hosts } = wireSshRuntime(handlers, undefined, createMemoryStorage(), vault)
+    const host = hosts.registry.add({
+      name: "ready host",
+      target: TARGET,
+      credentialRef: "mobile-credential:ready",
+    })
+    hosts.connect(host.id)
+    await settle()
+    confirmHost(hosts, host.id)
+    await settle()
+    expect(hosts.stateOf(host.id)).toBe("ready")
+
+    const removal = hosts.remove(host.id)
+    expect(hosts.stateOf(host.id)).toBe("idle")
+    expect(hosts.upstreamConnections()).toEqual([])
+    expect(hosts.registry.get(host.id)).toBeUndefined()
+    expect(await removal).toBe(true)
+    expect(removeCalls).toEqual([])
+    expect(await vault.get("mobile-credential:ready")).toBe("synthetic retained ready credential")
   })
 
   test("cancel mid-connect fires the local cancel op (bounded, no hang)", async () => {

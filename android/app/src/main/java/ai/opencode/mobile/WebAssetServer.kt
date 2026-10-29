@@ -90,7 +90,7 @@ class WebAssetServer(
 
     companion object {
         const val LOOPBACK_HOST = "127.0.0.1"
-        const val DEFAULT_PORT = 18090
+        val DEFAULT_PORT: Int = BuildConfig.WEB_ASSET_PORT
         const val ASSETS_ROOT = "web"
 
         private const val INDEX_HTML = "index.html"

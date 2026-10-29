@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createMemo } from "solid-js"
+import { createMemo, createRoot } from "solid-js"
 import { assertExtensionShape, mapStateToServerState, toExtensionConnection } from "../src/upstream-map"
 import { createMobileHosts } from "../src/runtime"
 import { createMemoryStorage } from "../src/storage"
@@ -90,10 +90,10 @@ describe("extension mapping", () => {
       hostKey: { verify: async () => ({ action: "prompt", fingerprint: "aa:bb:cc:dd" }) },
     })
     let evaluations = 0
-    const view = createMemo(() => {
+    const view = createRoot(() => createMemo(() => {
       evaluations++
       return hosts.upstreamConnections().map((c) => ({ key: c.key, state: c.state }))
-    })
+    }))
 
     expect(view().length).toBe(0)
     const host = hosts.registry.add({ name: "a", target: "a@example.invalid" })
