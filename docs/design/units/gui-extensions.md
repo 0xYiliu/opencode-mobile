@@ -27,12 +27,12 @@
 | pairing | **是** | 无 | `pairing/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Pairing） | 零（桌面配对发起端；移动接收端归 #22） | #22（接收端） |
 | updater | **是** | 无 | `updater/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Updater） | 零（桌面发布流程，无移动等价物） | — |
 | ssh | **是** | 无 | `ssh/renderer.tsx` `if (ctx.build.platform !== "desktop") return`（注释逐字「SSH lives in the desktop main process.」） | Ipc（Ssh） | 零（第一方 mobile-hosts SSH 已替代，#6） | #6 |
-| wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | 无守卫但被 root.tsx os 过滤排除（web `os=undefined` → 不入 definitions） | Ipc（Wsl） | **不在移动清单**（os 过滤结构性排除；范围决策 0001） | —（范围排除） |
+| wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | 无守卫但被 root.tsx os 过滤排除（web `os=undefined` → 不入 definitions） | Ipc（Wsl） | **静态排除行（issue #62/N12）**：id + 禁用状态 + 原因文案（决策 0001），零操作（无 Reload/无 Switch/无任何启停安装入口）；宿主 definitions 仍不含 wsl（os 过滤不变） | —（范围排除） |
 | microsoft-office | — | 无 | 无 | Contract（FileViewer） | office 工件三 kind 查看器（#18 渲染链） | #18 |
 
-- **web 定义表恰 12 个**：root.tsx `os` 过滤器在 web（`os = platform.platform === "desktop" ? platform.os : undefined`）使 wsl 不入 definitions——管理面清单即 12 行（wsl 不在列是结构性事实，G35⑦ 负例核对）。
+- **web 定义表恰 12 个**：root.tsx `os` 过滤器在 web（`os = platform.platform === "desktop" ? platform.os : undefined`）使 wsl 不入 definitions——宿主定义行即 12 行；管理面呈现 13 行 = 12 宿主定义行 + 1 静态排除行（issue #62/N12：wsl 行为第一方合成呈现，不读宿主状态/失败/禁用记录，G35⑦ 核对）。
 - **硬 requires 全零**：13 个 `index.ts` 的 `requires:` 零命中——宿主 blocked 态在内建组合中结构性不出现；「missing dependency」的移动呈现=desktop-host 四行的「桌面专属」能力列（宿主能力缺席的如实呈现），而非运行时 blocked。
-- **能力映射两集合**：管理面静态能力表 {context, btw, debug, terminal, file, review, details, microsoft-office} = `web`（可启停）；{browser, pairing, ssh, updater} = `desktop-host`（呈现「桌面专属」+ Switch 禁用态）；wsl 不在列。Ipc 恰 6（pairing/wsl/updater/ssh/HeapSnapshots/BrowserPane——web 上「always inactive」，core.ts 注释逐字）+ Contract 恰 3（browser/file/review）。
+- **能力映射三集合**：管理面静态能力表 {context, btw, debug, terminal, file, review, details, microsoft-office} = `web`（可启停）；{browser, pairing, ssh, updater} = `desktop-host`（呈现「桌面专属」+ Switch 禁用态）；{wsl} = `excluded`（issue #62/N12 静态排除行：禁用状态 + 原因文案，零控件）。Ipc 恰 6（pairing/wsl/updater/ssh/HeapSnapshots/BrowserPane——web 上「always inactive」，core.ts 注释逐字）+ Contract 恰 3（browser/file/review）。
 
 ## 三、宿主生命周期（上游实态，引用不重锁）
 
@@ -51,7 +51,7 @@
 - **挂载点**：`settings/shell.tsx` 的 `gui-extensions` tab 在非桌面平台挂载第一方 `ExtensionManager`（M-026 增行 `const mobileGuiExtensions = platform.platform !== "desktop"`；redirect 条件与 nav 条件随之修订；upstream 分支保持 DEV+desktop 原样——桌面行为零变化）。包装层经 `useExtensionHost()` 取 `definitions`/`status`/`failures`/`reload` 以 props 注入——mobile-hosts 不 import app 内部模块（包边界纪律）。
 - **禁用记录 schema**：key `opencode-mobile.guiext.v1`，payload `{ version: 1, disabled: string[] }`（id 形态校验+未知 id 丢弃）；第一方 `packages/mobile-hosts/src/extensions/manager.ts` 承载，safeStorage 复用（不可持久化时 volatile 回退并如实上报——禁用仅本会话有效）。**device-local**：不跨设备、不与桌面 settings file、不与远端 opencode.json 同步。
 - **toggle 链**：Switch → `manager.toggle(id, next)` → 记录更新 → M-025 在 root.tsx disabled memo 中把移动记录**并集**进上游 Set（`for (const id of mobileDisabled.ids()) if (ids.has(id)) merged.add(id)`——**过滤到当前 definitions id 集合**，rename 后未知 id 自愈丢弃）→ 宿主 watcher deactivate/activate → 九消费面同帧响应。上游 `extensionEnabled` 桌面行与 `installed.enableState()` 门零改动（early-exit 语义：initial 资源解析前桌面行与移动记录均暂不生效，与今日 web 启动行为一致，如实登记）。
-- **desktop-host 行呈现**：browser/pairing/ssh/updater 四行呈现「桌面专属」+ Switch 禁用态（其宿主状态恒 Active 是机制实态而非可用性声明——不以 host.status 断言移动可用）；wsl 不在列。
+- **desktop-host 行呈现**：browser/pairing/ssh/updater 四行呈现「桌面专属」+ Switch 禁用态（其宿主状态恒 Active 是机制实态而非可用性声明——不以 host.status 断言移动可用）；wsl 以**静态排除行**呈现（issue #62/N12）：行首 id（`dir="ltr"`）+ 复用「已禁用/Disabled」状态文案 + 决策 0001 原因文案（`guiext.excluded.wsl.reason`，en/zh 对称），**零操作**——无 Reload、无 Switch（范围排除不渲染任何开关，避免暗示启停语义）、不读宿主状态/失败/禁用记录；防御性条件渲染：宿主 definitions 已含某排除 id 时不重复渲染静态行（definitions 行优先）。
 - **状态与失败呈现**：每行呈现宿主五态之一（loading/active/failed/disabled/blocked）+ failure error 文案；**Reload**（`host.reload(id)`）为 renderer 侧重试（web 可用；宿主注释「`next` replaces the definition, e.g. after a development hot update」）。
 - **语义外溢（M-018 spillover 先例如实登记）**：M-025 在 desktop DEV 构建同样生效（桌面行∪设备记录），而桌面不渲染移动面、桌面 localStorage 无 guiext.v1 → 并集空 no-op；M-026 的 `platform !== "desktop"` 判定使桌面行为零变化。回滚=M-026 单行回退。
 
@@ -82,14 +82,14 @@
 
 - 管理面挂载于设置 gui-extensions tab（多服务器布局同样可达——`mobileGuiExtensions` 判定与布局无关，M-018 同型核对归 G35①）；与 More 抽屉/一级 tab 的扩展注册面关系引用 [interaction-quality.md](../interaction-quality.md)（#20 §二在册——本期禁用行为是其响应式机制的运行时演练，G31⑤② 为 G35①② 复核位）。
 - 组件来源=`@opencode/ui` 的 Switch 与 Button（mobile-hosts 既有五 UI 文件的先例面）+自研轻量列表（语义化容器+`data-component` 标记+上游视觉令牌——host-manager 先例「Reuses @opencode/ui primitives and tokens — no new visual decisions, no bare values」）；文案=mobile-hosts 自包含 i18n（`guiext.*` 键 en+zh——host-manager 先例「Deliberately not wired into the upstream i18n provider」）。
-- 读屏/焦点/触摸目标归 G35⑨（G31⑦ 复核位）：列表读屏走查、Switch 标签、错误文案读屏、触摸目标。
+- 读屏/焦点/触摸目标归 G35⑨（G31⑦ 复核位）：列表读屏走查、Switch 标签、错误文案读屏、触摸目标。静态排除行（issue #62/N12）为纯文本行：id 使用 `dir="ltr"` 保障双向文本语境下的原始 id 呈现，原因文案为普通 span（不占用 alert 语义——范围排除是常驻事实而非事件）；行内零控件即零可聚焦控件，无焦点陷阱面，读屏可读出 id/状态/原因——G35⑨ 抽查位。
 
 ## 十、诚实边界（本期不声称）
 
 - **G35 全部运行期行为 BLOCKED**（十项）——未过前只声称「文档/探针/单测/构建级已验证，运行期已实现（未验证）」（§首第二十一处落字）。
 - **桌面主进程侧不声称**：EnableState 持久化语义、manager.reload main 面、.ocdx install/remove 行为、桌面 DEV 面运行实态——packages/desktop 不在闭包（仅图标资产）。
 - **移动禁用记录 device-local**：不跨设备、不与桌面 settings file、不与远端 opencode.json 同步；volatile 回退时禁用仅本会话有效并如实提示。
-- **desktop-host 四扩展（browser/pairing/ssh/updater）呈现「桌面专属」**：其 Active 状态是宿主机制实态而非可用性声明；wsl 不在移动清单；btw 移动不可达（窄屏命令门+无 mobile Panel）——管理面仍列出（定义在表），能力列如实。
+- **desktop-host 四扩展（browser/pairing/ssh/updater）呈现「桌面专属」**：其 Active 状态是宿主机制实态而非可用性声明；wsl 以静态排除行呈现（issue #62/N12，决策 0001——不发现/不安装/不启停/不管理/不执行命令，原因文案明示且含 Windows 宿主，末句声明原生 Windows 远程主机支持保留）；btw 移动不可达（窄屏命令门+无 mobile Panel）——管理面仍列出（定义在表），能力列如实。
 - **失败注入不可控**：上游无 fault-injection 面——G35③ 以 Reload 行为+呈现面核对承载，不虚构故障演练。
 - **extension store 跨升级存活依赖 WebView 数据保留**（§六）。
 - **探针证明力**：`scripts/verify-gui-extensions.ts` 是 static STRUCTURE check（文本锚/归一化扫描/集合相等/负例实测），零运行时证明力；交叉引用锚（#15 四证据链/#24 五层链/#20 More 抽屉/#13 pty 语义——首锁 verify-terminal 组 2/组 3/#9 interrupt 穷举/root.tsx VAC 四锚）引用不重锁，首锁归属在探针头注逐条声明。
