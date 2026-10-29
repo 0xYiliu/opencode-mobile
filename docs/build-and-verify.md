@@ -72,6 +72,46 @@ Async status-message follow-up (2026-10-29): service-auth completion now updates
 
 Initial handoff form-open review follow-up (2026-10-29): `canHandoffInitialSsh` explicitly rejects while add/edit is open. A rendered test defers the real runtime's initial service health, opens Edit and types a draft, then resolves readiness; the draft remains and ownership is not released until Cancel. A subsequent changed-target Save cancels the old session, leaves the owner on the screen and does not open the new target with the previous connection. The APK was built and initially not installed; the coordinator subsequently installed this exact artifact for the limited smoke documented below.
 
+记录日期：2026-10-30。issue #61 段（G36 SSH E2E 闭环，分支 `issue-61-g36-ssh-e2e`，基线 dev @ 61322dd；计划 v2 评审 PASS）：先闭环指纹差异根因，再在 MatePad 真机（DBY2-AL00）完成 G36 全矩阵与真实 SSH 主链。**根因裁定（value-free，两项独立证据）**：① bastion 端点审计——对 bastion 两个地址（LAN 与 Tailscale）分别 `ssh-keyscan -t ed25519,ecdsa,rsa` :22，六形式指纹与 `ssh-keygen -lf` 独立参考 **6/6 相等布尔 true**（ED25519 `SHA256:wVefJdE2n4bxhqelix7jEAt7qywNZThxgKXV0F5P2uU`、ECDSA `SHA256:Ojlmp8GEUKhluo1sBKXDv3giTcutJhSvH4+h+3lQc1g`、RSA `SHA256:sNL8+enxcKskdPLiHez0CFjjHWLKtkw2QpXvdPZuST0`；MD5 形式同日重推导在册）；② 应用内 Verify host 提示双通道采样（uiautomator dump + CDP DOM 同轮）两通道一致，且与 ED25519 参考**相等布尔 true**（格式断言 `SHA256:`+43 字符 base64 通过；提示呈现的 SSH target/端口与参考地址相等布尔 true）。**结论：历史「提示指纹与参考不匹配」为 H2（比对过程错位，非应用缺陷）——应用呈现并存储的一直是 bastion 真实公钥（known_hosts 取证 4/4 行 blob 指纹均等于参考）；端点身份漂移（H1）与提示渲染缺陷（H3）排除。** 附带发现：历史「信任永不生效→每次连接重复提示」根因为早期构建（de27569 时点）`SshHostKeyStore.writeLines()` 以 `joinToString` 无 transform 序列化 data-class `toString()`（`Line(raw=…` 包装行），**已在 4a9e096 修复**（`{ it.raw }` transform），本轮无代码修复（分支 A）；设备 store 现存 3 行该 era 的 verbatim 残留（按 never-rewrite 契约保留、永不匹配、无害）+3 行有效行。设备测试密钥（仅授权于 bastion）经 SAF 导入后 `rm` 回查不存在布尔 true。**G36 矩阵（#a–#k，全部在主应用包，`install -r` 全程、未 clear/uninstall）**：#a 添加（vault 写入+凭据管理器私钥元数据出现+保存值核对）PASS；#b 编辑（pending prompt 存活中改名+port 4096→4097，身份变更取消 pending prompt 与 attempt，恢复 4096 后记录与主链一致）PASS；#c 连接+unknown key（Reject→failed+「host key was rejected」文案+known_hosts 零新增；Confirm→信任写入 `[bastion]:22` 干净行→服务未启动止于 `target-refused` 文案）PASS；#d changed key（换 sshd 主机密钥后 Connect→红色 DANGER 警示+两步危险确认+forget→回 unknown（新密钥）→Reject；新密钥未自动入 store）PASS；#e SSH 认证失败（无凭据→`Sign-in required` authRequired 态+可编辑重试；绑错密码→密码认证被拒→同态）PASS；#f 不可达（:2223 无监听→`refused` 文案+可恢复按钮）PASS；#h 三模式草稿保持 **BLOCKED**（见下诚实边界）；g2 哑监听（4096 上临时 nc 监听→`service-unreachable` 文案「The tunnel is up, but no OpenCode service answered」）PASS；#g 服务启动分界（pre-start=`target-refused`；显式启动真服务（`OPENCODE_PASSWORD` env 文件引用 + `OPENCODE_PRINT_LOGS=1`，curl 401/200 验证）后 Connect→隧道 ready+401→ServiceAuthPrompt 呈现且未输入）PASS。**#i 全链 PASS**：ServiceAuthPrompt 输密码→Check again→`serviceAuthRequired` 消失→ready→handoff→远端会话列表与既有会话工作台可达（真实远端数据渲染；G3 CORS 首实证=应用 origin 对隧道端点的跨源数据面可用，正向结果证据，未预挂 console 采集）。**#j 断开红线 PASS**：应用内显式 Disconnect→bastion 侧 opencode 进程存活（etime 持续增长）+ :4096 仍监听+`serve.log`（`OPENCODE_PRINT_LOGS=1` 请求级日志面）**请求级 stop/interrupt/abort/cancel 命中 0**（唯一含 "stop" 字样的 18 行均为服务自身 file-watcher 生命周期消息，非请求）；杀 App 重启→重连→服务认证提示重现（密码为会话内存=预期实态）→重新认证→远端会话列表与本地草稿均恢复。**#k 信任稳定性 PASS**：3 轮 connect/disconnect 共 6 动作零 host-key prompt（store 信任命中路径稳定）。**APK SHA-256 `d3bcd579c023ce2232dfb1ee1209aecd27e9c89cdee96ff3b3e91cbded8733ab`**（工作树构建=安装包=pull 回读一致）；基线 mobile-hosts 单测 414 tests / 0 fail / 2837 expect（实跑值，基线漂移在册）。QA 后测试服务已显式停止、辅助 sshd（:2222，独立密钥，仅 LAN）已停止并删除密钥目录、`service_pw`/日志/dump 已删；测试私钥仍授权于 bastion `authorized_keys`，是否移除归协调员决定（残余暴露面注记见下）。
+
+### issue #61 / G36 实际结果
+
+| 检查 | 命令/动作 | 结果 |
+| --- | --- | --- |
+| 本地基线 | `bun test --conditions=browser packages/mobile-hosts`（seam 软链按在册口径重建） | PASS：**414 tests / 0 fail / 2837 expect()（38 文件）**——实跑值（此前在册 399/2782 为 #58 时点基线，期间上游/第一方测试自然增长，未逐项归因） |
+| E1 bastion 端点审计（无设备） | `ssh-keygen -lf/-E md5` 重推导六形式参考；`ssh-keyscan -t ed25519,ecdsa,rsa` 两地址 :22 | PASS：6/6 SHA256 指纹与参考相等布尔 true（LAN 与 Tailscale 命中同一 sshd；`RunSSH=false` 勘察结论沿用） |
+| E2 提示双通道采样 | 同轮 uiautomator dump + CDP DOM 读同一 `<code>` 节点 | PASS：两通道一致且==ED25519 参考（布尔 true），格式断言通过；记录 target==参考地址（布尔 true，不回显地址）。第二记录（:2222 aux sshd）同型采样亦相等（key A 参考） |
+| E3 store 取证 | `run-as cat files/ssh/known_hosts`（主机侧脚本只输出计数/类别/布尔） | PASS：取证时 4 行全 valid 且 blob 指纹 4/4==bastion 参考、host 字段无一等于当前地址→H1 排除+H2 裁定依据；3 行 legacy `Line(raw=` 包装残留（de27569 era，已修 4a9e096，verbatim 保留） |
+| 分支 APK 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` + gradle `:app:assembleDebug` | PASS：dist 3480 files / 153,555,364 bytes（同 #58 在册值）；APK SHA-256 `d3bcd579c023ce2232dfb1ee1209aecd27e9c89cdee96ff3b3e91cbded8733ab` |
+| 设备预检 | `adb install -r`（主包，数据保留）→ pull 哈希比对 → CDP worker 核对 | PASS：安装包 SHA-256==工作树构建；`install -r` 后 vault/known_hosts 原样（计数）；SW active=true/waiting=false/controlled=true、scope=packaged origin；历史保存记录与凭据在位（vault 1 信封→终态 4） |
+| #a 添加 | Add host 表单（name/target/port）+ Remember + SAF 导入测试密钥 | PASS：保存后记录出现（target/port 与输入一致）+ Credential bound；凭据管理器「Private key · Used by: <记录>」出现（不显值）；push 的密钥文件已 `rm` 且回查不存在 |
+| #b 编辑 | pending prompt 存活中 Edit：改名+port 4096→4097→Save；再 Edit 恢复 | PASS：身份变更取消 pending prompt、attempt 停止（卡片回 Not connected）；恢复后记录 name/target/servicePort 4096 与主链一致（CDP 读注册表布尔） |
+| #c 连接+unknown key | Connect→prompt（E2 同轮采样）→Reject→再 Connect→Confirm | PASS：Reject 后 failed+「The host key was rejected, so no connection was attempted.」+known_hosts 零新增；Confirm 后信任写入（`<bastion> ssh-ed25519` 默认端口裸主机名格式）+服务未启动期 `target-refused` 文案（「SSH authentication succeeded, but the remote host refused to forward…」——§0 勘误的实机兑现） |
+| #d changed key | aux sshd（:2222，独立密钥）Trust（key A）→认证成功→隧道层止步→换 key B 重启→Connect | PASS：DANGER 红色警示（「host key no longer matches…interception」）+连接拒绝+「No credentials were sent and no tunnel was established」；两步危险确认（Remove stored key…→Confirm removal and re-verify）→store 该行移除→回 unknown（key B 指纹）→Reject→key B 未自动入 store |
+| #e SSH 认证失败 | 无凭据连接（T1）；绑错误密码连接（T6） | PASS：无凭据→`Sign-in required`（authRequired）+Connect/Edit 可编辑重试；错误密码→服务端 `PasswordAuthentication no` 拒绝→同态（凭据绑定后卡片 Credential bound+Sign-in required） |
+| #f 不可达 | 记录指向 bastion:2223（无监听）→Connect | PASS：「The SSH port refused the connection. Check that the host is reachable and the port is correct.」+Connect 可恢复按钮；host-key 阶段未触达（TCP 先拒） |
+| #h 三模式草稿保持 | 连接屏 Pairing/QR/password/SSH 往复 | **BLOCKED**：连接屏（`ConnectServerScreen`，唯一承载三模式的界面）在本设备状态不可达——AppShell fallback 门（routes.tsx :102，M-030 形态）要求 `!initialScreenOwned() && servers.list.length>0 && !signedOut()` 才渲染 shell，而 ≥1 条 SSH 主机记录使 extension server 条目（OFFLINE_ENDPOINT 占位）常驻 `servers.list`，`signedOut` 仅认 lone http server，`initialScreenOwned` 只能从连接屏自身 claim（鸡生蛋）——三模式/草稿保持无执行面。属产品门设计实态而非本轮回归；改进归四步协议（用户决策），本期不越界改码。冷启动实测无瞬态连接屏（首帧即 Home） |
+| g2 哑监听（真实服务启动前） | `nc -l 127.0.0.1 4096`（bind 成功=4096 空闲旁证）→Connect | PASS：「The tunnel is up, but no OpenCode service answered on the far side.」=`service-unreachable` 分类实机兑现（隧道建立+TCP 接受+健康检查失败）；用后即删 |
+| #g 服务启动分界 | pre-start Connect（服务未启动）；显式启动真服务（`OPENCODE_PASSWORD` env 文件引用+`OPENCODE_PRINT_LOGS=1`；curl 401/200）后重试 | PASS：pre-start=`target-refused`+可恢复；post-start=隧道 ready+401→ServiceAuthPrompt 呈现（未输入） |
+| #i 全链+服务认证 | ServiceAuthPrompt 输密码→Check again | PASS：`serviceAuthRequired` 出现→消失→ready→handoff→远端会话列表与既有会话工作台可达（真实远端数据渲染）。**G3 CORS 首实证**：应用 origin（127.0.0.1:18090）→隧道端点（127.0.0.1:动态口）跨源数据面成功（正向结果证据；未预挂 console 采集为局限） |
+| #j 断开红线 | 应用内显式 Disconnect→bastion 侧核对→`am force-stop`→重启→重连重认证 | PASS：Disconnect 后远端 opencode 进程存活（etime 增长）+ :4096 仍监听 + `serve.log` 请求级 stop/interrupt/abort/cancel 命中 **0**（`OPENCODE_PRINT_LOGS=1` 请求日志面为可用日志面；含 "stop" 字样的 18 行均为服务自身 file-watcher 生命周期消息，非请求）；重启后重连→服务认证提示重现（密码=会话内存，预期实态）→重新认证→远端会话列表与本地草稿均恢复。**AC4 措辞钉死：任务级存活（真实长任务断连后执行至完成）未验，归 G20⑤/G12；本轮红线证据=传输层本地拆除+远端服务进程/端口存活+重连后会话恢复** |
+| #k 信任稳定性 | 3 轮 connect/disconnect（6 动作） | PASS：零 host-key prompt；算法族稳定（store 命中路径） |
+| SSH 安全回归 | `bun run scripts/verify-ssh.ts --pre-native --pre-vendor` | PASS（rc=0） |
+| 闭包核对 | `bash scripts/verify-closure.sh` | PASS（pin+已登记 mobile 补丁字节一致；本轮零补丁变更） |
+| Gradle 单测 | `:app:testDebugUnitTest` | PASS（JVM 测试全绿） |
+| `git diff --check` | whitespace/冲突标记 | PASS（0 输出） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | PASS（rc=0；地址/凭据/密码不入仓库——本轮台账全部布尔/计数化） |
+
+### 诚实边界（issue #61 段）
+
+- **#h BLOCKED**：三模式草稿保持未验证（连接屏不可达，机制见上表）——G37 冒烟清单的连接屏项继承此限制；G36 的其余项（含 SSH 三态）均已在 host-manager 面实测。
+- **任务级存活未验**：#j 红线证据限定为传输层+服务进程/端口+会话恢复三通道；真实长任务断连后执行至完成未验（归 G20⑤/G12）。
+- **CORS 证据口径**：正向结果证据（跨源数据面成功渲染真实远端数据），非负例穷举；未预挂 console 错误采集。
+- **store 残留**：3 行 de27569 era `Line(raw=` 包装行 verbatim 保留（never-rewrite 契约；永不匹配、无害）；`[bastion]:2222` 一行为 #e 流程中显式 Trust 写入的 aux 测试密钥（信任稳定性未对 :2222 复测，属于 #k 范围外）。
+- **测试私钥残余暴露面**：SAF 中转已按契约 `rm`+回查；该密钥仍授权于 bastion `authorized_keys`，QA 后是否移除归协调员决定（计划 R2 在册）。
+- **服务器实态注记**：bastion :49374 上存在另一 opencode 服务实例（2026-10-29 起，非本轮启动、未触碰、未停止）；本轮全部服务认证/隧道验证针对本轮显式启动的 :4096 测试实例（QA 后已停止）。
+- **探针/单测证明力**：本段真机结论以 UI dump/CDP DOM/布尔计数承载（value-free）；基线单测 414/2837 为本机回归证据，对设备行为零证明力。
+
 
 ### issue #58 / M-029–M-031 实际结果
 
@@ -1107,7 +1147,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | ~~APK 打包（`:app:assembleDebug`）~~ 已随 v0.1.0 解决（2026-10-28，用户决策后实施）：①packaging 排除块 `META-INF/versions/*/OSGI-INF/MANIFEST.MF`（jsch+bcprov 多版本层 OSGi 元数据重复，jar 元数据无运行时角色）；②**新发现并修复 ignoreAssets 缺口**——aapt2 默认模式含 `<dir>_*`，静默丢弃全部下划线开头目录，web 构建的整个 `_assets/` chunk 目录（3457 文件）未入包（装机会白屏；`_headers` 等根文件不受影响故此前不可见）——ignoreAssets 模式重列去掉该规则。修复后 `:app:assembleDebug` PASS（v0.1.0 tag 构建，3480 资产全量入包、OSGI 重复 0） | issue #7（冲突源自 #6 引入的依赖，首次打包即暴露）；命令已记录于本文 |
 | G1–G12 设备门禁（清单见 [design/interaction.md](design/interaction.md)） | 真机/模拟器（+G3/G6/G7/G9/G11/G12 需授权远程服务） | issue #2 验收第 2 条 |
 | live 直连 HTTPS E2E（选项目/开会话/发提示/增量事件/PTY） | 授权服务 + 模型；不允许 fixture 替代 | issue #2 验收第 4 条 |
-| SSH E2E（auth 成败端到端、未知/已知/变更三态、目标拒绝、服务不可达与 incompatible 真服务、重连换端口同身份、隧道/App 关闭后远程任务存活） | 真机/模拟器 + 授权 SSH 主机 + 授权服务；代码已实现（未验证），静态证据见 V-ssh 与决策 0003 | issue #6 / #21 |
+| SSH E2E（auth 成败端到端、未知/已知/变更三态、目标拒绝、服务不可达与 incompatible 真服务、重连换端口同身份、隧道/App 关闭后远程任务存活） | **大部分已随 issue #61（2026-10-30）在 MatePad 真机实测**（auth 成败、未知/已知/变更三态、目标拒绝、服务不可达、断开红线=进程/端口/会话恢复——见本文 issue #61 段与 [design/interaction.md](design/interaction.md) G36 行）；仍缺：incompatible 真服务实机、重连换端口同身份真机（归 G17）、任务级存活（归 G20⑤/G12）、G36 #h 三模式（连接屏不可达，归四步协议） | issue #6 / #21 / #61 |
 | 许可审计（V4）与 NOTICE-THIRD-PARTY.md 生成 | 12 项许可类别用户决策 | 用户决策，见下表 |
 | G13 多 host 一窗 + 隔离（issue #3） | 真机/模拟器（+授权远程服务） | issue #3 验收第 5/3 条 |
 | G14 连接状态呈现与恢复（issue #3） | 真机/模拟器 + 授权远程服务；host-key 真实流另归 #6 | issue #3 验收第 2 条 |
