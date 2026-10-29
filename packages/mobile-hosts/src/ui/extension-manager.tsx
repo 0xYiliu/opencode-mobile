@@ -12,7 +12,11 @@
 // Capability rows are a FIRST-PARTY STATIC TABLE keyed by extension id: "web" rows can be
 // toggled; "desktop-host" rows present the main-process absence honestly — their Active
 // status is host mechanics, not a usability claim, so their switch stays disabled and the
-// row says desktop-only. wsl is absent by construction (os-filtered out of the definitions).
+// row says desktop-only. Product-scope exclusions ("excluded", decision 0001 / issue #62)
+// render a static row — id, disabled status, reason — with ZERO controls: no reload, no
+// switch, nothing that implies start/stop, install or management semantics. The host
+// definitions still never contain wsl (the upstream os filter is untouched), so that row
+// is synthesized here, not a host state.
 // There is NO install, remove or store entry anywhere: packaged install/remove are desktop
 // bridge surfaces and stay unreachable here (zero marketplace claim).
 
@@ -38,21 +42,30 @@ const WEB_ACTIVE_EXTENSIONS: ReadonlySet<string> = new Set([
 /** Extensions whose main entry lives in the desktop main process: presented, not toggleable. */
 const DESKTOP_HOST_EXTENSIONS: ReadonlySet<string> = new Set(["browser", "pairing", "ssh", "updater"])
 
-export type ExtensionCapability = "web" | "desktop-host"
+/** Product-scope exclusions (decision 0001, issue #62/N12): presented as a disabled row
+ * with the exclusion reason, never toggleable and never wired to the host. The set is
+ * probe-locked to exactly {"wsl"}; a new excluded id must ship its own reason key in the
+ * i18n table before joining (the row copy below is keyed per member, never a fallback). */
+const EXCLUDED_EXTENSIONS: ReadonlySet<string> = new Set(["wsl"])
 
-/** First-party static capability mapping (probe group 7 locks both sets). Both sets are
+export type ExtensionCapability = "web" | "desktop-host" | "excluded"
+
+/** First-party static capability mapping (probe group 7 locks all three sets). All sets are
  * consulted: the desktop-host blacklist decides the presented-not-toggleable rows, the
- * web-active whitelist documents the toggleable eight. An id in NEITHER set (a future
- * builtin the table has not met yet) classifies "web" — the renderer-side default — so
- * the mapping stays conservative-by-default exactly as shipped. */
+ * web-active whitelist documents the toggleable eight, the excluded table carries the
+ * product-scope exclusions. An id in NEITHER set (a future builtin the table has not met
+ * yet) classifies "web" — the renderer-side default — so the mapping stays
+ * conservative-by-default exactly as shipped. */
 export function capabilityOf(id: string): ExtensionCapability {
+  if (EXCLUDED_EXTENSIONS.has(id)) return "excluded"
   if (DESKTOP_HOST_EXTENSIONS.has(id)) return "desktop-host"
   if (WEB_ACTIVE_EXTENSIONS.has(id)) return "web"
   return "web"
 }
 
 export interface ExtensionManagerProps {
-  /** The window's filtered definition list (host.definitions() — wsl already os-filtered). */
+  /** The window's filtered definition list (host.definitions() — wsl already os-filtered;
+   * the excluded table below presents wsl statically, N12). */
   definitions: readonly { readonly id: string }[]
   /** The host's live status reader (host.state.status[id]). */
   statusOf: (id: string) => string | undefined
@@ -83,6 +96,14 @@ export function ExtensionManager(props: ExtensionManagerProps) {
     if (!records || !isValidExtensionId(id)) return
     records.toggle(id, next)
   }
+
+  // Excluded ids NOT already delivered by the host: the defensive shape (issue #62 MINOR
+  // guard) — if the upstream os filter ever stops filtering a member out, the definition
+  // row above renders and the static row disappears (never a duplicate row for one id).
+  const excludedIds = createMemo(() => {
+    const present = new Set(props.definitions.map((definition) => definition.id))
+    return [...EXCLUDED_EXTENSIONS].filter((id) => !present.has(id))
+  })
 
   return (
     <div class="flex w-full min-w-0 flex-col gap-4" data-component="extension-manager">
@@ -135,6 +156,31 @@ export function ExtensionManager(props: ExtensionManagerProps) {
               </li>
             )
           }}
+        </For>
+        <For each={excludedIds()}>
+          {(id) => (
+            // Static exclusion row (issue #62/N12, decision 0001): honest id + fixed
+            // disabled status + reason, ZERO controls. It reads no statusOf/failureOf/
+            // disabledIds and renders no Button/ToggleSwitch — the excluded set is
+            // probe-locked to exactly {"wsl"}, so the wsl reason key below is total over
+            // this table (a new member needs its own key first).
+            <li
+              class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2"
+              data-component="extension-row"
+              data-extension-id={id}
+              data-capability="excluded"
+            >
+              <div class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate text-12-medium text-text-strong" dir="ltr">
+                  {id}
+                </span>
+                <span class="truncate text-12-regular text-text-weak">{t("guiext.status.disabled")}</span>
+                <span class="whitespace-pre-wrap text-12-regular text-text-weak">
+                  {id === "wsl" ? t("guiext.excluded.wsl.reason") : id}
+                </span>
+              </div>
+            </li>
+          )}
         </For>
       </ul>
       <Show when={records?.volatile()}>

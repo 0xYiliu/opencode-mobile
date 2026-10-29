@@ -249,6 +249,12 @@ export const messages = {
     "guiext.capability.desktopHost": "Desktop only",
     "guiext.desktopHostHint": "Its main process runs in the desktop app; this device presents no surface for it.",
     "guiext.volatile": "Persistent storage is unavailable: disabled extensions re-enable after this session.",
+    // issue #62/N12: WSL exclusion reason (decision 0001) — presented on the static
+    // excluded row; the app does not discover, install, start, stop or manage WSL
+    // distributions (including on a Windows host) and never runs WSL commands, while
+    // native Windows remote hosts stay supported.
+    "guiext.excluded.wsl.reason":
+      "Excluded by product decision: this app does not discover, install, start, stop or manage WSL distributions — including on a Windows host — and does not run WSL commands. Native Windows remote hosts stay supported.",
   },
   zh: {
     "hostManager.title": "SSH 主机",
@@ -485,6 +491,11 @@ export const messages = {
     "guiext.capability.desktopHost": "仅桌面",
     "guiext.desktopHostHint": "其主进程运行在桌面应用中；本设备不提供它的界面。",
     "guiext.volatile": "持久存储不可用：被禁用的扩展将在本会话结束后恢复启用。",
+    // issue #62/N12：WSL 排除原因（决策 0001）——呈现在静态排除行上；本应用不发现、不安装、
+    // 不启动、不停止、不管理 WSL 发行版（包括 Windows 宿主上的），也不执行 WSL 命令，
+    // 原生 Windows 远程主机支持保留。
+    "guiext.excluded.wsl.reason":
+      "产品决策排除：本应用不发现、不安装、不启动、不停止、不管理 WSL 发行版（包括 Windows 宿主上的），也不执行 WSL 命令。原生 Windows 远程主机支持保留。",
   },
 } as const
 
