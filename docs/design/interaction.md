@@ -77,7 +77,7 @@ G36（issue #55）的 Settings 例外与跳转入口由 M-030 撤销；其历史
 
 ### G35⑦⑨ 子项级登记（issue #62，2026-10-30）
 
-- **G35⑦（wsl 静态排除行呈现+零操作负例）/G35⑨（排除行读屏与焦点抽查）——本轮待协调执行**：登记时点 MatePad（192.168.3.145:5555）主应用 `ai.opencode.mobile` 处于前台 resumed 且 `lastUpdateTime` 为同日 03:22（疑为 issue #61 的设备 QA 会话占用），按「不抢设备」约定未执行 `adb install -r` 与 UI 驱动；本分支构建 APK SHA-256 `f701e9152a322a85209c2321112e24a708118941a6bdceedb81be50fb2a0bb99` 已就绪，待协调员调度后执行 QA-1（wsl 行呈现：id/禁用状态/原因 en·zh）与 QA-2（零操作负例：无 Reload/无 Switch/无启停安装入口）并回填结果。G35 行级状态保持 BLOCKED，不因本轮交付变更（证据层由探针+rendered 机检+构建承载）。
+- **G35⑦（wsl 静态排除行呈现+零操作负例）/G35⑨（排除行读屏与焦点抽查）——本轮待协调执行**：登记时点 MatePad（192.168.3.145:5555）主应用 `ai.opencode.mobile` 处于前台 resumed 且 `lastUpdateTime` 为同日 03:22（疑为 issue #61 的设备 QA 会话占用），按「不抢设备」约定未执行 `adb install -r` 与 UI 驱动；本分支构建 APK SHA-256 `7c041987be24ee74ab3652396f2a738f0cd2a44029d76911b4ec858016c7d3ee`（评审修复轮终构建）已就绪，待协调员调度后执行 QA-1（wsl 行呈现：id/禁用状态/原因 en·zh）与 QA-2（零操作负例：无 Reload/无 Switch/无启停安装入口）并回填结果。G35 行级状态保持 BLOCKED，不因本轮交付变更（证据层由探针+rendered 机检+构建承载）。
 
 ## C1–C6 凭据桥设备门禁（issue #4/#58，全部 BLOCKED）
 

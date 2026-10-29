@@ -122,16 +122,24 @@ Initial handoff form-open review follow-up (2026-10-29): `canHandoffInitialSsh` 
 
 | 检查 | 命令/动作 | 结果 |
 | --- | --- | --- |
-| 移动包回归（含新 rendered 机检） | `bun test --conditions=browser packages/mobile-hosts` | PASS：422 tests / 0 fail / 2878 expect()（基线 414/2837——净增 8 用例/41 断言，零回归）；rendered 用例覆盖：excluded capability 映射、en/zh 原因键对称、wsl 行零控件（零 button/零 switch/零 role）、行内点击零 onReload 命中、desktop-host 行控件保持、防御性去重（definitions 含 wsl 时静态行消失） |
+| 移动包回归（含新 rendered 机检） | `bun test --conditions=browser packages/mobile-hosts` | PASS：422 tests / 0 fail / 2880 expect()（基线 414/2837——净增 8 用例/43 断言，零回归）；rendered 用例覆盖：excluded capability 映射、en/zh 原因键对称、wsl 行零控件（零 button/零 switch/零 role）、行内点击零 onReload 命中、desktop-host 行控件保持、防御路径（definitions 含 wsl 时静态行消失且定义行走排除分支：零控件+原因文案替代 web 能力列） |
 | TypeScript 项目检查 | `bunx tsc --noEmit -p packages/mobile-hosts/tsconfig.json` | 与既有口径一致非干净：38 条诊断为在册既有类（`bun:test`/`Buffer`/lib types、上游 CSS side-effect imports、既有 fetch 形状不匹配）；本 issue 改动/新增文件零诊断（`extension-manager.test.ts` 与 HEAD 逐字节一致，其 `toSorted` 诊断为既有） |
-| GUI 扩展探针（组 7 修订+组 8 基线） | `bun run scripts/verify-gui-extensions.ts` | PASS rc=0：组 1–6 零改动全绿；组 7 新增——`EXCLUDED_EXTENSIONS` 恰 {"wsl"}（NEGATIVE 5 目标）、`data-capability="excluded"`、复用 `guiext.status.disabled`、`guiext.excluded.wsl.reason` 字面量、排除行 JSX 域零控件扫描（禁 `<Button`/`<ToggleSwitch`/`onReload`/`setDisabled`/`statusOf`/`failureOf`/`disabledIds`/`role="alert"`）、`guiext.excluded.*` en/zh 配对、单元文档排除行语义/12+1 行算术锁；组 8 基线更新为 **3480/153561313** |
-| 负例 5 演练 | 临时删除 `EXCLUDED_EXTENSIONS` 的 `"wsl"` 项 → 探针 → 还原 | 注入 rc=1（`FAIL: 7: EXCLUDED_EXTENSIONS must be exactly {wsl} … set equality broken — missing=["wsl"] extra=[]`）→ 还原 rc=0 PASS；日志留存（negative5/negative5-restore） |
+| GUI 扩展探针（组 7 修订+组 8 基线） | `bun run scripts/verify-gui-extensions.ts` | PASS rc=0：组 1–6 零改动全绿；组 7 新增——`EXCLUDED_EXTENSIONS` 恰 {"wsl"}（NEGATIVE 5 目标；评审修复轮后为 record 形态，值=成员自己的原因键，编译期 tied 到 i18n 表）、`data-capability="excluded"`、复用 `guiext.status.disabled`、`guiext.excluded.wsl.reason` 字面量、排除行 JSX 域零控件扫描（禁 `<Button`/`<ToggleSwitch`/`onReload`/`setDisabled`/`statusOf`/`failureOf`/`disabledIds`/`role="alert"`）、定义行排除分支锁（`<Show when={!excluded}>` 控件抑制）、`guiext.excluded.*` en/zh 配对、单元文档排除行语义/12+1 行算术锁；组 8 基线更新为 **3480/153563194** |
+| 负例 5 演练 | 临时删除 `EXCLUDED_EXTENSIONS` 的 `"wsl"` 项 → 探针 → 还原 | 注入 rc=1（`FAIL: 7: EXCLUDED_EXTENSIONS must be exactly {wsl} … set equality broken — missing=["wsl"] extra=[]`）→ 还原 rc=0 PASS；日志留存（negative5/negative5-restore）；评审修复轮 record 形态复测同结果（missing=["wsl"] → 还原 PASS） |
 | 邻接探针回归 | `verify-agent-capabilities.ts`、`verify-notifications.ts`、`verify-commands-menus.ts`、`verify-attachments-artifacts.ts`、`verify-direct-connection.ts`、`verify-service-ops.ts`、`verify-ssh.ts` | 全部 PASS rc=0（fresh worktree 首轮四探针因 dist 缺席 ENOENT，供给性 `build:web`+`copy-web-dist.sh` 后复跑全绿——在册先例）；`verify-agent-capabilities.ts` 零改动零失败（root.tsx 首锁锚独立证据） |
 | 闭包 round-trip | `bash scripts/verify-closure.sh` | PASS：pin `b4525d79bf` + M-001…M-032 byte-identical（vendor 零 diff，无 M-033），`DANGLING=0`，V3(b)/(c) OK |
-| Web 构建 + dist 拷贝 | `bun run build:web`；`bash scripts/copy-web-dist.sh` | PASS（rc=0，6194 modules，11.66s）；**新基线 3480 文件 / 153561313 字节**（此前 3480/153555364，+5,949 字节=新增 i18n 文案与行代码，文件数不变）；zh 原因串（`产品决策排除：本应用不发现…`）在 `dist/_assets/src-*.js` 命中，探针组 8 dist 断言覆盖 |
-| Android JVM 测试 + APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | PASS：BUILD SUCCESSFUL（41 tasks）；APK SHA-256 `f701e9152a322a85209c2321112e24a708118941a6bdceedb81be50fb2a0bb99`（63,608,570 bytes）；APK 内 3480 个 `assets/web` 条目且 zh 原因串命中（provenance 对齐） |
+| Web 构建 + dist 拷贝 | `bun run build:web`；`bash scripts/copy-web-dist.sh` | PASS（rc=0，6194 modules；首跑 11.66s、评审修复轮复跑 12.06s）；**最终基线 3480 文件 / 153563194 字节**（dev 基线 3480/153555364，+7,830 字节=新增 i18n 文案与排除行代码，文件数不变）；zh 原因串（`产品决策排除：本应用不发现…`）在 `dist/_assets/src-*.js` 命中，探针组 8 dist 断言覆盖 |
+| Android JVM 测试 + APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`（评审修复轮按 CODE_REVIEWER 清单复跑 `:app:assembleDebug`） | PASS：BUILD SUCCESSFUL（首轮 41 tasks 全跑）；**APK SHA-256 `7c041987be24ee74ab3652396f2a738f0cd2a44029d76911b4ec858016c7d3ee`**（64,109,079 bytes，评审修复轮终构建）；APK 内 3480 个 `assets/web` 条目且 zh 原因串命中（provenance 对齐） |
 | 差异卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check OK；leak-scan rc=1 为**既有态**（HEAD 即命中 `host-credential.test.ts` 的 synthetic fixture PEM 头等在册合成值；本 issue 改动文件零新增命中），非本轮引入 |
-| 真机 QA（G35⑦⑨ 子项） | MatePad `adb install -r` + uiautomator dump | 见 [design/interaction.md](design/interaction.md) G35 行的子项级登记（行级状态保持 BLOCKED） |
+| 真机 QA（G35⑦⑨ 子项） | MatePad `adb install -r` + uiautomator dump | 未执行（登记时点设备被 issue #61 会话占用，见前述；子项级登记见 [design/interaction.md](design/interaction.md) G35 段，行级状态保持 BLOCKED） |
+
+### 评审修复轮（CODE_REVIEWER 结论 PASS 附带 3 MINOR + 1 nit → 修复，2026-10-30）
+
+- **MINOR-1（docs）**：gui-extensions.md wsl 行第 4 列「无守卫但被 root.tsx os 过滤排除」与事实矛盾（`wsl/renderer.tsx:11` 守卫在探针组 1 在册）——改为引用守卫原文并落「双重排除」（renderer 守卫 + definitions 级 os 过滤）表述。
+- **MINOR-2（code+test）**：防御回退路径的行语义违背排除契约——definitions 循环对 `capability === "excluded"` 分支：控件区 `<Show when={!excluded}>` 抑制（无 Reload/无 Switch，含禁用态 Switch 也不渲染）、能力列以原因文案替代「在本设备运行」；rendered 防御断言同步改为零 button+零 switch+原因文案在场+web 能力列缺席。
+- **MINOR-3（code）**：`EXCLUDED_EXTENSIONS` 由 `ReadonlySet<string>` 改为 record（`as const satisfies Record<string, MessageKey>`），值=成员自己的原因键——编译期 tied 到 i18n 表（缺键/错键即编译错误），删除 `: id` 静默回退（静态行与定义行排除分支均无回退拷贝）；探针组 7 锁同步到 record 形态（键集恰 {"wsl"} + 值=原因键），NEGATIVE 5 复测同结果。
+- **Nit（docs）**：build-and-verify「真机 QA」表行结果列改为直陈「未执行（设备被占用…）」。
+- **复测**：上表数字已按本轮实测更新（tests 422/0/2880；dist 3480/153563194；APK `7c041987…`；探针/闭包/diff-check 全绿）；设备 QA 仍待协调执行（interaction.md G35⑦⑨ 段 APK SHA 同步更新）。
 
 ### 诚实边界（issue #62 段）
 

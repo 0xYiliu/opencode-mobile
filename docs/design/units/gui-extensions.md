@@ -27,7 +27,7 @@
 | pairing | **是** | 无 | `pairing/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Pairing） | 零（桌面配对发起端；移动接收端归 #22） | #22（接收端） |
 | updater | **是** | 无 | `updater/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Updater） | 零（桌面发布流程，无移动等价物） | — |
 | ssh | **是** | 无 | `ssh/renderer.tsx` `if (ctx.build.platform !== "desktop") return`（注释逐字「SSH lives in the desktop main process.」） | Ipc（Ssh） | 零（第一方 mobile-hosts SSH 已替代，#6） | #6 |
-| wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | 无守卫但被 root.tsx os 过滤排除（web `os=undefined` → 不入 definitions） | Ipc（Wsl） | **静态排除行（issue #62/N12）**：id + 禁用状态 + 原因文案（决策 0001），零操作（无 Reload/无 Switch/无任何启停安装入口）；宿主 definitions 仍不含 wsl（os 过滤不变） | —（范围排除） |
+| wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | `wsl/renderer.tsx` `if (ctx.build.platform !== "desktop") return`（renderer 级守卫）+ root.tsx os 过滤（definitions 级，web `os=undefined` → 不入 definitions）——**双重排除**（renderer 守卫 + os 过滤，守卫在探针组 1 五早退守卫在册） | Ipc（Wsl） | **静态排除行（issue #62/N12）**：id + 禁用状态 + 原因文案（决策 0001），零操作（无 Reload/无 Switch/无任何启停安装入口）；宿主 definitions 仍不含 wsl（os 过滤不变） | —（范围排除） |
 | microsoft-office | — | 无 | 无 | Contract（FileViewer） | office 工件三 kind 查看器（#18 渲染链） | #18 |
 
 - **web 定义表恰 12 个**：root.tsx `os` 过滤器在 web（`os = platform.platform === "desktop" ? platform.os : undefined`）使 wsl 不入 definitions——宿主定义行即 12 行；管理面呈现 13 行 = 12 宿主定义行 + 1 静态排除行（issue #62/N12：wsl 行为第一方合成呈现，不读宿主状态/失败/禁用记录，G35⑦ 核对）。
