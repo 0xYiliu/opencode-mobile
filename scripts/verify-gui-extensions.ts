@@ -577,8 +577,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3480 || distManifest.totalBytes !== 153563194)
-    fail(`8: current web-dist baseline drifted (expected 3480/153563194, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3480 || distManifest.totalBytes !== 153563460)
+    fail(`8: current web-dist baseline drifted (expected 3480/153563460, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -632,6 +632,6 @@ console.log(
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability three-set mapping (web 8/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and 12+1 arithmetic), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — current dist baseline 3480/153563194 (issue #62 rebuild incl. review round; M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3480/153563460 (issue #62 rebuild incl. review rounds; M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )

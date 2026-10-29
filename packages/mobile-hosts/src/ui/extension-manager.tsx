@@ -51,10 +51,12 @@ const EXCLUDED_EXTENSIONS = {
   wsl: "guiext.excluded.wsl.reason",
 } as const satisfies Record<string, MessageKey>
 
-/** The reason key of an excluded id. Membership is checked with `in`; the narrowing after
- * that check is the only index and cannot miss (capabilityOf reads the same table). */
+/** The reason key of an excluded id. Membership is checked with Object.hasOwn — the own
+ * property ONLY, immune to the prototype chain (an id like "constructor" or "toString"
+ * must never classify excluded or inherit a member's key); the narrowing after that check
+ * is the only index and cannot miss (capabilityOf reads the same table). */
 function excludedReasonKey(id: string): MessageKey | undefined {
-  return id in EXCLUDED_EXTENSIONS ? EXCLUDED_EXTENSIONS[id as keyof typeof EXCLUDED_EXTENSIONS] : undefined
+  return Object.hasOwn(EXCLUDED_EXTENSIONS, id) ? EXCLUDED_EXTENSIONS[id as keyof typeof EXCLUDED_EXTENSIONS] : undefined
 }
 
 export type ExtensionCapability = "web" | "desktop-host" | "excluded"
@@ -66,7 +68,7 @@ export type ExtensionCapability = "web" | "desktop-host" | "excluded"
  * yet) classifies "web" — the renderer-side default — so the mapping stays
  * conservative-by-default exactly as shipped. */
 export function capabilityOf(id: string): ExtensionCapability {
-  if (id in EXCLUDED_EXTENSIONS) return "excluded"
+  if (Object.hasOwn(EXCLUDED_EXTENSIONS, id)) return "excluded"
   if (DESKTOP_HOST_EXTENSIONS.has(id)) return "desktop-host"
   if (WEB_ACTIVE_EXTENSIONS.has(id)) return "web"
   return "web"

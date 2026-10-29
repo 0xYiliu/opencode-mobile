@@ -123,6 +123,19 @@ describe("guiext excluded capability mapping (issue #62/N12)", () => {
     expect(messages.zh["guiext.excluded.wsl.reason"]).toContain("产品决策排除")
     expect(messages.zh["guiext.excluded.wsl.reason"]).toContain("原生 Windows 远程主机支持保留")
   })
+
+  test("prototype-chain member names are never exclusions (hasOwn membership)", () => {
+    // `in` would classify inherited Object.prototype members as excluded; membership is
+    // own-property only: "constructor"/"toString" fall through to the conservative
+    // "web" default and no such row exists in the rendered face.
+    expect(capabilityOf("constructor")).toBe("web")
+    expect(capabilityOf("toString")).toBe("web")
+    expect(capabilityOf("constructor")).not.toBe("excluded")
+    const view = fixture("en")
+    expect(view.host.querySelector('li[data-extension-id="constructor"]')).toBeNull()
+    expect(view.host.querySelectorAll('li[data-capability="excluded"]').length).toBe(1)
+    view.dispose()
+  })
 })
 
 describe("WSL static exclusion row (issue #62/N12)", () => {
