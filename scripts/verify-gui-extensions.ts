@@ -1,6 +1,11 @@
 // verify-gui-extensions.ts — static probe for issue #26 (GUI extension settings,
 // dependency status, and mobile host compatibility unit).
 //
+// Issue #62 revision (N12): the mobile management face additionally renders a STATIC
+// exclusion row for wsl (decision 0001) — id, disabled status, reason, zero controls.
+// Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
+// rebuilt dist baseline.
+//
 // Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + M-001..M-026)
 // and the commit-1 docs, the structural facts the gui-extensions unit document relies on:
 // the 13-builtin inventory with its os/web-guard/main-entry faces (acceptance 1), the
@@ -49,7 +54,10 @@
 //   3. delete the M-025 union line (`for (const id of mobileDisabled.ids()) …`) from
 //      app/src/runtime/extension/root.tsx -> group 4 M-025 anchor FAIL;
 //   4. delete the zh `settings.guiExtensions.title` key from app i18n zh.ts -> group 5
-//      9/9 pairing FAIL.
+//      9/9 pairing FAIL;
+//   5. delete the `"wsl"` entry from EXCLUDED_EXTENSIONS in mobile-hosts
+//      ui/extension-manager.tsx -> group 7 {"wsl"} set-equality FAIL (issue #62 — the
+//      static exclusion row must not silently disappear).
 //
 // HONEST BOUNDARY (same tradition as the sibling probes): this is a static STRUCTURE
 // check (text anchors / set equalities / negative injections). It proves source and doc
@@ -467,7 +475,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   for (const id of EXPECTED_IDS) {
     if (!unit.includes(`| ${id} |`)) fail(`7: gui-extensions.md inventory table lost the ${id} row`)
   }
-  // Capability mapping two sets (web 8 / desktop-host 4).
+  // Capability mapping three sets (web 8 / desktop-host 4 / excluded 1 = {wsl}, issue #62).
   const webSet = ["context", "btw", "debug", "terminal", "file", "review", "details", "microsoft-office"]
   const desktopSet = ["browser", "pairing", "ssh", "updater"]
   for (const id of webSet) {
@@ -476,6 +484,55 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   for (const id of desktopSet) {
     if (!unit.includes(`| ${id} |`) || !unit.split(`| ${id} |`)[1]!.includes("desktop-host")) fail(`7: capability mapping lost ${id} in the desktop-host set`)
   }
+  // The excluded row's doc face (issue #62/N12): the wsl inventory row must carry the
+  // static-excluded-row semantics and the zero-operation wording; the capability mapping
+  // bullet must name the third set and the 12+1 row arithmetic.
+  if (!unit.split(`| wsl |`)[1]!.includes("静态排除行（issue #62/N12）"))
+    fail("7: gui-extensions.md wsl row lost the static-excluded-row semantics (issue #62)")
+  if (!unit.split(`| wsl |`)[1]!.includes("零操作"))
+    fail("7: gui-extensions.md wsl row lost the zero-operation wording")
+  if (!unit.includes("管理面呈现 13 行 = 12 宿主定义行 + 1 静态排除行") || !unit.includes("issue #62/N12"))
+    fail("7: gui-extensions.md lost the 12+1 management-row arithmetic (issue #62)")
+
+  // Issue #62/N12 code locks: the static excluded row in the first-party manager. The
+  // vendored root.tsx os filter stays untouched (group 1 witnesses), so the row is a
+  // first-party presentation — the set equality here is NEGATIVE 5's target.
+  const manager = await read(`${MH}src/ui/extension-manager.tsx`)
+  const excludedSetMatch = manager.match(/const EXCLUDED_EXTENSIONS: ReadonlySet<string> = new Set\(\[([^\]]*)\]\)/)
+  if (!excludedSetMatch) fail("7: extension-manager.tsx lost the EXCLUDED_EXTENSIONS static table")
+  const excludedIds = [...excludedSetMatch[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!)
+  setEq(excludedIds, ["wsl"], "7: EXCLUDED_EXTENSIONS must be exactly {wsl} (NEGATIVE 5 deletes the entry)")
+  if (!manager.includes('data-capability="excluded"')) fail("7: extension-manager.tsx lost the excluded capability marker")
+  if (!manager.includes("guiext.excluded.wsl.reason")) fail("7: extension-manager.tsx lost the wsl exclusion reason key")
+  if (!manager.includes('t("guiext.status.disabled")')) fail("7: extension-manager.tsx lost the reused disabled-status key on the excluded row")
+  // Zero-controls domain scan (static complement of the rendered machine check in
+  // extension-manager.rendered.test.tsx — the default executed one): the excluded row JSX
+  // region must gain no control and read no host state.
+  const excludedRowStart = manager.indexOf('data-capability="excluded"')
+  const excludedRowEnd = manager.indexOf("</li>", excludedRowStart)
+  if (excludedRowStart === -1 || excludedRowEnd === -1) fail("7: the excluded row JSX region is unresolvable (structure moved)")
+  const excludedRowDomain = manager.slice(excludedRowStart, excludedRowEnd)
+  for (const forbidden of ["<Button", "<ToggleSwitch", "onReload", "setDisabled", "statusOf", "failureOf", "disabledIds", 'role="alert"']) {
+    if (excludedRowDomain.includes(forbidden))
+      fail(`7: the excluded row region gained ${JSON.stringify(forbidden)} (zero-controls contract, issue #62)`)
+  }
+
+  // Issue #62/N12 i18n pairing: the guiext.excluded.* key family must exist symmetrically
+  // in the mobile-hosts en/zh tables (same caliber as group 5's 9/9 app-i18n pairing).
+  const excludedKeySet = (source: string) => new Set([...source.matchAll(/"(guiext\.excluded\.[A-Za-z0-9.]+)"/g)].map((m) => m[1]!))
+  const mhI18n = await read(`${MH}src/i18n.ts`)
+  const mhEnBlock = mhI18n.slice(mhI18n.indexOf("  en: {"), mhI18n.indexOf("  zh: {"))
+  const mhZhBlock = mhI18n.slice(mhI18n.indexOf("  zh: {"))
+  const mhEnExcluded = excludedKeySet(mhEnBlock)
+  const mhZhExcluded = excludedKeySet(mhZhBlock)
+  if (!mhEnExcluded.has("guiext.excluded.wsl.reason") || mhEnExcluded.size !== 1)
+    fail(`7: mobile-hosts i18n en must carry exactly {guiext.excluded.wsl.reason}, got ${JSON.stringify([...mhEnExcluded])}`)
+  if (!mhZhExcluded.has("guiext.excluded.wsl.reason") || mhZhExcluded.size !== 1)
+    fail(`7: mobile-hosts i18n zh must carry exactly {guiext.excluded.wsl.reason}, got ${JSON.stringify([...mhZhExcluded])}`)
+  if (!mhEnBlock.includes("Excluded by product decision") || !mhEnBlock.includes("Native Windows remote hosts stay supported"))
+    fail("7: mobile-hosts i18n en lost the exclusion reason copy (decision 0001 wording)")
+  if (!mhZhBlock.includes("产品决策排除") || !mhZhBlock.includes("原生 Windows 远程主机支持保留"))
+    fail("7: mobile-hosts i18n zh lost the exclusion reason copy (decision 0001 wording)")
 
   const interaction = await read("docs/design/interaction.md")
   if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
@@ -512,8 +569,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3480 || distManifest.totalBytes !== 153555364)
-    fail(`8: current web-dist baseline drifted (expected 3480/153555364, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3480 || distManifest.totalBytes !== 153561313)
+    fail(`8: current web-dist baseline drifted (expected 3480/153561313, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -529,14 +586,17 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     let markerKey = false
     let markerEn = false
     let markerZh = false
+    let markerZhReason = false
     for (const name of distFiles) {
       const content = await Bun.file(new URL(`vendor/upstream/packages/app/dist/_assets/${name}`, repoRoot)).text()
       if (content.includes("opencode-mobile.guiext.v1")) markerKey = true
       if (content.includes("settings.guiExtensions.mobile.description") && content.includes("Built-in GUI extensions of this app")) markerEn = true
       if (content.includes("本应用的内建 GUI 扩展")) markerZh = true
+      if (content.includes("产品决策排除：本应用不发现")) markerZhReason = true
     }
     if (!markerKey) fail("8: the built dist lost the opencode-mobile.guiext.v1 runtime marker")
     if (!markerEn || !markerZh) fail(`8: the built dist lost the guiExtensions i18n keys (en=${markerEn}, zh=${markerZh})`)
+    if (!markerZhReason) fail("8: the built dist lost the zh exclusion reason copy (issue #62)")
   } else {
     console.log("verify-gui-extensions: dist markers SKIPPED (no built dist present)")
   }
@@ -562,7 +622,8 @@ console.log(
     "4: issue #26 face — M-025 import/instance/filter/union/early-exit + two markers, M-026 predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, M-008/M-018 hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
-    "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability two-set mapping, interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
-    "8: build witnesses — current dist baseline 3480/153555364 (M-028 3482/153447934, M-027 3482/153445727 and M-026 3480/153441733 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys) staged on a built dist, bun.lock workspace anchor; " +
-    "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows and dual-route consistency on a device are G35)",
+    "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability three-set mapping (web 8/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and 12+1 arithmetic), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
+    "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
+    "8: build witnesses — current dist baseline 3480/153561313 (issue #62 rebuild; M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )
