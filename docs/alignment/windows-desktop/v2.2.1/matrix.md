@@ -28,7 +28,7 @@
 | S01 | 设置导航、进入/退出与返回上下文 | 已有代码 | 适配；已修复 Server 页 keyed Show 值被误作 accessor 导致的崩溃；初始 SSH 改为原地表单，撤销无连接时访问 Settings 的 M-027 路由例外；返回/键盘仍需验收 | E02/E13；Server 页有历史设备记录 |
 | S02 | 搜索设置并定位设置行 | 已有代码 | 对齐；核对新旧搜索索引及插件行定位差异 | E02 |
 | S03 | 设置中的服务器选择与数据隔离 | 已有代码 | 对齐；已有 ServerScope，需验证跨服务不串数据 | E02/E04 |
-| S04 | Top / Side / Inbox 模式 | 已有代码（设置面含 Inbox 三模式卡） | 适配（issue #63，M-033）：设置页呈现 Top/Side/Inbox 三模式（v2.2.1 InterfaceModeSetting 三预览卡逐字 + `inbox` 枚举 + 搜索目录 + en 八键），shell 谓词对齐 `!== "horizontal"`，≥768px Inbox 呈现侧栏会话 rail；**Inbox 分组列表（needs-you/done/running）、跨服务器聚合与 unread 徽标未移植（~5300 行，W05 域）——Inbox 呈现 = Side 同款 rail，差异登记于 E19**；TerminalPlacement 行按 pin 保留；zh 文案回退英文（上游实态）；窄屏三模式均不启用侧栏（与上游一致）。设备 QA 未跑 | E02/E19 |
+| S04 | Top / Side / Inbox 模式 | 已有代码及设备运行证据 | 适配（issue #63，M-033）：设置页呈现 Top/Side/Inbox 三模式（v2.2.1 InterfaceModeSetting 三预览卡逐字 + `inbox` 枚举 + 搜索目录 + en 八键），shell 谓词对齐 `!== "horizontal"`；**设备已验（MatePad，2026-10-30）**：三卡含 Experimental 徽标呈现、选 Inbox → ≥768px 呈现 Side 同款侧栏会话 rail 且**分组/聚合/徽标零存在（差异实态确认）**、重启持久化保持、zh 卡面回退英文实态、a11y 树+DOM 双通道读屏链路、install -r 真实数据升级路径 horizontal 用户无感；**窄屏（≤767px）视觉 UX 方法受限未宣称**（设备 CSS 视口下限 818px，CDP 合成覆盖不可代表真机 face，源码 `!mobile()` 语义已锁）——**Inbox 分组列表（needs-you/done/running）、跨服务器聚合与 unread 徽标未移植（~5300 行，W05 域），Inbox 呈现 = Side 同款 rail，差异登记于 E19**；TerminalPlacement 行按 pin 保留；zh 文案回退英文（上游实态） | E02/E19 |
 | S05 | 语言切换 | 已有代码 | 对齐；检查新增翻译键及回退 | E02 |
 | S06 | 默认工作区目的地 | 已有代码 | 对齐；继续核对目标默认值与远程执行语义 | E02/E03 |
 | S07 | 默认自动批准权限 | 已有代码 | 对齐；已有权限契约，真服务审批门禁未完成 | E02/E03，G21 |
