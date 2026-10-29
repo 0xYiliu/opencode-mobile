@@ -7,7 +7,7 @@
 - 已有 vendor 来源：**`b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43`**，不是 v2.2.1。任务是现有实现到目标版本的差异核对。
 - issue-58（合并 PR #59）已并入当前 main；S01/S35/S36、N04、W01/W08、M01/M02/M04 按该提交的增量核对，其他行保留原差异盘点范围。具体来源见 E13–E17。
 - 实际架构为共享 Web UI + **Kotlin 原生 WebView**。
-- 已有 debug APK 构建、安装和 MatePad 初始 SSH 入口/布局冒烟记录。issue #61（2026-10-30）已在同一 MatePad 完成 G36 矩阵主体与 SSH E2E 主链（信任→认证→隧道→服务认证→远端会话、失败路径、断开红线）；G36 #h 三模式与 incompatible 真服务、任务级存活等仍留缺口，明细见 [build-and-verify.md](../../../build-and-verify.md) issue #61 段与 E18。
+- 已有 debug APK 构建、安装和 MatePad 初始 SSH 入口/布局冒烟记录。issue #61（2026-10-30）已在同一 MatePad 完成 G36 矩阵主体与 SSH E2E 主链（信任→认证→隧道→服务认证→远端会话、失败路径、断开红线）；incompatible 真服务、任务级存活等仍留缺口（G36 #h 已以隔离诊断包补验），明细见 [build-and-verify.md](../../../build-and-verify.md) issue #61 段与 E18。
 - Windows v2.2.1 安装包尚未运行验证。源码存在、构建成功、局部冒烟和完整功能对齐分别记录。
 
 [推进规则](../../workflow.md) · [Windows 源码和最小验收映射](baseline.md#source-map) · [本项目固定快照证据](implementation.md)
@@ -60,7 +60,7 @@
 | S33 | 项目专有/共享 MCP、Plugins、Skills | 已有代码 | 对齐；已有项目扩展页，继续核对作用域变化 | E02/E04 |
 | S34 | 项目 LSP 配置列表与状态 | 已有代码 | 对齐；只读状态展示，不扩成配置编辑器 | E02/E04 |
 | S35 | HTTP 服务管理、认证与健康状态 | 已有代码 | 适配；已有直连实现；UTF-8 Basic auth 同时修复共享 API 和 mobile health；SSH 后的 OpenCode 服务密码与 SSH 凭据分开，显式 Check again，成功密码仅存运行期内存 | E10/E14/**E18**；**issue #61 真机已实测**：服务认证 401→显式认证→ready→远端会话/工作台可达；断开后重启 App 重连需重新认证（会话内存=预期）；错密码/无凭据 authRequired+可编辑重试。非 ASCII 密码设备实态仍归后续门禁 |
-| S36 | SSH 连接、认证、隧道与恢复 | 已有代码及设备运行证据 | 适配；三模式原地切换，exact-owner 隧道及服务认证均 ready 才进入工作界面；JS 先订阅再 bootstrap/ack 建 SSH channel；主机信任与服务认证为独立阶段 | E10/E13–E16/**E18**；**issue #61 真机主链 PASS**（添加/编辑/连接、unknown/changed key 拒绝路径、SSH 认证失败、不可达、target-refused/service-unreachable 分类、信任→认证→隧道→服务认证→远端会话、断开红线三通道证据、3 轮信任稳定）；#h 三模式草稿保持 BLOCKED（连接屏不可达，E18） |
+| S36 | SSH 连接、认证、隧道与恢复 | 已有代码及设备运行证据 | 适配；三模式原地切换，exact-owner 隧道及服务认证均 ready 才进入工作界面；JS 先订阅再 bootstrap/ack 建 SSH channel；主机信任与服务认证为独立阶段 | E10/E13–E16/**E18**；**issue #61 真机主链 PASS**（添加/编辑/连接、unknown/changed key 拒绝路径、SSH 认证失败、不可达、target-refused/service-unreachable 分类、信任→认证→隧道→服务认证→远端会话、断开红线三通道证据、3 轮信任稳定）；#h 三模式草稿保持已以隔离诊断包补验 PASS（E18；主应用有记录态连接屏不可达为门设计实态注记，非缺陷判定） |
 | S37 | 每服务器 Shell 选择 | 待核对 | 对齐；不能从存在 General 页推定目标读写接口已经覆盖 | E02 |
 | S38 | 新图标、折叠长用户消息 | 未实现（目标设置入口） | 对齐；现有 experimentalSettingsAvailable=false；需补目标开关及行为接线 | E02 |
 | S39 | About、版本、许可与声明 | 部分实现 | 适配；已有 About、vendor 来源/许可和 Android 版本，三种版本展示仍需核对 | E01/E02/E11 |
