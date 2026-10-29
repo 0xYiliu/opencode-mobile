@@ -23,7 +23,7 @@
 import { For, Show, createMemo } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { Switch as ToggleSwitch } from "@opencode/ui/switch"
-import { createTranslator } from "../i18n"
+import { createTranslator, type MessageKey } from "../i18n"
 import { getMobileHosts } from "../runtime"
 import { isValidExtensionId, sharedExtensionDisabled } from "../extensions/manager"
 
@@ -43,10 +43,19 @@ const WEB_ACTIVE_EXTENSIONS: ReadonlySet<string> = new Set([
 const DESKTOP_HOST_EXTENSIONS: ReadonlySet<string> = new Set(["browser", "pairing", "ssh", "updater"])
 
 /** Product-scope exclusions (decision 0001, issue #62/N12): presented as a disabled row
- * with the exclusion reason, never toggleable and never wired to the host. The set is
- * probe-locked to exactly {"wsl"}; a new excluded id must ship its own reason key in the
- * i18n table before joining (the row copy below is keyed per member, never a fallback). */
-const EXCLUDED_EXTENSIONS: ReadonlySet<string> = new Set(["wsl"])
+ * with the exclusion reason, never toggleable and never wired to the host. The value IS
+ * the row's reason key, compile-time tied to the i18n table (a member without its own key
+ * is a type error — there is NO fallback copy); the probe (group 7) locks the table to
+ * exactly {"wsl"}. */
+const EXCLUDED_EXTENSIONS = {
+  wsl: "guiext.excluded.wsl.reason",
+} as const satisfies Record<string, MessageKey>
+
+/** The reason key of an excluded id. Membership is checked with `in`; the narrowing after
+ * that check is the only index and cannot miss (capabilityOf reads the same table). */
+function excludedReasonKey(id: string): MessageKey | undefined {
+  return id in EXCLUDED_EXTENSIONS ? EXCLUDED_EXTENSIONS[id as keyof typeof EXCLUDED_EXTENSIONS] : undefined
+}
 
 export type ExtensionCapability = "web" | "desktop-host" | "excluded"
 
@@ -57,7 +66,7 @@ export type ExtensionCapability = "web" | "desktop-host" | "excluded"
  * yet) classifies "web" — the renderer-side default — so the mapping stays
  * conservative-by-default exactly as shipped. */
 export function capabilityOf(id: string): ExtensionCapability {
-  if (EXCLUDED_EXTENSIONS.has(id)) return "excluded"
+  if (id in EXCLUDED_EXTENSIONS) return "excluded"
   if (DESKTOP_HOST_EXTENSIONS.has(id)) return "desktop-host"
   if (WEB_ACTIVE_EXTENSIONS.has(id)) return "web"
   return "web"
@@ -99,10 +108,11 @@ export function ExtensionManager(props: ExtensionManagerProps) {
 
   // Excluded ids NOT already delivered by the host: the defensive shape (issue #62 MINOR
   // guard) — if the upstream os filter ever stops filtering a member out, the definition
-  // row above renders and the static row disappears (never a duplicate row for one id).
+  // row above renders through the excluded branch and the static row disappears (never a
+  // duplicate row for one id).
   const excludedIds = createMemo(() => {
     const present = new Set(props.definitions.map((definition) => definition.id))
-    return [...EXCLUDED_EXTENSIONS].filter((id) => !present.has(id))
+    return (Object.keys(EXCLUDED_EXTENSIONS) as Array<keyof typeof EXCLUDED_EXTENSIONS>).filter((id) => !present.has(id))
   })
 
   return (
@@ -116,6 +126,8 @@ export function ExtensionManager(props: ExtensionManagerProps) {
           {(definition) => {
             const capability = capabilityOf(definition.id)
             const desktopHost = capability === "desktop-host"
+            const excluded = capability === "excluded"
+            const reasonKey = excluded ? excludedReasonKey(definition.id) : undefined
             return (
               <li
                 class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2"
@@ -128,9 +140,15 @@ export function ExtensionManager(props: ExtensionManagerProps) {
                     {definition.id}
                   </span>
                   <span class="truncate text-12-regular text-text-weak">{statusLine(definition.id)}</span>
-                  <span class="truncate text-12-regular text-text-weak">
-                    {desktopHost ? t("guiext.capability.desktopHost") : t("guiext.capability.web")}
-                  </span>
+                  {reasonKey ? (
+                    // Excluded definition rows (defensive branch): the reason copy replaces
+                    // the capability label — never the "runs on this device" claim.
+                    <span class="whitespace-pre-wrap text-12-regular text-text-weak">{t(reasonKey)}</span>
+                  ) : (
+                    <span class="truncate text-12-regular text-text-weak">
+                      {desktopHost ? t("guiext.capability.desktopHost") : t("guiext.capability.web")}
+                    </span>
+                  )}
                   <Show when={desktopHost}>
                     <span class="text-12-regular text-text-weak">{t("guiext.desktopHostHint")}</span>
                   </Show>
@@ -140,19 +158,21 @@ export function ExtensionManager(props: ExtensionManagerProps) {
                     </span>
                   </Show>
                 </div>
-                <div class="flex shrink-0 items-center gap-2">
-                  <Button size="small" variant="neutral" onClick={() => props.onReload(definition.id)}>
-                    {t("guiext.reload")}
-                  </Button>
-                  <ToggleSwitch
-                    hideLabel
-                    checked={!disabledIds().has(definition.id)}
-                    disabled={desktopHost || !records}
-                    onChange={(next: boolean) => setDisabled(definition.id, next)}
-                  >
-                    {definition.id}
-                  </ToggleSwitch>
-                </div>
+                <Show when={!excluded}>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <Button size="small" variant="neutral" onClick={() => props.onReload(definition.id)}>
+                      {t("guiext.reload")}
+                    </Button>
+                    <ToggleSwitch
+                      hideLabel
+                      checked={!disabledIds().has(definition.id)}
+                      disabled={desktopHost || !records}
+                      onChange={(next: boolean) => setDisabled(definition.id, next)}
+                    >
+                      {definition.id}
+                    </ToggleSwitch>
+                  </div>
+                </Show>
               </li>
             )
           }}
@@ -161,9 +181,9 @@ export function ExtensionManager(props: ExtensionManagerProps) {
           {(id) => (
             // Static exclusion row (issue #62/N12, decision 0001): honest id + fixed
             // disabled status + reason, ZERO controls. It reads no statusOf/failureOf/
-            // disabledIds and renders no Button/ToggleSwitch — the excluded set is
-            // probe-locked to exactly {"wsl"}, so the wsl reason key below is total over
-            // this table (a new member needs its own key first).
+            // disabledIds and renders no Button/ToggleSwitch; the reason key comes from
+            // the EXCLUDED_EXTENSIONS table itself (compile-time tied to the i18n table —
+            // no fallback copy).
             <li
               class="flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-border-weak-base px-3 py-2"
               data-component="extension-row"
@@ -175,9 +195,7 @@ export function ExtensionManager(props: ExtensionManagerProps) {
                   {id}
                 </span>
                 <span class="truncate text-12-regular text-text-weak">{t("guiext.status.disabled")}</span>
-                <span class="whitespace-pre-wrap text-12-regular text-text-weak">
-                  {id === "wsl" ? t("guiext.excluded.wsl.reason") : id}
-                </span>
+                <span class="whitespace-pre-wrap text-12-regular text-text-weak">{t(EXCLUDED_EXTENSIONS[id])}</span>
               </div>
             </li>
           )}

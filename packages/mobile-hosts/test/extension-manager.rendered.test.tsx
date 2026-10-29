@@ -180,17 +180,19 @@ describe("WSL static exclusion row (issue #62/N12)", () => {
     view.dispose()
   })
 
-  test("defensive shape: a definition-delivered wsl suppresses the static row (no duplicate)", () => {
+  test("defensive shape: a definition-delivered wsl renders the excluded branch (zero controls)", () => {
     // Hypothetical upstream change: the os filter stops excluding wsl. The static row must
-    // disappear instead of duplicating the id; the single remaining wsl row is the
-    // definition-driven row (its status comes from the host reader, not the fixed
-    // disabled status, and the exclusion reason copy is absent).
+    // disappear instead of duplicating the id, and the definition-driven row must render
+    // through the excluded branch: no reload button, no switch (not even a disabled one),
+    // and the reason copy instead of the "runs on this device" capability label.
     const view = fixture("en", [...DEFINITIONS, "wsl"])
     expect(view.host.querySelectorAll('li[data-extension-id="wsl"]').length).toBe(1)
     const row = view.host.querySelector<HTMLLIElement>('li[data-extension-id="wsl"]')!
     expect(row.dataset.capability).toBe("excluded")
-    expect(row.textContent).not.toContain(messages.en["guiext.excluded.wsl.reason"])
-    expect(row.querySelectorAll('[data-testid="row-button"]').length).toBe(1)
+    expect(row.querySelectorAll('[data-testid="row-button"]').length).toBe(0)
+    expect(row.querySelectorAll('[data-testid="row-switch"]').length).toBe(0)
+    expect(row.textContent).toContain(messages.en["guiext.excluded.wsl.reason"])
+    expect(row.textContent).not.toContain(messages.en["guiext.capability.web"])
     view.dispose()
   })
 })
