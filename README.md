@@ -2,11 +2,13 @@
 
 OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为其他移动平台保留适配空间。
 
-> 当前状态：上游前端闭包已引入（pin `b4525d79bf`，见 `vendor/upstream/PROVENANCE.md`），web 静态构建本机可复现，Android WebView 壳代码已实现（未编译验证）；主机注册表与连接状态机已实现（未验证，issue #3：第一方包 `packages/mobile-hosts/` + vendor 补丁 M-004…M-008，issue #6 增 SSH 隧道传输：host-key 校验/变更拒绝与恢复/本地转发，fail-closed stub 保留为无注入默认）；设备凭据保险库已实现（未验证，issue #4：vault 端口/信封 v1/Keystore 落盘/可选记住交互 + vendor 补丁 M-009/M-010 与 M-007 修订，桥 bring-up 与设备门禁 C1–C5 BLOCKED）；直连传输卫生与错误分类已实现（未验证，issue #5：vendor 补丁 M-011…M-014——validated-follow 重定向策略、userinfo 凭据 URL 拒发、端点 probe 分类器与精确错误反馈；TLS=system CA 唯一信任锚，明文 HTTP 与自签/私有 CA 直连本期不支持，见 `docs/decisions/0002`；probe 桥 bring-up 与错误矩阵端到端 BLOCKED）；SSH 隧道传输已实现（未验证，issue #6：vendor 补丁 M-015 + Kotlin `android/.../ssh/`——内建 SSH 认证（密码/密钥+导入）、host-key 显式确认与变更严格拒绝（known_hosts 为 OpenSSH 行格式、指纹与 `ssh-keygen -lf` 互通）、到远端回环服务的本地转发与四层失败分类；SSH 库只在 Kotlin 桥内，见 `docs/decisions/0003`；G17 三桥 bring-up 与 SSH E2E、Kotlin 编译全部 BLOCKED）。尚无 APK；两种连接方式的设备验证与会话功能均未交付，设备验证全部 BLOCKED。构建与验证证据见 [docs/build-and-verify.md](docs/build-and-verify.md)，设计文档体系见 [docs/design/README.md](docs/design/README.md)。
+> 当前状态：Android 客户端已有共享前端、Kotlin WebView 壳、SSH/直连、凭据保险库和远程工作界面。debug APK 已构建并有 MatePad 局部验证记录；inline SSH 表单渲染门禁通过。完整 SSH 主机指纹/认证及远程任务 E2E 仍未通过。详见[构建与验证记录](docs/build-and-verify.md)和[功能对齐矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)。
 
 ## 产品目标
 
-在手机上提供 OpenCode Desktop 的远程工作体验：连接远程机器，管理项目和会话，发送任务，查看文件与 Diff，处理权限确认，使用远程终端。
+在手机上提供 OpenCode Windows Desktop 的远程工作体验：连接远程机器，管理项目和会话，发送任务，查看文件与 Diff，处理权限确认，使用远程终端。
+
+首个功能对齐目标为 **Windows Desktop v2.2.1**；在现有实现上增量核对并适配移动端交互。
 
 支持两种连接方式：
 
@@ -28,6 +30,9 @@ OpenCode 移动端客户端。首个目标平台是 Android（APK），后续为
 ## 文档
 
 - [项目范围与开发前待确认项](docs/project-scope.md)
+- [Windows Desktop v2.2.1 功能矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)
+- [功能对齐推进规则](docs/alignment/workflow.md)
+- [功能对齐文档索引](docs/alignment/README.md)
 - [决策记录 0001：排除 WSL，保留原生 Windows 远程支持](docs/decisions/0001-wsl-exclusion.md)
 - [设计文档体系](docs/design/README.md)
 - [构建与验证证据](docs/build-and-verify.md)
