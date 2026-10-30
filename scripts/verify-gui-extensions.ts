@@ -614,8 +614,10 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const bunLock = await read("bun.lock")
   if (!bunLock.includes("packages/mobile-hosts")) fail("8: bun.lock lost the mobile-hosts workspace registration anchor")
 
-  // Declared cross-references (no re-lock): exact registered patch-ID set, 32 entries,
-  // reserved M-019 absent = verify-attachments-artifacts
+  // mobile(M-035 rebase round, issue #65): 34 registered = M-001..M-035, M-019
+  // reserved-absent (the M-034 exclusion dropped now that #64 has landed).
+  // Declared cross-references (no re-lock): exact registered patch-ID set, 34 entries,
+  // M-019 reserved-absent = verify-attachments-artifacts
   // group 6 + verify-commands-menus group 8; @opencode/gui-extensions specifier set
   // {sdk:34, bridge:8, renderer:2, updater:1} unchanged = verify-agent-capabilities group 3;
   // the M-025 hunk does not touch the VAC root.tsx anchors (its group 3 stayed green in
