@@ -1602,9 +1602,9 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 
 ## issue #72 段（S39：About 页版本展示对齐，M-040）——2026-10-30 实测记录
 
-交付物：`vendor/upstream/patches/mobile/0040-M-040-about-version-face.patch`（恰 5 vendored 目标：`app/src/settings/about/notices/dialog.tsx` + `app/src/settings/settings.css` + `app/src/settings/about/about.tsx` + `app/src/entry.tsx` + `app/src/runtime/i18n/en.ts`）+ `patches/mobile/manifest.json` M-040 条目与 `vendor-manifest.json` mobilePatches（**38=38** 双登记；M-039 reserved-absent——并行 #71 分支预留，其 3 自有提交 5bcb301/d9c5b42/aac62ce 实证不触 entry.tsx/vendor/补丁链，撞槽名 0038-M-039 以其最终树为准）+ 第一方 `packages/mobile-hosts/src/app-version.ts`（新，`MOBILE_APP_VERSION="0.1.0"` 构建期常量）+ `src/index.ts` +1 导出 + `scripts/verify-about-version.ts`（新探针）+ verify-commands-menus/verify-attachments-artifacts/verify-gui-plugins/verify-notifications 哨兵同 commit 修订（38 registered + dist 基线回填）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S39 行终态（双轨措辞）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E27（索引句 + 证据表行 + S39 小节：差异核对表/证伪结论/双轨/服务版本契约 MAJOR-1 措辞/二阶效应 MINOR-3 收敛/i18n 谱系定型/合并顺序声明）+ 本段。
+交付物：`vendor/upstream/patches/mobile/0040-M-040-about-version-face.patch`（恰 5 vendored 目标：`app/src/settings/about/notices/dialog.tsx` + `app/src/settings/settings.css` + `app/src/settings/about/about.tsx` + `app/src/entry.tsx` + `app/src/runtime/i18n/en.ts`）+ `patches/mobile/manifest.json` M-040 条目与 `vendor-manifest.json` mobilePatches（**38=38** 双登记；M-039 reserved-absent——并行 #71 已合并（PR #87）且其条件补丁 M-039 未落地（QA-0 判定壳原生相机门控成立），38=38 在 rebase 轮复测不变）+ 第一方 `packages/mobile-hosts/src/app-version.ts`（新，`MOBILE_APP_VERSION="0.1.0"` 构建期常量）+ `src/index.ts` +1 导出 + `scripts/verify-about-version.ts`（新探针）+ verify-commands-menus/verify-attachments-artifacts/verify-gui-plugins/verify-notifications 哨兵同 commit 修订（38 registered + dist 基线回填）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S39 行终态（双轨措辞）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E28（索引句 + 证据表行 + S39 小节：差异核对表/证伪结论/双轨/服务版本契约 MAJOR-1 措辞/二阶效应 MINOR-3 收敛/i18n 谱系定型/合并顺序声明）+ 本段。
 
-**双轨分离（交付呈现口径）**：轨 1 上游对齐 = notices dialog v2.2.1 逐字（恰 3 hunk）+ settings.css 恰一行 `overflow-y: auto`——目标面缺口清零，补后 dialog.tsx 与 v2.2.1 `3ebcf9a` 逐字节相同（`diff <(git show 3ebcf9a:…)` 实测为空）；轨 2 基线意图 = 三行版本展示（壳 0.1.0 via `MOBILE_APP_VERSION` 注入 / 基座 2.1.4 via vendored `package.json` / 服务版本 `/api/info`），**标注「非上游形态」**（上游 v2.2.1 恰两个版本键、无三行展示——证伪结论落 E27/S39 小节）。
+**双轨分离（交付呈现口径）**：轨 1 上游对齐 = notices dialog v2.2.1 逐字（恰 3 hunk）+ settings.css 恰一行 `overflow-y: auto`——目标面缺口清零，补后 dialog.tsx 与 v2.2.1 `3ebcf9a` 逐字节相同（`diff <(git show 3ebcf9a:…)` 实测为空）；轨 2 基线意图 = 三行版本展示（壳 0.1.0 via `MOBILE_APP_VERSION` 注入 / 基座 2.1.4 via vendored `package.json` / 服务版本 `/api/info`），**标注「非上游形态」**（上游 v2.2.1 恰两个版本键、无三行展示——证伪结论落 E28/S39 小节）。
 
 **差异核对表（验收 1a；v2.2.1 `3ebcf9a` vs pin `b4525d79bf`，逐文件实测）**：about.tsx 零变化（本单元前 vendored 已 `== v2.2.1`）；animated-wordmark.tsx v2.2.1 motion 改写已随 M-035/M-037 带入（`== v2.2.1`）；contributors 三件 + legal.svg + anomaly-brush.svg + notices.ts + fonts.ts 零变化（零触碰负锁）；**notices/dialog.tsx = 唯一剩余上游缺口**（`== pin`）；settings.css 缺一行使能行（M-035 他处 hunk 不相干）。i18n 枚举：上游恰两版本键（`settings.about.version` :799 / `error.page.version` :518，同源 `platform.version`）——「三种版本展示」证伪（矩阵旧措辞收口），三行展示为移动版本身份问题（壳 0.1.0 / 基座 2.1.4 / 服务 `/api/info`）。
 
@@ -1623,6 +1623,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | Android 单元测试 | `gradle -p android :app:testDebugUnitTest` | **17 tests / 0 failures**（BUILD SUCCESSFUL）——与基线持平 | 本文 |
 | 全量探针 sweep | 29 × `bun run scripts/verify-*.ts`（构建后首轮） | **25/29 rc=0**，4 例 rc=1 全部在册归因、与本分支零关联：①verify-recovery 组 5 ensureTunnel 陈旧正则——dev 既有（#63 段在册），`packages/mobile-hosts/src/runtime.ts` 本分支零触碰（git diff 为空）；②verify-inline-ssh-device——设备依赖探针（CDP 127.0.0.1:9222 ConnectionRefused），设备 QA 轮替代；③④verify-permission-requests/verify-session-workbench——gradle intermediates 假阳性（FAIL 串恰为 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js`，#63 在册；**build 目录移出复测二者 rc=0、原样还原（APK 保留）**已按在册处置执行）。**最终 HEAD 复扫**（docs 提交 89cd277 后，B-1 教训：sweep 以最终树为准）：**25/29 rc=0**，逐项 rc 同首轮且四例 rc=1 归因不变（recovery/inline-ssh-device/permission-requests/session-workbench——后二者 intermediates 处置已如上行实证）；同 HEAD 复跑 V3 rc=0、第一方 423/0/2885、settings 41/0/98、contributors 2/0 全部持平。sweep 与哨兵计数（38=38）在 PR 前 rebase 后按合并实态复算（若 #71 先合并） | 本文 |
 | 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 为**基线既有**（synthetic 测试密钥与文档示例凭据在册集），改动前后输出 `diff` **逐行相同**（stash -u 前后双侧实测）——零新增命中 | 本文 |
+| **rebase 轮（最终 HEAD）复测** | 同上列全套命令，dev `a947243` 重放后实跑 | V3 闭包 **38=38** PASS、DANGLING=0（#71 的 M-039 未落地，链 37=37+M-040=38 不变）；verify-about-version rc=0 + 四哨兵（commands-menus/attachments-artifacts/gui-plugins/notifications）rc=0（web-dist manifest 侧修正记录：rebase 冲突解决时取错侧——rebase 语义中 ours=新基线 dev——首取 dev 侧 3516/159,535,257 致三哨兵组 8 FAIL，复归本分支侧 3516/159,542,120 后 rc=0；**dev 侧 manifest 实测仍 3516/159,535,257 = #71 零 vendor/web 改动的负证明**）；上游 settings **41/0/98** + contributors **2/0/3**；第一方 **423/0/2885**；`git diff --check` rc=0；dist 重建 rc=0：**3516/159,542,120 与在册 manifest 总数逐位一致**（109 行 .map 条目哈希漂移=构建非确定性，dev 侧 #71 重建同型在册；总数复现证明 web 载荷对 rebase 不敏感）；APK 重建：**SHA-256 `f8c618a724888879d8fae31fa9e55e5cee16a70138b7778290f0b9057532789c`**（65,330,250 bytes——较 rebase 前 `48d7faba…` 变化=预期，#71 壳层 CAMERA/CameraGrantPolicy 入包；assets/web 3,516 条目、web markers 命中）；gradle `:app:testDebugUnitTest` **23/0**（17 基线 + #71 新增 CameraGrantPolicyTest 6）；sweep **25/29 rc=0**，四例 rc=1 与 rebase 前同集同归因（recovery dev 既有陈旧正则——runtime.ts 对新 dev 零触碰；inline-ssh-device CDP 设备依赖；permission-requests/session-workbench intermediates 假阳性——build 目录移出复测二者 rc=0、原样还原 APK 保留） | 本文 |
 
 ### 设备 QA 待执行（issue #72 段——与 #71 待执行 QA 串行使用同一 MatePad DBY2_AL00，协调员统一调度）
 
@@ -1631,14 +1632,20 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | QA-1 About 可达与三行实显 | 新 APK 安装（`install -r`，SHA-256 与本段产物一致）；Settings → About 可达（含设置搜索路径键入 "version license credits"）；版本行显 `0.1.0`、基座行显 `Upstream OpenCode 2.1.4`、服务行显已连真实远程 OpenCode 的 `/api/info` 版本（`Server OpenCode …`） | 验收 1b、轨 2 |
 | QA-2 服务行降级路径 | 停远端服务/断开 → 服务行显式 unavailable 文案（不留空白）；恢复连接 → checking 文案 → 版本回归（同一屏内完成）；健康检查先行挂载时序（R4）不崩溃 | 验收 1b 降级 |
 | QA-3 notices 弹窗行为级 | 弹窗打开且 `data-scrollable` 容器在 WebView 内实际可滚动（v2.2.1 交换的行为级验证） | 轨 1、验收 1b |
-| QA-4 zh 回退实态 | 系统 zh：既有行中文（「版本{{version}}」）、新行英文（登记实态，非缺陷） | E27 i18n 登记 |
+| QA-4 zh 回退实态 | 系统 zh：既有行中文（「版本{{version}}」）、新行英文（登记实态，非缺陷） | E28 i18n 登记 |
 | QA-5 布局无回归 | 许可行/notices 按钮/wordmark/credits 原样；`settings-about-versions` 锚点行不挤压原 intro 布局 | 验收 2 |
-| QA-6 记录回写 | 结果回写本段 + E27/S39 小节结论句；环境不足项标注未验证并引静态证据 | E27 |
+| QA-6 记录回写 | 结果回写本段 + E28/S39 小节结论句；环境不足项标注未验证并引静态证据 | E28 |
+
+### rebase 轮（#71 经 PR #87 并入 dev `a947243` 后，2026-10-31）
+
+`git rebase origin/dev` 实测：7 提交重放，预期冲突面与实测一致——①`web-dist/manifest.json`（493e4de，本分支重建基线 vs dev 侧 .map 哈希刷新：**取本分支侧**——#71 零 vendor/web 源改动，本侧 dist 即当前树实测基线 3516/159,542,120；dev 侧 manifest 实测仍为 3516/159,535,257，**核实 #70 基线在 dev 侧未变**）；②`docs/build-and-verify.md`（89cd277 段插入 vs #71 段插入：**两节并存双侧保留**，#71 段在前）；③`implementation.md`（E 编号冲突：#71 实占 E27，本模块全文 E27→E28 顺延 + 顺延条件句按预声明措辞落 E28 索引段；证据表行移至 E27 行后保持编号有序）；④`matrix.md` S39/D03 异行，git 自动合并无冲突（S39 行 E27→E28 手动顺延）。`scripts/verify-notifications.ts` 双方均有改动（dev 侧组 5 权限恰三 + 头注；本侧组 8 dist 基线回填）——git 自动合并成功零冲突（不同 hunk 区）。
+
+rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终 HEAD）」行；本模块证据编号 **E28**（自 E27 顺延，E27=#71 实占）。
 
 ### 诚实边界（issue #72 段）
 
 - **设备 QA 六项全部待执行**（上表）：本模块以静态探针 + 构建层证据 + 负例演练先行（沿 #66/#70 先例）；「三行版本实显/降级路径/notices 滚动/zh 回退」在设备复测前不得声称已运行验证。
-- **多主机边界**：About 服务行仅示排序首项（可能含隐藏主机）——移动典型单主机下等价；多主机完整版本面以 servers 设置行 tooltip 为准（E27 边界登记，评审 MAJOR-1 措辞落地）。
+- **多主机边界**：About 服务行仅示排序首项（可能含隐藏主机）——移动典型单主机下等价；多主机完整版本面以 servers 设置行 tooltip 为准（E28 边界登记，评审 MAJOR-1 措辞落地）。
 - **基座行不随 v2.2.1**：基座行显示 vendored pin 的 `2.1.4`（pin 决定），不因上游 v2.2.1 发布而变——跟进基座版本属 pin 升级域，不在本单元。
 - **`0.1.0` 为构建期常量**：versionName 升版时须同步改 `packages/mobile-hosts/src/app-version.ts`（三方同步探针会 FAIL 提示——契约即护栏）。
 - **presentableVersion 为非空字符串守卫**：不做 semver 重解析（展示契约与 servers 行同款逐字）；服务返回异常形态版本串时按 unavailable 文案降级（空串/非字符串）。
