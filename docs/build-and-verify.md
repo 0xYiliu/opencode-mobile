@@ -1693,6 +1693,10 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **sweep 六例 rc=1 为基线环境性**（fresh worktree 零构建轮）：verify-ssh/service-ops/direct-connection/attachments-artifacts 四例为构建产物路径 ENOENT（构建见证类探针的环境性缺席）——与在册 intermediates 假阳性同类属环境性缺席，非断言失败；下轮任何构建轮（恢复产物存在）应复跑至 rc=0 归零或在册归因。
 - **dist 哨兵为 post-#72 值**：3516/159,542,120（当轮实测 + 三组 8 探针复证）；本轮零构建 → 不产生新基线；下轮涉及 vendor/web 改动的轮次按惯例重建回填。
 
+### 最终 HEAD 复扫（issue #73 段，B-1 纪律——台账提交 9edcb98 后实跑）
+
+全探针 sweep 复跑（30 × `bun run scripts/verify-*.ts`，HEAD `9edcb98`）：**24/30 rc=0，逐项 rc 与首轮完全一致**——rc=1 六例同集同归因（verify-recovery 在册陈旧正则 / verify-inline-ssh-device 设备依赖 / verify-ssh + verify-service-ops 拷贝 web 载荷 ENOENT / verify-direct-connection + verify-attachments-artifacts web 构建输出 ENOENT——四例构建见证类为本期零构建轮 + fresh worktree 的环境性缺席，基线对照实证见首轮行）；新探针 verify-debug-bar rc=0、既有交叉探针 verify-gui-plugins/verify-commands-menus rc=0、组 8 哨兵三探针 rc=0 复证不变。`verify-closure.sh` 复跑 **PASS**（V3(a)/DANGLING=0/V3(c)）；`git diff --check` rc=0；工作树零未提交变更。台账提交仅增本文 prose（无探针读 build-and-verify.md——S0 实测），最终 HEAD 数字即为终态。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
