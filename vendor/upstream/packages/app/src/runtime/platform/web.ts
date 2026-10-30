@@ -50,7 +50,14 @@ export function createWebPlatform(version: string) {
       const url = new URL(value)
 
       if (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "mailto:") return
-      window.open(url.href, "_blank", "noopener,noreferrer")
+      // mobile(M-041): the shell's outbound face (issue #76). window.open is a
+      // same-WebView navigation inside the shell (no setSupportMultipleWindows) — the
+      // URL crosses the files bridge instead and the native side is the ENFORCED layer
+      // (ACTION_VIEW over ExternalOpenPolicy: http/https only, userinfo refused; mailto
+      // passes the gate above and is refused natively — a registered first-party
+      // delta). Before the bridge acks the fail-closed stub answers false and the void
+      // face ignores it. Rollback = revert this one patch.
+      void activeFilesPort().openExternal(url.href)
     },
     restart: async () => window.location.reload(),
     async notify(title, description, onClick) {
