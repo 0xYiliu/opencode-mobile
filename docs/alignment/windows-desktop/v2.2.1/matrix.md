@@ -100,7 +100,7 @@
 | W25 | 会话详情、工作区位置菜单 | 已有代码 | 适配；旧 details 已注册，逐个工作区操作差异待核 | E03/E09 |
 | W26 | 命令面板统一检索 | 已有代码 | 适配；已有命令/菜单契约，新增命令与触摸入口待核 | E11 |
 | W27 | 会话内容搜索与高亮 | 已有代码 | 适配；WebView CSS highlights 与长历史定位待验 | E03 |
-| W28 | Debug bar、堆快照、动效诊断 | 部分实现 | 适配；旧 debug 已注册；Desktop main 和构建条件限制需逐操作核对 | E09 |
+| W28 | Debug bar、堆快照、动效诊断 | 部分实现 | 适配已核对（issue #73，零代码纯核对+登记，implementation.md W28/E29 小节 13 行逐操作矩阵）：web 可用子集 = `debug.toggle` 命令（无条件注册，先于 desktop 门行）+ **≥768px 宽屏** DebugBar CLOSE/DURATION/TPS（aside CSS `hidden md:block` 逐字；窄屏 <768px 结构性隐藏=上游 web 窄窗口同构视口 CSS，非移动特判，登记不补）；desktop-only 项全部诚实缺席/元素级不渲染、无误报——`debug.heap` 命令级永不注册（verify-commands-menus 组 5 + commands-menus.md 在册先锁，引用不重锁）、诊断格族与 Motion=`import.meta.env.DEV` 构建期缺席、MEMORY=web 恒 inactive（无 main 域）、FOCUS 三重门（diagnostics Show + desktop Show + `if (!desktop) return`，评审 MINOR-4）、main 侧运行面结构性不存在（gui-plugins.md §一红线在册）；**titlebar 渠道开关两移动列均不渲染**（移动构建渠道 env 未设——titlebar.tsx:787 `if (!channel || channel === "prod") return null` 任何视口早退，无入口；评审 MAJOR-1 修正：宽屏亦非「非交互静态徽章」）；placement 消费者读不存在字段 = pin 内混合代际漂移（E29 小节上游漂移登记——非 M-037 漏迁、非本仓适配缺口，评审 MINOR-2）；管理面 debug 行=web 可启停行语义自洽（分类判据=在册注释 whole contribution runs renderer-side，评审 MINOR-3）；设备 QA 待执行指针见 build-and-verify.md issue #73 段（QA-1..QA-3，keybind-only 可达路径） | E09/E29 |
 
 ## C. Windows 宿主与连接
 

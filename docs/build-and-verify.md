@@ -1650,6 +1650,53 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **`0.1.0` 为构建期常量**：versionName 升版时须同步改 `packages/mobile-hosts/src/app-version.ts`（三方同步探针会 FAIL 提示——契约即护栏）。
 - **presentableVersion 为非空字符串守卫**：不做 semver 重解析（展示契约与 servers 行同款逐字）；服务返回异常形态版本串时按 unavailable 文案降级（空串/非字符串）。
 
+## issue #73 段（W28：Debug bar 移动可用范围逐操作核对并登记）——2026-10-31 实测记录
+
+交付物：`scripts/verify-debug-bar.ts`（新静态探针：G1 renderer 门控 / G2 bar 元素门控 / G3 渠道与 titlebar 门 / G4 白名单与文档闭包；负例四组含评审 MINOR-7 第④组白名单删员）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E29（索引句 + 证据表行 + W28 小节：定性裁定/13 行逐操作矩阵/上游漂移登记/QA 指针）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) W28 行终态（MAJOR-1 措辞）+ [units/gui-plugins.md](design/units/gui-plugins.md)（§二 debug 行精化「零 UI 贡献」→ web 渲染面实态；§九 debug bar 移动实态句；§十窄屏 face 源码级未真机宣称边界）。**定性：纯核对 + 登记、零代码**（零 vendor 补丁、零 dist 重建、零 first-party/壳改动；对抗评审 MAJOR-1 修正后结论加强）。与 #72 关系（评审 MINOR-8 措辞）：源码零交集、台账三文件（build-and-verify/implementation/matrix）异段并存。issue 正文「gui-extensions」为 M-037 迁移前旧名——勘误声明登记于 E29/W28 小节，不修正 issue 正文。
+
+**S0 复勘（基线 `1e84a39` = dev 含 #71/#72，PR #87/#88）**：全部锚点行号实测无漂移推翻（titlebar.tsx:785/:787/:791/:792-794/:537-538/:726/:65；renderer.tsx:9-12/:29/:60-71/:73-74/:109-134；bar.tsx:279-280/:585/:601/:612-625/:626/:705/:715/:726/:738/:741；options.ts:5-7；main.ts:176；host-apis.tsx:308-309；extension-manager.tsx:25-51；registries.ts:573-586；commands-menus.md §二）。**评审 MAJOR-1 实测落实**：移动构建不设 `VITE_OPENCODE_CHANNEL` → titlebar.tsx:787 `if (!channel || channel === "prod") return null` 任何视口早退——渠道徽章根本不渲染、无入口（计划初稿「web-宽屏=非交互静态徽章」为事实错误，row 11 两移动列按评审裁断改为「不渲染」）。**上游漂移分类（评审 MINOR-2 裁断，本树 git 对象实测复核）**：pin 代际（`61b1eb2`）`gui-extensions/src/sdk/registries.ts:522/:530` TitlebarItem 有 `placement?: "titlebar" | "channel"` 且 pin 代际 debug/renderer.tsx:75-86 真实注册 `placement: "channel"`（注释「the debug bar does」在 pin 代际为真）；M-037 迁移带入 v2.2.1 代际后上游丢弃该注册（vendored gui-plugins/src/debug 全域零命中实测）+ v2.2.1 `445510ce99` 整体删除 ChannelIndicator 消费者 + v2.2.1 新接口（plugin/src/gui/registries.ts:573）无 placement 字段（实测）→ 本树 pin 代际消费者读不存在字段、find 恒空——**pin 内混合代际漂移**，非 M-037 漏迁、非本仓适配缺口、S0 停线条件不触发（v2.2.1 上游自身已删 channel 贡献者）。编号：**E28=#72 实占（S0 实测复核）→本期取 E29**。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 新探针 | `bun run scripts/verify-debug-bar.ts` | **rc=0**：G1 renderer 门控（motionTools 构建门逐字/toggle 命令先于 desktop 门行的顺序断言/main-only memory 注释/Slot 四接线 + Knobs 内门；heap 双锚 = witness，first lock verify-commands-menus 组 5）+ G2 bar 元素门控（aside CSS 逐字/CLOSE/DURATION/TPS/诊断九格 + DIRECTION/FOCUS 三重门嵌套顺序断言（MINOR-4）/MEM desktop 条件 span/MEMORY/Motion Show + 内层复检 + /components 链接）+ G3 渠道与 titlebar 门（debugBuild 逐字/main.ts 早退/host-apis `?? "local"` = witness（first lock verify-gui-plugins 组 3，MINOR-1 不重锁）/titlebar 早退门 + `!mobile()` 门 + 消费者逐字 + 767px 媒体查询/三重零命中负断言）+ G4 白名单成员断言（非集合相等，#66 先例）+ 文档闭包（gui-plugins.md 精化句/matrix W28 终态/E29 行与小节在位） | 本文 |
+| 负例演练（4 例） | 逐例 inject → probe → restore（备份 cmp 逐字节还原） | ①bar.tsx aside `hidden md:block` 对翻转 → **FAIL: 2 (rc=1)** →还原 rc=0；②renderer motion 门改恒真 → **FAIL: 1 (rc=1)** →还原 rc=0；③debug/renderer.tsx 注入 `placement: "channel"` 注册 → **FAIL: 3 (rc=1)** →还原 rc=0；④**（MINOR-7）extension-manager WEB_ACTIVE_EXTENSIONS 删 "debug"** → **FAIL: 4 (rc=1)** →还原 rc=0——闭合 row 12 机制环。四例还原后 `cmp` 逐字节一致、`git diff` 空；日志 `.probe-logs/negex/w28-neg-{1..4}-*.log`（gitignored） | 本文 |
+| 既有探针交叉核实 | `bun run scripts/verify-gui-plugins.ts`；`bun run scripts/verify-commands-menus.ts` | 均 **rc=0**（本期 gui-plugins.md/matrix/implementation 文档改动同 commit 落地后组 7 文档闭包仍绿——#67「探针与文档锚同 commit 硬耦合」教训执行；组 8 哨兵 38 registered + dist 基线 3516/159542120 rc=0） | 本文 |
+| gui-plugins 包定向子集（22 文件） | 包内 `bun test` 显式列 22 文件（file 四/review 一/details 一/terminal 三/browser 八/microsoft-office 五；包内 bunfig preload happydom 生效） | **139 tests / 0 fail / 415 expect()（rc=0）**——M-037 迁移后 gui-plugins 路径对 v2.2.1 衍生测试的首次全子集实测（#22 时代 135/0/396 为 pin 代际 gui-extensions 路径旧数，如实并记）；零 fail 为门 | 本文 |
+| debug 五测试（在册子集破例 +5，本期裁定登记） | 包内 `bun test src/debug/{options,signal,memory-infra,memory-record,server-heap}.test.ts` | **31 tests / 0 fail / 31 expect()（rc=0）**；五件逐一核实**零 electron import、零 knobs import**（grep rc=1 零命中——符合 #67「凡 import knobs 不入选」规则；纯函数 bun 测试，server-heap.test 自带 unregister/register 序） | 本文 |
+| 第一方回归 | `bun test --conditions=browser packages/mobile-hosts` | **423 pass / 0 fail / 2885 expect()（39 文件）**——与基线持平（本期零 first-party 代码改动，零漂移证明） | 本文 |
+| 环境 | fresh isolated worktree 首次依赖安装 | `bun install --frozen-lockfile` rc=0（1061 packages；**bun.lock 零变化**——git diff 空，交付面守恒） | 本文 |
+| dist 哨兵（MAJOR-2 条件分支） | 读 `web-dist/manifest.json` 常量 + 三组 8 探针复证 | 当轮实测 **3516 / 159,542,120** = post-#72 在册值（verify-notifications/verify-gui-plugins/verify-commands-menus 组 8 rc=0 复证）；pre-#72 值 3516/159,535,257 已属历史档（#72 段在册）。策略兑现：**不重建、不回填**——`web-dist/manifest.json` 零触碰（git diff 空）；零 vendor/first-party 代码变更 → 哨兵原样绿，无越出交付面信号 | 本文 |
+| 全量探针 sweep（首轮 @ 47c43fe） | 30 × `bun run scripts/verify-*.ts` 逐项 rc | **24/30 rc=0**；6 例 rc=1 全部基线环境性（下述基线对照实证），与本分支零关联：①verify-recovery——在册陈旧正则（#63 段归因，dev 既有）；②verify-inline-ssh-device——设备依赖（CDP ConnectionRefused，设备 QA 轮替代）；③④verify-ssh/verify-service-ops——ENOENT `android/app/src/main/assets/web/`（拷贝 web 载荷缺失：本期零构建轮 + fresh worktree 无构建产物——构建见证类探针的环境性缺席，非断言失败）；⑤⑥verify-direct-connection/verify-attachments-artifacts——ENOENT `vendor/upstream/packages/app/dist/_assets/`（同上，web 构建输出缺失）。**基线对照实证**：临时 worktree @ `1e84a39`（pristine，同环境）复跑八探针——rc=1 集合与此处完全一致（上述六例）且 permission-requests/session-workbench 双侧 rc=0（本期无 gradle intermediates 存在，在册假阳性两例不触发）；临时 worktree 用后即删 | 本文 |
+| 闭包 | `bash scripts/verify-closure.sh` | **PASS**：V3(a) 树 == pin + packageSources + M-001..M-040 字节一致 + LICENSE 一致；DANGLING=0（V3(b) OK）；V3(c) OK。补丁清单双登记 **38=38** 经 verify-commands-menus 组 8 rc=0 复证（38 = M-001..M-040 含 M-019/M-039 reserved-absent；任务框架所记「37=37」为 #72 合并前旧数——#72 M-040 入链后现值 38=38，如实登记） | 本文 |
+| 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check **rc=0**；leak-scan rc=1 为**基线既有**（37 行在册集），与 pristine `1e84a39` 临时 worktree 实测输出**逐行 diff 为空**——零新增命中 | 本文 |
+| 最终 HEAD 复扫（B-1 纪律） | 台账提交后全探针 sweep + closure 复跑 | 见下方「最终 HEAD 复扫」小节（台账落盘后执行，逐项 rc 与首轮一致则本轮数字即为终态） | 本文 |
+
+### 设备 QA 待执行（issue #73 段——与 #71/#72 待执行 QA 串行使用同一 MatePad DBY2-AL00，协调员统一调度；#71 已完成设备轮、#72 六项待执行——如实衔接口径：本段仅登记待执行，不重复占用设备）
+
+命令面板具体可达路径（评审 MINOR-5；三选一，执行时如实记录所用通道）：①物理键盘快捷键 `mod+k` / `mod+shift+p`（`DEFAULT_PALETTE_KEYBIND`，command.tsx:18 在册）；②Settings > Shortcuts 页目录核对（命令面板本体无触屏入口 = commands-menus.md §二在册实态，Shortcuts 页为触屏可达的目录核对通道）；③CDP 注入。窄屏 <768px face 不可真机演练（设备 CSS 视口下限 818px，S04 在册）——窄屏列仅源码级宣称（gui-plugins.md §十在册）。
+
+| 项 | 内容 | 对应 |
+| --- | --- | --- |
+| QA-1 宽屏 bar 命令与呈现 | 命令面板执行 `debug.toggle` → DebugBar 出现且**仅** CLOSE/DURATION/TPS 三元素（诊断格族/MEMORY/Motion/FOCUS 零存在负例）；再执行 toggle 或点 CLOSE → 消失；杀 App 重启后 store 态保持（宽屏复现） | E29 矩阵 row 1/3/4/5 |
+| QA-2 desktop-only 命令负例 | 命令面板检索 debug → `debug.heap` **不存在**（逐字核对无该项）；`debug.toggle` 存在 | row 2；commands-menus.md 先锁 |
+| QA-3 管理面行实态（可选，G35② 相邻） | Settings → GUI 扩展 tab：debug 行 = 可启停 web 行；禁用 → `debug.toggle` 从命令面板消失、bar Slot 撤除；启用 → 恢复；结果回填 G35 复核位引用但**不改 G35 行状态** | row 12；MINOR-7 负例的运行期对应面 |
+
+### 合并顺序与交接（issue #73 段）
+
+#71/#72 已合并（基线 `1e84a39` 含全部）；本分支自 `1e84a39` 切出，无并行合并预期则无需 rebase；按任务框架不 push、不建 PR（PR 与对抗代码评审后处置）。提交结构：`docs(alignment)` 文档契约（1e46c2e）→ `test` 探针层（47c43fe）→ 本台账（docs）→ 最终 HEAD 复扫注记（docs）——探针与文档锚耦合按 #67 教训同 PR 分提交、顺序为「文档→探针→连跑」。
+
+### 诚实边界（issue #73 段）
+
+- **设备 QA 三项全部待执行**（上表）：本模块以静态探针 + 负例演练先行（沿 #66/#70/#72 先例）；宽屏呈现、命令可达、管理面启停行为在设备复测前不得声称已运行验证。
+- **窄屏列与渠道徽章不渲染列为源码级宣称**：设备 CSS 视口下限 818px——窄屏 face 不可真机演练（CDP 合成覆盖不代表真机 face）；渠道门为构建期 env 事实（源码级），不预设运行期复测项。
+- **静态探针零运行期证明力**：verify-debug-bar 为 static STRUCTURE check（文本锚/顺序断言/零命中负断言/成员断言）；store 跨重启持久化、禁用同帧撤除等宿主机制行为归 G35/G34 域。
+- **sweep 六例 rc=1 为基线环境性**（fresh worktree 零构建轮）：verify-ssh/service-ops/direct-connection/attachments-artifacts 四例为构建产物路径 ENOENT（构建见证类探针的环境性缺席）——与在册 intermediates 假阳性同类属环境性缺席，非断言失败；下轮任何构建轮（恢复产物存在）应复跑至 rc=0 归零或在册归因。
+- **dist 哨兵为 post-#72 值**：3516/159,542,120（当轮实测 + 三组 8 探针复证）；本轮零构建 → 不产生新基线；下轮涉及 vendor/web 改动的轮次按惯例重建回填。
+
+### 最终 HEAD 复扫（issue #73 段，B-1 纪律——台账提交 9edcb98 后实跑）
+
+全探针 sweep 复跑（30 × `bun run scripts/verify-*.ts`，HEAD `9edcb98`）：**24/30 rc=0，逐项 rc 与首轮完全一致**——rc=1 六例同集同归因（verify-recovery 在册陈旧正则 / verify-inline-ssh-device 设备依赖 / verify-ssh + verify-service-ops 拷贝 web 载荷 ENOENT / verify-direct-connection + verify-attachments-artifacts web 构建输出 ENOENT——四例构建见证类为本期零构建轮 + fresh worktree 的环境性缺席，基线对照实证见首轮行）；新探针 verify-debug-bar rc=0、既有交叉探针 verify-gui-plugins/verify-commands-menus rc=0、组 8 哨兵三探针 rc=0 复证不变。`verify-closure.sh` 复跑 **PASS**（V3(a)/DANGLING=0/V3(c)）；`git diff --check` rc=0；工作树零未提交变更。台账提交仅增本文 prose（无探针读 build-and-verify.md——S0 实测），最终 HEAD 数字即为终态。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
