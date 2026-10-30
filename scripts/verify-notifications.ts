@@ -538,12 +538,13 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // Current baseline is read from a fresh Vite build of the tracked source tree.
   // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  // issue #70 measured: btw narrow-screen entry grows the payload (3516/159535257; issue #67's
+  // issue #72 measured: the About version face + notices v2.2.1 line grow the payload
+  // (3516/159542120; issue #70's btw entry measured 3516/159535257 and issue #67's
   // gui-plugins swap measured 3516/159532385 — now historical).
   if (distManifest.fileCount !== 3516)
     fail(`8: current web-dist fileCount drifted (expected 3516, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 159535257)
-    fail(`8: current web-dist totalBytes drifted (expected 159535257, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 159542120)
+    fail(`8: current web-dist totalBytes drifted (expected 159542120, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
@@ -650,6 +651,6 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-3 permissions (INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71) + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3516/159535257; issue #70 incl. M-038; issue #67 incl. M-037 3516/159532385, issue #66 incl. M-036 3493/153776571, issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + M-022/M-023/M-024, design README index + baseline; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3516/159542120; issue #72 incl. M-040; issue #70 incl. M-038 3516/159535257, issue #67 incl. M-037 3516/159532385, issue #66 incl. M-036 3493/153776571, issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + M-022/M-023/M-024, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )

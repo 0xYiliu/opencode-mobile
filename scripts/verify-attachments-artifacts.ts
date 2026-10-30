@@ -29,8 +29,9 @@
 //      exported=false + grantUriPermissions=true).
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
-//      M-020/M-021 and exactly the registered ID set M-001..M-038 except reserved M-019
-//      (37 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038 in
+//      M-020/M-021 and exactly the registered ID set M-001..M-040 except reserved M-019/M-039
+//      (38 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038,
+//      #72 M-040 in
 //      respective same-commit revisions; issue #23/#26/#55/#63/#64/#65/#66/#67 count revisions
 //      remain documented history —
 //      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
@@ -340,12 +341,15 @@ let distAssetCount = 0
   }
   const patchRows = patchManifest.patches ?? []
   const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
-  // Issue #70: 37 registered = M-001..M-038 with M-019 reserved-absent (M-038 registered
-  // by the btw narrow-screen entry).
-  const expectedPatchIds = new Set(Array.from({ length: 38 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))
+  // Issue #72: 38 registered = M-001..M-040 with M-019 and M-039 reserved-absent (M-038
+  // registered by the btw narrow-screen entry; M-039 reserved for the parallel issue #71
+  // branch, a hole at apply time tolerated like M-019/0031).
+  const expectedPatchIds = new Set(
+    Array.from({ length: 40 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
+  )
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 37 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 37 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 38 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 38 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
@@ -359,7 +363,7 @@ let distAssetCount = 0
   const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
   if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
       registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the 33 unique registered patch paths")
+    fail("6: vendor-manifest mobilePatches paths must equal the 38 unique registered patch paths")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
