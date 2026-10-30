@@ -345,3 +345,7 @@ export {
   type ExtensionCapability,
   type ExtensionManagerProps,
 } from "./ui/extension-manager"
+// issue #72: About version face — the mobile app version as a build-time constant
+// (three-way sync contract with the Android gradle versionName and this package's
+// package.json; probe-locked by scripts/verify-about-version.ts).
+export { MOBILE_APP_VERSION } from "./app-version"
