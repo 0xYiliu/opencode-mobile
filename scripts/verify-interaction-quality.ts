@@ -35,16 +35,24 @@
 //      verify-recovery.ts group 4).
 //   2. Web-layer navigation form (drift sentinels): the four upstream src
 //      trees carry ZERO `history.pushState` / `popstate` / `history.back` /
-//      `history.go` — the back list stays single-entry in normal use, which
-//      is why the back key ends the Activity; the ONLY History API touchpoint
-//      is pwa.ts's `history.replaceState(...)` (PWA URL cleanup). A pin
-//      update introducing a push/popstate write MUST fail here and force a
-//      re-review of the back-key wording (interaction.md baseline +
-//      interaction-quality.md §1) before it is kept. Plus the two
+//      `history.go` — the FIRST-PARTY domain stays clean (issue #75 erratum:
+//      the scan domain is the four src trees BY DESIGN; dependency-side
+//      writers are outside it, and the pinned @solidjs/router 1.0.0 default
+//      History integration IS the documented dependency-side writer —
+//      `pushState(state, "", value)` + `saveCurrentDepth()` stamping `_depth`
+//      on non-replace navigation). Same-document entries do NOT open the
+//      WebView canGoBack() gate (issue #75 emulator measurement, AOSP
+//      WebView 113), so the back key still ends the Activity in regular use;
+//      FULL-PAGE navigations (same-window navigation class + notification
+//      route loadUrl) DO enter the gate. The ONLY first-party History API
+//      touchpoint is pwa.ts's `history.replaceState(...)` (PWA URL cleanup).
+//      A pin update introducing a FIRST-PARTY push/popstate write MUST fail
+//      here and force a re-review of the back-key wording (interaction.md
+//      baseline + interaction-quality.md §1) before it is kept. Plus the two
 //      `target="_blank"` anchors in session-ui tool-renderer.tsx (the exa
-//      link list and the webfetch subtitle link) — same-window navigation
-//      class paths in the shell (no setSupportMultipleWindows), each of which
-//      gives the back list a second entry.
+//      link list and the webfetch subtitle link) — full-page same-window
+//      navigation class paths in the shell (no setSupportMultipleWindows),
+//      each of which gives the back list a gate-opening entry.
 //   3. Keyboard/viewport linkage: index.html viewport meta verbatim four
 //      segments + theme-color meta; keyboard.ts four listener registrations,
 //      the `--safe-area-inset-bottom` set/remove pair, the `> 100` keyboard
@@ -87,7 +95,9 @@
 //   8. Docs closure anchors (anti drift between docs and code):
 //      interaction-quality.md exists with its eight section titles, the
 //      authority declaration and the four honest-state sentences (back key =
-//      ends the Activity with the same-window-navigation CLASS exception /
+//      ends the Activity in regular use, re-reasoned by the issue #75
+//      erratum — dependency-side router writes stay outside the WebView
+//      canGoBack() gate, with the full-page-navigation CLASS exception /
 //      command palette keybind-only / rotation = Activity rebuild / touch
 //      target gaps on record); interaction.md carries the G1–G35 enumeration
 //      (issue #23 revised the G1–G31 title anchor when G33 was added, issue #24
@@ -194,10 +204,16 @@ function walk(dir: string, out: string[] = []): string[] {
 
 // --- 2. Web-layer navigation form (drift sentinels) ---
 {
-  // Zero History-API writes across the four upstream src trees: the back/forward
-  // list stays single-entry in normal use → canGoBack() is false → the back key
-  // ends the Activity (interaction-quality.md §1). These are intentional drift
-  // sentinels (same rationale as #9's no-`default:` sentinel).
+  // Zero History-API writes across the four upstream src trees: the scan
+  // domain is deliberately FIRST-PARTY (four src trees). The documented normal
+  // source of back-list entries is the DEPENDENCY side — @solidjs/router
+  // (bun.lock pin 1.0.0) default History integration writing pushState +
+  // saveCurrentDepth (_depth stamps) on non-replace navigation — which stays
+  // outside this scan by design (issue #75 erratum; those same-document
+  // entries do not open the WebView canGoBack() gate, so the hardware back
+  // key still ends the Activity in regular use, while full-page navigations
+  // do open it). These are intentional drift sentinels (same rationale as
+  // #9's no-`default:` sentinel).
   for (const dir of [`${APP}src`, `${GUI}src`, `${SESSION_UI}src`, `${CLIENT}src`]) {
     for (const file of walk(dir)) {
       let text: string
@@ -208,14 +224,14 @@ function walk(dir: string, out: string[] = []): string[] {
       }
       const hit = /history\.pushState|popstate|history\.back|history\.go/.exec(text)
       if (hit)
-        fail(`2: ${file} gained a History API write/listener ("${hit[0]}") — the SPA is documented as having none; re-review the back-key wording (interaction.md baseline + interaction-quality.md §1) before keeping it`)
+        fail(`2: ${file} gained a History API write/listener ("${hit[0]}") — the FIRST-PARTY src is documented as having none (dependency-side router writes are out of this scan domain by design, issue #75); re-review the back-key wording (interaction.md baseline + interaction-quality.md §1) before keeping it`)
     }
   }
 
   // The single legitimate touchpoint: PWA URL cleanup replaceState.
   const pwa = await read(`${APP}src/runtime/platform/pwa.ts`)
   if (!pwa.includes('history.replaceState(history.state, "", url.pathname + url.search + url.hash)'))
-    fail("2: pwa.ts lost the replaceState URL-cleanup anchor (the ONLY sanctioned History API touchpoint)")
+    fail("2: pwa.ts lost the replaceState URL-cleanup anchor (the ONLY sanctioned FIRST-PARTY History API touchpoint)")
 
   // Same-window navigation class paths: exactly two target="_blank" links in
   // the tool renderer (verify-browser.ts reads this file but asserts different
@@ -580,12 +596,12 @@ function walk(dir: string, out: string[] = []): string[] {
 console.log(
   "verify-interaction-quality: PASS (" +
     "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS+CAMERA triple (issues #23/#71) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
-    "2: NEGATIVE zero History-API writes across the four upstream src trees (drift sentinel) + pwa.ts replaceState sole touchpoint + exactly two target=\"_blank\" tool-link anchors (same-window navigation class paths); " +
+    "2: NEGATIVE zero History-API writes across the four upstream src trees (FIRST-PARTY drift sentinel, issue #75 domain note) + pwa.ts replaceState sole FIRST-PARTY touchpoint + exactly two target=\"_blank\" tool-link anchors (full-page same-window navigation class paths); " +
     "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (verify-terminal group 6); " +
     "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/13 hits, 19 files + host-apis comment anchor = 22 hits / 20 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
     "5: DEFAULT_PALETTE_KEYBIND + three hidden command.palette registrations + slash set equality (8-key + 3-key files, undo/redo pair CROSS-REFERENCE verify-diff group 3) + GLOBAL sentinel exactly 11 registrations in exactly 2 files + DialogCommandPalette /open route; " +
     "6: settings.v3 key + seven schema segments + mobileTitlebarPosition default + language store/loadInitialLocale/setLocale + oc-theme-preload three localStorage keys + Persist.global(\"model\") CROSS-REFERENCE (verify-provider-models); " +
     "7: createMobileViews + entries/tabs/menu/find return keys + lazy MobilePanelDrawer; " +
-    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G35 enumeration (issue #26 revision) + G31 row + seventeenth honest wording + back-key baseline (class wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
+    "8: interaction-quality.md eight section titles + authority declaration + four honest-state sentences + slash mapping inventory, interaction.md G1–G35 enumeration (issue #26 revision) + G31 row + seventeenth honest wording + back-key baseline (issue #75 re-reasoned wording) + issue #20 failure path, recovery.md user-preferences row, README.md index row; " +
     "STATIC check - back-key semantics, soft-keyboard viewport behavior, IME, screen-reader walkthrough, contrast, touch-target usability, rotation rebuild chains and slash discoverability on a device are G31)",
 )

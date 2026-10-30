@@ -135,7 +135,7 @@
 | --- | --- | --- | --- | --- |
 | M01 | APK 安装与启动 | 已有代码及历史运行证据 | 新增；inline SSH 已集成；修复旧 Service Worker 控制新 APK 资源的问题，更新限定可信 shell origin/root scope/packaged sw.js，不清应用数据 | E11–E13/E17；不同 APK 的构建、安装、UI 与 worker 证据分别记录 |
 | M02 | 安全凭据存储 | 已有代码 | 适配；M-032 改为 AndroidX origin/main-frame listener v2，代际校验回复、限制队列/请求；保持 OPMV1 信封，修复 Keystore IV 与删除失败反馈；主机删除保留可见孤立凭据 | E10/E15；设备失败/升级门禁 C1–C6 尚未全部通过 |
-| M03 | 返回、安全区与软键盘 | 部分实现 | 适配；已有 MainActivity 与交互质量契约；完整无障碍/键盘门禁未通过 | E11/E12 |
+| M03 | 返回、安全区与软键盘 | 部分实现 | 适配；**issue #75 勘误与实测在册**：返回键/键盘/安全区契约按实测重述（返回键常规实态=结束 Activity——依赖侧 @solidjs/router 写同文档历史项但该项不入 WebView canGoBack 门（AOSP WebView 113 模拟器实测；hwschromium=复验点），整页导航例外类（同窗导航+通知路由 loadUrl）后返回键=回退 WebView 历史；软键盘兑现者=原生 windowSoftInputMode（interactive-widget 为浏览器层特性 WebView 不消费），模拟器实测 adjustUnspecified 裁定 resize、聚焦输入零遮挡；env()=0、四边内容可达）；壳实现保持（onBackPressed+canGoBack 门、零 windowSoftInputMode 声明、零 WindowInsets 处理），M-022+ back 键集成候选保持 | E11/E12/**E32**；hwschromium 复验点+会话级场景（QA-1c/d/e、QA-2c）+Android 15+ e2e 前瞻归 G31②③⑦ 残留 |
 | M04 | 网络变化与前台恢复 | 已有代码 | 适配；事件流/隧道重建复用会话内服务密码，重新 health 后发布 endpoint；断开/编辑/删除清除密码并拒绝迟到成功；check 请求代际与取消隔离 | E10/E11/E14/**E18**；**issue #61 已实测**：同进程 disconnect/reconnect 以会话内存密码重连成功（#k 观察：3 轮 Connect 后即为 Connected 且 ServiceAuthPrompt 零重现）；杀 App 进程后重连需重新认证；网络切换形态仍待验 |
 | M05 | 通知渠道与系统权限 | 已有代码 | 适配；已有 NotificationsBridge 和授权入口，沿用既有通知边界 | E08，G33 |
 
