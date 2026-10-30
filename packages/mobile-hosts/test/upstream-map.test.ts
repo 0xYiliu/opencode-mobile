@@ -5,13 +5,19 @@ import { createMobileHosts } from "../src/runtime"
 import { createMemoryStorage } from "../src/storage"
 import { hostKey } from "../src/identity"
 
-// All values fictional. This suite locks two things:
-// 1. Structural conformance with the upstream ServerConnection.Extension shape
+// All values fictional. This suite locks three things:
+// 1. Structural conformance with the upstream ServerConnection.Plugin shape
 //    (vendor/upstream/packages/app/src/runtime/server/registry.tsx) — duplicated structurally
 //    on purpose, since the first-party package must not import the vendored app.
 // 2. Change propagation (N5): upstreamConnections() is derived from solid stores, so a
 //    registry or machine-state change re-evaluates it. The upstream ServersProvider reads
 //    the injected value inside createMemo; a plain array snapshot would never re-render.
+// 3. Mirror-liveness (issue #90): a source-level cross-check pins the vendored
+//    discriminant/field names the mirror must follow. The M-037 rename moved the upstream
+//    shape from Extension/`extension:` to Plugin/`plugin:` and this mirror silently kept
+//    the stale shape — the vendored key() switch fell through to `undefined` and every
+//    saved SSH host collapsed into one dedupe key. The old shape lock expired together
+//    with the mirror; this cross-check is the anti-regression that keeps both honest.
 
 const RECORD = {
   id: "44444444-5555-4666-8777-888888888888",
@@ -22,12 +28,12 @@ const RECORD = {
 }
 
 describe("extension mapping", () => {
-  test("maps a host to the upstream Extension shape (key/extension/state/managed/http)", () => {
+  test("maps a host to the upstream Plugin shape (key/plugin/state/managed/http)", () => {
     const conn = toExtensionConnection({ record: RECORD, state: "connecting" })
-    expect(conn.type).toBe("extension")
+    expect(conn.type).toBe("plugin")
     expect(conn.key).toBe(hostKey(RECORD.id))
     expect(conn.key.startsWith("mobile-ssh:")).toBe(true)
-    expect(conn.extension).toBe("mobile-ssh")
+    expect(conn.plugin).toBe("mobile-ssh")
     expect(conn.state).toBe("starting")
     expect(conn.connecting).toBe(true)
     expect(conn.authenticationRequired).toBe(false)
@@ -38,6 +44,34 @@ describe("extension mapping", () => {
     expect(assertExtensionShape(conn)).toBe(true)
     expect(assertExtensionShape({ type: "http" })).toBe(false)
     expect(assertExtensionShape(null)).toBe(false)
+  })
+
+  test("the pre-#90 extension shape is rejected and the mirror stays keyed", () => {
+    // The exact regression shape M-037 left behind: ServerConnection.key() has no case
+    // for type "extension", so such a connection must never pass the shape guard.
+    const stale = toExtensionConnection({ record: RECORD, state: "ready" })
+    expect(stale.type).not.toBe("extension")
+    expect("extension" in stale).toBe(false)
+    expect(assertExtensionShape({ ...stale, type: "extension", plugin: stale.plugin })).toBe(false)
+  })
+
+  test("mirror cross-checks the vendored Plugin discriminant and key fields at source level", async () => {
+    // The structural mirror is only as fresh as the vendored contract it shadows; read
+    // the vendored source directly so a rename cannot re-issue the #90 collapse while
+    // this suite stays green.
+    const registry = await Bun.file(
+      new URL("../../../vendor/upstream/packages/app/src/runtime/server/registry.tsx", import.meta.url),
+    ).text()
+    expect(registry).toContain('export type Plugin = {')
+    expect(registry).toContain('type: "plugin"')
+    expect(registry).toContain("plugin: string")
+    expect(registry).not.toContain('export type Extension = {')
+    // key() must resolve plugin connections to their recorded key (the #90 collapse was
+    // a fall-through to undefined for unknown discriminants).
+    expect(registry).toContain('case "plugin":')
+    expect(registry).toContain("return Key.make(conn.key)")
+    // The mirror's own mapping stays aligned with the vendored discriminant.
+    expect(typeof toExtensionConnection({ record: RECORD, state: "idle" }).key).toBe("string")
   })
 
   test("a ready connection carries the in-memory endpoint; state mapping stays total", () => {
