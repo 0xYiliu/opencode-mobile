@@ -6,8 +6,9 @@
 // Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
 // rebuilt dist baseline.
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + M-001..M-036)
-// and the commit-1 docs, the structural facts the gui-extensions unit document relies on:
+// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + packageSources(gui-plugins=3ebcf9a) + M-001'..M-036' + M-037)
+// and the commit-1 docs, the structural facts the gui-plugins unit document relies on
+// (issue #67 renamed the unit doc; M-001'..M-036'/M-037 re-tabled the patch chain):
 // the 15-builtin inventory with its os/web-guard/main-entry faces (acceptance 1; issue #66
 // added sources + goal after microsoft-office, in the v2.2.1 gui-plugins compose order), the
 // token/dependency classification, the upstream desktop+DEV double gate, the issue #26
@@ -38,8 +39,9 @@
 //     same commit as the patch registrations (#23 same-commit precedent; issue #65 registered
 //     M-035 on dev, issue #66 registered M-036 in the rebase round: 34 -> 35, M-019 still
 //     reserved-absent). Declared.
-//   - the @opencode/gui-extensions specifier set {34, 8, 2, 1}: FIRST LOCK
-//     verify-agent-capabilities group 3. Declared unchanged; not re-locked.
+//   - the gui-plugins specifier graph (plugin/gui x33 etc.): FIRST LOCK
+//     verify-agent-capabilities group 3 (issue #67 re-measured on the gui-plugins tree).
+//     Declared unchanged; not re-locked.
 //   - settings-page-dev.tsx has ZERO probe readers before this issue; group 3 are its
 //     first locks.
 //
@@ -49,10 +51,10 @@
 //
 // NEGATIVE EXAMPLES (run at verification time by injecting/reverting mutations;
 // inject -> FAIL rc=1 -> restore -> PASS rc=0, logs kept):
-//   1. inject a pseudo-extension entry `{ id: "fake-ext" },` into the builtins compose of
-//      gui-extensions/src/renderer.ts -> group 1 inventory set/count FAIL;
+//   1. inject a pseudo-extension entry into the builtins compose of
+//      gui-plugins/src/renderer.ts -> group 1 inventory set/count FAIL;
 //   2. change the wsl os literal `os: ["windows"]` to `os: ["linux"]` in
-//      gui-extensions/src/wsl/index.ts -> group 2 os-declaration FAIL (forces an
+//      gui-plugins/src/wsl/index.ts -> group 2 os-declaration FAIL (forces an
 //      inventory-table re-review);
 //   3. delete the M-025 union line (`for (const id of mobileDisabled.ids()) …`) from
 //      app/src/runtime/plugin/root.tsx -> group 4 M-025 anchor FAIL;
@@ -600,13 +602,16 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!capabilities.includes("en 9 键 / zh 9 键"))
     fail("7: agent-capabilities.md lost the 9/9 i18n gap-closure record")
 
+  // Issue #67: the index rows follow the unit-doc rename (gui-extensions.md -> gui-plugins.md).
   const readme = await read("docs/design/README.md")
-  if (!readme.includes("[units/gui-extensions.md](units/gui-extensions.md)"))
-    fail("7: design README.md lost the gui-extensions index row")
+  if (!readme.includes("[units/gui-plugins.md](units/gui-plugins.md)"))
+    fail("7: design README.md lost the gui-plugins index row")
+  if (readme.includes("[units/gui-extensions.md](units/gui-extensions.md)"))
+    fail("7: design README.md still carries a stale gui-extensions.md index link")
 
   const architecture = await read("docs/design/architecture.md")
-  if (!architecture.includes("| gui-extensions（GUI 扩展管理面） |") || !architecture.includes("运行期归 G35"))
-    fail("7: architecture.md lost the gui-extensions unit/flow rows")
+  if (!architecture.includes("| gui-plugins（GUI 插件管理面") || !architecture.includes("运行期归 G35"))
+    fail("7: architecture.md lost the gui-plugins unit/flow rows")
 }
 
 // --- 8. Build and sentinel reconciliation (mechanical witnesses) ---
@@ -615,7 +620,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
   if (distManifest.fileCount !== 3516 || distManifest.totalBytes !== 159532385)
-    fail(`8: current web-dist baseline drifted (expected 3493/153776571, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+    // Issue #67 measured: the gui-plugins swap grows the payload (3516/159532385).
+    fail(`8: current web-dist baseline drifted (expected 3516/159532385, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -727,8 +733,8 @@ console.log(
     "4: issue #26 face — M-025 import/instance/filter/union/early-exit + two markers, M-026 predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, M-008/M-018 hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
-    "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the M-036 registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
+    "7: docs closure — gui-plugins.md ten sections (issue #67 renamed the unit doc) + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the M-036 registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — current dist baseline 3493/153776571 (issue #66 incl. M-036; registered patch set 36 = M-001..M-037 with M-019 reserved-absent (issue #67), per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3516/159532385 (issue #67 incl. M-037; registered patch set 36 = M-001..M-037 with M-019 reserved-absent (issue #67), per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )
