@@ -1855,6 +1855,10 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 | 全量 sweep | 31 × verify-*.ts 逐 rc | **25/31 rc=0**（六 rc=1 与基线同集同归因——见 S0；零新增失败） |
 | （轨 2） | gradle JVM / APK 重建 | **不适用**（轨 2 未触发；QA APK 为 /tmp 同源构建、不入本树） |
 
+### 最终 HEAD 复扫（issue #75 段，B-1 纪律——台账两提交 d1884c1+272248a 后实跑）
+
+HEAD `272248a`：全探针 sweep 31 项逐 rc=**25/31 rc=0**——rc=1 六例与基线/S0 在册集**同集同归因**（verify-recovery dev 既有陈旧正则、verify-inline-ssh-device 设备依赖 CDP ConnectionRefused、verify-ssh/verify-service-ops/verify-direct-connection/verify-attachments-artifacts 四例构建见证类 ENOENT——零构建轮工作树 dist 从未生成）；修订探针 verify-interaction-quality rc=0、witness 三探针 rc=0；closure 38=38 本轮已复跑 PASS；`git diff --check` rc=0；工作树仅余 gitignored `.probe-logs/`。终态数字与验证链表一致，零漂移。
+
 ### 诚实边界（issue #75 段）
 
 - 本轮全部运行期实测来自**模拟器**（AOSP WebView 113/API 34）：canGoBack 同文档项门语义、resize 裁定、env()=0 均为该 WebView 构建实测，**对 hwschromium（MatePad）无证明力**——MatePad 复验点（返回键门走向、键盘 resize/pan、composer/终端 dock 遮挡、通知 tap 路由、多级栈/弹层/消息链接会话级场景）已在 interaction-quality.md §一/§八与 G31②③ 在册；**issue 验收 1（MatePad 实测）不视为闭合**，MatePad 恢复连接（无线调试配对码或一次 USB `adb tcpip 5555`）后按在册判据复验。
