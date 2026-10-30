@@ -1,0 +1,914 @@
+diff --git a/packages/app/src/index.css b/packages/app/src/index.css
+index ae897e0..cf49746 100644
+--- a/packages/app/src/index.css
++++ b/packages/app/src/index.css
+@@ -136,7 +136,7 @@
+     animation: terminal-panel-size-out 200ms cubic-bezier(0.22, 1, 0.36, 1);
+   }
+ 
+-  @media (prefers-reduced-motion: reduce) {
++  :root[data-motion="reduce"] {
+     [data-slot="terminal-panel-presence"],
+     [data-slot="side-terminal-panel-presence"],
+     [data-slot="session-side-panel-presence"],
+@@ -340,7 +340,7 @@
+     transform-origin: 50% 50%;
+   }
+ 
+-  @media (prefers-reduced-motion: reduce) {
++  :root[data-motion="reduce"] {
+     [data-slot="titlebar-update-loader"] {
+       animation: none;
+     }
+@@ -424,7 +424,7 @@
+     --session-dropzone-card: var(--v2-background-bg-layer-01);
+   }
+ 
+-  @media (prefers-reduced-motion: reduce) {
++  :root[data-motion="reduce"] {
+     [data-component="session-dropzone"][data-visible="true"],
+     [data-component="session-dropzone"][data-visible="true"] [data-slot="session-dropzone-content"],
+     [data-component="session-dropzone"][data-visible="true"] [data-slot="session-dropzone-upload"],
+diff --git a/packages/app/src/new-session/wordmark.css b/packages/app/src/new-session/wordmark.css
+index 9abe435..1adc0d0 100644
+--- a/packages/app/src/new-session/wordmark.css
++++ b/packages/app/src/new-session/wordmark.css
+@@ -43,10 +43,6 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
+-  [data-component="new-session-wordmark"] {
+-    .wordmark-shimmer {
+-      animation: none;
+-    }
+-  }
++:root[data-motion="reduce"] [data-component="new-session-wordmark"] .wordmark-shimmer {
++  animation: none;
+ }
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index cfecfee..5937af6 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -760,6 +760,13 @@ export const dict = {
+   "settings.general.row.interfaceMode.inbox.description":
+     "Every session across your servers, sorted by what needs you next.",
+   "settings.general.row.interfaceMode.experimental": "Experimental",
++  "settings.appearance.row.zoom.title": "Zoom",
++  "settings.appearance.row.zoom.description": "Make text and controls larger across the app",
++  "settings.appearance.row.reduceMotion.title": "Reduce motion",
++  "settings.appearance.row.reduceMotion.description": "Reduce animations or match your system",
++  "settings.appearance.row.reduceMotion.system": "System",
++  "settings.appearance.row.reduceMotion.on": "On",
++  "settings.appearance.row.reduceMotion.off": "Off",
+   "settings.notifications.description": "Choose when to receive notifications and hear sounds",
+   "settings.shortcuts.description": "Customize shortcuts for common actions",
+   "settings.servers.description": "Manage server connections",
+diff --git a/packages/app/src/runtime/platform/web.ts b/packages/app/src/runtime/platform/web.ts
+index 52a2ea8..9a8feb8 100644
+--- a/packages/app/src/runtime/platform/web.ts
++++ b/packages/app/src/runtime/platform/web.ts
+@@ -3,6 +3,8 @@ import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
+ // through the module-level seam at call time, so a bridge that comes up after bootstrap
+ // is picked up without a re-render.
+ import { activeFilesPort, createSecureFetch } from "@opencode-mobile/mobile-hosts"
++import { createSignal, type Accessor } from "solid-js"
++import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"
+ import type { Platform } from "./platform"
+ 
+ export function createWebPlatform(version: string) {
+@@ -32,6 +34,15 @@ export function createWebPlatform(version: string) {
+     // one patch plus the entry wiring.
+     readClipboardImage: createPlatformClipboardReader(),
+     saveFile: createPlatformFileSaver(),
++    // mobile(M-035): the interface zoom faces (issue #65). Upstream declares
++    // zoomLevel/setZoomLevel desktop-only (Electron webContents zoom plus main-process
++    // storage); this closure ships the web shell only, so the faces are implemented here
++    // per the M-020 precedent: CSS `zoom` on the document element, persisted in
++    // localStorage (a non-sensitive UI preference, not a credential), values validated
++    // against desktopZoomLevels. Platform TYPES are unchanged; the faces join the
++    // platform object through a spread so no excess property is introduced on the
++    // annotated literal.
++    ...createUiZoomLevel(),
+     draftStore: createBrowserDraftStore(),
+     version,
+     openExternal(value) {
+@@ -113,3 +124,52 @@ function createPlatformFileSaver(): Platform["saveFile"] {
+     "mobile(M-020): platform file saver over the files bridge seam (issue #16)"
+   return saveFile
+ }
++
++/**
++ * mobile(M-035): the interface zoom faces (issue #65). `zoomLevel` mirrors the upstream
++ * desktop contract: an accessor over the saved level, applied as CSS `zoom` on the
++ * document element (level 1 removes the property so the shell renders unzoomed), applied
++ * synchronously when the platform is constructed and persisted in localStorage under
++ * `opencode-ui-zoom-level`. Stored values are validated against `desktopZoomLevels`;
++ * anything unreadable or out of set falls back to 1. `setZoomLevel` applies, persists and
++ * resolves (the Platform face is async; storage failures leave the in-memory level
++ * applied for the session rather than throwing into the settings Select).
++ */
++const UI_ZOOM_KEY = "opencode-ui-zoom-level"
++
++function createUiZoomLevel(): {
++  zoomLevel: Accessor<DesktopZoomLevel>
++  setZoomLevel: (level: DesktopZoomLevel) => Promise<void>
++} {
++  const readStored = (): DesktopZoomLevel => {
++    try {
++      const raw = localStorage.getItem(UI_ZOOM_KEY)
++      const parsed = raw === null ? Number.NaN : Number.parseFloat(raw)
++      return (desktopZoomLevels as readonly number[]).includes(parsed) ? (parsed as DesktopZoomLevel) : 1
++    } catch {
++      return 1
++    }
++  }
++
++  const [zoomLevel, setZoomLevel] = createSignal<DesktopZoomLevel>(readStored())
++
++  const apply = (level: DesktopZoomLevel) => {
++    if (level === 1) document.documentElement.style.removeProperty("zoom")
++    else document.documentElement.style.setProperty("zoom", String(level))
++  }
++
++  apply(zoomLevel())
++
++  return {
++    zoomLevel,
++    setZoomLevel: async (level) => {
++      setZoomLevel(level)
++      apply(level)
++      try {
++        localStorage.setItem(UI_ZOOM_KEY, String(level))
++      } catch {
++        // Persistence unavailable (storage disabled): keep the session-level zoom applied.
++      }
++    },
++  }
++}
+diff --git a/packages/app/src/settings/about/animated-wordmark.tsx b/packages/app/src/settings/about/animated-wordmark.tsx
+index c739604..117e2f2 100644
+--- a/packages/app/src/settings/about/animated-wordmark.tsx
++++ b/packages/app/src/settings/about/animated-wordmark.tsx
+@@ -1,5 +1,6 @@
+ import { createEffect, For, on, onCleanup } from "solid-js"
+ import { createStore } from "solid-js/store"
++import { prefersReducedMotion } from "@opencode/ui/motion"
+ 
+ const target = ["o", "p", "e", "n", "c", "o", "d", "e"] as const
+ 
+@@ -16,7 +17,7 @@ export function AnimatedWordmark(props: { active: boolean }) {
+         timers.forEach(clearTimeout)
+         timers.clear()
+ 
+-        if (!active || matchMedia("(prefers-reduced-motion: reduce)").matches) {
++        if (!active || prefersReducedMotion()) {
+           setState("letters", [...target])
+ 
+           return
+diff --git a/packages/app/src/settings/appearance/appearance.tsx b/packages/app/src/settings/appearance/appearance.tsx
+index caed48c..1100ae2 100644
+--- a/packages/app/src/settings/appearance/appearance.tsx
++++ b/packages/app/src/settings/appearance/appearance.tsx
+@@ -1,4 +1,4 @@
+-import { Component } from "solid-js"
++import { Component, Show } from "solid-js"
+ import { Select } from "@opencode/ui/select"
+ import { TextInput } from "@opencode/ui/text-input"
+ import { useLanguage } from "@/runtime/i18n/language"
+@@ -10,6 +10,12 @@ import "@/settings/settings.css"
+ 
+ const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
+ 
++const reduceMotionOptions = [
++  { value: "system" as const, label: "settings.appearance.row.reduceMotion.system" as const },
++  { value: "on" as const, label: "settings.appearance.row.reduceMotion.on" as const },
++  { value: "off" as const, label: "settings.appearance.row.reduceMotion.off" as const },
++]
++
+ const fontSettings = {
+   ui: {
+     action: "settings-ui-font",
+@@ -128,6 +134,40 @@ export const SettingsAppearance: Component = () => {
+             <FontSetting kind="ui" fonts={appearance.fonts} />
+             <FontSetting kind="code" fonts={appearance.fonts} />
+             <FontSetting kind="terminal" fonts={appearance.fonts} />
++
++            <Show when={appearance.zoom.available()}>
++              <SettingsRow
++                title={language.t("settings.appearance.row.zoom.title")}
++                description={language.t("settings.appearance.row.zoom.description")}
++              >
++                <Select
++                  data-action="settings-zoom"
++                  options={appearance.zoom.options}
++                  current={appearance.zoom.current()}
++                  placement="bottom-end"
++                  gutter={6}
++                  value={(level) => String(level)}
++                  label={appearance.zoom.label}
++                  onSelect={(level) => level && appearance.zoom.select(level)}
++                />
++              </SettingsRow>
++            </Show>
++
++            <SettingsRow
++              title={language.t("settings.appearance.row.reduceMotion.title")}
++              description={language.t("settings.appearance.row.reduceMotion.description")}
++            >
++              <Select
++                data-action="settings-reduce-motion"
++                options={reduceMotionOptions}
++                current={reduceMotionOptions.find((option) => option.value === appearance.reduceMotion.current())}
++                placement="bottom-end"
++                gutter={6}
++                value={(option) => option.value}
++                label={(option) => language.t(option.label)}
++                onSelect={(option) => option && appearance.reduceMotion.select(option.value)}
++              />
++            </SettingsRow>
+           </SettingsList>
+         </div>
+       </div>
+diff --git a/packages/app/src/settings/general/controllers.ts b/packages/app/src/settings/general/controllers.ts
+index e6e7c3d..8a5b8e8 100644
+--- a/packages/app/src/settings/general/controllers.ts
++++ b/packages/app/src/settings/general/controllers.ts
+@@ -8,11 +8,14 @@ import {
+   sansDefault,
+   sansFontFamily,
+   sansInput,
++  type ReduceMotion,
+   terminalDefault,
+   terminalFontFamily,
+   terminalInput,
+   useSettings,
+ } from "@/settings/model"
++import { usePlatform } from "@/runtime/platform/platform"
++import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"
+ import { playSoundById, SOUND_OPTIONS } from "@/shell/notifications/sound"
+ import { createSoundPreviewController } from "./behavior"
+ import { ServerConnection } from "@/runtime/server/registry"
+@@ -75,6 +78,8 @@ export function createServerShellController(server: Accessor<ServerConnection.An
+ 
+ export function createAppearanceSettingsController() {
+   const settings = useSettings()
++  const platform = usePlatform()
++  const language = useLanguage()
+   const theme = useTheme()
+   const themes = createMemo(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
+ 
+@@ -90,6 +95,17 @@ export function createAppearanceSettingsController() {
+       current: createMemo(() => themes().find((option) => option.id === theme.themeId())),
+       select: (option: { id: string } | null) => option && theme.setTheme(option.id),
+     },
++    zoom: {
++      available: () => platform.zoomLevel !== undefined,
++      options: [...desktopZoomLevels],
++      current: () => platform.zoomLevel?.() ?? 1,
++      label: (level: DesktopZoomLevel) => new Intl.NumberFormat(language.intl(), { style: "percent" }).format(level),
++      select: (level: DesktopZoomLevel) => void platform.setZoomLevel?.(level),
++    },
++    reduceMotion: {
++      current: settings.appearance.reduceMotion,
++      select: (value: ReduceMotion) => settings.appearance.setReduceMotion(value),
++    },
+     fonts: {
+       ui: createMemo(() => ({
+         value: sansInput(settings.appearance.uiFont()),
+diff --git a/packages/app/src/settings/model.test.ts b/packages/app/src/settings/model.test.ts
+index 2cd2f92..0a7cafd 100644
+--- a/packages/app/src/settings/model.test.ts
++++ b/packages/app/src/settings/model.test.ts
+@@ -106,6 +106,7 @@ describe("settings schema", () => {
+         sans: "",
+         terminal: "",
+         tabLayout: "horizontal",
++        reduceMotion: "system",
+       },
+       keybinds: {},
+       permissions: { autoApprove: false, autoApproveProjects: {} },
+@@ -151,6 +152,7 @@ describe("settings schema", () => {
+       sans: "",
+       terminal: "",
+       tabLayout: "vertical",
++      reduceMotion: "system",
+     })
+     expect(settings.permissions).toEqual({ autoApprove: true, autoApproveProjects: { on: true, off: false } })
+     expect(settings.workspaces).toEqual({ defaultDestination: "new", lastUsed: { good: "workspace" } })
+diff --git a/packages/app/src/settings/model.tsx b/packages/app/src/settings/model.tsx
+index 90c806a..7852176 100644
+--- a/packages/app/src/settings/model.tsx
++++ b/packages/app/src/settings/model.tsx
+@@ -1,5 +1,6 @@
+ import { produce, reconcile, unwrap } from "solid-js/store"
+ import { createEffect, createMemo } from "solid-js"
++import { createMediaQuery } from "@solid-primitives/media"
+ import { Effect, Option, Predicate, Schema, SchemaGetter } from "effect"
+ import { createSimpleContext } from "@opencode/ui/context"
+ import { setNewIcons } from "@opencode/ui/icon"
+@@ -20,6 +21,8 @@ export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
+ 
+ export type TabLayout = Settings["appearance"]["tabLayout"]
+ 
++export type ReduceMotion = Settings["appearance"]["reduceMotion"]
++
+ export type NotificationSettings = Settings["notifications"]
+ 
+ export type SoundSettings = Settings["sounds"]
+@@ -136,6 +139,7 @@ const appearanceSchema = Persistence.struct({
+   terminal: Schema.String,
+   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
+   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
++  reduceMotion: Schema.Literals(["system", "on", "off"]),
+ })
+ 
+ const permissionsSchema = Persistence.struct({
+@@ -292,7 +296,7 @@ export const defaultSettings: Settings = {
+     terminalPlacement: "side",
+     followUpBehavior: "steer",
+   },
+-  appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal" },
++  appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", reduceMotion: "system" },
+   keybinds: {},
+   permissions: { autoApprove: false, autoApproveProjects: {} },
+   workspaces: { defaultDestination: "last-used", lastUsed: {} },
+@@ -337,6 +341,16 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+     const newIcons = withFallback(() => store.general?.newIcons, defaultSettings.general.newIcons)
+     createEffect(() => setNewIcons(newIcons()))
+ 
++    const reduceMotion = withFallback(() => store.appearance?.reduceMotion, defaultSettings.appearance.reduceMotion)
++    const systemReducedMotion = createMediaQuery("(prefers-reduced-motion: reduce)")
++
++    // Motion styles key off this attribute instead of the media query so the setting can override the system.
++    createEffect(() => {
++      if (typeof document === "undefined") return
++      const reduce = reduceMotion() === "system" ? systemReducedMotion() : reduceMotion() === "on"
++      document.documentElement.dataset.motion = reduce ? "reduce" : "full"
++    })
++
+     const autoApproveDefault = withFallback(
+       () => store.permissions?.autoApprove,
+       defaultSettings.permissions.autoApprove,
+@@ -420,6 +434,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+         setTabLayout(value: TabLayout) {
+           setStore("appearance", "tabLayout", value)
+         },
++        reduceMotion,
++        setReduceMotion(value: ReduceMotion) {
++          setStore("appearance", "reduceMotion", value)
++        },
+       },
+       keybinds: {
+         get: (action: string) => store.keybinds?.[action],
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index 8501ec2..abe19a6 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -118,6 +118,18 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     target: "settings-terminal-font",
+     keywords: "terminal typeface",
+   },
++  {
++    tab: "appearance",
++    label: "settings.appearance.row.zoom.title",
++    target: "settings-zoom",
++    keywords: "scale size text font larger bigger accessibility",
++  },
++  {
++    tab: "appearance",
++    label: "settings.appearance.row.reduceMotion.title",
++    target: "settings-reduce-motion",
++    keywords: "animation accessibility",
++  },
+   {
+     tab: "notifications",
+     label: "settings.general.notifications.agent.title",
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index 5c564d7..75bebac 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -48,7 +48,10 @@ describe("settings search index", () => {
+       target: undefined,
+       subtab: undefined,
+     })
+-    expect(rankSettings("font", items, root)).toHaveLength(3)
++    // mobile(M-035): the zoom entry (issue #65) drops the upstream `available: "desktop"`
++    // gate — the web shell implements the zoom platform face (M-035) — so the "font"
++    // query (the zoom keywords include "font") returns the three font rows plus zoom.
++    expect(rankSettings("font", items, root)).toHaveLength(4)
+   })
+ 
+   test("only advertises settings supported by this platform", () => {
+diff --git a/packages/app/src/settings/search.css b/packages/app/src/settings/search.css
+index 29e160a..df2e620 100644
+--- a/packages/app/src/settings/search.css
++++ b/packages/app/src/settings/search.css
+@@ -295,7 +295,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-search-target]::before {
+     animation-timing-function: steps(1, end);
+   }
+diff --git a/packages/app/src/settings/settings.css b/packages/app/src/settings/settings.css
+index 682081a..7292a8b 100644
+--- a/packages/app/src/settings/settings.css
++++ b/packages/app/src/settings/settings.css
+@@ -943,7 +943,7 @@
+   opacity: 1;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .settings-provider-console-chevron {
+     transition: none;
+   }
+@@ -1459,7 +1459,7 @@
+   padding-block: 2px;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .settings-models-group-chevron svg,
+   .provider-model-group-chevron {
+     transition: none;
+@@ -1709,7 +1709,7 @@
+   overflow: hidden;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .settings-workspaces-row-motion {
+     transition: none;
+   }
+diff --git a/packages/app/src/settings/workspaces/project.css b/packages/app/src/settings/workspaces/project.css
+index 802f8e4..50cecde 100644
+--- a/packages/app/src/settings/workspaces/project.css
++++ b/packages/app/src/settings/workspaces/project.css
+@@ -327,7 +327,7 @@
+   unicode-bidi: isolate;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .project-settings-icon-overlay,
+   .project-settings-color,
+   .project-settings-shared-chevron {
+diff --git a/packages/app/src/shell/commands/desktop-menu.ts b/packages/app/src/shell/commands/desktop-menu.ts
+index 7505f26..cbf6189 100644
+--- a/packages/app/src/shell/commands/desktop-menu.ts
++++ b/packages/app/src/shell/commands/desktop-menu.ts
+@@ -62,6 +62,11 @@ export type DesktopMenuSeparator = {
+ 
+ export type DesktopMenuEntry = DesktopMenuItem | DesktopMenuSeparator
+ 
++// Slack's desktop zoom levels from 100% up. Zoom In, Zoom Out and the Appearance setting all pick one.
++export const desktopZoomLevels = [1, 1.1, 1.25, 1.5, 1.75, 2] as const
++
++export type DesktopZoomLevel = (typeof desktopZoomLevels)[number]
++
+ export type DesktopMenu = {
+   id: string
+   labelKey: DesktopNativeKey
+diff --git a/packages/app/src/shell/mobile-drawer.css b/packages/app/src/shell/mobile-drawer.css
+index 255e3e0..2ba731a 100644
+--- a/packages/app/src/shell/mobile-drawer.css
++++ b/packages/app/src/shell/mobile-drawer.css
+@@ -77,7 +77,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-slot="mobile-drawer-content"][data-transitioning],
+   [data-slot="mobile-drawer-content"][data-closing] {
+     transition: none;
+diff --git a/packages/app/src/shell/titlebar/tab-nav.css b/packages/app/src/shell/titlebar/tab-nav.css
+index bfd734c..448b53e 100644
+--- a/packages/app/src/shell/titlebar/tab-nav.css
++++ b/packages/app/src/shell/titlebar/tab-nav.css
+@@ -403,7 +403,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-titlebar-tab] [data-slot="tab-prompt-pulse"] {
+     animation: none;
+   }
+diff --git a/packages/app/src/shell/titlebar/tab-popover.css b/packages/app/src/shell/titlebar/tab-popover.css
+index e65a3fe..212b313 100644
+--- a/packages/app/src/shell/titlebar/tab-popover.css
++++ b/packages/app/src/shell/titlebar/tab-popover.css
+@@ -121,7 +121,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="session-tab-popover"],
+   [data-component="session-tab-popover"][data-closed] {
+     animation: none;
+diff --git a/packages/gui-extensions/src/browser/comment.css b/packages/gui-extensions/src/browser/comment.css
+index 803eeeb..a0ac333 100644
+--- a/packages/gui-extensions/src/browser/comment.css
++++ b/packages/gui-extensions/src/browser/comment.css
+@@ -28,7 +28,7 @@
+   transform-origin: top left;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="browser-comment"],
+   [data-component="browser-comment"] [data-slot="browser-comment-editor"] {
+     animation: none;
+diff --git a/packages/gui-extensions/src/details/details.css b/packages/gui-extensions/src/details/details.css
+index 57163e9..6ed5132 100644
+--- a/packages/gui-extensions/src/details/details.css
++++ b/packages/gui-extensions/src/details/details.css
+@@ -314,7 +314,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .session-summary-popover,
+   .session-service-menu {
+     animation: none;
+diff --git a/packages/session-ui/src/components/basic-tool.css b/packages/session-ui/src/components/basic-tool.css
+index 1346efd..2e129ce 100644
+--- a/packages/session-ui/src/components/basic-tool.css
++++ b/packages/session-ui/src/components/basic-tool.css
+@@ -276,7 +276,7 @@
+       transform: none;
+     }
+ 
+-    @media (prefers-reduced-motion: reduce) {
++    :root[data-motion="reduce"] & {
+       transition: none;
+     }
+   }
+diff --git a/packages/session-ui/src/components/markdown.css b/packages/session-ui/src/components/markdown.css
+index f9e9112..e7d7fd4 100644
+--- a/packages/session-ui/src/components/markdown.css
++++ b/packages/session-ui/src/components/markdown.css
+@@ -438,7 +438,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="markdown"] :is([data-markdown-word], code)[data-markdown-enter] {
+     animation: none;
+   }
+diff --git a/packages/session-ui/src/components/message-part.css b/packages/session-ui/src/components/message-part.css
+index a80f199..85a17a4 100644
+--- a/packages/session-ui/src/components/message-part.css
++++ b/packages/session-ui/src/components/message-part.css
+@@ -181,7 +181,7 @@
+       background-color 200ms ease,
+       color 200ms ease;
+ 
+-    @media (prefers-reduced-motion: reduce) {
++    :root[data-motion="reduce"] & {
+       transition: none;
+     }
+ 
+@@ -197,7 +197,7 @@
+       color: var(--user-message-mention-prefix-color);
+       transition: color 200ms ease;
+ 
+-      @media (prefers-reduced-motion: reduce) {
++      :root[data-motion="reduce"] & {
+         transition: none;
+       }
+     }
+@@ -1247,7 +1247,7 @@
+       opacity: 1;
+     }
+ 
+-    @media (prefers-reduced-motion: reduce) {
++    :root[data-motion="reduce"] & {
+       transition: none;
+     }
+   }
+diff --git a/packages/session-ui/src/components/question-prompt.css b/packages/session-ui/src/components/question-prompt.css
+index 6c55370..537cb16 100644
+--- a/packages/session-ui/src/components/question-prompt.css
++++ b/packages/session-ui/src/components/question-prompt.css
+@@ -430,7 +430,7 @@
+     }
+   }
+ 
+-  @media (prefers-reduced-motion: reduce) {
++  :root[data-motion="reduce"] & {
+     [data-slot="question-option"],
+     .question-custom-field[data-component="text-input-v2"] {
+       transition: none;
+diff --git a/packages/session-ui/src/components/tool-count-label.css b/packages/session-ui/src/components/tool-count-label.css
+index 11a33ff..8a7013b 100644
+--- a/packages/session-ui/src/components/tool-count-label.css
++++ b/packages/session-ui/src/components/tool-count-label.css
+@@ -50,7 +50,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="tool-count-label"] [data-slot="tool-count-label-suffix"] {
+     transition-duration: 0ms;
+   }
+diff --git a/packages/session-ui/src/components/tool-count-summary.css b/packages/session-ui/src/components/tool-count-summary.css
+index da84552..f6a4a02 100644
+--- a/packages/session-ui/src/components/tool-count-summary.css
++++ b/packages/session-ui/src/components/tool-count-summary.css
+@@ -93,7 +93,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="tool-count-summary"] [data-slot="tool-count-summary-empty"],
+   [data-component="tool-count-summary"] [data-slot="tool-count-summary-item"],
+   [data-component="tool-count-summary"] [data-slot="tool-count-summary-prefix"] {
+diff --git a/packages/session-ui/src/components/tool-status-title.css b/packages/session-ui/src/components/tool-status-title.css
+index d4415bd..6e6daa4 100644
+--- a/packages/session-ui/src/components/tool-status-title.css
++++ b/packages/session-ui/src/components/tool-status-title.css
+@@ -76,7 +76,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="tool-status-title"] [data-slot="tool-status-swap"],
+   [data-component="tool-status-title"] [data-slot="tool-status-tail"] {
+     transition-duration: 0ms;
+diff --git a/packages/session-ui/src/v2/components/session-progress-indicator-v2.css b/packages/session-ui/src/v2/components/session-progress-indicator-v2.css
+index 1f705e0..d320eb0 100644
+--- a/packages/session-ui/src/v2/components/session-progress-indicator-v2.css
++++ b/packages/session-ui/src/v2/components/session-progress-indicator-v2.css
+@@ -14,7 +14,7 @@
+   fill: currentColor;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="session-progress-indicator-v2"] [data-frame-content] {
+     display: none;
+   }
+diff --git a/packages/ui/package.json b/packages/ui/package.json
+index b82162f..e5597a4 100644
+--- a/packages/ui/package.json
++++ b/packages/ui/package.json
+@@ -53,6 +53,7 @@
+     "./line-comment": "./src/data-display/line-comment/line-comment.tsx",
+     "./loader": "./src/feedback/loader/loader.tsx",
+     "./menu": "./src/navigation/menu/menu.tsx",
++    "./motion": "./src/motion/index.ts",
+     "./progress-circle": "./src/feedback/progress-circle/progress-circle.tsx",
+     "./project-avatar": "./src/data-display/project-avatar/project-avatar.tsx",
+     "./radio": "./src/forms/radio/radio.tsx",
+diff --git a/packages/ui/src/components/animated-number.css b/packages/ui/src/components/animated-number.css
+index 60fa626..e10c647 100644
+--- a/packages/ui/src/components/animated-number.css
++++ b/packages/ui/src/components/animated-number.css
+@@ -88,7 +88,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="animated-number"] [data-slot="animated-number-value"][data-resizing] {
+     transition-duration: 0ms;
+   }
+diff --git a/packages/ui/src/components/text-reveal.css b/packages/ui/src/components/text-reveal.css
+index f799962..20cbc19 100644
+--- a/packages/ui/src/components/text-reveal.css
++++ b/packages/ui/src/components/text-reveal.css
+@@ -138,7 +138,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="text-reveal"] [data-slot="text-reveal-track"] {
+     transition-duration: 0ms !important;
+   }
+diff --git a/packages/ui/src/components/text-strikethrough.css b/packages/ui/src/components/text-strikethrough.css
+index 1be8054..3c8d7b3 100644
+--- a/packages/ui/src/components/text-strikethrough.css
++++ b/packages/ui/src/components/text-strikethrough.css
+@@ -20,7 +20,7 @@
+   pointer-events: none;
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-slot="text-strikethrough-line"] {
+     clip-path: none !important;
+   }
+diff --git a/packages/ui/src/feedback/loader/loader.css b/packages/ui/src/feedback/loader/loader.css
+index 5d7e10b..2268ff5 100644
+--- a/packages/ui/src/feedback/loader/loader.css
++++ b/packages/ui/src/feedback/loader/loader.css
+@@ -25,7 +25,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="loader-v2"] {
+     animation: none;
+   }
+diff --git a/packages/ui/src/feedback/toast/toast.css b/packages/ui/src/feedback/toast/toast.css
+index 24fa71d..a652575 100644
+--- a/packages/ui/src/feedback/toast/toast.css
++++ b/packages/ui/src/feedback/toast/toast.css
+@@ -215,7 +215,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   .toast-v2,
+   .toast-v2 > * {
+     animation: none !important;
+diff --git a/packages/ui/src/feedback/toast/toast.tsx b/packages/ui/src/feedback/toast/toast.tsx
+index d434750..e794b61 100644
+--- a/packages/ui/src/feedback/toast/toast.tsx
++++ b/packages/ui/src/feedback/toast/toast.tsx
+@@ -7,6 +7,7 @@ import { Portal } from "solid-js/web"
+ import { useI18n } from "../../context/i18n"
+ import "../../actions/button/button.css"
+ import "./toast.css"
++import { prefersReducedMotion } from "../../motion"
+ 
+ export interface ToastRegionProps extends ToasterProps {}
+ 
+@@ -307,7 +308,7 @@ function pulseToast(toastId: number) {
+   requestAnimationFrame(() => {
+     const element = document.querySelector<HTMLElement>(`[data-testid="toast-v2-${toastId}"]`)
+ 
+-    if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
++    if (!element || prefersReducedMotion()) return
+     element.animate([{ scale: 1 }, { scale: 1.025 }, { scale: 1 }], { duration: 160, easing: "ease-out" })
+   })
+ }
+diff --git a/packages/ui/src/motion/index.ts b/packages/ui/src/motion/index.ts
+new file mode 100644
+index 0000000..858d4ed
+--- /dev/null
++++ b/packages/ui/src/motion/index.ts
+@@ -0,0 +1,5 @@
++// mobile(M-035): minimized entry for the interface zoom/motion alignment (issue #65).
++// Upstream v2.2.1 also re-exports ./spring, ./loop, ./velocity, ./waapi and ./slider from
++// this entry; those submodules belong to feature domains this closure does not vendor, so
++// only the reduced-motion face ships here. Re-sync from upstream before adding more.
++export * from "./reduced"
+diff --git a/packages/ui/src/motion/reduced.ts b/packages/ui/src/motion/reduced.ts
+new file mode 100644
+index 0000000..a20b9e8
+--- /dev/null
++++ b/packages/ui/src/motion/reduced.ts
+@@ -0,0 +1,66 @@
++const query = "(prefers-reduced-motion: reduce)"
++
++let source: typeof matchMedia | undefined
++
++let result: MediaQueryList | undefined
++
++const listeners = new Set<() => void>()
++
++const notify = () => {
++  for (const listener of listeners) listener()
++}
++
++function media(): MediaQueryList | undefined {
++  const match = globalThis.matchMedia
++
++  if (!match) return undefined
++
++  if (source !== match) {
++    result?.removeEventListener("change", notify)
++    source = match
++    result = match(query)
++
++    if (listeners.size > 0) result.addEventListener("change", notify)
++  }
++
++  return result
++}
++
++// The app resolves its reduce motion setting into this attribute; without it the system preference applies.
++function override(): boolean | undefined {
++  const value = globalThis.document?.documentElement.getAttribute("data-motion")
++
++  if (value === "reduce") return true
++
++  if (value === "full") return false
++
++  return undefined
++}
++
++let attribute: MutationObserver | undefined
++
++export const prefersReducedMotion = (): boolean => override() ?? media()?.matches ?? false
++
++/** Also settle active WAAPI jobs when the preference changes mid-animation. SSR-safe. */
++export function observeReducedMotion(listener: () => void): () => void {
++  const preference = media()
++
++  if (!preference) return () => {}
++
++  if (listeners.size === 0) {
++    preference.addEventListener("change", notify)
++
++    if (globalThis.document && globalThis.MutationObserver) {
++      attribute = new MutationObserver(notify)
++      attribute.observe(document.documentElement, { attributes: true, attributeFilter: ["data-motion"] })
++    }
++  }
++  listeners.add(listener)
++
++  return () => {
++    if (!listeners.delete(listener) || listeners.size > 0) return
++    result?.removeEventListener("change", notify)
++    attribute?.disconnect()
++    attribute = undefined
++  }
++}
+diff --git a/packages/ui/src/navigation/segmented-control/segmented-control.tsx b/packages/ui/src/navigation/segmented-control/segmented-control.tsx
+index 381d6d9..0ef0be0 100644
+--- a/packages/ui/src/navigation/segmented-control/segmented-control.tsx
++++ b/packages/ui/src/navigation/segmented-control/segmented-control.tsx
+@@ -16,6 +16,7 @@ import {
+   type ParentProps,
+ } from "solid-js"
+ import "./segmented-control.css"
++import { prefersReducedMotion } from "../../motion"
+ 
+ type OnChange = (value: string | null) => void
+ 
+@@ -108,8 +109,6 @@ export function SegmentedControl(props: SegmentedControlProps) {
+ 
+   const selected = createMemo(() => (isControlled() ? (local.value ?? null) : internal()))
+ 
+-  const reducedMotion = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true
+-
+   const x = useMotionValue(0)
+   const width = useMotionValue(0)
+ 
+@@ -135,7 +134,7 @@ export function SegmentedControl(props: SegmentedControlProps) {
+ 
+     target = next
+ 
+-    if (!ready() || !shouldAnimate || reducedMotion()) {
++    if (!ready() || !shouldAnimate || prefersReducedMotion()) {
+       x.jump(next.x)
+       width.jump(next.width)
+       setReady(true)
+diff --git a/packages/ui/src/overlays/tooltip/tooltip.css b/packages/ui/src/overlays/tooltip/tooltip.css
+index 8c03633..cdd8a0b 100644
+--- a/packages/ui/src/overlays/tooltip/tooltip.css
++++ b/packages/ui/src/overlays/tooltip/tooltip.css
+@@ -94,7 +94,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="tooltip-v2"],
+   [data-component="tooltip-v2"][data-closed] {
+     animation: none;
+diff --git a/packages/ui/src/styles/tailwind/index.css b/packages/ui/src/styles/tailwind/index.css
+index 2bd4ee4..ea32b40 100644
+--- a/packages/ui/src/styles/tailwind/index.css
++++ b/packages/ui/src/styles/tailwind/index.css
+@@ -18,6 +18,10 @@
+ @source not "../../../src/**/*.test.{ts,tsx}";
+ @import "./utilities.css";
+ 
++/* The app resolves its reduce motion setting, including the system preference, into this attribute. */
++@custom-variant motion-reduce (&:where(:root[data-motion="reduce"] *));
++@custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
++
+ @import "../index.css";
+ 
+ @theme {
+diff --git a/packages/ui/src/typography/text-shimmer/text-shimmer.css b/packages/ui/src/typography/text-shimmer/text-shimmer.css
+index 3122bf0..ae8f08d 100644
+--- a/packages/ui/src/typography/text-shimmer/text-shimmer.css
++++ b/packages/ui/src/typography/text-shimmer/text-shimmer.css
+@@ -101,7 +101,7 @@
+   }
+ }
+ 
+-@media (prefers-reduced-motion: reduce) {
++:root[data-motion="reduce"] {
+   [data-component="text-shimmer"] [data-slot="text-shimmer-char-base"],
+   [data-component="text-shimmer"] [data-slot="text-shimmer-char-shimmer"] {
+     transition-duration: 0ms;

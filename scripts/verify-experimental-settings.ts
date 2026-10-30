@@ -16,7 +16,10 @@
 //      the two schema fields with their upstream comments, the false defaults,
 //      the withFallback readers, the module-level setNewIcons effect and the
 //      four accessors. Negative boundary: v2.2.1's S11 companions
-//      (backgroundActivity/timelineWidth/reduceMotion/sidebarOpen) are absent,
+//      (backgroundActivity/timelineWidth/sidebarOpen) are absent — reduceMotion removed
+//      from this list by M-035's rebase round (issue #65): the appearance.reduceMotion
+//      three-state face is a REGISTERED S17 delta (deliberate, NOT a bypass — group 3
+//      keeps the other three S11 tokens and the showFileTree/terminalPlacement anchors),
 //      showFileTree is still Schema.Boolean and terminalPlacement still exists.
 //   4. Test sync (settings/model.test.ts): the defaults full-object assertion
 //      carries the two new lines (without them the upstream subset fails);
@@ -172,7 +175,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   }
 
   // Negative boundary: S11 companions must not have been carried in.
-  for (const token of ["backgroundActivity", "timelineWidth", "reduceMotion", "sidebarOpen"]) {
+  // mobile(M-035 rebase round, issue #65): "reduceMotion" removed — the S17 face now
+  // legitimately lives in model.tsx (registered delta); the other three stay.
+  for (const token of ["backgroundActivity", "timelineWidth", "sidebarOpen"]) {
     if (model.includes(token)) fail(`3: model.tsx adopted v2.2.1 content outside S38 (${token})`)
   }
   // Pin anchors survive: the retired-preference shape is unchanged.
@@ -503,7 +508,7 @@ console.log(
   "verify-experimental-settings: PASS (" +
     "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
-    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; no backgroundActivity/timelineWidth/reduceMotion/sidebarOpen, showFileTree+terminalPlacement kept; " +
+    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; no backgroundActivity/timelineWidth/sidebarOpen (reduceMotion dropped from the negative list by M-035's rebase round, issue #65), showFileTree+terminalPlacement kept; " +
     "4: model.test.ts defaults +2 lines, showFileTree/terminalPlacement lines and original test name kept; " +
     "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/useSources/linkSegments/quote/spring leak; " +
     "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right only, sidebar-right kept, 15 rejections out, pin trash/copy artwork bodies locked; " +

@@ -77,7 +77,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     fail("1: model.tsx tabLayout literal is not the three-value horizontal/vertical/inbox form")
 
   // Default stays horizontal; persisted key stays settings.v3; read path stays withFallback.
-  if (!model.includes('appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal" },'))
+  // mobile(M-035) appended reduceMotion:"system" to the same line (issue #65) — the anchor
+  // rides the updated line and still pins the horizontal tabLayout default.
+  if (!model.includes('appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", reduceMotion: "system" },'))
     fail("1: model.tsx defaultSettings appearance no longer defaults tabLayout to horizontal")
   if (!model.includes('persisted({ key: "settings.v3" }, settingsPersistence, defaultSettings)'))
     fail("1: model.tsx lost the verbatim settings.v3 persisted() anchor")
@@ -235,9 +237,13 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (JSON.stringify([...touched].sort()) !== JSON.stringify(expected))
     fail(`6: M-033 patch face drifted: ${JSON.stringify(touched)} (expected exactly the seven S04 files)`)
 
-  // No other registered patch carries interface-mode content.
+  // No other registered patch carries interface-mode content. mobile(M-035) is exempted
+  // on the patch-FILE scan only: its en.ts hunk context legitimately contains the
+  // interfaceMode.experimental key line (the M-035 seven keys insert directly after it,
+  // issue #65) — its diff face touches zero interface-mode files (asserted in
+  // verify-appearance-settings group 12).
   for (const name of readdirSync(join(repoRoot.pathname, PATCHES))) {
-    if (!name.endsWith(".patch") || name.startsWith("0033-")) continue
+    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-")) continue
     const content = await read(`${PATCHES}${name}`)
     if (content.includes("interface-mode") || content.includes("interfaceMode"))
       fail(`6: ${name} unexpectedly references interface-mode (only M-033 may)`)

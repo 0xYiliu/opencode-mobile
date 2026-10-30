@@ -181,7 +181,7 @@
       background-color 200ms ease,
       color 200ms ease;
 
-    @media (prefers-reduced-motion: reduce) {
+    :root[data-motion="reduce"] & {
       transition: none;
     }
 
@@ -197,7 +197,7 @@
       color: var(--user-message-mention-prefix-color);
       transition: color 200ms ease;
 
-      @media (prefers-reduced-motion: reduce) {
+      :root[data-motion="reduce"] & {
         transition: none;
       }
     }
@@ -1247,7 +1247,7 @@
       opacity: 1;
     }
 
-    @media (prefers-reduced-motion: reduce) {
+    :root[data-motion="reduce"] & {
       transition: none;
     }
   }

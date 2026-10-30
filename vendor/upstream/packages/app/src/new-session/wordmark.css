@@ -43,10 +43,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  [data-component="new-session-wordmark"] {
-    .wordmark-shimmer {
-      animation: none;
-    }
-  }
+:root[data-motion="reduce"] [data-component="new-session-wordmark"] .wordmark-shimmer {
+  animation: none;
 }

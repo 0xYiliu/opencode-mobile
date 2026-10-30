@@ -48,7 +48,10 @@ describe("settings search index", () => {
       target: undefined,
       subtab: undefined,
     })
-    expect(rankSettings("font", items, root)).toHaveLength(3)
+    // mobile(M-035): the zoom entry (issue #65) drops the upstream `available: "desktop"`
+    // gate — the web shell implements the zoom platform face (M-035) — so the "font"
+    // query (the zoom keywords include "font") returns the three font rows plus zoom.
+    expect(rankSettings("font", items, root)).toHaveLength(4)
   })
 
   test("only advertises settings supported by this platform", () => {

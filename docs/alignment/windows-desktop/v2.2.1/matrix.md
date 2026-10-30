@@ -41,7 +41,7 @@
 | S14 | Diff 换行 | 已有代码 | 对齐；已有 review 扩展设置，迁移时保留偏好 | E05 |
 | S15 | 主题与系统/浅色/深色 | 已有代码 | 对齐；保留现有主题实现 | E02 |
 | S16 | 界面/代码/终端字体 | 已有代码 | 适配；已有三类字体设置，Android 回退字体仍需验收 | E02 |
-| S17 | 减少动效 system/on/off | 部分实现 | 对齐；已有交互质量契约，现有 Appearance 未提供目标设置；实际动效接线仍待核 | E02/E11 |
+| S17 | 减少动效 system/on/off | 已有代码（设置呈现+动效接线，issue #65，M-035；运行期行为待设备 QA） | 对齐（issue #65，M-035）：Appearance 呈现 Reduce motion 三态 Select（`settings-reduce-motion`，默认 system）+ `dataset.motion` 仲裁 effect（v2.2.1 逐字）；动效消费链**全 vendored 树 25 CSS 文件 31 块**转 `:root[data-motion="reduce"]` + 3 TS 消费者走 `prefersReducedMotion()` + tailwind `motion-reduce:`/`motion-safe:` 变体 + ui motion/reduced.ts 回退模块——设置真实改变动效表现；**已知边界**：go-upsell hero 画布恒随系统（上游未转换面）、首帧到 hydrate 间隙动效可见（上游同态）、system 态在 Android WebView 的系统映射与观测点实测归设备 QA 十项（未执行）；zh 文案回退英文 | E02/E21 |
 | S18 | Agent/权限/错误系统通知 | 已有代码 | 适配；已有 JS/Kotlin 桥、权限、点击路由；沿用存活期间 best-effort，不重问后台范围 | E08，G33 未完成 |
 | S19 | 任务声音选择、预览与界面音效 | 已有代码 | 适配；沿用共享设置，WebView 声音限制待运行验证 | E02/E08 |
 | S20 | 快捷键搜索、修改、冲突与恢复 | 已有代码 | 适配；已有命令/菜单契约，触摸可达性与外接键盘联验 | E02/E11 |
@@ -66,7 +66,7 @@
 | S39 | About、版本、许可与声明 | 部分实现 | 适配；已有 About、vendor 来源/许可和 Android 版本，三种版本展示仍需核对 | E01/E02/E11 |
 | S40 | 更新检查、安装与发行说明 | 未实现（APK 更新） | 待决策；现有 updater 属 desktop-host 禁用，APK 更新机制是实际剩余范围问题 | E09 |
 | S41 | 扩展贡献设置页、分区和设置行 | 已有代码 | 适配；已有 gui-extensions 宿主；v2.2.1 gui-plugins API/注册迁移需技术核对 | E09 |
-| S42 | 界面缩放比例 | 未实现（目标设置入口） | 适配；旧 Appearance 仅主题/字体；需核对移动缩放与系统文字大小 | E02/E11 |
+| S42 | 界面缩放比例 | 已有代码（设置呈现+web 缩放面，issue #65，M-035；运行期行为待设备 QA） | 对齐（issue #65，M-035，裁定 A+A2）：Appearance 呈现 Zoom 六档 Select（100%–200%，`settings-zoom`，`<Show when={appearance.zoom.available()}>` 门控）+ 控制器段 v2.2.1 :94-99 逐字；**web 平台面自主补齐**（M-020 先例）：CSS `zoom` 于 documentElement + localStorage `opencode-ui-zoom-level`（值校验 desktopZoomLevels），platform.tsx 类型文件保持 pin 字节一致；搜索条目删 `available: "desktop"`（裁定 A2，移动搜索可命中；search-results 'font' 期望 3→4）；`nextDesktopZoomLevel` 不移植（S12/#74 捏合域）；与系统字号联动（乘法叠加 + Chromium 41297766 rem 缺陷观察）归设备 QA（未执行）；zh 文案回退英文 | E02/E21 |
 | S43 | GUI 启停、状态、失败与 Reload | 已有代码 | 适配；已持久化启停并提供失败/Reload，不重新决定是否做管理器 | E09，G35 |
 
 ## B. 工作界面
