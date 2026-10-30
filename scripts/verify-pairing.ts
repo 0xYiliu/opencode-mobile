@@ -49,6 +49,23 @@
 //     POST_NOTIFICATIONS; issue #23's manifest line). Any THIRD permission
 //     still fails — drift-gate semantics preserved.
 //
+// ISSUE #71 REVISION REGISTER (deliberate sentinel revisions, NOT bypasses):
+//   - group 6: the camera-unavailable baseline flipped to the ENABLED state.
+//     The decision carrier is issue #71 itself (a user-created issue whose
+//     acceptance 1 is the MatePad scan-acceptance item) — the former M-022+
+//     "scan enable is a pending user decision" framing is spent. The
+//     zero-CAMERA and zero-onPermissionRequest negatives became PAIRED
+//     anchors (CAMERA only with its grant-discipline comment; onPermission-
+//     Request only with the CameraGrantPolicy origin/resource whitelist),
+//     exactly-2 -> exactly-3 {INTERNET, POST_NOTIFICATIONS, CAMERA} (any
+//     FOURTH permission still fails), and the camera.ts gate/cameraHint
+//     anchors stay VERBATIM: QA-0 on the MatePad (DBY2-AL00, WebView 114)
+//     measured enumerateDevices() with well-formed videoinput kinds, so the
+//     native gate holds with ZERO vendor patches — the conditional camera.ts
+//     relaxation (M-039) stays reserved-absent. Groups 3/4 keep their zero
+//     VIEW/opencode:// assertions unchanged as the external-launch guard
+//     (decision 0007: deep link evaluated, not implemented).
+//
 //   1. Protocol + grammar layer: protocol/groups/server.ts pairing endpoints
 //      (PAIRING_CONNECT_PATH, server.pair POST /api/pair, token/expires_in
 //      schema fields) and pairing.ts four validation layers verbatim (scheme
@@ -79,14 +96,16 @@
 //      mobile-hosts/src), the out-of-domain four-write fact (declared set),
 //      zero console/Log calls in pairing/redeem/scanner/camera, and the
 //      cross-reference M-002 strip marker + rows 6/11 passthrough comment.
-//   6. Camera-unavailable baseline: manifest zero CAMERA permission +
-//      exactly the INTERNET + POST_NOTIFICATIONS permission pair (drift
-//      sentinels; issue #23 added POST_NOTIFICATIONS — any THIRD permission
-//      still fails), MainActivity zero
-//      onPermissionRequest (drift sentinel), camera.ts gate line verbatim,
-//      the cameraHint() two-branch anchor, the scanner environment/
-//      inversion-mode closure evidence, and the dist manifest scanner chunk
-//      prefixes (hash-tolerant).
+//   6. Camera-scan ENABLED baseline (issue #71; QA-0 judged the native gate
+//      holds — M-039 reserved-absent): manifest CAMERA line with its grant-
+//      discipline comment (paired anchor) + exactly the INTERNET +
+//      POST_NOTIFICATIONS + CAMERA permission triple (drift gate; any FOURTH
+//      permission still fails), MainActivity onPermissionRequest ONLY with
+//      the CameraGrantPolicy whitelist anchors (a bare grant path fails;
+//      foreign-origin and audio-resource grants deny), the CameraGrantPolicy
+//      video-only constants, camera.ts gate line verbatim, the cameraHint()
+//      two-branch anchor, the scanner environment/inversion-mode closure
+//      evidence, and the dist manifest scanner chunk prefixes (hash-tolerant).
 //   7. Routing and trust preservation: keep-address comments (screen +
 //      dialog) and the signed-out fallback url prop, the health-check-before-
 //      add ordering (four call sites), the screen ref-drop reality pair
@@ -97,7 +116,7 @@
 //      ssl-cancel anchors.
 //   8. Docs closure anchors (anti doc↔code drift): connection.md pairing
 //      section with its eight subsection headings and the key sentences
-//      (zero-passive-import / LAN cleartext unsupported / scan unsupported /
+//      (zero-passive-import / LAN cleartext unsupported / scan enabled per issue #71 /
 //      add-face ref split / three red lines), interaction.md G32 row +
 //      G1–G35 title (issue #23 revised the G1–G32 anchor when G33 was added,
 //      issue #24 revised G1–G33 -> G1–G34 when G34 was added, issue #26
@@ -154,6 +173,7 @@ const APP_SRC = "vendor/upstream/packages/app/src/"
 const HOSTS_SRC = "packages/mobile-hosts/src/"
 const MANIFEST = "android/app/src/main/AndroidManifest.xml"
 const MAIN_ACTIVITY = "android/app/src/main/java/ai/opencode/mobile/MainActivity.kt"
+const GRANT_POLICY = "android/app/src/main/java/ai/opencode/mobile/CameraGrantPolicy.kt"
 const NETSEC = "android/app/src/main/res/xml/network_security_config.xml"
 const REGISTRY = "vendor/upstream/packages/app/src/runtime/server/registry.tsx"
 const ROUTES = "vendor/upstream/packages/app/src/shell/routes/routes.tsx"
@@ -381,21 +401,52 @@ const DIST_MANIFEST = "web-dist/manifest.json"
     fail("5: remember.ts lost the rows 6/11 passthrough comment (cross-reference with verify-credential-vault.ts decision core)")
 }
 
-// --- 6. Camera-unavailable baseline ---
+// --- 6. Camera-scan ENABLED baseline (issue #71) ---
 {
   const manifest = await read(MANIFEST)
-  // Drift sentinels: either appearing means the shell gained camera capability —
-  // the candidate M-022+ decision and connection.md §⑦ must be re-reviewed first.
-  if (manifest.includes("android.permission.CAMERA"))
-    fail("6: AndroidManifest.xml gained the CAMERA permission — the scan-enable candidate (M-022+) is a user decision; re-review connection.md §⑦ and the probe header before keeping it")
+  // Issue #71 revision (deliberate, NOT a bypass): the camera scan is wired in the shell.
+  // The CAMERA permission is REQUIRED (paired anchor: the line only together with its
+  // grant-discipline comment — runtime in-app grant via onPermissionRequest, video-only,
+  // frames never leave the page) and the drift gate moves to exactly-3
+  // {INTERNET, POST_NOTIFICATIONS, CAMERA}; any FOURTH permission still fails.
+  if (!manifest.includes("android.permission.CAMERA"))
+    fail("6: AndroidManifest.xml lost the CAMERA permission (issue #71 pairing QR scan) — the scan entry depends on it; re-review connection.md §⑦-2 before removing")
+  if (!manifest.includes("Runtime-granted in-app ONLY via WebChromeClient.onPermissionRequest"))
+    fail("6: AndroidManifest.xml lost the CAMERA grant-discipline comment (runtime in-app onPermissionRequest only, video-only, frames never leave the page)")
   if (!manifest.includes('<uses-permission android:name="android.permission.INTERNET" />'))
     fail("6: AndroidManifest.xml lost the INTERNET permission anchor")
   const permissionCount = manifest.match(/<uses-permission /g)?.length ?? 0
-  if (permissionCount !== 2)
-    fail(`6: AndroidManifest.xml uses-permission count changed (expected exactly 2 = INTERNET + POST_NOTIFICATIONS, issue #23; any third permission still fails; got ${permissionCount}) — a new permission touches the security baseline; re-review`)
+  if (permissionCount !== 3)
+    fail(`6: AndroidManifest.xml uses-permission count changed (expected exactly 3 = INTERNET + POST_NOTIFICATIONS + CAMERA, issues #23/#71; any fourth permission still fails; got ${permissionCount}) — a new permission touches the security baseline; re-review`)
+
+  // Issue #71 revision: the bare zero-onPermissionRequest negative became a PAIRED anchor.
+  // onPermissionRequest is allowed ONLY alongside the CameraGrantPolicy whitelist anchors:
+  // the JVM-tested policy decision (origin parsed to exactly the loopback triple + exactly
+  // the video resource), the explicit deny branches (foreign origin / non-video resource),
+  // the cancel path (slot cleared WITHOUT answering the dead request), and the 41004
+  // request code. A grant path without the policy — a foreign-origin grant, an audio
+  // (or any non-video) resource grant — still FAILS here.
   const mainActivity = await read(MAIN_ACTIVITY)
-  if (/onPermissionRequest/.test(mainActivity))
-    fail("6: MainActivity.kt gained onPermissionRequest (WebView getUserMedia authorization) — the scan-enable candidate (M-022+) is a user decision; re-review connection.md §⑦ before keeping it")
+  if (/onPermissionRequest/.test(mainActivity)) {
+    const policyAnchors = [
+      "CameraGrantPolicy.decide(",
+      "expectedHost = WebAssetServer.LOOPBACK_HOST",
+      "camera: denied foreign origin request",
+      "camera: denied non-video resource request",
+      "onPermissionRequestCanceled",
+      "REQUEST_CAMERA = 41004",
+    ]
+    for (const anchor of policyAnchors)
+      if (!mainActivity.includes(anchor))
+        fail(`6: MainActivity.kt carries onPermissionRequest without the ${JSON.stringify(anchor)} policy anchor — WebView camera grants must stay behind the CameraGrantPolicy whitelist (exact loopback origin + video-only resource); re-review connection.md §⑦-2`)
+  }
+  const grantPolicy = await read(GRANT_POLICY)
+  if (!grantPolicy.includes('RESOURCE_VIDEO_CAPTURE: String = "android.webkit.resource.VIDEO_CAPTURE"'))
+    fail("6: CameraGrantPolicy.kt lost the video-only resource constant (audio capture must never be granted)")
+  if (!grantPolicy.includes("fun grantableResources(): List<String> = listOf(RESOURCE_VIDEO_CAPTURE)"))
+    fail("6: CameraGrantPolicy.kt grantableResources() is no longer exactly the single video resource (audio must never enter the grant payload)")
+  if (!grantPolicy.includes("Decision.DENY_UNSUPPORTED_RESOURCE"))
+    fail("6: CameraGrantPolicy.kt lost the unsupported-resource deny verdict")
 
   const camera = await read(CAMERA)
   if (!camera.includes('platform.platform === "web" && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia'))
@@ -496,7 +547,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   for (const sentence of [
     "零被动导入三锚",
     "LAN 明文配对链接不可达",
-    "相机扫描不可用",
+    "已随 issue #71 实现",
     "dialog 连接对话框面=passthrough 保 ref",
     "screen 独立连接屏面=重配对丢弃",
     "scheme/host 校验不放宽",
@@ -547,7 +598,7 @@ console.log(
     "3: preview-cancel comment verbatim + checkbox render gate (dialog first lock) + useRedeemPairing consumption set equality (redeem.ts definition + dialog + screen; scanner via props) + exactly 2 redeem faces per form + NEGATIVE zero VIEW intent-filter / onNewIntent only with the pendingRoute internal-route anchor (issue #23 — external launch stays banned); " +
     "4: NEGATIVE opencode:// zero hits across six upstream src domains + pairing.test.ts rejection anchors (opencode-ios://, /connect#abc); " +
     "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + M-002 and rows-6/11 cross-references; " +
-    "6: NEGATIVE zero CAMERA permission + exactly-2 uses-permission (INTERNET + POST_NOTIFICATIONS, issue #23; any third still fails) + zero onPermissionRequest (drift sentinels) + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
+    "6: ENABLED (issue #71) CAMERA line + grant-discipline comment (paired anchor) + exactly-3 uses-permission {INTERNET, POST_NOTIFICATIONS, CAMERA} (any fourth still fails) + onPermissionRequest only with the CameraGrantPolicy whitelist anchors (foreign-origin/audio-resource grants deny) + video-only policy constants + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
     "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen ref-drop reality pair ({ ...existing, http } + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
     "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G35 enumeration (issue #26 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
     "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref passthrough vs drop on re-pairing, cancel/cold/hot-start behavior and dual-route pass are G32)",
