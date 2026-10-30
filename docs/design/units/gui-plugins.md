@@ -18,7 +18,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | context | — | 无 | 无 | —（窗口侧 Slot/Panel） | session.header Slot（order 10）+ mobile Panel（menu, order 40） | #9（会话域） |
 | btw | — | 无 | 无（命令门 `enabled: mounted()`——issue #70/M-038 放宽：桌面宽度按构造恒等（≥768px 时旧门 `!layout.narrow() && mounted()` 已等价），窄屏 slash 可达） | — | mobile Panel（menu, order 80——issue #70/M-038 窄屏入口：More 抽屉项，呈最近一条问答或诚实空态 `mobile.none`；ask 仍 select placement 不自动跳转；窄屏无 close 通道，问答在视口加宽后以 strip tabs 重现） | #9（会话域）/ #70（窄屏入口） |
-| debug | **是**（`mainEntry: () => import("./debug/main")`） | 无 | 无 | Ipc（HeapSnapshots，web 恒 inactive） | 零 UI 贡献（桌面诊断） | —（桌面诊断，无移动业务单元） |
+| debug | **是**（`mainEntry: () => import("./debug/main")`） | 无 | 无 | Ipc（HeapSnapshots，web 恒 inactive） | web 渲染面实态（issue #73/W28 逐操作核对）：`debug.toggle` 命令无条件注册（命令面板可达——面板本体 keybind-only，[commands-menus.md](../commands-menus.md) §二在册）+ DebugBar renderer 面（`window.bottom` Slot；aside CSS `hidden md:block` 逐字——**≥768px 宽屏**可见 CLOSE/DURATION/TPS 三元素，窄屏 <768px 结构性隐藏 = 上游 web 窄窗口同构视口 CSS，非移动特判）；诊断格族/MEMORY/Motion/FOCUS 为构建期（`import.meta.env.DEV`）或 desktop 门结构性缺席（生产 web 构建无 DEV、无 main 域）；堆快照/内存诊断 main 面为桌面诊断域（web 恒 inactive） | —（桌面诊断，无移动业务单元） |
 | terminal | — | 无 | 无 | — | mobile Panel（menu, order 30） | #13 |
 | file | — | 无 | 无 | Contract（file tree + openIn） | mobile Panel（menu, order 20） | #11 |
 | review | — | 无 | 无 | Contract（changes） | mobile Panel（tab, order 10——Diff 一级 tab） | #12 |
@@ -89,6 +89,8 @@
 - **实验 gate 存储（issue #66/D2）**：sources gate 走 `ui/src/motion-tuning.ts` 最小 shim（仅上游 Knobs dev 台被消费的四面：toggle/choice/spring/subscribe），存储沿用上游 `opencode.motion.v2` localStorage 记录格式（toggle 0/1、choice 存选项索引、spring `<id>.duration`/`<id>.bounce`、非默认条目才落盘、空记录移除键），默认 false、无 auto-enable 路径、不经 settings.v3；设置 → Experimental → Sources 行是唯一写入面。#67 若引入真 motion-tuning 台，shim 可被原位替换（同键同格式，已存值不丢）。
 - **与 #67 的衔接（gui-plugins 迁移映射，防返工）**：sources 迁移=宿主 API 机械改名（`../sdk`→`@opencode/plugin/gui`、`Setup`→`Plugin.Setup`、`useExtension`→`usePlugin`、`ctx.uses.browser()`→`ctx.use(Browser)()`、`Browser` from `../browser/contract`→`@opencode/plugin/gui/browser`、`onIdle` 自 sdk→`@opencode/plugin/gui/builtin`、`Extension.define`→`Plugin.define`——v2.2.1 gui-plugins 版即对照答案）；goal 迁移=数据层（schema 契约+createStore 订阅+command 路径）零改动，Panel 注册届时二选一（保留 Panel 或升级 ComposerPill，由 #67 范围决定）。本期全部增量（goal Panel 形态、gate shim、两个 mobile face、设置开关行）为第一方登记差异（D1/D2/D3），不阻塞宿主迁移。
 
+- **debug bar 移动实态（issue #73/W28）**：debug 的移动贡献面为纯 renderer 侧——`debug.toggle` 命令（无条件注册，先于 renderer 的 desktop 门行）+ DebugBar（`window.bottom` Slot，`hidden md:block`：≥768px 宽屏 CLOSE/DURATION/TPS 三元素；窄屏结构性隐藏）；desktop-only 面（诊断格族/MEMORY/Motion/FOCUS/堆快照与内存诊断 main 域）在移动构建全部诚实缺席或元素级不渲染、无误报；titlebar 渠道开关在移动构建不渲染（渠道 env 未设——titlebar.tsx `if (!channel || channel === "prod") return null` 任何视口早退，评审 MAJOR-1 修正，明细见 implementation.md W28/E29 小节）；静态探针 `scripts/verify-debug-bar.ts`（四组 + 负例四组）在册。
+
 ## 十、诚实边界（本期不声称）
 
 - **G35 全部运行期行为 BLOCKED**（十项）——未过前只声称「文档/探针/单测/构建级已验证，运行期已实现（未验证）」（§首第二十一处落字）。
@@ -99,3 +101,4 @@
 - **extension store 跨升级存活依赖 WebView 数据保留**（§六）。
 - **探针证明力**：`scripts/verify-gui-extensions.ts` 是 static STRUCTURE check（文本锚/归一化扫描/集合相等/负例实测），零运行时证明力；交叉引用锚（#15 四证据链/#24 五层链/#20 More 抽屉/#13 pty 语义——首锁 verify-terminal 组 2/组 3/#9 interrupt 穷举/root.tsx VAC 四锚）引用不重锁，首锁归属在探针头注逐条声明。
 - **上游宿主无单测**：host.tsx 生命周期（activate/deactivate/watcher）上游零直接测试——结构面由探针+V2 承载，行为面归 G35。
+- **debug bar 窄屏 face 源码级未真机宣称（issue #73/W28）**：窄屏 <768px 隐藏与 titlebar 渠道徽章不渲染均为源码级核对（设备 CSS 视口下限 818px，S04 在册——窄屏 face 不可真机演练，CDP 合成覆盖不代表真机 face）；宽屏呈现、命令面板可达（keybind-only：物理键盘 mod+k、Settings > Shortcuts、CDP）与管理面启停行为归设备 QA 待执行（build-and-verify.md issue #73 段 QA-1..QA-3）。
