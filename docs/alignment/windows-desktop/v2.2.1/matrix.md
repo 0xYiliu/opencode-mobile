@@ -94,8 +94,8 @@
 | W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；既定手机不作浏览器宿主，原生面板入口禁用；已有远程工具输出/preview fallback，截图呈现未验 | E07，G28 |
 | W20 | Office 文档预览 | 已有代码 | 适配；已有 renderer 和资源；PDF/WebView、CJK、大文件属于运行缺口，不重问是否实现 Office | E06 |
 | W21 | /btw 侧问 | 部分实现 | 适配；旧代码已有命令和面板，同样被 narrow gate 禁用；窄屏入口是实际适配缺口 | E09 |
-| W22 | Goal 状态/暂停/继续/清除 | 未实现（注册缺失） | 对齐；旧 13 项 registry 无 goal，按服务能力补目标实现 | E09 |
-| W23 | Sources 来源面板 | 未实现（注册缺失） | 对齐；旧 registry 无 sources；保留目标实验 gate，不提升为默认功能 | E09 |
+| W22 | Goal 状态/暂停/继续/清除 | 已有代码（Panel 注册 + 服务能力降级，M-036） | 适配（issue #66）：goal 契约逐字移植（schema/opencode.goal RPC 含三处 `Schema.toStandardSchemaV1` 包裹——实施证明闭包内 effect@4.0.1 导出该 API 且 PortableDefinition 必需该形态，计划的剥离适配被证伪，逐字形态落地并锁定）+ renderer 数据层（server+session store/createKeyed 订阅/heard 丢弃/错误吞掉注释逐字）+ status 三态映射 + `session.command` 三词与错误 toast；UI 以旧宿主 Panel 重表壳（pinned/transient side tab 仅当 goal 加载且非 null、mobile face order 70、空态诚实呈现）——**差异 D1 登记**：ComposerPill 呈现位置与 popover 菜单形态延迟 #67（四 token 四域零命中负断言）；服务能力降级三态有结论（无 RPC→入口不存在按构造/命令失败→错误 toast/有插件无 goal→同空态，全部上游自身行为）；服务端 goal 插件不移植（远程服务域，探针负断言）；**设备 QA 待执行**（对 v2.2.1 服务端的 goal 往返与对 pin 版服务端的入口缺席双对照、命令失败 toast、窄屏空态） | E22 |
+| W23 | Sources 来源面板 | 已有代码（实验 gate + 注册 + 移动面，M-036） | 适配（issue #66）：按 `0f379f0a33` 旧宿主形态逐字移植四文件（`uses:{browser}` 软依赖/transient side Panel 实验关闭收回/LinkHandler/tab.count）+ session-ui sources 子系统八文件（含上游 sources.test.ts，在册子集破例 +1 已登记）+ 三处时间线钩子增量（不携带 user-runs/quote 域——八 token 与修订后 M-034 探针保留集互证）+ app SourcesProvider + ui en 9 键；实验 gate 以最小 motion-tuning shim（上游 `opencode.motion.v2` 存储格式四面、默认 false 无 auto-enable、不经 settings store）+ 设置 Experimental Sources 行实现移动可达——**差异 D2 登记**（上游开关在桌面 Knobs dev 台）；窄屏 More 抽屉项（order 60，goal 70）呈最近有来源 turn 或空态——**差异 D3 登记**（chip 唤起保持上游逐字，桌面宽度生效）；icons choice 无 UI 恒 letters=零第三方 favicon 请求（隐私正向）；motion spring/loop 逐字移植（M-035 耦合在 M-036 rebase 字段声明）；**设备 QA 待执行**（gate 开→chip→面板往返、关闭收回、重启默认关保持、抓包零 favicon） | E22 |
 | W24 | 非 prod 实验语音通话 | 待核对 | 待决策；先核对旧入口、目标渠道和麦克风宿主，不能计作生产默认能力 | E02/E11 |
 | W25 | 会话详情、工作区位置菜单 | 已有代码 | 适配；旧 details 已注册，逐个工作区操作差异待核 | E03/E09 |
 | W26 | 命令面板统一检索 | 已有代码 | 适配；已有命令/菜单契约，新增命令与触摸入口待核 | E11 |

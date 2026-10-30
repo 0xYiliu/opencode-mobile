@@ -1,0 +1,2285 @@
+diff --git a/packages/app/src/runtime/extension/render.tsx b/packages/app/src/runtime/extension/render.tsx
+index c7c598d..cc2505b 100644
+--- a/packages/app/src/runtime/extension/render.tsx
++++ b/packages/app/src/runtime/extension/render.tsx
+@@ -1,6 +1,8 @@
+ import { createMemo, ErrorBoundary, For, onMount, Show, untrack, type JSX, type ParentProps } from "solid-js"
+ import { Portal } from "solid-js/web"
+ import { MarkdownProvider, useMarkdown } from "@opencode/session-ui/context/markdown"
++import { SourcesProvider } from "@opencode/session-ui/context/sources"
++import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
+ import { ExtensionContext, Slot, Style, type MountedSession, type SlotMap } from "@opencode/gui-extensions/sdk"
+ import { useExtensionHost } from "./host"
+ 
+@@ -64,7 +66,10 @@ export function ExtensionStyles() {
+   )
+ }
+ 
+-/** Routes local markdown links in the session to extension LinkHandler contributions, keeping image loading. */
++/**
++ * Routes local markdown links in the session to extension LinkHandler contributions, keeping image loading. A turn's
++ * sources chip opens its turn through the Sources extension's handler.
++ */
+ export function ExtensionLinks(props: ParentProps<{ session: MountedSession }>) {
+   const host = useExtensionHost()
+   const markdown = useMarkdown()
+@@ -76,7 +81,13 @@ export function ExtensionLinks(props: ParentProps<{ session: MountedSession }>)
+       // Untracked: markdown calls this inside its render effect, which must not follow the routed session.
+       localFileExists={(href) => untrack(() => host.links.exists({ href, session: props.session }))}
+     >
+-      {props.children}
++      <SourcesProvider
++        enabled={sourcesExperiment.enabled}
++        icons={sourcesExperiment.icons}
++        onOpen={(from) => void host.links.open({ href: from, origin: "sources", session: props.session })}
++      >
++        {props.children}
++      </SourcesProvider>
+     </MarkdownProvider>
+   )
+ }
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 5937af6..19c3a73 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -703,6 +703,8 @@ export const dict = {
+   "settings.experimental.row.newIcons.description": "Preview the updated icon set",
+   "settings.experimental.row.foldUserMessages.title": "Fold long messages",
+   "settings.experimental.row.foldUserMessages.description": "Fold your messages past 12 lines behind a Read more button",
++  "settings.experimental.row.sources.title": "Sources",
++  "settings.experimental.row.sources.description": "Pages a turn searched and read",
+   "settings.guiExtensions.title": "Extensions",
+   "settings.guiExtensions.description": "Built-in GUI extensions in this window. Development builds only.",
+   "settings.guiExtensions.reload": "Reload",
+diff --git a/packages/app/src/settings/experimental/experimental.tsx b/packages/app/src/settings/experimental/experimental.tsx
+index a87b53c..8cb6517 100644
+--- a/packages/app/src/settings/experimental/experimental.tsx
++++ b/packages/app/src/settings/experimental/experimental.tsx
+@@ -1,4 +1,5 @@
+-import { Component } from "solid-js"
++import { Component, createSignal } from "solid-js"
++import { setStoredToggle, storedToggle } from "@opencode/ui/motion-tuning"
+ import { Switch } from "@opencode/ui/switch"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { SettingsList } from "@/settings/list"
+@@ -11,6 +12,10 @@ export const experimentalSettingsAvailable = true
+ export const SettingsExperimental: Component = () => {
+   const language = useLanguage()
+   const settings = useSettings()
++  // mobile(M-036): the Sources experiment gate lives in the ui motion-tuning store (the upstream
++  // `opencode.motion.v2` record, default off) — the knob is declared by session-ui's sources
++  // experiment; this row only reads and flips the stored value. settings.v3 is not involved.
++  const [sources, setSources] = createSignal(storedToggle("sources.enabled", false))
+ 
+   return (
+     <>
+@@ -50,6 +55,20 @@ export const SettingsExperimental: Component = () => {
+                 />
+               </div>
+             </SettingsRow>
++            <SettingsRow
++              title={language.t("settings.experimental.row.sources.title")}
++              description={language.t("settings.experimental.row.sources.description")}
++            >
++              <div data-action="settings-sources">
++                <Switch
++                  checked={sources()}
++                  onChange={(checked) => {
++                    setStoredToggle("sources.enabled", checked, false)
++                    setSources(checked)
++                  }}
++                />
++              </div>
++            </SettingsRow>
+           </SettingsList>
+         </div>
+       </div>
+diff --git a/packages/gui-extensions/src/goal/i18n/en.ts b/packages/gui-extensions/src/goal/i18n/en.ts
+new file mode 100644
+index 0000000..1b902fc
+--- /dev/null
++++ b/packages/gui-extensions/src/goal/i18n/en.ts
+@@ -0,0 +1,11 @@
++export default {
++  title: "Goal",
++  paused: "Goal paused",
++  met: "Goal met",
++  pause: "Pause",
++  resume: "Resume",
++  clear: "Clear",
++  // mobile(M-036): narrow-screen face empty state. The upstream pill form has no drawer route
++  // (registered delta; see units/gui-extensions.md).
++  none: "No goal is set for this session.",
++}
+diff --git a/packages/gui-extensions/src/goal/index.ts b/packages/gui-extensions/src/goal/index.ts
+new file mode 100644
+index 0000000..eee1180
+--- /dev/null
++++ b/packages/gui-extensions/src/goal/index.ts
+@@ -0,0 +1,10 @@
++// mobile(M-036): vendored from v2.2.1 (8de0323975) where the goal extension is a gui-plugins
++// `Plugin.define({ i18n })` whose id is derived by the new host. The old host's Definition
++// declares the id directly (the #67 migration maps this form onto the new one).
++import { Extension } from "../sdk"
++import en from "./i18n/en"
++
++export default Extension.define({
++  id: "goal",
++  i18n: { en },
++})
+diff --git a/packages/gui-extensions/src/goal/renderer.tsx b/packages/gui-extensions/src/goal/renderer.tsx
+new file mode 100644
+index 0000000..a8761c1
+--- /dev/null
++++ b/packages/gui-extensions/src/goal/renderer.tsx
+@@ -0,0 +1,171 @@
++// mobile(M-036): the data layer, the status mapping and the command path are vendored from
++// v2.2.1 (8de0323975) verbatim. The presentation is re-shelled from the upstream composer pill
++// (which lives above the composer and depends on the new gui-plugins pill host) onto the old
++// host's Panel — a registered delta (D1); the #67 host migration maps it back (see
++// units/gui-extensions.md for the mapping table).
++import { onCleanup, Show } from "solid-js"
++import { createStore } from "solid-js/store"
++import { createKeyed, Panel, type MountedSession, type PanelTab, type Setup } from "../sdk"
++import { Goal } from "@opencode/schema/goal"
++import { Button } from "@opencode/ui/button"
++import { Icon } from "@opencode/ui/icon"
++import { showToast } from "@opencode/ui/toast"
++import type GoalDefinition from "./index"
++
++const status = {
++  active: { label: "title", icon: "outline-steer", tone: undefined },
++  paused: { label: "paused", icon: "circle-exclamation", tone: "warning" },
++  complete: { label: "met", icon: "circle-check", tone: "success" },
++} as const
++
++/**
++ * The session's `/goal`: the status as a side-panel tab, headed by the objective with the actions that apply. The
++ * server's goal plugin owns the goal and serves it over its RPC; a bare `/goal` shows the last reason.
++ */
++const setup: Setup<typeof GoalDefinition> = (ctx) => {
++  // The last goal heard for each server and session. A session switched back to shows it until the refetch lands.
++  const [goals, setGoals] = createStore<Record<string, { goal: Goal.State | null }>>({})
++  const key = (server: string, sessionID: string) => `${server}\u0000${sessionID}`
++  const goal = (session: MountedSession) => goals[key(session.server.id, session.id)]?.goal
++
++  // Subscribes to the routed session's goal: its current value, then every change. It runs again when another session
++  // is routed, the session moves, or its server reconnects, since changes published meanwhile were missed.
++  createKeyed(
++    () => {
++      const session = ctx.sessions.current()
++
++      return session?.server.connected ? key(session.server.id, session.id) + `\u0000${session.directory}` : undefined
++    },
++    () => {
++      const session = ctx.sessions.current()
++
++      if (!session) return
++
++      const server = session.server.id
++      const rpc = session.server.client.rpc(Goal.Definition)
++      const controller = new AbortController()
++      // A change that arrives before the snapshot is newer than it.
++      const heard = { value: false }
++      onCleanup(() => controller.abort())
++      onCleanup(
++        rpc.events.on(
++          "changed",
++          (event) => {
++            if (event.data.sessionID === session.id) heard.value = true
++            setGoals(key(server, event.data.sessionID), { goal: event.data.goal })
++          },
++          { signal: controller.signal },
++        ),
++      )
++      // A server without the goal plugin answers with an error, and the session shows no goal.
++      void rpc
++        .get({ sessionID: session.id }, { location: { directory: session.directory }, signal: controller.signal })
++        .then(
++          (next) => {
++            if (!controller.signal.aborted && !heard.value) setGoals(key(server, session.id), { goal: next })
++          },
++          () => undefined,
++        )
++    },
++  )
++
++  const command = (session: MountedSession, text: "pause" | "resume" | "clear") =>
++    void session.server.client.session
++      .command({ sessionID: session.id, name: "goal", text })
++      .catch((cause: unknown) =>
++        showToast({
++          variant: "error",
++          title: ctx.t("common.requestFailed"),
++          description: cause instanceof Error ? cause.message : String(cause),
++        }),
++      )
++
++  ctx.add(Panel, {
++    id: "goal",
++    region: "side",
++    transient: true,
++    // mobile(M-036): the narrow-screen More-drawer entry, after sources (order 60).
++    mobile: {
++      get title() {
++        return ctx.t("title")
++      },
++      order: 70,
++      kind: "menu",
++    },
++    // Listed only while the session's goal is loaded and non-null: a server without the goal plugin
++    // answers `get` with an error, the swallow above leaves no goal, and the entry does not exist.
++    list: (input) => {
++      const current = goal(input.session)
++
++      if (!current) return []
++
++      const tab: PanelTab = {
++        id: "goal",
++        // Present while the goal exists, like the upstream pill; not user-managed.
++        pinned: true,
++        get title() {
++          return ctx.t("title")
++        },
++        label: (state) => {
++          const value = goal(state.session)
++
++          if (!value) return <span>{ctx.t("title")}</span>
++
++          const view = status[value.status]
++
++          return (
++            <span class={`flex min-w-0 items-center gap-1.5 ${view.tone ? `text-v2-state-fg-${view.tone}` : ""}`}>
++              <Icon name={view.icon} size="small" class="shrink-0" />
++              <span class="truncate">{ctx.t(view.label)}</span>
++            </span>
++          )
++        },
++      }
++
++      return [tab]
++    },
++    render: (props) => {
++      const run = (text: "pause" | "resume" | "clear") => command(props.session, text)
++
++      return (
++        <div class="flex h-full min-h-0 flex-col overflow-y-auto" data-slot="session-goal-panel">
++          <Show when={goal(props.session)} fallback={<p class="p-4 text-v2-text-text-muted">{ctx.t("none")}</p>}>
++            {(value) => (
++              <div class="flex flex-col gap-3 p-4">
++                <div class="flex items-start gap-2">
++                  <span class={`mt-0.5 shrink-0 ${value().status !== "active" ? `text-v2-state-fg-${status[value().status].tone}` : ""}`}>
++                    <Icon name={status[value().status].icon} size="small" />
++                  </span>
++                  <div class="flex min-w-0 flex-col gap-1">
++                    <p class="whitespace-pre-wrap break-words text-v2-text-text-base">{value().objective}</p>
++                    <Show when={value().reason}>
++                      {(reason) => <p class="whitespace-pre-wrap break-words text-v2-text-text-muted">{reason()}</p>}
++                    </Show>
++                  </div>
++                </div>
++                <div class="flex justify-end gap-1">
++                  <Show when={value().status === "active"}>
++                    <Button size="small" variant="ghost" icon="stop" onClick={() => run("pause")}>
++                      {ctx.t("pause")}
++                    </Button>
++                  </Show>
++                  <Show when={value().status === "paused"}>
++                    <Button size="small" variant="ghost" icon="refresh" onClick={() => run("resume")}>
++                      {ctx.t("resume")}
++                    </Button>
++                  </Show>
++                  <Button size="small" variant="ghost" icon="outline-trash" onClick={() => run("clear")}>
++                    {ctx.t("clear")}
++                  </Button>
++                </div>
++              </div>
++            )}
++          </Show>
++        </div>
++      )
++    },
++    close: () => undefined,
++  })
++}
++
++export default setup
+diff --git a/packages/gui-extensions/src/main.ts b/packages/gui-extensions/src/main.ts
+index fb57d17..e36409e 100644
+--- a/packages/gui-extensions/src/main.ts
++++ b/packages/gui-extensions/src/main.ts
+@@ -12,6 +12,8 @@ import updater from "./updater"
+ import ssh from "./ssh"
+ import wsl from "./wsl"
+ import microsoftOffice from "./microsoft-office"
++import sources from "./sources"
++import goal from "./goal"
+ 
+ /**
+  * Built-in extensions with their main entries. Lists every built-in so their ids stay reserved. `builtins.typecheck.ts`
+@@ -31,4 +33,6 @@ export const builtins = Extension.compose(
+   { ...ssh, main: () => import("./ssh/main") },
+   { ...wsl, main: () => import("./wsl/main") },
+   microsoftOffice,
++  sources,
++  goal,
+ )
+diff --git a/packages/gui-extensions/src/renderer.ts b/packages/gui-extensions/src/renderer.ts
+index f5f1754..3e96fcc 100644
+--- a/packages/gui-extensions/src/renderer.ts
++++ b/packages/gui-extensions/src/renderer.ts
+@@ -25,6 +25,10 @@ import wsl from "./wsl"
+ import wslRenderer from "./wsl/renderer"
+ import microsoftOffice from "./microsoft-office"
+ import microsoftOfficeRenderer from "./microsoft-office/renderer"
++import sources from "./sources"
++import sourcesRenderer from "./sources/renderer"
++import goal from "./goal"
++import goalRenderer from "./goal/renderer"
+ 
+ // The window renders once every built-in is active, so the small renderer entries load with the app, like the
+ // features they replaced. Heavy UI stays behind `lazy()` inside them.
+@@ -49,4 +53,6 @@ export const builtins = Extension.compose(
+   { ...ssh, renderer: eager(sshRenderer) },
+   { ...wsl, renderer: eager(wslRenderer) },
+   { ...microsoftOffice, renderer: eager(microsoftOfficeRenderer) },
++  { ...sources, renderer: eager(sourcesRenderer) },
++  { ...goal, renderer: eager(goalRenderer) },
+ )
+diff --git a/packages/gui-extensions/src/sources/i18n/en.ts b/packages/gui-extensions/src/sources/i18n/en.ts
+new file mode 100644
+index 0000000..9235d9a
+--- /dev/null
++++ b/packages/gui-extensions/src/sources/i18n/en.ts
+@@ -0,0 +1,8 @@
++export default {
++  "tab.count": "Sources · {{count}}",
++  // mobile(M-036): narrow-screen face entry and empty states. The upstream panel has none —
++  // its More-drawer route does not exist upstream (registered delta; see units/gui-extensions.md).
++  "panel.title": "Sources",
++  "panel.disabled": "Sources are turned off. Enable them in Settings → Experimental.",
++  "panel.none": "No sources yet. Pages a turn searches and reads appear here.",
++}
+diff --git a/packages/gui-extensions/src/sources/index.ts b/packages/gui-extensions/src/sources/index.ts
+new file mode 100644
+index 0000000..995f6ee
+--- /dev/null
++++ b/packages/gui-extensions/src/sources/index.ts
+@@ -0,0 +1,10 @@
++import { Browser } from "../browser/contract"
++import { Extension } from "../sdk"
++import en from "./i18n/en"
++
++export default Extension.define({
++  id: "sources",
++  // Results open in the desktop browser pane when there is one, else in the system browser.
++  uses: { browser: Browser },
++  i18n: { en },
++})
+diff --git a/packages/gui-extensions/src/sources/panel.tsx b/packages/gui-extensions/src/sources/panel.tsx
+new file mode 100644
+index 0000000..7e6d3b4
+--- /dev/null
++++ b/packages/gui-extensions/src/sources/panel.tsx
+@@ -0,0 +1,52 @@
++import { createMemo, Show } from "solid-js"
++import { turnMessages, turnSources } from "@opencode/session-ui/sources"
++import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
++import { SourcesPanel } from "@opencode/session-ui/sources/panel"
++import { useExtension, type MountedSession } from "../sdk"
++import type Sources from "./index"
++
++export default function SourcesTab(props: { session: MountedSession; from: string }) {
++  const ctx = useExtension<typeof Sources>()
++
++  // mobile(M-036): on the narrow-screen mobile view the render receives the panel's id instead of a
++  // message id, so the tab shows the most recent turn that has sources, else the empty state. The
++  // chip path below (a message id from `list`) is the wide-layout entry (registered delta; see
++  // units/gui-extensions.md).
++  const sources = createMemo(() => {
++    const list = props.session.server.data.session.message.list(props.session.id)
++
++    if (props.from !== "turn") return turnSources(turnMessages(list, props.from))
++
++    for (let index = list.length - 1; index >= 0; index--) {
++      const message = list[index]
++
++      if (message.type !== "user") continue
++
++      const value = turnSources(turnMessages(list, message.id))
++
++      if (value.steps.length > 0) return value
++    }
++
++    return { steps: [], sources: [] }
++  })
++
++  const open = (url: string) => {
++    const pane = ctx.uses.browser()
++
++    if (pane.status === "active" && pane.value.canOpen(props.session)) return pane.value.open(props.session, url)
++    ctx.system.openExternal(url)
++  }
++
++  return (
++    <div class="flex h-full min-h-0 flex-col bg-v2-background-bg-base" data-slot="session-sources-panel">
++      <Show
++        when={sources().steps.length > 0}
++        fallback={<div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("panel.none")}</div>}
++      >
++        <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
++          <SourcesPanel sources={sources()} icons={sourcesExperiment.icons} onOpen={open} />
++        </div>
++      </Show>
++    </div>
++  )
++}
+diff --git a/packages/gui-extensions/src/sources/renderer.tsx b/packages/gui-extensions/src/sources/renderer.tsx
+new file mode 100644
+index 0000000..bfdd022
+--- /dev/null
++++ b/packages/gui-extensions/src/sources/renderer.tsx
+@@ -0,0 +1,108 @@
++import { createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
++import { turnMessages, turnSources } from "@opencode/session-ui/sources"
++import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
++import { SourcesTitle } from "@opencode/session-ui/sources/title"
++import { createKeyed, LinkHandler, onIdle, Panel, type MountedSession, type PanelTab, type Setup } from "../sdk"
++import type Sources from "./index"
++
++/**
++ * The Sources experiment's side panel: one transient tab per turn, keyed by the user message that opened it. The
++ * timeline's sources chip opens it with a link whose origin is this extension and whose href is that message's ID.
++ * Turning the experiment off stops listing the tabs, which closes them.
++ */
++const setup: Setup<typeof Sources> = (ctx) => {
++  const SourcesTab = lazy(() => import("./panel"))
++  onCleanup(
++    onIdle(() => {
++      if (sourcesExperiment.enabled) void SourcesTab.preload()
++    }),
++  )
++
++  // Tab objects per session, reused so strip updates and session switches do not rebuild a trigger.
++  const tabs = new Map<string, Map<string, PanelTab>>()
++
++  // Drops the tab objects of sessions whose shell tab closed.
++  createKeyed(
++    () => [...ctx.sessions.list().map((session) => session.key), ctx.sessions.current()?.key].join("\u0000"),
++    () => {
++      const keep = new Set([...ctx.sessions.list().map((session) => session.key), ctx.sessions.current()?.key])
++      tabs.forEach((_cache, key) => {
++        if (!keep.has(key)) tabs.delete(key)
++      })
++    },
++  )
++
++  const count = (session: MountedSession, id: string) =>
++    turnSources(turnMessages(session.server.data.session.message.list(session.id), id)).sources.length
++
++  ctx.add(LinkHandler, {
++    match: (link) => sourcesExperiment.enabled && link.origin === ctx.id && !!link.session,
++    open(link) {
++      if (link.session) ctx.layout.open(`${ctx.id}:${link.href}`, link.session, { tab: "select" })
++    },
++  })
++
++  ctx.add(Panel, {
++    id: "turn",
++    region: "side",
++    transient: true,
++    // mobile(M-036): the narrow-screen More-drawer entry, before goal (order 70). The render
++    // receives the panel's id as the tab id on this path; the tab shows the most recent turn
++    // with sources, or an honest empty state while the experiment is off (registered delta;
++    // see units/gui-extensions.md).
++    mobile: {
++      get title() {
++        return ctx.t("panel.title")
++      },
++      order: 60,
++      kind: "menu",
++    },
++    list: (input) => {
++      if (!sourcesExperiment.enabled) {
++        tabs.delete(input.session.key)
++
++        return []
++      }
++
++      const cache = tabs.get(input.session.key) ?? new Map<string, PanelTab>()
++      tabs.set(input.session.key, cache)
++
++      return input.open.map((id) => {
++        const existing = cache.get(id)
++
++        if (existing) return existing
++
++        const tab: PanelTab = {
++          id,
++          get title() {
++            return ctx.t("tab.count", { count: count(input.session, id) })
++          },
++          label: (state) => {
++            const total = createMemo(() => count(state.session, id))
++
++            return <SourcesTitle count={total()} />
++          },
++        }
++
++        cache.set(id, tab)
++
++        return tab
++      })
++    },
++    render: (props) => (
++      // mobile(M-036): the gate-off fallback renders an honest empty state instead of the upstream
++      // blank face — the fallback is only reachable on the narrow-screen mobile view, whose More
++      // drawer entry always exists (registered delta; see units/gui-extensions.md).
++      <Show when={sourcesExperiment.enabled} fallback={<div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("panel.disabled")}</div>}>
++        <Suspense>
++          <SourcesTab session={props.session} from={props.tab.id} />
++        </Suspense>
++      </Show>
++    ),
++    close: (input) => {
++      tabs.get(input.session.key)?.delete(input.tab.id)
++    },
++  })
++}
++
++export default setup
+diff --git a/packages/schema/src/goal.ts b/packages/schema/src/goal.ts
+new file mode 100644
+index 0000000..46572eb
+--- /dev/null
++++ b/packages/schema/src/goal.ts
+@@ -0,0 +1,50 @@
++// mobile(M-036): vendored from v2.2.1 (3ebcf9a) verbatim. The three
++// `Schema.toStandardSchemaV1(...)` wrappers stay: the closure's effect@4.0.1
++// exports the API, and the promise client's PortableDefinition requires the
++// Standard Schema form.
++export * as Goal from "./goal.js"
++
++import { Schema } from "effect"
++import { Rpc } from "./rpc.js"
++import { optional } from "./schema.js"
++
++export const Status = Schema.Literals(["active", "paused", "complete"])
++export type Status = typeof Status.Type
++
++export interface State extends Schema.Schema.Type<typeof State> {}
++export const State = Schema.Struct({
++  id: Schema.String,
++  objective: Schema.String,
++  status: Status,
++  /** Why the goal last changed: the reviewer's reason, or what paused it. */
++  reason: optional(Schema.String),
++  /** Continuations sent since the goal was set or last resumed. */
++  rounds: Schema.Number,
++  /** A backstop for loops that stall detection misses. */
++  maxRounds: Schema.Number,
++  /** Rounds in a row without progress: no tool calls, or the same reason as the round before. */
++  stalls: optional(Schema.Number),
++  /** The server process that armed the goal. */
++  boot: Schema.String,
++  updatedAt: Schema.Number,
++}).annotate({ identifier: "Goal.State" })
++
++/**
++ * The `/goal` plugin's RPC. Clients read a Session's goal with `get` and keep it current from `changed`, which the
++ * plugin publishes in the Session's Location on every write. A Session's goal is its own: children and forks start
++ * without one. The schemas are Standard Schemas too, so Promise clients can call it.
++ */
++export const Definition = Rpc.define({
++  id: "opencode.goal",
++  methods: {
++    get: {
++      input: Schema.toStandardSchemaV1(Schema.Struct({ sessionID: Schema.String })),
++      output: Schema.toStandardSchemaV1(Schema.NullOr(State)),
++    },
++  },
++  events: {
++    changed: {
++      schema: Schema.toStandardSchemaV1(Schema.Struct({ sessionID: Schema.String, goal: Schema.NullOr(State) })),
++    },
++  },
++})
+diff --git a/packages/session-ui/package.json b/packages/session-ui/package.json
+index f176843..4cb59e7 100644
+--- a/packages/session-ui/package.json
++++ b/packages/session-ui/package.json
+@@ -40,6 +40,10 @@
+     "./pierre/*": "./src/pierre/*.ts",
+     "./context": "./src/context/index.ts",
+     "./context/*": "./src/context/*.tsx",
++    "./sources": "./src/sources/sources.ts",
++    "./sources/experiment": "./src/sources/experiment.ts",
++    "./sources/panel": "./src/sources/sources-panel.tsx",
++    "./sources/title": "./src/sources/sources-title.tsx",
+     "./styles": "./src/styles/index.css",
+     "./storybook": "./src/storybook/index.ts",
+     "./v2/*.css": "./src/v2/components/*.css",
+diff --git a/packages/session-ui/src/context/sources.tsx b/packages/session-ui/src/context/sources.tsx
+new file mode 100644
+index 0000000..ba9600d
+--- /dev/null
++++ b/packages/session-ui/src/context/sources.tsx
+@@ -0,0 +1,34 @@
++import { createContext, useContext, type ParentProps } from "solid-js"
++import type { SiteIconMode } from "../sources/experiment"
++
++const context = createContext<{
++  readonly enabled: boolean
++  readonly icons: SiteIconMode
++  readonly open: (from: string) => void
++}>()
++
++/**
++ * Shows a turn's sources chip, which opens the turn's searches and fetches. `open` receives the ID of the user message
++ * that opened the turn. Without this provider no chip shows.
++ */
++export function SourcesProvider(
++  props: ParentProps<{ enabled: boolean; icons: SiteIconMode; onOpen: (from: string) => void }>,
++) {
++  return (
++    <context.Provider
++      value={{
++        get enabled() {
++          return props.enabled
++        },
++        get icons() {
++          return props.icons
++        },
++        open: (from) => props.onOpen(from),
++      }}
++    >
++      {props.children}
++    </context.Provider>
++  )
++}
++
++export const useSources = () => useContext(context)
+diff --git a/packages/session-ui/src/message/current-message.tsx b/packages/session-ui/src/message/current-message.tsx
+index 7dea8d1..5beee04 100644
+--- a/packages/session-ui/src/message/current-message.tsx
++++ b/packages/session-ui/src/message/current-message.tsx
+@@ -9,6 +9,10 @@ import {
+   ToolDisplay,
+ } from "../tools/tool-renderer"
+ import { currentToolError, currentToolInput, currentToolMetadata, currentToolOutput } from "./current-tool-state"
++// mobile(M-036): only the TurnSources type crosses here. The v2.2.1 diff also carries a
++// timeline-rewrite type import that this slice deliberately does not take (that boundary is
++// machine-checked by verify-goal-sources group 6).
++import type { TurnSources } from "../sources/sources"
+ 
+ export type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+ 
+@@ -54,6 +58,8 @@ export function SessionAssistantContent(props: {
+   contentID: string
+   showAssistantCopyPartID?: string | null
+   turnDurationMs?: number | null
++  sources?: TurnSources
++  onOpenSources?: () => void
+   defaultOpen?: boolean
+   reasoningDefaultOpen?: boolean
+   toolOpen?: boolean
+@@ -70,6 +76,8 @@ export function SessionAssistantContent(props: {
+             message={props.message}
+             showCopy={props.showAssistantCopyPartID === props.contentID}
+             turnDurationMs={props.turnDurationMs}
++            sources={props.sources}
++            onOpenSources={props.onOpenSources}
+           />
+         )}
+       </Match>
+diff --git a/packages/session-ui/src/message/message-content.tsx b/packages/session-ui/src/message/message-content.tsx
+index 6b25f27..9c0ab09 100644
+--- a/packages/session-ui/src/message/message-content.tsx
++++ b/packages/session-ui/src/message/message-content.tsx
+@@ -13,6 +13,9 @@ import {
+ import { createStore } from "solid-js/store"
+ import { createMediaQuery } from "@solid-primitives/media"
+ import { useData } from "../context"
++import { useSources } from "../context/sources"
++import { SourcesChip } from "../sources/sources-chip"
++import type { TurnSources } from "../sources/sources"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { useI18n } from "@opencode/ui/context/i18n"
+ import { Markdown } from "../components/markdown"
+@@ -795,10 +798,18 @@ export function AssistantTextContent(props: {
+   message: SessionMessageAssistant
+   showCopy: boolean
+   turnDurationMs?: number | null
++  /** The finished turn's web searches and fetches, shown as a chip in its footer. */
++  sources?: TurnSources
++  onOpenSources?: () => void
+ }) {
+   const data = useData()
+   const i18n = useI18n()
++  const sourcesHost = useSources()
+   const numfmt = createMemo(() => new Intl.NumberFormat(i18n.locale()))
++  // A footer that arrives after the reply rendered belongs to a turn that just finished, so its chip fades in.
++  let rendered = false
++  onMount(() => (rendered = true))
++  const sources = () => (props.showCopy && sourcesHost?.enabled ? props.sources : undefined)
+ 
+   const interrupted = () => {
+     const type = props.message.error?.type.toLowerCase()
+@@ -860,25 +871,41 @@ export function AssistantTextContent(props: {
+         <div data-slot="text-part-body">
+           <PacedMarkdown text={props.text} cacheKey={props.id} streaming={props.message.time.completed === undefined} />
+         </div>
+-        <Show when={props.showCopy}>
+-          <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
+-            <MessageActionButton
+-              icon={copied() ? "check" : "copy"}
+-              label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
+-              onMouseDown={(event) => event.preventDefault()}
+-              onClick={copy}
+-              aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
+-            />
+-            <Show when={meta()}>
+-              <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
+-                {meta()}
+-              </span>
+-            </Show>
+-          </div>
++        <Show when={sources()} fallback={<Show when={props.showCopy}>{copyFooter()}</Show>}>
++          {(value) => (
++            <div data-slot="text-part-footer">
++              <SourcesChip
++                sources={value()}
++                icons={sourcesHost?.icons ?? "letters"}
++                appear={rendered}
++                onOpen={() => props.onOpenSources?.()}
++              />
++              {copyFooter()}
++            </div>
++          )}
+         </Show>
+       </div>
+     </Show>
+   )
++
++  function copyFooter() {
++    return (
++      <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
++        <MessageActionButton
++          icon={copied() ? "check" : "copy"}
++          label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
++          onMouseDown={(event) => event.preventDefault()}
++          onClick={copy}
++          aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
++        />
++        <Show when={meta()}>
++          <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
++            {meta()}
++          </span>
++        </Show>
++      </div>
++    )
++  }
+ }
+ 
+ export function AssistantReasoningContent(props: {
+diff --git a/packages/session-ui/src/sources/experiment.ts b/packages/session-ui/src/sources/experiment.ts
+new file mode 100644
+index 0000000..6e578c7
+--- /dev/null
++++ b/packages/session-ui/src/sources/experiment.ts
+@@ -0,0 +1,59 @@
++import { motionTuning } from "@opencode/ui/motion-tuning"
++import { createStore } from "solid-js/store"
++
++export type SiteIconMode = "letters" | "site"
++
++const enabled = motionTuning.toggle("sources.enabled", {
++  label: "Enabled",
++  group: "Experiments",
++  subsection: "Sources",
++  description: "Pages a turn searched and read",
++  target: '[data-component="sources-chip"]',
++  experiment: true,
++  value: false,
++})
++
++// A site's own icon is fetched from that site, which tells it the page was looked at; letters stay on this device.
++const icons = motionTuning.choice("sources.icons", {
++  label: "Site icons",
++  group: "Experiments",
++  subsection: "Sources",
++  when: enabled,
++  value: "letters",
++  labels: { letters: "Letters", site: "Site icon" },
++})
++
++/** The chip fading in as its turn finishes. */
++export const sourcesFade = motionTuning.spring("sources.fade", {
++  label: "Fade in",
++  group: "Experiments",
++  subsection: "Sources",
++  when: enabled,
++  shipped: "smooth",
++  presets: {
++    snappy: { duration: 0.2, bounce: 0 },
++    smooth: { duration: 0.3, bounce: 0 },
++    calm: { duration: 0.45, bounce: 0 },
++  },
++})
++
++/** A search opening to its results, and closing again. */
++export const sourcesExpand = motionTuning.spring("sources.expand", {
++  label: "Expand",
++  group: "Experiments",
++  subsection: "Sources",
++  when: enabled,
++  shipped: "smooth",
++  presets: {
++    snappy: { duration: 0.25, bounce: 0 },
++    smooth: { duration: 0.35, bounce: 0 },
++    calm: { duration: 0.45, bounce: 0 },
++  },
++})
++
++const [state, setState] = createStore({ enabled: enabled(), icons: icons() })
++
++motionTuning.subscribe(() => setState({ enabled: enabled(), icons: icons() }))
++
++/** Experiment: a "N sources" chip under a reply that searched the web, opening the turn's searches in the side panel. */
++export const sourcesExperiment = state
+diff --git a/packages/session-ui/src/sources/site-icon.tsx b/packages/session-ui/src/sources/site-icon.tsx
+new file mode 100644
+index 0000000..17c00c1
+--- /dev/null
++++ b/packages/session-ui/src/sources/site-icon.tsx
+@@ -0,0 +1,53 @@
++import { createSignal, Show } from "solid-js"
++import type { SiteIconMode } from "./experiment"
++
++// The project avatar colours, so a site's tile reads like the rest of the app's letter tiles in light and dark.
++const colors = ["orange", "yellow", "cyan", "green", "red", "pink", "blue", "purple"]
++
++// Hosts whose favicon failed this session, so every later tile for them shows its letter at once.
++const failed = new Set<string>()
++
++/** A site's letter tile, or with `site` its own favicon over the tile, falling back to the letter if that fails. */
++export function SiteIcon(props: { site: string; host: string; mode: SiteIconMode }) {
++  const [state, setState] = createSignal<"loading" | "loaded" | "failed">(failed.has(props.host) ? "failed" : "loading")
++  const favicon = () => props.mode === "site" && state() !== "failed"
++
++  return (
++    <span
++      data-component="site-icon"
++      data-state={favicon() ? state() : undefined}
++      aria-hidden="true"
++      style={{
++        "--site-icon-bg": `var(--v2-avatar-bg-${colors[hash(props.site) % colors.length]})`,
++      }}
++    >
++      <Show when={favicon()} fallback={letter(props.site)}>
++        <img
++          data-slot="site-icon-image"
++          src={`https://${props.host}/favicon.ico`}
++          alt=""
++          draggable={false}
++          referrerPolicy="no-referrer"
++          onLoad={(event) => {
++            if (event.currentTarget.naturalWidth > 0) return setState("loaded")
++            failed.add(props.host)
++            setState("failed")
++          }}
++          onError={() => {
++            failed.add(props.host)
++            setState("failed")
++          }}
++        />
++      </Show>
++    </span>
++  )
++}
++
++function letter(site: string) {
++  return Array.from(site)[0]?.toUpperCase() ?? ""
++}
++
++// FNV-1a, so a site keeps its colour everywhere it shows.
++function hash(value: string) {
++  return Array.from(value).reduce((sum, char) => Math.imul(sum ^ char.codePointAt(0)!, 16777619) >>> 0, 2166136261)
++}
+diff --git a/packages/session-ui/src/sources/sources-chip.tsx b/packages/session-ui/src/sources/sources-chip.tsx
+new file mode 100644
+index 0000000..aed5447
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources-chip.tsx
+@@ -0,0 +1,57 @@
++import { useI18n } from "@opencode/ui/context/i18n"
++import { Icon } from "@opencode/ui/icon"
++import { frameLoop, prefersReducedMotion, Spring } from "@opencode/ui/motion"
++import { createMemo, For, onCleanup, onMount, Show } from "solid-js"
++import { sourcesFade, type SiteIconMode } from "./experiment"
++import { SiteIcon } from "./site-icon"
++import type { TurnSources } from "./sources"
++import "./sources.css"
++
++/**
++ * "N sources" under a reply, with the first three sites stacked. `appear` fades it in, for a turn that finished while
++ * it was on screen; a turn that was already done shows it at rest.
++ */
++export function SourcesChip(props: { sources: TurnSources; icons: SiteIconMode; appear: boolean; onOpen: () => void }) {
++  const i18n = useI18n()
++  let button: HTMLButtonElement | undefined
++
++  const sites = createMemo(() =>
++    props.sources.sources
++      .filter((source, index, all) => all.findIndex((item) => item.site === source.site) === index)
++      .slice(0, 3),
++  )
++
++  onMount(() => {
++    if (!props.appear || !button) return
++    const el = button
++    const spring = Spring.fromDuration(0, prefersReducedMotion() ? { duration: 0.15, bounce: 0 } : sourcesFade())
++    spring.set(1)
++    el.style.opacity = "0"
++
++    onCleanup(
++      frameLoop.add((dt) => {
++        el.style.opacity = String(spring.step(dt))
++
++        if (!spring.resting) return true
++        el.style.opacity = ""
++
++        return false
++      }),
++    )
++  })
++
++  return (
++    <button ref={button} type="button" data-component="sources-chip" onClick={() => props.onOpen()}>
++      <span data-slot="sources-chip-icons">
++        <Show when={props.sources.sources.length > 0} fallback={<Icon name="globe" size="small" />}>
++          <For each={sites()}>{(source) => <SiteIcon site={source.site} host={source.host} mode={props.icons} />}</For>
++        </Show>
++      </span>
++      <span data-slot="sources-chip-label">
++        {props.sources.sources.length > 0
++          ? i18n.plural("ui.sources.count", props.sources.sources.length)
++          : i18n.t("ui.sources.none")}
++      </span>
++    </button>
++  )
++}
+diff --git a/packages/session-ui/src/sources/sources-panel.tsx b/packages/session-ui/src/sources/sources-panel.tsx
+new file mode 100644
+index 0000000..592f391
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources-panel.tsx
+@@ -0,0 +1,193 @@
++import { useI18n } from "@opencode/ui/context/i18n"
++import { Icon } from "@opencode/ui/icon"
++import { frameLoop, prefersReducedMotion, Spring } from "@opencode/ui/motion"
++import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js"
++import { sourcesExpand, type SiteIconMode } from "./experiment"
++import { SiteIcon } from "./site-icon"
++import type { SourceResult, SourceStep, TurnSources } from "./sources"
++import "./sources.css"
++
++/** A turn's searches and opened pages in the order they ran. `onOpen` opens a result's or page's URL. */
++export function SourcesPanel(props: { sources: TurnSources; icons: SiteIconMode; onOpen: (url: string) => void }) {
++  return (
++    <div data-component="sources-panel">
++      <For each={props.sources.steps}>
++        {(step) => (
++          <Switch>
++            <Match when={step.type === "search" ? step : undefined}>
++              {(search) => <SearchStep step={search()} icons={props.icons} onOpen={props.onOpen} />}
++            </Match>
++            <Match when={step.type === "fetch" ? step : undefined}>
++              {(page) => <FetchStep step={page()} onOpen={props.onOpen} />}
++            </Match>
++          </Switch>
++        )}
++      </For>
++    </div>
++  )
++}
++
++function SearchStep(props: {
++  step: Extract<SourceStep, { type: "search" }>
++  icons: SiteIconMode
++  onOpen: (url: string) => void
++}) {
++  const i18n = useI18n()
++  const [state, setState] = createSignal({ open: false, mounted: false })
++  const expandable = () => props.step.results.length > 0
++  let region: HTMLDivElement | undefined
++  let list: HTMLDivElement | undefined
++  let stop: (() => void) | undefined
++  // Height follows one spring; opening again mid-close keeps its velocity.
++  const spring = new Spring(0)
++  onCleanup(() => stop?.())
++
++  const toggle = () => {
++    const open = !state().open
++    setState({ open, mounted: true })
++
++    if (!region || !list) return
++    const el = region
++    // Layout is read once per toggle, never per frame: the results' height, now that they render, and where a
++    // resting region starts from. A moving one starts from its spring.
++    const height = open ? list.offsetHeight : 0
++
++    if (!stop) spring.snap(el.offsetHeight)
++    stop?.()
++    stop = undefined
++
++    if (prefersReducedMotion()) {
++      spring.snap(height)
++      el.style.height = open ? "" : "0px"
++
++      if (open) fadeIn(list)
++
++      if (!open) setState({ open, mounted: false })
++
++      return
++    }
++
++    const options = sourcesExpand()
++    spring.omega = (2 * Math.PI) / options.duration
++    spring.zeta = 1 - options.bounce
++    spring.set(height)
++    el.dataset.moving = ""
++
++    stop = frameLoop.add((dt) => {
++      el.style.height = `${spring.step(dt)}px`
++
++      if (!spring.resting) return true
++      delete el.dataset.moving
++      el.style.height = open ? "" : "0px"
++      stop = undefined
++
++      if (!open) setState({ open, mounted: false })
++
++      return false
++    })
++  }
++
++  return (
++    <div data-slot="sources-step" data-open={state().open ? "" : undefined}>
++      <button
++        type="button"
++        data-slot="sources-step-row"
++        aria-expanded={expandable() ? state().open : undefined}
++        disabled={!expandable()}
++        onClick={toggle}
++      >
++        <span data-slot="sources-step-icon">
++          <Icon name="magnifying-glass" size="small" />
++        </span>
++        <span data-slot="sources-step-text">
++          <span data-slot="sources-step-label">
++            {i18n.t(props.step.status === "error" ? "ui.sources.searchFailed" : "ui.sources.searched")}
++          </span>
++          <span data-slot="sources-step-detail">{props.step.query}</span>
++          <Show when={props.step.error}>{(error) => <span data-slot="sources-step-error">{error()}</span>}</Show>
++        </span>
++        <Show when={props.step.status === "completed"}>
++          <span data-slot="sources-step-count" data-empty={expandable() ? undefined : ""}>
++            {expandable() ? props.step.results.length : i18n.t("ui.sources.noResults")}
++          </span>
++        </Show>
++      </button>
++      <div ref={region} data-slot="sources-step-results" style={{ height: "0px" }}>
++        <div ref={list} data-slot="sources-step-list">
++          <Show when={state().mounted}>
++            <For each={props.step.results}>
++              {(result) => <ResultRow result={result} icons={props.icons} onOpen={props.onOpen} />}
++            </For>
++          </Show>
++        </div>
++      </div>
++    </div>
++  )
++}
++
++function ResultRow(props: { result: SourceResult; icons: SiteIconMode; onOpen: (url: string) => void }) {
++  return (
++    <a
++      data-slot="sources-result"
++      href={props.result.url}
++      title={props.result.url}
++      onClick={(event) => {
++        event.preventDefault()
++        props.onOpen(props.result.url)
++      }}
++    >
++      <SiteIcon site={props.result.site} host={props.result.host} mode={props.icons} />
++      <span data-slot="sources-result-text">
++        <span data-slot="sources-result-title">{props.result.title ?? props.result.url}</span>
++        <span data-slot="sources-result-site">{props.result.site}</span>
++      </span>
++    </a>
++  )
++}
++
++function FetchStep(props: { step: Extract<SourceStep, { type: "fetch" }>; onOpen: (url: string) => void }) {
++  const i18n = useI18n()
++
++  return (
++    <div data-slot="sources-step">
++      <a
++        data-slot="sources-step-row"
++        href={props.step.url}
++        title={props.step.url}
++        onClick={(event) => {
++          event.preventDefault()
++          props.onOpen(props.step.url)
++        }}
++      >
++        <span data-slot="sources-step-icon">
++          <Icon name="window-cursor" size="small" />
++        </span>
++        <span data-slot="sources-step-text">
++          <span data-slot="sources-step-label">
++            {i18n.t(props.step.status === "error" ? "ui.sources.openFailed" : "ui.sources.opened")}
++          </span>
++          <span data-slot="sources-step-detail">
++            {props.step.site}
++            <span data-slot="sources-step-path">{props.step.path}</span>
++          </span>
++          <Show when={props.step.error}>{(error) => <span data-slot="sources-step-error">{error()}</span>}</Show>
++        </span>
++      </a>
++    </div>
++  )
++}
++
++// Reduced motion trades the height for a short fade.
++function fadeIn(el: HTMLElement) {
++  const spring = Spring.fromDuration(0, { duration: 0.15, bounce: 0 })
++  spring.set(1)
++  el.style.opacity = "0"
++  frameLoop.add((dt) => {
++    el.style.opacity = String(spring.step(dt))
++
++    if (!spring.resting) return true
++    el.style.opacity = ""
++
++    return false
++  })
++}
+diff --git a/packages/session-ui/src/sources/sources-title.tsx b/packages/session-ui/src/sources/sources-title.tsx
+new file mode 100644
+index 0000000..3da9b02
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources-title.tsx
+@@ -0,0 +1,21 @@
++import { useI18n } from "@opencode/ui/context/i18n"
++import { Icon } from "@opencode/ui/icon"
++import { Show } from "solid-js"
++
++/** The Sources panel's title in its side-panel tab: "Sources · 87". */
++export function SourcesTitle(props: { count: number }) {
++  const i18n = useI18n()
++
++  return (
++    <div class="flex min-w-0 items-center gap-1.5">
++      <Icon name="globe" class="shrink-0" />
++      <span class="truncate">{i18n.t("ui.sources.title")}</span>
++      <Show when={props.count > 0}>
++        <span class="shrink-0 text-v2-text-text-faint" aria-hidden="true">
++          ·
++        </span>
++        <span class="shrink-0 tabular-nums text-v2-text-text-faint">{props.count}</span>
++      </Show>
++    </div>
++  )
++}
+diff --git a/packages/session-ui/src/sources/sources.css b/packages/session-ui/src/sources/sources.css
+new file mode 100644
+index 0000000..7323c97
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources.css
+@@ -0,0 +1,266 @@
++[data-component="site-icon"] {
++  --site-icon-size: 16px;
++  position: relative;
++  display: inline-flex;
++  flex: none;
++  align-items: center;
++  justify-content: center;
++  width: var(--site-icon-size);
++  height: var(--site-icon-size);
++  overflow: hidden;
++  border-radius: 9999px;
++  background-color: var(--site-icon-bg);
++  box-shadow: inset 0 0 0 0.5px var(--v2-alpha-dark-12);
++  color: var(--v2-avatar-fg);
++  font-family: var(--font-family-sans);
++  font-size: 9px;
++  font-weight: var(--font-weight-medium);
++  line-height: 1;
++  user-select: none;
++
++  &[data-state] {
++    background-color: var(--v2-background-bg-layer-02);
++  }
++
++  [data-slot="site-icon-image"] {
++    width: 100%;
++    height: 100%;
++    object-fit: cover;
++    opacity: 0;
++    transition: opacity 150ms ease-out;
++  }
++
++  &[data-state="loaded"] [data-slot="site-icon-image"] {
++    opacity: 1;
++  }
++}
++
++:root[data-motion="reduce"] [data-component="site-icon"] [data-slot="site-icon-image"] {
++  transition: none;
++}
++
++[data-component="sources-chip"] {
++  display: inline-flex;
++  flex: none;
++  align-items: center;
++  gap: 6px;
++  height: 20px;
++  padding-inline: 2px 8px;
++  border-radius: 9999px;
++  background-color: var(--v2-overlay-simple-overlay-hover);
++  color: var(--v2-text-text-muted);
++  font-family: var(--v2-font-family-sans);
++  font-size: 12px;
++  font-weight: 440;
++  line-height: var(--line-height-compact);
++  letter-spacing: 0.05px;
++  white-space: nowrap;
++  cursor: default;
++  transition:
++    background-color 150ms ease-out,
++    color 150ms ease-out;
++
++  &:hover,
++  &:focus-visible {
++    background-color: var(--v2-overlay-simple-overlay-pressed);
++    color: var(--v2-text-text-base);
++  }
++
++  &:focus-visible {
++    outline: 1px solid var(--v2-border-border-focus);
++    outline-offset: 1px;
++  }
++
++  [data-slot="sources-chip-icons"] {
++    display: inline-flex;
++    align-items: center;
++
++    > [data-slot="icon-svg"] {
++      margin-inline-start: 4px;
++      color: var(--v2-text-text-faint);
++    }
++  }
++
++  /* Each later site tucks under the one before it, cut by a mask so the gap shows whatever is behind the chip. */
++  [data-component="site-icon"] + [data-component="site-icon"] {
++    margin-inline-start: -3px;
++    mask-image: radial-gradient(circle at -5px 50%, transparent 9.5px, #000 10px);
++  }
++}
++
++:root[data-motion="reduce"] [data-component="sources-chip"] {
++  transition: none;
++}
++
++/* The turn's footer, set off from the reply by the same gap as its changed-files footer (`session-turn-diffs`). */
++[data-component="text-part"] [data-slot="text-part-footer"] {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  min-height: 20px;
++  margin-top: 16px;
++
++  > [data-slot="text-part-copy-wrapper"] {
++    flex: 1;
++    min-width: 0;
++    margin-top: 0;
++  }
++}
++
++[data-component="sources-panel"] {
++  display: flex;
++  flex-direction: column;
++  gap: 2px;
++  padding: 8px;
++
++  [data-slot="sources-step-row"] {
++    display: grid;
++    grid-template-columns: 16px minmax(0, 1fr) auto;
++    column-gap: 10px;
++    width: 100%;
++    padding: 8px;
++    border-radius: 8px;
++    color: inherit;
++    text-align: start;
++    text-decoration: none;
++    cursor: default;
++    transition: background-color 150ms ease-out;
++
++    &:not(:disabled):hover,
++    &:focus-visible {
++      background-color: var(--v2-overlay-simple-overlay-hover);
++    }
++
++    &:focus-visible {
++      outline: 1px solid var(--v2-border-border-focus);
++      outline-offset: -1px;
++    }
++  }
++
++  [data-slot="sources-step-icon"] {
++    display: flex;
++    align-items: center;
++    height: 16px;
++    color: var(--v2-text-text-faint);
++  }
++
++  [data-slot="sources-step-text"] {
++    display: flex;
++    flex-direction: column;
++    gap: 2px;
++    min-width: 0;
++  }
++
++  [data-slot="sources-step-label"] {
++    font-size: 12px;
++    font-weight: 440;
++    line-height: var(--line-height-compact);
++    letter-spacing: 0.05px;
++    color: var(--v2-text-text-faint);
++  }
++
++  [data-slot="sources-step-detail"],
++  [data-slot="sources-result-title"],
++  [data-slot="sources-result-site"] {
++    overflow: hidden;
++    white-space: nowrap;
++    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
++  }
++
++  [data-slot="sources-step-detail"] {
++    font-family: var(--font-family-mono);
++    font-size: 13px;
++    font-weight: 440;
++    line-height: var(--line-height-compact);
++    letter-spacing: -0.04px;
++    color: var(--v2-text-text-base);
++  }
++
++  [data-slot="sources-step-path"] {
++    color: var(--v2-text-text-muted);
++  }
++
++  [data-slot="sources-step-error"] {
++    font-size: 12px;
++    line-height: var(--line-height-compact);
++    color: var(--v2-state-fg-danger);
++  }
++
++  [data-slot="sources-step-count"] {
++    align-self: start;
++    height: 16px;
++    font-size: 12px;
++    font-weight: 440;
++    line-height: var(--line-height-compact);
++    font-variant-numeric: tabular-nums;
++    color: var(--v2-text-text-faint);
++  }
++
++  [data-slot="sources-step"][data-open] [data-slot="sources-step-count"] {
++    color: var(--v2-text-text-base);
++  }
++
++  [data-slot="sources-step-results"] {
++    overflow: clip;
++
++    &[data-moving] {
++      mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
++    }
++  }
++
++  [data-slot="sources-step-list"] {
++    display: flex;
++    flex-direction: column;
++    padding-block: 2px 6px;
++  }
++
++  /* The site icon sits on the step's text edge; the row's highlight bleeds out past it. */
++  [data-slot="sources-result"] {
++    display: grid;
++    grid-template-columns: 16px minmax(0, 1fr);
++    column-gap: 10px;
++    margin-inline-start: 26px;
++    padding: 6px 8px;
++    border-radius: 8px;
++    color: inherit;
++    text-decoration: none;
++    cursor: default;
++    transition: background-color 150ms ease-out;
++
++    &:hover,
++    &:focus-visible {
++      background-color: var(--v2-overlay-simple-overlay-hover);
++    }
++
++    &:focus-visible {
++      outline: 1px solid var(--v2-border-border-focus);
++      outline-offset: -1px;
++    }
++  }
++
++  [data-slot="sources-result-text"] {
++    display: flex;
++    flex-direction: column;
++    min-width: 0;
++  }
++
++  [data-slot="sources-result-title"] {
++    font-size: 13px;
++    line-height: var(--line-height-compact);
++    color: var(--v2-text-text-base);
++  }
++
++  [data-slot="sources-result-site"] {
++    font-size: 12px;
++    line-height: var(--line-height-compact);
++    letter-spacing: 0.05px;
++    color: var(--v2-text-text-faint);
++  }
++}
++
++:root[data-motion="reduce"] [data-component="sources-panel"] {
++  [data-slot="sources-step-row"],
++  [data-slot="sources-result"] {
++    transition: none;
++  }
++}
+diff --git a/packages/session-ui/src/sources/sources.test.ts b/packages/session-ui/src/sources/sources.test.ts
+new file mode 100644
+index 0000000..9141960
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources.test.ts
+@@ -0,0 +1,172 @@
++import type { SessionMessageAssistant, SessionMessageAssistantTool, SessionMessageInfo } from "@opencode/client/promise"
++import { describe, expect, test } from "bun:test"
++import { turnMessages, turnSources } from "./sources"
++
++const model = { id: "claude-sonnet-4", providerID: "anthropic" }
++
++// The text content the websearch tool writes for its results (packages/core/src/tool/plugin/websearch.ts).
++const searchText = (results: { url: string; title?: string; content?: string }[]) =>
++  results.length
++    ? results
++        .map(
++          (result) =>
++            `## [${result.title ?? result.url}](${result.url})${result.content ? `\n\n${result.content}` : ""}`,
++        )
++        .join("\n\n")
++    : "No search results found. Please try a different query."
++
++const search = (id: string, query: string, results: { url: string; title?: string; content?: string }[]) =>
++  ({
++    type: "tool",
++    id,
++    name: "websearch",
++    state: {
++      status: "completed",
++      input: { query },
++      content: [{ type: "text", text: searchText(results) }],
++      metadata: { provider: "exa" },
++    },
++    time: { created: 1, ran: 2, completed: 3 },
++  }) satisfies SessionMessageAssistantTool
++
++const fetch = (id: string, url: string, error?: string) =>
++  ({
++    type: "tool",
++    id,
++    name: "webfetch",
++    state: error
++      ? { status: "error", input: { url, format: "markdown" }, error: { type: "ToolExecutionError", message: error } }
++      : { status: "completed", input: { url, format: "markdown" }, content: [{ type: "text", text: "# Page" }] },
++    time: { created: 1, ran: 2, completed: 3 },
++  }) satisfies SessionMessageAssistantTool
++
++const assistant = (id: string, content: SessionMessageAssistant["content"]): SessionMessageAssistant => ({
++  id,
++  type: "assistant",
++  agent: "build",
++  model,
++  content,
++  time: { created: 1, completed: 4 },
++})
++
++describe("turnSources", () => {
++  test("lists searches and fetches across the turn's messages in the order they ran", () => {
++    const value = turnSources([
++      assistant("msg_1", [
++        { type: "text", text: "Looking." },
++        search("call_1", "one million checkboxes", [
++          { url: "https://eieio.games/blog/one-million-checkboxes", title: "One Million Checkboxes" },
++        ]),
++        {
++          type: "tool",
++          id: "call_read",
++          name: "read",
++          state: { status: "completed", input: {}, content: [{ type: "text", text: "x" }] },
++          time: { created: 1 },
++        },
++      ]),
++      assistant("msg_2", [fetch("call_2", "https://www.nytimes.com/2024/07/03/technology/checkboxes.html")]),
++    ])
++
++    expect(value.steps.map((step) => [step.type, step.id])).toEqual([
++      ["search", "call_1"],
++      ["fetch", "call_2"],
++    ])
++    expect(value.steps[0]).toMatchObject({
++      query: "one million checkboxes",
++      status: "completed",
++      results: [{ title: "One Million Checkboxes", site: "eieio.games" }],
++    })
++    expect(value.steps[1]).toMatchObject({
++      site: "nytimes.com",
++      host: "www.nytimes.com",
++      path: "/2024/07/03/technology/checkboxes.html",
++    })
++  })
++
++  test("counts each page once, however its URL was written", () => {
++    const value = turnSources([
++      assistant("msg_1", [
++        search("call_1", "a", [
++          { url: "https://eieio.games/", title: "eieio" },
++          { url: "https://example.com/post?id=1" },
++        ]),
++        search("call_2", "b", [
++          { url: "https://www.eieio.games", title: "eieio again" },
++          { url: "http://example.com/post?id=1#top" },
++          { url: "https://example.com/post?id=2" },
++        ]),
++        fetch("call_3", "https://eieio.games/"),
++      ]),
++    ])
++
++    expect(value.sources.map((source) => source.url)).toEqual([
++      "https://eieio.games/",
++      "https://example.com/post?id=1",
++      "https://example.com/post?id=2",
++    ])
++  })
++
++  test("keeps a title only when the tool had one, and skips headings that aren't web links", () => {
++    const [step] = turnSources([
++      assistant("msg_1", [
++        search("call_1", "titles", [
++          { url: "https://example.com/a" },
++          { url: "https://example.com/b", title: "Notes [draft](v2)", content: "## [Not a result](file:///etc/hosts)" },
++        ]),
++      ]),
++    ]).steps
++
++    expect(step?.type === "search" ? step.results.map((result) => [result.url, result.title]) : []).toEqual([
++      ["https://example.com/a", undefined],
++      ["https://example.com/b", "Notes [draft](v2)"],
++    ])
++  })
++
++  test("reads empty and failed searches and failed fetches without inventing sources", () => {
++    const failed: SessionMessageAssistantTool = {
++      type: "tool",
++      id: "call_2",
++      name: "websearch",
++      state: {
++        status: "error",
++        input: { query: "rate limited" },
++        error: { type: "ToolExecutionError", message: "Web search rate limited (HTTP 429)" },
++      },
++      time: { created: 1, completed: 3 },
++    }
++
++    const value = turnSources([
++      assistant("msg_1", [
++        search("call_1", "nothing here", []),
++        failed,
++        fetch("call_3", "https://down.example.com/page", "Request failed with status code: 503"),
++      ]),
++    ])
++
++    expect(value.steps).toMatchObject([
++      { type: "search", status: "completed", results: [] },
++      { type: "search", status: "error", results: [], error: "Web search rate limited (HTTP 429)" },
++      { type: "fetch", status: "error", error: "Request failed with status code: 503" },
++    ])
++    expect(value.sources).toEqual([])
++  })
++})
++
++describe("turnMessages", () => {
++  test("takes the assistant messages after the prompt, up to the next prompt", () => {
++    const user = (id: string): SessionMessageInfo => ({ id, type: "user", text: id, time: { created: 1 } })
++
++    const messages = [
++      user("msg_u1"),
++      assistant("msg_a1", []),
++      assistant("msg_a2", []),
++      user("msg_u2"),
++      assistant("msg_a3", []),
++    ]
++
++    expect(turnMessages(messages, "msg_u1").map((message) => message.id)).toEqual(["msg_a1", "msg_a2"])
++    expect(turnMessages(messages, "msg_u2").map((message) => message.id)).toEqual(["msg_a3"])
++    expect(turnMessages(messages, "msg_missing")).toEqual([])
++  })
++})
+diff --git a/packages/session-ui/src/sources/sources.ts b/packages/session-ui/src/sources/sources.ts
+new file mode 100644
+index 0000000..0b2ea7a
+--- /dev/null
++++ b/packages/session-ui/src/sources/sources.ts
+@@ -0,0 +1,141 @@
++import type { SessionMessageAssistant, SessionMessageAssistantTool, SessionMessageInfo } from "@opencode/client/promise"
++import { Option, Schema } from "effect"
++import { currentToolError, currentToolInput, currentToolOutput } from "../message/current-tool-state"
++
++const decodeQuery = Schema.decodeUnknownOption(Schema.Struct({ query: Schema.String }))
++
++const decodeURL = Schema.decodeUnknownOption(Schema.Struct({ url: Schema.String }))
++
++export type SourceResult = {
++  url: string
++  title?: string
++  /** The hostname without `www.`, as shown and as the letter tile's seed. */
++  site: string
++  /** The full hostname, where its favicon lives. */
++  host: string
++}
++
++type StepStatus = "running" | "completed" | "error"
++
++export type SourceStep =
++  | { type: "search"; id: string; query: string; status: StepStatus; results: SourceResult[]; error?: string }
++  | ({ type: "fetch"; id: string; path: string; status: StepStatus; error?: string } & SourceResult)
++
++export type TurnSources = {
++  steps: SourceStep[]
++  /** Distinct sources in the order the turn met them: search results and opened pages, deduped by URL. */
++  sources: SourceResult[]
++}
++
++/** The web searches and page fetches of one turn's assistant messages, in the order they ran. */
++export function turnSources(messages: readonly SessionMessageAssistant[]): TurnSources {
++  const steps = messages.flatMap((message) => message.content.flatMap((content) => step(content)))
++  const seen = new Set<string>()
++
++  const sources = steps
++    .flatMap((item) => (item.type === "search" ? item.results : item.status === "error" ? [] : [item]))
++    .filter((item) => {
++      const key = identity(item.url)
++
++      if (seen.has(key)) return false
++      seen.add(key)
++
++      return true
++    })
++
++  return { steps, sources }
++}
++
++/** The assistant messages of the turn a user message opened, grouped as the timeline groups them. */
++export function turnMessages(messages: readonly SessionMessageInfo[], from: string) {
++  const start = messages.findIndex((message) => message.id === from)
++
++  if (start === -1) return []
++
++  const end = messages.findIndex(
++    (message, index) => index > start && (message.type === "user" || message.type === "shell"),
++  )
++
++  return messages
++    .slice(start + 1, end === -1 ? undefined : end)
++    .filter((message): message is SessionMessageAssistant => message.type === "assistant")
++}
++
++function step(content: SessionMessageAssistant["content"][number]): SourceStep[] {
++  if (content.type !== "tool" || content.state.status === "streaming") return []
++
++  if (content.name === "websearch") return [search(content)]
++
++  if (content.name !== "webfetch") return []
++
++  const page = Option.getOrUndefined(
++    decodeURL(currentToolInput(content)).pipe(Option.flatMapNullishOr((input) => source(input.url))),
++  )
++
++  if (!page) return []
++
++  return [
++    {
++      type: "fetch",
++      id: content.id,
++      ...page,
++      path: path(page.url),
++      status: content.state.status,
++      error: currentToolError(content),
++    },
++  ]
++}
++
++function search(tool: SessionMessageAssistantTool): SourceStep {
++  return {
++    type: "search",
++    id: tool.id,
++    query: Option.match(decodeQuery(currentToolInput(tool)), { onNone: () => "", onSome: (input) => input.query }),
++    status: tool.state.status === "streaming" ? "running" : tool.state.status,
++    results: tool.state.status === "completed" ? results(currentToolOutput(tool) ?? "") : [],
++    error: currentToolError(tool),
++  }
++}
++
++// The websearch tool keeps its structured results out of the message and writes each one as a `## [title](url)`
++// heading in its text content (packages/core/src/tool/plugin/websearch.ts); a result without a title repeats its URL.
++function results(text: string) {
++  return text.split("\n").flatMap((line): SourceResult[] => {
++    if (!line.startsWith("## [") || !line.endsWith(")")) return []
++
++    const split = line.lastIndexOf("](")
++
++    if (split < 4) return []
++
++    const result = source(line.slice(split + 2, -1))
++
++    if (!result) return []
++
++    const title = line.slice(4, split).trim()
++
++    return [{ ...result, title: title && title !== result.url ? title : undefined }]
++  })
++}
++
++function source(url: string): SourceResult | undefined {
++  if (!URL.canParse(url)) return undefined
++
++  const parsed = new URL(url)
++
++  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return undefined
++
++  return { url, host: parsed.hostname, site: parsed.hostname.replace(/^www\./, "") }
++}
++
++// One source per page: the scheme, `www.`, a trailing slash and the fragment don't make another.
++function identity(url: string) {
++  const parsed = new URL(url)
++
++  return `${parsed.hostname.replace(/^www\./, "")}${parsed.pathname.replace(/\/+$/, "")}${parsed.search}`
++}
++
++function path(url: string) {
++  const parsed = new URL(url)
++
++  return `${parsed.pathname.replace(/\/+$/, "")}${parsed.search}`
++}
+diff --git a/packages/session-ui/src/timeline/session-timeline-row.tsx b/packages/session-ui/src/timeline/session-timeline-row.tsx
+index 1b526e8..b955e20 100644
+--- a/packages/session-ui/src/timeline/session-timeline-row.tsx
++++ b/packages/session-ui/src/timeline/session-timeline-row.tsx
+@@ -11,6 +11,8 @@ import { DiffChanges } from "@opencode/ui/diff-changes"
+ import { Dynamic } from "solid-js/web"
+ import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+ import { useData } from "../context"
++import { useSources } from "../context/sources"
++import { turnSources } from "../sources/sources"
+ import { TimelineSeparator } from "../components/timeline-separator"
+ import {
+   SessionAssistantContent,
+@@ -82,6 +84,7 @@ export function createSessionTimelineRowRenderer(input: {
+ }) {
+   const i18n = useI18n()
+   const data = useData()
++  const sourcesHost = useSources()
+   // Cached timelines retain file-change subgroup identities alongside their disclosure choices.
+   const patchGroupKeys = input.disclosure.patchGroupKeys ?? new Map<string, string>()
+   const patchPartKeys = new WeakMap<SessionMessageAssistant["content"][number], string>()
+@@ -357,6 +360,19 @@ export function createSessionTimelineRowRenderer(input: {
+       return item ? contentDefaultOpen(item) : undefined
+     })
+ 
++    // Only the finished turn's footer part derives them, and only while the host shows sources.
++    const turnSourcesValue = createMemo(() => {
++      const current = ref()
++
++      if (!sourcesHost?.enabled || !current || copyContentID(row().userMessageID) !== current.partID) return undefined
++
++      const value = turnSources(
++        input.projection.assistantMessagesByParent().get(row().userMessageID) ?? emptyAssistantMessages,
++      )
++
++      return value.steps.length > 0 ? value : undefined
++    })
++
+     const disclosureKey = () => (content()?.type === "reasoning" ? ref()!.partID : row().group.key)
+ 
+     return (
+@@ -370,6 +386,8 @@ export function createSessionTimelineRowRenderer(input: {
+                 contentID={ref()!.partID}
+                 showAssistantCopyPartID={copyContentID(row().userMessageID)}
+                 turnDurationMs={duration(row().userMessageID)}
++                sources={turnSourcesValue()}
++                onOpenSources={() => sourcesHost?.open(row().userMessageID)}
+                 defaultOpen={defaultOpen()}
+                 toolOpen={input.disclosure.value(disclosureKey()) ?? defaultOpen()}
+                 onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}
+diff --git a/packages/ui/package.json b/packages/ui/package.json
+index e5597a4..6c5d195 100644
+--- a/packages/ui/package.json
++++ b/packages/ui/package.json
+@@ -54,6 +54,7 @@
+     "./loader": "./src/feedback/loader/loader.tsx",
+     "./menu": "./src/navigation/menu/menu.tsx",
+     "./motion": "./src/motion/index.ts",
++    "./motion-tuning": "./src/motion-tuning.ts",
+     "./progress-circle": "./src/feedback/progress-circle/progress-circle.tsx",
+     "./project-avatar": "./src/data-display/project-avatar/project-avatar.tsx",
+     "./radio": "./src/forms/radio/radio.tsx",
+diff --git a/packages/ui/src/i18n/en.ts b/packages/ui/src/i18n/en.ts
+index 4c96200..61193ec 100644
+--- a/packages/ui/src/i18n/en.ts
++++ b/packages/ui/src/i18n/en.ts
+@@ -260,6 +260,15 @@ const source = {
+   "ui.message.duration.minutesSeconds": "{{minutes}}m {{seconds}}s",
+   "ui.message.interrupted": "Interrupted",
+   "ui.message.modelVariant": "{{model}} ({{variant}})",
++  "ui.sources.count.one": "{{count}} source",
++  "ui.sources.count.other": "{{count}} sources",
++  "ui.sources.none": "No sources",
++  "ui.sources.title": "Sources",
++  "ui.sources.searched": "Searched web",
++  "ui.sources.searchFailed": "Search failed",
++  "ui.sources.noResults": "No results",
++  "ui.sources.opened": "Opened page",
++  "ui.sources.openFailed": "Couldn’t open page",
+   "ui.sessionTimeline.notice.model": "Model",
+   "ui.sessionTimeline.notice.modelSwitched": "Switched to {{model}}",
+   "ui.sessionTimeline.notice.variantSwitched": "Switched variant to {{variant}}",
+diff --git a/packages/ui/src/icons/catalog.ts b/packages/ui/src/icons/catalog.ts
+index 2a5333d..590f049 100644
+--- a/packages/ui/src/icons/catalog.ts
++++ b/packages/ui/src/icons/catalog.ts
+@@ -278,6 +278,10 @@ const icons = {
+     viewBox: "0 0 16 16",
+     body: `<path d="M2 7V9M4.5 5V11M7 2.5V13.5M9.5 4.5V11.5M12 6V10M14.5 7.25V8.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`,
+   },
++  "outline-steer": {
++    viewBox: "0 0 16 16",
++    body: `<path d="M8 14C11.3137 14 14 11.3137 14 8C14 4.68634 11.3137 2 8 2C4.68626 2 2 4.68634 2 8C2 11.3137 4.68626 14 8 14Z" stroke-linecap="round" stroke-linejoin="round" stroke="currentColor"/><path d="M8 3.86328V12.1391C10.2854 12.1391 12.1379 10.2863 12.1379 8.00121C12.1379 5.71608 10.2854 3.86328 8 3.86328Z" fill="currentColor"/>`,
++  },
+   archive: {
+     viewBox: "0 0 16 16",
+     body: `<path d="M13.1112 13.5555V14.0555H13.6112V13.5555H13.1112ZM2.889 13.5555H2.389L2.389 14.0555H2.889V13.5555ZM3.38901 5.55546L3.38901 5.05546L2.38901 5.05546L2.38901 5.55546L2.88901 5.55546L3.38901 5.55546ZM14.4446 2.44434H14.9446V1.94434L14.4446 1.94434L14.4446 2.44434ZM14.4446 5.55545L14.4446 6.05545L14.9446 6.05545V5.55545H14.4446ZM1.55566 5.55546L1.05566 5.55545L1.05566 6.05546L1.55566 6.05546L1.55566 5.55546ZM1.5557 2.44436L1.5557 1.94436L1.05571 1.94436L1.0557 2.44435L1.5557 2.44436ZM13.1112 5.55546H12.6112V13.5555H13.1112H13.6112V5.55546H13.1112ZM2.889 13.5555H3.389L3.38901 5.55546L2.88901 5.55546L2.38901 5.55546L2.389 13.5555H2.889ZM14.4446 2.44434H13.9446V5.55545H14.4446H14.9446V2.44434H14.4446ZM1.55566 5.55546L2.05566 5.55547L2.0557 2.44436L1.5557 2.44436L1.0557 2.44435L1.05566 5.55545L1.55566 5.55546ZM6.22234 8.22213V8.72213H9.7779V8.22213V7.72213H6.22234V8.22213ZM13.1112 13.5555V13.0555H2.889V13.5555V14.0555H13.1112V13.5555ZM1.5557 2.44436L1.5557 2.94436L14.4446 2.94434L14.4446 2.44434L14.4446 1.94434L1.5557 1.94436L1.5557 2.44436ZM14.4446 5.55545L14.4446 5.05545L1.55566 5.05546L1.55566 5.55546L1.55566 6.05546L14.4446 6.05545L14.4446 5.55545Z" fill="currentColor"/>`,
+diff --git a/packages/ui/src/motion-tuning.ts b/packages/ui/src/motion-tuning.ts
+new file mode 100644
+index 0000000..c2f53d2
+--- /dev/null
++++ b/packages/ui/src/motion-tuning.ts
+@@ -0,0 +1,95 @@
++// mobile(M-036): minimal motion-tuning shim for the Sources experiment (issue #66).
++//
++// Upstream v2.2.1 powers the Sources experiment through the Knobs dev console
++// (ui/src/motion-tuning.ts + motion-tuning-features/-fields, reachable only from the desktop
++// component-lab routes). This closure vendors neither the console nor those routes, so this shim
++// carries exactly the four faces the experiment consumes — toggle / choice / spring / subscribe —
++// over the SAME storage format: the `opencode.motion.v2` localStorage record (toggles as 0|1,
++// choices as the option index, springs as `<id>.duration` / `<id>.bounce`; non-default entries
++// only, record removed when empty). A future re-sync of the real console reads the same values;
++// until then the settings Experimental tab's Sources row is the only writer. Every knob stays
++// false/at its shipped default unless flipped: nothing auto-enables, and the app's settings
++// store is not involved. Re-sync from upstream before adding more faces.
++import type { DurationOptions } from "./motion"
++
++type Meta = {
++  label: string
++  group: string
++  subsection?: string
++  description?: string
++  target?: string
++  experiment?: boolean
++  when?: () => boolean
++}
++
++// Bumped when the upstream record's shape changes, so stale values are dropped; same key as upstream.
++const key = "opencode.motion.v2"
++
++const listeners = new Set<() => void>()
++
++const saved = load()
++
++export const motionTuning = {
++  toggle(id: string, meta: Meta & { value: boolean }) {
++    return () => number(id, meta.value ? 1 : 0) === 1
++  },
++  choice<const T extends string>(id: string, meta: Meta & { value: NoInfer<T>; labels: Record<T, string> }) {
++    const options = Object.keys(meta.labels) as [T, ...T[]]
++
++    return () => options[number(id, options.indexOf(meta.value))] ?? meta.value
++  },
++  spring(id: string, meta: Meta & { presets: Record<string, DurationOptions>; shipped?: string }) {
++    const initial = meta.presets[meta.shipped ?? "snappy"]
++
++    return (): DurationOptions => ({
++      duration: number(`${id}.duration`, initial.duration),
++      bounce: number(`${id}.bounce`, initial.bounce),
++    })
++  },
++  subscribe(listener: () => void) {
++    listeners.add(listener)
++
++    return () => {
++      listeners.delete(listener)
++    }
++  },
++}
++
++/** The stored value of a toggle, for readers outside the experiment module (the settings row). */
++export function storedToggle(id: string, initial: boolean) {
++  return number(id, initial ? 1 : 0) === 1
++}
++
++/** Flips a toggle and persists it in the upstream record; the entry is dropped again at the default. */
++export function setStoredToggle(id: string, value: boolean, initial: boolean) {
++  if (value === initial) delete saved[id]
++  else saved[id] = value ? 1 : 0
++
++  write()
++  notify()
++}
++
++function notify() {
++  listeners.forEach((listener) => listener())
++}
++
++function number(id: string, fallback: number) {
++  const value = Number(saved[id])
++
++  return id in saved && Number.isFinite(value) ? value : fallback
++}
++
++function load(): Record<string, number> {
++  try {
++    return JSON.parse(localStorage.getItem(key) ?? "{}")
++  } catch {
++    return {}
++  }
++}
++
++function write() {
++  try {
++    if (Object.keys(saved).length === 0) return localStorage.removeItem(key)
++    localStorage.setItem(key, JSON.stringify(saved))
++  } catch {}
++}
+diff --git a/packages/ui/src/motion/index.ts b/packages/ui/src/motion/index.ts
+index 858d4ed..1ec2b71 100644
+--- a/packages/ui/src/motion/index.ts
++++ b/packages/ui/src/motion/index.ts
+@@ -1,5 +1,9 @@
+ // mobile(M-035): minimized entry for the interface zoom/motion alignment (issue #65).
+-// Upstream v2.2.1 also re-exports ./spring, ./loop, ./velocity, ./waapi and ./slider from
+-// this entry; those submodules belong to feature domains this closure does not vendor, so
+-// only the reduced-motion face ships here. Re-sync from upstream before adding more.
++// Upstream v2.2.1 also re-exports ./velocity, ./waapi and ./slider from this entry; those
++// submodules belong to feature domains this closure does not vendor, so only the
++// reduced-motion face ships in M-035. Re-sync from upstream before adding more.
++// mobile(M-036): issue #66 appends the Sources experiment's two submodules below (spring for
++// the chip/panel springs, loop for the frame scheduler); the ./reduced line stays M-035's.
+ export * from "./reduced"
++export * from "./spring"
++export * from "./loop"
+diff --git a/packages/ui/src/motion/loop.ts b/packages/ui/src/motion/loop.ts
+new file mode 100644
+index 0000000..208f7fe
+--- /dev/null
++++ b/packages/ui/src/motion/loop.ts
+@@ -0,0 +1,139 @@
++export type FrameJob = (dt: number) => boolean
++
++export interface FrameScheduler {
++  request(callback: (time: number) => void): number
++  cancel(id: number): void
++}
++
++interface Entry {
++  job: FrameJob
++  read: (() => void) | undefined
++  active: boolean
++  next: Entry | undefined
++}
++
++/** Intrusive list: no arrays, iterators, closures or job snapshots allocated per frame. */
++export function createFrameLoop(
++  scheduler: FrameScheduler = {
++    request: (callback) => requestAnimationFrame(callback),
++    cancel: (id) => cancelAnimationFrame(id),
++  },
++) {
++  let head: Entry | undefined
++  let tail: Entry | undefined
++  let pending: number | undefined
++  let previous = 0
++  let hasPrevious = false
++  let running = false
++  let dirty = false
++  let readers = 0
++
++  function compact() {
++    dirty = false
++    readers = 0
++    let node = head
++    let last: Entry | undefined
++    head = undefined
++
++    while (node) {
++      if (node.active) {
++        if (node.read) readers++
++
++        if (last) last.next = node
++        head ??= node
++        last = node
++      }
++
++      node = node.next
++    }
++
++    if (last) last.next = undefined
++    tail = last
++  }
++
++  function wake() {
++    if (pending === undefined && !running && head) pending = scheduler.request(tick)
++  }
++
++  function tick(now: number) {
++    pending = undefined
++    running = true
++    const dt = !hasPrevious ? 1 / 60 : Math.max(0, Math.min(0.1, (now - previous) / 1000))
++    previous = now
++    hasPrevious = true
++    // New jobs join the next frame. Removal only marks nodes, preserving traversal.
++    const end = tail
++
++    try {
++      if (readers > 0) {
++        for (let node = head; node; node = node.next) {
++          if (node.active && node.read) {
++            try {
++              node.read()
++            } catch (error) {
++              node.active = false
++              dirty = true
++              throw error
++            }
++          }
++
++          if (node === end) break
++        }
++      }
++
++      for (let node = head; node; node = node.next) {
++        if (node.active) {
++          try {
++            if (!node.job(dt)) {
++              node.active = false
++              dirty = true
++            }
++          } catch (error) {
++            node.active = false
++            dirty = true
++            throw error
++          }
++        }
++
++        if (node === end) break
++      }
++    } finally {
++      running = false
++
++      if (dirty) compact()
++
++      if (!head) hasPrevious = false
++      wake()
++    }
++  }
++
++  function add(job: FrameJob, read?: () => void): () => void {
++    const entry: Entry = { job, read, active: true, next: undefined }
++
++    if (read) readers++
++
++    if (tail) tail.next = entry
++    head ??= entry
++    tail = entry
++    wake()
++
++    return () => {
++      if (!entry.active) return
++      entry.active = false
++      dirty = true
++
++      if (running) return
++      compact()
++
++      if (!head) {
++        if (pending !== undefined) scheduler.cancel(pending)
++        pending = undefined
++        hasPrevious = false
++      }
++    }
++  }
++
++  return { add, addMeasured: (read: () => void, write: FrameJob) => add(write, read) }
++}
++
++export const frameLoop = createFrameLoop()
+diff --git a/packages/ui/src/motion/spring.ts b/packages/ui/src/motion/spring.ts
+new file mode 100644
+index 0000000..456907b
+--- /dev/null
++++ b/packages/ui/src/motion/spring.ts
+@@ -0,0 +1,125 @@
++export interface SpringOptions {
++  omega?: number
++  zeta?: number
++}
++
++export interface DurationOptions {
++  duration: number
++  bounce: number
++}
++
++const matrix = new Float64Array(7)
++
++function coefficients(w: number, z: number, t: number) {
++  matrix[0] = w
++  matrix[1] = z
++  matrix[2] = t
++  const zw = z * w
++  const e = Math.exp(-zw * t)
++  const near = Math.abs(z - 1) < 1e-7
++  const wd = near ? 0 : w * Math.sqrt(Math.abs(1 - z * z))
++  const wdt = wd * t
++  const c = near ? 1 : z < 1 ? Math.cos(wdt) : Math.cosh(wdt)
++  const s = near ? t : (z < 1 ? Math.sin(wdt) : Math.sinh(wdt)) / wd
++  matrix[3] = e * (c + zw * s)
++  matrix[4] = e * s
++  matrix[5] = -e * w * w * s
++  matrix[6] = e * (c - zw * s)
++}
++
++/** Unit-mass spring. Exact analytic damped-harmonic step. */
++export class Spring {
++  value = 0
++  target = 0
++  velocity = 0
++  omega = 26
++  zeta = 0.86
++
++  constructor(value: number, { omega = 26, zeta = 0.86 }: SpringOptions = {}) {
++    if (
++      !Number.isFinite(value) ||
++      !Number.isFinite(omega) ||
++      omega <= 0 ||
++      omega > 240 ||
++      !Number.isFinite(zeta) ||
++      zeta < 0 ||
++      zeta > 2 ||
++      omega / 480 >= 2 * (Math.sqrt(1 + zeta * zeta) - zeta)
++    ) {
++      throw new RangeError(
++        "Spring requires a finite value, omega in (0, 240], zeta in [0, 2], and stable 480 Hz coefficients",
++      )
++    }
++
++    this.value = this.target = value
++    this.omega = omega
++    this.zeta = zeta
++  }
++
++  /** SwiftUI's nonnegative bounce mapping: omega = 2π / duration; zeta = 1 − bounce. */
++  static fromDuration(value: number, { duration, bounce }: DurationOptions): Spring {
++    if (
++      !Number.isFinite(duration) ||
++      duration < (2 * Math.PI) / 240 ||
++      !Number.isFinite(bounce) ||
++      bounce < 0 ||
++      bounce >= 1
++    ) {
++      throw new RangeError("duration must be >= 2π/240 seconds; bounce must be in [0, 1)")
++    }
++
++    return new Spring(value, { omega: (2 * Math.PI) / duration, zeta: 1 - bounce })
++  }
++
++  set(target: number, options?: { velocity?: number }): this {
++    if (!Number.isFinite(target) || (options?.velocity !== undefined && !Number.isFinite(options.velocity)))
++      throw new RangeError("Non-finite spring target or velocity")
++    this.target = target
++
++    if (options?.velocity !== undefined) this.velocity = options.velocity
++
++    return this
++  }
++
++  snap(value: number): this {
++    if (!Number.isFinite(value)) throw new RangeError("Non-finite spring value")
++    this.value = this.target = value
++    this.velocity = 0
++
++    return this
++  }
++
++  step(dt: number): number {
++    const target = this.target
++    const x0 = this.value - target
++    const v0 = this.velocity
++
++    if (x0 === 0 && v0 === 0) return target
++    const t = Number.isFinite(dt) ? Math.min(0.1, Math.max(0, dt)) : 0
++
++    if (t === 0) return this.value
++    const w = this.omega
++    const z = this.zeta
++
++    if (w !== matrix[0] || z !== matrix[1] || t !== matrix[2]) coefficients(w, z, t)
++    const d = matrix[3]! * x0 + matrix[4]! * v0
++    const velocity = matrix[5]! * x0 + matrix[6]! * v0
++
++    if (Math.abs(d) < 0.005 && Math.abs(velocity) < 0.02) {
++      this.value = target
++      this.velocity = 0
++
++      return target
++    }
++
++    const value = target + d
++    this.value = value
++    this.velocity = velocity
++
++    return value
++  }
++
++  get resting(): boolean {
++    return Math.abs(this.value - this.target) < 0.005 && Math.abs(this.velocity) < 0.02
++  }
++}

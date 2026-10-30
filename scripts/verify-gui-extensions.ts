@@ -6,9 +6,10 @@
 // Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
 // rebuilt dist baseline.
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + M-001..M-026)
+// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + M-001..M-036)
 // and the commit-1 docs, the structural facts the gui-extensions unit document relies on:
-// the 13-builtin inventory with its os/web-guard/main-entry faces (acceptance 1), the
+// the 15-builtin inventory with its os/web-guard/main-entry faces (acceptance 1; issue #66
+// added sources + goal after microsoft-office, in the v2.2.1 gui-plugins compose order), the
 // token/dependency classification, the upstream desktop+DEV double gate, the issue #26
 // first-party management face (M-025 disable-record union + M-026 settings mount), the
 // state-restoration faces, the three guarantees (no dead menu / no draft loss / no remote
@@ -32,9 +33,11 @@
 //   - `api.session.interrupt` three-call-site exhaustion: FIRST LOCK verify-session-workbench
 //     (issue #9). Referenced, not re-locked.
 //   - the extension enablement five-layer chain: FIRST LOCK verify-commands-menus group 5.
-//   - the exact registered patch-ID set and count 33: FIRST LOCK verify-attachments-artifacts
+//   - the exact registered patch-ID set and count 35: FIRST LOCK verify-attachments-artifacts
 //     + verify-commands-menus group 8 (set-equality cross-reference) — both revised in the
-//     same commit as the M-025/M-026 registration (#23 same-commit precedent). Declared.
+//     same commit as the patch registrations (#23 same-commit precedent; issue #65 registered
+//     M-035 on dev, issue #66 registered M-036 in the rebase round: 34 -> 35, M-019 still
+//     reserved-absent). Declared.
 //   - the @opencode/gui-extensions specifier set {34, 8, 2, 1}: FIRST LOCK
 //     verify-agent-capabilities group 3. Declared unchanged; not re-locked.
 //   - settings-page-dev.tsx has ZERO probe readers before this issue; group 3 are its
@@ -90,7 +93,7 @@ const GUI_EXT = "vendor/upstream/packages/gui-extensions/src/"
 const APP = "vendor/upstream/packages/app/"
 const MH = "packages/mobile-hosts/"
 
-/** The 13 built-in ids in compose order (renderer.ts compose sequence = the doc table). */
+/** The 15 built-in ids in compose order (renderer.ts compose sequence = the doc table). */
 const EXPECTED_IDS = [
   "context",
   "btw",
@@ -105,6 +108,8 @@ const EXPECTED_IDS = [
   "ssh",
   "wsl",
   "microsoft-office",
+  "sources",
+  "goal",
 ] as const
 
 /** The six lazy main entries (main.ts) — the "phone never runs main-process extensions" inventory face. */
@@ -119,7 +124,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail(`${label}: set equality broken — missing=${JSON.stringify(missing)} extra=${JSON.stringify(extra)}`)
 }
 
-// --- 1. Inventory face (acceptance 1): builtins 13 / main.ts same table / os / guards ---
+// --- 1. Inventory face (acceptance 1): builtins 15 / main.ts same table / os / guards ---
 {
   const renderer = await read(`${GUI_EXT}renderer.ts`)
   // Each compose entry sits on its own line; count entries and map the spread identifiers.
@@ -128,7 +133,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n)", composeStart))
   const entryLines = composeBlock.split("\n").filter((line) => /^\s*\{/.test(line))
   if (entryLines.length !== EXPECTED_IDS.length)
-    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryLines.length} (inventory drift — refresh the unit doc table; NEGATIVE 1 injects a 14th)`)
+    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryLines.length} (inventory drift — refresh the unit doc table; NEGATIVE 1 injects a 16th)`)
   const spreadIds = [...composeBlock.matchAll(/\.\.\.(\w+),/g)].map((m) => m[1]!)
   const camel: Record<string, string> = { microsoftOffice: "microsoft-office" }
   setEq(
@@ -138,20 +143,20 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   )
 
   const main = await read(`${GUI_EXT}main.ts`)
-  // Same table: the 13 `import X from "./X"` lines (one per builtin, ids reserved).
+  // Same table: the 15 `import X from "./X"` lines (one per builtin, ids reserved).
   const mainImports = [...main.matchAll(/import (\w+) from "\.\/([\w-]+)"/g)].map((m) => m[1]!)
   const mainCamel: Record<string, string> = { microsoftOffice: "microsoft-office" }
   setEq(
     mainImports.map((id) => mainCamel[id] ?? id),
     EXPECTED_IDS,
-    "1: main.ts import table (same 13 builtins)",
+    "1: main.ts import table (same 15 builtins)",
   )
   // Six lazy main entries (first lock verify-agent-capabilities group 3 mainEntries==6 —
   // cross-reference witness; the SET below is this probe's new lock).
   const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*main:/g)].map((m) => m[1]!)
   setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy main-entry set (phone never runs these in the app)")
 
-  // os declarations: exactly wsl ["windows"], nowhere else (13 index.ts scan).
+  // os declarations: exactly wsl ["windows"], nowhere else (15 index.ts scan).
   const osFiles: string[] = []
   for (const id of EXPECTED_IDS) {
     const dir = id === "microsoft-office" ? "microsoft-office" : id
@@ -212,9 +217,10 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const browserContract = squash(await read(`${GUI_EXT}browser/contract.ts`))
   if (/Ipc\.define\(/.test(browserContract)) fail("2: browser/contract.ts must stay Contract-only")
 
-  // Contract.define exactly three files (browser/file/review).
+  // Contract.define exactly three files (browser/file/review); the issue #66 sources/goal
+  // builtins are scanned too and carry none (zero-Contract baseline extends to them).
   const contractFiles: string[] = []
-  for (const id of ["browser", "file", "review", "terminal", "details", "context", "btw", "debug", "pairing", "updater", "ssh", "wsl", "microsoft-office"] as const) {
+  for (const id of ["browser", "file", "review", "terminal", "details", "context", "btw", "debug", "pairing", "updater", "ssh", "wsl", "microsoft-office", "sources", "goal"] as const) {
     let source: string
     try {
       source = await read(`${GUI_EXT}${id}/contract.ts`)
@@ -225,7 +231,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   }
   setEq(contractFiles, ["browser", "file", "review"], "2: Contract.define file set (exactly three)")
 
-  // Hard requires are zero across the 13 builtins (blocked is structurally absent).
+  // Hard requires are zero across the 15 builtins (blocked is structurally absent;
+  // sources' soft browser `uses` is the pending-until-active accessor face, not a require).
   for (const id of EXPECTED_IDS) {
     const dir = id === "microsoft-office" ? "microsoft-office" : id
     const source = await read(`${GUI_EXT}${dir}/index.ts`)
@@ -471,12 +478,13 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   ]) {
     if (!unit.includes(sentence)) fail(`7: gui-extensions.md lost the key sentence "${sentence}"`)
   }
-  // Inventory table: exactly 13 rows keyed by `| <id> |`.
+  // Inventory table: exactly 15 rows keyed by `| <id> |`.
   for (const id of EXPECTED_IDS) {
     if (!unit.includes(`| ${id} |`)) fail(`7: gui-extensions.md inventory table lost the ${id} row`)
   }
-  // Capability mapping three sets (web 8 / desktop-host 4 / excluded 1 = {wsl}, issue #62).
-  const webSet = ["context", "btw", "debug", "terminal", "file", "review", "details", "microsoft-office"]
+  // Capability mapping three sets (web 10 / desktop-host 4 / excluded 1 = {wsl}, issue #62;
+  // issue #66 moved sources + goal into the web set as renderer-side toggle rows).
+  const webSet = ["context", "btw", "debug", "terminal", "file", "review", "details", "microsoft-office", "sources", "goal"]
   const desktopSet = ["browser", "pairing", "ssh", "updater"]
   for (const id of webSet) {
     if (!unit.includes(`| ${id} |`) || !unit.split(`| ${id} |`)[1]!.includes("web")) fail(`7: capability mapping lost ${id} in the web set`)
@@ -491,8 +499,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail("7: gui-extensions.md wsl row lost the static-excluded-row semantics (issue #62)")
   if (!unit.split(`| wsl |`)[1]!.includes("零操作"))
     fail("7: gui-extensions.md wsl row lost the zero-operation wording")
-  if (!unit.includes("管理面呈现 13 行 = 12 宿主定义行 + 1 静态排除行") || !unit.includes("issue #62/N12"))
-    fail("7: gui-extensions.md lost the 12+1 management-row arithmetic (issue #62)")
+  if (!unit.includes("管理面呈现 15 行 = 14 宿主定义行 + 1 静态排除行") || !unit.includes("issue #62/N12"))
+    fail("7: gui-extensions.md lost the 14+1 management-row arithmetic (issue #62; 13->15/12->14 with the M-036 registrations)")
 
   // Issue #62/N12 code locks: the static excluded row in the first-party manager. The
   // vendored root.tsx os filter stays untouched (group 1 witnesses), so the row is a
@@ -577,8 +585,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3482 || distManifest.totalBytes !== 153654746)
-    fail(`8: current web-dist baseline drifted (expected 3482/153654746, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3493 || distManifest.totalBytes !== 153776571)
+    fail(`8: current web-dist baseline drifted (expected 3493/153776571, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -626,14 +634,14 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 console.log(
   "verify-gui-extensions: PASS (" +
-    "1: inventory — builtins compose exactly 13 entries with the id set equality, main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
-    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review}, zero requires: across 13 builtins, always-inactive core sentence, five mobile Panel registrations (tab 10/menu 20/menu 30/menu 40/drawer 50), btw narrow gate; " +
+    "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
+    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} (sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, five mobile Panel registrations (tab 10/menu 20/menu 30/menu 40/drawer 50 — sources 60 / goal 70 are locked by verify-goal-sources), btw narrow gate; " +
     "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), settings-page-dev optional-chain toggle + installed.list reader + reload two channels, host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
     "4: issue #26 face — M-025 import/instance/filter/union/early-exit + two markers, M-026 predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, M-008/M-018 hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
-    "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 13 inventory rows + capability three-set mapping (web 8/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and 12+1 arithmetic), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
+    "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the M-036 registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — current dist baseline 3482/153654746 (issue #65 rebuild incl. M-035; registered patch set 34 = M-001..M-035 with M-019 reserved-absent, per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #64 fix round 153638138 (first build 153638140), issue #63 rebuild 3480/153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3493/153776571 (issue #66 incl. M-036; registered patch set 35 = M-001..M-036 with M-019 reserved-absent, per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )

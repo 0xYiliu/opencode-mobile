@@ -78,8 +78,9 @@
     "patches/mobile/0030-M-031-utf8-basic-auth.patch",
     "patches/mobile/0032-M-032-vault-androidx-listener.patch",
     "patches/mobile/0033-M-033-interface-mode-setting.patch",
-"patches/mobile/0034-M-034-experimental-settings.patch",
-"patches/mobile/0035-M-035-appearance-motion-zoom.patch"
+    "patches/mobile/0034-M-034-experimental-settings.patch",
+    "patches/mobile/0035-M-035-appearance-motion-zoom.patch",
+    "patches/mobile/0036-M-036-goal-sources-panels.patch"
   ],
   "excluded": {
     "packages": [

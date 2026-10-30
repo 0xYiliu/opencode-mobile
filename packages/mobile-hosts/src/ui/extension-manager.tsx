@@ -27,7 +27,10 @@ import { createTranslator, type MessageKey } from "../i18n"
 import { getMobileHosts } from "../runtime"
 import { isValidExtensionId, sharedExtensionDisabled } from "../extensions/manager"
 
-/** Extensions whose whole contribution runs renderer-side on this device: toggleable. */
+/** Extensions whose whole contribution runs renderer-side on this device: toggleable.
+ * goal and sources (issue #66) are renderer-side too; their per-server entry gates are
+ * separate from this capability row (sources: the Experimental tab switch; goal: presence
+ * of the goal plugin on the connected server). */
 const WEB_ACTIVE_EXTENSIONS: ReadonlySet<string> = new Set([
   "context",
   "btw",
@@ -37,6 +40,8 @@ const WEB_ACTIVE_EXTENSIONS: ReadonlySet<string> = new Set([
   "review",
   "details",
   "microsoft-office",
+  "sources",
+  "goal",
 ])
 
 /** Extensions whose main entry lives in the desktop main process: presented, not toggleable. */

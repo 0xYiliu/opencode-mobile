@@ -43,7 +43,8 @@
 //      export, the dual-symbol sprite (opencode-v2-icon-new-*), the functional
 //      pixelSize (new artwork stays 16px where small shrinks to 14) and the
 //      next()-switched viewBox/use href. Catalog negative boundary: sidebar-right
-//      stays, all FIFTEEN other v2.2.1 additions stay out, and the pin trash /
+//      stays, all FOURTEEN other v2.2.1 additions stay out (issue #66 moved
+//      outline-steer to the adopted set for M-036's goal icon), and the pin trash /
 //      copy artwork bodies are still verbatim (the v2.2.1 body rewrites — the
 //      "graduated" new-icons defaults — must NOT land, or the experiment would
 //      have no visible delta).
@@ -257,8 +258,12 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!content.includes(anchor)) fail(`5: message-content.tsx lost the plumbing anchor ${anchor.trim().slice(0, 60)}`)
   }
-  // Negative boundary: rewrite content must not leak.
-  for (const token of ["useSources", "SourcesChip", "linkSegments", "UserRun", "run?: UserRun", "commentCardTarget", "quoteTooltip", "springStyle", "userRunSpring", "agentLabel", "useNow"]) {
+  // Negative boundary: rewrite content must not leak. Issue #66 revision: useSources /
+  // SourcesChip leave the table (the sources chain registers under M-036 from that issue on)
+  // and the "run?: UserRun" entry is dropped as redundant under the kept "UserRun" substring;
+  // the remaining eight tokens still fence the user-runs/quote/link-rewrites domain (the
+  // sources side of the boundary is now ALSO locked from inside by verify-goal-sources.ts).
+  for (const token of ["linkSegments", "UserRun", "commentCardTarget", "quoteTooltip", "springStyle", "userRunSpring", "agentLabel", "useNow"]) {
     if (content.includes(token)) fail(`5: message-content.tsx adopted v2.2.1 rewrite content outside S38 (${token})`)
   }
 }
@@ -315,14 +320,14 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!catalog.includes('  "sidebar-right": {'))
     fail("6: catalog.ts lost sidebar-right (the v2.2.1 deletion must NOT be adopted — pin keeps the icon)")
 
-  // MINOR-1: all FIFTEEN rejected v2.2.1 additions stay out (17 additions − 2 adopted).
+  // MINOR-1: all FOURTEEN remaining rejected v2.2.1 additions stay out (17 additions − 3
+  // adopted: minus, outline-chevron-right, and outline-steer since issue #66 / M-036).
   const rejected = [
     "outline-magnifier-minus",
     "outline-magnifier-plus",
     "outline-expand",
     "outline-code-brackets",
     "outline-quote",
-    "outline-steer",
     "outline-wave-audio",
     "comment",
     "outline-text",
@@ -510,8 +515,8 @@ console.log(
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
     "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; no backgroundActivity/timelineWidth/sidebarOpen (reduceMotion dropped from the negative list by M-035's rebase round, issue #65), showFileTree+terminalPlacement kept; " +
     "4: model.test.ts defaults +2 lines, showFileTree/terminalPlacement lines and original test name kept; " +
-    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/useSources/linkSegments/quote/spring leak; " +
-    "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right only, sidebar-right kept, 15 rejections out, pin trash/copy artwork bodies locked; " +
+    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/linkSegments/quote/spring leak (the useSources/SourcesChip tokens moved to the M-036 boundary, issue #66); " +
+    "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right/outline-steer only (issue #66), sidebar-right kept, 14 rejections out, pin trash/copy artwork bodies locked; " +
     "7: fold CSS two selector blocks in, data-run-folded/run-actions/user-message-link out; " +
     "8: six en keys (app 4 after settings.experimental.description, ui 2 after ui.message.collapse), zh/zht/ko/de/fr key-free, both fallback anchors verbatim; " +
     "9: M-034 in BOTH manifests, patch face exactly the fourteen S38 files, no other patch references the face, no vendor source outside the set mentions it; " +
