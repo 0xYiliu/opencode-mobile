@@ -1779,6 +1779,10 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **TypeError 零复现的登记口径**：设备侧 console 采集未完成（CDP 通道受阻），本轮**不声称**「TypeError 零复现」的运行期证明；源级唯一消费点已修（rendered 测试坏树/好树双态留证）+ 静态探针 rc=0——运行期复现与否归补测轮。
 - **设备侧 QA 副作用清单（恢复访问后应复原或由用户裁定）**：`system cover_enabled 0`（原 1）、`global stay_on_while_plugged_in 7`、`system screen_off_timeout 600000`；无其他设备状态变更。
 
+### 最终 HEAD 复扫（issue #90 段，B-1 纪律——台账提交 bb304cf 后实跑）
+
+全探针 sweep 复跑（31 × `bun run scripts/verify-*.ts`，HEAD `bb304cf`）：**27/31 直接 rc=0；两例 intermediates 假阳性（verify-permission-requests/verify-session-workbench 扫 mergeDebugAssets 副本集外 chunk）按在册处置复跑 rc=0（build 移出→复测→原样还原，APK SHA `231c3776…` 前后一致）**——有效终态 **29/31 rc=0**，与首轮完全一致；rc=1 两例同集同归因（verify-inline-ssh-device 设备 CDP 依赖 / verify-recovery 陈旧正则 dev 既有，基线对照 rc=1 同值）。台账提交仅增本文 prose（无探针读 build-and-verify.md）；`git diff --check` rc=0；工作树零未提交变更。
+
 ### 诚实边界（issue #90 段）
 
 - **S2 连接链真机回归未执行**（#61 设备轮基线在 #67 合并前，post-#67 连接链真机实证仍空缺——验收 2 的该子项不声称通过）；S1 仅部分达成（3 主机呈列已实证；Settings 可达点击路径与 TypeError 运行期零复现待补测）。
