@@ -10,8 +10,8 @@ import { InlineInput } from "@opencode/ui/inline-input"
 import { Keybind } from "@opencode/ui/keybind"
 import { Menu } from "@opencode/ui/menu"
 import { TextShimmer } from "@opencode/ui/text-shimmer"
-import type { BackgroundTask, MountedSession, SessionScreen } from "@opencode/gui-extensions/sdk"
-import { ExtensionSlot } from "@/runtime/extension/render"
+import type { BackgroundTask, MountedSession, SessionScreen } from "@opencode/plugin/gui"
+import { PluginSlot as ExtensionSlot } from "@/runtime/plugin/render"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useSettings } from "@/settings/model"
 import { useServer } from "@/runtime/server/current"
@@ -28,7 +28,9 @@ import { parseVoiceDelegation } from "./voice-delegation"
 import { useCommand } from "@/shell/commands/command"
 import { SessionAncestorTrail, SessionProjectMenu, SessionTitleHeader } from "../session-identity-header"
 import { SessionHeaderSpacer } from "@/session/header/session-header"
-import { SessionRunningMenu } from "@/session/header/session-running-menu"
+// mobile(M-037): the running-menu assembly left with the host migration (upstream removed it with the session
+// header rewrite); the timeline child title shows the working indicator instead.
+import { SessionWorkingIndicator } from "@/session/header/session-working-indicator"
 
 type BlockingTask = { type: "shell" | "subagent"; partID: string; id?: string; label?: string }
 
@@ -435,17 +437,6 @@ function MessageTimelineView(
     </Show>
   )
 
-  const runningMenu = (title?: string) => (
-    <SessionRunningMenu
-      sessionID={sessionID()}
-      owner={props.background.running.sessionID()}
-      blocking={props.background.running.blocking()}
-      tasks={props.background.running.tasks()}
-      onReveal={virtualized.revealPart}
-      title={title}
-    />
-  )
-
   return (
     <VirtualizedTimeline
       workspaceSession={workspaceSession}
@@ -485,7 +476,9 @@ function MessageTimelineView(
                       />
                     )}
                   </Show>
-                  <Show when={parentID()}>{runningMenu(childTitle())}</Show>
+                  <Show when={parentID() && childTitle()}>
+                    <SessionWorkingIndicator sessionID={sessionID()} />
+                  </Show>
                   <Show when={!parentID() && (childTitle() || title.editing)}>
                     <Show
                       when={title.editing}
@@ -536,7 +529,6 @@ function MessageTimelineView(
                       />
                     </Show>
                   </Show>
-                  <Show when={!parentID()}>{runningMenu()}</Show>
                   <Show when={!parentID() && sessionID()} keyed>
                     {(id) => (
                       <Menu

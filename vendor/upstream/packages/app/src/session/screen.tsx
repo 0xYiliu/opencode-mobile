@@ -12,30 +12,31 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ResizeHandle } from "@opencode/ui/resize-handle"
-import { Slot, type BackgroundTask, type MountedSession, type SessionScreen } from "@opencode/gui-extensions/sdk"
+import type { BackgroundTask, MountedSession, SessionScreen } from "@opencode/plugin/gui"
+// mobile(M-037): the slot registry reads through the builtin alias (the pin-structured layout keeps `Slot`).
+import { BuiltinSlot as Slot } from "@opencode/plugin/gui/builtin"
 import { MessageTimeline } from "@/session/timeline/message-timeline"
 import { ComposerDropzone } from "@/composer/dropzone"
 import { useSettings } from "@/settings/model"
 import type { SessionModel } from "@/session/model"
 import { SESSION_PANEL_WIDTH_MIN } from "@/session/session-panel-width"
 import { SessionPanelFrame } from "@/session/session-frame"
-import { useExtensionHost } from "@/runtime/extension/host"
-import { ExtensionLinks } from "@/runtime/extension/render"
-import { createPanelSidebar, createRegion, DockRegion, MobilePanel } from "@/runtime/extension/panels"
-import { createMobileViews, MobileViewTabs } from "@/runtime/extension/mobile"
-import { useExtensionAttachment } from "@/runtime/extension/host-apis"
-import { createMountedSession } from "@/runtime/extension/mounted-session"
+import { usePluginHost } from "@/runtime/plugin/host"
+import { PluginLinks } from "@/runtime/plugin/render"
+import { createPanelSidebar, createRegion, DockRegion, MobilePanel } from "@/runtime/plugin/panels"
+import { createMobileViews, MobileViewTabs } from "@/runtime/plugin/mobile"
+import { usePluginAttachment } from "@/runtime/plugin/host-apis"
+import { createMountedSession } from "@/runtime/plugin/mounted-session"
 import { useUsageExceededDialogs } from "./usage-exceeded-dialogs"
 import { SessionErrorFallback } from "./route-error"
 import { createSessionScreenLayout } from "./screen-layout"
-import { SideRegion } from "@/runtime/extension/side-region"
+import { SideRegion } from "@/runtime/plugin/side-region"
 import { createSessionTimelineInteraction } from "./timeline/interaction"
 import { createTimelineSearchController } from "./timeline/search-controller"
 import { TimelineSearchBar } from "./timeline/search-bar"
 import { ActiveSessionComposerRegion, createActiveSessionRegion } from "./composer/region"
 import { SessionIdentityHeader } from "./session-identity-header"
 import { SessionReviewToggle } from "./header/session-header-actions"
-import { SessionRunningMenu } from "./header/session-running-menu"
 import { createAnimatedPresence } from "@/runtime/animated-presence"
 import { createTimelineCache } from "./timeline/cache"
 
@@ -44,14 +45,14 @@ export function SessionScreenView(props: { session: SessionModel }) {
   const mounted = createMountedSession(props.session)
 
   return (
-    <ExtensionLinks session={mounted.view()}>
+    <PluginLinks session={mounted.view()}>
       <SessionScreenContent
         session={props.session}
         screen={mounted.screen}
         view={mounted.view}
         bindBackground={mounted.bindBackground}
       />
-    </ExtensionLinks>
+    </PluginLinks>
   )
 }
 
@@ -63,8 +64,8 @@ function SessionScreenContent(props: {
   bindBackground: (tasks: () => readonly BackgroundTask[]) => void
 }) {
   const session = props.session
-  const host = useExtensionHost()
-  const attachment = useExtensionAttachment()
+  const host = usePluginHost()
+  const attachment = usePluginAttachment()
   const settings = useSettings()
   const isDesktop = session.isDesktop
   const bottomMobileTabs = () => settings.general.mobileTitlebarPosition() === "bottom"
@@ -340,21 +341,15 @@ function SessionScreenContent(props: {
                 view={props.view()}
                 sidebar={sidebar}
                 visible
-                open={() => region.openFor(entry().extension)}
+                open={() => region.openFor(entry().plugin)}
               />
             )}
           </Match>
           <Match when={session.identity.params.id}>
             <Show when={isDesktop() && !messagesReady()}>
-              <SessionIdentityHeader sessionID={session.identity.params.id ?? ""} session={session.data.info()}>
-                <SessionRunningMenu
-                  sessionID={session.identity.params.id}
-                  owner={composer.requests.background.running.sessionID()}
-                  blocking={composer.requests.background.running.blocking()}
-                  tasks={composer.requests.background.running.tasks()}
-                  title={session.data.parentID() ? session.data.info()?.title : undefined}
-                />
-              </SessionIdentityHeader>
+              {/* mobile(M-037): the running-menu assembly left with the host migration (upstream removed it with the
+                  session header rewrite); the identity header falls back to its working indicator. */}
+              <SessionIdentityHeader sessionID={session.identity.params.id ?? ""} session={session.data.info()} />
             </Show>
             <Show when={messagesReady() && session.identity.params.id}>{timelineView()}</Show>
           </Match>

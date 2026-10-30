@@ -8,7 +8,7 @@
     "pinDate": "2026-10-23T10:28:20-07:00",
     "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
     "cache": "~/.cache/opencode-upstream (clone --filter=blob:none)",
-    "acquisitionCommand": "scripts/vendor-sync.sh  (git -C <cache> archive <pin> -- packages/<p>... LICENSE | tar -x --exclude=packages/ai/test/fixtures/recordings)"
+    "acquisitionCommand": "scripts/vendor-sync.sh  (git -C <cache> archive <pin> -- packages/<p>... LICENSE | tar -x --exclude=packages/ai/test/fixtures/recordings; packages/gui-plugins extracts from manifest packageSources instead of the pin)"
   },
   "closure": {
     "packages": [
@@ -19,7 +19,7 @@
       "session-ui",
       "ui",
       "util",
-      "gui-extensions",
+      "gui-plugins",
       "plugin-browser",
       "plugin",
       "ai"
@@ -73,16 +73,22 @@
         "files": 53,
         "reason": "Review correction (N5): registered in vendor-manifest.json but missing here. packages/app/src/shell/titlebar/titlebar.tsx imports desktop/icons/beta/64x64.png for the beta channel titlebar icon (unconditional import, resolved at build)."
       }
-    ]
+    ],
+    "packageSources": {
+      "gui-plugins": {
+        "revision": "3ebcf9a32c7b28f658cfee80775448929361727a",
+        "reason": "packages/gui-plugins was born after the pin, in upstream dae4077a96 (2026-10-27, 'feat(plugin): add OpenCode Desktop GUI plugins', whose parent lacks the directory); the v2.2.1 release tree (3ebcf9a) is the acquisition source registered in vendor-manifest.json#packageSources. Every other closure package still extracts at the pin."
+      }
+    }
   },
   "mobilePatches": [
     {
       "id": "M-001",
-      "file": "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+      "file": "patches/mobile/0001-M-001-gui-plugins-strip-native-test-deps.patch",
       "targets": [
-        "packages/gui-extensions/package.json"
+        "packages/gui-plugins/package.json"
       ],
-      "summary": "devDependencies: remove electron, @lydell/node-pty, devtools-protocol",
+      "summary": "devDependencies: remove electron, @lydell/node-pty, devtools-protocol (gui-plugins package)",
       "reason": "Electron-only dev tooling (own tests/typecheck); electron postinstall pulls ~110MB binaries.",
       "verification": "V2 web build succeeds.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
@@ -137,6 +143,14 @@
       "verification": "V3 layered round-trip after M-027; focused source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout verification remains part of G36.",
       "rebase": "New LAYERED patch generated against pin b4525d79bf + M-001..M-027; target is the mobile method-switch branch in ConnectServerScreen.",
       "summary": "Mobile initial connection method prompt/actions use two centered rows."
+    },
+    {
+      "id": "M-037",
+      "file": "patches/mobile/0037-M-037-gui-plugins-migration.patch",
+      "targets": 172,
+      "summary": "gui-extensions -> gui-plugins@v2.2.1 package replacement + plugin/src/gui host library + app runtime/plugin + util/abort + consumer token surgery + ui motion-tuning/search-list/typeahead/cascade",
+      "reason": "Issue #67 S41+N11 (see patches/mobile/manifest.json M-037 entry for the full statement).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins = 3ebcf9a32c7b28f658cfee80775448929361727a"
     }
   ],
   "upstreamPatches": {
@@ -156,7 +170,7 @@
     "notCarried": [
       {
         "patch": "gcp-metadata@8.1.2",
-        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment (lock resolves gcp-metadata@8.1.4). Bun silently skips keys whose version does not match resolution, so carrying it would be a dead entry. Recorded as explicit deviation per plan \u00a72."
+        "reason": "Declared in upstream package.json but absent from the upstream bun.lock patchedDependencies segment (lock resolves gcp-metadata@8.1.4). Bun silently skips keys whose version does not match resolution, so carrying it would be a dead entry. Recorded as explicit deviation per plan §2."
       },
       {
         "patch": "@ai-sdk/google@3.0.73",
@@ -205,7 +219,7 @@
     "upstreamLicense": "MIT",
     "file": "LICENSE",
     "copyright": "Copyright (c) 2025 opencode",
-    "notice": "NOTICE-THIRD-PARTY.md generation is BLOCKED pending user decisions: scripts/license-audit.ts audits 1089 installed packages and stops on 12 entries (9 distinct packages, 6 families when platform binaries are folded) that are unknown or weak-copyleft \u2014 lightningcss 1.32.0/1.33.0 + platform binaries (MPL-2.0, transitive of vite and tailwindcss), dompurify 3.4.14 (MPL-2.0, runtime transitive of mermaid), axe-core 4.13.0 (MPL-2.0, via lighthouse, build-time only), @sentry/cli + @sentry/cli-linux-x64 2.58.6 (FSL-1.1-MIT, build-time only, Sentry disabled), json-schema 0.4.0 (AFL-2.1 OR BSD-3-Clause), khroma 2.1.0 (no license field). Per AGENTS.md the audit halts instead of deciding; no NOTICE is written until the user rules on these. MPL-2.0 is file-level copyleft and commonly accepted for NOTICE inclusion with source availability, but that classification is the user's call, not the tooling's."
+    "notice": "NOTICE-THIRD-PARTY.md generation is BLOCKED pending user decisions: scripts/license-audit.ts audits 1089 installed packages and stops on 12 entries (9 distinct packages, 6 families when platform binaries are folded) that are unknown or weak-copyleft — lightningcss 1.32.0/1.33.0 + platform binaries (MPL-2.0, transitive of vite and tailwindcss), dompurify 3.4.14 (MPL-2.0, runtime transitive of mermaid), axe-core 4.13.0 (MPL-2.0, via lighthouse, build-time only), @sentry/cli + @sentry/cli-linux-x64 2.58.6 (FSL-1.1-MIT, build-time only, Sentry disabled), json-schema 0.4.0 (AFL-2.1 OR BSD-3-Clause), khroma 2.1.0 (no license field). Per AGENTS.md the audit halts instead of deciding; no NOTICE is written until the user rules on these. MPL-2.0 is file-level copyleft and commonly accepted for NOTICE inclusion with source availability, but that classification is the user's call, not the tooling's."
   },
   "discipline": {
     "wholeRepoCopied": false,

@@ -41,9 +41,9 @@ test("startup auth_token credentials override a persisted same-url server; witho
 test("treats WSL sidecars as remote server connections", () => {
   expect(
     ServerConnection.local({
-      type: "extension",
+      type: "plugin",
       key: "wsl:Debian",
-      extension: "wsl",
+      plugin: "wsl",
       state: "ready",
       connecting: false,
       authenticationRequired: false,

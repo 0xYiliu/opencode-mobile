@@ -23,6 +23,17 @@ PACKAGES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[
 TOPFILES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["topLevelFiles"]))' "$MANIFEST")"
 MOBILE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["mobilePatches"]))' "$MANIFEST")"
 PARTIALS="$(python3 -c 'import json,sys; print(" ".join(e["path"] for e in json.load(open(sys.argv[1])).get("partialPackages", [])))' "$MANIFEST")"
+# Per-package extraction revisions (issue #67): manifest "packageSources" overrides the
+# pin for the listed packages; the pristine tree is built under the same rule as
+# scripts/vendor-sync.sh so both sides of the equivalence check agree.
+declare -A PKG_REV
+while read -r p r; do PKG_REV["$p"]="$r"; done < <(python3 - "$MANIFEST" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for p, r in (m.get("packageSources") or {}).items():
+    print(f"{p} {r}")
+PY
+)
 
 SCRATCH="${TMPDIR:-}"
 case "$SCRATCH" in
@@ -39,16 +50,24 @@ status=0
 
 # ---------- (a) tree equivalence ----------
 PATHSPEC=()
-for p in $PACKAGES; do PATHSPEC+=("packages/$p"); done
+for p in $PACKAGES; do
+  [ -n "${PKG_REV[$p]:-}" ] || PATHSPEC+=("packages/$p")
+done
 for f in $TOPFILES; do PATHSPEC+=("$f"); done
 for f in $PARTIALS; do PATHSPEC+=("$f"); done
 
 git -C "$CACHE" archive "$PIN" -- "${PATHSPEC[@]}" \
   | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$WORK/pristine"
+for p in $PACKAGES; do
+  r="${PKG_REV[$p]:-}"
+  [ -n "$r" ] || continue
+  git -C "$CACHE" archive "$r" -- "packages/$p" \
+    | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$WORK/pristine"
+done
 
 for mp in $MOBILE_PATCHES; do
   (cd "$SCRATCH" && git apply --directory="$WORK_REL/pristine" --check "$DEST/$mp") \
-    || { echo "V3(a) FAIL: mobile patch $mp does not apply to pristine pin tree"; exit 1; }
+    || { echo "V3(a) FAIL: mobile patch $mp does not apply to pristine tree (pin + packageSources)"; exit 1; }
   (cd "$SCRATCH" && git apply --directory="$WORK_REL/pristine" "$DEST/$mp")
 done
 
@@ -60,7 +79,12 @@ if [ -n "$DIFFS" ]; then
   echo "$DIFFS" | head -40
   status=1
 else
-  echo "V3(a) OK: vendor packages tree == pin $PIN + registered mobile patches (byte-identical; install/build artifact dirs node_modules|dist|.vite|.turbo excluded)"
+  SOURCES_NOTE="(per-package sources:"
+  for p in $PACKAGES; do
+    SOURCES_NOTE="$SOURCES_NOTE $p=${PKG_REV[$p]:-$PIN}"
+  done
+  SOURCES_NOTE="$SOURCES_NOTE)"
+  echo "V3(a) OK: vendor packages tree == pin $PIN + packageSources + registered mobile patches, byte-identical $SOURCES_NOTE (install/build artifact dirs node_modules|dist|.vite|.turbo excluded)"
 fi
 
 for f in $TOPFILES; do

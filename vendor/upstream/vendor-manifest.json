@@ -6,7 +6,7 @@
     "pin": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
     "pinDate": "2026-10-23T10:28:20-07:00",
     "pinSubject": "fix(app,client): wire session transcript retention and evict background transcripts (#57025)",
-    "acquisition": "git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE | tar -x"
+    "acquisition": "git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE | tar -x (packages/gui-plugins from packageSources[gui-plugins] = 3ebcf9a... instead of the pin)"
   },
   "packages": [
     "app",
@@ -16,7 +16,7 @@
     "session-ui",
     "ui",
     "util",
-    "gui-extensions",
+    "gui-plugins",
     "plugin-browser",
     "plugin",
     "ai"
@@ -46,7 +46,7 @@
     "vite@8.2.2": "patches/vite@8.2.2.patch"
   },
   "mobilePatches": [
-    "patches/mobile/0001-M-001-gui-extensions-strip-native-test-deps.patch",
+    "patches/mobile/0001-M-001-gui-plugins-strip-native-test-deps.patch",
     "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
     "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
     "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
@@ -80,7 +80,8 @@
     "patches/mobile/0033-M-033-interface-mode-setting.patch",
     "patches/mobile/0034-M-034-experimental-settings.patch",
     "patches/mobile/0035-M-035-appearance-motion-zoom.patch",
-    "patches/mobile/0036-M-036-goal-sources-panels.patch"
+    "patches/mobile/0036-M-036-goal-sources-panels.patch",
+    "patches/mobile/0037-M-037-gui-plugins-migration.patch"
   ],
   "excluded": {
     "packages": [
@@ -116,5 +117,9 @@
         "reason": "HTTP recorder test fixtures (~13.7 MiB); unused by the web build."
       }
     ]
-  }
+  },
+  "packageSources": {
+    "gui-plugins": "3ebcf9a32c7b28f658cfee80775448929361727a"
+  },
+  "packageSourcesReason": "packages/gui-plugins was born after the pin, in upstream dae4077a96 (2026-10-27, 'feat(plugin): add OpenCode Desktop GUI plugins'); it is extracted from the v2.2.1 release tree (3ebcf9a) instead of the pin. Every other package still extracts at upstream.pin."
 }

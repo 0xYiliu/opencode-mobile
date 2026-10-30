@@ -15,9 +15,8 @@ import { fetchSessionExport, saveSessionExport, sessionExportFilename } from "@/
 import { usePlatform } from "@/runtime/platform/platform"
 import type { SessionModel } from "@/session/model"
 import type { SessionRevert } from "@/session/revert"
-import { Command } from "@opencode/gui-extensions/sdk"
-import { useExtensionHost } from "@/runtime/extension/host"
-import type { Region } from "@/runtime/extension/panels"
+import { usePluginClaims, usePluginScoped } from "@/runtime/plugin/commands"
+import type { Region } from "@/runtime/plugin/panels"
 
 type SessionCommandSource = {
   identity: SessionModel["identity"]
@@ -59,7 +58,8 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const settings = useSettings()
   const platform = usePlatform()
   const layout = useLayout()
-  const host = useExtensionHost()
+  const pluginClaims = usePluginClaims()
+  const pluginScoped = usePluginScoped()
 
   const openDialog = async <T,>(load: () => Promise<T>, show: (value: T) => void) => {
     const owner = actions.session.ownership.capture()
@@ -83,10 +83,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
   const cycleSideTabs = () => actions.session.layout.view().side.opened() && actions.region.keys().length > 1
 
-  // Focus inside an extension command's scope belongs to that extension, which binds its own shortcuts there.
-  const extensionScoped = (target: EventTarget | null) =>
-    target instanceof Element &&
-    host.items(Command).some((item) => !!item.value.scope && !!target.closest(item.value.scope))
 
   const sideFocused = (target: EventTarget | null) => {
     const element =
@@ -94,7 +90,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         ? target
         : document.activeElement
 
-    return element instanceof Element && !!element.closest("#review-panel") && !extensionScoped(element)
+    return element instanceof Element && !!element.closest("#review-panel") && !pluginScoped(element)
   }
 
   const selectionPreview = (path: string, selection: FileSelection) => {
@@ -402,7 +398,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           id: "file.close",
           title: language.t("command.tab.close"),
           keybind: settings.keybinds.get("tab.close") ?? "mod+w",
-          when: (event) => !extensionScoped(event.target),
+          when: (event) => !pluginClaims(event),
           onSelect: closeTab,
         }),
       cycle &&

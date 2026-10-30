@@ -1,0 +1,18 @@
+diff --git a/packages/gui-plugins/package.json b/packages/gui-plugins/package.json
+index cd213b1..6401edd 100644
+--- a/packages/gui-plugins/package.json
++++ b/packages/gui-plugins/package.json
+@@ -48,13 +48,10 @@
+   },
+   "devDependencies": {
+     "@happy-dom/global-registrator": "20.0.11",
+-    "@lydell/node-pty": "catalog:",
+     "@tsconfig/node22": "catalog:",
+     "@types/bun": "catalog:",
+     "@types/node": "catalog:",
+     "@typescript/native": "catalog:",
+-    "devtools-protocol": "0.0.1687809",
+-    "electron": "44.9.1",
+     "electron-updater": "6.8.9",
+     "lighthouse": "13.4.1",
+     "vite": "catalog:"

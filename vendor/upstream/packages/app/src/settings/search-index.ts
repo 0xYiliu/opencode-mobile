@@ -1,11 +1,11 @@
-import type { SettingsPage } from "@opencode/gui-extensions/sdk"
+import type { SettingsPage } from "@opencode/plugin/gui"
 import type { useLanguage } from "@/runtime/i18n/language"
 import type { LocalProject } from "@/shell/state/layout"
 import { displayName } from "@opencode/ui/project-avatar"
 import { clientSettings, projectSettings, serverSettings } from "./search-catalog"
 import { pageIcons, pageLabels } from "./pages"
 import type { SettingsSearchResult } from "./search-results"
-import type { SettingsExtensionTab, SettingsHostView, SettingsServerTab, SettingsView } from "./surface"
+import type { SettingsPluginTab, SettingsHostView, SettingsServerTab, SettingsView } from "./surface"
 
 export type SettingsSearchServer = {
   key: string
@@ -14,8 +14,8 @@ export type SettingsSearchServer = {
   projects: readonly LocalProject[]
 }
 
-/** An extension setting that applies to this platform. */
-export type SettingsSearchExtension = { extension: string; value: SettingsPage }
+/** A plugin setting that applies to this platform. */
+export type SettingsSearchPlugin = { plugin: string; value: SettingsPage }
 
 export function settingsSearchIndex(input: {
   servers: readonly SettingsSearchServer[]
@@ -23,7 +23,7 @@ export function settingsSearchIndex(input: {
   browser: boolean
   mobile: boolean
   translate: ReturnType<typeof useLanguage>["t"]
-  extensions?: readonly SettingsSearchExtension[]
+  extensions?: readonly SettingsSearchPlugin[]
 }) {
   const items: SettingsSearchResult[] = []
 
@@ -63,9 +63,9 @@ export function settingsSearchIndex(input: {
 
   const extensions = input.extensions ?? []
 
-  // Extension entries are keyed by extension and entry id; their copy is already translated.
+  // Plugin entries are keyed by plugin and entry id; their copy is already translated.
   const addExtension = (
-    item: SettingsSearchExtension,
+    item: SettingsSearchPlugin,
     entry: NonNullable<SettingsPage["entries"]>[number],
     view: SettingsView,
     page: string,
@@ -73,7 +73,7 @@ export function settingsSearchIndex(input: {
     server?: string,
   ) =>
     items.push({
-      id: JSON.stringify([server, undefined, view.tab, view.target, undefined, `${item.extension}:${entry.id}`]),
+      id: JSON.stringify([server, undefined, view.tab, view.target, undefined, `${item.plugin}:${entry.id}`]),
       title: entry.title,
       description: entry.description ?? "",
       keywords: entry.keywords ?? "",
@@ -113,8 +113,8 @@ export function settingsSearchIndex(input: {
       )
     }
 
-    // SAFETY: a SettingsPage without a host page is an extension tab under its id, as `createSettingsPages().tabs` lists.
-    const tab = setting.id as SettingsExtensionTab
+    // SAFETY: a SettingsPage without a host page is a plugin tab under its id, as `createSettingsPages().tabs` lists.
+    const tab = setting.id as SettingsPluginTab
     const page = setting.entries?.find((entry) => entry.id === setting.id)
     addExtension(item, { ...page, id: setting.id, title: setting.title }, { type: "root", tab }, setting.title, "")
     setting.entries?.forEach((entry) => {

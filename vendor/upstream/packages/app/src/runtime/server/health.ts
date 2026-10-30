@@ -188,9 +188,9 @@ export function createServerHealth(
     // invalidates both the old result and any probe still using the old endpoint.
     const list = servers().map((conn) => ({
       key: ServerConnection.key(conn),
-      managed: conn.type === "extension" && conn.managed,
+      managed: conn.type === "plugin" && conn.managed,
       http: conn.http,
-      stage: conn.type === "extension" ? conn.state : undefined,
+      stage: conn.type === "plugin" ? conn.state : undefined,
     }))
 
     for (const conn of list) {
