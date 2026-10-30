@@ -1737,9 +1737,9 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **sweep rc=1 归因以当轮实测为准**（下节逐项登记）；本轮零构建轮（工作树 dist 从未生成）——构建见证类 ENOENT 预期同 #73 在册集。
 - **dist 哨兵为 post-#72 值**（3516/159,542,120，当轮组 8 复证）；临时副本构建不回填（字节计数一致 + 零 tracked 触碰双证明）。
 
-### 最终 HEAD 复扫（issue #74 段，B-1 纪律——台账提交后实跑）
+### 最终 HEAD 复扫（issue #74 段，B-1 纪律——台账提交 9c3aadc 后实跑）
 
-台账提交后全探针 sweep（31 × `bun run scripts/verify-*.ts`）+ closure + 卫生复跑，逐项 rc 如实登记于此（提交后执行）。
+全探针 sweep（31 × `bun run scripts/verify-*.ts`，HEAD `9c3aadc`，bun install --frozen-lockfile 后、1061 packages、bun.lock 零变化）：**25/30 rc=0（rc=1 五例全部在册环境性，与 #73 在册集同集同归因）**——rc=1 逐项：verify-recovery（在册陈旧正则）、verify-inline-ssh-device（设备依赖）、verify-ssh + verify-service-ops（拷贝 web 载荷 ENOENT）、verify-direct-connection + verify-attachments-artifacts（web 构建输出 ENOENT）——后四例构建见证类为本期零构建轮（工作树 dist 从未生成）的环境性缺席，非断言失败；**新探针 verify-pinch-shell-settings rc=0**；witness 三探针 verify-commands-menus / verify-interaction-quality / verify-appearance-settings rc=0（组 4 zoom 哨兵零修订 = MAJOR-1 不触发复证）；组 8 哨兵 verify-notifications / verify-gui-plugins / verify-commands-menus rc=0 复证（dist 哨兵 3516/159,542,120 不变）。上游 settings 三文件 **41/0/98**、第一方 **423/0/2885**（首轮数字与最终 HEAD 一致）。`verify-closure.sh` 复跑 **PASS**（V3(a)/DANGLING=0/V3(c)、38=38）；`git diff --check` rc=0；工作树零未提交变更（本复扫注记提交前实测）。台账末提交仅增本文 prose（无探针读 build-and-verify.md——S0 实测），最终 HEAD 数字即为终态。
 
 ## BLOCKED 总表
 
