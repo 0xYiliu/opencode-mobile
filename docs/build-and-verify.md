@@ -1407,6 +1407,38 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | sweep 旁证（intermediates 假阳性再证） | `verify-permission-requests`/`verify-session-workbench`（gradle 构建后） | 构建后 rc=1 命中恰为 #63/#64 在册的 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js` dist 拷贝假阳性（FAIL 串逐字一致）；build 目录临时移出后二者 rc=0、原样还原（APK 保留）——环境性假阳性，与本分支零关联 | 本文 |
 | 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 与基线同集（5 处全在 host-credential.test.ts synthetic fixture；初刷发现本文 #66 段引用该假串字样构成文档自命中 1 处，改写措辞后 docs/ 全域零命中——净新增为零） | 本文 |
 
+## issue #67 段（S41+N11：gui-extensions → gui-plugins API/宿主迁移，v2.2.1 delta）——2026-10-30 实测记录
+
+交付物：**M-037**（`patches/mobile/0037-M-037-gui-plugins-migration.patch`，补丁面恰 **178 文件**）+ 机制层（`vendor-manifest.json` 新增 **packageSources** 每包来源 revision 字段：gui-plugins 取 v2.2.1 release 树 `3ebcf9a`、诞生于上游 `dae4077a96`；`vendor-sync.sh` 按包解析来源抽取并打印每包来源；`verify-closure.sh` pristine 侧同规则构建、OK 输出行随双来源改写）+ **M-001′**（改靶 gui-plugins/package.json，同名三 devDeps 剥离，文件名更新为 `0001-M-001-gui-plugins-strip-native-test-deps.patch`）+ **M-035′**（删两 gui-extensions css hunk：comment.css 转换结果与 gui-plugins@3ebcf9a 逐字节一致（语义原生携带）、details.css 目标选择器 `.session-service-menu` 在 gui-plugins 版不存在——targets **41→39**）+ **M-036′**（删 gui-extensions 面 9 文件 11 hunk + app render.tsx SourcesProvider hunk + ui motion-tuning shim——targets **33→22**；schema/goal.ts、session-ui sources 子系统、app Experimental 行 + en 2 键、ui motion/catalog/i18n/./motion exports 逐字保留）+ 双 manifest 登记 35→**36**（M-019 保留缺席）+ PROVENANCE 双文件。
+
+运维修正（一并登记）：`vendor-sync.sh` 原「全量 --check 后全量 apply」两段循环对 pristine 树**结构性失败**（链序依赖补丁，如 M-005 锚 M-002 的 MemoryOnlyPassword 字段——基线 ef10718 以 stash-replay 实证同构失败；此前在册跑通仅因目标树已是终态）。修正为逐补丁 check→apply（与 verify-closure 同构），修正与本期机制变更同 PR 登记。
+
+四提交逐层绿结构（本段为提交 3；提交 1=b3acda7 机制+vendor 一体原子提交，提交 2=cd03f5e 探针层，提交 4=文档收口）：
+
+| 验证 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V3 闭包（换包 + M-001′/M-035′/M-036′/M-037 全链，硬门禁） | `bash scripts/vendor-sync.sh` + `bash scripts/verify-closure.sh` | PASS：vendor 树 == pin `b4525d79bf` + packageSources(gui-plugins=3ebcf9a) + 36 mobile 补丁字节一致；`DANGLING=0`；V3(a) OK 行随改（每包来源逐包打印） | 本文 |
+| M-037 round-trip | pristine+链基态 vs 目标树 `git diff --no-renames` 重生成 → `git apply --check` → 重放 diff | APPLY-CHECK OK；重放树与目标树 `git diff --stat` **0 行**（字节级等价） | 本文 |
+| 净门 | `grep -rn "@/runtime/extension\|@opencode/gui-extensions" vendor/upstream/packages/app/src`；`grep -rn "ExtensionServerRow\|ExtensionRoot\|ExtensionAttachment\|useExtensionHost"`；conn 判别面 `"extension"` 字面量与 `.extension` 属性 | **全零命中**（gui-extensions 字串仅存 D4 设置 tab id 与探针明示豁免面） | 本文 |
+| import 闭包解析 | 自研解析器（exports 最长前缀 + 扩展名尝试）：`@opencode/*` + `@/` 别名全量 | **2883 imports / 0 unresolved**（三条计划断边 closed-tabs-view/search-list+typeahead/util-abort 全解析；级联新增 drag-ins：`shell/panel-motion.ts`、`shell/state/session-tabs.ts(+test)`、util 四叶文件 duration/process-signal/qr/session-turn、ui 预览四组件 + i18n 4 键——均以 mobile(M-037) marker 或 drag-in 清单登记） | 本文 |
+| 首次全量编译门 | `bun run build:web` | PASS（rc=0，**6412 modules** transformed，13.20s；基线 5393——gui-plugins 包替换净增 ~1000 模块）。**@pierre/trees beta.4 resolver API 在位性实测落账**：`file/list.tsx`+`pierre-tree.tsx` 的 `createFileTreeIconResolver`/`getBuiltInSpriteSheet` 在 beta.4（在册 patch 后）完整编译——**fallback 阶梯未触发** | 本文 |
+| V2 dist | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS：**3516 文件 / 159,532,385 bytes**；`web-dist/manifest.json` sha256 `f1edb799cba4d4c4fda48149143d2d0cf929578ad9792f23960c211313b9dc62`（每轮构建刷新，以最近一次实测为准） | 本文 |
+| dist 检索 | opencode.goal / sources.enabled / data-plugin 命中；specifier 零命中 | `opencode.goal`→root chunk、`sources.enabled`→sources+shell chunk、`data-plugin`→commands chunk 全命中；`@opencode/gui-extensions` 与 `runtime/extension` specifier **dist 全域 0 命中**（"gui-extensions" 仅存 D4 tab id 字串，登记面内） | 本文 |
+| 上游定向子集 | settings 三件（`--conditions=solid` + 双 preload）；session-ui 在册 8+1；ui i18n；gui-plugins 定向纯函数 | settings **41/0/98**；session-ui **151/0/421**（在册 8 文件 146 + sources.test.ts 5 = 8+1 破例口径维持）；ui i18n **19/0/24**；gui-plugins `src/browser/address.test.ts` **3/0/7**（凡 import knobs 的测试不入选——裁定登记口径） | 本文 |
+| V-mh 第一方包单测 | `bun test --conditions=browser packages/mobile-hosts` | PASS：**423/0/2885**（39 文件）——基线持平（本期 mobile-hosts 仅两探针旁证文件零功能改动） | 本文 |
+| 全量探针 sweep（提交 2 后） | 29 项一次性跑（28 × `bun run scripts/{verify,audit}-*.ts` + `bash scripts/verify-closure.sh`） | **29/29 rc=0**。两例基线既有失败（stash-replay 于 ef10718 复证同败，与本分支零关联）：①verify-recovery 组 5 ensureTunnel 正则（mobile-hosts runtime.ts 自 5a46934 起多行返回形态——#64/#66 段已同型归因）；②verify-inline-ssh-device（CDP 127.0.0.1:9222 ConnectionRefused，设备依赖） | 本文 |
+| 负例演练 ×6 | inject → FAIL(rc=1) → restore → PASS(rc=0)，日志存 .probe-logs/negex/ | ①16th compose 项→gui-plugins 组 1；②`useExtension` 旧宿主 token→goal-sources 组 2 boundary leak；③M-025 union 行删除→gui-plugins 组 4；④outline-magnifier-plus 入 catalog→experimental 组 6；⑤`probe-fake-icon` 字面量→gui-plugins 组 9 图标闭包；⑥storedToggle 默认翻真→goal-sources 组 4/5 双层 | 本文 |
+| 图标闭包断言（新增组 9） | 扫 gui-plugins/src 全部 name=/icon= 字面量（含 `{...}` 三元分支、getIcon、story/test 排除；size/direction/class 属性值与三元条件操作数剥离） | **179 名字宇宙（catalog ∪ additional-icons ∪ new-icons/aliases）/ 820 文件 / 0 未解析**；file-tree 经别名自然通过（D5）；NEG 5 锁定 | 本文 |
+| APK 构建 | `ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android assembleDebug` | BUILD SUCCESSFUL（35 tasks）；APK SHA-256 **`0895c35ee6304d1d94bb0865ac2e0fc4ea6fbf46eb2748e996ad2e1c968412c0`**（65,287,278 bytes；未安装设备） | 本文 |
+| sweep 旁证（intermediates 假阳性） | `verify-permission-requests`/`verify-session-workbench`（gradle 构建后） | 构建后 rc=1 命中恰为 #63/#64/#66 在册的 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js` dist 拷贝假阳性（FAIL 串逐字一致）；build 目录临时移出后二者 rc=0、原样还原（APK 保留） | 本文 |
+| 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=**1** 为基线既有（host-credential synthetic fixture 同集；本期新文件零新增命中） | 本文 |
+
+**登记面（差异 D1–D5 + 执行期勘误）**：D1 goal 呈现=侧面板 Panel 重表壳（非 v2.2.1 composer pill）；D2 桌面 DEV 管理页保留适配（settings-page-dev.tsx → runtime/plugin/）；D3 settings-pages.ts 取 v2.2.1 形态（`available` 字段删除——pairing/updater 页宽屏外溢为正向对齐）；D4 移动设置 tab id/标签仍为 "gui-extensions"、`settings.guiExtensions.*` 9 键保留；D5 file-tree 无视觉差异（additional-icons 专属画作两树逐字等同，别名仅实验开启时生效）。执行期勘误（对照计划）：①panels.tsx/side-region.tsx **不取 v2.2.1 verbatim**（pin 结构 + 新宿主 token 迁移，DockRegion 休眠重落——gui-plugins 将 terminal 移至 side region，无 region:"dock" 贡献者，dock 渲染 inert）；②createRegion 参数面随 pin 结构（closed/open/side 未收）；③级联 drag-ins 4+4 文件（panel-motion/session-tabs(+test)/util 四叶/ui 预览四组件）与 ui i18n 4 键、ui package.json `./document-surface.css` export；④conn 判别面 `"extension"`→`"plugin"` 扇出到 6 个计划外文件（health/client/view/remote.test/picker.test/registry.test）；⑤message-timeline 的 running-menu 消费面随 C 组删除（工作指示器替代，session-working-indicator 逐字）；⑥desktop-menu WithPlugins、route.ts PluginTab 符号族、inventory.test PluginServer/Plugin 类型、ui tailwind `@source` 改指 gui-plugins、ui `./*` exports 增 `./document-surface.css`；⑦**e2e/component-tests/test-browser 保持 pin 形态**（引用旧路径——不在任何在册验证链内，如实登记为遗留限制，下次 e2e 域 pin 更新拾取）；⑧settings-page-dev 的 Bridge 消息类型 `extensions`→`installed`（v2.2.1 Bridge 形态）。
+
+**设备 QA 待执行**（计划 §8 十项；本机无设备轮，协调员合并后调度）：管理器 15 行（web 10 可切换含 sources/goal；desktop-host 4 行；wsl 静态排除零操作）、面板回归（file menu 20/review tab 10/terminal menu 30/context menu 40/details drawer 50/sources menu 60/goal menu 70 + 空态图标抽查）、宿主降级（browser/pairing/ssh/updater 渲染器不可达；D3 pairing 页宽屏降级可读）、设置贡献面（General review wrap-lines、Experimental Sources 行）、motion-tuning 互通（真模块读旧记录；debug 调参台 prod 不可见）、TalkBack、既有冒烟（SSH/通知/工件 + terminal ghostty 加载）。
+
+来源：[implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E23 行与 S41+N11 小节；[matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S41/N11 行；[units/gui-plugins.md](design/units/gui-plugins.md)（自 gui-extensions.md 移交）。
+
 ## issue #68 段（S40+N09：APK 更新机制可行性/决策——文档级交付）——2026-10-30 实测记录
 
 交付物：**[决策记录 0005 草案](decisions/0005-apk-update.md)**（提案态，决策问题 workflow.md §4 五要素 + v2.2.1 更新面语义核对 + 移动端现状 + 三案对比 + 推荐暂缓/(b) 契约同型 + 激活条件 + 实施前置清单 + R1 三选项谱系）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S40/N09 两行登记（实现格保持「未实现」，策略格「待决策」不造新状态词，差距列承载可行性已核对/推荐/ADR 链接/「决策待用户」固定字样）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) **E24**（文档级证据行，E23 为并行 #67 预留顺延位）+ 本段。**本模块 = 纯文档交付：零代码、零构建、零设备 QA**；最终决策归用户（PR 描述按 workflow.md §4 五要素送达，拍板后小提交路径见 ADR §9.3）。
@@ -1466,6 +1498,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **Windows v2.2.1 语音面与服务端链未运行核实**：ADR §1 全部为目标版本源码级语义（`3ebcf9a` 实测），无 Windows 运行环境、无真实 v2.2.1 服务对照（workflow.md §6 边界句适用）。
 - **决策未拍板**：ADR 0006 为提案态；「暂缓」是推荐意见与当前运营姿态，不是已确认范围决策（project-scope.md「已确认范围」表本期不动；baseline.md W24 :82 上游描述经实测准确故不改）；用户拍板路径见 ADR §9.3 小提交清单。
 - **R4 订正传播检查**：v1「逐字节相同」表述未进入任何已合并文档（v1 仅存在于计划稿）；实施 PR 前以 `git grep "逐字节相同" docs/` 复核——命中共 8 处、零活断言（既有 issue #63 段 rebase 归因行 1 处为历史记录未触碰；本期新增 7 处均为订正记录/假断言引文：本段 B1 记录、V-卫生行、本注、implementation E25 行、ADR 0006 :80/:185/:186 三处；首轮误计 5/4 为 git grep 漏数未跟踪新文件，评审实测 8/7 后订正）。pin 契约残留（回退前超集/前形态）已在 ADR §2.2/E25 显式登记三个分歧 commit，防止被误当作 v2.2.1 语义依据。
+
 
 ## BLOCKED 总表
 
