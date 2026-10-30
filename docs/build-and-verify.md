@@ -1439,6 +1439,34 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **F-3 计数实测订正**：评审修订项给出的 66 翻译/13 文件两数按 `git ls-tree` 实测订正为 63/12（ADR §8 在册）——本文以实测值为准。
 - **决策未拍板**：ADR 0005 为提案态；「暂缓」是当前运营姿态与推荐意见，不是已确认范围决策（project-scope.md「已确认范围」表本期不动）；用户拍板路径见 ADR §9.3 小提交清单。
 
+## issue #69 段（W24：非 prod 实验语音通话可行性/决策——文档级交付）——2026-10-30 实测记录
+
+交付物：**[决策记录 0006 草案](decisions/0006-voice-call.md)**（提案态，决策问题 workflow.md §4 五要素 + v2.2.1 语音面语义核对（三重门 + 服务端第四条件 + RTC 直连形态 + 桌面麦克风宿主）+ 移动端现状（B1 订正后的版本化事实）+ 三案对比 + 推荐暂缓 + 激活条件四条 + 七项实施前提清单 + 邻外面关系 + 可复核命令形态（§7）+ 勘误留痕（§8）+ 拍板后小提交路径（§9.3））+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) W24 一行登记（实现格「待核对」→「未实现（语音通话）」——已检查定位的真实状态，状态词表既有词不造新词；策略格「待决策」承载可行性已核对/非对齐缺口判定/七前提/推荐/ADR 链接/「决策待用户」固定字样；证据列 E02/E11→E02/E11/E25）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) **E25**（文档级证据段 + 证据索引表行，E23 为并行 #67 预留顺延位）+ 本段。**本模块 = 纯文档交付：零代码、零构建、零设备 QA**；最终决策归用户（PR 描述按 workflow.md §4 五要素送达，拍板后小提交路径见 ADR §9.3）。
+
+**B1 订正记录（计划 v1 → v2，实施按 v2 执行并复核）**：计划 v1 断言「pin voice 契约与 v2.2.1 逐字节相同」**为假**——其验证命令 `git diff origin/dev:<path> 3ebcf9a:<path>` 在 mobile 仓因 `3ebcf9a` 非本仓对象而失败，git 报错走 stderr、管道接的 `head`/`wc` 只读 stdout，空输出被误读为「空 diff」（假阳性根因）。v2 以可运行命令形态订正：**三处非空 diff 实测**（voice.ts 27 行变更=3+/24-、realtime.ts 16 行=11+/5-、voice-delegation.ts 11 行=8+/3-，分歧点 = f7577a1f65 进/8d95ef805b 出/3330b3cf38 增量/delegation 注释改写+transcript_delta+legacy 分支）；「零缺口」收窄为「iOS 交接时间线基础呈现零缺口」。实施期追加计述订正三处（ADR §8 留痕，均不改变结论）：①「16 个 en i18n 键」实为 17 个（`experiment.voiceCalls` en.ts:4 + `voice.*` 16 个 :5-20）；②「`<audio autoplay>` 元素」实为 `new Audio()` + `autoplay = true`（transport.ts :22/:44/:75/:77，行为同型）；③「pin 不 vendor core/server」精确化为「上游 pin 对象含服务端语音实现（core/src/voice.ts + server/src/handlers/voice.ts 实测在 pin 树）、移动 vendored 闭包不 vendor 两包」（PROVENANCE.md excluded 列表）。**R2 纪律落实**：相等断言一律 blob 哈希双侧落款（`ecebc8d9be`/`c5f5026a00`）；差异断言给出非空 diff 分歧点清单；验证命令一律 `git -C <仓>` 显式指仓（实施期现场复现 A.5 故障形态一次：裸 `git show b4525d79:…` 于 mobile 仓报 "invalid object name"，已固化为 ADR §7 方法约束）；ADR §7 命令块经逐条 verbatim 复跑验证（含首次起草时计数命令缺 `-C` 指仓的缺陷自检并修正）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-三重门与服务端第四条件 | `git -C /home/peterhan/repository/opencode show 3ebcf9a32c7b:packages/app/src/voice/composer.tsx`、`…transport.ts`、`…packages/server/src/handlers/voice.ts`、`…packages/core/src/voice.ts`、`…packages/ai/src/experimental/realtime.ts` | 实测：门 `platform === "desktop" && VITE_OPENCODE_CHANNEL !== "prod" && state.enabled`（composer.tsx :43-44）；knob `voice.calls` experiment:true/value:false（:19-25，:24/:25）；transport :88 models / :93-95 gpt-live-1 && available && webrtc / :98 unavailable；server handler 零渠道门（grep channel\|prod 零命中）、core `available: found !== undefined`（:85，凭据决定）；realtime.ts :35 引擎表首行 gpt-live-1/openai/webrtc | 本文 |
+| V-pin↔v2.2.1 非空 diff 三处（**B1 订正**） | `git -C /home/peterhan/repository/opencode diff b4525d79 3ebcf9a -- <三路径>` | 实测**均非空**：voice.ts 27 行变更（pin→v2.2.1 删 integration/workspace/session.id/voice.instructions——**回退前超集**）；realtime.ts 16 行变更（v2.2.1 增 baseURL/headers/转发/post() options）；voice-delegation.ts 11 行变更（增 transcript_delta + legacy 分支；注释两版改写）。谱系：f7577a1f65 是 pin 祖先（rc=0）、8d95ef805b 不是（rc≠0）、3330b3cf38 是 v2.2.1 祖先（rc=0）、pin 是 v2.2.1 祖先（rc=0）——`merge-base --is-ancestor` 实测 | 本文 |
+| V-blob 相等（vendored==pin，双侧落款） | `git -C <mobile> show 70232d0:vendor/…/<file> \| git -C /home/peterhan/repository/opencode hash-object --stdin` 对 `git -C /home/peterhan/repository/opencode rev-parse b4525d79bf3ec:<upstream-path>` | voice.ts 双侧均 `ecebc8d9bebb2de0386763831bef254bec38eb99`；realtime.ts 双侧均 `c5f5026a005f74bb0246f8b1b602cbc5058dbe99`——vendored == pin 精确成立（仅此两契约文件；voice app 目录 pin 侧 0 条目） | 本文 |
+| V-移动壳现状（负断言集） | `git -C <mobile> grep -n RECORD_AUDIO 70232d0 -- android/`、`git -C <mobile> grep -n voice.calls 70232d0 -- vendor/upstream/packages/`、`git -C <mobile> show 70232d0:android/…/MainActivity.kt \| grep -c onPermissionRequest`、manifest/patch 实读 | RECORD_AUDIO **零命中 rc=1**；voice.calls knob **零命中 rc=1**（vendored knob 实例恰 sources 四个）；onPermissionRequest **计数 0**（WebChromeClient :202 重写集无该项）；manifest 仅 INTERNET(:7)+POST_NOTIFICATIONS(:10)；M-011 platform="web"（patch :9-10）；channel=local ≠ prod（env.d.ts :5 / host-apis.tsx :253）——上游 desktop 平台门在移动按构造 false，与上游 web 平台行为一致（非对齐缺口） | 本文 |
+| V-计数断言 | `git -C /home/peterhan/repository/opencode ls-tree --name-only 3ebcf9a32c7b… -- packages/app/src/voice/ \| wc -l`（顶层）/ `-r`（递归）/ `grep -c '\.test\.ts$'`；en.ts voice 键计数 | 顶层 **20 条目** = 18 .ts/.tsx（**5 个 .test.ts**：coordination/handoff/messages/search/tools）+ voice.css（84 行）+ fixtures/（1 文件）；递归亦 20 文件；en.ts :4-20 恰 **17 键**（experiment.voiceCalls + voice.* 16 个）——计划稿「16 键」订正为 17 | 本文 |
+| V-文档一致性与卫生（R4 门禁） | ADR↔matrix↔implementation 交叉引用逐一打开；`git diff --check`；`bash scripts/leak-scan.sh`；`git grep "逐字节相同" docs/`；`git diff --cached --stat` | 链接路径（`../../../decisions/0006-voice-call.md` 等）与状态字样互恰（「未实现（语音通话）」+「待决策」+「决策待用户」固定字样，不造新状态词）；diff-check rc=0；leak-scan rc=**1** 为**基线既有**（high-confidence 命中 5 处全在 `packages/mobile-hosts/test/host-credential.test.ts` synthetic fixture，与 #66/#68 段登记同集；本期改动全为 docs/*.md，零新增命中）；`git grep "逐字节相同" docs/` 命中共 5 处、**零活断言**：既有 1 处在 issue #63 段 rebase 归因行（历史记录，本期未触碰），本期新增 4 处均为订正记录/订正对象引文（本段 B1 记录与本行、诚实边界 R4 注、implementation E25 行——v1 假断言的订正载体）；`git diff --cached --stat` 恰 4 个 docs 文件（零代码零构建零设备） | 本文 |
+
+### 合并顺序耦合与 rebase 义务（issue #69 段）
+
+- **#67（S41+N11 gui-plugins 迁移）将后合并**：本模块矩阵行 W24（:99）与 #67 触及的 S41（:68）/N11（:119）**不同行**、零代码耦合，仅矩阵相邻与 E 编号顺延相关。PR 前须 rebase 并复核 W24 行上下文与 E 编号——**E25 顺延条件声明**：E23 为 #67 预留位，若其合并时实际取号不同，本模块 rebase 轮按实际重排（E24 行先例同款文字已写入 E25 段）；两个合并方向均成立（#67 先并入→本期 rebase 复核；本期先并入→E23 留空、E25 已实占，#67 后续取号自行顺延，不阻塞本期）。
+- **行号时效声明**：本文与 ADR 引用的行号均为固定 git 对象实测（上游 `3ebcf9a`、pin `b4525d79`、本仓 `70232d0`）；vendored 树行号（message-timeline.tsx :27/:301、M-011 patch :9-10 等）随未来 pin 升级轮失效重测，不适用于升级后树。
+
+### 诚实边界（issue #69 段）
+
+- **零代码、零构建、零设备 QA**：本模块全部改动为 `docs/` 下四个文档（ADR 0006 新建 + matrix W24 一行 + implementation E25 + 本段）；无 Kotlin/JS/补丁/权限/构建配置变更，无任何设备或模拟器操作。验收第 2 条落在本分支的「暂缓前态」：矩阵 W24 推到「待决策（可行性已核对，决策待用户）」这一**明确中间状态**——含 ADR 引用、非对齐缺口判定、推荐与激活条件、七项实施前提的可拍板状态，而非含糊旧态（#68 对 S40 的同构升级）。
+- **设备/运行探针未执行**：loopback 安全上下文（`isSecureContext`/getUserMedia 暴露）与 WebView WebRTC（RTCPeerConnection/data channel/`Audio` autoplay）均为源码级推定，未在任何设备实证——ADR §2.4.5/§8 在册；若未来实施，ADR §5.4 运行探针先行。
+- **Windows v2.2.1 语音面与服务端链未运行核实**：ADR §1 全部为目标版本源码级语义（`3ebcf9a` 实测），无 Windows 运行环境、无真实 v2.2.1 服务对照（workflow.md §6 边界句适用）。
+- **决策未拍板**：ADR 0006 为提案态；「暂缓」是推荐意见与当前运营姿态，不是已确认范围决策（project-scope.md「已确认范围」表本期不动；baseline.md W24 :82 上游描述经实测准确故不改）；用户拍板路径见 ADR §9.3 小提交清单。
+- **R4 订正传播检查**：v1「逐字节相同」表述未进入任何已合并文档（v1 仅存在于计划稿）；实施 PR 前以 `git grep "逐字节相同" docs/` 复核——命中共 5 处、零活断言（既有 issue #63 段 rebase 归因行 1 处为历史记录未触碰；本期新增 4 处均为订正记录/订正对象引文：本段 B1 记录、V-卫生行、本注、implementation E25 行）。pin 契约残留（回退前超集/前形态）已在 ADR §2.2/E25 显式登记三个分歧 commit，防止被误当作 v2.2.1 语义依据。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
