@@ -12,8 +12,9 @@
 //      (first lock: audit-secret-persistence.ts:73-76 registered-writer list — this probe
 //      re-asserts the anchor only as an isolation fact, the claim table gained no writer),
 //      the client-package pageLifecycle anchors (first locks: verify-session-workbench /
-//      verify-recovery), the manifest permission-pair and onNewIntent/pendingRoute paired
-//      anchors (first locks: the issue #23-revised verify-pairing group 6 / group 3 and
+//      verify-recovery), the manifest permission set (pair -> triple with issue #71's
+//      CAMERA) and onNewIntent/pendingRoute paired
+//      anchors (first locks: the issue #23/#71-revised verify-pairing group 6 / group 3 and
 //      verify-interaction-quality group 1 — re-asserted here in the same direction, the
 //      double-probe mutual-confirmation the plan registered).
 //   2. FIRST LOCKS here: the notification.tsx delivery-face reroute (M-023), the
@@ -386,8 +387,12 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   const manifest = await read(MANIFEST)
   if (!manifest.includes('<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'))
     fail("5: AndroidManifest.xml lost the POST_NOTIFICATIONS permission")
-  if ((manifest.match(/<uses-permission /g) ?? []).length !== 2)
-    fail("5: AndroidManifest.xml uses-permission count changed (expected exactly 2)")
+  // Issue #71 revision (deliberate, NOT a bypass): exactly-2 -> exactly-3 — issue #71
+  // added CAMERA (the WebView pairing-scan camera, runtime-granted in-app only via
+  // onPermissionRequest; first locks: verify-pairing group 6 / verify-interaction-quality
+  // group 1 — re-asserted here in the same direction, the double-probe convention).
+  if ((manifest.match(/<uses-permission /g) ?? []).length !== 3)
+    fail("5: AndroidManifest.xml uses-permission count changed (expected exactly 3 = INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71 added the latter)")
 
   const bridge = await read(BRIDGE)
   for (const anchor of [
@@ -642,7 +647,7 @@ console.log(
     "2: permission dead switch + M-023 completion (settings.notifications.permissions 2-file reference set + model.tsx definition face + fourth listener + auto-approve guard chain + exactly-3 notify faces + exactly-3 sound faces) + api.permission.reply wire-level exhaustion {auto-approve, model} + playSoundById file set + notification.permission.title consumer set {dock, notification}; " +
     "3: six handshakes pairwise distinct + op whitelist exactly two + notify param set exactly {category,title,body,route} (normalized anchor) + four-code taxonomy both sides + route regex + 128/256 bounds + exactly-three categories + fail-closed stub semantics + three-function seam + silent channels + VISIBILITY_PRIVATE + setAutoCancel + mobile(notifications-v1) marker; " +
     "4: NEGATIVE zero addAction/RemoteViews + zero .reply( in the notification domain (both faces) + zero task-control identifiers + zero-value logging anchor + zero credential-shaped identifiers in client.ts/bridge; " +
-    "5: POST_NOTIFICATIONS manifest line + exactly-2 permissions + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
+    "5: POST_NOTIFICATIONS manifest line + exactly-3 permissions (INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71) + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
     "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (3516/159535257; issue #70 incl. M-038; issue #67 incl. M-037 3516/159532385, issue #66 incl. M-036 3493/153776571, issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 remain historical) + staged dist markers; " +     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + M-022/M-023/M-024, design README index + baseline; " +

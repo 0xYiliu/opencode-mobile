@@ -24,9 +24,11 @@
 //   1. Shell window & back key (MainActivity.kt + AndroidManifest.xml):
 //      onBackPressed / canGoBack / goBack / super.onBackPressed, the
 //      predictive-back comment, the single-WebView `setContentView(webView)`,
-//      the sole LAUNCHER intent filter, the INTERNET + POST_NOTIFICATIONS
-//      permission pair (issue #23 revision of the sole-INTERNET sentinel),
-//      `enableOnBackInvokedCallback="false"`, and NEGATIVE zero
+//      the sole LAUNCHER intent filter, the INTERNET + POST_NOTIFICATIONS +
+//      CAMERA permission triple (issue #23 added the pair form over the
+//      sole-INTERNET sentinel; issue #71 adds CAMERA — the runtime-granted
+//      WebView camera for the pairing scan; any FOURTH permission still
+//      fails), `enableOnBackInvokedCallback="false"`, and NEGATIVE zero
 //      `configChanges` (rotation = Activity rebuild is structural), zero
 //      multi-window faces (setSupportMultipleWindows/onCreateWindow);
 //      onSaveInstanceState TODO as a CROSS-REFERENCE (first lock:
@@ -176,15 +178,18 @@ function walk(dir: string, out: string[] = []): string[] {
   if (manifest.includes("configChanges"))
     fail("1: AndroidManifest.xml gained a configChanges declaration — rotation is documented as Activity rebuild (interaction-quality.md §1); re-review the rotation wording before keeping it")
 
-  // Permission pair: INTERNET + POST_NOTIFICATIONS (issue #23 added the latter; the
-  // drift-gate semantics are preserved — any THIRD permission still fails).
+  // Permission triple: INTERNET + POST_NOTIFICATIONS + CAMERA (issue #23 added the
+  // latter's predecessor; issue #71 added CAMERA — the WebView pairing-scan camera,
+  // runtime-granted in-app only; the drift-gate semantics are preserved — any FOURTH
+  // permission still fails).
   const permissions = manifest.match(/<uses-permission\s+android:name="([^"]+)"/g) ?? []
   if (
-    permissions.length !== 2 ||
+    permissions.length !== 3 ||
     !permissions.includes('<uses-permission android:name="android.permission.INTERNET"') ||
-    !permissions.includes('<uses-permission android:name="android.permission.POST_NOTIFICATIONS"')
+    !permissions.includes('<uses-permission android:name="android.permission.POST_NOTIFICATIONS"') ||
+    !permissions.includes('<uses-permission android:name="android.permission.CAMERA"')
   )
-    fail(`1: AndroidManifest.xml must carry exactly the permission pair {INTERNET, POST_NOTIFICATIONS} (issue #23), got ${JSON.stringify(permissions)}`)
+    fail(`1: AndroidManifest.xml must carry exactly the permission triple {INTERNET, POST_NOTIFICATIONS, CAMERA} (issues #23/#71), got ${JSON.stringify(permissions)}`)
 }
 
 // --- 2. Web-layer navigation form (drift sentinels) ---
@@ -574,7 +579,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 console.log(
   "verify-interaction-quality: PASS (" +
-    "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS pair (issue #23) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
+    "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS+CAMERA triple (issues #23/#71) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
     "2: NEGATIVE zero History-API writes across the four upstream src trees (drift sentinel) + pwa.ts replaceState sole touchpoint + exactly two target=\"_blank\" tool-link anchors (same-window navigation class paths); " +
     "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (verify-terminal group 6); " +
     "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/13 hits, 19 files + host-apis comment anchor = 22 hits / 20 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
