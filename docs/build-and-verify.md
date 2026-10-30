@@ -1697,6 +1697,50 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 
 全探针 sweep 复跑（30 × `bun run scripts/verify-*.ts`，HEAD `9edcb98`）：**24/30 rc=0，逐项 rc 与首轮完全一致**——rc=1 六例同集同归因（verify-recovery 在册陈旧正则 / verify-inline-ssh-device 设备依赖 / verify-ssh + verify-service-ops 拷贝 web 载荷 ENOENT / verify-direct-connection + verify-attachments-artifacts web 构建输出 ENOENT——四例构建见证类为本期零构建轮 + fresh worktree 的环境性缺席，基线对照实证见首轮行）；新探针 verify-debug-bar rc=0、既有交叉探针 verify-gui-plugins/verify-commands-menus rc=0、组 8 哨兵三探针 rc=0 复证不变。`verify-closure.sh` 复跑 **PASS**（V3(a)/DANGLING=0/V3(c)）；`git diff --check` rc=0；工作树零未提交变更。台账提交仅增本文 prose（无探针读 build-and-verify.md——S0 实测），最终 HEAD 数字即为终态。
 
+## issue #74 段（S12+S37：捏合缩放裁定 + 每服务器 Shell 等价性核对）——2026-10-31 实测记录
+
+交付物：`scripts/verify-pinch-shell-settings.ts`（新静态探针：G1 S12 面 / G2 S37 契约面+线协议锚（评审 MAJOR-2 裁断并入）/ G3 文档闭包；负例五组）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E30（索引段 + 证据表行 + S12+S37 小节：定性裁定/逐面实测表/S12 裁定与 QA-1/S37 等价结论/探针与负例/设备 QA 记录与发现）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S12/S37 两行终态（待核对→明确状态，验收 3）+ [interaction-quality.md](design/interaction-quality.md) §四 WebView 手势默认态裁定句。**定性：核对 + 登记 + 裁定、零代码**（零 vendor 补丁——无 M-041、补丁链 38=38 不动；零 dist 重建；零 first-party/壳改动；server-list.md 无冲突零触碰——零噪声纪律）。
+
+**S0 复勘（基线 `a1b4537` = dev 含 #71/#72/#73，PR 至 #89）**：全部锚点在实施树 + 固定 git 对象（pin `b4525d79bf` / v2.2.1 `3ebcf9a`）重测。计划偏差两处（均为行号/措辞类，零事实底座推翻、停线条件零触发）：①评审 MINOR-1——行号以实测值为准（v2.2.1 general.tsx pinch 面 :238-249/:276-285 非 plan 的 :222-228/:240-245；en.ts 三侧 shell 键 820-823/968-971/876-879、pinchZoom 键 848-849/992-993/904-905）；②评审 MINOR-3 实测修正——M-037 确实触及 settings/servers/servers.tsx（manifest.json :621 在册，恰两 hunk ExtensionServerRow→PluginServerRow 机械重命名），「M-037 只迁 runtime/extension/servers.tsx 非此文件」原措辞不成立、shell 面（ServerShell :104-113）零补丁触碰的实质结论不变。评审 MAJOR-1 为条件分支：QA-1 缺陷判定（布局缩坏无恢复）**未触发** → 升级分支不进入，verify-commands-menus 组 4 哨兵与 fail 串（"zoom ruling re-review required"）零修订、受影响 sweep 零涟漪——条件已按实测闭合。编号：**E29=#73 实占（PR #89）→本期取 E30**。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 新探针 | `bun run scripts/verify-pinch-shell-settings.ts` | **rc=0**：G1 S12 面（捏合存在性锚逐字 + Show 包裹顺序断言 + platform.tsx 两成员/注释 + search-catalog `available:"desktop"` 块序 + en.ts pinchZoom 两键 + **新锁负向集**：MainActivity setBuiltInZoomControls/setDisplayZoomControls/textZoom/useWideViewPort/loadWithOverviewMode 零命中、index.html maximum-scale 零命中、settings.css zoom/pinch/touch-action/overscroll 零命中、mobile-hosts 全域 /pinch/i 零命中、vendored web.ts /pinch/i 零命中、app/src 全域 nextDesktopZoomLevel 零命中=appearance 组 4 desktop-menu 域锁的全树扩展）+ witness 双 FAIL by design（MainActivity setSupportZoom + index.html user-scalable = verify-commands-menus 组 4 first-lock；四段 viewport = verify-interaction-quality 组 3 first-lock——fail 串已含 zoom ruling re-review required，MAJOR-1 分权不重锁）+ G2 S37 契约面与线协议锚（controllers 读路径五锚/no-op guard/乐观 mutate/回滚→toast 顺序断言、behavior 三锚、ShellSetting 五锚、servers 接线 + `settings-shell:` 零命中、en.ts 四键、protocol GET/PATCH + Schema.Array(ConfigShell.Option)、schema ConfigShell.Option 三字段；witness = verify-appearance-settings 组 2 first-lock：pin config.update 正锚 + experimental 负锚 + action prop 不携带）+ G3 文档闭包（matrix S12/S37 终态、E30 行/叙事/小节、interaction-quality 裁定句） | 本文 |
+| 负例演练（5 例） | 逐例 inject → probe → restore（sha256 逐字节还原核对） | ①index.html 注入 `user-scalable=no` → **FAIL: 1 witness (rc=1)** →还原 rc=0；②MainActivity 注入 `setBuiltInZoomControls(true)` → **FAIL: 1 新锁 (rc=1)** →还原 rc=0；③vendored web.ts 注入 `getPinchZoomEnabled` 面 → **FAIL: 1 零命中 (rc=1)** →还原 rc=0（初版误指向不存在路径 packages/mobile-hosts/src/web.ts，如实登记后修正探针头注并补 vendored web.ts 零命中断言——勘误在探针头注与本行）；④behavior.ts 删 auto 首项 → **FAIL: 2 (rc=1)** →还原 rc=0；⑤controllers.ts 改写 `api.experimental.config.update` → **FAIL: 2 witness (rc=1)** →还原 rc=0。五例还原后 sha256 一致、`git diff` 空；日志 `.probe-logs/negex/issue74-negatives.log`（gitignored） | 本文 |
+| witness 交叉探针 | `bun run scripts/{verify-commands-menus,verify-interaction-quality,verify-appearance-settings}.ts` | 三者 **rc=0**（本期文档改动同 commit 落地后文档闭包仍绿——#67/#73 教训执行；组 4 zoom 哨兵零修订 = MAJOR-1 不触发实证） | 本文 |
+| 上游定向子集 | vendored app settings 包 `bun test` | **41 pass / 0 fail / 98 expect()（rc=0）**——零 vendor 变更持平 | 本文 |
+| 第一方回归 | `bun test --conditions=browser packages/mobile-hosts` | **423 pass / 0 fail / 2885 expect()（rc=0）**——零 first-party 变更持平 | 本文 |
+| dist 哨兵 | 读 `web-dist/manifest.json` 常量 + 组 8 探针 | 当轮实测 **3516 / 159,542,120** = post-#72 在册值不变；策略兑现：**不重建、不回填**——`web-dist/manifest.json` 零触碰（git diff 空）。QA-1 所需 APK 在临时副本（/tmp throwaway detached worktree）构建：其重建 dist 实测同为 3516/159,542,120（字节计数级与在册基线一致，零代码轨同源证明），**本工作树 dist 从未生成**（ls 实测不存在），哨兵面零涟漪 | 本文 |
+| 闭包 | `bash scripts/verify-closure.sh` | **PASS**：V3(a) 树 == pin + packageSources + M-001..M-040 字节一致；DANGLING=0；V3(c) OK；补丁计数 **38=38**（M-019/M-039 reserved-absent 不变） | 本文 |
+| 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan 与基线一致零新增（本轮零凭据面；临时 serve 口令仅存本机临时日志用后即删，不入库） | 本文 |
+| 全量探针 sweep（首轮） | 31 × `bun run scripts/verify-*.ts` 逐项 rc | 见「最终 HEAD 复扫」小节（台账提交后实跑，逐项 rc 如实登记） | 本文 |
+
+### 设备 QA 实测记录（issue #74 段——2026-10-31，MatePad DBY2-AL00 @ 192.168.3.145:5555，Android 12，hwschromium WebView；主应用包 ai.opencode.mobile 全程 install -r）
+
+**构建与安装（QA-1 前置）**：本分支相对 dev（a1b4537）零代码差（仅本文档与探针，均不入 APK）——QA-1 用分支同源 APK：在 /tmp throwaway detached worktree（HEAD a1b4537）执行 `bun install` + `bun run build:web` + `copy-web-dist.sh` + `gradle :app:assembleDebug`（BUILD SUCCESSFUL；重建 dist 实测 3516/159,542,120 = 在册基线，字节计数级同源证明）；APK sha256 `7492b75aab6ec56f0a14d455a083e57723662fca23adf6e1ff30610ea66a9153`（65,296,994 bytes），`install -r` **Success**（versionName 0.1.0，覆盖设备上 #71 时代旧构建 a0ef685d——任务前置达成）。工作树 tracked 面零触碰（构建产物全部 gitignored 且在临时副本内）。
+
+**注入通道（如实登记）**：adb `sendevent` 对 /dev/input/event3 被拒（Huawei user build SELinux；shell 虽在 input 组仍无写权）→ 改用 **scrcpy-server v2.7 控制通道**（`app_process` + `tunnel_forward=true video=false audio=false`，自写宿主端控制客户端按 2.7 线协议发 inject_touch；与命令面板 CDP 注入同谱系的诊断通道，非产品能力）；双指 pinch 经指针 0/1 的 DOWN/MOVE/UP 序列（服务器侧自动转 ACTION_POINTER_*）。**发现**：全压（pressure 65535=1.0）双指触发电华为系统熄屏（关节/覆盖手势层误判，mLastSleepReason=timeout，对照实验：单指拖拽不触发）→ 改用低压 8192（0.125）后双指手势稳定注入、逐次校验 mScreenState=ON。设备智能翻盖（`ro.config.hw_simplecover=true`）传感器间歇误报进入锁屏阻断态（ShowTpMsgActivity），多次自愈、轮末一度阻断后恢复。
+
+**QA-1（S12 核心，验收 1 硬性）——已执行，结果=零缩放零破损**：主屏幕（Projects 固定布局，h-dvh）执行 pinch-in ×2 / pinch-out ×2 / 双击 ×2 + 单指拖拽对照；逐帧截图（exec-out screencap）IDAT 像素采样比对（内容区 100..2700 行，步长 97）：**pinch-in#1 vs pinch-in#2 / pinch-out#2 / 双击后帧三组对比全部 0/197,306 采样点差异（0.00%）**——零视觉缩放、零布局破损、无卡缩放态；与 AOSP 文档默认推论（supportZoom 默认 true 但 builtInZoomControls 默认 false → 移动视口页不捏合缩放）一致——**文档默认与设备实态两层一致，裁定 (a) 保持登记**；升级条件（布局缩坏无恢复）未触发、(b) 不进入。连接屏/工作台面与 S42 zoom=1.25 交叉项**未执行**（受阻见下，未验证态登记）。
+
+**QA-2（S37 真服务往返）——未执行（受阻登记）**：本轮已备真服务路径（本机 `opencode serve --hostname 0.0.0.0 --port 4096` 显式启动、生成临时口令、curl `/api/info` 返回 Authentication required 确认服务活体），但设备侧受阻：①**缺陷发现（不属 S12/S37 域，不动码）**——无服务上下文态 Settings 不可达：首页 Settings 行触发设置搜索索引构建器读取未挂载 extensions store（错误边界页栈 `shell-Dg8YOMTe.js:2:111056` 处 `o.extensions.items()`→TypeError；Reload 复现同错；首页行点击另有异步 `reading 'healthy'` TypeError，02:23:02 console 实测）→ 设置面/服务器页/搜索页全部 UI 路径阻断，shell Select 往返与断连回滚+toast 失败路径均无法经 UI 触达；②主应用既有已保存主机条目（#61 轮 fixtures：authorized-bastion/bastion-main/bastion-aux）本轮不再呈列于 Projects 页（数据全程未 uninstall/未 clear——仅 install -r 与 force-stop；成因未定位，登记待查）。隔离包 `ai.opencode.mobile.qa74`（applicationId 后缀构建，sha256 f211fd39…）曾试跑首启流程：因固定 loopback 资产端口被主应用占用（WebAssetServer 端口冲突→MainActivity.kt :77 finish()，单实例机制设计实态），改在主应用 force-stop 后可启动，但随即遇翻盖锁屏阻断窗口；**已 uninstall（Success，用后即删）**。QA-2 深度如实登记为**未执行（环境受阻）**；S37 验收 2 的「结论登记」由 E30 静态证据闭合承载。
+
+**QA-3（搜索零命中伴随）——未执行（同上受阻）**：Settings 搜索页不可达（缺陷发现①）；静态面由探针 G1 覆盖（search-catalog pinch 条目 `available:"desktop"` 保留 + General 行 desktop-only 包裹 = 搜索目录与设置面源码级零命中机制），运行期零命中宣称不做出。
+
+**设备收尾**：隔离包已卸载（Success）；设备 /data/local/tmp 临时脚本与 scrcpy-server.jar 清理；主应用 ai.opencode.mobile 保持安装（install -r 轮），数据未 clear/uninstall；屏幕保持点亮态（svc power stayon）与主应用前台恢复。宿主侧：uiautomator2 3.7.1 仅装于宿主 venv（其设备 agent 触达检查后无残留 helper 包）；本地 serve 进程用后即停；临时截图/dump 用后即删（值无关纪律：全程未记录任何凭据值）。
+
+### 诚实边界（issue #74 段）
+
+- **QA-1 已闭合但面覆盖有限**：实测面 = 主屏幕固定布局（会话相邻面）；连接屏/工作台面与 zoom=1.25 交叉未实测（受阻登记）——裁定机制（WebView 默认态 + viewport 不禁缩放）为壳级全局行为、不随路由变化，但未实测面不宣称。双指注入为诊断通道合成手势，非真人指触（压力/接触面积签名不同；已规避华为关节手势误判层）——实态结论以「该 WebView 版本在该页面默认态不响应注入双指捏合」为准确措辞。
+- **QA-2/QA-3 未执行**（受阻登记如上）；S37 静态等价 ≠ 运行等价（同端点同字段按构造等价 + 服务端执行差异在边界外，E30 注记在册）；Settings 不可达缺陷为独立后续事项（可能上游同态或移动适配缺口，未定位——不属 #74 范围不动码）。
+- **静态探针零运行期证明力**：verify-pinch-shell-settings 为 static STRUCTURE check；文本锚/顺序断言/零命中负断言不证明设备行为（行为面归 QA 记录）。
+- **sweep rc=1 归因以当轮实测为准**（下节逐项登记）；本轮零构建轮（工作树 dist 从未生成）——构建见证类 ENOENT 预期同 #73 在册集。
+- **dist 哨兵为 post-#72 值**（3516/159,542,120，当轮组 8 复证）；临时副本构建不回填（字节计数一致 + 零 tracked 触碰双证明）。
+
+### 最终 HEAD 复扫（issue #74 段，B-1 纪律——台账提交后实跑）
+
+台账提交后全探针 sweep（31 × `bun run scripts/verify-*.ts`）+ closure + 卫生复跑，逐项 rc 如实登记于此（提交后执行）。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
