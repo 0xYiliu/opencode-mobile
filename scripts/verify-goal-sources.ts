@@ -55,7 +55,8 @@
 //      re-checks).
 //   8. Icons + patch registration: outline-steer is the verbatim v2.2.1 artwork (the only
 //      catalog addition; removed from the #64 probe's rejected list in the same commit);
-//      M-036 is registered in BOTH manifests with the exact 34-file patch face. No dist
+//      M-036 is registered in BOTH manifests with the exact 33-file patch face (post-rebase:
+//      reduced.ts and the './motion' export returned to M-035). No dist
 //      marker is staged for this patch: it carries no credential/security semantics — the
 //      gate shim stores a non-sensitive, device-local UI preference (an experiment gate),
 //      so the M-002 marker precedent does not apply; recorded here deliberately.
@@ -709,7 +710,6 @@ console.log(
     "5: gate shim — opencode.motion.v2 record format, four consumed faces only, zero runtime imports, no Knobs console/settings.v3/auto-enable face, knob default false (NEGATIVE 1 target); " +
     "6: user-runs/quote negatives — eight-token message-content scan (= revised #64 kept set), current-message UserRun/run? boundaries, timeline-row run={joined()} boundary, 14 kept catalog rejections, new session-ui directories clean; " +
     "7: motion — spring/loop zero-import verbatim, motion entry three exports with M-035 ownership note, sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the new surface exactly {motion/reduced.ts}; " +
-    "8: outline-steer verbatim artwork after waveform, M-036 in BOTH manifests with the exact 34-file patch face, dist-marker absence recorded deliberately; " +
+    "8: outline-steer verbatim artwork after waveform, M-036 in BOTH manifests with the exact 33-file patch face, dist-marker absence recorded deliberately; " +
     "STATIC check - tab reachability, gate restart persistence, chip/panel presentation, goal command round-trips, toast rendering, empty states and TalkBack are device QA items registered in docs/build-and-verify.md)",
 )
-
