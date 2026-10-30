@@ -11,6 +11,8 @@ import { DiffChanges } from "@opencode/ui/diff-changes"
 import { Dynamic } from "solid-js/web"
 import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
 import { useData } from "../context"
+import { useSources } from "../context/sources"
+import { turnSources } from "../sources/sources"
 import { TimelineSeparator } from "../components/timeline-separator"
 import {
   SessionAssistantContent,
@@ -82,6 +84,7 @@ export function createSessionTimelineRowRenderer(input: {
 }) {
   const i18n = useI18n()
   const data = useData()
+  const sourcesHost = useSources()
   // Cached timelines retain file-change subgroup identities alongside their disclosure choices.
   const patchGroupKeys = input.disclosure.patchGroupKeys ?? new Map<string, string>()
   const patchPartKeys = new WeakMap<SessionMessageAssistant["content"][number], string>()
@@ -357,6 +360,19 @@ export function createSessionTimelineRowRenderer(input: {
       return item ? contentDefaultOpen(item) : undefined
     })
 
+    // Only the finished turn's footer part derives them, and only while the host shows sources.
+    const turnSourcesValue = createMemo(() => {
+      const current = ref()
+
+      if (!sourcesHost?.enabled || !current || copyContentID(row().userMessageID) !== current.partID) return undefined
+
+      const value = turnSources(
+        input.projection.assistantMessagesByParent().get(row().userMessageID) ?? emptyAssistantMessages,
+      )
+
+      return value.steps.length > 0 ? value : undefined
+    })
+
     const disclosureKey = () => (content()?.type === "reasoning" ? ref()!.partID : row().group.key)
 
     return (
@@ -370,6 +386,8 @@ export function createSessionTimelineRowRenderer(input: {
                 contentID={ref()!.partID}
                 showAssistantCopyPartID={copyContentID(row().userMessageID)}
                 turnDurationMs={duration(row().userMessageID)}
+                sources={turnSourcesValue()}
+                onOpenSources={() => sourcesHost?.open(row().userMessageID)}
                 defaultOpen={defaultOpen()}
                 toolOpen={input.disclosure.value(disclosureKey()) ?? defaultOpen()}
                 onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}

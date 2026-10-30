@@ -35,7 +35,8 @@
 //   7. External-jump boundary anchors: the web openExternal guard (http/https/
 //      mailto + noopener) and the EXHAUSTIVE openExternal call-site set over
 //      app/src + gui-extensions/src — RAW pattern `\b(platform|system)\s*\.\s*
-//      openExternal\s*\(`, baseline exactly 18 hits in 17 files:
+//      openExternal\s*\(`, baseline exactly 19 hits in 18 files (issue #66 added
+//      gui-extensions/src/sources/panel.tsx — the 0f379f0a33 verbatim openExternal fallback):
 //      app/src (12 calling files, 1 hit each): providers/connect/{controller,mcp,
 //      dialog,chatgpt-usage-limit,usage-exceeded}, runtime/server/sync,
 //      home/projects/controller, shell/titlebar/{titlebar,windows-menu},
@@ -57,8 +58,9 @@
 //      PRODUCTION anchor (tools.ts) with the schema FileContent/Content union,
 //      the CONSUMER static locks (the flatMap text-only normalizer verbatim +
 //      the `currentToolOutput(` call-site set over session-ui/src NON-TEST
-//      files = exactly 3 files × 1 hit: current-tool-state.ts, tool-renderer.
-//      tsx, current-message.tsx — the 3 test-file hits in
+//      files = exactly 4 files × 1 hit: current-tool-state.ts, tool-renderer.
+//      tsx, current-message.tsx and sources/sources.ts (issue #66 — the 0f379
+//      verbatim turn parser; the 3 test-file hits in
 //      current-tool-state.test.ts are on register and OUTSIDE this assertion
 //      domain), and the preview fallback chain (canOpen → pane, else file tab).
 //   9. Zero host-OS scan (F3 real-shape baseline): over gui-extensions/src/
@@ -359,7 +361,7 @@ const srcFiles = async (base: string): Promise<string[]> => {
 
   // EXHAUSTIVE openExternal call-site set over app/src + gui-extensions/src.
   // RAW pattern `\b(platform|system)\s*\.\s*openExternal\s*\(`.
-  // Baseline (pin b4525d79bf): 18 hits in 17 files.
+  // Baseline (pin b4525d79bf + M-036): 19 hits in 18 files (sources/panel.tsx joined with issue #66).
   // app/src — 12 calling files, exactly 1 hit each:
   //   providers/connect/controller.ts, providers/connect/mcp.ts,
   //   providers/connect/dialog.tsx, providers/connect/chatgpt-usage-limit.tsx,
@@ -395,6 +397,7 @@ const srcFiles = async (base: string): Promise<string[]> => {
     [`${GUI}src/microsoft-office/document.tsx`, 1],
     [`${GUI}src/microsoft-office/spreadsheet.tsx`, 1],
     [`${GUI}src/details/server-panel.tsx`, 1],
+    [`${GUI}src/sources/panel.tsx`, 1],
     [`${BROWSER_DIR}panel.tsx`, 2],
   ])
   const collectedHits = new Map<string, number>()
@@ -415,8 +418,8 @@ const srcFiles = async (base: string): Promise<string[]> => {
   for (const rel of expectedHits.keys()) {
     if (!collectedHits.has(rel)) fail(`7: expected openExternal call site missing from the scan: ${rel}`)
   }
-  if (totalHits !== 18) fail(`7: the openExternal baseline must be exactly 18 hits in 17 files, got ${totalHits} hits in ${collectedHits.size} files`)
-  if (collectedHits.size !== 17) fail(`7: the openExternal file set must be exactly 17 files, got ${collectedHits.size}`)
+  if (totalHits !== 19) fail(`7: the openExternal baseline must be exactly 19 hits in 18 files, got ${totalHits} hits in ${collectedHits.size} files`)
+  if (collectedHits.size !== 18) fail(`7: the openExternal file set must be exactly 18 files, got ${collectedHits.size}`)
 
   // The browser PAGE chain itself stays in-pane: popups open as tabs, blocked
   // targets are refused (not handed to the system browser).
@@ -472,9 +475,9 @@ const srcFiles = async (base: string): Promise<string[]> => {
     fail("8: current-tool-state.ts lost the flatMap text-only normalizer (consumer chain changed)")
 
   // CONSUMER static lock 2 (N1 domain-scoped): `currentToolOutput(` over
-  // session-ui/src NON-TEST files = exactly 3 files × 1 hit:
+  // session-ui/src NON-TEST files = exactly 4 files × 1 hit:
   //   message/current-tool-state.ts, tools/tool-renderer.tsx,
-  //   message/current-message.tsx.
+  //   message/current-message.tsx, sources/sources.ts (issue #66, 0f379 verbatim).
   // The test domain (message/current-tool-state.test.ts) carries 3 further
   // calls (:47/:68/:86 at pin time) — on register, OUTSIDE this domain.
   const ctoRe = /\bcurrentToolOutput\s*\(/g
@@ -482,6 +485,7 @@ const srcFiles = async (base: string): Promise<string[]> => {
     [`${SESSION_UI}src/message/current-tool-state.ts`, 1],
     [`${SESSION_UI}src/tools/tool-renderer.tsx`, 1],
     [`${SESSION_UI}src/message/current-message.tsx`, 1],
+    [`${SESSION_UI}src/sources/sources.ts`, 1],
   ])
   const collectedCto = new Map<string, number>()
   for (const rel of await srcFiles(`${SESSION_UI}src/`)) {
@@ -497,8 +501,8 @@ const srcFiles = async (base: string): Promise<string[]> => {
   for (const rel of expectedCto.keys()) {
     if (!collectedCto.has(rel)) fail(`8: expected currentToolOutput call site missing from the scan: ${rel}`)
   }
-  if (collectedCto.size !== 3)
-    fail(`8: the currentToolOutput consumer set must be exactly 3 non-test files, got ${collectedCto.size}`)
+  if (collectedCto.size !== 4)
+    fail(`8: the currentToolOutput consumer set must be exactly 4 non-test files, got ${collectedCto.size}`)
 
   // Desktop element comments (legacy/extension note shape) stay renderable on
   // the mobile timeline — the context-interaction remnant face. The comment
@@ -578,7 +582,7 @@ console.log(
     "4: permission & enablement — deny-until-attach + acquireRelease, permission 'browser', attachment lifecycle accessors, toolbar map (canGoBack/canGoForward, suspended||failed, reachable, inspectable, aria-pressed); " +
     "5: error paths — three refusal codes, static zero-echo normalizeURL message, blocked-link/blocked-address sameness + ERR_BLOCKED_BY_CLIENT, did-fail-load/render-process-gone/page_crashed, navigation_failed|operation_failed + do-not-bypass-certificate wording, [browser.disconnected]/[browser.tab_unavailable]/[browser.timeout], unsupported stop-retrying contract, generation staleness anchor; " +
     "6: no-leak — main-only sidecar password, metadata-only event feed (README), untrusted-page-data preamble, desktop-only details kept out of the server's tab state; " +
-    "7: external-jump boundary — web openExternal http/https/mailto + noopener, EXHAUSTIVE openExternal set over app/src + gui-extensions/src = exactly 18 hits in 17 files (app 12×1 + gui-ext 5 files/6 hits, browser/panel ×2), in-pane popup anchor; " +
+    "7: external-jump boundary — web openExternal http/https/mailto + noopener, EXHAUSTIVE openExternal set over app/src + gui-extensions/src = exactly 19 hits in 18 files (app 12×1 + gui-ext 6 files/7 hits incl. sources/panel from issue #66, browser/panel ×2), in-pane popup anchor; " +
     "8: mobile presentation chain — case \"browser\" + ui.tool.browser en/zh pair, no browser-specific ToolRegistry registration (negative), data: file-part production + schema Content union, CONSUMER static locks (flatMap text-only normalizer + currentToolOutput over session-ui/src non-test = exactly 3 files × 1), legacy element-comment note, pane-gated preview fallback; " +
     "9: zero host-OS — platform-access two-mode scan over gui-ext browser (non-test) + plugin-browser/src (" +
     scannedBrowserFiles +

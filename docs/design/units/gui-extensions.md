@@ -1,6 +1,6 @@
 # 单元：GUI 扩展管理面（gui-extensions）
 
-覆盖范围：内建 GUI 扩展的**管理面**——可见的启用/禁用、状态与失败呈现、重试（Reload）、状态恢复，以及 13 个内建扩展在选定上游 pin 的清单与宿主能力映射。扩展的**业务行为权威不在本文**：各扩展交付的面由对应 feature 单元文档与 [agent-capabilities.md](agent-capabilities.md)（远程面）承载，冲突时以单元文档为准并按双向变更协议回修本文。本文同时固化 dev/source 扩展管理器与 packaged 信任/安装模型的区分（验收 4），并落字：**移动零安装、零移除、零扩展商店（marketplace）**——不声称任何不受支持的能力。
+覆盖范围：内建 GUI 扩展的**管理面**——可见的启用/禁用、状态与失败呈现、重试（Reload）、状态恢复，以及 15 个内建扩展在选定上游 pin 的清单与宿主能力映射（issue #66 起含 sources 与 goal，13→15）。扩展的**业务行为权威不在本文**：各扩展交付的面由对应 feature 单元文档与 [agent-capabilities.md](agent-capabilities.md)（远程面）承载，冲突时以单元文档为准并按双向变更协议回修本文。本文同时固化 dev/source 扩展管理器与 packaged 信任/安装模型的区分（验收 4），并落字：**移动零安装、零移除、零扩展商店（marketplace）**——不声称任何不受支持的能力。
 
 **状态声明（第二十一处落字）**：G35 未过前（[../interaction.md](../interaction.md)），本单元的全部运行期表述只声称「**已实现（未验证）**」——文档/探针/单测/构建级已验证，运行期已实现（未验证）。
 
@@ -12,7 +12,7 @@
 
 ## 二、内建扩展清单（验收 1 主表，pin `b4525d79bf`）
 
-13 个内建扩展（`gui-extensions/src/renderer.ts` compose 顺序=context, btw, debug, terminal, file, review, details, browser, pairing, updater, ssh, wsl, microsoft-office；`main.ts` 同表）。清单在 pin 更新时由探针集合断言强制刷新（`scripts/verify-gui-extensions.ts` 组 1/2——清单漂移即 FAIL，回归集随 pin 更新演练同步执行）。
+15 个内建扩展（`gui-extensions/src/renderer.ts` compose 顺序=context, btw, debug, terminal, file, review, details, browser, pairing, updater, ssh, wsl, microsoft-office, sources, goal；`main.ts` 同表——issue #66/M-036 按上游 v2.2.1 gui-plugins `renderer.ts` 的 compose 序在 microsoft-office 之后追加 sources、goal 两项，均无 main entry，六项懒加载清单不变）。清单在 pin 更新时由探针集合断言强制刷新（`scripts/verify-gui-extensions.ts` 组 1/2——清单漂移即 FAIL，回归集随 pin 更新演练同步执行）。
 
 | id | main entry（懒加载六者） | os 声明 | web/移动早退守卫 | token 分类 | 移动实际贡献面 | 业务 owner |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -29,10 +29,12 @@
 | ssh | **是** | 无 | `ssh/renderer.tsx` `if (ctx.build.platform !== "desktop") return`（注释逐字「SSH lives in the desktop main process.」） | Ipc（Ssh） | 零（第一方 mobile-hosts SSH 已替代，#6） | #6 |
 | wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | `wsl/renderer.tsx` `if (ctx.build.platform !== "desktop") return`（renderer 级守卫）+ root.tsx os 过滤（definitions 级，web `os=undefined` → 不入 definitions）——**双重排除**（renderer 守卫 + os 过滤，守卫在探针组 1 五早退守卫在册） | Ipc（Wsl） | **静态排除行（issue #62/N12）**：id + 禁用状态 + 原因文案（决策 0001），零操作（无 Reload/无 Switch/无任何启停安装入口）；宿主 definitions 仍不含 wsl（os 过滤不变） | —（范围排除） |
 | microsoft-office | — | 无 | 无 | Contract（FileViewer） | office 工件三 kind 查看器（#18 渲染链） | #18 |
+| sources | — | 无 | 无 | —（`uses: { browser }` 软依赖——宿主 pending 态承载，非 requires） | mobile Panel（menu, order 60）+ 宽屏侧面板 transient tab（实验 gate 关闭时 `list` 清缓存返回 `[]`，tab 收回）；数据来自消息 part（websearch/webfetch），零新 RPC | #66（W23） |
+| goal | — | 无 | 无 | —（RPC 契约 `@opencode/schema/goal` 的 `opencode.goal`，get + events.changed） | mobile Panel（menu, order 70）+ 宽屏侧面板 pinned tab（仅当该会话 goal 已加载且非 null——服务端无 goal 插件时 `get` 报错被上游语义吞掉、tab 不出现，入口不存在按构造）；暂停/继续/清除走 `session.command` | #66（W22） |
 
-- **web 定义表恰 12 个**：root.tsx `os` 过滤器在 web（`os = platform.platform === "desktop" ? platform.os : undefined`）使 wsl 不入 definitions——宿主定义行即 12 行；管理面呈现 13 行 = 12 宿主定义行 + 1 静态排除行（issue #62/N12：wsl 行为第一方合成呈现，不读宿主状态/失败/禁用记录，G35⑦ 核对）。
-- **硬 requires 全零**：13 个 `index.ts` 的 `requires:` 零命中——宿主 blocked 态在内建组合中结构性不出现；「missing dependency」的移动呈现=desktop-host 四行的「桌面专属」能力列（宿主能力缺席的如实呈现），而非运行时 blocked。
-- **能力映射三集合**：管理面静态能力表 {context, btw, debug, terminal, file, review, details, microsoft-office} = `web`（可启停）；{browser, pairing, ssh, updater} = `desktop-host`（呈现「桌面专属」+ Switch 禁用态）；{wsl} = `excluded`（issue #62/N12 静态排除行：禁用状态 + 原因文案，零控件）。Ipc 恰 6（pairing/wsl/updater/ssh/HeapSnapshots/BrowserPane——web 上「always inactive」，core.ts 注释逐字）+ Contract 恰 3（browser/file/review）。
+- **web 定义表恰 14 个**：root.tsx `os` 过滤器在 web（`os = platform.platform === "desktop" ? platform.os : undefined`）使 wsl 不入 definitions——宿主定义行即 14 行；管理面呈现 15 行 = 14 宿主定义行 + 1 静态排除行（issue #62/N12：wsl 行为第一方合成呈现，不读宿主状态/失败/禁用记录，G35⑦ 核对；issue #66/M-036 注册 sources、goal 后 13→15、12→14，算术同步修订于同一 commit）。
+- **硬 requires 全零**：15 个 `index.ts` 的 `requires:` 零命中——宿主 blocked 态在内建组合中结构性不出现；「missing dependency」的移动呈现=desktop-host 四行的「桌面专属」能力列（宿主能力缺席的如实呈现），而非运行时 blocked。sources 的 `uses.browser` 是软依赖（宿主 `uses` accessor，未激活时 pending，不挡启动）。
+- **能力映射三集合**：管理面静态能力表 {context, btw, debug, terminal, file, review, details, microsoft-office, sources, goal} = `web`（可启停；sources/goal 自 issue #66 起入表——两内建均为纯 renderer 侧，服务端能力门槛（sources 实验 gate / goal 插件在位）与能力行启停正交，行禁用=贡献整体缺席）；{browser, pairing, ssh, updater} = `desktop-host`（呈现「桌面专属」+ Switch 禁用态）；{wsl} = `excluded`（issue #62/N12 静态排除行：禁用状态 + 原因文案，零控件）。Ipc 恰 6（pairing/wsl/updater/ssh/HeapSnapshots/BrowserPane——web 上「always inactive」，core.ts 注释逐字）+ Contract 恰 3（browser/file/review）。
 
 ## 三、宿主生命周期（上游实态，引用不重锁）
 
@@ -83,6 +85,9 @@
 - 管理面挂载于设置 gui-extensions tab（多服务器布局同样可达——`mobileGuiExtensions` 判定与布局无关，M-018 同型核对归 G35①）；与 More 抽屉/一级 tab 的扩展注册面关系引用 [interaction-quality.md](../interaction-quality.md)（#20 §二在册——本期禁用行为是其响应式机制的运行时演练，G31⑤② 为 G35①② 复核位）。
 - 组件来源=`@opencode/ui` 的 Switch 与 Button（mobile-hosts 既有五 UI 文件的先例面）+自研轻量列表（语义化容器+`data-component` 标记+上游视觉令牌——host-manager 先例「Reuses @opencode/ui primitives and tokens — no new visual decisions, no bare values」）；文案=mobile-hosts 自包含 i18n（`guiext.*` 键 en+zh——host-manager 先例「Deliberately not wired into the upstream i18n provider」）。
 - 读屏/焦点/触摸目标归 G35⑨（G31⑦ 复核位）：列表读屏走查、Switch 标签、错误文案读屏、触摸目标。静态排除行（issue #62/N12）为纯文本行：id 使用 `dir="ltr"` 保障双向文本语境下的原始 id 呈现，原因文案为普通 span（不占用 alert 语义——范围排除是常驻事实而非事件）；行内零控件即零可聚焦控件，无焦点陷阱面，读屏可读出 id/状态/原因——G35⑨ 抽查位。
+- **移动面板注册表（issue #66 起）**：既有五注册 review（tab, 10）/file（menu, 20）/terminal（menu, 30）/context（menu, 40）/details（drawer, 50）之外，sources（menu, order 60）与 goal（menu, order 70）入表——编号与 compose 序一致，无重号。窄屏 More 抽屉项恒在：sources 在实验 gate 关闭时呈空态文案（不移植上游「渲染 null」的空白面）、gate 开启但无来源时呈「最近有来源的 turn 或空态」；goal 无 goal 时呈空态文案（服务能力降级契约的诚实呈现）。差异 D3 如实登记：宽屏时间线 sources chip 的唤起路径保持上游逐字（不加 narrow 守卫），`layout.open` 对窄屏 transient tab 的无效切换为上游同态事实——窄屏入口以抽屉项为主、chip 唤起在桌面宽度（MatePad ≥768px）生效。
+- **实验 gate 存储（issue #66/D2）**：sources gate 走 `ui/src/motion-tuning.ts` 最小 shim（仅上游 Knobs dev 台被消费的四面：toggle/choice/spring/subscribe），存储沿用上游 `opencode.motion.v2` localStorage 记录格式（toggle 0/1、choice 存选项索引、spring `<id>.duration`/`<id>.bounce`、非默认条目才落盘、空记录移除键），默认 false、无 auto-enable 路径、不经 settings.v3；设置 → Experimental → Sources 行是唯一写入面。#67 若引入真 motion-tuning 台，shim 可被原位替换（同键同格式，已存值不丢）。
+- **与 #67 的衔接（gui-plugins 迁移映射，防返工）**：sources 迁移=宿主 API 机械改名（`../sdk`→`@opencode/plugin/gui`、`Setup`→`Plugin.Setup`、`useExtension`→`usePlugin`、`ctx.uses.browser()`→`ctx.use(Browser)()`、`Browser` from `../browser/contract`→`@opencode/plugin/gui/browser`、`onIdle` 自 sdk→`@opencode/plugin/gui/builtin`、`Extension.define`→`Plugin.define`——v2.2.1 gui-plugins 版即对照答案）；goal 迁移=数据层（schema 契约+createStore 订阅+command 路径）零改动，Panel 注册届时二选一（保留 Panel 或升级 ComposerPill，由 #67 范围决定）。本期全部增量（goal Panel 形态、gate shim、两个 mobile face、设置开关行）为第一方登记差异（D1/D2/D3），不阻塞宿主迁移。
 
 ## 十、诚实边界（本期不声称）
 

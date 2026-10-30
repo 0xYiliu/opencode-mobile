@@ -13,6 +13,9 @@ import {
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { useData } from "../context"
+import { useSources } from "../context/sources"
+import { SourcesChip } from "../sources/sources-chip"
+import type { TurnSources } from "../sources/sources"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { useI18n } from "@opencode/ui/context/i18n"
 import { Markdown } from "../components/markdown"
@@ -795,10 +798,18 @@ export function AssistantTextContent(props: {
   message: SessionMessageAssistant
   showCopy: boolean
   turnDurationMs?: number | null
+  /** The finished turn's web searches and fetches, shown as a chip in its footer. */
+  sources?: TurnSources
+  onOpenSources?: () => void
 }) {
   const data = useData()
   const i18n = useI18n()
+  const sourcesHost = useSources()
   const numfmt = createMemo(() => new Intl.NumberFormat(i18n.locale()))
+  // A footer that arrives after the reply rendered belongs to a turn that just finished, so its chip fades in.
+  let rendered = false
+  onMount(() => (rendered = true))
+  const sources = () => (props.showCopy && sourcesHost?.enabled ? props.sources : undefined)
 
   const interrupted = () => {
     const type = props.message.error?.type.toLowerCase()
@@ -860,25 +871,41 @@ export function AssistantTextContent(props: {
         <div data-slot="text-part-body">
           <PacedMarkdown text={props.text} cacheKey={props.id} streaming={props.message.time.completed === undefined} />
         </div>
-        <Show when={props.showCopy}>
-          <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
-            <MessageActionButton
-              icon={copied() ? "check" : "copy"}
-              label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={copy}
-              aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
-            />
-            <Show when={meta()}>
-              <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
-                {meta()}
-              </span>
-            </Show>
-          </div>
+        <Show when={sources()} fallback={<Show when={props.showCopy}>{copyFooter()}</Show>}>
+          {(value) => (
+            <div data-slot="text-part-footer">
+              <SourcesChip
+                sources={value()}
+                icons={sourcesHost?.icons ?? "letters"}
+                appear={rendered}
+                onOpen={() => props.onOpenSources?.()}
+              />
+              {copyFooter()}
+            </div>
+          )}
         </Show>
       </div>
     </Show>
   )
+
+  function copyFooter() {
+    return (
+      <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
+        <MessageActionButton
+          icon={copied() ? "check" : "copy"}
+          label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={copy}
+          aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copyResponse")}
+        />
+        <Show when={meta()}>
+          <span data-slot="text-part-meta" class="text-12-regular text-text-weak cursor-default">
+            {meta()}
+          </span>
+        </Show>
+      </div>
+    )
+  }
 }
 
 export function AssistantReasoningContent(props: {

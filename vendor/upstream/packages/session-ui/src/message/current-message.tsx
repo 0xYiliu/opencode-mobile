@@ -9,6 +9,10 @@ import {
   ToolDisplay,
 } from "../tools/tool-renderer"
 import { currentToolError, currentToolInput, currentToolMetadata, currentToolOutput } from "./current-tool-state"
+// mobile(M-036): only the TurnSources type crosses here. The v2.2.1 diff also carries a
+// timeline-rewrite type import that this slice deliberately does not take (that boundary is
+// machine-checked by verify-goal-sources group 6).
+import type { TurnSources } from "../sources/sources"
 
 export type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
 
@@ -54,6 +58,8 @@ export function SessionAssistantContent(props: {
   contentID: string
   showAssistantCopyPartID?: string | null
   turnDurationMs?: number | null
+  sources?: TurnSources
+  onOpenSources?: () => void
   defaultOpen?: boolean
   reasoningDefaultOpen?: boolean
   toolOpen?: boolean
@@ -70,6 +76,8 @@ export function SessionAssistantContent(props: {
             message={props.message}
             showCopy={props.showAssistantCopyPartID === props.contentID}
             turnDurationMs={props.turnDurationMs}
+            sources={props.sources}
+            onOpenSources={props.onOpenSources}
           />
         )}
       </Match>
