@@ -11,6 +11,7 @@ import android.util.Log
 import org.json.JSONObject
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
+import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -43,6 +44,14 @@ class MainActivity : Activity() {
     private var filesBridge: FilesBridge? = null
     private var notificationsBridge: NotificationsBridge? = null
     private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
+    /**
+     * The one in-flight WebView getUserMedia permission request (issue #71 pairing QR scan;
+     * main-thread confined — WebChromeClient permission callbacks and
+     * onRequestPermissionsResult all arrive on the main looper). Replaced, never queued:
+     * a second request while one is pending DENIES the old one first (fileChooser
+     * "refuse rather than queue" precedent).
+     */
+    private var pendingCameraRequest: PermissionRequest? = null
     /**
      * The notification tap route (issue #23), consumed once: on a warm instance
      * onNewIntent consumes it immediately; on a cold start the first onPageFinished
@@ -260,6 +269,75 @@ class MainActivity : Activity() {
                     }
                 }
             }
+
+            override fun onPermissionRequest(request: PermissionRequest) {
+                // Issue #71 pairing QR scan (getUserMedia for the shared PairingScanner).
+                // Decision is policy-owned (CameraGrantPolicy, JVM-tested): the origin must
+                // parse to EXACTLY the shell loopback origin and the resource set must be
+                // EXACTLY the video-capture resource (audio never granted); otherwise deny.
+                // The request object is answered EXACTLY once on every path — grant / deny
+                // (both policy branches) / prompt-then-grant / prompt-then-deny / supersede
+                // (old slot denied first) / canceled (slot cleared WITHOUT answering: the
+                // canceled request object is dead on the Chromium side and must never be
+                // touched) / destroy (onDestroy denies the pending slot) / lost system dialog
+                // (activity death; the page times out into its explicit error face). Zero
+                // value logging: no origin string, no resource list, no URLs in logcat.
+                val decision = CameraGrantPolicy.decide(
+                    origin = request.origin?.toString() ?: "",
+                    resources = request.resources?.toList() ?: emptyList(),
+                    expectedScheme = "http",
+                    expectedHost = WebAssetServer.LOOPBACK_HOST,
+                    expectedPort = WebAssetServer.DEFAULT_PORT,
+                    cameraPermissionGranted = checkSelfPermission(android.Manifest.permission.CAMERA)
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED,
+                )
+                when (decision) {
+                    CameraGrantPolicy.Decision.DENY_FOREIGN_ORIGIN -> {
+                        Log.i(TAG, "camera: denied foreign origin request")
+                        request.deny()
+                    }
+                    CameraGrantPolicy.Decision.DENY_UNSUPPORTED_RESOURCE -> {
+                        Log.i(TAG, "camera: denied non-video resource request")
+                        request.deny()
+                    }
+                    // OS CAMERA permission already held: the WebView grant takes effect
+                    // immediately (Chromium behavior: WebView authorization requires the App
+                    // to hold the OS runtime permission; order is OS first, grant second).
+                    CameraGrantPolicy.Decision.GRANT -> request.grant(CAMERA_GRANT)
+                    CameraGrantPolicy.Decision.PROMPT_RUNTIME -> promptCameraRuntime(request)
+                }
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest) {
+                // Issue #71: the page withdrew the getUserMedia call (scanner disposed /
+                // navigation). Clear the pending slot WITHOUT granting or denying: the
+                // request object is already dead on the Chromium side and answering it is
+                // both pointless and forbidden; a non-pending request's cancellation is a
+                // no-op. (Canceled requests sit outside the exactly-once grant/deny contract
+                // — the slot release is the only obligation.)
+                if (pendingCameraRequest === request) pendingCameraRequest = null
+            }
+        }
+    }
+
+    /**
+     * Drives the OS CAMERA runtime dialog for a policy-approved WebView request (issue #71).
+     * Single pending slot, replace-never-queue: a superseded request is denied immediately
+     * (exactly-once answered) and the new one takes the slot. No window-focus precheck is
+     * applied (unlike the notifications bridge): onPermissionRequest can only be triggered
+     * by a foreground page gesture chain — getUserMedia is always started by the user
+     * tapping the scan entry, so the foreground condition is structural. A failing
+     * requestPermissions start clears the slot and denies the request (notifications-bridge
+     * precedent): the page gets an explicit denial, never a silent hang.
+     */
+    private fun promptCameraRuntime(request: PermissionRequest) {
+        pendingCameraRequest?.deny()
+        pendingCameraRequest = request
+        try {
+            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), REQUEST_CAMERA)
+        } catch (e: Exception) {
+            pendingCameraRequest = null
+            request.deny()
         }
     }
 
@@ -393,6 +471,21 @@ class MainActivity : Activity() {
             )
             return
         }
+        if (requestCode == REQUEST_CAMERA) {
+            // Issue #71 CAMERA result: the single pendingCameraRequest slot is taken and
+            // cleared first, then answered EXACTLY once — granted -> WebView grant (video
+            // resource only), denied -> WebView deny. A stale result (slot already empty:
+            // superseded/canceled/destroyed meanwhile) is silently dropped; the canceled or
+            // superseded request objects were already answered or are dead and are never
+            // touched here. Log carries the fixed tag and the verdict class only.
+            val pending = pendingCameraRequest
+            pendingCameraRequest = null
+            val granted = grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) Log.i(TAG, "camera: runtime permission denied")
+            if (pending != null) {
+                if (granted) pending.grant(CAMERA_GRANT) else pending.deny()
+            }
+        }
     }
 
     /**
@@ -474,6 +567,11 @@ class MainActivity : Activity() {
         // and tasks are never stopped because the client disconnects (AGENTS.md red line).
         pendingFileChooser?.onReceiveValue(null)
         pendingFileChooser = null
+        // Issue #71: a pending WebView camera request is answered with deny (exactly-once
+        // destroy path — the request object must never dangle unanswered across the
+        // activity's death; the page's getUserMedia then rejects into its own error face).
+        pendingCameraRequest?.deny()
+        pendingCameraRequest = null
         vaultBridge?.destroy()
         vaultBridge = null
         probeBridge?.destroy()
@@ -514,6 +612,10 @@ class MainActivity : Activity() {
         private const val REQUEST_FILE_CHOOSER = 41001
         // REQUEST_SAVE_DOCUMENT = 41002 lives on FilesBridge (its SAF dialog's request
         // code, routed in onActivityResult).
+        // REQUEST_NOTIFICATIONS = 41003 lives on NotificationsBridge.
+        private const val REQUEST_CAMERA = 41004
+        /** The WebView grant payload — exactly the policy's video whitelist (issue #71). */
+        private val CAMERA_GRANT = CameraGrantPolicy.grantableResources().toTypedArray()
         private val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
 
         /**

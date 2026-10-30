@@ -8,6 +8,13 @@
     <!-- Issue #23 notifications: runtime permission on API 33+ (requested in-app from the
          settings face, user-in-foreground only); API 29-32 needs no prompt, channels only. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Issue #71 pairing QR scan: WebView getUserMedia for the shared PairingScanner.
+         Runtime-granted in-app ONLY via WebChromeClient.onPermissionRequest, for the exact
+         loopback shell origin and the video-capture resource only (audio is never granted,
+         RECORD_AUDIO stays undeclared); denial/no-camera paths surface through the page's
+         own scanner error/hint faces. Camera frames never leave the page: no bridge, no
+         capture, zero-value logging. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:allowBackup="false"
