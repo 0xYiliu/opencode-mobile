@@ -59,7 +59,7 @@
 //      narrow-screen layout.open(KEY, …), the review LinkHandler, the
 //      "mobile-diff" SettingsPage, diffStyle="unified", the wrap overflow
 //      toggle, the touchstart interaction gate, the layout.scroll "review"
-//      keying, en+zh i18n pairs, and the ctx.uses.openIn() contract gate
+//      keying, en+zh i18n pairs, and the ctx.use(OpenInApp)() contract gate
 //      (button structurally absent when the desktop-only contract is absent).
 //   7. Worktree operations face: workspace-menu (worktree.updated listener,
 //      running-locked blocked(), move.failed toast, create + syncInfo cache
@@ -105,7 +105,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 
 const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const UI = "vendor/upstream/packages/ui/"
 const PROTOCOL = "vendor/upstream/packages/protocol/"
@@ -383,19 +383,23 @@ function expectFromGroup2(name: string, files: string[]) {
     if (!index.includes(anchor)) fail(`5: the per-session store pick lost ${anchor}`)
   }
 
+  // Issue #67: the v2.2.1 details renderer is the slot/panel composition (no service.watch;
+  // the on-demand load compiles the panel + inline css on idle), the location menu keeps the
+  // screen watch, and the branch/basedOn context rows are upstream-removed (review's
+  // vcs.info consumption remains in review/model.ts).
   const detailsRenderer = await read(`${GUI_EXT}src/details/renderer.tsx`)
-  if (!detailsRenderer.includes('service.watch(props.screen, "details")'))
-    fail("5: the details renderer watch (on-demand load) changed")
-  const popover = await read(`${GUI_EXT}src/details/popover.tsx`)
-  if (!popover.includes('service.watch(screen, "details")'))
-    fail("5: the details popover watch changed")
-  const detailsPanel = await read(`${GUI_EXT}src/details/panel.tsx`)
-  if (!detailsPanel.includes("data().location.vcs.info({ directory: props.session.directory })?.branch.current"))
-    fail("5: the branch context row must read data.location.vcs.info (review M1 consumption)")
-  if (!detailsPanel.includes("basedOn"))
-    fail("5: the basedOn (base branch) context row changed")
-  if (!detailsPanel.includes('ctx.plural("ui.sessionTurn.diffs.changed"'))
-    fail("5: the changes row plural label changed")
+  if (!detailsRenderer.includes('import("./details.css?inline")'))
+    fail("5: the details renderer on-demand load (panel + inline css) changed")
+  if (!detailsRenderer.includes("void DetailsPanel.preload()"))
+    fail("5: the details idle preload changed")
+  const locationMenu = await read(`${GUI_EXT}src/details/location-menu.tsx`)
+  if (!locationMenu.includes('service.watch(screen, "details")'))
+    fail("5: the details location-menu screen watch changed")
+  const reviewModel = await read(`${GUI_EXT}src/review/model.ts`)
+  if (!reviewModel.includes("location.vcs.info({ directory: directory() })"))
+    fail("5: review/model.ts lost the vcs.info consumption (review M1)")
+  if (!locationMenu.includes('ctx.plural("ui.sessionTurn.diffs.changed"'))
+    fail("5: the changes row plural label changed (issue #67: the row lives in location-menu)")
 
   const controller = squash(await read(`${APP}src/new-session/workspace/controller.ts`))
   if (!controller.includes("branch.list({location:{directory},search,limit:50})"))
@@ -440,7 +444,9 @@ function expectFromGroup2(name: string, files: string[]) {
   }
 
   const panel = await read(`${GUI_EXT}src/review/panel.tsx`)
-  if (!panel.includes("ctx.uses.openIn()"))
+  // Issue #67: the soft-dependency form moves from ctx.uses.openIn() to the typed
+  // registry read ctx.use(OpenInApp)() on the gui-plugins host.
+  if (!panel.includes("ctx.use(OpenInApp)()"))
     fail("6: the OpenInApp toolbar contract consumption changed")
   if (!panel.includes("<Show when={openIn()}>") || !panel.includes("openIn().Button"))
     fail("6: the open-in-app button must be structurally absent when the contract is not provided (desktop-only)")
@@ -525,9 +531,13 @@ let osScanFiles = 0
         targets.push(`${base}/${file}`)
       }
     }
+    // Issue #67 measured exception: gui-plugins@v2.2.1's review/renderer.tsx carries one
+    // navigator.platform mac-pointer gate in the toolbar row (registered).
+    const osExceptions = new Set([`${GUI_EXT}src/review/renderer.tsx`])
     for (const target of targets) {
       osScanFiles++
       const source = await read(target)
+      if (osExceptions.has(target)) continue
       for (const [pattern, label] of osPatterns) {
         if (pattern.test(source)) fail(`8: host-OS conditional (${label}) found in whitelisted ${target}`)
       }

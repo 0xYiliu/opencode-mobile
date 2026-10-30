@@ -108,7 +108,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 
 const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const PROTOCOL = "vendor/upstream/packages/protocol/"
 const SCHEMA = "vendor/upstream/packages/schema/"
 const MOBILE_HOSTS = "packages/mobile-hosts/"
@@ -438,17 +438,21 @@ const callSites = new Map<string, Set<string>>()
     fail("6: the mobile Panel registration (order 30, kind menu, icon terminal) changed")
   if (!renderer.includes(`bind:"mod+w"`) || !renderer.includes(`scope:'[data-component="terminal"]'`))
     fail("6: the close command (mod+w, terminal scope) changed")
+  // Issue #67: v2.2.1 hosts the keybind literals in terminal/index.ts's shared command
+  // consts (spaces inside the object literal).
+  const termIndex = await read(`${GUI_EXT}src/terminal/index.ts`)
+  if (!termIndex.includes('bind: "ctrl+`"')) fail("6: the toggle command keybind changed (terminal/index.ts)")
   if (!renderer.includes('bind:"ctrl+alt+t"')) fail("6: the new-terminal command keybind changed")
-  if (!renderer.includes(`bind:"ctrl+${BTICK}"`)) fail("6: the toggle command keybind changed")
-  if (!renderer.includes("voidtarget.terminal.close(id)")) fail("6: the close command execution changed")
+  // Issue #67: v2.2.1 closes via the pty handle (`void terminal.close(pty.id)`).
+  if (!renderer.includes("voidterminal.close(pty.id)")) fail("6: the close command execution changed")
   if (!renderer.includes("lazy(()=>import(\"./panel\"))") && !renderer.includes("lazy(()=>import('./panel'))"))
     fail("6: the lazy panel chunk split changed")
 
-  const mobile = squash(await read(`${APP}src/runtime/extension/mobile.tsx`))
+  const mobile = squash(await read(`${APP}src/runtime/plugin/mobile.tsx`))
   if (!mobile.includes('sorted(["menu","drawer"])')) fail("6: the mobile menu/drawer sorter changed")
   if (!mobile.includes("a.mobile.order-b.mobile.order")) fail("6: the mobile order comparison changed")
 
-  const panels = squash(await read(`${APP}src/runtime/extension/panels.tsx`))
+  const panels = squash(await read(`${APP}src/runtime/plugin/panels.tsx`))
   if (!panels.includes("window.visualViewport?.height??window.innerHeight"))
     fail("6: the visualViewport height sync (soft-keyboard awareness) changed")
   if (!panels.includes('id="terminal-panel"')) fail("6: the terminal panel aside id changed")
@@ -473,6 +477,10 @@ let osScanFiles = 0
     [/require\(["']os["']\)/, 'require("os")'],
     [/from ["']os["']/, 'import from "os"'],
   ]
+  // Issue #67 measured exception: gui-plugins@v2.2.1's terminal/quote.tsx carries one
+  // navigator.platform mac-pointer gate on the quote button (registered, same shape as the
+  // verify-files renderer.tsx exception).
+  const osExceptions = new Set([`${GUI_EXT}src/terminal/quote.tsx`])
   for (const [base, kind] of whitelist) {
     const targets: string[] = []
     if (kind === "file") {
@@ -486,6 +494,7 @@ let osScanFiles = 0
     for (const target of targets) {
       osScanFiles++
       const source = await read(target)
+      if (osExceptions.has(target)) continue
       for (const [pattern, label] of osPatterns) {
         if (pattern.test(source)) fail(`7: host-OS conditional (${label}) found in whitelisted ${target}`)
       }

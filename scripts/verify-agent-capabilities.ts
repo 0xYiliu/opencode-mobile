@@ -8,7 +8,7 @@
 //
 //   1. MCP start/stop call-face EXHAUSTIVE SETS (normalized cross-line scan,
 //      no exceptions — B1 caliber): with the RECEIVER-TOLERANT regex
-//      `\b(api|client)\s*(\(\s*\))?\s*\.\s*mcp\s*\.\s*(connect|disconnect)\s*\(`
+//      `\b(api|client)\s*(\(\s*\))?\s*(\.\s*experimental\s*\(\s*\))?\s*\.\s*mcp\s*\.\s*(connect|disconnect)\s*\(`
 //      the `mcp.connect|disconnect` call face is EXACTLY
 //      {providers/connect/mcp.ts, runtime/server/sync.tsx,
 //      gui-extensions/src/details/server-panel.tsx} — app side via the
@@ -152,7 +152,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 
 const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const PROTOCOL = "vendor/upstream/packages/protocol/"
 const SCHEMA = "vendor/upstream/packages/schema/"
@@ -182,7 +182,7 @@ async function srcFiles(base: string): Promise<string[]> {
   return out
 }
 
-const recv = String.raw`\b(api|client)\s*(\(\s*\))?\s*\.`
+const recv = String.raw`\b(api|client)\s*(\(\s*\))?\s*(\.\s*experimental)?\s*\.`
 const mcpCall = (method: string) => new RegExp(recv + String.raw`\s*mcp\s*\.\s*` + method + String.raw`\s*\(`)
 const pluginCall = (method: string) => new RegExp(recv + String.raw`\s*plugin\s*\.\s*` + method + String.raw`\s*\(`)
 const sessionCall = (method: string) => new RegExp(recv + String.raw`\s*session\s*\.\s*` + method + String.raw`\s*\(`)
@@ -244,8 +244,10 @@ let mhFiles = 0
   const face = squash(await read(`${APP}src/providers/connect/mcp.ts`))
   if (!/serverSDK\.api\s*\.\s*mcp/.test(face)) fail("1: the app-side OpenAPI-generated receiver (serverSDK.api.mcp.) moved")
   const panel = squash(await read(`${GUI_EXT}src/details/server-panel.tsx`))
-  if (!/client\s*\.\s*mcp\s*\.\s*(connect|disconnect)/.test(panel))
-    fail("1: the gui-ext promise-client receiver (client.mcp.connect/disconnect) moved")
+  // Issue #67: v2.2.1 namespaces the promise client under experimental
+  // (client.experimental.mcp.connect/disconnect).
+  if (!/client(\s*\.\s*experimental)?\s*\.\s*mcp\s*\.\s*(connect|disconnect)/.test(panel))
+    fail("1: the gui-plugins promise-client receiver (client.experimental.mcp.connect/disconnect) moved")
   const data = squash(await read(`${CLIENT}src/solid/data.ts`))
   if (!/api\(\)\s*\.\s*mcp\s*\.\s*list/.test(data))
     fail("1: the data-layer function-call receiver (api().mcp.list — N1) moved")
@@ -329,25 +331,33 @@ let mhFiles = 0
   // ① web platform has NO Bridge field.
   const web = await read(`${APP}src/runtime/platform/web.ts`)
   if (web.includes("extensions")) fail("3: web platform must carry NO extensions (Bridge) field")
-  const bridge = await read(`${GUI_EXT}src/sdk/bridge.ts`)
+  const bridge = await read("vendor/upstream/packages/plugin/src/gui/host.ts")
   if (!bridge.includes("What the desktop preload exposes to the renderer host; undefined on the web."))
     fail("3: the Bridge 'undefined on the web' doc moved (verbatim)")
   // ② Ipc always inactive on the web.
-  const core = await read(`${GUI_EXT}src/sdk/core.ts`)
-  if (!core.includes("On the web, where no main process runs, it is always inactive."))
+  const core = await read("vendor/upstream/packages/plugin/src/gui/core.ts")
+  if (!core.includes("On the web, where no main process runs, it is inactive and every call rejects."))
     fail("3: the Ipc 'always inactive on the web' doc moved (verbatim)")
   // ③ zero electron imports + exact gui-extensions import-specifier set.
   const electronShape = /from\s*["']electron["']/
   // Specifier shapes: `from "@opencode/gui-extensions…"` imports AND the
   // DEV HMR `import.meta.hot.accept("@opencode/gui-extensions/renderer",…)`
   // form (builtins.ts — the renderer count 2 includes that one HMR accept).
-  const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\()\s*["']@opencode\/gui-extensions([^"']*)["']/g
+  // Issue #67: the app/src specifier graph moved to @opencode/plugin/gui* + gui-plugins/renderer.
+  // Measured (M-037 tree): plugin/gui x33, /builtin x9, /host x16, /browser x1, /file x1,
+  // /main x1, /review x1, /updater x1, gui-plugins/renderer x2; main-process entries zero.
+  const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\(|import\()\s*["']@opencode\/(plugin\/gui[^"']*|gui-plugins\/?[^"']*)["']/g
   const specifiers = new Map<string, number>([
-    ["", 0],
-    ["/sdk", 0],
-    ["/sdk/bridge", 0],
-    ["/renderer", 0],
-    ["/updater", 0],
+    ["plugin/gui", 0],
+    ["plugin/gui/builtin", 0],
+    ["plugin/gui/host", 0],
+    ["plugin/gui/browser", 0],
+    ["plugin/gui/file", 0],
+    ["plugin/gui/main", 0],
+    ["plugin/gui/review", 0],
+    ["plugin/gui/updater", 0],
+    ["gui-plugins", 0],
+    ["gui-plugins/renderer", 0],
   ])
   let appSrcFiles = 0
   for (const rel of await srcFiles(`${APP}src/`)) {
@@ -355,25 +365,30 @@ let mhFiles = 0
     const raw = await read(rel)
     if (electronShape.test(raw)) fail(`3: electron import shape found in app/src: ${rel}`)
     for (const match of raw.matchAll(specifierRe)) {
-      const key = match[1]
+      const key = match[1]!.replace(/"/g, "")
       const record = specifiers.get(key)
-      if (record === undefined) fail(`3: unexpected @opencode/gui-extensions specifier "${key}" in ${rel}`)
+      if (record === undefined) fail(`3: unexpected @opencode plugin/gui specifier "${key}" in ${rel}`)
       specifiers.set(key, record + 1)
     }
-    if (/["']@opencode\/gui-extensions\/(main|sdk\/main)["']/.test(raw))
-      fail(`3: main-process gui-extensions entry imported in app/src: ${rel}`)
+    if (/["']@opencode\/gui-plugins\/main["']/.test(raw))
+      fail(`3: main-process gui-plugins entry imported in app/src: ${rel}`)
   }
   if (appSrcFiles < 300) fail(`3: app/src scan implausibly small (${appSrcFiles} files)`)
   const expectSpecifiers: [string, number][] = [
-    ["", 0],
-    ["/sdk", 34],
-    ["/sdk/bridge", 8],
-    ["/renderer", 2],
-    ["/updater", 1],
+    ["plugin/gui", 33],
+    ["plugin/gui/builtin", 9],
+    ["plugin/gui/host", 16],
+    ["plugin/gui/browser", 1],
+    ["plugin/gui/file", 1],
+    ["plugin/gui/main", 0],
+    ["plugin/gui/review", 1],
+    ["plugin/gui/updater", 1],
+    ["gui-plugins", 0],
+    ["gui-plugins/renderer", 2],
   ]
   for (const [key, count] of expectSpecifiers) {
     const got = specifiers.get(key) ?? -1
-    if (got !== count) fail(`3: the @opencode/gui-extensions specifier set changed: "${key || "sdk(root)"}" expected ${count}, got ${got}`)
+    if (got !== count) fail(`3: the @opencode plugin/gui specifier set changed: "${key}" expected ${count}, got ${got}`)
   }
   // ④ settings entry double gate (DEV-only lazy + desktop-only + guard). Issue #26
   // revision (deliberate, NOT a bypass): the redirect guard gained the !mobileGuiExtensions
@@ -388,16 +403,17 @@ let mhFiles = 0
     fail("3: the gui-extensions redirect guard moved (issue #26 revised shape: !guiExtensions && !mobileGuiExtensions)")
   // Anti-overclaim: renderer side DOES run on web (os filter + bridge-less
   // inertness), and the details mobile drawer chain stays in place.
-  const root = squash(await read(`${APP}src/runtime/extension/root.tsx`))
+  const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
   if (!root.includes('constos=platform.platform==="desktop"?platform.os:undefined'))
     fail("3: the root os gate (web ⇒ os undefined) moved")
-  if (!root.includes("!definition.os||(!!os&&definition.os.includes(os))"))
-    fail("3: the builtins OS-only filter moved (renderer side runs on web)")
+  // Issue #67: the inline os filter becomes the host's runsOn(definition, os) (same §4.1 row
+  // as the gui-plugins probe); the provider face renames; the .ocdx installed-archive comment
+  // is upstream-removed (its face is gone; the D04 anchor is the Bridge.manager member set).
+  if (!root.includes("runsOn(definition,os)"))
+    fail("3: the builtins OS-only filter moved (runsOn host fn, issue #67)")
   if (!root.includes("ipc={bridge?(token)=>ipcs.client(token):undefined}"))
-    fail("3: the ExtensionHostProvider ipc bridge-conditional moved")
-  if (!root.includes(squash("Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.")))
-    fail("3: the .ocdx main-entry comment moved (verbatim)")
-  const installed = squash(await read(`${APP}src/runtime/extension/installed.ts`))
+    fail("3: the PluginHostProvider ipc bridge-conditional moved")
+  const installed = squash(await read(`${APP}src/runtime/plugin/installed.ts`))
   if (!installed.includes("if(!bridge)return")) fail("3: installed.ts must early-return without a bridge")
   if (!installed.includes("bridge?bridge.manager.initial?.catch(()=>undefined):[]"))
     fail("3: installed.ts initial list must be empty without a bridge")
@@ -407,10 +423,11 @@ let mhFiles = 0
   if (!/<MobileViewTabs/.test(screen)) fail("3: the session screen MobileViewTabs mount moved")
   const wsl = squash(await read(`${GUI_EXT}src/wsl/index.ts`))
   if (!wsl.includes('os:["windows"]')) fail("3: the wsl windows-only os literal moved (the only os-filtered builtin)")
-  // The gui-ext main compose stays desktop-side (six main: entries in main.ts).
+  // The gui-plugins main compose stays desktop-side (six mainEntry: entries in main.ts;
+  // issue #67 renames the face and the object-map form).
   const mainCompose = await read(`${GUI_EXT}src/main.ts`)
-  const mainEntries = (mainCompose.match(/main:\s*\(\)\s*=>\s*import\(/g) ?? []).length
-  if (mainEntries !== 6) fail(`3: the gui-ext main compose must carry exactly 6 main: entries (got ${mainEntries})`)
+  const mainEntries = (mainCompose.match(/mainEntry:\s*\(\)\s*=>\s*import\(/g) ?? []).length
+  if (mainEntries !== 6) fail(`3: the gui-plugins main compose must carry exactly 6 mainEntry: entries (got ${mainEntries})`)
 }
 
 // --- 4. Data-face five events + reconnect resync + disconnect zero ---

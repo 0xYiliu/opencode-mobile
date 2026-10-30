@@ -9,11 +9,12 @@
 //      then goal); main.ts carries the same 15-id table with the six lazy main entries
 //      unchanged (sources/goal are renderer-only, ids reserved); the mobile face order set
 //      is exactly {10,20,30,40,50,60,70} — no duplicates (sources 60 menu, goal 70 menu).
-//   2. #67 host boundary: the four new-host tokens (`@opencode/plugin/gui`, `ComposerPill`,
-//      `plugin-pills`, `usePlugin`) have ZERO hits across the four vendored domains
-//      (gui-extensions/src, session-ui/src, app/src, ui/src — packages/plugin etc. are NOT
-//      scan domains; their `@opencode/plugin` references predate and are unrelated), and the
-//      two new builtin directories are additionally scanned as a precise double check.
+//   2. #67 host boundary (issue #67 revision): the OLD host tokens (`@opencode/gui-extensions`
+//      specifier, `Extension.define`, `useExtension`) have ZERO hits across the four vendored
+//      domains (gui-plugins/src, session-ui/src, app/src, ui/src), while `@opencode/plugin/gui`
+//      is a POSITIVE anchor there; `ComposerPill` and `plugin-pills` keep their zero-hit
+//      negatives (D1: the pill host stays unadopted), and the two new builtin directories are
+//      additionally scanned as a precise double check.
 //   3. Goal contract: schema/goal.ts is the v2.2.1 verbatim form including its THREE
 //      `Schema.toStandardSchemaV1(...)` wrappers. Implementation note (deviation from the
 //      approved plan recorded here): the plan expected the wrappers stripped because the pin
@@ -94,7 +95,7 @@ function fail(message: string): never {
 const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).text()
 const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).exists()
 
-const GUI = "vendor/upstream/packages/gui-extensions/src/"
+const GUI = "vendor/upstream/packages/gui-plugins/src/"
 const SUI = "vendor/upstream/packages/session-ui/"
 const APP = "vendor/upstream/packages/app/"
 const UI = "vendor/upstream/packages/ui/"
@@ -136,25 +137,25 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
 // --- 1. Registration face ---
 {
+  // Issue #67: the v2.2.1 gui-plugins compose is an OBJECT MAP keyed by plugin id with
+  // `windowEntry` (renderer) / `mainEntry` (main) faces — same 15 ids, same order.
   const renderer = await read(`${GUI}renderer.ts`)
-  const composeStart = renderer.indexOf("export const builtins = Extension.compose(")
-  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose")
-  const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n)", composeStart))
-  const entryLines = composeBlock.split("\n").filter((line) => /^\s*\{/.test(line))
-  if (entryLines.length !== EXPECTED_IDS.length)
-    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryLines.length} (NEGATIVE 2 deletes the goal mobile face / an entry)`)
-  const spreadIds = [...composeBlock.matchAll(/\.\.\.(\w+),/g)].map((m) => m[1]!)
-  const camel: Record<string, string> = { microsoftOffice: "microsoft-office" }
-  setEq(
-    spreadIds.map((id) => camel[id] ?? id),
-    EXPECTED_IDS,
-    "1: builtins compose id set",
-  )
+  const composeStart = renderer.indexOf("export const builtins = compose({")
+  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose (v2.2.1 object-map form)")
+  const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n})", composeStart))
+  const entryIds = [...composeBlock.matchAll(/^  "?([\w-]+)"?: \{/gm)].map((m) => m[1]!)
+  if (entryIds.length !== EXPECTED_IDS.length)
+    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryIds.length} (NEGATIVE 2 deletes the goal mobile face / an entry)`)
+  setEq(entryIds, EXPECTED_IDS, "1: builtins compose id set")
   // v2.2.1 compose order: … microsoft-office, sources, goal.
-  const at = (id: string) => composeBlock.indexOf(`...${id},`)
-  for (const id of ["microsoftOffice", "sources", "goal"]) if (at(id) === -1) fail(`1: compose lost the ${id} entry`)
-  if (!(at("microsoftOffice") < at("sources") && at("sources") < at("goal")))
+  const at = (id: string) => composeBlock.indexOf(`  ${id}: {`) !== -1
+    ? composeBlock.indexOf(`  ${id}: {`)
+    : composeBlock.indexOf(`  "${id}": {`)
+  for (const id of ["microsoft-office", "sources", "goal"]) if (at(id) === -1) fail(`1: compose lost the ${id} entry`)
+  if (!(at("microsoft-office") < at("sources") && at("sources") < at("goal")))
     fail("1: compose order must be microsoft-office -> sources -> goal (v2.2.1 gui-plugins renderer.ts order)")
+  if (!renderer.includes("windowEntry: eager(goalRenderer)"))
+    fail("1: renderer.ts compose lost the windowEntry face (v2.2.1 gui-plugins compose)")
 
   const main = await read(`${GUI}main.ts`)
   const mainImports = [...main.matchAll(/import (\w+) from "\.\/([\w-]+)"/g)].map((m) => m[1]!)
@@ -164,8 +165,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     [...EXPECTED_IDS],
     "1: main.ts import table (same 15 builtins)",
   )
-  const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*main:/g)].map((m) => m[1]!)
-  setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy main-entry set (sources/goal are renderer-only)")
+  const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*mainEntry:/g)].map((m) => m[1]!)
+  setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy mainEntry set (sources/goal are renderer-only)")
 
   // Mobile face orders across the seven registered faces: no duplicates, exact set.
   const faces: Array<[string, number, string]> = [
@@ -196,9 +197,10 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
 // --- 2. #67 host boundary (four tokens x four vendored domains, zero hits) ---
 {
-  const TOKENS = ["@opencode/plugin/gui", "ComposerPill", "plugin-pills", "usePlugin"]
+  const FORBIDDEN = ["@opencode/gui-extensions", "Extension.define", "useExtension", "ComposerPill", "plugin-pills"]
+  const REQUIRED = ["@opencode/plugin/gui"]
   const DOMAINS = [
-    "vendor/upstream/packages/gui-extensions/src",
+    "vendor/upstream/packages/gui-plugins/src",
     "vendor/upstream/packages/session-ui/src",
     "vendor/upstream/packages/app/src",
     "vendor/upstream/packages/ui/src",
@@ -213,15 +215,16 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
       }
       if (!/\.(ts|tsx|css|js|jsx|json)$/.test(entry.name)) continue
       const body = await Bun.file(path).text()
-      for (const token of TOKENS) if (body.includes(token)) hit(path.replace(`${repoRoot.pathname}`, ""), token)
+      for (const token of [...FORBIDDEN, ...REQUIRED]) if (body.includes(token)) hit(path.replace(`${repoRoot.pathname}`, ""), token)
     }
   }
   let leaked = false
   for (const domain of DOMAINS) await scan(`${repoRoot.pathname}${domain}`, (path, token) => {
+    if (REQUIRED.includes(token)) return
     leaked = true
     console.error(`  boundary leak: ${path} mentions ${token}`)
   })
-  if (leaked) fail("2: a #67 new-host token leaked into the vendored domains (NEGATIVE 3 injects one deliberately)")
+  if (leaked) fail("2: an old-host token leaked into the vendored domains (NEGATIVE 3 injects one deliberately)")
 
   // Double check: the two new builtin directories precisely.
   for (const dir of [`${GUI}sources`, `${GUI}goal`]) {
@@ -229,12 +232,12 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
       if (entry.isDirectory()) {
         for (const inner of readdirSync(`${repoRoot.pathname}${dir}/${entry.name}`)) {
           const body = await Bun.file(`${repoRoot.pathname}${dir}/${entry.name}/${inner}`).text()
-          for (const token of TOKENS) if (body.includes(token)) fail(`2: ${dir}/${entry.name}/${inner} mentions ${token}`)
+          for (const token of FORBIDDEN) if (body.includes(token)) fail(`2: ${dir}/${entry.name}/${inner} mentions ${token}`)
         }
         continue
       }
       const body = await Bun.file(`${repoRoot.pathname}${dir}/${entry.name}`).text()
-      for (const token of TOKENS) if (body.includes(token)) fail(`2: ${dir}/${entry.name} mentions ${token}`)
+      for (const token of FORBIDDEN) if (body.includes(token)) fail(`2: ${dir}/${entry.name} mentions ${token}`)
     }
   }
 }
@@ -326,15 +329,14 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 // --- 4. Sources port (0f379f0a33 verbatim + registered deltas + consumption chain) ---
 {
   const index = squash(await read(`${GUI}sources/index.ts`))
+  // Issue #67: the gui-plugins host derives the plugin id from the directory (Plugin.define
+  // no longer declares it) and the soft browser `uses` moves to the typed registry import.
   for (const anchor of [
-    'id:"sources",',
-    "uses:{browser:Browser},",
-    "i18n:{en},",
-    "Resultsopeninthedesktopbrowserpanewhenthereisone,elseinthesystembrowser.",
-    'import{Browser}from"../browser/contract"',
-    'import{Extension}from"../sdk"',
+    "i18n:{en}",
+    "exportdefaultPlugin.define({i18n:{en}})",
+    'import{Plugin}from"@opencode/plugin/gui"',
   ]) {
-    if (!index.includes(anchor)) fail(`4: sources/index.ts lost the 0f379 anchor ${anchor.slice(0, 50)}`)
+    if (!index.includes(anchor)) fail(`4: sources/index.ts lost the anchor ${anchor.slice(0, 60)}`)
   }
 
   const renderer = squash(await read(`${GUI}sources/renderer.tsx`))
@@ -358,7 +360,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
   const panel = squash(await read(`${GUI}sources/panel.tsx`))
   for (const anchor of [
-    "constpane=ctx.uses.browser()",
+    "constpane=ctx.use(Browser)()",
     'if(pane.status==="active"&&pane.value.canOpen(props.session))returnpane.value.open(props.session,url)',
     "ctx.system.openExternal(url)",
     'props.from!=="turn"',
@@ -438,11 +440,11 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   }
 
   // App SourcesProvider wrapper (inside the MarkdownProvider).
-  const render = await read(`${APP}src/runtime/extension/render.tsx`)
+  const render = await read(`${APP}src/runtime/plugin/render.tsx`)
   for (const anchor of [
     'import { SourcesProvider } from "@opencode/session-ui/context/sources"',
     'import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"',
-    "A turn's\n * sources chip opens its turn through the Sources extension's handler.",
+    "A turn's\n * sources chip opens its turn through the Sources plugin's handler.",
     "<SourcesProvider",
     "enabled={sourcesExperiment.enabled}",
     "icons={sourcesExperiment.icons}",
@@ -512,12 +514,13 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 // --- 5. Gate shim (upstream storage format, default false, minimal face) ---
 {
   const shim = await read(`${UI}src/motion-tuning.ts`)
+  // Issue #67 (ruling 4): the real v2.2.1 module replaces the shim; the M-036 gate helpers
+  // are merged at the tail with their marker. Faces keep the same storage record.
   for (const anchor of [
     'const key = "opencode.motion.v2"',
     "export const motionTuning = {",
     "toggle(id: string, meta: Meta & { value: boolean }) {",
-    "choice<const T extends string>(id: string, meta: Meta & { value: NoInfer<T>; labels: Record<T, string> }) {",
-    "spring(id: string, meta: Meta & { presets: Record<string, DurationOptions>; shipped?: string }) {",
+    "spring(id: string, meta: Meta & { presets: Record<MotionPreset, DurationOptions>; shipped?: MotionPreset }) {",
     "subscribe(listener: () => void) {",
     "export function storedToggle(id: string, initial: boolean) {",
     "export function setStoredToggle(id: string, value: boolean, initial: boolean) {",
@@ -534,12 +537,21 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   if (!experiment.includes("value: false,")) fail("5: sources experiment knob default is not false (must not ship enabled)")
   if (!settingsRow.includes('storedToggle("sources.enabled", false)'))
     fail("5: the Experimental row's gate reader default is not false")
-  // Minimal face negatives: no Knobs dev-console surface, no settings.v3, no auto-enable.
-  for (const forbidden of ["settings.v3", "motionPresets", "MotionKnob", "motionTimeScale", "motionGlobals", "const knobs", "action(", "/components"]) {
-    if (shim.includes(forbidden)) fail(`5: motion-tuning.ts adopted the Knobs console face (${forbidden}) — minimal shim only`)
+  // Issue #67 flip: the real module carries the Knobs registry (motionPresets/MotionKnob/
+  // motionTimeScale/motionGlobals/knobs) — assert them positively; the settings.v3 store key
+  // and the /components lab route stay out (DEV-console-only consumers).
+  for (const required of ["motionPresets", "MotionKnob", "motionTimeScale", "motionGlobals"]) {
+    if (!shim.includes(required)) fail(`5: motion-tuning.ts lost the real-module face ${required} (ruling 4)`)
   }
+  if (shim.includes("settings.v3")) fail("5: motion-tuning.ts adopted the settings.v3 key (out of scope)")
+  if (/from ["']knobs["']/.test(shim)) fail("5: motion-tuning.ts imports knobs at runtime (only -fields may)")
   const runtimeImports = [...shim.matchAll(/^import (?!type).*$/gm)].map((m) => m[0])
   if (runtimeImports.length !== 0) fail(`5: motion-tuning.ts must be import-free at runtime, got ${JSON.stringify(runtimeImports)}`)
+  // The knobs-consuming submodules ship and keep the console DEV-only.
+  for (const f of [`${UI}src/motion-tuning-features.ts`, `${UI}src/motion-tuning-fields.ts`]) {
+    const body = await read(f)
+    if (!body.includes("knobs")) fail(`5: ${f.split("/").pop()} lost the knobs import (ruling 4)`)
+  }
   // The four consumed faces, verbatim call shapes in experiment.ts (v2.2.1 file).
   for (const anchor of [
     'motionTuning.toggle("sources.enabled"',
@@ -570,22 +582,18 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   if (row.includes("user-runs")) fail("6: session-timeline-row.tsx imports from the user-runs domain")
 
   const catalog = await read(`${UI}src/icons/catalog.ts`)
-  // The fourteen KEPT rejections of the revised #64 probe group 6 (outline-steer left the list).
+  // Issue #67: the EIGHT KEPT rejections (outline-steer left at #66; the six gui-plugins-domain
+  // icons — outline-expand/outline-code-brackets/outline-quote/comment/file-document/
+  // outline-console — left with the M-037 adoption; file-tree was never on the list, D5).
   const rejected = [
     "outline-magnifier-minus",
     "outline-magnifier-plus",
-    "outline-expand",
-    "outline-code-brackets",
-    "outline-quote",
     "outline-wave-audio",
-    "comment",
     "outline-text",
     "outline-photo",
-    "file-document",
     "outline-audio",
     "outline-video",
     "outline-brain",
-    "outline-console",
   ]
   for (const name of rejected) {
     if (new RegExp(`^  "?${name}"?: \\{`, "m").test(catalog)) fail(`6: catalog.ts adopted the rejected v2.2.1 icon "${name}"`)
@@ -671,28 +679,28 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     fail("8: vendor-manifest.json does not register M-036 (verify-closure reads only this list)")
   const patch = await read(`${PATCHES}0036-M-036-goal-sources-panels.patch`)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
-  // Rebase round: reduced.ts and the ./motion export returned to M-035 — the patch face is 33 files.
-  if (touched.length !== 33) fail(`8: M-036 patch face drifted: ${touched.length} files (expected exactly 33 post-rebase)`)
+  // Issue #67 (M-036'): the gui-extensions face (9 files), the render.tsx SourcesProvider
+  // hunk and the motion-tuning shim returned to history/M-037 — the patch face is 22 files.
+  if (touched.length !== 22) fail(`8: M-036 patch face drifted: ${touched.length} files (expected exactly 22 post-M-036')`)
   for (const required of [
     "packages/schema/src/goal.ts",
-    "packages/gui-extensions/src/sources/renderer.tsx",
-    "packages/gui-extensions/src/goal/renderer.tsx",
     "packages/session-ui/src/sources/sources.test.ts",
     "packages/session-ui/src/context/sources.tsx",
-    "packages/app/src/runtime/extension/render.tsx",
     "packages/app/src/settings/experimental/experimental.tsx",
     "packages/ui/src/motion/spring.ts",
     "packages/ui/src/motion/loop.ts",
-    "packages/ui/src/motion-tuning.ts",
     "packages/ui/src/icons/catalog.ts",
   ]) {
     if (!touched.includes(required)) fail(`8: M-036 patch lost the target ${required}`)
   }
-  // The patch must not touch the #67 migration domains' new API (mechanical cross-check of group 2).
-  const added = patch.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++")).join("\n")
-  for (const token of ["@opencode/plugin/gui", "ComposerPill", "plugin-pills", "usePlugin"]) {
-    if (added.includes(token)) fail(`8: M-036 adds ${token} (the #67 boundary is negative)`)
+  for (const gone of ["packages/gui-extensions/src/sources/renderer.tsx", "packages/app/src/runtime/extension/render.tsx", "packages/ui/src/motion-tuning.ts"]) {
+    if (touched.includes(gone)) fail(`8: M-036 still carries the re-tabled target ${gone}`)
   }
+  // M-037 is registered in both manifests (the #67 migration patch).
+  if (!manifest.includes('"id": "M-037"') || !manifest.includes("patches/mobile/0037-M-037-gui-plugins-migration.patch"))
+    fail("8: patches/mobile/manifest.json does not register M-037")
+  if (!vendorManifest.includes("patches/mobile/0037-M-037-gui-plugins-migration.patch"))
+    fail("8: vendor-manifest.json does not register M-037")
 
   console.log(
     "verify-goal-sources: dist marker NOT staged for M-036 — the patch carries no credential/security " +

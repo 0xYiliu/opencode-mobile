@@ -46,7 +46,7 @@
 //      microsoft-office/{document,spreadsheet}, details/server-panel, and
 //      browser/panel (TWO hits: the external.open button + options menu item).
 //      NON-HITS by shape (verified, not interferences): the method DEFINITIONS
-//      app/src/runtime/extension/host-apis.tsx `openExternal(url) {` and
+//      app/src/runtime/plugin/host-apis.tsx `openExternal(url) {` and
 //      app/src/runtime/platform/web.ts `openExternal(value) {` carry no receiver,
 //      and fixture/stories/interface shapes (ssh/dialog.stories, panel.fixture,
 //      app platform.tsx, gui-ext sdk/host-apis) do not match the RAW pattern.
@@ -97,7 +97,7 @@ function fail(message: string): never {
 const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).text()
 
 const APP = "vendor/upstream/packages/app/"
-const GUI = "vendor/upstream/packages/gui-extensions/"
+const GUI = "vendor/upstream/packages/gui-plugins/"
 const PB = "vendor/upstream/packages/plugin-browser/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const UI = "vendor/upstream/packages/ui/"
@@ -128,18 +128,19 @@ const srcFiles = async (base: string): Promise<string[]> => {
   const renderer = await read(`${BROWSER_DIR}renderer.tsx`)
   if (!renderer.includes("// The native pane is a desktop feature."))
     fail("1: renderer.tsx lost the 'The native pane is a desktop feature.' comment anchor")
-  if (!renderer.includes('if (ctx.build.platform !== "desktop") return'))
-    fail("1: renderer.tsx lost the platform early exit (ctx.build.platform !== \"desktop\")")
+  if (!renderer.includes('if (ctx.app.platform !== "desktop") return'))
+    fail("1: renderer.tsx lost the platform early exit (ctx.app.platform !== \"desktop\")")
   // The "Open browser" command is registered BEFORE the early exit and stays
   // disabled until the pane can open (visible-but-disabled on mobile).
   if (!renderer.includes("it stays disabled until the pane can open"))
     fail("1: renderer.tsx lost the always-disabled 'Open browser' command registration note")
 
-  const contract = await read(`${BROWSER_DIR}contract.ts`)
-  if (!contract.includes("The browser extension provides this on desktop. Inactive on web or while the extension is off."))
-    fail("1: contract.ts lost the 'Inactive on web or while the extension is off.' declaration")
+  // Issue #67: the browser contract moved into the plugin gui host library.
+  const contract = await read("vendor/upstream/packages/plugin/src/gui/browser.ts")
+  if (!contract.includes("The browser plugin provides this on desktop. Inactive on web or while the plugin is off."))
+    fail("1: gui/browser.ts lost the 'Inactive on web or while the plugin is off.' declaration")
 
-  const core = await read(`${GUI}src/sdk/core.ts`)
+  const core = await read("vendor/upstream/packages/plugin/src/gui/core.ts")
   if (!core.includes('readonly platform: "web" | "desktop"'))
     fail("1: sdk/core.ts Build.platform changed shape (must stay \"web\" | \"desktop\")")
 
@@ -155,13 +156,19 @@ const srcFiles = async (base: string): Promise<string[]> => {
     fail("2: gui-ext browser pane.ts lost the electron import (it IS the desktop host — the anchor must stay)")
 
   const electronShape = /from\s*["']electron["']/
-  const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\()\s*["']@opencode\/gui-extensions([^"']*)["']/g
+  // Issue #67: the specifier graph moved to @opencode/plugin/gui* + @opencode/gui-plugins.
+  const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\(|import\()\s*["']@opencode\/(plugin\/gui[^"']*|gui-plugins\/?[^"']*)["']/g
   const specifiers = new Map<string, number>([
-    ["", 0],
-    ["/sdk", 0],
-    ["/sdk/bridge", 0],
-    ["/renderer", 0],
-    ["/updater", 0],
+    ["plugin/gui", 0],
+    ["plugin/gui/browser", 0],
+    ["plugin/gui/builtin", 0],
+    ["plugin/gui/file", 0],
+    ["plugin/gui/host", 0],
+    ["plugin/gui/main", 0],
+    ["plugin/gui/review", 0],
+    ["plugin/gui/updater", 0],
+    ["gui-plugins", 0],
+    ["gui-plugins/renderer", 0],
   ])
   let appSrcFiles = 0
   for (const rel of await srcFiles(`${APP}src/`)) {
@@ -169,26 +176,31 @@ const srcFiles = async (base: string): Promise<string[]> => {
     const raw = await read(rel)
     if (electronShape.test(raw)) fail(`2: electron import shape found in app/src: ${rel}`)
     for (const match of raw.matchAll(specifierRe)) {
-      const key = match[1]!
+      const key = match[1]!.replace(/"/g, "")
       const record = specifiers.get(key)
-      if (record === undefined) fail(`2: unexpected @opencode/gui-extensions specifier "${key}" in ${rel}`)
+      if (record === undefined) fail(`2: unexpected @opencode plugin/gui specifier "${key}" in ${rel}`)
       specifiers.set(key, record + 1)
     }
-    if (/["']@opencode\/gui-extensions\/(main|sdk\/main)["']/.test(raw))
-      fail(`2: main-process gui-extensions entry imported in app/src: ${rel}`)
+    if (/["']@opencode\/gui-plugins\/main["']/.test(raw))
+      fail(`2: main-process gui-plugins entry imported in app/src: ${rel}`)
   }
   if (appSrcFiles < 300) fail(`2: app/src scan implausibly small (${appSrcFiles} files)`)
   const expectSpecifiers: [string, number][] = [
-    ["", 0],
-    ["/sdk", 34],
-    ["/sdk/bridge", 8],
-    ["/renderer", 2],
-    ["/updater", 1],
+    ["plugin/gui", 33],
+    ["plugin/gui/browser", 1],
+    ["plugin/gui/builtin", 9],
+    ["plugin/gui/file", 1],
+    ["plugin/gui/host", 16],
+    ["plugin/gui/main", 0],
+    ["plugin/gui/review", 1],
+    ["plugin/gui/updater", 1],
+    ["gui-plugins", 0],
+    ["gui-plugins/renderer", 2],
   ]
   for (const [key, count] of expectSpecifiers) {
     const got = specifiers.get(key) ?? -1
     if (got !== count)
-      fail(`2: the @opencode/gui-extensions specifier set changed: "${key || "sdk(root)"}" expected ${count}, got ${got}`)
+      fail(`2: the @opencode plugin/gui specifier set changed: "${key}" expected ${count}, got ${got}`)
   }
 
   const web = await read(`${APP}src/runtime/platform/web.ts`)
@@ -370,12 +382,13 @@ const srcFiles = async (base: string): Promise<string[]> => {
   //   shell/titlebar/windows-menu.tsx, shell/errors/error.tsx,
   //   session/requests/session-elicitation-dock.tsx,
   //   runtime/extension/host-apis.tsx (implementation delegation);
-  // gui-extensions/src — 5 files, 6 hits:
+  // gui-plugins/src — 7 files, 8 hits (issue #67: + updater/beta-dialog.tsx and
+  //   updater/beta-page.tsx from the v2.2.1 updater face):
   //   terminal/terminal.tsx ×1, microsoft-office/document.tsx ×1,
   //   microsoft-office/spreadsheet.tsx ×1, details/server-panel.tsx ×1,
   //   browser/panel.tsx ×2 (the external.open button + the options menu item).
   // NON-HITS by shape (definitions carry no receiver, fixtures do not match):
-  //   app/src/runtime/extension/host-apis.tsx `openExternal(url) {` definition,
+  //   app/src/runtime/plugin/host-apis.tsx `openExternal(url) {` definition,
   //   app/src/runtime/platform/web.ts `openExternal(value) {` definition,
   //   ssh/dialog.stories.tsx, browser/panel.fixture.tsx, app platform.tsx,
   //   gui-ext sdk/host-apis.ts — none match the RAW pattern (verified).
@@ -392,12 +405,14 @@ const srcFiles = async (base: string): Promise<string[]> => {
     [`${APP}src/shell/titlebar/windows-menu.tsx`, 1],
     [`${APP}src/shell/errors/error.tsx`, 1],
     [`${APP}src/session/requests/session-elicitation-dock.tsx`, 1],
-    [`${APP}src/runtime/extension/host-apis.tsx`, 1],
+    [`${APP}src/runtime/plugin/host-apis.tsx`, 1],
     [`${GUI}src/terminal/terminal.tsx`, 1],
     [`${GUI}src/microsoft-office/document.tsx`, 1],
     [`${GUI}src/microsoft-office/spreadsheet.tsx`, 1],
     [`${GUI}src/details/server-panel.tsx`, 1],
     [`${GUI}src/sources/panel.tsx`, 1],
+    [`${GUI}src/updater/beta-dialog.tsx`, 1],
+    [`${GUI}src/updater/beta-page.tsx`, 1],
     [`${BROWSER_DIR}panel.tsx`, 2],
   ])
   const collectedHits = new Map<string, number>()
@@ -418,8 +433,8 @@ const srcFiles = async (base: string): Promise<string[]> => {
   for (const rel of expectedHits.keys()) {
     if (!collectedHits.has(rel)) fail(`7: expected openExternal call site missing from the scan: ${rel}`)
   }
-  if (totalHits !== 19) fail(`7: the openExternal baseline must be exactly 19 hits in 18 files, got ${totalHits} hits in ${collectedHits.size} files`)
-  if (collectedHits.size !== 18) fail(`7: the openExternal file set must be exactly 18 files, got ${collectedHits.size}`)
+  if (totalHits !== 21) fail(`7: the openExternal baseline must be exactly 21 hits in 20 files, got ${totalHits} hits in ${collectedHits.size} files`)
+  if (collectedHits.size !== 20) fail(`7: the openExternal file set must be exactly 20 files, got ${collectedHits.size}`)
 
   // The browser PAGE chain itself stays in-pane: popups open as tabs, blocked
   // targets are refused (not handed to the system browser).
@@ -533,12 +548,24 @@ let scannedBrowserFiles = 0
     [/process\s*\.\s*platform/, "process.platform"],
     [/navigator\s*\.\s*platform/, "navigator.platform"],
   ]
-  // Expected baseline: exactly 3 hits in 2 files — policy.ts (win32 path
-  // symmetry) and chromium.ts ×2 (darwin key modifiers). All desktop-only
-  // main-process faces; none on a web runtime path. plugin-browser/src: zero.
+  // Expected baseline (issue #67 measured on gui-plugins@v2.2.1): exactly 4 hits in
+  // 4 files within the scan domain — policy.ts (win32 path symmetry), chromium.ts ×4 (darwin key modifiers
+  // ×3 + select-all shortcut ×1) and ../updater/platform.ts ×1 (autoInstall darwin
+  // gate, inside the scanned gui-plugins/src tree). All desktop-only faces; none on a
+  // web runtime path. plugin-browser/src: zero.
   const expected = new Map<string, number>([
     [`${BROWSER_DIR}policy.ts`, 1],
-    [`${BROWSER_DIR}chromium.ts`, 2],
+    [`${BROWSER_DIR}chromium.ts`, 4],
+    // (updater/platform.ts carries one more process.platform darwin gate but sits outside
+    // this section's scan domain BROWSER_DIR + plugin-browser/src — noted, not asserted.)
+    // panel.fixture.tsx (a component-tests fixture shipped in the package) carries its own
+    // navigator.platform mac check in the v2.2.1 fixture payload — measured, registered.
+    [`${BROWSER_DIR}panel.fixture.tsx`, 1],
+    // Issue #67 measured addition on gui-plugins@v2.2.1: the browser renderer's mac-gated
+    // command row. (policy.test.ts's win32 fixture is excluded by isTestFile; terminal/
+    // quote.tsx's mac pointer check and updater/platform.ts's darwin gate sit outside this
+    // section's scan domain — noted, not asserted.)
+    [`${BROWSER_DIR}renderer.tsx`, 1],
   ])
   const perFile = new Map<string, number>()
   for (const base of [BROWSER_DIR, `${PB}src/`]) {
@@ -559,8 +586,8 @@ let scannedBrowserFiles = 0
   for (const rel of expected.keys()) {
     if (!perFile.has(rel)) fail(`9: expected platform-access hit file missing from the scan: ${rel}`)
   }
-  if (perFile.size !== 2)
-    fail(`9: the platform-access baseline must be exactly 2 files, got ${perFile.size}`)
+  if (perFile.size !== 4)
+    fail(`9: the platform-access baseline must be exactly 4 files, got ${perFile.size}`)
   // node:os appears in exactly two OTHER files (desktop-only temp-dir deps,
   // declared separately — not part of the platform-access assertion).
   const nodeOsFiles: string[] = []

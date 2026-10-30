@@ -75,6 +75,13 @@ async function read(rel: string): Promise<string> {
         fail("notifications coordinator writes an unexpected key — re-register this writer with its key")
       }
     },
+    // Issue #67 sweep finding (writer shipped by M-035, issue #65): the web zoom face persists
+    // the six-level UI zoom as a number under a fixed non-secret key.
+    [`${APP_SRC}/runtime/platform/web.ts`]: (src) => {
+      if (!src.includes("const UI_ZOOM_KEY = \"opencode-ui-zoom-level\"")) {
+        fail("platform web.ts writes an unexpected zoom key — re-register this writer with its key")
+      }
+    },
   }
   for (const file of writers) {
     const check = registered[file]
@@ -98,6 +105,10 @@ async function read(rel: string): Promise<string> {
     [`${APP_SRC}/runtime/i18n/language.tsx`]: true, // reads opencode.global.dat:language (locale, non-secret)
     [`${APP_SRC}/shell/notifications/coordinator.ts`]: true, // registered writer (claim ids)
     [`${APP_SRC}/shell/notifications/coordinator.tsx`]: true,
+    // Issue #67: the closed-tabs drag-in reads two DEV-only debug modifiers (no writes).
+    [`${APP_SRC}/runtime/plugin/closed-tabs.ts`]: true,
+    // M-035's web zoom face reads its persisted level back (write registered above).
+    [`${APP_SRC}/runtime/platform/web.ts`]: true,
     // public/oc-theme-preload.js reads theme keys only (no setItem — asserted by the writers list above).
     ["vendor/upstream/packages/app/public/oc-theme-preload.js"]: true,
   }
@@ -194,9 +205,10 @@ async function read(rel: string): Promise<string> {
 // D. Extension connections carry no secret field.
 // ---------------------------------------------------------------------------
 {
-  const sdk = await read("vendor/upstream/packages/gui-extensions/src/sdk/registries.ts")
+  // Issue #67: ServerEntry moved from the gui-extensions sdk into the plugin gui host library.
+  const sdk = await read("vendor/upstream/packages/plugin/src/gui/registries.ts")
   const entryBlock = /export interface ServerEntry \{[\s\S]*?\n\}/.exec(sdk)?.[0]
-  if (!entryBlock) fail("ServerEntry shape not found in gui-extensions sdk")
+  if (!entryBlock) fail("ServerEntry shape not found in plugin/src/gui registries")
   // The http block of a provided extension connection carries url/username/password by
   // upstream contract — that password is handed over BY THE HOST for the current session
   // (memory-only) and is never persisted by this app (C proves the persisted payload is

@@ -117,7 +117,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 
 const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const PROTOCOL = "vendor/upstream/packages/protocol/"
 const SCHEMA = "vendor/upstream/packages/schema/"

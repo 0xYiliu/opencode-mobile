@@ -1,4 +1,4 @@
-// verify-gui-extensions.ts — static probe for issue #26 (GUI extension settings,
+// verify-gui-plugins.ts — static probe for issue #26 (GUI extension settings,
 // dependency status, and mobile host compatibility unit).
 //
 // Issue #62 revision (N12): the mobile management face additionally renders a STATIC
@@ -55,7 +55,7 @@
 //      gui-extensions/src/wsl/index.ts -> group 2 os-declaration FAIL (forces an
 //      inventory-table re-review);
 //   3. delete the M-025 union line (`for (const id of mobileDisabled.ids()) …`) from
-//      app/src/runtime/extension/root.tsx -> group 4 M-025 anchor FAIL;
+//      app/src/runtime/plugin/root.tsx -> group 4 M-025 anchor FAIL;
 //   4. delete the zh `settings.guiExtensions.title` key from app i18n zh.ts -> group 5
 //      9/9 pairing FAIL;
 //   5. delete the `"wsl"` entry from EXCLUDED_EXTENSIONS in mobile-hosts
@@ -70,13 +70,13 @@
 // (docs/design/interaction.md), BLOCKED at this verification level.
 //
 // Usage:
-//   bun run scripts/verify-gui-extensions.ts
+//   bun run scripts/verify-gui-plugins.ts
 // Exit 0 = all assertions PASS.
 
 const repoRoot = new URL("../", import.meta.url)
 
 function fail(message: string): never {
-  console.error(`verify-gui-extensions: FAIL: ${message}`)
+  console.error(`verify-gui-plugins: FAIL: ${message}`)
   process.exit(1)
 }
 
@@ -89,7 +89,8 @@ function squash(source: string): string {
   return source.replace(/\s+/g, "")
 }
 
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/src/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/src/"
+const UI_ICONS = "vendor/upstream/packages/ui/src/icons/"
 const APP = "vendor/upstream/packages/app/"
 const MH = "packages/mobile-hosts/"
 
@@ -128,16 +129,15 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 {
   const renderer = await read(`${GUI_EXT}renderer.ts`)
   // Each compose entry sits on its own line; count entries and map the spread identifiers.
-  const composeStart = renderer.indexOf("export const builtins = Extension.compose(")
-  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose")
-  const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n)", composeStart))
-  const entryLines = composeBlock.split("\n").filter((line) => /^\s*\{/.test(line))
-  if (entryLines.length !== EXPECTED_IDS.length)
-    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryLines.length} (inventory drift — refresh the unit doc table; NEGATIVE 1 injects a 16th)`)
-  const spreadIds = [...composeBlock.matchAll(/\.\.\.(\w+),/g)].map((m) => m[1]!)
-  const camel: Record<string, string> = { microsoftOffice: "microsoft-office" }
+  // Issue #67: the v2.2.1 gui-plugins compose is an object map keyed by id.
+  const composeStart = renderer.indexOf("export const builtins = compose({")
+  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose (v2.2.1 object-map form)")
+  const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n})", composeStart))
+  const entryIds = [...composeBlock.matchAll(/^  "?([\w-]+)"?: \{/gm)].map((m) => m[1]!)
+  if (entryIds.length !== EXPECTED_IDS.length)
+    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryIds.length} (inventory drift — refresh the unit doc table; NEGATIVE 1 injects a 16th)`)
   setEq(
-    spreadIds.map((id) => camel[id] ?? id),
+    entryIds,
     EXPECTED_IDS,
     "1: builtins compose id set",
   )
@@ -153,8 +153,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   )
   // Six lazy main entries (first lock verify-agent-capabilities group 3 mainEntries==6 —
   // cross-reference witness; the SET below is this probe's new lock).
-  const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*main:/g)].map((m) => m[1]!)
-  setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy main-entry set (phone never runs these in the app)")
+  const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*mainEntry:/g)].map((m) => m[1]!)
+  setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy mainEntry set (phone never runs these in the app)")
 
   // os declarations: exactly wsl ["windows"], nowhere else (15 index.ts scan).
   const osFiles: string[] = []
@@ -170,21 +170,26 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
   // root.tsx faces — FIRST LOCK verify-agent-capabilities group 3 (F2): ownership
   // cross-reference witnesses only (light includes, not re-locks).
-  const root = squash(await read(`${APP}src/runtime/extension/root.tsx`))
+  const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
   if (!root.includes('constos=platform.platform==="desktop"?platform.os:undefined'))
     fail("1: root.tsx os gate witness moved (first lock: verify-agent-capabilities group 3)")
-  if (!root.includes("!definition.os||(!!os&&definition.os.includes(os))"))
-    fail("1: root.tsx builtins OS filter witness moved (first lock: verify-agent-capabilities group 3)")
-  if (!root.includes(squash("Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.")))
-    fail("1: root.tsx .ocdx comment witness moved (first lock: verify-agent-capabilities group 3)")
+  // Issue #67: the inline os filter becomes the host's runsOn(definition, os) (same semantics;
+  // the plan §4.1 row). The os gate line above stays verbatim.
+  if (!root.includes("runsOn(definition,os)"))
+    fail("1: root.tsx lost the runsOn os-filter call (issue #67 §4.1 row)")
+  // Issue #67: the .ocdx installed-archive face is gone upstream; the witness becomes the
+  // builtins.ts hmr accept (the verify-agent-capabilities group 3 revised anchor).
+  const builtins = squash(await read(`${APP}src/runtime/plugin/builtins.ts`))
+  if (!builtins.includes('import.meta.hot.accept("@opencode/gui-plugins/renderer",'))
+    fail("1: builtins.ts lost the hmr accept anchor (issue #67 §6.C B)")
 
   // Five renderer early-exit guards (new locks; ssh carries its verbatim comment).
   for (const [file, guard] of [
-    ["browser/renderer.tsx", 'if (ctx.build.platform !== "desktop") return'],
+    ["browser/renderer.tsx", 'if (ctx.app.platform !== "desktop") return'],
     ["pairing/renderer.tsx", "if (!ctx.desktop) return"],
-    ["ssh/renderer.tsx", 'if (ctx.build.platform !== "desktop") return'],
+    ["ssh/renderer.tsx", 'if (ctx.app.platform !== "desktop") return'],
     ["updater/renderer.tsx", "if (!ctx.desktop) return"],
-    ["wsl/renderer.tsx", 'if (ctx.build.platform !== "desktop") return'],
+    ["wsl/renderer.tsx", 'if (ctx.app.platform !== "desktop") return'],
   ] as [string, string][]) {
     const source = squash(await read(`${GUI_EXT}${file}`))
     if (!source.includes(squash(guard))) fail(`1: ${file} lost the renderer early-exit guard ${JSON.stringify(guard)}`)
@@ -211,14 +216,19 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
       if (/Ipc\.define\(/.test(source)) ipcFiles.push(dir)
     }
   }
-  setEq(ipcFiles, ["pairing", "wsl", "ssh", "updater", "debug", "browser"], "2: Ipc.define file set (exactly six)")
+  // Issue #67: the updater's Ipc moved into the plugin gui host library
+  // (plugin/src/gui/updater.ts); the other five stay per-plugin.
+  if (!/Ipc\.define\(/.test(await read("vendor/upstream/packages/plugin/src/gui/updater.ts")))
+    fail("2: plugin/src/gui/updater.ts lost the Ipc.define (the updater IPC host face)")
+  setEq(ipcFiles, ["pairing", "wsl", "ssh", "debug", "browser"], "2: Ipc.define file set (exactly five in gui-plugins + updater in the host lib)")
   const browserIpc = squash(await read(`${GUI_EXT}browser/ipc.ts`))
   if (!browserIpc.includes("exportconstBrowserPane=Ipc.define({")) fail("2: browser/ipc.ts lost the BrowserPane Ipc")
-  const browserContract = squash(await read(`${GUI_EXT}browser/contract.ts`))
-  if (/Ipc\.define\(/.test(browserContract)) fail("2: browser/contract.ts must stay Contract-only")
+  // Issue #67: browser/contract.ts moved into the host library (plugin/src/gui/browser.ts).
+  const browserContract = squash(await read("vendor/upstream/packages/plugin/src/gui/browser.ts"))
+  if (/Ipc\.define\(/.test(browserContract)) fail("2: gui/browser.ts must stay Contract-only")
 
-  // Contract.define exactly three files (browser/file/review); the issue #66 sources/goal
-  // builtins are scanned too and carry none (zero-Contract baseline extends to them).
+  // Issue #67: the three contract faces moved into the plugin gui host library
+  // (plugin/src/gui/{browser,file,review}.ts) — assert there; the per-plugin dirs keep none.
   const contractFiles: string[] = []
   for (const id of ["browser", "file", "review", "terminal", "details", "context", "btw", "debug", "pairing", "updater", "ssh", "wsl", "microsoft-office", "sources", "goal"] as const) {
     let source: string
@@ -229,7 +239,12 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     }
     if (/Contract\.define[<(]/.test(source)) contractFiles.push(id)
   }
-  setEq(contractFiles, ["browser", "file", "review"], "2: Contract.define file set (exactly three)")
+  setEq(contractFiles, [], "2: per-plugin contract.ts set (the contracts moved to the host library)")
+  for (const id of ["browser", "file", "review"]) {
+    const host = await read(`vendor/upstream/packages/plugin/src/gui/${id}.ts`)
+    if (!/Contract\.define[<(]/.test(host))
+      fail(`2: plugin/src/gui/${id}.ts lost the Contract.define host face (issue #67)`)
+  }
 
   // Hard requires are zero across the 15 builtins (blocked is structurally absent;
   // sources' soft browser `uses` is the pending-until-active accessor face, not a require).
@@ -240,9 +255,10 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   }
 
   // The web-inactive Ipc contract sentence (core.ts, verbatim).
-  const core = await read(`${GUI_EXT}sdk/core.ts`)
-  if (!core.includes("On the web, where no main process runs, it is always inactive."))
-    fail("2: core.ts lost the always-inactive Ipc sentence (first-evidence anchor of #15, referenced)")
+  // Issue #67: sdk/core.ts -> plugin/src/gui/core.ts (wording adjusted upstream).
+  const core = await read("vendor/upstream/packages/plugin/src/gui/core.ts")
+  if (!core.includes("On the web, where no main process runs, it is inactive and every call rejects."))
+    fail("2: gui/core.ts lost the web-inactive Ipc sentence (first-evidence anchor of #15, referenced)")
 
   // Mobile Panel registrations (five): kind + order per unit doc table.
   const review = squash(await read(`${GUI_EXT}review/renderer.tsx`))
@@ -266,7 +282,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 // --- 3. The upstream management double gate (acceptance 4 upstream reality) ---
 {
-  const pageDev = await read(`${APP}src/runtime/extension/settings-page-dev.tsx`)
+  const pageDev = await read(`${APP}src/runtime/plugin/settings-page-dev.tsx`)
   if (!pageDev.includes("/** Development builds: every built-in GUI extension of this window, with enable and reload controls. */"))
     fail("3: settings-page-dev.tsx lost the development-builds header")
   if (!pageDev.includes("void (next ? bridge?.manager.enable(id) : bridge?.manager.disable(id))"))
@@ -286,28 +302,34 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail("3: shell.tsx upstream guiExtensions gate moved (must stay untouched; first lock: verify-agent-capabilities group 3)")
 
   // Build channel/packaged faces (the dev/source vs packaged ruling's code anchors).
-  const hostApis = squash(await read(`${APP}src/runtime/extension/host-apis.tsx`))
+  const hostApis = squash(await read(`${APP}src/runtime/plugin/host-apis.tsx`))
   if (!hostApis.includes("(import.meta.env.VITE_OPENCODE_CHANNEL??\"local\")"))
     fail("3: host-apis.tsx lost the channel face (VITE_OPENCODE_CHANNEL ?? local)")
-  if (!hostApis.includes("packaged:platform.extensions?.packaged??false"))
+  if (!hostApis.includes("packaged:platform.plugins?.packaged??false"))
     fail("3: host-apis.tsx lost the packaged face (always false on the web)")
 
-  // Packaged install/remove is desktop-bridge-only (acceptance 4: zero install face on web).
-  const bridge = await read(`${GUI_EXT}sdk/bridge.ts`)
-  if (!bridge.includes("install(source: Uint8Array | string): Promise<void>"))
-    fail("3: sdk/bridge.ts lost the install face (desktop bridge surface — must stay bridge-only)")
-  if (!bridge.includes("Removes an installed extension and its stored state. Built-ins refuse."))
-    fail("3: sdk/bridge.ts lost the built-ins-refuse remove comment")
+  // Issue #67 (D04, plan §6.C E): the installed-.ocdx install/remove faces are GONE upstream.
+  // The zero-install negative anchor becomes the host Bridge.manager member set:
+  // exactly {initial, list, enable, disable, reload} — no install, no remove.
+  const bridge = await read("vendor/upstream/packages/plugin/src/gui/host.ts")
+  const managerBlock = /readonly manager: \{[\s\S]*?\n  \}/.exec(bridge)?.[0] ?? ""
+  if (!managerBlock) fail("3: gui/host.ts lost the Bridge.manager block (D04 anchor)")
+  for (const member of ["initial", "list()", "enable(", "disable(", "reload("]) {
+    if (!managerBlock.includes(member)) fail(`3: Bridge.manager lost the ${member} member (D04 anchor)`)
+  }
+  for (const gone of ["install(", "remove("]) {
+    if (managerBlock.includes(gone)) fail(`3: Bridge.manager gained an ${gone} member — third-party install/remove must stay out (D04)`)
+  }
 }
 
 // --- 4. The issue #26 implementation face (M-025/M-026; all first locks here) ---
 {
-  const root = squash(await read(`${APP}src/runtime/extension/root.tsx`))
+  const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
   if (!root.includes('import{createExtensionDisabled}from"@opencode-mobile/mobile-hosts"'))
     fail("4: root.tsx lost the M-025 first-party import")
   if (!root.includes("constmobileDisabled=createExtensionDisabled(window.localStorage)"))
     fail("4: root.tsx lost the M-025 shell-wide record instance (NEGATIVE 3 deletes the union below)")
-  if (!root.includes("constids=newSet(definitions.map((definition)=>definition.id))"))
+  if (!root.includes("constids=newSet(definitions().map((definition)=>definition.id))"))
     fail("4: root.tsx lost the definitions id-set filter (rename self-heal)")
   if (!root.includes("for(constidofmobileDisabled.ids())if(ids.has(id))merged.add(id)"))
     fail("4: root.tsx lost the M-025 disabled-set union line")
@@ -328,7 +350,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!shell.includes("!guiExtensions&&mobileGuiExtensions&&("))
     fail("4: shell.tsx lost the first-party mount branch condition")
   if (!shell.includes("module.ExtensionManager")) fail("4: shell.tsx lost the ExtensionManager lazy import")
-  if (!shell.includes("useExtensionHost")) fail("4: shell.tsx lost the host-handle wrapper import")
+  if (!shell.includes("usePluginHost")) fail("4: shell.tsx lost the host-handle wrapper import (issue #67 rename)")
   if (!shell.includes("definitions={host.definitions()}") || !shell.includes("onReload={(id)=>host.reload(id)}"))
     fail("4: shell.tsx wrapper lost the props injection (definitions/status/failure/reload)")
 
@@ -346,8 +368,13 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
   if (!vendorManifest.includes("patches/mobile/0024-M-025-root-disabled-merge.patch") || !vendorManifest.includes("patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch"))
     fail("4: vendor-manifest.json lost the M-025/M-026 mobilePatches entries")
+  // Issue #67 note: the M-025 PATCH legitimately keeps its pre-#67 target header
+  // (runtime/extension/root.tsx — it applies at chain position 24, before M-037 deletes the
+  // directory); the re-fallen content in runtime/plugin/root.tsx is asserted on the TREE
+  // above. Both faces together prove the two-stage chain.
   const rootPatch = await read("vendor/upstream/patches/mobile/0024-M-025-root-disabled-merge.patch")
-  if (!rootPatch.includes("packages/app/src/runtime/extension/root.tsx")) fail("4: M-025 patch lost its target header")
+  if (!rootPatch.includes("packages/app/src/runtime/extension/root.tsx"))
+    fail("4: M-025 patch lost its (pre-#67) target header")
   const shellPatch = await read("vendor/upstream/patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch")
   for (const target of ["packages/app/src/settings/shell.tsx", "packages/app/src/runtime/i18n/en.ts", "packages/app/src/runtime/i18n/zh.ts"]) {
     if (!shellPatch.includes(target)) fail(`4: M-026 patch lost the target header ${target}`)
@@ -367,26 +394,28 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!manager.includes("volatile")) fail("5: manager.ts lost the volatile honest report")
 
   // Desktop rows (reference; persistence itself is the desktop main process, out of closure).
-  const bridge = await read(`${GUI_EXT}sdk/bridge.ts`)
-  if (!bridge.includes("export function extensionEnabled(definition: Pick<Definition, \"id\" | \"legacy\">, state: readonly EnableState[])"))
-    fail("5: sdk/bridge.ts lost the extensionEnabled legacy resolution signature")
-  if (!bridge.includes("row?.enabled ?? true")) fail("5: sdk/bridge.ts lost the default-enabled tail")
+  // Issue #67: extensionEnabled -> pluginEnabled({id, builtin}, state) on the host; the
+  // default-enabled tail keeps its `?? true` shape.
+  const bridge = await read("vendor/upstream/packages/plugin/src/gui/host.ts")
+  if (!bridge.includes("export function pluginEnabled("))
+    fail("5: gui/host.ts lost the pluginEnabled legacy resolution (issue #67 §4.1 row)")
+  if (!bridge.includes("?.enabled ?? true")) fail("5: pluginEnabled lost the default-enabled tail")
 
   // Extension stores live under the `extension.<id>.<name>` window namespace.
-  const core = await read(`${GUI_EXT}sdk/core.ts`)
-  if (!core.includes("window stores are stored as `extension.<id>.<name>`"))
-    fail("5: core.ts lost the extension store namespace sentence")
+  const core = await read("vendor/upstream/packages/plugin/src/gui/core.ts")
+  if (!core.includes("stored as `plugin.<id>.<name>`"))
+    fail("5: gui/core.ts lost the plugin store namespace sentence (issue #67 §4.1 rename)")
 
   // settings.v3 migration picks (review/details/updater).
   const reviewIndex = squash(await read(`${GUI_EXT}review/index.ts`))
   if (!reviewIndex.includes('key:"settings.v3"')) fail("5: review/index.ts lost the settings.v3 migration pick")
-  const detailsIndex = squash(await read(`${GUI_EXT}details/index.ts`))
-  if (!detailsIndex.includes('key:"settings.v3",pick:')) fail("5: details/index.ts lost the settings.v3 pick face")
+  // Issue #67: v2.2.1 removed the details store migration face (details/index.ts carries no
+  // settings.v3 pick any more — registered upstream delta); review + updater keep theirs.
   const updaterIndex = squash(await read(`${GUI_EXT}updater/index.ts`))
   if (!updaterIndex.includes('key:"settings.v3"')) fail("5: updater/index.ts lost the settings.v3 migration pick")
 
   // Panel strip/legacy-rewrite/transient cleanup.
-  const panels = await read(`${APP}src/runtime/extension/panels.tsx`)
+  const panels = await read(`${APP}src/runtime/plugin/panels.tsx`)
   if (!panels.includes("Rewrites stored keys once their panel is present"))
     fail("5: panels.tsx lost the legacy-rewrite comment (strip keys only rewrite while the panel is present)")
   if (!panels.includes("Transient panels are not restored: their stored keys leave once the panel stops listing them."))
@@ -413,18 +442,18 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 // --- 6. Three guarantees (no dead menu / no draft loss / no remote stop) ---
 {
   // Same-frame batch deactivation + disabled-status publication before startup.
-  const host = await read(`${APP}src/runtime/extension/host.tsx`)
-  if (!host.includes("One batch: every contribution and contract of the extension disappears in the same frame."))
+  const host = await read(`${APP}src/runtime/plugin/host.tsx`)
+  if (!host.includes("One batch: every contribution and contract of the plugin disappears in the same frame."))
     fail("6: host.tsx lost the same-frame batch comment")
   if (!host.includes("Publish every disabled status")) fail("6: host.tsx lost the disabled-status publication watcher comment")
 
   // The More-trigger conditional render (strongest no-dead-menu witness).
-  const mobile = squash(await read(`${APP}src/runtime/extension/mobile.tsx`))
+  const mobile = squash(await read(`${APP}src/runtime/plugin/mobile.tsx`))
   if (!mobile.includes("<Showwhen={props.views.menu().length}>"))
     fail("6: mobile.tsx lost the More-trigger conditional render (the trigger itself disappears at zero menu items)")
 
   // Contribution error isolation.
-  const render = await read(`${APP}src/runtime/extension/render.tsx`)
+  const render = await read(`${APP}src/runtime/plugin/render.tsx`)
   if (!render.includes("a contribution that throws records the\n * error and renders nothing, and the rest of the window keeps working."))
     fail("6: render.tsx lost the ErrorBoundary isolation comment")
 
@@ -444,17 +473,17 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail("6: terminal/model.ts dispose() body gained a .remove( — the disable path must NOT terminate remote sessions (domain-scoped negative; dispose ends at function createWorkspace)")
 
   // Extension servers keep their inventory as stopped entries; the route stays mounted.
-  const servers = await read(`${APP}src/runtime/extension/servers.tsx`)
+  const servers = await read(`${APP}src/runtime/plugin/servers.tsx`)
   if (!servers.includes("inventory as stopped entries, so its servers' tabs, drafts and routes outlive the outage."))
     fail("6: servers.tsx lost the stopped-entries comment")
-  const serverShell = await read(`${APP}src/runtime/extension/server-shell.tsx`)
+  const serverShell = await read(`${APP}src/runtime/plugin/server-shell.tsx`)
   if (!serverShell.includes("Keep the route mounted so reconnecting preserves its draft and local UI state."))
     fail("6: server-shell.tsx lost the keep-mounted comment (draft preservation on outage)")
 }
 
 // --- 7. Docs closure anchors (anti doc<->code drift; commit-1 documents) ---
 {
-  const unit = await read("docs/design/units/gui-extensions.md")
+  const unit = await read("docs/design/units/gui-plugins.md")
   for (const heading of [
     "## 一、权威边界与分工",
     "## 二、内建扩展清单（验收 1 主表",
@@ -467,7 +496,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     "## 九、移动形态与无障碍",
     "## 十、诚实边界（本期不声称）",
   ]) {
-    if (!unit.includes(heading)) fail(`7: gui-extensions.md lost the section ${heading}`)
+    if (!unit.includes(heading)) fail(`7: gui-plugins.md lost the section ${heading}`)
   }
   for (const sentence of [
     "扩展的**业务行为权威不在本文**",
@@ -476,11 +505,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     "不 adapt 任何原生能力",
     "phone never runs Electron/Node main-process extensions",
   ]) {
-    if (!unit.includes(sentence)) fail(`7: gui-extensions.md lost the key sentence "${sentence}"`)
+    if (!unit.includes(sentence)) fail(`7: gui-plugins.md lost the key sentence "${sentence}"`)
   }
   // Inventory table: exactly 15 rows keyed by `| <id> |`.
   for (const id of EXPECTED_IDS) {
-    if (!unit.includes(`| ${id} |`)) fail(`7: gui-extensions.md inventory table lost the ${id} row`)
+    if (!unit.includes(`| ${id} |`)) fail(`7: gui-plugins.md inventory table lost the ${id} row`)
   }
   // Capability mapping three sets (web 10 / desktop-host 4 / excluded 1 = {wsl}, issue #62;
   // issue #66 moved sources + goal into the web set as renderer-side toggle rows).
@@ -496,11 +525,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // static-excluded-row semantics and the zero-operation wording; the capability mapping
   // bullet must name the third set and the 12+1 row arithmetic.
   if (!unit.split(`| wsl |`)[1]!.includes("静态排除行（issue #62/N12）"))
-    fail("7: gui-extensions.md wsl row lost the static-excluded-row semantics (issue #62)")
+    fail("7: gui-plugins.md wsl row lost the static-excluded-row semantics (issue #62)")
   if (!unit.split(`| wsl |`)[1]!.includes("零操作"))
-    fail("7: gui-extensions.md wsl row lost the zero-operation wording")
+    fail("7: gui-plugins.md wsl row lost the zero-operation wording")
   if (!unit.includes("管理面呈现 15 行 = 14 宿主定义行 + 1 静态排除行") || !unit.includes("issue #62/N12"))
-    fail("7: gui-extensions.md lost the 14+1 management-row arithmetic (issue #62; 13->15/12->14 with the M-036 registrations)")
+    fail("7: gui-plugins.md lost the 14+1 management-row arithmetic (issue #62; 13->15/12->14 with the M-036 registrations)")
 
   // Issue #62/N12 code locks: the static excluded row in the first-party manager. The
   // vendored root.tsx os filter stays untouched (group 1 witnesses), so the row is a
@@ -553,7 +582,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const interaction = await read("docs/design/interaction.md")
   if (!interaction.includes("## G1–G35 设备门禁（完整枚举）"))
     fail("7: interaction.md gate enumeration must cover G1–G35")
-  if (!interaction.includes("| G35 GUI 扩展管理面运行期门禁（issue #26 **新设门禁**；单元文档见 [units/gui-extensions.md](units/gui-extensions.md)）"))
+  if (!interaction.includes("| G35 GUI 扩展管理面运行期门禁（issue #26 **新设门禁**；单元文档见 [units/gui-plugins.md](units/gui-plugins.md)）"))
     fail("7: interaction.md lost the G35 gate row")
   if (!interaction.includes("第二十一处落字（issue #26）"))
     fail("7: interaction.md lost the twenty-first honest wording (issue #26)")
@@ -585,7 +614,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3493 || distManifest.totalBytes !== 153776571)
+  if (distManifest.fileCount !== 3516 || distManifest.totalBytes !== 159532385)
     fail(`8: current web-dist baseline drifted (expected 3493/153776571, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
@@ -614,7 +643,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     if (!markerEn || !markerZh) fail(`8: the built dist lost the guiExtensions i18n keys (en=${markerEn}, zh=${markerZh})`)
     if (!markerZhReason) fail("8: the built dist lost the zh exclusion reason copy (issue #62)")
   } else {
-    console.log("verify-gui-extensions: dist markers SKIPPED (no built dist present)")
+    console.log("verify-gui-plugins: dist markers SKIPPED (no built dist present)")
   }
 
   // bun.lock workspace anchor (zero-change itself is V-lock's git-diff evidence — the
@@ -632,8 +661,66 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // the same commit as the patch registration).
 }
 
+
+// --- 9. gui-plugins icon closure (issue #67, plan §6.C E): every icon literal in the
+// gui-plugins sources resolves through the vendored universe — catalog ∪ additional-icons ∪
+// new-icons (its replacements map carries the current-name aliases, e.g. file-tree -> folder,
+// so the alias resolves without any catalog adoption, D5). A silent Icon fallback would
+// otherwise render nothing (icon.tsx returns undefined for unknown names).
+{
+  // The resolution universe: catalog ∪ additional-icons ∪ new-icons record keys ∪ the
+  // replacement targets (current-name aliases resolve through the replacements map, e.g.
+  // file-tree -> folder, D5 — no catalog adoption needed).
+  const universe = new Set<string>()
+  const catalog = await read(`${UI_ICONS}catalog.ts`)
+  for (const m of catalog.matchAll(/^  "?([a-z][a-z0-9-]*)"?: \{/gm)) universe.add(m[1]!)
+  const additional = await read(`${UI_ICONS}icon/additional-icons.ts`)
+  for (const m of additional.matchAll(/^  "?([a-z][a-z0-9-]*)"?: /gm)) universe.add(m[1]!)
+  const newIcons = await read(`${UI_ICONS}new-icons.ts`)
+  for (const m of newIcons.matchAll(/^  "?([a-z][a-z0-9-]*)"?: /gm)) universe.add(m[1]!)
+  const replacementsBlock = /const replacements[^=]*= \{([\s\S]*?)\n\}/.exec(newIcons)?.[1] ?? ""
+  for (const m of replacementsBlock.matchAll(/name: "([a-z][a-z0-9-]*)"/g)) universe.add(m[1]!)
+  console.log(`  icon universe: ${universe.size} names (catalog + additional + new-icons/aliases)`)
+
+  // Direct forms: name="x", icon="x", name={...} / icon={...} brace expressions (ternary
+  // branches included — every quoted token inside the braces is a candidate), and getIcon("x").
+  const directRe = /(?:\bname\s*=\s*|\bicon\s*=\s*|\bname:\s*"|\bicon:\s*"|\bgetIcon\(\s*)"([a-z][a-z0-9-]*)"/g
+  const braceRe = /(?:\bname\s*=\s*\{|\bicon\s*=\s*\{)([^}]*)\}/g
+  const used = new Map<string, string[]>()
+  const note = (name: string, file: string) => {
+    if (universe.has(name)) return
+    const sites = used.get(name) ?? []
+    sites.push(file)
+    used.set(name, sites)
+  }
+  let scanned = 0
+  const glob = new Bun.Glob("**/*.{ts,tsx}")
+  for (const file of await Array.fromAsync(glob.scan({ cwd: new URL(`${GUI_EXT}`, repoRoot).pathname }))) {
+    if (file.includes(".stories.") || file.includes(".test.")) continue
+    scanned++
+    const body = await read(`${GUI_EXT}${file}`)
+    for (const m of body.matchAll(directRe)) note(m[1]!, file)
+    for (const m of body.matchAll(braceRe)) {
+      // Scrub the Icon component's non-name props (size/direction/class/...) so their
+      // values ("normal" / "large" / ...) stay out, and strip the ternary CONDITION (its
+      // comparison operands like direction === "back" are not icon names) — only the
+      // branches after the first `?` are candidates.
+      let inner = m[1]!.replace(/\b(?:size|direction|class|label|stroke|fill|rotate|placement)\s*=\s*"[^"]*"/g, "")
+      const q2 = inner.indexOf("?")
+      if (q2 !== -1) inner = inner.slice(q2)
+      for (const q of inner.matchAll(/"([a-z][a-z0-9-]*)"/g)) note(q[1]!, file)
+    }
+  }
+  if (scanned < 100) fail(`9: icon scan covered only ${scanned} files — the gui-plugins tree shape changed`)
+  const unknown = [...used.keys()]
+  if (unknown.length > 0)
+    fail(`9: unresolved icon literal(s) outside the vendored universe: ${unknown.map((n) => `${n} (in ${used.get(n)!.slice(0, 3).join(", ")})`).join("; ")}`)
+  console.log(`  icon closure: scanned ${scanned} gui-plugins files; every name/icon literal resolves`)
+}
+
+
 console.log(
-  "verify-gui-extensions: PASS (" +
+  "verify-gui-plugins: PASS (" +
     "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
     "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} (sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, five mobile Panel registrations (tab 10/menu 20/menu 30/menu 40/drawer 50 — sources 60 / goal 70 are locked by verify-goal-sources), btw narrow gate; " +
     "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), settings-page-dev optional-chain toggle + installed.list reader + reload two channels, host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
@@ -642,6 +729,6 @@ console.log(
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-extensions.md ten sections + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the M-036 registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — current dist baseline 3493/153776571 (issue #66 incl. M-036; registered patch set 35 = M-001..M-036 with M-019 reserved-absent, per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3493/153776571 (issue #66 incl. M-036; registered patch set 36 = M-001..M-037 with M-019 reserved-absent (issue #67), per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )

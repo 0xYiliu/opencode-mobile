@@ -121,10 +121,12 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // belong to OTHER matrix rows must NOT have been carried in.
   if (!general.includes("const TerminalPlacementSetting: Component = () => {"))
     fail("3: general.tsx lost TerminalPlacementSetting (S37 domain — must stay per pin)")
-  if (!general.includes('import { ExtensionSettingsSections } from "@/runtime/extension/settings-page-view"'))
-    fail("3: general.tsx lost the ExtensionSettingsSections import (no Plugin rename adopted)")
-  if (general.includes("PluginSettingsSections") || general.includes("BackgroundActivitySetting") || general.includes("TimelineWidthSetting"))
-    fail("3: general.tsx adopted v2.2.1 rows outside S04 (Plugin rename / S11 settings)")
+  // Issue #67: the Plugin* naming pipeline (§6.B.5) renames the sections import; the S11/S04
+  // negatives keep their scope (BackgroundActivity/TimelineWidth stay out).
+  if (!general.includes('import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"'))
+    fail("3: general.tsx lost the PluginSettingsSections import (issue #67 rename)")
+  if (general.includes("BackgroundActivitySetting") || general.includes("TimelineWidthSetting"))
+    fail("3: general.tsx adopted v2.2.1 rows outside S04 (S11 settings)")
 
   // Mount position: h3 → <InterfaceModeSetting /> → <SettingsList> → LanguageSetting.
   const h3 = general.indexOf('settings-section-title">{language.t("settings.general.section.general")}')
@@ -242,8 +244,11 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // interfaceMode.experimental key line (the M-035 seven keys insert directly after it,
   // issue #65) — its diff face touches zero interface-mode files (asserted in
   // verify-appearance-settings group 12).
+  // Issue #67: M-037 joins the exemption (its consumer-token hunks legitimately carry
+  // `interfaceMode` context lines in settings/general surface files — same precedent as
+  // the M-033/M-035 exemptions; its diff face touches zero interface-mode files).
   for (const name of readdirSync(join(repoRoot.pathname, PATCHES))) {
-    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-")) continue
+    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-") || name.startsWith("0037-")) continue
     const content = await read(`${PATCHES}${name}`)
     if (content.includes("interface-mode") || content.includes("interfaceMode"))
       fail(`6: ${name} unexpectedly references interface-mode (only M-033 may)`)

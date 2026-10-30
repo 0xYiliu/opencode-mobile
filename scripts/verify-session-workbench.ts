@@ -7,7 +7,7 @@
 //      across the whole repo, collected with whitespace/newline-tolerant
 //      matching (the composer adapter chain is written across lines), form a
 //      set EQUAL to exactly {session/composer/adapter.ts,
-//      session/header/session-running-menu.tsx, session/revert.ts}. Any
+//      session/revert.ts}. Any (issue #67: session-running-menu.tsx left with the host migration)
 //      additional linear call site fails the probe. Also checks the two
 //      adapter-method trigger faces in composer/submit.ts (stop button +
 //      working-state empty submit), and that connection.ts stop()/resync()/
@@ -66,9 +66,10 @@ const CLIENT = "vendor/upstream/packages/client/"
 
 // --- 1. Cancel call surface: exhaustive set equality (newline-tolerant) ---
 {
+  // Issue #67: session-running-menu.tsx is upstream-removed with the host migration (C
+  // group); the linear interrupt set drops to {adapter, revert}.
   const expected = new Set([
     `${APP}src/session/composer/adapter.ts`,
-    `${APP}src/session/header/session-running-menu.tsx`,
     `${APP}src/session/revert.ts`,
   ])
   const skip = ["node_modules", "/dist/", "/web-dist/", "/.git/", "scripts/", "android/app/src/main/assets/web/"]
@@ -89,7 +90,7 @@ const CLIENT = "vendor/upstream/packages/client/"
   for (const file of expected) {
     if (!collected.has(file)) fail(`1: expected linear interrupt call site missing from the scan: ${file}`)
   }
-  if (collected.size !== 3) fail(`1: cancel call-site set must equal exactly 3 files, got ${collected.size}`)
+  if (collected.size !== 2) fail(`1: cancel call-site set must equal exactly 2 files, got ${collected.size}`)
 
   // Per-site shapes stay intact.
   const adapter = await read(`${APP}src/session/composer/adapter.ts`)
@@ -97,12 +98,6 @@ const CLIENT = "vendor/upstream/packages/client/"
     fail("1: adapter.ts interrupt call lost its `{ sessionID: id, resume: true }` shape")
   if (!adapter.includes(".catch(() => undefined)"))
     fail("1: adapter.ts interrupt no longer swallows failures (resume:true contract)")
-
-  const menu = await read(`${APP}src/session/header/session-running-menu.tsx`)
-  if (!menu.includes("sdk.api.session.interrupt({ sessionID: item.sessionID })"))
-    fail("1: session-running-menu.tsx subagent interrupt call shape changed")
-  if (!menu.includes("A subagent can only be interrupted once its child session exists."))
-    fail("1: session-running-menu.tsx subagent precondition comment is gone")
 
   const revert = await read(`${APP}src/session/revert.ts`)
   if (!revert.includes("server.api.session.interrupt({ sessionID })"))
@@ -232,7 +227,7 @@ const CLIENT = "vendor/upstream/packages/client/"
 
 console.log(
   "verify-session-workbench: PASS (" +
-    "1: linear interrupt call sites form exactly the closed 3-file set {composer/adapter, header/session-running-menu, revert} with per-site shapes; submit.ts stop/empty-submit adapter faces present; connection.ts stop/resync/pagehide paths carry zero API calls; client.tsx has no interrupt; " +
+    "1: linear interrupt call sites form exactly the closed 2-file set {composer/adapter, revert} with per-site shapes (issue #67: session-running-menu.tsx upstream-removed); submit.ts stop/empty-submit adapter faces present; connection.ts stop/resync/pagehide paths carry zero API calls; client.tsx has no interrupt; " +
     "2: shared-events live-only fan-out (capacity 4096, no replay/backlog), data.ts disconnect full-invalidate adjacent pair + server.connected session.active() snapshot, session-resolution/requests connected gates; " +
     "3: per-session prompt persistence (Persist.serverScoped) + sessionView scroll persistence; " +
     "4: failure/interrupt/permissions event branches sampled, never-loaded-row drop anchor, NO default: (silent fall-through); " +

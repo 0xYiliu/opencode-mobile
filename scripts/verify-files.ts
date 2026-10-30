@@ -89,7 +89,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 
 const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 
 // Newline tolerance (plan R2 / #9 N-2 lesson): normalize ALL whitespace before
 // matching, because several call sites write the chain across lines.
@@ -275,11 +275,11 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!openInApp.includes("if (opening() || !canOpen() || !desktop) return"))
     fail("6: openPath lost its canOpen/desktop early return")
 
-  const hostApis = squash(await read(`${APP}src/runtime/extension/host-apis.tsx`))
+  const hostApis = squash(await read(`${APP}src/runtime/plugin/host-apis.tsx`))
   if (!/desktop:\(\)=>platform\.platform==="desktop"\?[\s\S]*?:undefined/.test(hostApis))
     fail("6: ctx.desktop must resolve to undefined off desktop (adjacent ternary pair)")
   // N-1: the comment lives in the gui-extensions sdk, not the app assembly.
-  const sdkHostApis = await read(`${GUI_EXT}src/sdk/host-apis.ts`)
+  const sdkHostApis = await read("vendor/upstream/packages/plugin/src/gui/host-apis.ts")
   if (!sdkHostApis.includes("Desktop-only abilities; `ctx.desktop` is undefined on the web."))
     fail("6: the sdk host-apis.ts desktop comment anchor moved (review N-1 location)")
 
@@ -287,10 +287,17 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!mobile.includes('ctx.t("mobile.openTabs")')) fail("6: the mobile open-tabs list lost its aria-label")
   if (!mobile.includes('ctx.t("common.closeTab")')) fail("6: the mobile tab close button lost its aria-label")
 
-  const tree = await read(`${GUI_EXT}src/file/tree-v2.tsx`)
-  if (!tree.includes('as="button"')) fail("6: tree rows must render as buttons")
-  if (!tree.includes("aria-expanded={")) fail("6: directory rows lost aria-expanded")
-  if (!tree.includes("estimateSize: () => 28")) fail("6: the 28px virtual row estimate anchor changed")
+  // Issue #67: the v2.2.1 file tree is the pierre web-component tree (tree-v2.tsx ->
+  // pierre-tree.tsx + tree-model.ts); the row anchors follow the v2.2.1 shapes.
+  const tree = await read(`${GUI_EXT}src/file/pierre-tree.tsx`)
+  if (!tree.includes('button[data-type="item"]')) fail("6: tree rows must render as buttons (pierre-tree button row)")
+  if (!tree.includes('[data-type="item"][aria-expanded="true"]')) fail("6: directory rows lost aria-expanded styling")
+  const treeModel = await read(`${GUI_EXT}src/file/tree-model.ts`)
+  if (!treeModel.includes("export const FILE_TREE_ROW_HEIGHT = 28"))
+    fail("6: the 28px virtual row estimate constant changed")
+  const list = await read(`${GUI_EXT}src/file/list.tsx`)
+  if (!list.includes("estimateSize: () => FILE_TREE_ROW_HEIGHT"))
+    fail("6: the 28px virtual row estimate anchor changed")
   if (!tree.includes("ctx.desktop ? useOpenInApp("))
     fail("6: tree rows must gate open-in-app behind ctx.desktop")
 
@@ -362,12 +369,17 @@ let osScanFiles = 0
     [/from ["']node:os["']/, 'import from "node:os"'],
     [/require\(["']os["']\)/, 'require("os")'],
   ]
+  // Issue #67 measured exception: gui-plugins@v2.2.1's file/renderer.tsx carries one
+  // navigator.platform mac-pointer gate in the renderer header (upstream shape, desktop
+  // refinement only — registered like the verify-browser baselines).
+  const osExceptions = new Set([`${GUI_EXT}src/file/renderer.tsx`])
   let scanned = 0
   for (const base of whitelist) {
     const glob = new Bun.Glob("**/*.{ts,tsx}")
     for (const file of await Array.fromAsync(glob.scan({ cwd: new URL(base, repoRoot).pathname }))) {
       osScanFiles++
       const source = await read(`${base}/${file}`)
+      if (osExceptions.has(`${base}/${file}`)) continue
       for (const [pattern, label] of osPatterns) {
         if (pattern.test(source)) fail(`8: host-OS conditional (${label}) found in whitelisted ${base}/${file}`)
       }

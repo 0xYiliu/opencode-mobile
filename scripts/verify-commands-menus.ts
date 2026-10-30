@@ -140,15 +140,15 @@ const COMPOSER_CMDS_TSX = "vendor/upstream/packages/app/src/composer/commands.ts
 const COMPOSER_MODEL_TS = "vendor/upstream/packages/app/src/composer/model.ts"
 const SETTINGS_CMD_TSX = "vendor/upstream/packages/app/src/settings/command.tsx"
 const NEW_SESSION_CMDS_TSX = "vendor/upstream/packages/app/src/new-session/commands.tsx"
-const EXT_CMDS_TSX = "vendor/upstream/packages/app/src/runtime/extension/commands.tsx"
+const EXT_CMDS_TSX = "vendor/upstream/packages/app/src/runtime/plugin/commands.tsx"
 const WEB_TS = "vendor/upstream/packages/app/src/runtime/platform/web.ts"
 const PLATFORM_TSX = "vendor/upstream/packages/app/src/runtime/platform/platform.tsx"
 const KEYBINDS_TSX = "vendor/upstream/packages/app/src/settings/keybinds/keybinds.tsx"
-const TERMINAL_TSX = "vendor/upstream/packages/gui-extensions/src/terminal/terminal.tsx"
-const TERMINAL_RENDERER = "vendor/upstream/packages/gui-extensions/src/terminal/renderer.tsx"
-const BROWSER_RENDERER = "vendor/upstream/packages/gui-extensions/src/browser/renderer.tsx"
-const DEBUG_RENDERER = "vendor/upstream/packages/gui-extensions/src/debug/renderer.tsx"
-const REGISTRIES_TS = "vendor/upstream/packages/gui-extensions/src/sdk/registries.ts"
+const TERMINAL_TSX = "vendor/upstream/packages/gui-plugins/src/terminal/terminal.tsx"
+const TERMINAL_RENDERER = "vendor/upstream/packages/gui-plugins/src/terminal/renderer.tsx"
+const BROWSER_RENDERER = "vendor/upstream/packages/gui-plugins/src/browser/renderer.tsx"
+const DEBUG_RENDERER = "vendor/upstream/packages/gui-plugins/src/debug/renderer.tsx"
+const REGISTRIES_TS = "vendor/upstream/packages/plugin/src/gui/registries.ts"
 const MAIN_ACTIVITY = "android/app/src/main/java/ai/opencode/mobile/MainActivity.kt"
 const INDEX_HTML = "vendor/upstream/packages/app/index.html"
 const CM_DOC = "docs/design/commands-menus.md"
@@ -296,7 +296,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   for (const anchor of [
     "export function desktopMenuVisible(",
     "export function desktopMenuKey(",
-    "export function desktopMenuWithExtensions<",
+    "export function desktopMenuWithPlugins<",
   ]) {
     if (!menu.includes(anchor)) fail(`1: desktop-menu.ts lost the helper anchor ${JSON.stringify(anchor)}`)
   }
@@ -330,15 +330,18 @@ const PROJECT_OPEN_CONSUMERS = new Set([
     if (!source.includes(anchor)) fail(`2: registered menu command ${id} lost its registration anchor ${JSON.stringify(anchor)} in ${file}`)
   }
 
-  // terminal.toggle is extension-published: the terminal renderer defines `toggle`
-  // (slash { name: "terminal", after: "open" }) and the host republishes it as
-  // `${extension}.${id}`.
+  // terminal.toggle is plugin-published: the terminal index exports the shared
+  // `terminalToggleCommand` ({ id: "toggle", bind }) and the renderer spreads it with its
+  // slash entry; the host republishes it as `${plugin}.${id}` (issue #67 v2.2.1 shape).
+  const terminalIndex = await read("vendor/upstream/packages/gui-plugins/src/terminal/index.ts")
+  if (!terminalIndex.includes('id: "toggle",'))
+    fail("2: terminal index lost the toggle command id anchor")
   const terminalRenderer = await read(TERMINAL_RENDERER)
-  if (!terminalRenderer.includes('id: "toggle",') || !terminalRenderer.includes('slash: { name: "terminal", after: "open" },'))
-    fail("2: terminal renderer lost the toggle command definition/slash anchor")
+  if (!terminalRenderer.includes('slash: { name: "terminal", after: "open" },'))
+    fail("2: terminal renderer lost the toggle command slash anchor")
   const extCmds = await read(EXT_CMDS_TSX)
-  if (!extCmds.includes('id: `${item.extension}.${item.value.id}`,'))
-    fail("2: extension/commands.tsx lost the ${extension}.${id} publish template")
+  if (!extCmds.includes('id: `${item.plugin}.${item.value.id}`,'))
+    fail("2: plugin/commands.tsx lost the ${plugin}.${id} publish template (issue #67 host rename)")
 
   // The 4 dangling commands are registered NOWHERE in the data-face domain
   // (no `id: "<ref>"` registration shape anywhere in app/src non-test sources).
@@ -491,7 +494,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   const browserRenderer = await read(BROWSER_RENDERER)
   if (!browserRenderer.includes("enabled: pane.visible()")) fail("5: browser renderer lost the enabled: pane.visible() gate")
   const debugRenderer = await read(DEBUG_RENDERER)
-  if (!debugRenderer.includes("// Offered only while main answers: never on the web, and not while the extension restarts."))
+  if (!debugRenderer.includes("// Offered only while main answers: never on the web, and not while the plugin restarts."))
     fail("5: debug renderer lost the never-on-the-web verbatim comment")
   if (!debugRenderer.includes("if (desktop)")) fail("5: debug renderer lost the if (desktop) conditional registration (heap web-never-registered)")
 }
@@ -607,8 +610,8 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   // Current Vite output is an exact first-lock cross-reference to verify-notifications
   // group 8. Earlier M-026/M-027/M-028 sizes remain historical measurements.
   const distManifest = JSON.parse(await read(WEB_DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3493 || distManifest.totalBytes !== 153776571)
-    fail(`8: current web-dist baseline drifted (expected 3493/153776571, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3516 || distManifest.totalBytes !== 159532385)
+    fail(`8: current web-dist baseline drifted (expected 3516/159532385, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #67 measured: gui-plugins swap grows the payload
   // Cross-reference the exact registered JSON IDs and paths, not arbitrary M-### text in
   // reasons/verification prose. verify-attachments-artifacts group 6 is the first lock.
   const patchManifest = JSON.parse(await read(PATCHES_MANIFEST)) as {
@@ -620,15 +623,15 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   // mobile(M-035 rebase round, issue #65): 34 registered = M-001..M-035 with M-019
   // reserved-absent (the M-034 exclusion dropped now that #64 has landed).
   const expectedPatches = new Set<string>()
-  for (let i = 1; i <= 36; i++) {
-    // M-019 reserved-absent since issue #16. M-035 registered by #65 — the pre-rebase
-    // skip is lifted in the issue #66 rebase round (count 35).
+  for (let i = 1; i <= 37; i++) {
+    // M-019 reserved-absent since issue #16. M-035 registered by #65, M-036 by #66,
+    // M-037 by #67 (count 36).
     if (i === 19) continue
     expectedPatches.add(`M-${String(i).padStart(3, "0")}`)
   }
-  if (patchRows.length !== 35 || registeredIds.length !== patchRows.length || patchIds.size !== patchRows.length)
-    fail(`8: registered patch rows/IDs must be unique and exactly 35 (got rows=${patchRows.length}, IDs=${registeredIds.length}, unique=${patchIds.size})`)
-  setEq(patchIds, expectedPatches, "8: mobile patch id set (35 registered, M-019 reserved-absent)")
+  if (patchRows.length !== 36 || registeredIds.length !== patchRows.length || patchIds.size !== patchRows.length)
+    fail(`8: registered patch rows/IDs must be unique and exactly 36 (got rows=${patchRows.length}, IDs=${registeredIds.length}, unique=${patchIds.size})`)
+  setEq(patchIds, expectedPatches, "8: mobile patch id set (36 registered, M-019 reserved-absent)")
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
     fail("8: every registered mobile patch must retain its upstreamBaseline")
   const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
@@ -638,7 +641,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   const patchPaths = patchRows.map((entry) => entry.patch).filter((value): value is string => typeof value === "string")
   const sortedVendorPaths = vendorPaths.toSorted()
   const sortedPatchPaths = patchPaths.toSorted()
-  if (vendorPaths.length !== 35 || new Set(vendorPaths).size !== 35 || patchPaths.length !== 35 ||
+  if (vendorPaths.length !== 36 || new Set(vendorPaths).size !== 36 || patchPaths.length !== 36 ||
       sortedVendorPaths.some((value, index) => value !== sortedPatchPaths[index]))
     fail("8: vendor-manifest mobilePatches paths must equal the 35 unique registered patch paths")
 
@@ -651,7 +654,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
 
 console.log(
   "verify-commands-menus: PASS (" +
-    "1: DESKTOP_MENU data face — menu-id set {app,file,edit,view,go,window,help} + DesktopMenuAction 19-union + DesktopMenuRole 19-union + used-actions subset-of-union + href exactly-4 set + desktopMenuVisible/Key/WithExtensions helpers + app macos gate + settings.open windows gate (exactly-1) + logs.export desktop platform gate; " +
+    "1: DESKTOP_MENU data face — menu-id set {app,file,edit,view,go,window,help} + DesktopMenuAction 19-union + DesktopMenuRole 19-union + used-actions subset-of-union + href exactly-4 set + desktopMenuVisible/Key/WithPlugins helpers + app macos gate + settings.open windows gate (exactly-1) + logs.export desktop platform gate; " +
     "2: registration reconciliation — menu command refs exactly 15/unique 13 set + Registered 9 with per-file anchors (incl. terminal.toggle extension publish double anchor) + Unregistered 4 zero-registration negative + doc dangling-row one-to-one + command.project.open four-consumer file-set equality; " +
     "3: window.* single-window — window.* form scan exactly {desktop-menu.ts} + windows-menu.test.ts declared test-reference hit + web.ts zero runDesktopMenuAction negative + platform.tsx optional-member/webviewZoom anchors + titlebar windows()/linux() memos + mount gate + onMount accelerator scope; " +
     "4: edit/zoom/nav families — M-020 wiring anchor + terminal execCommand copy + parent-toggle comment + selectAll form file-set exactly {desktop-menu, search-keydown} (i18n label-key domain excluded by declaration) + MainActivity zero zoom-configuration negative + viewport zero user-scalable negative (four-segment anchor cross-referenced to viq group 3) + common.goBack exactly-2 drift sentinel + history.ts three anchors; " +

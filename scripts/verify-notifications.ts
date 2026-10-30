@@ -214,7 +214,9 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   for (const file of appFiles) {
     if ((await read(file)).includes("playSoundById")) soundWriters.push(file)
   }
-  const soundExpected = [NOTIFICATION_TSX, SOUND_TS, "vendor/upstream/packages/app/src/settings/general/controllers.ts"].sort()
+  // Issue #67: host-apis.tsx (runtime/plugin) joins the playSoundById consumer set
+  // (v2.2.1 plays the notification sound from the plugin host's notify flow).
+  const soundExpected = [NOTIFICATION_TSX, SOUND_TS, "vendor/upstream/packages/app/src/settings/general/controllers.ts", "vendor/upstream/packages/app/src/runtime/plugin/host-apis.tsx"].sort()
   if (soundWriters.length !== soundExpected.length || soundWriters.some((file, i) => file !== soundExpected[i]))
     fail(`2: playSoundById file set changed (expected exactly ${soundExpected.join(", ")}; got ${soundWriters.join(", ")})`)
 
@@ -531,9 +533,10 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // Current baseline is read from a fresh Vite build of the tracked source tree.
   // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3493)
+  // issue #67 measured: gui-plugins swap grows the payload (3516 files).
+  if (distManifest.fileCount !== 3516)
     fail(`8: current web-dist fileCount drifted (expected 3493, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 153776571)
+  if (distManifest.totalBytes !== 159532385)
     fail(`8: current web-dist totalBytes drifted (expected 153776571, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname

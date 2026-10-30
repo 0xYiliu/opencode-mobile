@@ -25,7 +25,7 @@
 //   3. CLIPBOARD ASSERTION DOMAIN is EXPLICITLY servers/connect/ (all files)
 //      + packages/mobile-hosts/src. The upstream app has exactly FOUR
 //      navigator.clipboard.writeText sites OUTSIDE that domain
-//      (providers/connect/dialog.tsx, runtime/extension/host-apis.tsx,
+//      (providers/connect/dialog.tsx, runtime/plugin/host-apis.tsx,
 //      session/commands/use-session-commands.tsx ×2 — provider OAuth
 //      copy-link fallback, host copy API, sessionID/projectID copy), declared
 //      here as an out-of-domain fact (asserted as such) and NOT part of the
@@ -300,7 +300,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
 {
   const domains = [
     "vendor/upstream/packages/app/src/",
-    "vendor/upstream/packages/gui-extensions/src/",
+    "vendor/upstream/packages/gui-plugins/src/",
     "vendor/upstream/packages/session-ui/src/",
     "vendor/upstream/packages/client/src/",
     "vendor/upstream/packages/protocol/src/",
@@ -359,7 +359,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   }
   const expectedWriters = [
     `${APP_SRC}providers/connect/dialog.tsx`,
-    `${APP_SRC}runtime/extension/host-apis.tsx`,
+    `${APP_SRC}runtime/plugin/host-apis.tsx`,
     `${APP_SRC}session/commands/use-session-commands.tsx`,
   ].sort()
   if (writes !== 4 || writers.length !== 3 || writers.some((file, i) => file !== expectedWriters[i]))

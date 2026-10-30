@@ -82,7 +82,7 @@ function fail(message: string): never {
 const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).text()
 
 const UTIL = "vendor/upstream/packages/util/"
-const GUI = "vendor/upstream/packages/gui-extensions/"
+const GUI = "vendor/upstream/packages/gui-plugins/"
 const APP = "vendor/upstream/packages/app/"
 const OFFICE = `${GUI}src/microsoft-office/`
 
@@ -250,7 +250,7 @@ const slice = (source: string, start: string, end: string) => {
   // Extension-viewer lookup chain + problem-check → ErrorBoundary → Dynamic.
   if (!view.includes("ctx.list(FileViewer).find((item) => item.kinds.includes(value))"))
     fail("2: artifact-view.tsx lost the FileViewer lookup chain (office kinds would lose their viewer)")
-  if (!view.includes("A kind the file view does not render itself goes to the first extension viewer that lists it."))
+  if (!view.includes("A kind the file view does not render itself goes to the first plugin viewer that lists it."))
     fail("2: artifact-view.tsx lost the extension-viewer lookup comment")
   if (!view.includes("props.viewer.problem?.(bytes)"))
     fail("2: ArtifactViewer lost the problem() precheck call")
@@ -274,10 +274,11 @@ const slice = (source: string, start: string, end: string) => {
   if (!view.includes('referrerPolicy="no-referrer"'))
     fail("2: ArtifactFrame lost the no-referrer policy")
 
-  // The FileViewer contract names Office documents (extension contract face).
-  const contract = await read(`${GUI}src/file/contract.ts`)
+  // The FileViewer contract names Office documents (host contract face; issue #67 moved the
+  // file contract from gui-extensions src/file/contract.ts into the plugin gui host library).
+  const contract = await read("vendor/upstream/packages/plugin/src/gui/file.ts")
   if (!contract.includes("A viewer for a kind of file the file view does not render itself, such as an Office document."))
-    fail("2: file/contract.ts lost the Office-document FileViewer contract sentence")
+    fail("2: plugin/src/gui/file.ts lost the Office-document FileViewer contract sentence")
 }
 
 // --- 3. Office extension anchors (renderer + index + i18n + no gating) ---
@@ -308,9 +309,10 @@ const slice = (source: string, start: string, end: string) => {
       fail(`3: renderer.tsx lost the ${kind} viewer call`)
   }
 
-  // Extension identity.
+  // Extension identity. Issue #67: the gui-plugins host derives the plugin id from the directory
+  // (Plugin.define no longer declares it), so the id anchor becomes the define form itself.
   const index = await read(`${OFFICE}index.ts`)
-  if (!index.includes('id: "microsoft-office"')) fail("3: index.ts lost the microsoft-office extension id")
+  if (!index.includes("export default Plugin.define({")) fail("3: index.ts lost the Plugin.define registration (id is directory-derived in gui-plugins)")
   if (!index.includes("i18n: { en }")) fail("3: index.ts lost the en i18n registration")
   if (!index.includes("Read-only previews of Word, Excel and PowerPoint files in the file view."))
     fail("3: index.ts lost the read-only previews header")
@@ -321,15 +323,15 @@ const slice = (source: string, start: string, end: string) => {
     fail("3: microsoft-office/renderer.tsx gained a ctx.build.platform gate (mobile Office would vanish)")
   if (/process\s*\.\s*env/.test(renderer))
     fail("3: microsoft-office/renderer.tsx gained a process.env gate")
-  // Contrast anchor: the browser extension KEEPS its desktop early exit.
+  // Contrast anchor: the browser plugin KEEPS its desktop early exit (issue #67: the gate reads
+  // ctx.app.platform on the gui-plugins host instead of ctx.build.platform).
   const browserRenderer = await read(`${GUI}src/browser/renderer.tsx`)
-  if (!browserRenderer.includes('if (ctx.build.platform !== "desktop") return'))
+  if (!browserRenderer.includes('if (ctx.app.platform !== "desktop") return'))
     fail("3: browser/renderer.tsx lost its desktop early exit (the contrast pair broke)")
 
-  // The office renderer is wired into the builtins compose (web build carries it).
+  // The office renderer is wired into the compose map (web build carries it).
   const rendererRegistry = await read(`${GUI}src/renderer.ts`)
-  if (!rendererRegistry.includes('{ ...microsoftOffice, renderer: eager(microsoftOfficeRenderer) }'))
-    fail("3: gui-extensions renderer.ts lost the microsoftOffice builtins compose entry")
+  if (!rendererRegistry.includes("microsoftOffice")) fail("3: gui-plugins renderer.ts lost the microsoftOffice compose entry")
 }
 
 // --- 4. Worker/asset closure anchors (workers + fonts + dist manifest) ---
