@@ -307,8 +307,13 @@ const WHITELIST = new Set([
   }
   const index = await read(`${UI}src/motion/index.ts`)
   if (!index.includes('export * from "./reduced"')) fail("6: ui/src/motion/index.ts lost the reduced re-export")
-  if (index.includes('from "./spring"') || index.includes('from "./waapi"'))
+  // Issue #66 rebase revision: ./spring and ./loop are vendored by M-036 (the Sources experiment's
+  // chip/panel springs and frame scheduler); ./velocity, ./waapi and ./slider remain un-vendored.
+  if (index.includes('from "./velocity"') || index.includes('from "./waapi"') || index.includes('from "./slider"'))
     fail("6: ui/src/motion/index.ts re-exports submodules this closure does not vendor (minimization drift)")
+  for (const required of ['export * from "./spring"', 'export * from "./loop"']) {
+    if (!index.includes(required)) fail(`6: ui/src/motion/index.ts lost the M-036 export ${required}`)
+  }
 
   const uiPkg = await read(`${UI}package.json`)
   if (!uiPkg.includes('"./motion": "./src/motion/index.ts",'))

@@ -39,7 +39,7 @@ index c7c598d..cc2505b 100644
    )
  }
 diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
-index cfecfee..71448bb 100644
+index 5937af6..19c3a73 100644
 --- a/packages/app/src/runtime/i18n/en.ts
 +++ b/packages/app/src/runtime/i18n/en.ts
 @@ -703,6 +703,8 @@ export const dict = {
@@ -1843,14 +1843,13 @@ index 1b526e8..b955e20 100644
                  toolOpen={input.disclosure.value(disclosureKey()) ?? defaultOpen()}
                  onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}
 diff --git a/packages/ui/package.json b/packages/ui/package.json
-index b82162f..6c5d195 100644
+index e5597a4..6c5d195 100644
 --- a/packages/ui/package.json
 +++ b/packages/ui/package.json
-@@ -53,6 +53,8 @@
-     "./line-comment": "./src/data-display/line-comment/line-comment.tsx",
+@@ -54,6 +54,7 @@
      "./loader": "./src/feedback/loader/loader.tsx",
      "./menu": "./src/navigation/menu/menu.tsx",
-+    "./motion": "./src/motion/index.ts",
+     "./motion": "./src/motion/index.ts",
 +    "./motion-tuning": "./src/motion-tuning.ts",
      "./progress-circle": "./src/feedback/progress-circle/progress-circle.tsx",
      "./project-avatar": "./src/data-display/project-avatar/project-avatar.tsx",
@@ -1992,18 +1991,20 @@ index 0000000..c2f53d2
 +  } catch {}
 +}
 diff --git a/packages/ui/src/motion/index.ts b/packages/ui/src/motion/index.ts
-new file mode 100644
-index 0000000..3e2bf98
---- /dev/null
+index 858d4ed..1ec2b71 100644
+--- a/packages/ui/src/motion/index.ts
 +++ b/packages/ui/src/motion/index.ts
-@@ -0,0 +1,9 @@
-+// mobile(M-036): minimized entry for the Sources experiment's motion needs (issue #66).
-+//
-+// Rebase note: this file is OWNED by M-035 (issue #65, `export * from "./reduced"` with the
-+// four-line header above it). It exists in M-036 only because this branch was cut before #65
-+// merged; the rebase round must restore M-035's file and reduce M-036's face to appending the
-+// two export lines below (see the M-036 manifest entry's rebase field).
-+export * from "./reduced"
+@@ -1,5 +1,9 @@
+ // mobile(M-035): minimized entry for the interface zoom/motion alignment (issue #65).
+-// Upstream v2.2.1 also re-exports ./spring, ./loop, ./velocity, ./waapi and ./slider from
+-// this entry; those submodules belong to feature domains this closure does not vendor, so
+-// only the reduced-motion face ships here. Re-sync from upstream before adding more.
++// Upstream v2.2.1 also re-exports ./velocity, ./waapi and ./slider from this entry; those
++// submodules belong to feature domains this closure does not vendor, so only the
++// reduced-motion face ships in M-035. Re-sync from upstream before adding more.
++// mobile(M-036): issue #66 appends the Sources experiment's two submodules below (spring for
++// the chip/panel springs, loop for the frame scheduler); the ./reduced line stays M-035's.
+ export * from "./reduced"
 +export * from "./spring"
 +export * from "./loop"
 diff --git a/packages/ui/src/motion/loop.ts b/packages/ui/src/motion/loop.ts
@@ -2151,78 +2152,6 @@ index 0000000..208f7fe
 +}
 +
 +export const frameLoop = createFrameLoop()
-diff --git a/packages/ui/src/motion/reduced.ts b/packages/ui/src/motion/reduced.ts
-new file mode 100644
-index 0000000..a20b9e8
---- /dev/null
-+++ b/packages/ui/src/motion/reduced.ts
-@@ -0,0 +1,66 @@
-+const query = "(prefers-reduced-motion: reduce)"
-+
-+let source: typeof matchMedia | undefined
-+
-+let result: MediaQueryList | undefined
-+
-+const listeners = new Set<() => void>()
-+
-+const notify = () => {
-+  for (const listener of listeners) listener()
-+}
-+
-+function media(): MediaQueryList | undefined {
-+  const match = globalThis.matchMedia
-+
-+  if (!match) return undefined
-+
-+  if (source !== match) {
-+    result?.removeEventListener("change", notify)
-+    source = match
-+    result = match(query)
-+
-+    if (listeners.size > 0) result.addEventListener("change", notify)
-+  }
-+
-+  return result
-+}
-+
-+// The app resolves its reduce motion setting into this attribute; without it the system preference applies.
-+function override(): boolean | undefined {
-+  const value = globalThis.document?.documentElement.getAttribute("data-motion")
-+
-+  if (value === "reduce") return true
-+
-+  if (value === "full") return false
-+
-+  return undefined
-+}
-+
-+let attribute: MutationObserver | undefined
-+
-+export const prefersReducedMotion = (): boolean => override() ?? media()?.matches ?? false
-+
-+/** Also settle active WAAPI jobs when the preference changes mid-animation. SSR-safe. */
-+export function observeReducedMotion(listener: () => void): () => void {
-+  const preference = media()
-+
-+  if (!preference) return () => {}
-+
-+  if (listeners.size === 0) {
-+    preference.addEventListener("change", notify)
-+
-+    if (globalThis.document && globalThis.MutationObserver) {
-+      attribute = new MutationObserver(notify)
-+      attribute.observe(document.documentElement, { attributes: true, attributeFilter: ["data-motion"] })
-+    }
-+  }
-+  listeners.add(listener)
-+
-+  return () => {
-+    if (!listeners.delete(listener) || listeners.size > 0) return
-+    result?.removeEventListener("change", notify)
-+    attribute?.disconnect()
-+    attribute = undefined
-+  }
-+}
 diff --git a/packages/ui/src/motion/spring.ts b/packages/ui/src/motion/spring.ts
 new file mode 100644
 index 0000000..456907b

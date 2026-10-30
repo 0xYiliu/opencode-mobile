@@ -1359,7 +1359,7 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | 全量探针 sweep | 27 项一次性跑（26 × `bun run scripts/verify-*.ts` + `bash scripts/verify-closure.sh`） | **25/27 rc=0**（含新探针与六修订探针；APK 构建前跑，#63/#64 记录过的 intermediates 假阳性形态不适用——本期 sweep 在构建前，verify-permission-requests/verify-session-workbench rc=0）。两例 rc=1 逐例归因（均为**基线既有**，与本分支无关）：①verify-recovery 组 5——`ensureTunnel` 正则期望 `Promise<TransportEndpoint \| undefined>`，`packages/mobile-hosts/src/runtime.ts` 自 5a46934 起为多行 `Promise<{endpoint, attempt} \| undefined>` 形态（runtime.ts 本分支零触碰，git diff=0；#64 段已同型归因「dev 既有过期正则」）；②verify-inline-ssh-device——设备依赖探针（CDP 127.0.0.1:9222 ConnectionRefused），设备 QA 轮替代 | 本文 |
 | V2 构建 + copy-web-dist + dist 新基线 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS（rc=0）。新 dist **3491 文件 / 153,762,639 bytes**（首轮构建 153,761,865 为 goal 渲染器注释改写/mobile face 增补前产物，随终版源码重建刷新；`web-dist/manifest.json` 已刷新）。五运行时标记命中构建产物：`ui.sources.title`、`sources.enabled`、`opencode.goal`、`outline-steer`、`Searched web` + 空态文案 `No goal is set` | 本文 |
 | APK 构建 | `cd android && ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle :app:assembleDebug` | BUILD SUCCESSFUL；APK SHA-256 **`a754ccf878b4df707707eaf363e2aa51d6e71ecce6efda01fd29bde26dd4cb88`**（63,680,007 bytes；未安装设备） | 本文 |
-| 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=**1** 为**基线既有**（high-confidence 命中 5 处全在 `packages/mobile-hosts/test/host-credential.test.ts` 的 "-----BEGIN PRIVATE KEY----- synthetic fixture" 测试假串——该文件自 5a46934（#61，基线内）在册、本分支零触碰；本期全部改动文件按同一 high 模式 `git grep` 复扫**零新增命中**） | 本文 |
+| 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=**1** 为**基线既有**（high-confidence 命中 5 处全在 `packages/mobile-hosts/test/host-credential.test.ts` 的 "BEGIN PRIVATE KEY" 头形 synthetic fixture 测试假串——该文件自 5a46934（#61，基线内）在册、本分支零触碰；本期全部改动文件按同一 high 模式 `git grep` 复扫**零新增命中**） | 本文 |
 
 ### 设备 QA（**待执行**——与 #65 设备验证串行使用同一 MatePad，协调员在合并后统一调度；计划 §9 八项）
 
@@ -1379,10 +1379,33 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **设备 QA 全部待执行**（含与 #65 的设备串行）：本轮完成代码层全链验证（V3/新探针+七负例/六修订探针/上游子集/第一方单测/构建/APK），面板可达性、gate 重启持久化、chip→面板往返、goal 命令对真实服务端的往返与降级三态、TalkBack 均未在设备上验证——验收第 2 条「失败呈现有结论」当前证据形态为数据层逐字移植 + 探针降级锚 + 上游注释在册，**不声称设备级行为已验证**。
 - **探针证明力**：静态结构检查（文本锚/集合相等/负断言/负例注入），对运行时行为无证明力。
 - **rebase 轮待办（M-035 耦合，M-036 manifest rebase 字段在册）**：#65 合入 dev 后 M-036 对 pristine pin + M-001..M-035 重生成——`ui/src/motion/index.ts` 退为向 M-035 文件追加 spring/loop 两行（M-035 头注「only the reduced-motion face ships here」句同步改写）、`motion/reduced.ts` 与 ui package.json `./motion` export 归还 M-035（M-036 仅保留 `./motion-tuning`）；E22/M-036 编号以合并时 dev 实际为准（现分 34=33+M-036；#65 后 35）；verify-appearance-settings 的全树 prefers-reduced-motion 三文件白名单互证在该轮生效（本分支先于 M-035 树转换，新探针组 7 以域内 mentions 集合断言替代）。
+- **sources.css 三块 `:root[data-motion="reduce"]` 面在 rebase 轮后随 M-035 app 面激活（rebase 前休眠）**：本分支初版基于 f9e316b（无 M-035），`dataset.motion` 写入面未落地，三块 reduce 选择器为静态在场但不触发的休眠面；rebase 轮（dev 0b79b06）后 M-035 的 `documentElement.dataset.motion` 仲裁 effect 落地，Reduce motion 设置（system/on/off）→ 三块选择器真实生效，且 verify-appearance-settings 的全树 prefers-reduced-motion 三文件白名单互锁（{settings/model.tsx, go-upsell-hero-art.ts, ui/motion/reduced.ts}）在本期 sources 八文件零 `prefers-reduced-motion` 字串的边界上保持绿。
 - **sources.test.ts 破例 +1**：在册 session-ui 子集口径 8→8+1（151/0 实测）；理由=上游自带测试、仅测本期移植的纯函数面，属移植件而非新造（§8 步骤 5 裁定登记）。
 - **goal 契约的 toStandardSchemaV1 形态为实施证明的计划偏差**：三处包裹保留（非计划的剥离）；探针锁计数恰 3——后续若 effect 升级导致 API 形态变化，此锚先红。
 - **M-002 基线唯一 fail**（persistence.test.ts）不在本期任何子集，0 fail 在界内（与 #63/#64 同口径）。
 - **`bun run` 对 .sh 的解析怪癖**沿用 #64 登记：verify-closure.sh 须 bash 直跑。
+
+### rebase 轮（dev 0b79b06 = #65 合入，M-035 在链）——2026-10-30 实测记录
+
+`git rebase origin/dev` 后两提交重放为 `0aa08fb`（feat）/`f8b5a76`（docs）。**冲突摘要**（八文件，逐处归因与处置）：①`vendor/upstream/packages/ui/src/motion/index.ts`（add/add）——按 M-036 manifest rebase 字段的预定处置解决：保留 M-035 文件为基底，头注第二句改写（`./spring`/`./loop` 已随本期 vendored，未 vendor 余集收窄为 `./velocity`/`./waapi`/`./slider`；"only the reduced-motion face ships in M-035"），追加 mobile(M-036) 注释与 `export * from "./spring"`/`export * from "./loop"` 两行；②`ui/package.json`——`./motion` 归 M-035、`./motion-tuning` 为本期唯一增量，双行共存；③`patches/mobile/manifest.json`——M-035 与 M-036 两表目共存（35 目），M-036 条目的 targets 去除 `motion/reduced.ts`（归还 M-035）、verification 的 V3 基线改 pin+M-001..M-035、rebase 字段整体改写为落地后状态（编辑编码逐字声明：index.ts 头注改写句与两行追加、reduced/`./motion` 归还、锚点内容核验在 rebase 中零漂移）；④`vendor-manifest.json`——mobilePatches 35 条（…0034, 0035, 0036）；⑤`web-dist/manifest.json`——取本期侧后随终版重建再刷新；⑥-⑨四个哨兵探针（attachments/commands-menus/gui-extensions/notifications）——双侧计数/基线修订合并为 **35 补丁链**口径（生成集 M-001..M-036 minus M-019=35，M-035 的 pre-rebase skip 解除；gui-extensions 头注 count 34→35；dist 历史链补 #65 测量值 3482/153654746）。docs 冲突两处：implementation.md 头注 basis 段（E21 行 + E22 句合并，E22 补「rebase 轮收口：#65 已实占 E21（PR #81），E22 维持不变；M-036 已对 pin+M-001..M-035 重生成」）、W22/W23 小节与 S17+S42 小节顺序共存；interaction-quality.md settings.v3 行取 dev 侧 #65 改写 + 本期 gate 存储行共存。
+
+**M-036 重生成（义务 2a 落地）**：对 pristine pin + M-001..M-035 重生成（= `git diff origin/dev HEAD -- vendor/upstream/packages`，dev 树经 V3 等价于 pin+M-001..M-035）——**33 文件面**（-1：`motion/reduced.ts` 归还 M-035 不再入补丁）；`ui/package.json` hunk 仅 `+./motion-tuning` 一行；`motion/index.ts` hunk 为 M-035 文件的改写+两行追加（非新建）。`verify-goal-sources` 组 8 补丁面断言 34→**33** 同步修订。
+
+**哨兵同 commit 修订（义务 2c）**：verify-attachments-artifacts（生成集 length 36 filter M-019=35、行数断言 35、头注 M-001..M-036/35、PASS 串 35-ID set）/verify-commands-menus（`i<=36` skip 19、行数/paths 断言 35、setEq 串 35、头注/PASS 串 counts 链 +M-035=34、M-036=35、dist 基线）/verify-gui-extensions（头注 count 35、dist 基线、PASS 串 registered patch set 35）/verify-notifications（dist 基线）——四探针修订后 rc=0。**新增同 commit 修订**：verify-appearance-settings 组 6 motion/index 最小化负断言（原锁「不得 re-export `./spring`/`./waapi`」与本期追加相撞——改锁 `./velocity`/`./waapi`/`./slider` 三未 vendor 名 + 正断言 spring/loop 两行在位；计划 §2 耦合点 3 的预定修订面）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V3 闭包（35=35） | `bash scripts/verify-closure.sh` | PASS：vendor 树 == pin `b4525d79bf` + 已登记 **35** 个 mobile 补丁字节一致；`DANGLING=0` | 本文 |
+| 白名单互锁复检（义务 2b） | `bun run scripts/verify-appearance-settings.ts` | PASS（rc=0）：全树 prefers-reduced-motion 三文件白名单 {settings/model.tsx, go-upsell-hero-art.ts, ui/motion/reduced.ts} 集合相等在本期 sources 八文件零命中边界上保持；本期 sources.css 三块 `:root[data-motion="reduce"]` 面自 M-035 `dataset.motion` 仲裁 effect 落地起为激活面（此前休眠——诚实边界 MINOR-1 句已补） | 本文 |
+| 负例一组（义务 5） | 向 `gui-extensions/src/sources/index.ts` 注入 `import { probe } from "@opencode/plugin/gui"` → `bun run scripts/verify-goal-sources.ts` | FAIL（组 2 boundary leak 逐字打印命中文件）rc=1 → 还原 → PASS rc=0 | 本文 |
+| V-probe 全链复测（义务 4） | 修订探针 rc 双向核对 | verify-goal-sources rc=0（组 8 补丁面 33）/verify-experimental-settings rc=0/verify-gui-extensions rc=0/verify-browser rc=0/verify-commands-menus rc=0/verify-notifications rc=0/verify-attachments-artifacts rc=0/**verify-appearance-settings rc=0（互锁绿）** | 本文 |
+| V-upstream 子集复测 | settings 三件/session-ui 8+1/ui i18n | **41/0/98**、**151/0/421**、**19/0/24**——与 rebase 前同数 | 本文 |
+| V-mh 第一方单测复测 | `bun test --conditions=browser packages/mobile-hosts` | **423 tests / 0 fail / 2885 expect()**——持平 | 本文 |
+| vendored 类型检查（rebase 合并树） | gui-extensions/session-ui `tsc -b` 本期触碰文件 | 零错误（goal/sources 对 M-035 motion 树编译通过——`prefersReducedMotion` 经 `./motion` entry 解析到 M-035 reduced.ts） | 本文 |
+| V2 构建 + dist 终版基线 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | PASS。新 dist **3493 文件 / 153,776,571 bytes**（+2 文件/较 rebase 前构建 +13,932 bytes：M-035 面 + 本期面共存的全量产物；三探针 dist 哨兵同步修订为终版值——首刷 3493 比对时 fileCount 字面量漏改一处致三探针假 FAIL，修正后 rc=0）；五运行时标记命中（`ui.sources.title`/`sources.enabled`/`opencode.goal`/`outline-steer`/`Searched web`） | 本文 |
+| APK 构建 | `cd android && ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle :app:assembleDebug` | BUILD SUCCESSFUL；APK SHA-256 **`5063b38a67898d6ff076c7f949820b80e793ca1d665c9e34d110b52d2c8aec18`**（64,186,890 bytes；未安装设备） | 本文 |
+| sweep 旁证（intermediates 假阳性再证） | `verify-permission-requests`/`verify-session-workbench`（gradle 构建后） | 构建后 rc=1 命中恰为 #63/#64 在册的 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js` dist 拷贝假阳性（FAIL 串逐字一致）；build 目录临时移出后二者 rc=0、原样还原（APK 保留）——环境性假阳性，与本分支零关联 | 本文 |
+| 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 与基线同集（5 处全在 host-credential.test.ts synthetic fixture；初刷发现本文 #66 段引用该假串字样构成文档自命中 1 处，改写措辞后 docs/ 全域零命中——净新增为零） | 本文 |
 
 ## BLOCKED 总表
 

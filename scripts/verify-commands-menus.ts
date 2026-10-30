@@ -607,8 +607,8 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   // Current Vite output is an exact first-lock cross-reference to verify-notifications
   // group 8. Earlier M-026/M-027/M-028 sizes remain historical measurements.
   const distManifest = JSON.parse(await read(WEB_DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3491 || distManifest.totalBytes !== 153762639)
-    fail(`8: current web-dist baseline drifted (expected 3491/153762639, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3493 || distManifest.totalBytes !== 153776571)
+    fail(`8: current web-dist baseline drifted (expected 3493/153776571, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
   // Cross-reference the exact registered JSON IDs and paths, not arbitrary M-### text in
   // reasons/verification prose. verify-attachments-artifacts group 6 is the first lock.
   const patchManifest = JSON.parse(await read(PATCHES_MANIFEST)) as {
@@ -623,11 +623,13 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   for (let i = 1; i <= 36; i++) {
     // M-019 reserved-absent since issue #16. M-035 registered by #65 — the pre-rebase
     // skip is lifted in the issue #66 rebase round (count 35).
-    if (i === 19) continue    expectedPatches.add(`M-${String(i).padStart(3, "0")}`)
+    if (i === 19) continue
+    expectedPatches.add(`M-${String(i).padStart(3, "0")}`)
   }
   if (patchRows.length !== 35 || registeredIds.length !== patchRows.length || patchIds.size !== patchRows.length)
     fail(`8: registered patch rows/IDs must be unique and exactly 35 (got rows=${patchRows.length}, IDs=${registeredIds.length}, unique=${patchIds.size})`)
-  setEq(patchIds, expectedPatches, "8: mobile patch id set (35 registered, M-019 reserved-absent)")  if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
+  setEq(patchIds, expectedPatches, "8: mobile patch id set (35 registered, M-019 reserved-absent)")
+  if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
     fail("8: every registered mobile patch must retain its upstreamBaseline")
   const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
   const vendorPaths = Array.isArray(vendorManifest.mobilePatches)
@@ -656,5 +658,5 @@ console.log(
     "5: enablement five layers — commandPaletteOptions filter + composer slash disabled filter + COMMON_COMMAND_IDS/order.has skip + extension enabled===false mapping + registries verbatim comment + windows-menu commandDisabled face + terminal/browser/debug enabled gates + never-on-the-web comment; " +
     "6: state restoration — command.catalog.v1 persisted store + keybindRenames cleanup + CommandCatalogItem metadata-only struct (no onSelect) + keybinds.tsx catalog consumption (settings.v3 segment cross-referenced to viq group 6); " +
     "7: docs closure — commands-menus.md ten sections + authority + four 不得声称 + 13-row table + four window.* rows + multi-window cross-reference, interaction.md G1–G35 + G34 row + twentieth wording + failure path, interaction-quality.md section-7 pointer, design README index, architecture flow row; " +
-     "8: build witnesses — current dist baseline 3491/153762639 (issue #66 incl. M-036; cross-reference verify-notifications group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727 and M-026 3480/153441733 remain historical) + exact registered patch set 35 with M-019 absent and vendor paths equal (cross-reference verify-attachments-artifacts; counts M-026=25, M-028=27, M-032=31, M-033=32, M-034=33, M-035=34, M-036=35) + bun.lock workspace anchor; " +    "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
+     "8: build witnesses — current dist baseline 3493/153776571 (issue #66 incl. M-036; cross-reference verify-notifications group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727 and M-026 3480/153441733 remain historical) + exact registered patch set 35 with M-019 absent and vendor paths equal (cross-reference verify-attachments-artifacts; counts M-026=25, M-028=27, M-032=31, M-033=32, M-034=33, M-035=34, M-036=35) + bun.lock workspace anchor; " +    "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
 )

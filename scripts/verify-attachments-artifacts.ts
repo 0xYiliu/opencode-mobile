@@ -341,7 +341,8 @@ let distAssetCount = 0
   const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
   // Rebase round (issue #66 on dev 0b79b06): 35 registered = M-001..M-036 with M-019
   // reserved-absent (M-035 registered by #65 — the pre-rebase skip is lifted).
-  const expectedPatchIds = new Set(Array.from({ length: 36 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))  const actualPatchIds = new Set(patchIds)
+  const expectedPatchIds = new Set(Array.from({ length: 36 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))
+  const actualPatchIds = new Set(patchIds)
   if (patchRows.length !== 35 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
     fail(`6: registered patch rows/IDs must be unique and exactly 35 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)

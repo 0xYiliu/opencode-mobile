@@ -670,7 +670,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     fail("8: vendor-manifest.json does not register M-036 (verify-closure reads only this list)")
   const patch = await read(`${PATCHES}0036-M-036-goal-sources-panels.patch`)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
-  if (touched.length !== 34) fail(`8: M-036 patch face drifted: ${touched.length} files (expected exactly 34)`)
+  // Rebase round: reduced.ts and the ./motion export returned to M-035 — the patch face is 33 files.
+  if (touched.length !== 33) fail(`8: M-036 patch face drifted: ${touched.length} files (expected exactly 33 post-rebase)`)
   for (const required of [
     "packages/schema/src/goal.ts",
     "packages/gui-extensions/src/sources/renderer.tsx",
