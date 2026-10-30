@@ -1,5 +1,7 @@
 package ai.opencode.mobile.files
 
+import ai.opencode.mobile.ExternalOpenPolicy
+import ai.opencode.mobile.R
 import ai.opencode.mobile.WebAssetServer
 import android.app.Activity
 import android.content.ActivityNotFoundException
@@ -16,6 +18,7 @@ import android.util.Log
 import android.webkit.WebMessage
 import android.webkit.WebMessagePort
 import android.webkit.WebView
+import android.widget.Toast
 import org.json.JSONObject
 import java.io.File
 import java.io.FileNotFoundException
@@ -37,7 +40,7 @@ import java.io.IOException
  * captures port2 into its closure), zero capability before ack, 5 x 500 ms channel-rebuild
  * retries, ack lifecycle navigation-scoped.
  *
- * Whitelist: exactly THREE operations (no dynamic routing, no reflection):
+ * Whitelist: exactly FOUR operations (no dynamic routing, no reflection):
  *  - clipboardImage: reads ONE image from the system clipboard, only in the content://
  *     URI whose MIME is an image type (ClipDescription wildcard), through a one-shot
  *     ContentResolver.openInputStream (no persistable grant), bounded to 10 s and to
@@ -65,6 +68,21 @@ import java.io.IOException
  *     generation is deleted once the new one is fully staged; onDestroy clears the whole
  *     share root. ACTION_SEND has no completion callback, so "delete after share" is not
  *   observable — the generation window is the honest minimum.
+ *  - openExternal (issue #76, N08): the shell's OUTBOUND external-open face. The URL is
+ *     decided by the pure ExternalOpenPolicy on this background thread (strict
+ *     java.net.URI parse; http/https ONLY — mailto passes the upstream JS gate and is
+ *     refused here, the registered first-party delta; userinfo refused; 2048 bound); a
+ *     refused URL answers {opened:false} and never reaches android.net.Uri.parse. An
+ *     accepted URL is handed to ACTION_VIEW on the MAIN thread built from THE SAME
+ *     string the policy accepted (single-enforced-check discipline — no second
+ *     normalization, parser-differential closed). Direct open (no chooser: the upstream
+ *     "default system application" semantics; chooser is anti-UX on phones and adds no
+ *     security property). ActivityNotFoundException / SecurityException / any hard
+ *     failure answer {opened:false} with the failure Toast (fixed string, LENGTH_SHORT,
+ *     zero URL content, no throttle — registered); a refused/failed open NEVER navigates
+ *     the shell WebView. Zero intent-filter/zero scheme/zero permission on the outbound
+ *     face (the inbound VIEW sentinels of verify-pairing groups 3/4/6 stay untouched:
+ *     decision 0007 is INBOUND and remains proposal-stage).
  *
  * Wire discipline: JSON in both directions, requestId correlation, ZERO binary across the
  * bridge (payloads travel base64-encoded) and a hard MAX_BRIDGE_BYTES = 32 MiB bound on
@@ -73,9 +91,10 @@ import java.io.IOException
  * mirror — the vault ENTRY_ID house rule): a rejected name answers "unsupported" and NEVER
  * touches disk, so a polluted remote part name cannot escape the <uuid> staging directory.
  *
- * Threading (plan M2): parsing/validation, base64 decode, clipboard reads and staging
- * writes run on ONE background HandlerThread (zero new dependencies); only the
- * startActivityForResult/startActivity calls and the port.postMessage replies run on the
+ * Threading (plan M2): parsing/validation, base64 decode, clipboard reads, staging
+ * writes and the external-open URL policy run on ONE background HandlerThread (zero new
+ * dependencies); only the startActivityForResult/startActivity calls, the external-open
+ * ACTION_VIEW launch + failure Toast and the port.postMessage replies run on the
  * main thread (the vault mainHandler precedent). Nothing large ever executes on the main
  * thread. The port's onMessage callback fires on the main looper, so the raw message is
  * handed to the parse thread before decoding (review F2): inbound dispatch is a
@@ -96,7 +115,7 @@ class FilesBridge(
         private const val MAX_RETRIES = 5
         private const val RETRY_DELAY_MS = 500L
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-        private val OPERATIONS = setOf("clipboardImage", "save", "share")
+        private val OPERATIONS = setOf("clipboardImage", "save", "share", "openExternal")
 
         /**
          * Filename whitelist — the Kotlin mirror of the JS sanitizeFilename pattern
@@ -324,6 +343,7 @@ class FilesBridge(
                     "clipboardImage" -> respond(id) { opClipboardImage() }
                     "save" -> handleSave(id, json.optJSONObject("params") ?: JSONObject())
                     "share" -> handleShare(id, json.optJSONObject("params") ?: JSONObject())
+                    "openExternal" -> handleOpenExternal(id, json.optJSONObject("params") ?: JSONObject())
                 }
             }
         }
@@ -528,6 +548,72 @@ class FilesBridge(
     }
 
     private fun shareRoot(): File = File(activity.cacheDir, SHARE_ROOT)
+
+    // ------------------------------------------------------------------
+    // openExternal (issue #76, N08 — ACTION_VIEW over the enforced policy)
+    // ------------------------------------------------------------------
+
+    /**
+     * The outbound external-open face. Runs the pure [ExternalOpenPolicy] HERE on the
+     * background parse thread (this function is invoked there — review F2 dispatch), then
+     * either answers {opened:false} directly or posts the ACTION_VIEW launch to the main
+     * looper. Exactly one JSON response per request; a refused or failed open NEVER
+     * navigates the shell WebView (window.open would have — the defect this op replaces).
+     *
+     * Failure presentation: the fixed-string failure Toast (LENGTH_SHORT, zero URL
+     * content) covers BOTH the policy refusal and the launch failure paths (no handler
+     * app / SecurityException / hard failure). No throttle: one tap is one attempt, the
+     * user is the rate limiter (registered in the unit doc). Logs carry result classes
+     * only — never the URL, never an exception message (house red line).
+     *
+     * Parser-differential discipline: the intent is built from THE SAME string the policy
+     * accepted — android.net.Uri.parse sees only policy-accepted input, and no second
+     * normalization step exists for a divergence to exploit.
+     */
+    private fun handleOpenExternal(requestId: String, params: JSONObject) {
+        val raw = params.optString("url")
+        val accepted = if (ExternalOpenPolicy.decide(raw) == ExternalOpenPolicy.Decision.OPEN) raw else null
+        if (accepted == null) {
+            Log.w(TAG, "files: external open refused (policy)")
+            mainHandler.post { showToastExternalOpenFailed() }
+            respondRaw(openedBody(requestId, false))
+            return
+        }
+        mainHandler.post {
+            if (destroyed) return@post // bridge torn down mid-flight: the JS request dies into its own timeout path
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(accepted))
+                activity.startActivity(intent)
+                respondRaw(openedBody(requestId, true))
+            } catch (e: ActivityNotFoundException) {
+                Log.w(TAG, "files: external open failed (no handler)")
+                showToastExternalOpenFailed()
+                respondRaw(openedBody(requestId, false))
+            } catch (e: SecurityException) {
+                Log.w(TAG, "files: external open failed (security)")
+                showToastExternalOpenFailed()
+                respondRaw(openedBody(requestId, false))
+            } catch (e: Exception) {
+                Log.w(TAG, "files: external open failed (io)")
+                showToastExternalOpenFailed()
+                respondRaw(openedBody(requestId, false))
+            }
+        }
+    }
+
+    /** `{opened:...}` response body — aligned with save `{saved}` / share `{shared}`. */
+    private fun openedBody(requestId: String, opened: Boolean): JSONObject =
+        JSONObject().put("id", requestId).put("ok", true).put("result", JSONObject().put("opened", opened))
+
+    /** The fixed failure Toast: one resource string, zero URL/exception content, no throttle. */
+    private fun showToastExternalOpenFailed() {
+        try {
+            Toast.makeText(activity, R.string.external_open_failed, Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            // A failed Toast must never mask the {opened:false} answer path (runtime-present
+            // toast failures are not observable in practice; guarded for symmetry).
+        }
+    }
 
     /** Deletes every generation directory except [keep] (plan L1 generational cleanup). */
     private fun cleanupShareGenerations(keep: String) {

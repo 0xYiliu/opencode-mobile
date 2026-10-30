@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OpenCode Mobile</string>
+    <!-- issue #76 N08: fixed failure copy for the outbound external-open face (zero URL
+         content). En-only first version — the app-level resource lineage is en-only; the
+         zh completion candidate is registered in docs/design/units/attachments-artifacts.md. -->
+    <string name="external_open_failed">Unable to open external link</string>
 </resources>

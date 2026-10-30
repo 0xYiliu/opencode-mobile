@@ -13,7 +13,7 @@ import {
   type FilesPort,
 } from "../src/files/client"
 import { FilesError } from "../src/files/errors"
-import { FILES_HANDSHAKE, createWebMessageFilesTransport } from "../src/files/transport"
+import { FILES_HANDSHAKE, createWebMessageFilesTransport, type FilesBridgeTransport } from "../src/files/transport"
 
 // Files port client + seam (issue #16, plan D2/D3/B2). The per-field stub semantics,
 // the six-code taxonomy, the 32 MiB bound, the two-layer name sanitization (JS layer)
@@ -86,6 +86,10 @@ describe("StubFilesPort + module-level seam (fail-closed defaults)", () => {
     expect(await StubFilesPort.shareDataUrl("data:text/plain;base64,SGk=", "hi.txt", "text/plain")).toBeFalse()
   })
 
+  test("stub openExternal answers false (equivalent: the void Platform face ignores the pre-ack failure, issue #76)", async () => {
+    expect(await StubFilesPort.openExternal("https://opencode.ai/desktop-feedback")).toBeFalse()
+  })
+
   test("the seam defaults to the stub and registration swaps it in; undefined resets", async () => {
     expect(activeFilesPort()).toBe(StubFilesPort)
     expect(filesBridgeInjected()).toBeFalse()
@@ -93,6 +97,7 @@ describe("StubFilesPort + module-level seam (fail-closed defaults)", () => {
       clipboardImage: async () => null,
       saveFile: async () => true,
       shareDataUrl: async () => true,
+      openExternal: async () => true,
     }
     setActiveFilesPort(custom)
     expect(activeFilesPort()).toBe(custom)
@@ -404,6 +409,67 @@ describe("createFilesClient.shareDataUrl", () => {
       expect((error as FilesError).code).toBe("too-large")
     }
     expect(engine.requests.length).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// openExternal (issue #76, N08) — never-throw void-face mapping matrix
+// ---------------------------------------------------------------------------
+
+describe("createFilesClient.openExternal", () => {
+  test("the bridge answer {opened:true} resolves true and travels as the openExternal op", async () => {
+    const engine = createEngine(() => ({ ok: true, result: { opened: true } }))
+    engine.native.connect()
+    await drain()
+    expect(await engine.client.openExternal("https://opencode.ai/console")).toBeTrue()
+    const { op, params } = engine.requests[0]!
+    expect(op).toBe("openExternal")
+    expect(params["url"]).toBe("https://opencode.ai/console")
+  })
+
+  test("the native policy refusal {opened:false} resolves false (the native side owns the Toast)", async () => {
+    const engine = createEngine(() => ({ ok: true, result: { opened: false } }))
+    engine.native.connect()
+    await drain()
+    expect(await engine.client.openExternal("mailto:user@example.com")).toBeFalse()
+  })
+
+  test("a hard wire error {ok:false} resolves false (never throws past the void seam)", async () => {
+    const engine = createEngine(() => ({ ok: false, code: "unsupported", message: "" }))
+    engine.native.connect()
+    await drain()
+    expect(await engine.client.openExternal("https://opencode.ai/console")).toBeFalse()
+  })
+
+  test("a malformed answer shape resolves false (non-boolean / non-object / missing result)", async () => {
+    for (const reply of [
+      { ok: true, result: { opened: "yes" } }, // non-boolean
+      { ok: true, result: null }, // no result object
+      { ok: true, result: {} }, // missing field
+    ]) {
+      const engine = createEngine(() => reply as unknown as NativeReply)
+      engine.native.connect()
+      await drain()
+      expect(await engine.client.openExternal("https://opencode.ai/console")).toBeFalse()
+    }
+  })
+
+  test("an un-acked bridge (transport unavailable) answers false with zero bytes on the wire", async () => {
+    const engine = createEngine(() => ({ ok: true, result: { opened: true } }))
+    // No engine.native.connect(): the handshake never fired.
+    expect(await engine.client.openExternal("https://opencode.ai/console")).toBeFalse()
+    expect(engine.requests.length).toBe(0)
+  })
+
+  test("never throws: a throwing fake transport still resolves false", async () => {
+    const throwing: FilesBridgeTransport = {
+      status: () => "available",
+      onReady: () => () => {},
+      request: () => Promise.reject(new FilesError("unavailable", "simulated channel death")),
+      dispose: () => {},
+    }
+    const client = createFilesClient(throwing)
+    expect(await client.openExternal("https://opencode.ai/console")).toBeFalse()
   })
 })
 
