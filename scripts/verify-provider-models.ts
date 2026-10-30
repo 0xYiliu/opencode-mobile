@@ -301,9 +301,17 @@ let osScanFiles = 0
   if (!dialog.includes("chatgpt-plan-welcome.v1")) fail("3: the chatgpt-plan-welcome flag key moved")
 
   // Web platform: openExternal allowlist + browserFailed-unreachable fact.
+  // mobile(M-041, issue #76): the outbound call now rides the files bridge (the literal
+  // window.open shape is gone — negative below); the JS protocol gate + mailto branch
+  // stay VERBATIM (first layer only) and the openBrowser negative + the browserFailed-
+  // unreachable fact are unchanged (the client never throws).
   const web = squash(await read(`${APP}src/runtime/platform/web.ts`))
-  if (!web.includes('window.open(url.href,"_blank","noopener,noreferrer")'))
-    fail("3: the web openExternal window.open shape changed")
+  if (!web.includes('voidactiveFilesPort().openExternal(url.href)'))
+    fail("3: the web openExternal bridge-call shape changed (M-041, issue #76)")
+  if (!web.includes("mobile(M-041)"))
+    fail("3: web.ts lost the mobile(M-041) outbound-face marker")
+  if (web.includes("window.open("))
+    fail("3: web.ts gained a window.open call (the outbound face routes over the files bridge)")
   if (!web.includes('url.protocol!=="http:"&&url.protocol!=="https:"&&url.protocol!=="mailto:"'))
     fail("3: the web openExternal protocol allowlist changed")
   if (web.includes("openBrowser")) fail("3: web platform must NOT implement openBrowser (browserFailed is unreachable on web)")
@@ -510,5 +518,5 @@ console.log(
     "7: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted code files (.ts/.tsx caliber; 49 measured); " +
-    "STATIC check — OAuth round-trip, window.open inside the Android WebView (G25 first item), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
+    "STATIC check — OAuth round-trip, the outbound authorize hand-off inside the Android WebView shell (G25 first item; M-041 routes it over the files-bridge external-open face, issue #76), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
 )
