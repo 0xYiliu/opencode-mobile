@@ -1,33 +1,37 @@
 // Mapping from first-party host records + state machine to the upstream server model
 // (issue #3, decision D2).
 //
-// The upstream shape mirrored here is `ServerConnection.Extension` from
+// The upstream shape mirrored here is `ServerConnection.Plugin` from
 // vendor/upstream/packages/app/src/runtime/server/registry.tsx and `ServerState` from
-// vendor/upstream/packages/gui-extensions/src/sdk/registries.ts. The type is duplicated
+// vendor/upstream/packages/plugin/src/gui/registries.ts. The type is duplicated
 // structurally ON PURPOSE: the first-party package must not import from the vendored app
 // (would drag the whole app into this package's graph and invert the dependency direction).
-// test/upstream-map.test.ts locks the structural conformance.
+// test/upstream-map.test.ts locks the structural conformance, including a source-level
+// cross-check of the vendored discriminant/field names (issue #90: the M-037 rename moved
+// this mirror's shape from `Extension`/`extension:` to `Plugin`/`plugin:`; the stale shape
+// made the vendored ServerConnection.key() switch fall through, collapsing every SSH host
+// into one `undefined` registry key).
 
 import { hostKey } from "./identity"
 import type { HostRecord } from "./registry"
 import type { TransportEndpoint } from "./ports"
 import type { HostState } from "./state-machine"
 
-/** Mirror of upstream gui-extensions `ServerState`. */
+/** Mirror of upstream gui host `ServerState`. */
 export type ServerState = "stopped" | "starting" | "auth" | "ready" | "failed" | "incompatible"
 
 /**
- * Mirror of the upstream `ServerHttpBase` shape the Extension hooks deal in
+ * Mirror of the upstream `ServerHttpBase` shape the plugin hooks deal in
  * (reconnect resolves one). The endpoint a tunnel re-resolves to is loopback http with a
  * possibly-new port; a password is never part of it (service auth is upstream's business).
  */
 export type ExtensionHttpBase = { url: string; password?: string; credentialRef?: string }
 
-/** Mirror of upstream app `ServerConnection.Extension`. */
+/** Mirror of upstream app `ServerConnection.Plugin` (first-party name kept: issue #90 D-naming continuity). */
 export interface ExtensionConnection {
-  type: "extension"
+  type: "plugin"
   key: string
-  extension: string
+  plugin: string
   state: ServerState
   connecting: boolean
   authenticationRequired: boolean
@@ -37,7 +41,7 @@ export interface ExtensionConnection {
   displayName?: string
   label?: string
   /**
-   * Issue #6 hooks (optional, mirroring the upstream Extension type):
+   * Issue #6 hooks (optional, mirroring the upstream Plugin type):
    * - reconnect: re-resolves the tunnel endpoint through the machine (T10/T11 pipeline);
    *   the vendored client's connection watchdog calls it when the event stream drops.
    * - connect: backs the upstream inline sign-in (authenticate path, T6 -> T1 revised);
@@ -88,9 +92,9 @@ export interface ToExtensionConnectionInput {
 export function toExtensionConnection(input: ToExtensionConnectionInput): ExtensionConnection {
   const serverState = mapStateToServerState(input.state)
   return {
-    type: "extension",
+    type: "plugin",
     key: hostKey(input.record.id),
-    extension: "mobile-ssh",
+    plugin: "mobile-ssh",
     state: serverState,
     connecting: input.state === "connecting" || input.state === "reconnecting" || input.state === "hostKeyUnverified",
     authenticationRequired: input.state === "authRequired",
@@ -111,15 +115,15 @@ export function toExtensionConnection(input: ToExtensionConnectionInput): Extens
   }
 }
 
-/** Structural conformance check against the upstream Extension shape. */
+/** Structural conformance check against the upstream Plugin shape. */
 export function assertExtensionShape(conn: unknown): conn is ExtensionConnection {
   if (typeof conn !== "object" || conn === null) return false
   const c = conn as Record<string, unknown>
   return (
-    c["type"] === "extension" &&
+    c["type"] === "plugin" &&
     typeof c["key"] === "string" &&
     c["key"].startsWith("mobile-ssh:") &&
-    typeof c["extension"] === "string" &&
+    typeof c["plugin"] === "string" &&
     typeof c["state"] === "string" &&
     ["stopped", "starting", "auth", "ready", "failed", "incompatible"].includes(c["state"] as string) &&
     typeof c["connecting"] === "boolean" &&
