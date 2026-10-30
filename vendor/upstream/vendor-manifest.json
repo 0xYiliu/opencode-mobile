@@ -81,7 +81,8 @@
     "patches/mobile/0034-M-034-experimental-settings.patch",
     "patches/mobile/0035-M-035-appearance-motion-zoom.patch",
     "patches/mobile/0036-M-036-goal-sources-panels.patch",
-    "patches/mobile/0037-M-037-gui-plugins-migration.patch"
+    "patches/mobile/0037-M-037-gui-plugins-migration.patch",
+    "patches/mobile/0038-M-038-btw-narrow-entry.patch"
   ],
   "excluded": {
     "packages": [

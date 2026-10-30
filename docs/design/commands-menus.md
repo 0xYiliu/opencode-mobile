@@ -30,6 +30,7 @@
 
 - **扩展命令发布**（`runtime/extension/commands.tsx`）：`${extension}.${id}` 模板发布（如 `terminal.toggle`、`browser.open`、`debug.heap`、`wsl.retry`）；13 个内建 GUI 扩展全部在 web 构建同表激活（`gui-extensions/src/renderer.ts` `builtins` 无平台门）；`enabled === false → disabled`（见 §七第④层）。内建扩展命令族：terminal `toggle`/`new`/`close`、browser `open`/`reload`/`address`/`close`/`inspect`、btw `ask`、debug `toggle`/`heap`（`if (desktop)` 条件注册——web 永不注册）、pairing `open`、updater `check`、wsl `retry`。
 - **web 构建的命令可达面**（=移动实态，四面）：①composer slash 列表（软键盘；静态 11 键见 [interaction-quality.md](interaction-quality.md) §七 + 扩展动态面 `/terminal`、`/btw` 经 `slashAfter` 挂入）；②Settings > Shortcuts 页（`settings/keybinds/keybinds.tsx` 消费 `command.catalog` 持久化元数据+活体 options，键位覆盖可触屏编辑含 "none" 禁用）；③More 抽屉/一级 tab/设置入口（#20 §二/§七在册）；④全局 keydown（物理键盘）。**命令面板本体无触屏入口（keybind-only）为 #20 §七/§八在册实态，本文不推翻不重复收口**。
+- **/btw 窄屏可达（issue #70/M-038 状态注记）**：btw `ask` 命令门自 `!layout.narrow() && mounted()` 放宽为 `mounted()`（`gui-plugins/src/btw/renderer.tsx`——15 内建之一的 renderer 侧注册；桌面 ≥768px 按构造恒等），窄屏（<768px 视口）composer slash 面出现 `/btw`，答案经 btw 的 mobile face（order 80，More 抽屉）呈现；动态挂入面仍不锁集合（上行口径不变）。
 
 ## 三、DESKTOP_MENU 七菜单映射主表（验收 1 本体）
 

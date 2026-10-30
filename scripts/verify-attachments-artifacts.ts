@@ -29,10 +29,11 @@
 //      exported=false + grantUriPermissions=true).
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
-//      M-020/M-021 and exactly the registered ID set M-001..M-037 except reserved M-019
-//      (36 patches total; issue #65 registered M-035, #66 M-036, #67 M-037 in
-//      respective same-commit revisions; issue #23/#26/#55/#63/#64/#65/#66 count revisions
-//      remain documented history —//      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
+//      M-020/M-021 and exactly the registered ID set M-001..M-038 except reserved M-019
+//      (37 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038 in
+//      respective same-commit revisions; issue #23/#26/#55/#63/#64/#65/#66/#67 count revisions
+//      remain documented history —
+//      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
 //      (opencode-mobile-files-handshake / mobile(files-v1) / mobile(M-020) / mobile(M-021))
 //      are present in the built assets when a dist exists.
 //   7. No-leak negatives: the new-face sources (mobile-hosts files module + shell files
@@ -339,12 +340,12 @@ let distAssetCount = 0
   }
   const patchRows = patchManifest.patches ?? []
   const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
-  // Issue #67: 36 registered = M-001..M-037 with M-019 reserved-absent (M-037 registered
-  // by the gui-plugins migration).
-  const expectedPatchIds = new Set(Array.from({ length: 37 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))
+  // Issue #70: 37 registered = M-001..M-038 with M-019 reserved-absent (M-038 registered
+  // by the btw narrow-screen entry).
+  const expectedPatchIds = new Set(Array.from({ length: 38 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019"))
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 36 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 36 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 37 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 37 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
@@ -438,7 +439,7 @@ console.log(
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact 36-ID set (M-001..M-037 minus reserved M-019), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66 count revisions retained in build records" +    (distAssetCount > 0
+     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact 37-ID set (M-001..M-038 minus reserved M-019), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67 count revisions retained in build records" +    (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +
     "; 7: zero server-path/OS/credential shapes in the new faces (" +

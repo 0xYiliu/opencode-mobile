@@ -17,7 +17,7 @@
 | id | main entry（懒加载六者） | os 声明 | web/移动早退守卫 | token 分类 | 移动实际贡献面 | 业务 owner |
 | --- | --- | --- | --- | --- | --- | --- |
 | context | — | 无 | 无 | —（窗口侧 Slot/Panel） | session.header Slot（order 10）+ mobile Panel（menu, order 40） | #9（会话域） |
-| btw | — | 无 | 无（命令门 `enabled: !layout.narrow() && mounted()`——移动实际不可达，如实登记） | — | 零（无 mobile Panel；窄屏命令门使按钮不可达） | #9（会话域） |
+| btw | — | 无 | 无（命令门 `enabled: mounted()`——issue #70/M-038 放宽：桌面宽度按构造恒等（≥768px 时旧门 `!layout.narrow() && mounted()` 已等价），窄屏 slash 可达） | — | mobile Panel（menu, order 80——issue #70/M-038 窄屏入口：More 抽屉项，呈最近一条问答或诚实空态 `mobile.none`；ask 仍 select placement 不自动跳转；窄屏无 close 通道，问答在视口加宽后以 strip tabs 重现） | #9（会话域）/ #70（窄屏入口） |
 | debug | **是**（`mainEntry: () => import("./debug/main")`） | 无 | 无 | Ipc（HeapSnapshots，web 恒 inactive） | 零 UI 贡献（桌面诊断） | —（桌面诊断，无移动业务单元） |
 | terminal | — | 无 | 无 | — | mobile Panel（menu, order 30） | #13 |
 | file | — | 无 | 无 | Contract（file tree + openIn） | mobile Panel（menu, order 20） | #11 |
@@ -85,7 +85,7 @@
 - 管理面挂载于设置 gui-extensions tab（多服务器布局同样可达——`mobileGuiExtensions` 判定与布局无关，M-018 同型核对归 G35①）；与 More 抽屉/一级 tab 的扩展注册面关系引用 [interaction-quality.md](../interaction-quality.md)（#20 §二在册——本期禁用行为是其响应式机制的运行时演练，G31⑤② 为 G35①② 复核位）。
 - 组件来源=`@opencode/ui` 的 Switch 与 Button（mobile-hosts 既有五 UI 文件的先例面）+自研轻量列表（语义化容器+`data-component` 标记+上游视觉令牌——host-manager 先例「Reuses @opencode/ui primitives and tokens — no new visual decisions, no bare values」）；文案=mobile-hosts 自包含 i18n（`guiext.*` 键 en+zh——host-manager 先例「Deliberately not wired into the upstream i18n provider」）。
 - 读屏/焦点/触摸目标归 G35⑨（G31⑦ 复核位）：列表读屏走查、Switch 标签、错误文案读屏、触摸目标。静态排除行（issue #62/N12）为纯文本行：id 使用 `dir="ltr"` 保障双向文本语境下的原始 id 呈现，原因文案为普通 span（不占用 alert 语义——范围排除是常驻事实而非事件）；行内零控件即零可聚焦控件，无焦点陷阱面，读屏可读出 id/状态/原因——G35⑨ 抽查位。
-- **移动面板注册表（issue #66 起）**：既有五注册 review（tab, 10）/file（menu, 20）/terminal（menu, 30）/context（menu, 40）/details（drawer, 50）之外，sources（menu, order 60）与 goal（menu, order 70）入表——编号与 compose 序一致，无重号。窄屏 More 抽屉项恒在：sources 在实验 gate 关闭时呈空态文案（不移植上游「渲染 null」的空白面）、gate 开启但无来源时呈「最近有来源的 turn 或空态」；goal 无 goal 时呈空态文案（服务能力降级契约的诚实呈现）。差异 D3 如实登记：宽屏时间线 sources chip 的唤起路径保持上游逐字（不加 narrow 守卫），`layout.open` 对窄屏 transient tab 的无效切换为上游同态事实——窄屏入口以抽屉项为主、chip 唤起在桌面宽度（MatePad ≥768px）生效。
+- **移动面板注册表（issue #66 起）**：既有五注册 review（tab, 10）/file（menu, 20）/terminal（menu, 30）/context（menu, 40）/details（drawer, 50）之外，sources（menu, order 60）、goal（menu, order 70）与 btw（menu, order 80——issue #70/M-038）入表——编号与 compose 序一致，无重号（order 集合 {10..80} 由 `verify-goal-sources` 组 1 集合等式锁）。窄屏 More 抽屉项恒在：sources 在实验 gate 关闭时呈空态文案（不移植上游「渲染 null」的空白面）、gate 开启但无来源时呈「最近有来源的 turn 或空态」；goal 无 goal 时呈空态文案（服务能力降级契约的诚实呈现）；btw 呈「最近一条问答或诚实空态」（store ready 前空容器防闪空态；窄屏无 close 通道，问答在视口加宽后以 strip tabs 重现——上游存储效应登记，见 matrix W21/E26）。差异 D3 如实登记：宽屏时间线 sources chip 的唤起路径保持上游逐字（不加 narrow 守卫），`layout.open` 对窄屏 transient tab 的无效切换为上游同态事实——窄屏入口以抽屉项为主、chip 唤起在桌面宽度（MatePad ≥768px）生效。
 - **实验 gate 存储（issue #66/D2）**：sources gate 走 `ui/src/motion-tuning.ts` 最小 shim（仅上游 Knobs dev 台被消费的四面：toggle/choice/spring/subscribe），存储沿用上游 `opencode.motion.v2` localStorage 记录格式（toggle 0/1、choice 存选项索引、spring `<id>.duration`/`<id>.bounce`、非默认条目才落盘、空记录移除键），默认 false、无 auto-enable 路径、不经 settings.v3；设置 → Experimental → Sources 行是唯一写入面。#67 若引入真 motion-tuning 台，shim 可被原位替换（同键同格式，已存值不丢）。
 - **与 #67 的衔接（gui-plugins 迁移映射，防返工）**：sources 迁移=宿主 API 机械改名（`../sdk`→`@opencode/plugin/gui`、`Setup`→`Plugin.Setup`、`useExtension`→`usePlugin`、`ctx.uses.browser()`→`ctx.use(Browser)()`、`Browser` from `../browser/contract`→`@opencode/plugin/gui/browser`、`onIdle` 自 sdk→`@opencode/plugin/gui/builtin`、`Extension.define`→`Plugin.define`——v2.2.1 gui-plugins 版即对照答案）；goal 迁移=数据层（schema 契约+createStore 订阅+command 路径）零改动，Panel 注册届时二选一（保留 Panel 或升级 ComposerPill，由 #67 范围决定）。本期全部增量（goal Panel 形态、gate shim、两个 mobile face、设置开关行）为第一方登记差异（D1/D2/D3），不阻塞宿主迁移。
 
@@ -94,7 +94,7 @@
 - **G35 全部运行期行为 BLOCKED**（十项）——未过前只声称「文档/探针/单测/构建级已验证，运行期已实现（未验证）」（§首第二十一处落字）。
 - **桌面主进程侧不声称**：EnableState 持久化语义、manager.reload main 面、.ocdx install/remove 行为、桌面 DEV 面运行实态——packages/desktop 不在闭包（仅图标资产）。
 - **移动禁用记录 device-local**：不跨设备、不与桌面 settings file、不与远端 opencode.json 同步；volatile 回退时禁用仅本会话有效并如实提示。
-- **desktop-host 四扩展（browser/pairing/ssh/updater）呈现「桌面专属」**：其 Active 状态是宿主机制实态而非可用性声明；wsl 以静态排除行呈现（issue #62/N12，决策 0001——不发现/不安装/不启停/不管理/不执行命令，原因文案明示且含 Windows 宿主，末句声明原生 Windows 远程主机支持保留）；btw 移动不可达（窄屏命令门+无 mobile Panel）——管理面仍列出（定义在表），能力列如实。
+- **desktop-host 四扩展（browser/pairing/ssh/updater）呈现「桌面专属」**：其 Active 状态是宿主机制实态而非可用性声明；wsl 以静态排除行呈现（issue #62/N12，决策 0001——不发现/不安装/不启停/不管理/不执行命令，原因文案明示且含 Windows 宿主，末句声明原生 Windows 远程主机支持保留）；btw 移动可达（issue #70/M-038：命令门放宽为 `mounted()` + mobile Panel menu order 80——**视口判据口径**：`narrow()` 为 <768px 视口而非平台判据，窄桌面窗口同样生效，与上游六 mobile face 的视口驱动机制一致；桌面 ≥768px 行为按构造不变）——管理面仍列出（定义在表），能力列如实。
 - **失败注入不可控**：上游无 fault-injection 面——G35③ 以 Reload 行为+呈现面核对承载，不虚构故障演练。
 - **extension store 跨升级存活依赖 WebView 数据保留**（§六）。
 - **探针证明力**：`scripts/verify-gui-extensions.ts` 是 static STRUCTURE check（文本锚/归一化扫描/集合相等/负例实测），零运行时证明力；交叉引用锚（#15 四证据链/#24 五层链/#20 More 抽屉/#13 pty 语义——首锁 verify-terminal 组 2/组 3/#9 interrupt 穷举/root.tsx VAC 四锚）引用不重锁，首锁归属在探针头注逐条声明。

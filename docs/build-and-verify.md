@@ -1502,6 +1502,45 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **R4 订正传播检查**：v1「逐字节相同」表述未进入任何已合并文档（v1 仅存在于计划稿）；实施 PR 前以 `git grep "逐字节相同" docs/` 复核——命中共 8 处、零活断言（既有 issue #63 段 rebase 归因行 1 处为历史记录未触碰；本期新增 7 处均为订正记录/假断言引文：本段 B1 记录、V-卫生行、本注、implementation E25 行、ADR 0006 :80/:185/:186 三处；首轮误计 5/4 为 git grep 漏数未跟踪新文件，评审实测 8/7 后订正）。pin 契约残留（回退前超集/前形态）已在 ADR §2.2/E25 显式登记三个分歧 commit，防止被误当作 v2.2.1 语义依据。
 
 
+## issue #70 段（W21：/btw 侧问窄屏入口，M-038）——2026-10-30 实测记录
+
+交付物：`vendor/upstream/patches/mobile/0038-M-038-btw-narrow-entry.patch`（恰 2 目标文件：`gui-plugins/src/btw/renderer.tsx` + `btw/i18n/en.ts`；model/panel/index 三文件 v2.2.1 content-sha1 守恒探针锁）+ `patches/mobile/manifest.json` M-038 条目与 `vendor-manifest.json` mobilePatches（**37=37** 双登记）+ 五探针同 commit 修订（verify-gui-plugins 门/face/D2 分支/blob 守恒锚 + verify-goal-sources order 集合 {10..80} + verify-commands-menus/verify-attachments-artifacts 37 计数哨兵 + verify-notifications/verify-gui-plugins dist 基线回填）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) W21 行终态 + [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E26（索引句 + 证据表行 + W21 小节：D1–D3 登记/D4 保持声明/D3 视口口径/m-1 存储效应/生命周期边界）+ [units/gui-plugins.md](design/units/gui-plugins.md)（btw 清单行/管理面句/移动面板注册表 order 80）+ [commands-menus.md](design/commands-menus.md) 一行状态注记（迁移后实态）+ 本段。
+
+**S0 复勘（基线 `9d7f459` = dev 含 #67）**：btw 五文件 blob 与 v2.2.1 `3ebcf9a` 逐字节相同（双侧 `git hash-object`：renderer `c256c3b14f`/model `57a25f4a75`/panel `cd5bdaa261`/index `30952a307a`/en `5da51e1820`）——适配性质为第一方移动特判；dist 检查常量四处核对：**3516/159532385 为前基线**（#67 实测），S0 实况=verify-gui-plugins 三处（常量/fail 串/PASS 串）一致，**verify-notifications fail 消息陈旧**（:538 期望 3493、:540 期望 153776571——常量已是 3516/159532385）+ **verify-commands-menus PASS 串双重陈旧**（3493/153776571 + 「exact registered patch set 35」）——M-038 轮一并订正（含 verify-goal-sources PASS 串「33-file patch face」与自身 22 断言矛盾的订正），陈旧值不作为本模块基线落款。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V1 依赖 + vendored 类型检查 | `bun install --frozen-lockfile`（rc=0）；gui-plugins 包 `bun run typecheck:tsc` | **btw 触面零错误**；包内总错误 106 与改动前基线 106 持平（electron/@lydell/node-pty M-001 剥离等既有环境性，stash-replay 双侧实测同数）；app 包零触碰（git diff 为空，无本期类型面） | 本文 |
+| V3 闭包（37=37） | `bash scripts/verify-closure.sh` | PASS：V3(a) 树 == pin `b4525d79bf` + packageSources(gui-plugins=3ebcf9a) + M-001..M-038 字节一致；V3(b) DANGLING=0；V3(c) OK | 本文 |
+| 五探针（修订后） | `bun run scripts/verify-{gui-plugins,goal-sources,commands-menus,attachments-artifacts,notifications}.ts` | 构建前四探针 rc=0（attachments 需已建 dist，构建后 rc=0）；构建后**五探针全部 rc=0**（dist 基线回填 3516/159535257 后） | 本文 |
+| 负例演练（6 例） | 逐例 inject → probe → restore | ①删 btw mobile face → verify-gui-plugins FAIL(rc=1)→还原 rc=0；②回插旧门 `enabled: !layout.narrow() && mounted()` → FAIL→还原 rc=0；③**删/改 D2 分支（M-A）**（render 分支还原为上游原样）→ FAIL→还原 rc=0；④goal order 70→80 重号 → verify-goal-sources FAIL(rc=1)→还原 rc=0；⑤panel.tsx 改一行（trio blob 漂移）→ FAIL→还原 rc=0；⑥（既有）删 `"wsl"` 排除项 → 组 7 FAIL→还原 rc=0 | 本文 |
+| V2 构建 + copy + dist 新基线 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；新 dist **3516 文件 / 159,535,257 bytes**（文件数同 #67 基线，**字节数 +2,872**——btw mobile face + D2 render 分支 + 2 i18n 键入既有 chunk，无新增 chunk 文件）；四处哨兵回填（gui-plugins 常量+fail+PASS、notifications 常量+fail+PASS、commands-menus 常量+fail+PASS），旧值 3516/159532385（issue #67 incl. M-037）转历史档 | 本文 |
+| dist 标记（shipped 非 sourcemap） | grep 构建产物 | `slash:{name:`+"`btw`"+`,arguments:!0},hidden:!0,enabled:o()` 命中 `root-*.js`（**门放宽入产物实证**：`enabled:o()` 即 minified `mounted()`，desktop-width 项零命中）；`No side question yet`（mobile.none）与 `Side question`（mobile.title）命中 `root-*.js` 本体（非仅 .map） | 本文 |
+| APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:assembleDebug` | BUILD SUCCESSFUL（35 tasks）；**APK SHA-256 `4fb927046ed77f2eb09c240bab1555892a0ef84952b6d8bea269061cde3e0295`**（65,288,302 bytes；未安装设备）；APK 内 `assets/web/` 条目 **3,516** 且双标记命中（provenance 对齐）；构建后按在册处置验证 intermediates 假阳性（见下行） | 本文 |
+| intermediates 假阳性（在册处置） | gradle 后复跑 verify-permission-requests/verify-session-workbench；build 目录临时移出复测后原样还原 | 二者 gradle 后 rc=1，FAIL 串恰为 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js`（#63 在册假阳性）；build 目录移出后二者 rc=0、原样还原（APK 保留）——环境性，与本分支零关联 | 本文 |
+| 全量探针 sweep | 28 × `bun run scripts/verify-*.ts` + `bash scripts/verify-closure.sh`（构建后首轮 + **最终 HEAD e11c724 复扫**） | 「例」口径=28 个探针脚本各计 1（closure 单列不计入分母）。首轮（gradle 前）**26/28 rc=0**，2 例 rc=1（基线既有：verify-recovery、verify-inline-ssh-device）；最终 HEAD 复扫 **24/28 rc=0**，4 例 rc=1（首轮 2 例 + intermediates 2 例）——评审修正：复扫实为**四例** rc=1（首版记录误写 25/28 三例，多报 1 个通过，按评审者修正后实录）。逐例归因（均与本分支零关联）：①verify-recovery 组 5 ensureTunnel 陈旧正则——dev 既有（#63 段在册），`packages/mobile-hosts/src/runtime.ts` 本分支零触碰（git diff 为空）；②verify-inline-ssh-device——设备依赖探针（CDP 127.0.0.1:9222 ConnectionRefused），设备 QA 轮替代；③④verify-permission-requests/verify-session-workbench（复扫新增 +2）——gradle intermediates 假阳性（FAIL 串恰为 `android/app/build/intermediates/.../web/_assets/*.js`，#63 在册；移出复测 rc=0 已在上行登记）。closure 两轮均 rc=0。#67 B-1 教训落实：sweep 以最终树为准记录 | 本文 |
+| 上游定向子集 | 包内 `bun test`（--conditions=solid 视包） | settings 三件 **41/0/98**；session-ui message/timeline/sources/context 五文件 **87/0/296**（含 sources.test 5/0）；ui `src/context/i18n.test.ts` **19/0/24**；gui-plugins `src/browser/address.test.ts` **3/0/7**——全部与基线同数不回退（本期触面 btw 无上游测试，静态锚由探针承担） | 本文 |
+| 第一方回归 | `bun test --conditions=browser packages/mobile-hosts` | **423 pass / 0 fail / 2885 expect()**（39 文件）——与基线持平（零改动证明；mobile-hosts 本分支零触碰） | 本文 |
+| 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 为**基线既有**（synthetic 测试密钥与文档示例凭据在册集），与改动前基线输出逐行比对**零新增命中** | 本文 |
+
+### 设备 QA 待执行（issue #70 段——协调员统一调度，与 #65/#66/#67 待执行 QA 串行）
+
+| 项 | 内容 | 对应 |
+| --- | --- | --- |
+| QA-1 slash 可达 | 会话内 composer 键入 `/btw` → 补全面出现该命令（软键盘路径）；提交 `/btw 问题` → 无错误 toast；空参 `/btw` → `question.required` toast | 验收 1、D3 |
+| QA-2 抽屉入口与面板交互 | More 抽屉 btw 项（order 80，排 goal 之后）；点入显示**最近**问答（=刚问那条）；答案流式落地面板；question/answer 复制按钮各一次成功（剪贴板核对）；**第二次 `/btw` 后 face 跟随更新一条**（push 序=时序验收）；失败态 retry 可用（可注入则测，不可注入如实记录） | 验收 1、D1/D2、m-4 |
+| QA-3 空态与诚实呈现 | 新会话零提问时 face 显示诚实空态（zh 界面呈英文——zh 回退 en 登记实态）；提问后空态转内容 | 验收 1、D2 |
+| QA-4 桌面宽度不变 | ≥768px 视口（MatePad 横屏/分屏）：strip btw tabs 行为与改前一致（每问一 tab、关闭即忘）、slash 开侧面板路径不变、无 mobile face 重复呈现 | 验收 2 |
+| QA-5 TalkBack | 抽屉项、面板标题、两组复制按钮、retry、空态均可聚焦播报 | G35⑨/G31⑦ 复核位 |
+| QA-6 记录回写 | 结果回写本段 + E26 结论句；环境不足项标注未验证并引静态证据 | E26 |
+
+### 诚实边界（issue #70 段）
+
+- **设备 QA 六项全部待执行**（上表）：本模块以静态探针 + 构建层证据 + 负例演练先行合并（沿 #66 先例）；「窄屏入口可达且面板可交互」在设备复测前不得声称已运行验证。
+- **D3 视口口径**：门放宽对一切 <768px 视口生效（含窄桌面浏览器窗口）——与上游六 mobile face 视口驱动机制一致，matrix W21 行与 implementation.md W21 小节已登记。
+- **m-1 存储效应**：窄屏积累的问答在视口加宽后以 strip tabs 重现（恢复 close 通道）；窄屏 face 无 close 通道（只增不删）——上游既有存储语义说全，登记不补。
+- **commands-menus.md 陈旧处呈报（不在本 issue 扩 scope）**：该文 :31「13 个内建」/`runtime/extension/commands.tsx`/`gui-extensions/src/renderer.ts`、:113 `runtime/extension/commands.tsx`+`gui-extensions/src/sdk/registries.ts`、:128 同型（行号按本文注记插入后实测，:112/:127 为插入前旧行号）——均为 pre-#67 形态（迁移后实态为 gui-plugins/15 内建/`runtime/plugin/commands.tsx`/`plugin/src/gui/registries.ts`）；本文档注记用迁移后实态，存量陈旧处留协调员裁定单独收口。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |

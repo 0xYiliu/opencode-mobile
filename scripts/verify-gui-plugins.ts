@@ -6,7 +6,7 @@
 // Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
 // rebuilt dist baseline.
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + packageSources(gui-plugins=3ebcf9a) + M-001'..M-036' + M-037)
+// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + packageSources(gui-plugins=3ebcf9a) + M-001'..M-037 + M-038)
 // and the commit-1 docs, the structural facts the gui-plugins unit document relies on
 // (issue #67 renamed the unit doc; M-001'..M-036'/M-037 re-tabled the patch chain):
 // the 15-builtin inventory with its os/web-guard/main-entry faces (acceptance 1; issue #66
@@ -34,11 +34,11 @@
 //   - `api.session.interrupt` three-call-site exhaustion: FIRST LOCK verify-session-workbench
 //     (issue #9). Referenced, not re-locked.
 //   - the extension enablement five-layer chain: FIRST LOCK verify-commands-menus group 5.
-//   - the exact registered patch-ID set and count 35: FIRST LOCK verify-attachments-artifacts
+//   - the exact registered patch-ID set and count 37: FIRST LOCK verify-attachments-artifacts
 //     + verify-commands-menus group 8 (set-equality cross-reference) — both revised in the
 //     same commit as the patch registrations (#23 same-commit precedent; issue #65 registered
-//     M-035 on dev, issue #66 registered M-036 in the rebase round: 34 -> 35, M-019 still
-//     reserved-absent). Declared.
+//     M-035 on dev, #66 M-036 in the rebase round, #67 M-037, issue #70 registered M-038:
+//     36 -> 37, M-019 still reserved-absent). Declared.
 //   - the gui-plugins specifier graph (plugin/gui x33 etc.): FIRST LOCK
 //     verify-agent-capabilities group 3 (issue #67 re-measured on the gui-plugins tree).
 //     Declared unchanged; not re-locked.
@@ -63,6 +63,16 @@
 //   5. delete the `"wsl"` entry from EXCLUDED_EXTENSIONS in mobile-hosts
 //      ui/extension-manager.tsx -> group 7 {"wsl"} set-equality FAIL (issue #62 — the
 //      static exclusion row must not silently disappear).
+//   6. delete the btw mobile face (the `mobile: {` block) from
+//      gui-plugins/src/btw/renderer.tsx -> group 2 D1 face FAIL (issue #70 — the
+//      narrow-screen More-drawer entry must not silently disappear);
+//   7. re-insert the old desktop-width gate (`enabled: !layout.narrow() && mounted()`) in
+//      the same file -> group 2 removed-gate FAIL (issue #70 dropped the desktop-width
+//      restriction on purpose);
+//   8. delete the mobile render branch (the `"main"` panel-id dispatch) from the same file
+//      -> group 2 D2 FAIL (#66 discipline: the mobile rendering branch itself is locked);
+//   9. mutate a line of gui-plugins/src/btw/panel.tsx -> group 2 v2.2.1 content-sha1
+//      conservation FAIL (the M-038 patch face is exactly renderer.tsx + i18n/en.ts).
 //
 // HONEST BOUNDARY (same tradition as the sibling probes): this is a static STRUCTURE
 // check (text anchors / set equalities / negative injections). It proves source and doc
@@ -262,7 +272,8 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!core.includes("On the web, where no main process runs, it is inactive and every call rejects."))
     fail("2: gui/core.ts lost the web-inactive Ipc sentence (first-evidence anchor of #15, referenced)")
 
-  // Mobile Panel registrations (five): kind + order per unit doc table.
+  // Mobile Panel registrations (six here: 10–50 upstream + btw 80; sources 60 / goal 70 are
+  // FIRST LOCKED by verify-goal-sources group 1 — cross-referenced, not re-locked).
   const review = squash(await read(`${GUI_EXT}review/renderer.tsx`))
   if (!review.includes("order:10,kind:\"tab\",")) fail("2: review mobile panel lost order 10 / kind tab")
   const file = squash(await read(`${GUI_EXT}file/renderer.tsx`))
@@ -275,11 +286,50 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!details.includes("order:50,kind:\"drawer\""))
     fail("2: details mobile panel lost order 50 / kind drawer (cross-reference: verify-agent-capabilities group 3 locks the same anchor — common witness)")
 
-  // btw narrow-window command gate (mobile-unreachable, honest inventory row).
+  // btw command gate (issue #70 / M-038): the desktop-width gate is DROPPED — a session being
+  // open is the only requirement; on narrow screens the answer shows in the /btw mobile view.
+  // Desktop width is unchanged by construction (>=768px makes !layout.narrow() constant, so the
+  // old gate already reduced to mounted()).
   const btw = await read(`${GUI_EXT}btw/renderer.tsx`)
-  if (!btw.includes("// Offered only while a session is open in a desktop-width window."))
-    fail("2: btw/renderer.tsx lost the desktop-width comment")
-  if (!btw.includes("enabled: !layout.narrow() && mounted()")) fail("2: btw/renderer.tsx lost the narrow-window command gate")
+  if (!btw.includes("// mobile(M-038): offered while a session is open; on narrow screens the answer shows in the /btw"))
+    fail("2: btw/renderer.tsx lost the M-038 gate comment (issue #70)")
+  if (!btw.includes("enabled: mounted()")) fail("2: btw/renderer.tsx lost the mounted() command gate (issue #70; NEGATIVE 7 re-inserts the old desktop-width gate)")
+  if (btw.includes("enabled: !layout.narrow()") || btw.includes("desktop-width window"))
+    fail("2: btw/renderer.tsx still carries the removed desktop-width gate (issue #70 dropped it)")
+
+  // The D1 mobile face + the D2 mobile render branch — the narrow-screen entry itself is
+  // probe-locked (#66 discipline: a registered mobile rendering branch is part of the surface).
+  if (!btw.includes("// mobile(M-038): the narrow-screen More-drawer entry, after goal (order 70)."))
+    fail("2: btw/renderer.tsx lost the mobile face marker (D1; NEGATIVE 6 deletes the face)")
+  const btwFaceAt = btw.indexOf("mobile: {")
+  if (btwFaceAt === -1) fail("2: btw/renderer.tsx lost the mobile face block (D1)")
+  const btwFace = btw.slice(btwFaceAt, btwFaceAt + 240)
+  if (!/order: 80,/.test(btwFace) || !/kind: "menu",/.test(btwFace))
+    fail("2: btw/renderer.tsx mobile face lost order 80 / kind menu (D1)")
+  if (!btw.includes('return ctx.t("mobile.title")')) fail("2: btw/renderer.tsx lost the mobile.title face title (D1)")
+  if (!btw.includes('props.tab.id === "main"'))
+    fail("2: btw/renderer.tsx lost the mobile panel-id dispatch (D2; NEGATIVE 8 deletes the branch)")
+  if (!btw.includes('ctx.t("mobile.none")')) fail("2: btw/renderer.tsx lost the mobile.none honest empty state (D2)")
+  if (!btw.includes("saved.ready()"))
+    fail("2: btw/renderer.tsx lost the store-ready gate (D2 — a not-yet-loaded store must render an empty container, not the empty state)")
+
+  // M-038 patch-face conservation: the patch touches ONLY renderer.tsx + i18n/en.ts; the other
+  // three btw files stay v2.2.1-verbatim (content-sha1 conservation — the strictest form of the
+  // not-touched claim; blob ids at v2.2.1 3ebcf9a: model 57a25f4a75, panel cd5bdaa261, index 30952a307a).
+  const btwSha1: Record<string, string> = {
+    "model.ts": "5a049e60323823d4d7ddd71c506de308a9b421c9",
+    "panel.tsx": "7e9406ed830611e1d1e23747f50f63fb7de776a8",
+    "index.ts": "d4063fa59954d64c136ac9eae4fb265a205323a3",
+  }
+  for (const [file, hash] of Object.entries(btwSha1)) {
+    const body = new Uint8Array(await Bun.file(new URL(`${GUI_EXT}btw/${file}`, repoRoot)).arrayBuffer())
+    const actual = new Bun.CryptoHasher("sha1").update(body).digest("hex")
+    if (actual !== hash)
+      fail(`2: btw/${file} drifted from the v2.2.1 content sha1 ${hash.slice(0, 10)} (M-038 must not touch the trio; NEGATIVE 9 mutates panel.tsx)`)
+  }
+  const btwI18n = await read(`${GUI_EXT}btw/i18n/en.ts`)
+  if (!btwI18n.includes('"mobile.title": "Side question",') || !btwI18n.includes('"mobile.none": "No side question yet",'))
+    fail("2: btw i18n en lost the mobile.title / mobile.none keys (D1/D2 copy; zh falls back to en — the plugin-level i18n is en-only like sources/goal)")
 }
 
 // --- 3. The upstream management double gate (acceptance 4 upstream reality) ---
@@ -619,9 +669,10 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3516 || distManifest.totalBytes !== 159532385)
-    // Issue #67 measured: the gui-plugins swap grows the payload (3516/159532385).
-    fail(`8: current web-dist baseline drifted (expected 3516/159532385, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3516 || distManifest.totalBytes !== 159535257)
+    // Issue #70 measured: the btw mobile face + D2 render branch + 2 i18n keys grow the payload
+    // (3516/159535257; issue #67's gui-plugins swap measured 3516/159532385 — now historical).
+    fail(`8: current web-dist baseline drifted (expected 3516/159535257, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -657,14 +708,12 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const bunLock = await read("bun.lock")
   if (!bunLock.includes("packages/mobile-hosts")) fail("8: bun.lock lost the mobile-hosts workspace registration anchor")
 
-  // mobile(M-035 rebase round, issue #65): 34 registered = M-001..M-035, M-019
-  // reserved-absent (the M-034 exclusion dropped now that #64 has landed).
-  // Declared cross-references (no re-lock): exact registered patch-ID set, 34 entries,
-  // M-019 reserved-absent = verify-attachments-artifacts
-  // group 6 + verify-commands-menus group 8; @opencode/gui-extensions specifier set
-  // {sdk:34, bridge:8, renderer:2, updater:1} unchanged = verify-agent-capabilities group 3;
-  // the M-025 hunk does not touch the VAC root.tsx anchors (its group 3 stayed green in
-  // the same commit as the patch registration).
+  // Issue #70 / M-038: 37 registered = M-001..M-038 with M-019 reserved-absent.
+  // Declared cross-references (no re-lock): exact registered patch-ID set, 37 entries,
+  // M-019 reserved-absent = verify-attachments-artifacts group 6 + verify-commands-menus
+  // group 8; the @opencode/gui-plugins specifier graph = verify-agent-capabilities group 3
+  // (issue #67 re-measured); the M-025 hunk does not touch the VAC root.tsx anchors (its
+  // group 3 stayed green in the same commit as the patch registration).
 }
 
 
@@ -728,13 +777,13 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 console.log(
   "verify-gui-plugins: PASS (" +
     "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
-    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} (sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, five mobile Panel registrations (tab 10/menu 20/menu 30/menu 40/drawer 50 — sources 60 / goal 70 are locked by verify-goal-sources), btw narrow gate; " +
+    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} (sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, six mobile Panel registrations here (tab 10/menu 20/menu 30/menu 40/drawer 50/btw menu 80 — sources 60 / goal 70 are locked by verify-goal-sources), btw gate mounted() with the desktop-width term dropped (issue #70/M-038) + the D2 mobile render branch (panel-id dispatch, mobile.none honest empty state, store-ready gate) + the v2.2.1 content-sha1 conservation of btw model/panel/index; " +
     "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), settings-page-dev optional-chain toggle + installed.list reader + reload two channels, host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
     "4: issue #26 face — M-025 import/instance/filter/union/early-exit + two markers, M-026 predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, M-008/M-018 hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-plugins.md ten sections (issue #67 renamed the unit doc) + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the M-036 registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — current dist baseline 3516/159532385 (issue #67 incl. M-037; registered patch set 36 = M-001..M-037 with M-019 reserved-absent (issue #67), per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — current dist baseline 3516/159535257 (issue #70 incl. M-038; registered patch set 37 = M-001..M-038 with M-019 reserved-absent (M-038 by issue #70), per verify-attachments-artifacts group 6 + verify-commands-menus group 8; issue #67 incl. M-037 3516/159532385, issue #65 rebuild incl. M-035 3482/153654746, issue #64 incl. M-034 3480/153638138 (first build 153638140), issue #63 rebase rebuild incl. M-033 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727, M-026 3480/153441733 and the issue #58 chain 3480/153555364 remain historical), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )
