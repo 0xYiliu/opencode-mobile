@@ -1541,6 +1541,56 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **m-1 存储效应**：窄屏积累的问答在视口加宽后以 strip tabs 重现（恢复 close 通道）；窄屏 face 无 close 通道（只增不删）——上游既有存储语义说全，登记不补。
 - **commands-menus.md 陈旧处呈报（不在本 issue 扩 scope）**：该文 :31「13 个内建」/`runtime/extension/commands.tsx`/`gui-extensions/src/renderer.ts`、:113 `runtime/extension/commands.tsx`+`gui-extensions/src/sdk/registries.ts`、:128 同型（行号按本文注记插入后实测，:112/:127 为插入前旧行号）——均为 pre-#67 形态（迁移后实态为 gui-plugins/15 内建/`runtime/plugin/commands.tsx`/`plugin/src/gui/registries.ts`）；本文档注记用迁移后实态，存量陈旧处留协调员裁定单独收口。
 
+## issue #71 段（D03：相机扫码接入 + 外链唤起评估登记不实施）——2026-10-30 实测记录
+
+交付物：**壳层相机扫码接入**（manifest `CAMERA` 行 + 授予纪律注释块；`CameraGrantPolicy.kt` JVM 纯策略类——`java.net.URI` 解析后 scheme/host/port 三元组严格等于壳回环 origin、非 origin 形（userinfo/path/query/fragment/别名/端口漂移/解析失败）一律拒、资源白名单恰 `RESOURCE_VIDEO_CAPTURE` 一元；MainActivity `onPermissionRequest`/`onPermissionRequestCanceled` 接线——REQUEST_CAMERA=41004、单 pending 槽替换语义（旧请求先 deny）、取消清槽不应答、`onRequestPermissionsResult` 恰一次应答、onDestroy 兜底 deny、exactly-once 八路径注释逐条在册；`CameraGrantPolicyTest` JVM 矩阵）+ **外链唤起评估登记不实施**（[决策记录 0007](decisions/0007-pairing-deep-link.md) 提案态：三案对比 + 信任模型 + 激活条件 + 最小安全形态草图 + F-4 送达载体段；三座零 VIEW/零 scheme 哨兵原地保持为守卫）+ **探针修订三座**（verify-pairing 组 6 翻转启用态成对锚 + 组 8 锚更新 + 头注修订登记 + PASS 汇总；verify-interaction-quality 组 1 恰三；verify-notifications 组 5 恰三——组 6/组 8 零触碰）+ 文档面（connection.md ⑦-2/⑦-4/⑧、interaction.md 深链行/G32⑧、shell-startup.md、interaction-quality.md §一、matrix D03、implementation E26、project-scope、design README 基线句枚举更新）。
+
+**QA-0 分支判定（计划 §1-B 条件步骤的裁决，首项产出）**：MatePad DBY2-AL00（Android 12 / WebView 114.0.5735.196）CDP 探针实测——`location.origin` 恰 `http://127.0.0.1:18090`（与策略解析路径逐字匹配）；`isSecureContext=true`；`getUserMedia`/`enumerateDevices` 在位；**`enumerateDevices()` 返回 4 条目且 kind 完好（audioinput / videoinput×2 / audiooutput；label 空=未授权前 Chromium 标准行为非缺陷信号）**——crbug 41288617 缺陷形态（kind 空白/零条目）**在本机不成立** → **枚举正常，原生门控成立：零 vendor 补丁，条件补丁 M-039 留预留位不落地**（camera.ts 门控逐字保持；`web-dist/` 零重建，3516/159,532,385 基线不变；补丁计数哨兵 36 保持）。附带实态：本 WebView 无 `navigator.permissions` API——上游 `permissions?.query` 链按可选链语义短路（不早退），永久拒绝的实际呈现走 OS deny→getUserMedia reject→`camera.error` 诚实报错路径（QA-4 实测兑现）。
+
+四提交逐层结构（本段为提交 4；提交 1=5bcb301 docs 契约+ADR 0007，提交 2=d9c5b42 feat 壳接线，提交 3=aac62ce test 探针修订+负例）：
+
+| 验证 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 壳 JVM 测试 | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | BUILD SUCCESSFUL；**23 tests / 0 failures / 0 errors**（CameraGrantPolicyTest 6 test 方法：唯一通过 origin 形态钉死/异源矩阵 15 形态/大小写归一化/资源矩阵 6 形态/拒绝序/grantableResources 形态 + ShellWorkerPolicy/ssh/vault 既有全绿） | 本文 |
+| APK | `:app:assembleDebug` | **最终 HEAD 构建 SHA-256 `38995b53ecf86c317f45832e47e02c781a9f8a95664e380bdd670ede01508a17`**（10,432,282 bytes）。设备 QA 全程运行于同一源码的 QA 时点构建 `61bf56bfba5fb0c400005a1065512329321ea2235cbd92862e18461933389237`（差异=最终 sweep 前 `copy-web-dist.sh` 刷新 web payload 的 sourcemap 哈希浮动，fileCount/totalBytes 恒等、JS 面 zero diff；最终构建已 `install -r` 覆盖装机核对，数据保留） | 本文 |
+| aapt 权限复核 | 装机后 `dumpsys package` | requested permissions = INTERNET + POST_NOTIFICATIONS + CAMERA（+ 平台注入的 `com.huawei.permission.POPUP_BACKGROUND_WINDOW`，HarmonyOS 自动授予项，非本仓声明）；零 VIEW intent-filter（`adb shell am start -a VIEW -d https://...` → 设备浏览器 Edge 接管，App 零动作） | 本文 |
+| 修订探针 ×3 | `bun run scripts/verify-pairing.ts` / `verify-interaction-quality.ts` / `verify-notifications.ts` | 三者 **rc=0**（启用态哨兵：恰三权限成对锚 + CameraGrantPolicy 白名单锚 + camera.ts 门控逐字锚；interaction-quality 组 1 恰三；notifications 组 5 恰三——组 6 零 VIEW/deep-links 锚与组 8 dist 基线零触碰） | 本文 |
+| 负例演练 ×4 组 | inject → FAIL(rc=1) → restore → PASS(rc=0)，日志存 `/tmp/probe-logs-negex/` | ①撤 CAMERA manifest 行 → pairing 组 6 FAIL → 还原 PASS；②`CameraGrantPolicy.decide(` 调用点剥离（模拟 foreign-origin 裸 grant）→ FAIL（"without the \"CameraGrantPolicy.decide(\" policy anchor"）→ 还原 PASS；③grantableResources 注入 audio → FAIL（"no longer exactly the single video resource"）→ 还原 PASS；④注入第四权限 RECORD_AUDIO → interaction-quality/pairing/notifications 三探针齐 FAIL（triple 断言/any-fourth 文案）→ 还原 PASS ×3 | 本文 |
+| dist 基线 | `web-dist/manifest.json`（零重建） | 3516 files / 159,532,385 bytes 与在册基线一致（零 vendor 改动 → 三处组 8 哨兵值不变） | 本文 |
+
+### 设备 QA 逐项（MatePad DBY2-AL00；全程主应用 `install -r`，未 clear/uninstall；隔离诊断包未启用——本轮无全新空态测试需求）
+
+| 项 | 动作 | 结果 |
+| --- | --- | --- |
+| QA-0 枚举形态判定（首项） | CDP Runtime.evaluate：`location.origin`/`isSecureContext`/接口在位性/`enumerateDevices()` 采样/`permissions` 在位性 | **枚举正常（原生路径）**：4 条目 kind 完好（videoinput×2）、label 空（标准预授权形态）、`isSecureContext=true`、origin 逐字匹配策略解析形态；M-039 判据不触发。产出分支决定=零补丁交付（上表） |
+| QA-1 首启授权链 | 设置 → Servers → 添加服务器 → link 方法 → 「Scan QR code」入口 → 系统弹框「Allow OpenCode Mobile to access the camera?」→ ALLOW ONLY WHILE IN USE | **授权链全通**：扫码入口可见（available 门控在真机渲染为按钮，非 hint fallback——上游门控原生成立的端到端兑现）→ 点按 → OS 弹框 → 允许 → **后置相机预览出画**（video readyState=4, 1024×768, playing, srcObject 在位）；**QR 解码子项 BLOCKED**：设备平置（后置摄像头朝下俯视桌面）——解码需物理持机对准 QR（本地屏已显示待扫 QR 待人工协助），非环境/服务端缺口；与 QA-2 同段如实标注 |
+| QA-3 临时拒绝 | 授权弹框点 DENY | **PASS**：`server.connect.camera.error` 诚实错误呈现（"Could not open the camera. Allow camera access or enter your connection details manually."）+ Cancel 可用；重开扫码**再次弹框**（临时拒绝不转永久，OS 语义实测） |
+| QA-4 永久拒绝 | `cmd appops set ai.opencode.mobile CAMERA deny`（模拟 don't-ask-again）→ 重开扫码 | **PASS**：**零系统弹框**（focus 恒在 App 内）→ 直接落同一 `camera.error` 呈现——实际生效形态=**error 文本**（非 hint 分支；因本 WebView 无 Permissions API、`cameraHint()` 早退路径结构性不触达，如实归档）；`appops reset` + `pm grant` 恢复 |
+| QA-5 重复使用零弹窗 | 已授权态重开扫码 ×2 | **PASS**：重开即预览（readyState=4 即刻）、零系统弹框（GRANT 直答路径——WebView 不持久化站点授权、OS 权限状态为唯一真源的设计兑现） |
+| QA-6 撤销恢复 | `pm revoke CAMERA`（标准撤销，非 don't-ask-again）→ 重开扫码 | **PASS（重弹框形态）**：撤销杀进程（平台行为）→ 重装启动 → 重开扫码 → OS 弹框重现（撤销后可再请求）→ 与 QA-3 同链 |
+| QA-7 旋转/后台 + 取消竞态 | 扫码中 `settings put system user_rotation 1` 强制配置变更（Activity 重建，无 configChanges 结构实态）；扫码页 Cancel；重建后再扫 | **PASS**：旋转 → Activity 重建、**表单态丢失如实**（对话框关闭回设置根，上游实态在册）、**零崩溃零 ANR**（logcat 零 FATAL）、零半授权悬挂（WebView 销毁随流释放，onDestroy 兜底 deny 无 pending 可答）；重建后重扫 → 预览恢复（768 宽竖向流）→ Cancel → refetch 正常（`onPermissionRequestCanceled` 清槽路径行为兑现——取消后即重扫无卡槽，零值日志设计下无 log 行为预期）；旋转设置已还原（accelerometer_rotation=0 与进会话前一致） |
+| QA-8 外链负例（守卫复验） | `am start -a VIEW -d https://example.invalid/auth/connect/abc`；`am start -a VIEW -d opencode://pair`；`cmd package query-activities -a opencode://pair` | **PASS 双负例**：https 链接 → **设备浏览器（Edge）接管，App 零动作**（零 VIEW intent-filter 结构兑现）；`opencode://` → "unable to resolve Intent" + query **No activities found**（零 scheme 解析目标）——外链不实施状态由真机负例背书（决策 0007 守卫） |
+| QA-9 痕迹负例 | QA 全程 `logcat -d` 全量 3638 行检索；状态栏相机指示灯观察 | **PASS**：OpencodeShell 固定 tag 75 行全部为握手生命周期/console 转发（console 42 行零 `auth/connect`/token/pairing/code= 形值）；`127.0.0.1:18090`/`VIDEO_CAPTURE`/`getUserMedia`/origin 形值**全域零命中**（相机帧零外泄、零值日志纪律兑现）；预览期间状态栏出现**相机使用中指示灯**（平台披露层在册） |
+| QA-10 回归抽查 | 相机 41004 全链（本轮 QA-1..7 已重 exercise）；通知 41003：设置 Notifications 面 Android 开关（API 31） | **部分 PASS**：41004 与既有面零串扰（全程零误弹通知/文件框）；41003 在本设备（Android 12/API 31）走**桥立即应答路径**（`SDK_INT < 33` 免弹框，manifest 注释在册）——开关往返正常、POST_NOTIFICATIONS 系统态保持 false 原样；**41001/41002 运行时抽查跳过**（代码零触碰 + 探针锚定 + 既往 issue QA 覆盖，如实登记） |
+| QA-2 完整配对链（环境依赖） | 真实服务 `opencode pair`（HTTPS 隧道，G32① 环境前提） | **BLOCKED 归 G32①②**（无授权远程服务环境）；解码子项另见 QA-1 的物理持机 BLOCKED 注记 |
+
+**登记面**：验收映射——验收 1（扫码入口/三态）=QA-0/1/3/4/5/6/7 实测（解码+兑换段 BLOCKED 如实）；验收 2（外链）=ADR 0007 登记不实施 + QA-8 真机负例闭环；验收 3（JVM/探针/matrix）=23/0/0 + 三探针 rc=0 + 负例×4 + D03/E26 回填。**文档/哨兵/实态三方一致核对**：connection.md ⑦-2（实现契约+QA-0 实态）↔ verify-pairing 组 6 启用态断言 ↔ 设备真机入口可见/三态实测——三者一致（BLOCKER-1 硬门兑现）。
+
+### 合并顺序耦合与 rebase 义务（issue #71 段）
+
+- **#70（/btw 窄屏入口，M-038）将先合并**：本分支基于 9d7f459 开发，PR 前 rebase。本分支**零 vendor/零 dist 改动**，M-039 留预留位；rebase 冲突面预计与 #68/#69 先例同构（本文档段/matrix 行/implementation 证据行的同段异改取并集；verify-attachments-artifacts 组 6 的计数由 #70 自己的修订承载——本分支未触碰该探针）。若未来 M-039 真要落地（crbug 形态在其他设备复现），编号顺延取 M-040+（M-038 已被 #70 实占，计划 v2 §10-争议 2 的「M-038 保留缺席」前提已被并行分支取代）。
+- 本轮 QA 后设备状态注记：CAMERA 权限=已授权（QA-1 授予，会话前为未授态）；POST_NOTIFICATIONS=未授权（原样）；SSH 主机/服务记录零触碰；旋转设置还原；临时 forwards 清理。
+
+### 诚实边界（issue #71 段）
+
+- **QR 解码与兑换全链未验**：QA-1 解码子项 BLOCKED 于物理持机（设备平置、后置摄像头俯视桌面，无人在场协助对准）；QA-2 兑换链 BLOCKED 于 G32① 环境。这两段不构成「扫码已完整设备验证」的声称——授权链/三态呈现/入口可用性已实测，解码→兑换→导入全链归 G32②。
+- **QA-10 抽查不完整**：41001/41002 运行时抽查跳过（代码零触碰）；41003 在 API 31 上弹框路径结构性不可达（立即应答），其 API 33+ 弹框路径未在真机复现（本机无 API 33 设备）。
+- **verify-notifications 组 8 残留字符串未订正**（登记在案的 N-3 条件项）：fail 文案 "expected 3493/153776571"（:539/:541）与 PASS 汇总 "current dist fileCount/totalBytes (3493/153776571"（:647）落后于实际比较值 3516/159532385——执行登记规定「M-039 落地替换组 8 数值时同一次编辑内一并订正」，本期 M-039 未触发、组 8 未触碰，残留保持原样（比较值正确，仅人读文案陈旧），归下次触碰组 8 的分支顺带订正。
+- **connection.md ⑦ 清单结构变化**：原「六项不支持」中相机扫描一项解除后，清单以「第 2 项已解除」的原编号形态保留（编号稳定性优先于清单纯度，交叉引用 G32⑧⑨ 不失效）；⑦ 标题与「验收 4 本体」性质不变。
+- **M-039 预起草规格未消耗**：计划 §1-B 的 patch 规格、登记面、联动哨兵枚举全部留档未落地（QA-0 判据未触发）；未来触发的完整面以该规格为准、编号顺延（见上）。
+- 本文不含凭据、令牌、私钥或真实连接配置；设备 SSH 主机记录/known_hosts 零触碰。
+
+来源：[implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E26 行与 D03 行；[matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) D03 行；[决策记录 0007](decisions/0007-pairing-deep-link.md)。
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
