@@ -38,7 +38,7 @@ feed 为 generic provider，三通道（`packages/desktop/electron-builder.confi
 
 ### 1.4 主进程入口（`main.ts`）：packaged 门
 
-门 = `enabled = build.packaged`（:14）；`platform.ts` 仅在 enabled 时动态 import（注释 "electron-updater loads only in packaged builds, after the first window is up"）。主入口 import electron `dialog`（:1），承载 checkFailed/upToDate/ready + restart/later 对话框与 app 菜单检查项；staged 版本记忆在 `opencode.updater` ready-store（防差分缓存陈旧，`machine.ts:43-48` 注释）。**v2.2.1 的 desktop 主门不再排除 dev 通道**（仅 `build.packaged`；pin 版为 `build.packaged && build.channel !== "dev"`，见 §2.1）——dev 通道语义增量不改变移动端结论。
+门 = `enabled = build.packaged`（:13）；`platform.ts` 仅在 enabled 时动态 import（注释 "electron-updater loads only in packaged builds, after the first window is up"）。主入口 import electron `dialog`（:1），承载 checkFailed/upToDate/ready + restart/later 对话框与 app 菜单检查项；staged 版本记忆在 `opencode.updater` ready-store（防差分缓存陈旧，`machine.ts:44-46` 注释）。**v2.2.1 的 desktop 主门不再排除 dev 通道**（仅 `build.packaged`；pin 版为 `build.packaged && build.channel !== "dev"`，见 §2.1）——dev 通道语义增量不改变移动端结论。
 
 ### 1.5 renderer 面与注册顺序
 
@@ -71,7 +71,7 @@ updater 内建注册于移动 web 宿主使用的 compose：`vendor/upstream/pac
 ### 2.5 F5：Android 壳事实
 
 - 权限：`AndroidManifest.xml` 仅 `INTERNET`（:7）+ `POST_NOTIFICATIONS`（:10）；**`REQUEST_INSTALL_PACKAGES` 零命中**（负断言 `git grep -il REQUEST_INSTALL -- android/` rc=1）。
-- 备份与 TLS：`allowBackup=false`（:14）+ `dataExtractionRules`/`fullBackupContent`（vault/、ssh/ 双通道排除）+ `usesCleartextTraffic=false`（:19）+ networkSecurityConfig（HTTPS-only、仅系统 CA）——与 §3 的更新安全性讨论正交但相关：更新面若引入，不得破坏这些既有边界。
+- 备份与 TLS：`allowBackup=false`（:13）+ `dataExtractionRules`/`fullBackupContent`（vault/、ssh/ 双通道排除）+ `usesCleartextTraffic=false`（:20）+ networkSecurityConfig（HTTPS-only、仅系统 CA）——与 §3 的更新安全性讨论正交但相关：更新面若引入，不得破坏这些既有边界。
 - 版本与签名：`build.gradle.kts` `versionCode=1`/`versionName="0.1.0"`（:14-15），minSdk 29/targetSdk 36（:12-13）；release buildType **无签名配置**（:22-24，注释 "No signing configuration on purpose: signing material never lives in this repo"）。
 - 部署边界：`MainActivity.kt:174-175` 注释原文 "Android has one shell document and APK replacement is the deployment boundary"（PWA worker 提升语境）。
 
