@@ -747,6 +747,13 @@ export const dict = {
   "settings.about.notices.crates.appliesTo": "Applies to {{names}}",
   "settings.about.tagline": "AI can’t build great software, without you",
   "settings.about.copyright": "© Anomaly Innovations, Inc.",
+  // mobile(M-040): the base/server version rows on mobile (issue #72). En-only by the
+  // registered v2.2.1 alignment lineage — non-en locales fall back to these English
+  // strings through the language.tsx en-base-first merge chain (registered delta).
+  "settings.about.upstreamVersion": "Upstream OpenCode {{version}}",
+  "settings.about.serverVersion.version": "Server OpenCode {{version}}",
+  "settings.about.serverVersion.checking": "Checking server version…",
+  "settings.about.serverVersion.unavailable": "Server version unavailable",
   "settings.preferences.description": "Customize preferences and theme and default behavior",
   "settings.appearance.description": "Customize theme and fonts",
   "settings.appearance.row.tabs.title": "Tabs",

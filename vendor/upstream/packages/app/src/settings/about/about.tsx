@@ -1,13 +1,17 @@
-import { createResource } from "solid-js"
+import { createResource, Show } from "solid-js"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ExternalLink } from "@/runtime/platform/external-link"
 import { showToast } from "@/shell/notifications/toast"
+import { useServerCollectionController } from "@/servers/registry/controller"
+import { ServerConnection } from "@/runtime/server/registry"
 import legal from "./legal.svg"
 import anomalyBrush from "./anomaly-brush.svg"
 import { AnimatedWordmark } from "./animated-wordmark"
 import { FALLBACK_OTHER_CONTRIBUTORS, loadOtherContributorCount } from "./contributors"
+// mobile(M-040): the vendored app package version backs the "upstream base" row (issue #72).
+import pkg from "../../../package.json"
 
 const writers = [
   "thdxr",
@@ -34,6 +38,8 @@ export function SettingsAbout(props: { active: boolean }) {
   const language = useLanguage()
   const platform = usePlatform()
   const dialog = useDialog()
+  // mobile(M-040): the server row reads the first sorted connection's health (issue #72).
+  const servers = useServerCollectionController()
 
   const [otherContributors] = createResource(
     () => props.active || undefined,
@@ -56,6 +62,29 @@ export function SettingsAbout(props: { active: boolean }) {
     </ExternalLink>,
   ]
 
+  // mobile(M-040): server version row (issue #72). The shown server is the first entry of
+  // the sorted collection — sortServerConnections ranks healthy-first over the FULL list
+  // (hidden hosts included), so with multiple servers this row shows only the first sorted
+  // entry; the complete per-server version face lives in the servers settings rows.
+  // Degradation, all explicit strings: no collection entry -> the row is not rendered;
+  // the health entry is not yet established (undefined) or still checking -> the checking
+  // key; unauthorized / unhealthy / healthy-but-version-missing-or-not-presentable -> the
+  // unavailable key. The key derivation follows the settings/servers contract
+  // (ServerConnection.key(item)); every store read is undefined-safe.
+  const serverVersionLine = () => {
+    const item = servers.collection.items()[0]
+
+    if (!item) return undefined
+
+    const health = servers.collection.health()[ServerConnection.key(item)]
+
+    if (!health || health.checking) return language.t("settings.about.serverVersion.checking")
+    if (health.unauthorized || !health.healthy || !presentableVersion(health.version))
+      return language.t("settings.about.serverVersion.unavailable")
+
+    return language.t("settings.about.serverVersion.version", { version: health.version })
+  }
+
   const showNotices = async () => {
     // The license texts load only when someone reads them.
     const loaded = await import("./notices/dialog").catch(() => undefined)
@@ -77,6 +106,12 @@ export function SettingsAbout(props: { active: boolean }) {
             version: platform.version ?? language.t("settings.about.devVersion"),
           })}
         </p>
+        {/* mobile(M-040): base/server version rows (issue #72) — a registered mobile delta,
+            not an upstream face: upstream v2.2.1 has no base/server version rows. */}
+        <div class="settings-about-versions" data-component="settings-about-versions">
+          <p>{language.t("settings.about.upstreamVersion", { version: pkg.version })}</p>
+          <Show when={serverVersionLine()}>{(line) => <p>{line()}</p>}</Show>
+        </div>
         <p>{language.t("settings.about.license")}</p>
       </div>
 
@@ -121,6 +156,12 @@ export function SettingsAbout(props: { active: boolean }) {
       </div>
     </div>
   )
+}
+
+// mobile(M-040): a health version is presentable only as a non-empty string — the display
+// contract stays verbatim like the servers settings rows (no semver re-parsing here).
+function presentableVersion(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0
 }
 
 function profile(name: string) {

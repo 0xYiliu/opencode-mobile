@@ -20,6 +20,7 @@ import {
   createServiceOpsClient,
   createSshHostKeyVerifier,
   createSshHostTransport,
+  MOBILE_APP_VERSION,
   SSH_BOOTSTRAP_MESSAGE,
   createVaultClient,
   createVaultResolver,
@@ -64,7 +65,12 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 // location.origin server assembly — this shell never assembles a server from the URL, so
 // there is nothing to authenticate here.
 
-const web = createWebPlatform(pkg.version)
+// mobile(M-040): platform.version is the MOBILE APP version (issue #72) — the About page
+// and the error page then display this app's own version instead of impersonating the
+// vendored upstream base version (still visible verbatim on its own About row). The Sentry
+// release below intentionally stays on pkg.version, upstream verbatim, negatively locked
+// by scripts/verify-about-version.ts.
+const web = createWebPlatform(MOBILE_APP_VERSION)
 
 // Create the SSH message listener synchronously during module evaluation. Native currently
 // starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here

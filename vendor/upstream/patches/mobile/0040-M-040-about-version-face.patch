@@ -1,0 +1,173 @@
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 2880402..6245e91 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -20,6 +20,7 @@ import {
+   createServiceOpsClient,
+   createSshHostKeyVerifier,
+   createSshHostTransport,
++  MOBILE_APP_VERSION,
+   SSH_BOOTSTRAP_MESSAGE,
+   createVaultClient,
+   createVaultResolver,
+@@ -64,7 +65,12 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
+ // location.origin server assembly — this shell never assembles a server from the URL, so
+ // there is nothing to authenticate here.
+ 
+-const web = createWebPlatform(pkg.version)
++// mobile(M-040): platform.version is the MOBILE APP version (issue #72) — the About page
++// and the error page then display this app's own version instead of impersonating the
++// vendored upstream base version (still visible verbatim on its own About row). The Sentry
++// release below intentionally stays on pkg.version, upstream verbatim, negatively locked
++// by scripts/verify-about-version.ts.
++const web = createWebPlatform(MOBILE_APP_VERSION)
+ 
+ // Create the SSH message listener synchronously during module evaluation. Native currently
+ // starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 19c3a73..4eab4d9 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -747,6 +747,13 @@ export const dict = {
+   "settings.about.notices.crates.appliesTo": "Applies to {{names}}",
+   "settings.about.tagline": "AI can’t build great software, without you",
+   "settings.about.copyright": "© Anomaly Innovations, Inc.",
++  // mobile(M-040): the base/server version rows on mobile (issue #72). En-only by the
++  // registered v2.2.1 alignment lineage — non-en locales fall back to these English
++  // strings through the language.tsx en-base-first merge chain (registered delta).
++  "settings.about.upstreamVersion": "Upstream OpenCode {{version}}",
++  "settings.about.serverVersion.version": "Server OpenCode {{version}}",
++  "settings.about.serverVersion.checking": "Checking server version…",
++  "settings.about.serverVersion.unavailable": "Server version unavailable",
+   "settings.preferences.description": "Customize preferences and theme and default behavior",
+   "settings.appearance.description": "Customize theme and fonts",
+   "settings.appearance.row.tabs.title": "Tabs",
+diff --git a/packages/app/src/settings/about/about.tsx b/packages/app/src/settings/about/about.tsx
+index 01ce931..c71e0d9 100644
+--- a/packages/app/src/settings/about/about.tsx
++++ b/packages/app/src/settings/about/about.tsx
+@@ -1,13 +1,17 @@
+-import { createResource } from "solid-js"
++import { createResource, Show } from "solid-js"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { ExternalLink } from "@/runtime/platform/external-link"
+ import { showToast } from "@/shell/notifications/toast"
++import { useServerCollectionController } from "@/servers/registry/controller"
++import { ServerConnection } from "@/runtime/server/registry"
+ import legal from "./legal.svg"
+ import anomalyBrush from "./anomaly-brush.svg"
+ import { AnimatedWordmark } from "./animated-wordmark"
+ import { FALLBACK_OTHER_CONTRIBUTORS, loadOtherContributorCount } from "./contributors"
++// mobile(M-040): the vendored app package version backs the "upstream base" row (issue #72).
++import pkg from "../../../package.json"
+ 
+ const writers = [
+   "thdxr",
+@@ -34,6 +38,8 @@ export function SettingsAbout(props: { active: boolean }) {
+   const language = useLanguage()
+   const platform = usePlatform()
+   const dialog = useDialog()
++  // mobile(M-040): the server row reads the first sorted connection's health (issue #72).
++  const servers = useServerCollectionController()
+ 
+   const [otherContributors] = createResource(
+     () => props.active || undefined,
+@@ -56,6 +62,29 @@ export function SettingsAbout(props: { active: boolean }) {
+     </ExternalLink>,
+   ]
+ 
++  // mobile(M-040): server version row (issue #72). The shown server is the first entry of
++  // the sorted collection — sortServerConnections ranks healthy-first over the FULL list
++  // (hidden hosts included), so with multiple servers this row shows only the first sorted
++  // entry; the complete per-server version face lives in the servers settings rows.
++  // Degradation, all explicit strings: no collection entry -> the row is not rendered;
++  // the health entry is not yet established (undefined) or still checking -> the checking
++  // key; unauthorized / unhealthy / healthy-but-version-missing-or-not-presentable -> the
++  // unavailable key. The key derivation follows the settings/servers contract
++  // (ServerConnection.key(item)); every store read is undefined-safe.
++  const serverVersionLine = () => {
++    const item = servers.collection.items()[0]
++
++    if (!item) return undefined
++
++    const health = servers.collection.health()[ServerConnection.key(item)]
++
++    if (!health || health.checking) return language.t("settings.about.serverVersion.checking")
++    if (health.unauthorized || !health.healthy || !presentableVersion(health.version))
++      return language.t("settings.about.serverVersion.unavailable")
++
++    return language.t("settings.about.serverVersion.version", { version: health.version })
++  }
++
+   const showNotices = async () => {
+     // The license texts load only when someone reads them.
+     const loaded = await import("./notices/dialog").catch(() => undefined)
+@@ -77,6 +106,12 @@ export function SettingsAbout(props: { active: boolean }) {
+             version: platform.version ?? language.t("settings.about.devVersion"),
+           })}
+         </p>
++        {/* mobile(M-040): base/server version rows (issue #72) — a registered mobile delta,
++            not an upstream face: upstream v2.2.1 has no base/server version rows. */}
++        <div class="settings-about-versions" data-component="settings-about-versions">
++          <p>{language.t("settings.about.upstreamVersion", { version: pkg.version })}</p>
++          <Show when={serverVersionLine()}>{(line) => <p>{line()}</p>}</Show>
++        </div>
+         <p>{language.t("settings.about.license")}</p>
+       </div>
+ 
+@@ -123,6 +158,12 @@ export function SettingsAbout(props: { active: boolean }) {
+   )
+ }
+ 
++// mobile(M-040): a health version is presentable only as a non-empty string — the display
++// contract stays verbatim like the servers settings rows (no semver re-parsing here).
++function presentableVersion(value: unknown): value is string {
++  return typeof value === "string" && value.length > 0
++}
++
+ function profile(name: string) {
+   if (name === "r44vcorp") return "https://github.com/R44VC0RP"
+ 
+diff --git a/packages/app/src/settings/about/notices/dialog.tsx b/packages/app/src/settings/about/notices/dialog.tsx
+index 23eaf70..5dd18fb 100644
+--- a/packages/app/src/settings/about/notices/dialog.tsx
++++ b/packages/app/src/settings/about/notices/dialog.tsx
+@@ -1,6 +1,5 @@
+ import { For, Show } from "solid-js"
+ import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
+-import { ScrollView } from "@opencode/ui/scroll-view"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ExternalLink } from "@/runtime/platform/external-link"
+ import { fonts } from "./fonts"
+@@ -26,7 +25,7 @@ export default function DialogThirdPartyNotices() {
+         />
+       </DialogHeader>
+       <DialogBody>
+-        <ScrollView class="settings-notices-scroll">
++        <div class="settings-notices-scroll" data-scrollable>
+           <div class="settings-notices">
+             <For each={notices}>
+               {(entry) => (
+@@ -107,7 +106,7 @@ export default function DialogThirdPartyNotices() {
+               </For>
+             </section>
+           </div>
+-        </ScrollView>
++        </div>
+       </DialogBody>
+     </Dialog>
+   )
+diff --git a/packages/app/src/settings/settings.css b/packages/app/src/settings/settings.css
+index 7292a8b..041778c 100644
+--- a/packages/app/src/settings/settings.css
++++ b/packages/app/src/settings/settings.css
+@@ -308,6 +308,7 @@
+ .settings-notices-scroll {
+   min-height: 0;
+   flex: 1;
++  overflow-y: auto;
+ }
+ 
+ .settings-notices {
