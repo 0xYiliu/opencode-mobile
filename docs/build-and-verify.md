@@ -1791,6 +1791,78 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **V3(a) 依赖 `OPENCODE_UPSTREAM_CACHE` 缺省 `~/.cache/opencode-upstream`**（本轮实测存在且 pin/packageSources 均可解析；fresh 环境需先 vendor-sync）。
 - **sweep 首轮 rc 捕获脚本缺陷如实登记**：`echo "$(basename $f) rc=$?"` 中命令替换先行执行吞掉 `$?` 致误报全 0——重跑以 `rc=$?` 显式捕获，29/31 终态以重跑为准。
 
+## issue #75 段（M03 门禁：返回/安全区/软键盘——核对 + 勘误 + 模拟器替代 QA 轮）——2026-10-31 实测记录
+
+交付物：[interaction-quality.md](design/interaction-quality.md)（§一返回键勘误三条目+探针行、§三 viewport 基线与 KeyboardInsets 勘误、§八诚实边界首条重写（「不得声称返回键可作 in-app 后退」与 M-022+ 候选指针两句规范保全）+Android 15+ e2e 前瞻复验点）+ [interaction.md](design/interaction.md)（交互基线返回键实态勘误 :34、软键盘行勘误 :31、G31② 预期实态修正与 G31③ 判据修正）+ [commands-menus.md](design/commands-menus.md)（§六 :103 back/forward 两层句②同步）+ `scripts/verify-interaction-quality.ts`（组 2 头注/体注、组 8 头注——MAJOR-1 grep 驱动全枚举三实例同 commit 修订；fail/PASS 串 first-party 域措辞；组 8 逐字锚「返回键实际语义=结束 Activity」在重述句中保持）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) M03 行终态 + [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E32 + 本文 #75 段。**定性：核对 + 登记 + 文档/探针勘误、零代码零补丁零 dist**（轨 2 条件分支未触发；补丁链 38=38 不动；`web-dist/manifest.json` git diff 空；MainActivity.kt/AndroidManifest.xml 零触碰）。
+
+**S0 复勘（基线 `d7aad7d` = dev，PR #92 后）**：全部锚点实测成立——探针「ends the Activity/single-entry/canGoBack() is false」grep 三实例（:37-41 组 2 头注、:88-91 组 8 头注、:197-199 组 2 体注——评审指认后两处计划漏列，全部入修订清单）；commands-menus.md back/forward 两层句实测在 **§六 :103**（计划写 §五=MINOR-1 更正）、verify-commands-menus.ts 混同禁令锚实测 **:562**（计划写 L559=同条更正）；E32 空占实测（implementation.md 检索零命中）；#76 撞号预防：#76 计划 `/tmp/plan-issue76-v1.md` :188 已含「E32 若被 #75 实占则顺延 E33」声明，本 E32 头注与 rebase 条款（rebase 后复核 E32 仍空占+按 E27/E28/E30/E31 先例声明顺延）兑现 MINOR-5。基线探针 sweep 25/31 rc=0（六 rc=1 与 #73/#74 在册集同集同归因：verify-recovery dev 既有陈旧正则、verify-inline-ssh-device 设备依赖、verify-ssh/verify-service-ops/verify-direct-connection/verify-attachments-artifacts 四例构建见证类 ENOENT——零构建轮工作树 dist 从未生成）；settings 41/0/98、第一方 425/0/2895、closure PASS 38=38 基线全绿。
+
+### 设备连通性与模拟器替代轮裁定（如实登记）
+
+计划 QA 前置=MatePad（192.168.3.145:5555）：连接被拒（全子网 :5555 扫描仅 vivo V1934A/API 28——低于 minSdk 29 装不上）；.145 主机 ICMP 存活、5555 关闭，全端口扫描见 39439/40567/62110 三端口 TLS 1.3 应答=无线调试 TLS 随机端口模式开启但与本机**未配对**（配对码需设备屏物理介入）——与 #90 段「reboot 后无线调试未自动重开 BLOCKED」同源。两次向用户征询（物理配对/USB）未获回应；协调员批准**模拟器替代轮**（符合 R5「不得无实测先改文档」与 AGENTS.md「至少模拟器或真机端到端验证」），登记口径=「模拟器替代 + MatePad 复验点残留」，issue 验收 1（MatePad 实测）**不视为闭合**。
+
+环境：AVD `issue75api34`（pixel_4 profile）Android 14/API 34、WebView 113.0.5672.136、1080×2280@420dpi（手机形态 393×782 CSS px）+ `wm density 213` 平板形态（812×1629 CSS px，接近 MatePad 818px 实测宽度）；QA APK=同源构建（/tmp throwaway detached worktree @ d7aad7d：bun install + build:web + copy-web-dist.sh + assembleDebug；重建 dist **3516/159,542,455 与在册基线逐字节同数**=MINOR-4 一致性分支未触发；APK SHA-256 `f95094bf5753218a3d85f35378ae81080e4ca38b4974f1f744892fa3f432c27b`（65,297,198 bytes）；`install -r` Success、数据不清、零 uninstall）。旁注：api31 镜像（WebView 91）无法挂载应用（构建 target esnext、`Object.hasOwn` Chrome 93+ 起支持——IMPORT_FAIL 实测），API 34（WebView 113）正常——环境记录非产品缺陷（MatePad 现代 WebView 在册可挂载，#90 视觉实证）。QA-1a 另在 api31 壳层复测同结果（back=finish，壳路径不依赖页面 JS）。
+
+### QA 实测记录（issue #75 段——模拟器轮，预期/实态/判据三列）
+
+**QA-1 返回键（核心面，S3 三分支=部分证实）**：
+
+| # | 场景 | 实态（实测） | 判据 |
+| --- | --- | --- | --- |
+| a | 冷启动零历史 | `history.length`=1 → BACK → MainActivity 失焦至 Launcher=Activity 结束（预期一致；api31 与 api34 双环境一致） | dumpsys mCurrentFocus + CDP history.length |
+| b | 路由 push 后（评审预测=路由级回退） | **评审预测不成立（本环境）**：`history.pushState` 后 `history.length`=2，按返回键仍**结束 Activity**（复现 ×2 全新冷启动；整页项堆叠变体同然——pushState 置顶后连整页项回退同被挡）；同文档项经脚本 `history.back()` 可达 `popstate`（路径回退零重载，popstate 计数实测）——**项在而门不开**：WebView `canGoBack()` 对同文档项返回假 → 壳走 super.onBackPressed | native dumpsys（finish）+ CDP（len=2、popstate 计数、marker 幸存）双域证据 |
+| c | 多级栈（会话→设置→二级） | **BLOCKED**：无可用服务上下文（连接屏 hosts=0；模拟器无可连 opencode 服务）——计划 §5-1 降级链到底（设置首开亦需 ≥1 server，AppShell `servers.list.length > 0` 门在册） | routes.tsx :103 回退门源码锚 |
+| d | 弹层开 → 返回 | **BLOCKED**（同 c——连接屏零弹层入口：HostDialog 需已存主机） | 同上 |
+| e | 消息内链接同窗导航 | **BLOCKED**（需会话时间线） | — |
+| f | 通知路由 loadUrl | **模拟成功（同类机制）**：`location.href` 全页导航至 /settings（=consumePendingRoute loadUrl 同类）→ `history.length`=2、整页重载（marker 丢失）；BACK → 回退至 / 前项（整页重载）且 **Activity 不退出**——整页导航项入 canGoBack 门实测成立；真机通知 tap 路径待 MatePad 复验 | CDP history.length + marker + dumpsys |
+
+静态链四环核验（依赖侧写入实证）：bun.lock pin `@solidjs/router` 1.0.0 → pin 包 dist `set()` 非 replace 导航调 `history.pushState(state, "", value)` + `saveCurrentDepth()`、每项盖 `_depth`（MINOR-2 口径=1.0.0 机制形，非 v1.0.1 nextDepth 形）、`init` 绑 popstate → 构建产物 `_assets/index-CYqCdjPV.js` 含同机制（grep 实证）→ `entry.tsx` render 不传 router prop（`app.tsx` :112 `props.router ?? Router` 落默认）。**S3 裁定=部分证实**：推论前提（首方零写入→canGoBack 恒假）双重不成立（写入存在；canGoBack 为假实为 WebView 对同文档项的门语义）；行为结论（常规使用中返回键=结束 Activity）在该实测环境保持——**hwschromium（MatePad）对同文档项的 canGoBack 处理=复验点在册**（两向结果都可能，G31② 判定点与 M-022+ 候选池保持）。
+
+**QA-2 软键盘（G-5 三分支裁定）**：
+
+| # | 场景 | 实态 | 判据 |
+| --- | --- | --- | --- |
+| a | composer 聚焦 | **降级**为连接表单输入（无服务无 composer）——聚焦全程可见 | CDP getBoundingClientRect + innerHeight 对照 |
+| b | SSH 连接表单聚焦→键盘 | `mInputShown=true`；**layout viewport 收缩 782→507**（`innerHeight`=`document.documentElement.clientHeight`=507、`visualViewport.offsetTop` 恒 0、layout 与 visual 同值）=adjustUnspecified **裁定 resize**；聚焦输入 bottom 319 < 507 **零遮挡**、`input text` 上屏正常（值回读一致） | dumpsys input_method + CDP innerHeight/vvOT + 截图 |
+| c | 终端 dock 隐藏 textarea | **BLOCKED**（需会话终端）——可复用粒度协议登记：focus 隐藏 textarea → innerHeight/dock fit 对照 → 记录遮挡形态（归 G24⑦ 复核位；**adjustResize 显式列入 G24⑦ 修复候选池**——评审裁定②(c) 兑现登记） | 协议在册待轮 |
+| d | 键盘收起 | BACK 被 IME 消费（`mInputShown=false`，Activity 不退出——返回键序：先收键盘）；布局复原 782/782、`vvOT`=0、零残留位移；输入仍聚焦 | dumpsys + CDP |
+| e | KeyboardInsets 置零（辅助诊断通道） | `--safe-area-inset-bottom` 弹/收全程 empty；键盘弹出时 `clientHeight − vvH×scale`=0 → `>100` 判 False → 置零 no-op——与在册「resize 形态结构性无双避让」预测一致 | CDP getComputedStyle（分级=辅助诊断，非硬验收） |
+
+**G-5 裁定=(a) 现状已足零代码**：该环境 adjustUnspecified 裁定 resize 且零遮挡 → **轨 2 不触发**（Manifest 零改动、组 1 零增锚、零 APK 重建）；MatePad hwschromium 同判据复验点在册（若实测 pan/遮挡→按协议另轮走轨 2）。
+
+**QA-3 安全区**：env() 探针元素四向实测 **0px**（top/bottom/left/right，`CSS.supports` true）；四边内容可达（截图：顶部标题、底部模式切换钮、左右表单边距）；手势条区域不遮内容（底部按钮终线在手势条上方）；root p-px=1px、首子面 32/48px=设计值原样（env()=0 兜底原样渲染，G-8 反向缺陷未出现）；theme-color：状态栏系统默认黑、内容起于其下（非 e2e）。**Android 15+ e2e 强制=前瞻复验点登记**（interaction-quality.md §八新条）。
+
+### CDP host 端口串扰事故（与 #76 实施者双写 tcp:9222）——登记与复核
+
+#76 实施者报告其 06:19–06:28 窗口的 CDP 交互（Page.reload/polyfill 注入/SW·缓存·localStorage 清理/一次连接表单尝试）落在我的 emulator-5554 会话页（host 9222 转发互串；其观察到的 /qa-test 即我的 pushState 实验）。**复核结论=我的 QA 结果无需重做**：判读全部依赖 native 域证据（dumpsys focus/input_method、screencap、input keyevent/tap——设备域、不受 host 端口串扰）+ CDP 状态自洽（我的 marker 75/77/99、路径 /qa-test·/qa-repro·/qa-c、表单值 qa75-example 全程自洽、零外源值混入）；对方动作（reload/polyfill/缓存清理）对我判读量（viewport 收缩、canGoBack 门后 finish、popstate 计数）无因果路径。事故后本人前向（如复需）改用私有端口段（19255），不触碰 #76 的 19222/5756。程序级教训（并行设备轮 CDP host 端口须实施者各自独占段）双方台账各自登记。
+
+### 负例演练（S7——inject→FAIL→还原→PASS + sha256）
+
+三组（日志 `.probe-logs/negex/issue75-negatives.log` + 逐组 out log，gitignored）：①interaction-quality.md 诚实句删改（勘误句替换）→ 组 8 FAIL rc=1（"lost the back-key-ends-the-Activity honest-state sentence"）→ 备份还原 rc=0（sha `c992158a…` 与还原后逐字节一致）；②interaction.md G31② 基线句删改 → 组 8 FAIL rc=1（"lost the back-key real-state baseline sentence"）→ 还原 rc=0（sha `5ff7fbfd…` 一致）；③首方 src（home/route.tsx）注入 `history.pushState` 注释行 → 组 2 哨兵 FAIL rc=1（"gained a History API write/listener"——新 fail 串口径）→ 还原 rc=0（vendor 树 git status 干净）。过程注记：首轮①误用 `git checkout --` 还原（回退到 HEAD 连带撤销本期编辑），编辑重应用后以备份副本还原重跑=①b——操作教训在册（负例还原一律备份副本、不用 git checkout）；另 build-and-verify.md 插段脚本曾因 `open('w')` 先截断后 join 失败致整文件清空（git checkout 即刻恢复，无信息损失，未提交态）——登记为操作教训。
+
+### 验证链（S8——修订后实测）
+
+| 层 | 项 | 结果 |
+| --- | --- | --- |
+| 修订探针 | `bun run scripts/verify-interaction-quality.ts` | **rc=0**（MAJOR-1 grep 复核：`single-entry`/`canGoBack() is false`/`which is why the back key ends` 全文零命中；逐字锚保持） |
+| witness 交叉 | verify-commands-menus / verify-terminal / verify-session-workbench / verify-interaction-quality | rc=0 ×4（零触碰持平；commands-menus 组 8 dist 哨兵 3516/159,542,455 不变） |
+| witness 注意 | verify-recovery | rc=1（dev 既有陈旧正则 `ensureTunnel` 形——基线对照同值，非本期引入） |
+| 上游定向 | settings 三文件（在册命令逐字） | **41 pass / 0 fail / 98 expect()** 持平 |
+| 第一方 | `bun test --conditions=browser packages/mobile-hosts` | **425 pass / 0 fail / 2895 expect()** 持平（39 文件） |
+| 闭包 | `bash scripts/verify-closure.sh` | PASS：V3(a)/DANGLING=0/V3(b)(c)；补丁文件 38=38（M-019/M-039 reserved-absent） |
+| dist 哨兵 | `web-dist/manifest.json` + 组 8 四探针 | 零触碰（git diff 空）；3516/159,542,455 持平 |
+| 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | rc=0；leak-scan rc=1 基线既有（synthetic fixture）——**stash 回程对照：命中集与基线逐字节相同零新增** |
+| 全量 sweep | 31 × verify-*.ts 逐 rc | **25/31 rc=0**（六 rc=1 与基线同集同归因——见 S0；零新增失败） |
+| （轨 2） | gradle JVM / APK 重建 | **不适用**（轨 2 未触发；QA APK 为 /tmp 同源构建、不入本树） |
+
+### 诚实边界（issue #75 段）
+
+- 本轮全部运行期实测来自**模拟器**（AOSP WebView 113/API 34）：canGoBack 同文档项门语义、resize 裁定、env()=0 均为该 WebView 构建实测，**对 hwschromium（MatePad）无证明力**——MatePad 复验点（返回键门走向、键盘 resize/pan、composer/终端 dock 遮挡、通知 tap 路由、多级栈/弹层/消息链接会话级场景）已在 interaction-quality.md §一/§八与 G31②③ 在册；**issue 验收 1（MatePad 实测）不视为闭合**，MatePad 恢复连接（无线调试配对码或一次 USB `adb tcpip 5555`）后按在册判据复验。
+- 模拟器形态注记：手机形态 393px + 平板密度 213（812px，MatePad 实测 818px 近似）；无华为翻盖传感器、无物理持机。
+- 事故与操作教训如实入档：CDP host 9222 串扰（复核无需重做，见上）；负例还原 git checkout 误用（已备份副本重做）；插段脚本 `open('w')` 截断事故（git 即刻恢复）。
+- 模拟器状态交接（#76 可能需要实例）：AVD `issue75api34`（Android 14，本期刊用）与 `issue75qa`（api31 AVD，WebView 91 挂载失败仅存档）；emulator-5554 释放、#76 的 emulator-5756/19222 未触碰；`~/.android-sdk` 新增 emulator+android-31/34 镜像（约 8GB）；/tmp 构建树 `issue75-qa-build` 暂留（含同源 APK 与 dist，下一轮裁定去留）。
+- 设备侧副作用：模拟器零 pm clear、零 uninstall（QA APK 保留于 issue75api34）；MatePad 零触碰（连接未建立）；截图/dump 均在 /tmp（gitignored 域外），不提交。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
