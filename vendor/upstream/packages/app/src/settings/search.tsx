@@ -83,7 +83,7 @@ export function SettingsSearch() {
       browser: platform.platform === "desktop",
       mobile: mobile(),
       translate: language.t,
-      extensions: surface.extensions.items(),
+      extensions: surface.plugins.items(),
     }),
   )
 
