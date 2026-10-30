@@ -18,6 +18,11 @@
 //   user cancelled") and because the GUI-extension host surface's exception propagation
 //   is uncontrolled; the degraded state is MORE honest than the fake-success toast.
 //   Registered in docs/design/units/attachments-artifacts.md and gated by G27⑧.
+// - openExternal -> false: EQUIVALENT. The Platform `openExternal` contract is `void`
+//   (fire-and-forget, upstream web silently returns on a gate miss), so a pre-ack stub
+//   answering false closes the same failure path the upstream gate does — no consumer
+//   reads the boolean and nothing is thrown past the seam. The enforced URL policy lives
+//   NATIVELY (ExternalOpenPolicy: http/https only); issue #76, N08.
 //
 // Injection seam: module-level accessor (the M-016 setActiveServiceOpsPort precedent).
 // The runtime bootstrap contract (runtime.ts) is deliberately UNCHANGED; the vendored
@@ -195,6 +200,16 @@ export interface FilesPort {
    * back — plan L6), throws FilesError on hard failures.
    */
   shareDataUrl(dataUrl: string, filename: string, mime: string): Promise<boolean>
+  /**
+   * Hand one URL to the shell's outbound external-open face (issue #76, N08): the native
+   * ACTION_VIEW over the enforced ExternalOpenPolicy (http/https only, userinfo refused).
+   * NEVER throws: every failure path (bridge unavailable, policy refusal, no handler app,
+   * malformed response) resolves false and the native side shows the failure Toast — the
+   * Platform `openExternal` contract is `void` and upstream consumers call it without a
+   * try/catch, so a throw would surface as an uncaught exception in click handlers (the
+   * OAuth controller's catch -> browserFailed face stays unreachable, same as web).
+   */
+  openExternal(url: string): Promise<boolean>
 }
 
 /**
@@ -206,6 +221,7 @@ export const StubFilesPort: FilesPort = {
   clipboardImage: async () => null,
   saveFile: async () => false,
   shareDataUrl: async () => false,
+  openExternal: async () => false,
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +253,9 @@ export function filesBridgeInjected(): boolean {
  * The bridge-backed files port. Failure mapping per method: clipboardImage degrades
  * EVERYTHING to null (never throws); saveFile throws on hard failures and only resolves
  * false for the native `{saved:false}` answer (upstream "false = user cancel" contract);
- * shareDataUrl throws on hard failures and resolves false when the native side declines.
+ * shareDataUrl throws on hard failures and resolves false when the native side declines;
+ * openExternal degrades EVERYTHING to false (never throws — the Platform `void` contract
+ * has no catch upstream; the native side carries the user-visible failure Toast).
  */
 export function createFilesClient(transport: FilesBridgeTransport): FilesPort {
   return {
@@ -295,6 +313,26 @@ export function createFilesClient(transport: FilesBridgeTransport): FilesPort {
       const shared = (response.result as Record<string, unknown> | null)?.["shared"]
       if (typeof shared !== "boolean") throw new FilesError("io", "malformed share result")
       return shared // false = the native side declined to launch the sheet (caller falls back to anchor.download)
+    },
+
+    openExternal: async (url: string): Promise<boolean> => {
+      // Never throws (issue #76): the Platform `openExternal` contract is `void`, upstream
+      // consumers (OAuth controller, feedback links, elicitation dock) call it without a
+      // try/catch. Every failure — bridge not acked yet, policy refusal, no handler app,
+      // malformed/native-declined answer, hard wire error — resolves false; the native
+      // side owns the user-visible Toast (zero URL content). The enforced URL policy is
+      // NATIVE (ExternalOpenPolicy); this face adds no second gate (the upstream JS gate
+      // stays verbatim in web.ts as the first layer only).
+      try {
+        if (transport.status() !== "available") return false
+        const response = await transport.request("openExternal", { url })
+        if (!response.ok) return false
+        const opened = (response.result as Record<string, unknown> | null)?.["opened"]
+        if (typeof opened !== "boolean") return false
+        return opened
+      } catch {
+        return false
+      }
     },
   }
 }

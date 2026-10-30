@@ -44,7 +44,7 @@ export const FILES_BRIDGE = {
   handshake: FILES_HANDSHAKE,
 } as const
 
-export type FilesBridgeOperation = "clipboardImage" | "save" | "share"
+export type FilesBridgeOperation = "clipboardImage" | "save" | "share" | "openExternal"
 
 export type FilesBridgeResponse =
   | { id: string; ok: true; result: Record<string, unknown> }
