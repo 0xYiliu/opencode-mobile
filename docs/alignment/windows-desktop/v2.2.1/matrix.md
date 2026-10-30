@@ -113,7 +113,7 @@
 | N05 | SSH 服务发现、安装、启动及不兼容处理 | 已有代码 | 适配；已有白名单命令及显式授权流，不静默替换服务 | E10，G18 |
 | N06 | 手机作为配对服务提供方 | 不实现 | 排除；客户端链接接入见 D03 | E01；不适用 |
 | N07 | 服务提供方配对页屏幕常亮 | 不实现（该页面） | 排除；属于 N06 的主机侧流程；一般客户端常亮不据此新增需求 | E01 |
-| N08 | 文件保存/分享/选择、剪贴板和外部打开 | 部分实现 | 适配；FilesBridge 已有；Windows Explorer/本机路径语义不搬到手机 | E06/E11 |
+| N08 | 文件保存/分享/选择、剪贴板和外部打开 | 已实现（外打开面随 issue #76 交付；运行期实测见 build-and-verify.md #76 段） | 适配；FilesBridge 已有（第四 op openExternal + native ExternalOpenPolicy 强制 http/https + 失败 Toast，M-041 把 web.ts window.open 同窗导航换为桥调用）；Windows Explorer/本机路径语义不搬到手机（openPath/openLocalFile/revealPath 家族不实施） | E06/E11/E33 |
 | N09 | Windows 安装更新及 beta notes | 未实现（APK 等价流程） | 待决策；与 S40 同一问题（ADR 0005 一并覆盖检查/安装/发行说明面，含 beta notes 三通道核对）；远程服务升级已有独立实现（决策 0004 第四桥 upgrade 模板）——升级远端 OpenCode 服务 ≠ 升级 APK 客户端，0004 不覆盖本行；推荐暂缓 + (b) 外部引导形态登记为契约同型未来形态，激活条件见 ADR §4.2；**决策待用户** | E09/E10/E24 |
 | N10 | 平台快捷键与窗口控制 | 部分实现 | 适配；已有命令菜单、Android 壳和返回逻辑；不需复制 Windows 窗口控件 | E11 |
 | N11 | GUI 宿主、注册与 OS 过滤 | 已有代码（issue #67，M-037；运行期行为待设备 QA） | 对齐（issue #67）：宿主迁移不回退——`usePluginHost` 四面（definitions/state.status/failures/reload）与 M-026 包装器一一对应；OS 过滤同语义换 `runsOn(definition, os)`（os gate 行逐字不变；wsl `os:["windows"]` 字面量原样）；移动白名单三集（web 10 含 sources/goal / desktop-host 4 / excluded {wsl} 静态排除行零操作）与 mobile face order {10..70} 不变；M-025 禁用并集重落于 runtime/plugin/root.tsx（definitions 过滤自愈+两 marker）；desktop-host 禁用行语义保持。证据同 S41 行（探针 runsOn 双锚/os 字面量/三集/零安装面/图标闭包断言全绿；APK `0895c35e…`；设备 QA 1–3/6 待执行） | E23 |

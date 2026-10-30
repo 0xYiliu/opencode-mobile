@@ -69,7 +69,7 @@
 
 provider 面的 `providers/connect/controller.ts` 合法共存 `integration.get`+`oauth.connect` 对（provider 连接流，非 MCP 面，不计入三处；排他性由 mcp.connect/disconnect 调用面穷举间接约束）。
 
-**重认证回推闭环**：authenticate → 服务端 attempt → `openExternal`（web=`window.open("_blank")`，壳内实态与 G25③ 同源不确定，见 R1/诚实边界）→ 用户在授权页完成 → 服务端重连该 server → **`mcp.status.changed` 事件回推 → mcp.server invalidate+settle sync → connected**——「切出完成授权→切回」路径无需回跳即更新状态。
+**重认证回推闭环**：authenticate → 服务端 attempt → `openExternal`（跨效应注记 issue #76：壳内实态已落定=files 桥 ACTION_VIEW 外跳 + native 强制策略 + 失败固定文案 Toast——web.ts 的 `window.open("_blank")` 同窗导航形态已由 M-041 移除，与 G25③ 同源实态同步更新）→ 用户在授权页完成 → 服务端重连该 server → **`mcp.status.changed` 事件回推 → mcp.server invalidate+settle sync → connected**——「切出完成授权→切回」路径无需回跳即更新状态。
 
 **local 型 = 服务端进程（防误读）**：`LocalConfig { command[], cwd }` 是**服务端**进程（cwd 相对服务端 workspace）——客户端零 MCP 进程执行面（mobile-hosts 全域 `api.mcp|agent|command|skill|plugin`/`integration` 零命中负断言双锁）；「在手机上跑 MCP 进程」不成立，手机上发生的是对服务端进程状态的查询与启停指令。
 
@@ -137,13 +137,13 @@ provider 面的 `providers/connect/controller.ts` 合法共存 `integration.get`
 
 ## 门禁与验证
 
-- **G26**（[../interaction.md](../interaction.md) 新设）：agent 能力面运行期真机清单十项（①移动入口可达四路（设置 extensions 双布局 + 项目级 extensions + /mcp + 更多抽屉 details server 面板）；②MCP 五态呈现与 toggle 全链（真实远端 MCP 服务）；③MCP needs_auth 重认证（`window.open` 壳内实态与 G25③ 同源核对 + `mcp.status.changed` 回推 + interactiveForm 错误呈现）；④new-session MCP 控件与 prepare 门三失败形态；⑤agents/commands/skills 呈现（@-mention//slash/设置只读列表/外链）；⑥区分断言呈现核对（「Manage in opencode.json」文案、移动 gui-extensions tab=#26 第一方管理面（与远程 extensions 三子 tab 的区分保持）；零 GUI 扩展安装入口保持）；⑦断开红线机械核对（MCP 会话中杀 App/断网→远端 MCP server 与任务存活→重连状态快照补齐；直连+SSH 各一遍）；⑧错误路径矩阵；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由 + 真实 MCP 服务（remote OAuth 型 + local stdio 型各一）+ 配置安全负例）。
+- **G26**（[../interaction.md](../interaction.md) 新设）：agent 能力面运行期真机清单十项（①移动入口可达四路（设置 extensions 双布局 + 项目级 extensions + /mcp + 更多抽屉 details server 面板）；②MCP 五态呈现与 toggle 全链（真实远端 MCP 服务）；③MCP needs_auth 重认证（外跳实态——issue #76 后=files 桥 ACTION_VIEW + 强制策略/Toast，见 G26③ 注记 G25③ 同源核对 + `mcp.status.changed` 回推 + interactiveForm 错误呈现）；④new-session MCP 控件与 prepare 门三失败形态；⑤agents/commands/skills 呈现（@-mention//slash/设置只读列表/外链）；⑥区分断言呈现核对（「Manage in opencode.json」文案、移动 gui-extensions tab=#26 第一方管理面（与远程 extensions 三子 tab 的区分保持）；零 GUI 扩展安装入口保持）；⑦断开红线机械核对（MCP 会话中杀 App/断网→远端 MCP server 与任务存活→重连状态快照补齐；直连+SSH 各一遍）；⑧错误路径矩阵；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由 + 真实 MCP 服务（remote OAuth 型 + local stdio 型各一）+ 配置安全负例）。
 - 探针：`scripts/verify-agent-capabilities.ts` 七组断言（调用面穷举——具名包含断言+集合外零命中/重认证三处包含断言/GUI 扩展负断言组/数据面五事件/错误恢复链/配置写入边界/零 OS 首扫）——**static STRUCTURE check, no runtime proof**。
 - 上游子集：app 组合 64 文件（#14 的 60 + 本期新增 4：`runtime/server/global-sync/mcp.test.ts`、`runtime/server/global-sync/child-store.test.ts`、`settings/workspaces/project-lsp.test.ts`、`runtime/extension/ipc.test.ts`——首跑逐例归因门适用）；gui-extensions 9/session-ui 8/client 9 零新增回归；mobile-hosts 307 零新增。
 
 ## 诚实边界
 
-- **G26 全部运行期行为 BLOCKED**（四路入口可达手感、MCP 五态真实呈现与 toggle、`window.open` 壳内实态与重认证回推、prepare 门失败形态、agents/commands/skills 注入呈现、区分断言呈现、断开红线远端存活、错误路径矩阵、抽屉/popover 触屏形态、双路由+真实 MCP 服务+配置安全负例）；G26 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
+- **G26 全部运行期行为 BLOCKED**（四路入口可达手感、MCP 五态真实呈现与 toggle、外跳实态（issue #76 后=外跳面 + 拒绝 Toast）与重认证回推、prepare 门失败形态、agents/commands/skills 注入呈现、区分断言呈现、断开红线远端存活、错误路径矩阵、抽屉/popover 触屏形态、双路由+真实 MCP 服务+配置安全负例）；G26 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **真实 MCP 服务测试 BLOCKED**（remote OAuth 型需真实 OAuth MCP 服务；local stdio 型需远端主机配置——不允许 fixture 替代）。
 - **服务端实现语义来源边界**：agent/command/skill 注册、MCP client 进程管理、plugin 加载在服务端（packages/server、packages/core 不在 `vendor/upstream/packages`——引 `~/.cache/opencode-upstream` @ pin，来源表述同 [../architecture.md](../architecture.md) 先例）；协议/schema/客户端连接器/设置 UI/details 扩展全在闭包内可静态锚定——两类来源在本文显式分层。pin 更新时缓存引文随 PROVENANCE 演练同步。
 - **上游能力边界**：见能力边界专节八项——特别不声称「MCP 配置可在手机上增删改」「MCP headers 已受 #4 保险库保护」（正确表述=服务端存储+客户端零回显）；GUI 扩展管理面（enable/disable/reload/状态呈现）自 #26 起为第一方移动面实态（[gui-extensions.md](gui-extensions.md)），但 **install/remove/扩展商店（marketplace）仍为零**——不声称移动存在任何扩展安装能力。
