@@ -1407,6 +1407,38 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | sweep 旁证（intermediates 假阳性再证） | `verify-permission-requests`/`verify-session-workbench`（gradle 构建后） | 构建后 rc=1 命中恰为 #63/#64 在册的 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js` dist 拷贝假阳性（FAIL 串逐字一致）；build 目录临时移出后二者 rc=0、原样还原（APK 保留）——环境性假阳性，与本分支零关联 | 本文 |
 | 卫生检查 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 与基线同集（5 处全在 host-credential.test.ts synthetic fixture；初刷发现本文 #66 段引用该假串字样构成文档自命中 1 处，改写措辞后 docs/ 全域零命中——净新增为零） | 本文 |
 
+## issue #68 段（S40+N09：APK 更新机制可行性/决策——文档级交付）——2026-10-30 实测记录
+
+交付物：**[决策记录 0005 草案](decisions/0005-apk-update.md)**（提案态，决策问题 workflow.md §4 五要素 + v2.2.1 更新面语义核对 + 移动端现状 + 三案对比 + 推荐暂缓/(b) 契约同型 + 激活条件 + 实施前置清单 + R1 三选项谱系）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S40/N09 两行登记（实现格保持「未实现」，策略格「待决策」不造新状态词，差距列承载可行性已核对/推荐/ADR 链接/「决策待用户」固定字样）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) **E24**（文档级证据行，E23 为并行 #67 预留顺延位）+ 本段。**本模块 = 纯文档交付：零代码、零构建、零设备 QA**；最终决策归用户（PR 描述按 workflow.md §4 五要素送达，拍板后小提交路径见 ADR §9.3）。
+
+**评审修订项 F-1..F-6 落实**：F-1（MAJOR）——计划 §2.2 原句「M-001 仅从 package.json 剥 electron-updater devDep」**错误**，实测订正：M-001 实际剥离集 = `electron`/`@lydell/node-pty`/`devtools-protocol` 三项 devDep（manifest.json M-001 reason 与 patch hunk 实读），`electron-updater: 6.8.9` **保留**在 pin package.json:62（vendored :59；patch hunk 中仅上下文行）；ADR 与台账按实际剥离集描述，「web 构建死代码」论证改挂「devDeps 不参与打包 + platform.ts 仅 packaged desktop 动态导入」，不依赖 M-001。F-2——四处行号漂移按实测入台账（feed :212/:231/:250；vendored renderer.ts :52（pin :48，M-036 漂移）；extension-manager.tsx :48；service-ops/commands.ts :32/:46/:72-73）。F-3——文件计数加限定并按实测订正（见下表 V-F3；评审记录的 66 翻译/13 文件两数与 `git ls-tree` 实测 63/12 不符，按实测记载）。F-4——决策问题送达载体 = PR 描述（协调员提交时），ADR §0/§9.2 与本段注明拍板后小提交路径。F-5——「暂缓」写成具体激活条件：**首个对外可下载的已签名 release 产物 + 版本清单存在（GitHub Releases 即可）**即满足 (b) 启动前置；暂缓 = 条件未满足而非永久排除（ADR §4.2）。F-6——R1 三选项谱系各标代价（(a) vendored whatsNew 门补平台条件——小补丁+构建验证；(b) 移动 builtins 组合剔除 updater——同上且连带管理面/探针闭集；(c) 仅文档化现状——零代码），含 #67 迁移后复核条件句（ADR §6）。三裁定维持：推荐「暂缓(c)」+ (b) 契约同型未来形态、最终决策留用户；F6 仅登记不升格补丁；矩阵不造新状态词（策略格「待决策」+ 差距列承载细节 + 行内固定「决策待用户」）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V-目标 feed/通道语义 | `git -C /home/peterhan/repository/opencode show 3ebcf9a32c:packages/desktop/electron-builder.config.ts`（+ `.test.ts`） | 实测：publish=generic，url `https://opencode.ai/update/api/{dev\|beta\|latest}/desktop/opencode/`、channel 恒 latest——url 行号 **:212/:231/:250**（计划原引 :210/:229/:248 漂移，F-2 订正）；test :15-19 通道表 dev/beta/latest + :54-58 断言锁形 | 本文 |
+| V-状态机与 external 预留位（负断言） | `git show 3ebcf9a32c:packages/gui-plugins/src/updater/machine.ts` + `packages/plugin/src/gui/updater.ts`；`git grep -n externalInstall 3ebcf9a32c -- packages/gui-plugins packages/desktop` | 实测：UpdaterState 9 态（updater.ts :16-26）；UpdateTarget 双模式（machine.ts :4-6）+ `externalInstall?:`（:13）→ `download-required`（:185-189）；**grep 命中恰 4 = machine 契约 3 处 + machine.test.ts mock 1 处 → v2.2.1 无生产 Platform 提供 external 模式**（契约预留位，(b) 的上游同型）；platform.ts `checkForUpdate` 只返回 `{mode:"restart"}` | 本文 |
+| V-主门与 renderer 注册顺序 | `git show 3ebcf9a32c:packages/gui-plugins/src/updater/{main.ts,renderer.tsx}` | 实测：v2.2.1 主门 = `enabled = build.packaged`（main.ts :13，**不再排除 dev 通道**）；platform 仅 packaged 动态 import；renderer `whatsNew(ctx)`/:10 + `betaNotes(ctx)`/:11 先于 `if (!ctx.desktop) return`/:13；发行说明三通道实测（changelog.json :8 + desktop 过滤 :102；beta 内嵌 JSON feat/fix/perf+PR+作者+动图，SHOWN=10/:6） | 本文 |
+| V-M-001 实际剥离集（**F-1 修正**） | `vendor/upstream/patches/mobile/manifest.json` M-001 条目 + `0001-M-001-…patch` hunk 实读；`git show b4525d79bf:packages/gui-extensions/package.json`（:52-66） | 实测：reason 明言剥 electron/@lydell/node-pty/devtools-protocol 三项；hunk 删行恰三条（pin :55/:60/:61）；**pin :62 `"electron-updater": "6.8.9"` 在册（devDependencies），vendored 树 :59——保留**；patch 中仅上下文行。计划 §2.2 论据句错误已订正（见 F-1 落实段） | 本文 |
+| V-web 构建死代码论证（不依赖 M-001） | `git grep -n "electron-updater" b4525d79bf -- packages/` | 实测：唯一运行时 import = `gui-extensions/src/updater/platform.ts:2`（machine.ts/main.ts 仅注释提及；desktop electron-builder.config.test.ts :129-132/:143 为打包配置测试引用）；platform.ts 仅被 main.ts :20-21 在 desktop packaged 时动态 import——移动 web 构建不可达 | 本文 |
+| V-移动宿主注册与行号漂移（F-2） | `vendor/upstream/packages/gui-extensions/src/renderer.ts` 行号实测 + 与 pin `git show b4525d79bf:…renderer.ts` 对照；`grep -n DESKTOP_HOST_EXTENSIONS packages/mobile-hosts/src/ui/extension-manager.tsx` | 实测：updater import :20-21、compose 入口 **vendored :52 / pin :48**（M-036 追加 sources/goal 后漂移 +4，#67 迁移后再变——ADR R1 复核条件句）；vendored `updater/renderer.tsx` 与 pin **diff 为空**（whatsNew :8 注册、:10 桌面早退、函数体 :93-112）；extension-manager updater ∈ DESKTOP_HOST_EXTENSIONS（**:48**，计划原引 :39 漂移）；releaseNotes 默认 `enabled:true`（updater index.ts :15-17，settings.v3 pick）+ seen `highlights.v1`（:28） | 本文 |
+| V-0004 独立性 | `grep -n upgrade packages/mobile-hosts/src/service-ops/commands.ts` | 实测：upgrade 动词注释 **:32**、action 联合成员 **:46**、method 正则 **:72-73**（计划原引 18/29/137 漂移，F-2 订正）；upgrade 模板三 OS 行 :191-194——远端服务升级 ≠ APK 客户端更新，0004 不覆盖 N09 | 本文 |
+| V-F3 文件计数（实测订正） | `git ls-tree -r --name-only <sha> -- <updater 目录> \| wc -l` 及非 i18n 过滤计数 | 实测：v2.2.1 gui-plugins updater = **79 文件 = 16 非 i18n 源文件 + i18n/ 63**（en 基座 + 62 语言）；pin gui-extensions updater = **75 文件 = 12 非 i18n 源文件（含 index.ts/machine.test.ts/contract.ts）+ i18n/ 63**。评审记录「66 个翻译 / pin 13 文件」与实测不符（ls 顶层条目口径误计），ADR/台账按实测记载 | 本文 |
+| V-Android 壳现状（F5） | `git grep -il REQUEST_INSTALL -- android/`；AndroidManifest.xml / build.gradle.kts / MainActivity.kt / res/xml 实测 | 实测：REQUEST_INSTALL **零命中（rc=1，负断言）**；manifest 仅 INTERNET(:7)+POST_NOTIFICATIONS(:10)、allowBackup=false(:13)、cleartext=false(:20)+networkSecurityConfig；versionCode=1/versionName 0.1.0（gradle :14-15）、release 无签名配置（:22-24 注释 "signing material never lives in this repo"）；MainActivity.kt :174-175 "APK replacement is the deployment boundary"；data_extraction_rules vault//ssh/ 双通道排除 | 本文 |
+| V-文档一致性与卫生 | ADR↔matrix↔implementation 交叉引用逐一打开；`git diff --check`；`bash scripts/leak-scan.sh` | 链接路径（`../../../decisions/0005-apk-update.md` 等）与状态字样互恰（「待决策」+「决策待用户」固定字样，不造新状态词）；diff-check rc=0；leak-scan rc=**1** 为**基线既有**（high-confidence 命中 5 处全在 `packages/mobile-hosts/test/host-credential.test.ts` synthetic fixture，与 #66 段登记同集；本期改动全为 docs/*.md，零新增命中） | 本文 |
+
+### 合并顺序耦合与 rebase 义务（issue #68 段）
+
+- **#67（S41+N11 gui-plugins 迁移）将先合并**：矩阵 S40/N09 与 S41/N11 **行相邻**（本基线下 :67/:68 与 :117/:119），PR 前须 rebase 并实测复核两行上下文与 E 编号（E23 归 #67、E24 归本期；若 #67 实际取号不同则重排，顺延条件已在 E24 行声明）。
+- **行号时效声明**：本文与 ADR 引用的 vendored 树行号（renderer.ts :52、extension-manager.tsx :48 等）为基线 `ef10718` 实测；#67 迁移落地后 gui-extensions→gui-plugins compose 形态变化，ADR §6 R1 三选项落点须在该轮复核后再执行（条件句已写入 ADR）。
+
+### 诚实边界（issue #68 段）
+
+- **零代码、零构建、零设备 QA**：本模块全部改动为 `docs/` 下四个文档（ADR 0005 新建 + matrix 两行 + implementation E24 + 本段）；无 Kotlin/JS/补丁/权限/构建配置变更，无任何设备或模拟器操作。验收第 2 条落在本分支的「暂缓前态」：矩阵推到「待决策（可行性已核对，决策待用户）」这一**明确中间状态**——含 ADR 引用、推荐与激活条件、实施前置清单的可拍板状态，而非含糊旧态。
+- **Windows v2.2.1 更新面未运行核实**：ADR §1 全部为目标版本源码级语义（`3ebcf9a` 实测），无 Windows 运行环境对照（workflow.md §6 边界句适用）。
+- **whatsNew 设备触发未验证**：移动 web 包对 opencode.ai/changelog.json 的启动期外联与桌面版 highlights 弹窗为源码级确证（vendored renderer.tsx 与 pin diff 空 + index.ts 默认值实测），触发时序（seen/version 持久化、首启 markSeen 分支）未在设备运行确认——R1 处置与任何后续 QA 不得宣称设备实态。
+- **F-3 计数实测订正**：评审修订项给出的 66 翻译/13 文件两数按 `git ls-tree` 实测订正为 63/12（ADR §8 在册）——本文以实测值为准。
+- **决策未拍板**：ADR 0005 为提案态；「暂缓」是当前运营姿态与推荐意见，不是已确认范围决策（project-scope.md「已确认范围」表本期不动）；用户拍板路径见 ADR §9.3 小提交清单。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
