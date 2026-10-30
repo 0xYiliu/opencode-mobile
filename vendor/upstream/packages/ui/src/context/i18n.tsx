@@ -73,7 +73,7 @@ export function localizedListSeparator(locale: string, index: number, count: num
     .join("")
 }
 
-function resolveTemplate(text: string, params?: UiI18nParams) {
+export function resolveTemplate(text: string, params?: UiI18nParams) {
   if (!params) return text
 
   return text.replace(/{{\s*([^}]+?)\s*}}/g, (_, rawKey) => {

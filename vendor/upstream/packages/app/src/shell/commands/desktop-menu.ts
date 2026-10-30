@@ -307,8 +307,8 @@ export function desktopMenuKey(entry: DesktopMenuEntry) {
   return entry.command ?? entry.action ?? entry.role
 }
 
-/** Places extension items after the entry their `after` names, or at the end of the menu. */
-export function desktopMenuWithExtensions<Entry, Extra extends { readonly id: string; readonly after?: string }>(
+/** Places plugin items after the entry their `after` names, or at the end of the menu. */
+export function desktopMenuWithPlugins<Entry, Extra extends { readonly id: string; readonly after?: string }>(
   base: readonly { readonly key?: string; readonly entry: Entry }[],
   extra: readonly Extra[],
 ) {

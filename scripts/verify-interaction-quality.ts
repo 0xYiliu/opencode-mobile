@@ -56,7 +56,7 @@
 //      23 hits in 21 files; the three session-ui 767px consumption sites are
 //      deliberately OUTSIDE the domain — they are registered in
 //      interaction-quality.md §4 and carried by the session-ui subset run);
-//      occurrence counts 8 (min-768) / 14 (max-767 incl. gui-ext) as drift
+//      occurrence counts 8 (min-768) / 13 (max-767 incl. gui-plugins) as drift
 //      sentinels; the submit blur line (CROSS-REFERENCE) and the mobile.tsx
 //      sorted(["menu","drawer"]) key (CROSS-REFERENCE); the MobileViewTabs
 //      COMMENT anchor (the mount anchor is verify-agent-capabilities.ts's);
@@ -120,7 +120,7 @@ function fail(message: string): never {
 const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).text()
 
 const APP = "vendor/upstream/packages/app/"
-const GUI = "vendor/upstream/packages/gui-extensions/"
+const GUI = "vendor/upstream/packages/gui-plugins/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const CLIENT = "vendor/upstream/packages/client/"
 
@@ -262,7 +262,7 @@ function walk(dir: string, out: string[] = []): string[] {
   // verify-terminal.ts group 6 :452-453; kept here so the interaction document's
   // premises fail loudly in one place too): the dock viewport store syncs to
   // the visual viewport height (soft-keyboard awareness).
-  const panels = await read(`${APP}src/runtime/extension/panels.tsx`)
+  const panels = await read(`${APP}src/runtime/plugin/panels.tsx`)
   const vvCount = panels.split("window.visualViewport?.height ?? window.innerHeight").length - 1
   if (vvCount < 2)
     fail(`3: panels.tsx visualViewport height-sync anchors thinned (expected >= 2, got ${vvCount}; cross-reference with verify-terminal group 6)`)
@@ -310,11 +310,12 @@ function walk(dir: string, out: string[] = []): string[] {
   }
 
   // 8 min-768 hits in 6 app files; 14 max-767 hits (13 app files + 1 gui-ext);
-  // plus the host-apis.ts comment anchor = the documented 23 hits / 21 files.
+  // plus the host-apis.ts comment anchor = the documented 22 hits / 20 files (issue #67
+  // recount: v2.2.1 dropped the settings-pages.ts media query).
   const expectedMin = [
-    `${APP}src/runtime/extension/host-apis.tsx`,
-    `${APP}src/runtime/extension/panels.tsx`,
-    `${APP}src/runtime/extension/side-region.tsx`,
+    `${APP}src/runtime/plugin/host-apis.tsx`,
+    `${APP}src/runtime/plugin/panels.tsx`,
+    `${APP}src/runtime/plugin/side-region.tsx`,
     `${APP}src/session/header/session-header.tsx`,
     `${APP}src/session/model.ts`,
     `${APP}src/session/timeline/virtualizer.tsx`,
@@ -326,7 +327,6 @@ function walk(dir: string, out: string[] = []): string[] {
     `${APP}src/home/route.tsx`,
     `${APP}src/home/sessions/view.css`,
     `${APP}src/providers/models/select-dialog.tsx`,
-    `${APP}src/runtime/extension/settings-pages.ts`,
     `${APP}src/settings/general/general.tsx`,
     `${APP}src/settings/search.tsx`,
     `${APP}src/settings/settings.css`,
@@ -350,10 +350,10 @@ function walk(dir: string, out: string[] = []): string[] {
   setEq(minFiles, expectedMin, "min-width: 768px")
   setEq(maxFiles, expectedMax, "max-width: 767px")
   if (minHits !== 8) fail(`4: min-width: 768px hit count drifted (expected 8, got ${minHits})`)
-  if (maxHits !== 14) fail(`4: max-width: 767px hit count drifted (expected 14, got ${maxHits})`)
+  if (maxHits !== 13) fail(`4: max-width: 767px hit count drifted (expected 13, got ${maxHits})`)
 
   // The 21st file's anchor: the gui-ext SDK viewport comment.
-  const guiHostApis = await read(`${GUI}src/sdk/host-apis.ts`)
+  const guiHostApis = await read("vendor/upstream/packages/plugin/src/gui/host-apis.ts")
   if (!guiHostApis.includes("/** Viewport under 768px. Reactive. */"))
     fail("4: gui-extensions sdk/host-apis.ts lost the \"Viewport under 768px. Reactive.\" comment anchor (the 21st documented file)")
 
@@ -362,7 +362,7 @@ function walk(dir: string, out: string[] = []): string[] {
   const submit = await read(`${APP}src/composer/submit.ts`)
   if (!submit.includes('if (window.matchMedia("(max-width: 767px)").matches) input.editor()?.blur()'))
     fail("4: composer/submit.ts lost the 767px submit blur line (cross-reference with verify-session-workbench)")
-  const mobile = await read(`${APP}src/runtime/extension/mobile.tsx`)
+  const mobile = await read(`${APP}src/runtime/plugin/mobile.tsx`)
   if (!mobile.includes('sorted(["menu", "drawer"])'))
     fail("4: mobile.tsx lost the sorted([\"menu\", \"drawer\"]) key (cross-reference with verify-terminal group 6)")
 
@@ -493,7 +493,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 // --- 7. Mobile navigation body ---
 {
-  const mobile = await read(`${APP}src/runtime/extension/mobile.tsx`)
+  const mobile = await read(`${APP}src/runtime/plugin/mobile.tsx`)
   if (!mobile.includes("export function createMobileViews()"))
     fail("7: mobile.tsx lost the createMobileViews function")
   if (!mobile.includes("entries,")) fail("7: mobile.tsx lost the entries return key")
@@ -577,7 +577,7 @@ console.log(
     "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS pair (issue #23) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
     "2: NEGATIVE zero History-API writes across the four upstream src trees (drift sentinel) + pwa.ts replaceState sole touchpoint + exactly two target=\"_blank\" tool-link anchors (same-window navigation class paths); " +
     "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (verify-terminal group 6); " +
-    "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/14 hits, 20 files + host-apis comment anchor = 23 hits / 21 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
+    "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/13 hits, 19 files + host-apis comment anchor = 22 hits / 20 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
     "5: DEFAULT_PALETTE_KEYBIND + three hidden command.palette registrations + slash set equality (8-key + 3-key files, undo/redo pair CROSS-REFERENCE verify-diff group 3) + GLOBAL sentinel exactly 11 registrations in exactly 2 files + DialogCommandPalette /open route; " +
     "6: settings.v3 key + seven schema segments + mobileTitlebarPosition default + language store/loadInitialLocale/setLocale + oc-theme-preload three localStorage keys + Persist.global(\"model\") CROSS-REFERENCE (verify-provider-models); " +
     "7: createMobileViews + entries/tabs/menu/find return keys + lazy MobilePanelDrawer; " +

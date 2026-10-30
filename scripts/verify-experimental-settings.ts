@@ -207,7 +207,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!timeline.includes("const settings = useSettings()")) fail("5: message-timeline.tsx lost the settings accessor")
   if (!timeline.includes("    foldUserMessages: settings.general.foldUserMessages,\n"))
     fail("5: message-timeline.tsx does not feed settings.general.foldUserMessages into the row renderer")
-  if (timeline.includes("PluginSlot")) fail("5: message-timeline.tsx adopted the plugin migration (not S38)")
+  // Issue #67 revision: the message-timeline token moved to PluginSlot with the host
+  // migration (S38's fold chain is unchanged — the negative becomes a positive anchor).
+  if (!timeline.includes("PluginSlot")) fail("5: message-timeline.tsx lost the PluginSlot slot (issue #67 host rename)")
 
   const row = await read(`${SUI}src/timeline/session-timeline-row.tsx`)
   if (!row.includes("  foldUserMessages?: Accessor<boolean>")) fail("5: session-timeline-row.tsx input lost foldUserMessages")
@@ -320,23 +322,21 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!catalog.includes('  "sidebar-right": {'))
     fail("6: catalog.ts lost sidebar-right (the v2.2.1 deletion must NOT be adopted — pin keeps the icon)")
 
-  // MINOR-1: all FOURTEEN remaining rejected v2.2.1 additions stay out (17 additions − 3
-  // adopted: minus, outline-chevron-right, and outline-steer since issue #66 / M-036).
+  // Issue #67 revision: the six gui-plugins-domain icons (outline-expand,
+  // outline-code-brackets, outline-quote, comment, file-document, outline-console) are
+  // adopted by M-037 and leave this rejection list; file-tree was never on it (pin has the
+  // artwork + alias — D5). All EIGHT remaining rejected v2.2.1 additions stay out
+  // (17 additions − 9 adopted: minus, outline-chevron-right, outline-steer since #66/M-036,
+  // plus the six M-037 adoptions).
   const rejected = [
     "outline-magnifier-minus",
     "outline-magnifier-plus",
-    "outline-expand",
-    "outline-code-brackets",
-    "outline-quote",
     "outline-wave-audio",
-    "comment",
     "outline-text",
     "outline-photo",
-    "file-document",
     "outline-audio",
     "outline-video",
     "outline-brain",
-    "outline-console",
   ]
   for (const name of rejected) {
     const asEntry = new RegExp(`^  "?${name}"?: \\{`, "m")
@@ -470,6 +470,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // Diff face: no vendor source outside the M-034 files mentions the new face.
   const tokens = ["newIcons", "setNewIcons", "foldUserMessages", "UserMessageFold", "user-message-fold", "user-expanded"]
   const m034Files = new Set(expected.map((p) => `vendor/upstream/${p}`))
+  // Issue #67: gui-plugins@v2.2.1's browser panel legitimately reads the newIcons
+  // experiment (newIcons() icon-artifact pick) — registered as an in-set exception.
+  m034Files.add("vendor/upstream/packages/gui-plugins/src/browser/panel.tsx")
   const skipDirs = new Set(["node_modules", "dist", ".vite", ".turbo"])
   async function scan(dir: string): Promise<void> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

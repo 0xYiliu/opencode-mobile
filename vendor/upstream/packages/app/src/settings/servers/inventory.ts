@@ -1,6 +1,6 @@
 import { createMemo } from "solid-js"
 import { ServerConnection, serverName, useServers } from "@/runtime/server/registry"
-import { useExtensionServers, type ExtensionServer } from "@/runtime/extension/servers"
+import { usePluginServers, type PluginServer } from "@/runtime/plugin/servers"
 import type { ServerCtx } from "@/runtime/server/runtime"
 import { pathKey } from "@/workspaces/path-key"
 
@@ -25,11 +25,11 @@ export type SettingsServer = {
   key: ServerConnection.Key
   name: string
   connection?: ServerConnection.Any
-  /** The extension entry of a contributed server, e.g. SSH or WSL. */
-  source?: ExtensionServer
+  /** The plugin entry of a contributed server, e.g. SSH or WSL. */
+  source?: PluginServer
 }
 
-export function settingsServers(connections: readonly ServerConnection.Any[], sources: readonly ExtensionServer[]) {
+export function settingsServers(connections: readonly ServerConnection.Any[], sources: readonly PluginServer[]) {
   const byKey = new Map(sources.map((item) => [item.key, item]))
   const connected = new Set<string>(connections.map(ServerConnection.key))
 
@@ -60,14 +60,14 @@ export function settingsServers(connections: readonly ServerConnection.Any[], so
 // A restored settings route must not be redirected against a partial list: contributed servers load asynchronously.
 export function useSettingsServersLoaded() {
   const servers = useServers()
-  const extensions = useExtensionServers()
+  const plugins = usePluginServers()
 
-  return () => servers.hydrated() && extensions.ready()
+  return () => servers.hydrated() && plugins.ready()
 }
 
 export function useSettingsServers() {
   const servers = useServers()
-  const extensions = useExtensionServers()
+  const plugins = usePluginServers()
 
-  return createMemo(() => settingsServers(servers.list, extensions.entries()))
+  return createMemo(() => settingsServers(servers.list, plugins.entries()))
 }

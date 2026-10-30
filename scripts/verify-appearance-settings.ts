@@ -78,7 +78,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 const APP = "vendor/upstream/packages/app/"
 const UI = "vendor/upstream/packages/ui/"
 const SESSION_UI = "vendor/upstream/packages/session-ui/"
-const GUI_EXT = "vendor/upstream/packages/gui-extensions/"
+const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const HOSTS = "packages/mobile-hosts/"
 const PATCHES = "vendor/upstream/patches/mobile/"
 const M035_PATCH = `${PATCHES}0035-M-035-appearance-motion-zoom.patch`
@@ -122,6 +122,10 @@ const WHITELIST = new Set([
   `${APP}src/settings/model.tsx`,
   `${APP}src/providers/connect/go-upsell-hero-art.ts`,
   `${UI}src/motion/reduced.ts`,
+  // Issue #67 M-037 drag-ins: v2.2.1-native files that carry their own
+  // prefers-reduced-motion blocks (upstream never data-motion-converted them).
+  `${APP}src/shell/palette-menu.css`,
+  `${UI}src/forms/search-list/search-list.css`,
 ])
 
 // --- 1. Three-state enum + arbiter (settings/model.tsx) ---
@@ -307,19 +311,22 @@ const WHITELIST = new Set([
   }
   const index = await read(`${UI}src/motion/index.ts`)
   if (!index.includes('export * from "./reduced"')) fail("6: ui/src/motion/index.ts lost the reduced re-export")
-  // Issue #66 rebase revision: ./spring and ./loop are vendored by M-036 (the Sources experiment's
-  // chip/panel springs and frame scheduler); ./velocity, ./waapi and ./slider remain un-vendored.
-  if (index.includes('from "./velocity"') || index.includes('from "./waapi"') || index.includes('from "./slider"'))
+  // Issue #67 revision: ./waapi is vendored by M-037 (shell/panel-motion.ts reads `ease`);
+  // ./velocity and ./slider remain un-vendored. ./spring and ./loop stay M-036's.
+  if (index.includes('from "./velocity"') || index.includes('from "./slider"'))
     fail("6: ui/src/motion/index.ts re-exports submodules this closure does not vendor (minimization drift)")
-  for (const required of ['export * from "./spring"', 'export * from "./loop"']) {
-    if (!index.includes(required)) fail(`6: ui/src/motion/index.ts lost the M-036 export ${required}`)
+  for (const required of ['export * from "./spring"', 'export * from "./loop"', 'export * from "./waapi"']) {
+    if (!index.includes(required)) fail(`6: ui/src/motion/index.ts lost the expected export ${required}`)
   }
 
   const uiPkg = await read(`${UI}package.json`)
   if (!uiPkg.includes('"./motion": "./src/motion/index.ts",'))
     fail("6: ui package.json lost the ./motion export")
-  if (uiPkg.includes('"./motion/solid"'))
-    fail("6: ui package.json carried ./motion/solid (upstream companion not vendored)")
+  // Issue #67: ./motion/solid ships with the real motion-tuning modules (ruling 4), so the
+  // old "companion not vendored" negative flips into positive anchors for the new exports.
+  for (const required of ['"./motion/solid": "./src/motion/solid.ts"', '"./motion-tuning-features": "./src/motion-tuning-features.ts"', '"./motion-tuning-fields": "./src/motion-tuning-fields.ts"']) {
+    if (!uiPkg.includes(required)) fail(`6: ui package.json lost the M-037 export ${required}`)
+  }
 }
 
 // --- 7. Whole-tree whitelist set-equality ---
@@ -347,7 +354,7 @@ const WHITELIST = new Set([
   // The plan v2 §8 step 3b app+ui subscan: same set, asserted over the narrower scope.
   const appUi = actual.filter((f) => f.startsWith(APP) || f.startsWith(UI))
   if (JSON.stringify(appUi) !== JSON.stringify(expected))
-    fail(`7: app+ui subscan is not the exact three-file whitelist — got ${JSON.stringify(appUi)}`)
+    fail(`7: app+ui subscan is not the exact five-file whitelist — got ${JSON.stringify(appUi)}`)
 }
 
 // --- 8. Tailwind custom variants only ---
@@ -359,8 +366,14 @@ const WHITELIST = new Set([
     fail("8: tailwind/index.css lost the motion-reduce custom variant")
   if (!tailwind.includes('@custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));'))
     fail("8: tailwind/index.css lost the motion-safe custom variant")
-  if (tailwind.includes("gui-plugins") || tailwind.includes('"../../../../stories"'))
-    fail("8: tailwind/index.css mixed in the @source gui-plugins/stories renames (pin has no such dirs — build breakage)")
+  // Issue #67: the @source scan root follows the package replacement (the vendored dir is
+  // gui-plugins now); the stories dir remains non-existent, so that half stays negative.
+  if (!tailwind.includes('@source "../../../../gui-plugins/src";'))
+    fail("8: tailwind/index.css lost the @source gui-plugins scan root (M-037 rename)")
+  if (tailwind.includes('"../../../../stories"'))
+    fail("8: tailwind/index.css mixed in the @source stories rename (pin has no such dir — build breakage)")
+  if (tailwind.includes("gui-extensions"))
+    fail("8: tailwind/index.css still references gui-extensions")
   if (tailwind.includes("data-timeline-width"))
     fail("8: tailwind/index.css mixed in the timeline-width rules (S11 domain — must stay out)")
 }

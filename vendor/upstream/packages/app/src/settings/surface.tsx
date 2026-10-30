@@ -4,16 +4,16 @@ import { createStore } from "solid-js/store"
 import { createSimpleContext } from "@opencode/ui/context"
 import { useLayout, type LayoutRoute } from "@/shell/state/layout"
 import { useCommand } from "@/shell/commands/command"
-import { createSettingsPages } from "@/runtime/extension/settings-pages"
+import { createSettingsPages } from "@/runtime/plugin/settings-pages"
 import { useSettingsServers } from "./servers/inventory"
 import {
-  isExtensionTab,
+  isExtensionTab as isPluginTab,
   isProjectTab,
   isRootTab,
   isServerTab,
   parseSettingsView,
   settingsViewUrl,
-  type SettingsExtensionTab,
+  type SettingsExtensionTab as SettingsPluginTab,
   type SettingsProjectTab,
   type SettingsRootTab,
   type SettingsServerTab,
@@ -22,7 +22,7 @@ import {
 } from "./route"
 
 export type {
-  SettingsExtensionTab,
+  SettingsPluginTab,
   SettingsHostView,
   SettingsProjectTab,
   SettingsRootTab,
@@ -103,7 +103,7 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
       active: open,
       route: source,
       view,
-      extensions,
+      plugins: extensions,
       search: {
         state: search,
         input(query: string) {
@@ -138,7 +138,7 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
           return true
         },
       },
-      open(tab: SettingsRootTab | SettingsExtensionTab = "general") {
+      open(tab: SettingsRootTab | SettingsPluginTab = "general") {
         show({ type: "root", tab })
       },
       openServer(server: string, tab: SettingsServerTab = "general") {

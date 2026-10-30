@@ -7,3 +7,7 @@
 export * from "./reduced"
 export * from "./spring"
 export * from "./loop"
+// mobile(M-037): the WAAPI helpers ride with panel-motion (shell/panel-motion.ts reads `ease`).
+export * from "./waapi"
+// mobile(M-037): the solid helpers ride with the real motion-tuning modules (the shim is retired).
+export * from "./solid"

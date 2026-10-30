@@ -47,14 +47,14 @@ import { useSettingsSurface } from "./surface"
 import { settingsViewRedirect } from "./route"
 import { pageIcons } from "./pages"
 import { revealSettingsSearch } from "./search-reveal"
-import { ExtensionSettingsPages } from "@/runtime/extension/settings-page-view"
-// mobile(M-026): the extension host handle for the first-party GUI extension manager.
-import { useExtensionHost } from "@/runtime/extension/host"
+import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
+// mobile(M-026): the plugin host handle for the first-party GUI extension manager.
+import { usePluginHost } from "@/runtime/plugin/host"
 import "@/settings/settings.css"
 
 const GuiExtensionsSettings = import.meta.env.DEV
   ? lazy(() =>
-      import("@/runtime/extension/settings-page-dev").then((module) => ({ default: module.GuiExtensionsSettings })),
+      import("@/runtime/plugin/settings-page-dev").then((module) => ({ default: module.GuiExtensionsSettings })),
     )
   : undefined
 
@@ -71,7 +71,7 @@ const ExtensionManager = lazy(() =>
 )
 
 function MobileExtensionManager() {
-  const host = useExtensionHost()
+  const host = usePluginHost()
 
   return (
     <Suspense>
@@ -322,7 +322,7 @@ function RootSettings() {
     {
       items: [
         ...rootClientTabs.map((item) => ({ ...item, label: language.t(item.label) })),
-        ...surface.extensions.pages().map((item) => ({
+        ...surface.plugins.pages().map((item) => ({
           value: item.value.id,
           icon: item.value.icon ?? pageIcons.extensions,
           label: item.value.title,
@@ -412,7 +412,7 @@ function RootSettings() {
       <Tabs.Content value="shortcuts" class="settings-panel">
         <SettingsKeybinds active={surface.view().tab === "shortcuts"} />
       </Tabs.Content>
-      <ExtensionSettingsPages />
+      <PluginSettingsPages />
       <Tabs.Content value="experimental" class="settings-panel">
         <SettingsExperimental />
       </Tabs.Content>

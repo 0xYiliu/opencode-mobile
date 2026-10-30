@@ -512,32 +512,6 @@ index e65a3fe..212b313 100644
    [data-component="session-tab-popover"],
    [data-component="session-tab-popover"][data-closed] {
      animation: none;
-diff --git a/packages/gui-extensions/src/browser/comment.css b/packages/gui-extensions/src/browser/comment.css
-index 803eeeb..a0ac333 100644
---- a/packages/gui-extensions/src/browser/comment.css
-+++ b/packages/gui-extensions/src/browser/comment.css
-@@ -28,7 +28,7 @@
-   transform-origin: top left;
- }
- 
--@media (prefers-reduced-motion: reduce) {
-+:root[data-motion="reduce"] {
-   [data-component="browser-comment"],
-   [data-component="browser-comment"] [data-slot="browser-comment-editor"] {
-     animation: none;
-diff --git a/packages/gui-extensions/src/details/details.css b/packages/gui-extensions/src/details/details.css
-index 57163e9..6ed5132 100644
---- a/packages/gui-extensions/src/details/details.css
-+++ b/packages/gui-extensions/src/details/details.css
-@@ -314,7 +314,7 @@
-   }
- }
- 
--@media (prefers-reduced-motion: reduce) {
-+:root[data-motion="reduce"] {
-   .session-summary-popover,
-   .session-service-menu {
-     animation: none;
 diff --git a/packages/session-ui/src/components/basic-tool.css b/packages/session-ui/src/components/basic-tool.css
 index 1346efd..2e129ce 100644
 --- a/packages/session-ui/src/components/basic-tool.css

@@ -1,4 +1,10 @@
 const source = {
+  // mobile(M-037): the four ui.preview.* keys the dragged-in preview-controls face reads (v2.2.1 values;
+  // zh falls back to en at runtime, matching the vendored-subset convention).
+  "ui.preview.controls": "Preview controls",
+  "ui.preview.zoomIn": "Zoom in",
+  "ui.preview.zoomOut": "Zoom out",
+  "ui.preview.fit": "Fit",
   "ui.sessionReview.title": "Session changes",
   "ui.sessionReview.title.git": "Git changes",
   "ui.sessionReview.title.branch": "Branch changes",

@@ -32,7 +32,19 @@ FULL="$(git -C "$CACHE" rev-parse --verify "$REV^{commit}")"
 DATE="$(git -C "$CACHE" log -1 --format=%cI "$FULL")"
 SUBJECT="$(git -C "$CACHE" log -1 --format=%s "$FULL")"
 
+# Per-package extraction revisions (issue #67): packages listed in manifest
+# "packageSources" extract from their own revision instead of the pin. A package born
+# after the pin (gui-plugins, upstream dae4077a96) is acquired from the v2.2.1 release
+# tree this way; every other package keeps the pin.
 PACKAGES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["packages"]))' "$MANIFEST")"
+declare -A PKG_REV
+while read -r p r; do PKG_REV["$p"]="$r"; done < <(python3 - "$MANIFEST" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for p, r in (m.get("packageSources") or {}).items():
+    print(f"{p} {r}")
+PY
+)
 TOPFILES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["topLevelFiles"]))' "$MANIFEST")"
 PARTIALS="$(python3 -c 'import json,sys; print(" ".join(e["path"] for e in json.load(open(sys.argv[1])).get("partialPackages", [])))' "$MANIFEST")"
 PATCHMAP_LEN="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["upstreamPatches"]))' "$MANIFEST")"
@@ -43,16 +55,28 @@ if [ "$FULL" != "$PIN" ]; then
 fi
 
 # 1. Extract the closure packages, top-level files and the upstream patch subset from the
-#    pinned tree. File-level excludes are dropped during extraction (recordings).
+#    pinned tree (packageSources overrides per package). File-level excludes are dropped
+#    during extraction (recordings).
 PATHSPEC=()
-for p in $PACKAGES; do PATHSPEC+=("packages/$p"); done
+for p in $PACKAGES; do
+  [ -n "${PKG_REV[$p]:-}" ] || PATHSPEC+=("packages/$p")
+done
 for f in $TOPFILES; do PATHSPEC+=("$f"); done
 for f in $PARTIALS; do PATHSPEC+=("$f"); done
 
 rm -rf "$DEST/packages"
 mkdir -p "$DEST/packages" "$DEST/patches"
-git -C "$CACHE" archive "$FULL" -- "${PATHSPEC[@]}" \
-  | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$DEST"
+if [ ${#PATHSPEC[@]} -gt 0 ]; then
+  git -C "$CACHE" archive "$FULL" -- "${PATHSPEC[@]}" \
+    | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$DEST"
+fi
+for p in $PACKAGES; do
+  r="${PKG_REV[$p]:-}"
+  [ -n "$r" ] || continue
+  git -C "$CACHE" archive "$r" -- "packages/$p" \
+    | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$DEST"
+  echo "vendor-sync: package $p extracted from packageSources $r"
+done
 
 # 2. Extract the registered upstream npm patch files from the same revision.
 python3 - "$MANIFEST" "$CACHE" "$FULL" "$DEST" <<'PY'
@@ -70,18 +94,24 @@ for key, rel in sorted(patches.items()):
     print(f"vendor-sync: upstream patch {key} -> {rel} ({len(blob)} bytes)")
 PY
 
-# 3. Apply the registered mobile patches (manifest order; --check first).
+# 3. Apply the registered mobile patches in manifest order, checking each patch right
+#    before applying it. The chain is order-dependent (later patches anchor on earlier
+#    hunks, e.g. M-005 anchors on M-002's MemoryOnlyPassword field), so a check-all-then-
+#    apply-all sweep would reject order-dependent patches against the pristine tree.
+#    (Issue #67 fix: the previous two-loop form only passed when the tree it ran against
+#    was already fully patched; verify-closure.sh has always checked per patch.)
 MOBILE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["mobilePatches"]))' "$MANIFEST")"
 for mp in $MOBILE_PATCHES; do
   git -C "$ROOT" apply --directory=vendor/upstream --check "$DEST/$mp"
-done
-for mp in $MOBILE_PATCHES; do
   git -C "$ROOT" apply --directory=vendor/upstream "$DEST/$mp"
   echo "vendor-sync: applied mobile patch $mp"
 done
 
 # 4. Provenance facts.
 echo "vendor-sync: manifest upstreamPatches=$PATCHMAP_LEN"
+for p in $PACKAGES; do
+  echo "vendor-sync: package source $p = ${PKG_REV[$p]:-$FULL}"
+done
 echo "vendor-sync: ghostty-web pin $(grep -o 'ghostty-web#[0-9a-f]*' "$DEST/packages/app/package.json" | head -1)"
 echo "vendor-sync: done — tree rebuilt at $DEST"
 
