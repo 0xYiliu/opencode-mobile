@@ -1599,6 +1599,50 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **设备注记**：设备现装 pre-rebase 构建（38995b53…）；壳代码 rebase **零变更**（#70 未触碰 android/，QA 证据链对 rebase 后壳代码持续有效）；rebase 后构建 `a0ef685d…` 已就绪，待协调员设备轮（#70 QA-1..6 与 #71 遗留解码/兑换段）统一调度时一并覆盖。
 
 来源：[implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E27 行与 D03 行；[matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) D03 行；[决策记录 0007](decisions/0007-pairing-deep-link.md)。
+
+## issue #72 段（S39：About 页版本展示对齐，M-040）——2026-10-30 实测记录
+
+交付物：`vendor/upstream/patches/mobile/0040-M-040-about-version-face.patch`（恰 5 vendored 目标：`app/src/settings/about/notices/dialog.tsx` + `app/src/settings/settings.css` + `app/src/settings/about/about.tsx` + `app/src/entry.tsx` + `app/src/runtime/i18n/en.ts`）+ `patches/mobile/manifest.json` M-040 条目与 `vendor-manifest.json` mobilePatches（**38=38** 双登记；M-039 reserved-absent——并行 #71 分支预留，其 3 自有提交 5bcb301/d9c5b42/aac62ce 实证不触 entry.tsx/vendor/补丁链，撞槽名 0038-M-039 以其最终树为准）+ 第一方 `packages/mobile-hosts/src/app-version.ts`（新，`MOBILE_APP_VERSION="0.1.0"` 构建期常量）+ `src/index.ts` +1 导出 + `scripts/verify-about-version.ts`（新探针）+ verify-commands-menus/verify-attachments-artifacts/verify-gui-plugins/verify-notifications 哨兵同 commit 修订（38 registered + dist 基线回填）+ [matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) S39 行终态（双轨措辞）+ [implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E27（索引句 + 证据表行 + S39 小节：差异核对表/证伪结论/双轨/服务版本契约 MAJOR-1 措辞/二阶效应 MINOR-3 收敛/i18n 谱系定型/合并顺序声明）+ 本段。
+
+**双轨分离（交付呈现口径）**：轨 1 上游对齐 = notices dialog v2.2.1 逐字（恰 3 hunk）+ settings.css 恰一行 `overflow-y: auto`——目标面缺口清零，补后 dialog.tsx 与 v2.2.1 `3ebcf9a` 逐字节相同（`diff <(git show 3ebcf9a:…)` 实测为空）；轨 2 基线意图 = 三行版本展示（壳 0.1.0 via `MOBILE_APP_VERSION` 注入 / 基座 2.1.4 via vendored `package.json` / 服务版本 `/api/info`），**标注「非上游形态」**（上游 v2.2.1 恰两个版本键、无三行展示——证伪结论落 E27/S39 小节）。
+
+**差异核对表（验收 1a；v2.2.1 `3ebcf9a` vs pin `b4525d79bf`，逐文件实测）**：about.tsx 零变化（本单元前 vendored 已 `== v2.2.1`）；animated-wordmark.tsx v2.2.1 motion 改写已随 M-035/M-037 带入（`== v2.2.1`）；contributors 三件 + legal.svg + anomaly-brush.svg + notices.ts + fonts.ts 零变化（零触碰负锁）；**notices/dialog.tsx = 唯一剩余上游缺口**（`== pin`）；settings.css 缺一行使能行（M-035 他处 hunk 不相干）。i18n 枚举：上游恰两版本键（`settings.about.version` :799 / `error.page.version` :518，同源 `platform.version`）——「三种版本展示」证伪（矩阵旧措辞收口），三行展示为移动版本身份问题（壳 0.1.0 / 基座 2.1.4 / 服务 `/api/info`）。
+
+| 验证项 | 命令 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| V0 注册前硬门（R5/R6） | 构建 pristine pin + packageSources + M-001..M-038 中间树；`git apply --check 0040-M-040…`；apply 后 `diff -r` 回写 | **rc=0**；apply 后与工作树**字节一致**（settings.css 恰 +1/-0、上下文未漂移实测；触碰面恰 5 文件） | 本文 |
+| V3 闭包（38=38） | `bash scripts/verify-closure.sh` | PASS：V3(a) 树 == pin `b4525d79bf` + packageSources(gui-plugins=3ebcf9a) + M-001..M-040 字节一致（M-039 空洞容忍）；V3(b) DANGLING=0；V3(c) OK | 本文 |
+| 第一方回归 | `bun test --conditions=browser packages/mobile-hosts` | **423 pass / 0 fail / 2885 expect()**（39 文件）——与基线持平（S2 仅加常量，零漂移证明） | 本文 |
+| 上游定向子集 | 包内 `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/{model,search-results,route}.test.ts`；同型 `src/settings/about/contributors.test.ts` | settings 三件 **41/0/98**（未触文件守卫）+ contributors **2/0/3**（about 目录定向）——与基线同数不回退 | 本文 |
+| vendored 类型检查 | `vendor/upstream/packages/app` 内 `bun run typecheck:tsc`（stash 前后双侧实测） | **388 错误 == 改动前基线 388**（零漂移）；五触面文件（about/notices dialog/settings.css/entry/i18n en）**零错误**（首轮发现 about.tsx Show 泛型误用 1 错误——`when` 传函数引用致子元素类型塌缩，改为 `when={serverVersionLine()}` JSX getter 求值后清零；该修复即终态源码）；顺带清理 tsc -b 在 `packages/mobile-hosts/src/` 落下的 7 个 `.d.ts` 发射物（composite 引用发射物，基线无、不入库） | 本文 |
+| 探针 | `bun run scripts/verify-about-version.ts` | **rc=0**：组 1 notices v2.2.1 逐字面（data-scrollable + 零 ScrollView token + css 一行 + M-040 css hunk 恰 +1/-0）；组 2 版本面锚（platform 行逐字/基座 pkg import/服务行 items()[0] + `ServerConnection.key(item)` + 三降级分支 + settings-about-versions 锚 + presentableVersion 守卫）；组 3 三方同步（常量=gradle:15=package.json=0.1.0 + index 导出 + entry 注入）；组 4 en 恰 4 键（3 serverVersion + 1 upstreamVersion 计数锁）/zh+zht 零键/language.tsx 回退锚逐字；组 5 负边界（Sentry `pkg.version` 行 + pkg import 逐字、`createWebPlatform(pkg.version)` 已消失、error.tsx 两消费点、host-apis `ctx.app.version`、search-catalog about 行逐字**且**不在 M-040 触碰集（MINOR-1 两条件锁：行为行锁，非文件级——该文件 ~88 行 delta 为他补丁在册工作）、触碰清单恰 5 文件、btw/goal M-036..038 零波及）；组 6 manifest 双登记 38=38 path-for-path | 本文 |
+| 负例演练（5 例） | 逐例 inject → probe → restore（备份 cmp 逐字节还原） | ①删 dialog `data-scrollable` → FAIL(rc=1)→还原 rc=0；②entry 回插 `createWebPlatform(pkg.version)` → FAIL→还原 rc=0；③常量改 `0.9.9` 破坏三方同步 → FAIL→还原 rc=0；④删 en `serverVersion.unavailable` 键 → FAIL→还原 rc=0；⑤**触碰清单注入**（patch 文件追加第六文件假 diff 段 search-catalog.ts）→ FAIL→还原 rc=0 | 本文 |
+| V2 构建 + copy + dist 新基线 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；新 dist **3516 文件 / 159,542,120 bytes**（文件数同 #70 基线，**字节数 +6,863**——4 i18n 新串 + 内联 0.1.0 常量 + 基座 2.1.4 入既有 chunk，无新增 chunk 文件）；三探针哨兵回填（commands-menus 常量+PASS 串、notifications 常量+PASS 串、gui-plugins 常量+PASS 串），旧值 3516/159,535,257（issue #70 incl. M-038）转历史档；回填后三探针 rc=0 | 本文 |
+| dist 标记（shipped 非 sourcemap） | grep 构建产物 | `Upstream OpenCode `/`Server OpenCode `/`Checking server version`/`Server version unavailable` 命中 `_assets/language-*.js`；`2.1.4` 命中 `_assets/shell-*.js`（基座行 pkg.version）；`var Zo=\`0.1.0\`` 命中 `_assets/index-*.js`（MOBILE_APP_VERSION 内联）；`settings-notices-scroll data-scrollable` 命中 notices dialog chunk `_assets/dialog-*.js` | 本文 |
+| APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:assembleDebug` | BUILD SUCCESSFUL；**APK SHA-256 `48d7faba88a48f7e2f0df8f59b4a7a1b4ff9e4473af8f79a2f35b7881b81a39c`**（65,290,914 bytes；未安装设备）；APK 内 `assets/web/` **3,516 条目 / 159,542,120 bytes**（provenance 对齐）；APK 内 markers 全命中（language chunk 四新串、shell chunk `2.1.4`、index chunk `0.1.0` 内联） | 本文 |
+| Android 单元测试 | `gradle -p android :app:testDebugUnitTest` | **17 tests / 0 failures**（BUILD SUCCESSFUL）——与基线持平 | 本文 |
+| 全量探针 sweep | 29 × `bun run scripts/verify-*.ts`（构建后首轮） | **25/29 rc=0**，4 例 rc=1 全部在册归因、与本分支零关联：①verify-recovery 组 5 ensureTunnel 陈旧正则——dev 既有（#63 段在册），`packages/mobile-hosts/src/runtime.ts` 本分支零触碰（git diff 为空）；②verify-inline-ssh-device——设备依赖探针（CDP 127.0.0.1:9222 ConnectionRefused），设备 QA 轮替代；③④verify-permission-requests/verify-session-workbench——gradle intermediates 假阳性（FAIL 串恰为 `android/app/build/intermediates/assets/debug/mergeDebugAssets/web/_assets/*.js`，#63 在册；**build 目录移出复测二者 rc=0、原样还原（APK 保留）**已按在册处置执行）。最终 HEAD 复扫见下文 rebase 轮记录（B-1 教训：sweep 以最终树为准） | 本文 |
+| 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff-check rc=0；leak-scan rc=1 为**基线既有**（synthetic 测试密钥与文档示例凭据在册集），改动前后输出 `diff` **逐行相同**（stash -u 前后双侧实测）——零新增命中 | 本文 |
+
+### 设备 QA 待执行（issue #72 段——与 #71 待执行 QA 串行使用同一 MatePad DBY2_AL00，协调员统一调度）
+
+| 项 | 内容 | 对应 |
+| --- | --- | --- |
+| QA-1 About 可达与三行实显 | 新 APK 安装（`install -r`，SHA-256 与本段产物一致）；Settings → About 可达（含设置搜索路径键入 "version license credits"）；版本行显 `0.1.0`、基座行显 `Upstream OpenCode 2.1.4`、服务行显已连真实远程 OpenCode 的 `/api/info` 版本（`Server OpenCode …`） | 验收 1b、轨 2 |
+| QA-2 服务行降级路径 | 停远端服务/断开 → 服务行显式 unavailable 文案（不留空白）；恢复连接 → checking 文案 → 版本回归（同一屏内完成）；健康检查先行挂载时序（R4）不崩溃 | 验收 1b 降级 |
+| QA-3 notices 弹窗行为级 | 弹窗打开且 `data-scrollable` 容器在 WebView 内实际可滚动（v2.2.1 交换的行为级验证） | 轨 1、验收 1b |
+| QA-4 zh 回退实态 | 系统 zh：既有行中文（「版本{{version}}」）、新行英文（登记实态，非缺陷） | E27 i18n 登记 |
+| QA-5 布局无回归 | 许可行/notices 按钮/wordmark/credits 原样；`settings-about-versions` 锚点行不挤压原 intro 布局 | 验收 2 |
+| QA-6 记录回写 | 结果回写本段 + E27/S39 小节结论句；环境不足项标注未验证并引静态证据 | E27 |
+
+### 诚实边界（issue #72 段）
+
+- **设备 QA 六项全部待执行**（上表）：本模块以静态探针 + 构建层证据 + 负例演练先行（沿 #66/#70 先例）；「三行版本实显/降级路径/notices 滚动/zh 回退」在设备复测前不得声称已运行验证。
+- **多主机边界**：About 服务行仅示排序首项（可能含隐藏主机）——移动典型单主机下等价；多主机完整版本面以 servers 设置行 tooltip 为准（E27 边界登记，评审 MAJOR-1 措辞落地）。
+- **基座行不随 v2.2.1**：基座行显示 vendored pin 的 `2.1.4`（pin 决定），不因上游 v2.2.1 发布而变——跟进基座版本属 pin 升级域，不在本单元。
+- **`0.1.0` 为构建期常量**：versionName 升版时须同步改 `packages/mobile-hosts/src/app-version.ts`（三方同步探针会 FAIL 提示——契约即护栏）。
+- **presentableVersion 为非空字符串守卫**：不做 semver 重解析（展示契约与 servers 行同款逐字）；服务返回异常形态版本串时按 unavailable 文案降级（空串/非字符串）。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
