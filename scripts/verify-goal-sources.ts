@@ -8,7 +8,9 @@
 //      goal appended after microsoft-office in the v2.2.1 gui-plugins compose order (sources
 //      then goal); main.ts carries the same 15-id table with the six lazy main entries
 //      unchanged (sources/goal are renderer-only, ids reserved); the mobile face order set
-//      is exactly {10,20,30,40,50,60,70} — no duplicates (sources 60 menu, goal 70 menu).
+//      is exactly {10,20,30,40,50,60,70,80} — no duplicates (sources 60 menu, goal 70 menu,
+//      btw 80 menu registered by issue #70/M-038: the btw FACE belongs to that issue, but the
+//      order-set equality is locked here — same cross-probe convention as the #66 round).
 //   2. #67 host boundary (issue #67 revision): the OLD host tokens (`@opencode/gui-extensions`
 //      specifier, `Extension.define`, `useExtension`) have ZERO hits across the four vendored
 //      domains (gui-plugins/src, session-ui/src, app/src, ui/src), while `@opencode/plugin/gui`
@@ -168,7 +170,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*mainEntry:/g)].map((m) => m[1]!)
   setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy mainEntry set (sources/goal are renderer-only)")
 
-  // Mobile face orders across the seven registered faces: no duplicates, exact set.
+  // Mobile face orders across the eight registered faces: no duplicates, exact set.
+  // (btw 80 belongs to issue #70/M-038; the set equality lives here — declared cross-reference.)
   const faces: Array<[string, number, string]> = [
     ["review/renderer.tsx", 10, "tab"],
     ["file/renderer.tsx", 20, "menu"],
@@ -177,6 +180,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     ["details/renderer.tsx", 50, "drawer"],
     ["sources/renderer.tsx", 60, "menu"],
     ["goal/renderer.tsx", 70, "menu"],
+    ["btw/renderer.tsx", 80, "menu"],
   ]
   const seenOrders = new Set<number>()
   for (const [file, order, kind] of faces) {
@@ -192,7 +196,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     if (seenOrders.has(order)) fail(`1: mobile face order ${order} duplicated (registry would mis-sort)`)
     seenOrders.add(order)
   }
-  setEq(seenOrders, [10, 20, 30, 40, 50, 60, 70], "1: mobile face order set {10..70}")
+  setEq(seenOrders, [10, 20, 30, 40, 50, 60, 70, 80], "1: mobile face order set {10..80}")
 }
 
 // --- 2. #67 host boundary (four tokens x four vendored domains, zero hits) ---
@@ -711,13 +715,13 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
 console.log(
   "verify-goal-sources: PASS (" +
-    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal, v2.2.1 order), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,70} no duplicates (sources 60 menu, goal 70 menu); " +
+    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal, v2.2.1 order), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,70,80} no duplicates (sources 60 menu, goal 70 menu, btw 80 menu by issue #70/M-038 — face owned there, set equality locked here); " +
     "2: #67 boundary — four new-host tokens zero-hit across the four vendored domains + the two new builtin directories double-checked; " +
     "3: goal — schema/opencode.goal verbatim incl. the three toStandardSchemaV1 wrappers (implementation note: the closure's effect@4.0.1 exports the API and PortableDefinition requires it — the plan's strip step proven unnecessary, verbatim form locked), data layer store/key/createKeyed/heard/error-swallow verbatim, status three-state map verbatim, session.command pause/resume/clear + error toast verbatim, Panel re-shell (pinned/transient/side + mobile 70 menu, D1 marker), no server plugin vendored, no session.metadata.updated adoption; " +
     "4: sources — 0f379f0a33 four files verbatim anchors (uses/LinkHandler/transient/tab.count/uses.browser/openExternal), registered narrow-screen branch + gate-off honest empty states, session-ui exports 4, ui en 9 keys in v2.2.1 position, app en 2 keys en-only, Experimental row (storedToggle/setStoredToggle, default false), SourcesProvider inside MarkdownProvider, three hook increments, M-034 fold witnesses intact; " +
     "5: gate shim — opencode.motion.v2 record format, four consumed faces only, zero runtime imports, no Knobs console/settings.v3/auto-enable face, knob default false (NEGATIVE 1 target); " +
     "6: user-runs/quote negatives — eight-token message-content scan (= revised #64 kept set), current-message UserRun/run? boundaries, timeline-row run={joined()} boundary, 14 kept catalog rejections, new session-ui directories clean; " +
     "7: motion — spring/loop zero-import verbatim, motion entry three exports with M-035 ownership note, sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the new surface exactly {motion/reduced.ts}; " +
-    "8: outline-steer verbatim artwork after waveform, M-036 in BOTH manifests with the exact 33-file patch face, dist-marker absence recorded deliberately; " +
+    "8: outline-steer verbatim artwork after waveform, M-036 in BOTH manifests with the exact 22-file patch face (post-M-036' re-table), M-037 in BOTH manifests, dist-marker absence recorded deliberately; " +
     "STATIC check - tab reachability, gate restart persistence, chip/panel presentation, goal command round-trips, toast rendering, empty states and TalkBack are device QA items registered in docs/build-and-verify.md)",
 )
