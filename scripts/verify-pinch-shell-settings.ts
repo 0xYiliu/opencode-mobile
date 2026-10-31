@@ -43,12 +43,14 @@
 //      behavior.ts createShellOptions (auto first item verbatim
 //      {id:"auto",value:"",name:"",terminalOnly:false}, terminalOnly:
 //      !shell.acceptable, the current-not-listed tail push); general.tsx
-//      ShellSetting (data-action="settings-shell", the ?? options()[0]
+//      ShellSetting (the v2.2.1 optional `action` prop with its doc comment,
+//      `data-action={props.action ?? "settings-shell"}`, the ?? options()[0]
 //      current fallback, the autoDefault key, the terminalOnly label suffix);
 //      servers.tsx ServerShell wiring (createServerShellController(() =>
-//      props.server) + <ShellSetting controller={controller} />) with the
-//      v2.2.1 per-row search naming `settings-shell:` NOT carried (S35
-//      layout domain stays out, zero-hit negative); en.ts shell keys ×4
+//      props.server) + <ShellSetting controller={controller}
+//      action={props.action} />) with the v2.2.1 per-row search naming
+//      `action={entry.key === props.selected ? undefined :
+//      `settings-shell:${entry.key}`}` carried since #102 (M-045); en.ts shell keys ×4
 //      verbatim; the wire contract — protocol config.ts GET /api/config/shell
 //      (config.shells) + PATCH /api/experimental/config (config.update) +
 //      Schema.Array(ConfigShell.Option), schema shell.ts ConfigShell.Option
@@ -60,8 +62,23 @@
 //      pin-form `.sdk.api.config.update({ shell: value || null })` positive
 //      AND the `api.experimental.config.update` cherry-pick negative AND the
 //      behavior re-export line (drift double-FAIL by design).
-//   3. Docs closure: matrix.md S12/S37 rows carry the terminal state (E30,
-//      issue #74, no 待核对 residue); implementation.md carries the E30
+//      ISSUE #102 REVISION (M-045): the servers page is now target-verbatim —
+//      general.tsx ShellSetting carries the optional `action` prop and renders
+//      `data-action={props.action ?? "settings-shell"}` (the General page
+//      default is unchanged), and servers.tsx threads the per-row search
+//      naming `action={entry.key === props.selected ? undefined :
+//      `settings-shell:${entry.key}`}` through ServerShell. The former
+//      "settings-shell: must stay out" negatives became required positives;
+//      the config.update witness legs are unchanged.
+//   3. Docs closure: matrix.md S12/S37 rows carry the terminal state (E30, no
+//      待核对 residue), now anchored to the POST-#102 row texts written by
+//      this same issue (S12 gains the "server-page migration did not touch the
+//      pinch row" clause; S37 is rewritten for the M-045 servers-page
+//      migration with the dynamic write/rollback BLOCKED mark). Ordering
+//      note: fail() exits on the FIRST failure, so a run surfaces one message
+//      at a time — pre-#102 this loop reported the S12 "issue #74" stale pin
+//      only; the S37 "issue #74" and S12 "MatePad 实测" stale pins were
+//      repaired in the same revision. implementation.md carries the E30
 //      evidence-table row, the narrative paragraph and the E30 section;
 //      interaction-quality.md §四 carries the ruling sentence.
 //
@@ -285,13 +302,19 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     fail("2: behavior.ts lost the current tail push")
 
   // general.tsx ShellSetting — presentation face (read/write body identical
-  // pin→v2.2.1, E30; the optional action prop is v2.2.1-only, NOT carried).
+  // pin→v2.2.1, E30; the optional action prop + doc comment are the v2.2.1
+  // form, carried by M-045/issue #102; the General page passes no action so
+  // the effective default is unchanged).
   const general = await read(GENERAL_TSX)
   const gflat = squash(general)
-  if (!gflat.includes('exportconstShellSetting:Component<{controller:ShellSettingsController}>=('))
-    fail("2: general.tsx lost the ShellSetting component export")
-  if (!gflat.includes('data-action="settings-shell"'))
-    fail("2: general.tsx lost the settings-shell data-action")
+  if (
+    !gflat.includes(
+      "exportconstShellSetting:Component<{controller:ShellSettingsController/**Searchrevealstherowwiththedefaultaction;theServerspagenamestheotherservers'rowsapart.*/action?:string}>=(props)=>{",
+    )
+  )
+    fail("2: general.tsx lost the ShellSetting component export (target signature with the optional action prop)")
+  if (!gflat.includes('data-action={props.action??"settings-shell"}'))
+    fail("2: general.tsx lost the data-action={props.action ?? \"settings-shell\"} thread")
   if (!gflat.includes("current={options().find((option)=>option.value===props.controller.current())??options()[0]}"))
     fail("2: general.tsx lost the ?? options()[0] current fallback")
   if (!gflat.includes('if(option.id==="auto")returnlanguage.t("settings.general.row.shell.autoDefault")'))
@@ -300,20 +323,24 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     fail("2: general.tsx lost the terminalOnly label suffix")
   if (!gflat.includes("onSelect={(option)=>option&&props.controller.select(option.value)}"))
     fail("2: general.tsx lost the onSelect → controller.select wiring")
-  if (gflat.includes("props.action??"))
-    fail("2: general.tsx gained the v2.2.1 optional action prop (S35 layout domain — must stay out, E30)")
 
-  // servers.tsx ServerShell — the mount face (provenance: pin + M-037
-  // ExtensionServerRow→PluginServerRow rename ONLY; the shell face is
-  // untouched by any mobile patch, E30). The v2.2.1 per-row search naming
-  // `settings-shell:` must NOT be carried (S35 layout domain).
+  // servers.tsx ServerShell — the mount face, target-verbatim since M-045
+  // (issue #102). The v2.2.1 per-row search naming is a REQUIRED positive:
+  // non-selected servers' shell rows are named `settings-shell:<key>` for
+  // Settings search reveal; the selected one keeps the default.
   const servers = await read(SERVERS_TSX)
   if (!servers.includes("const controller = createServerShellController(() => props.server)"))
     fail("2: servers.tsx lost the ServerShell controller wiring")
-  if (!servers.includes("<ShellSetting controller={controller} />"))
-    fail("2: servers.tsx lost the ShellSetting mount")
-  if (servers.includes("settings-shell:"))
-    fail("2: servers.tsx carried the v2.2.1 per-row `settings-shell:` search naming (S35 layout domain — must stay out, E30)")
+  if (!servers.includes("<ShellSetting controller={controller} action={props.action} />"))
+    fail("2: servers.tsx lost the ShellSetting mount with the action thread (M-045)")
+  if (!servers.includes("function ServerShell(props: { server: ServerConnection.Any; action?: string })"))
+    fail("2: servers.tsx lost the ServerShell action prop (M-045)")
+  if (!servers.includes("action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}"))
+    fail("2: servers.tsx lost the per-row `settings-shell:<key>` search action (M-045)")
+  if (!servers.includes('entry.connection && health()?.healthy !== false ? props.entry.connection : undefined'))
+    fail("2: servers.tsx lost the single-view health gate on the Shell section (M-045)")
+  if (!servers.includes("entry.connection && controller.collection.health()[entry.key]?.healthy !== false"))
+    fail("2: servers.tsx lost the list-view health gate on the Shell section (M-045)")
 
   // en.ts shell keys ×4, verbatim (vendored :876-879; pin :820-823;
   // v2.2.1 :968-971 — byte-identical across all three sides, E30).
@@ -348,7 +375,13 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
 
 // --- 3. Docs closure ---
 {
-  // matrix.md S12/S37 terminal rows (E30, issue #74, no 待核对 residue).
+  // matrix.md S12/S37 terminal rows (E30, no 待核对 residue), anchored to the
+  // POST-#102 row texts (the same issue rewrites S37 for the M-045 servers
+  // page migration and extends S12 with the "migration did not touch the
+  // pinch row" clause; the stale "issue #74" markers and the "MatePad 实测"
+  // clause predate #101's matrix rewrite and are gone — the three stale pins
+  // were repaired here together because fail() exits on the first failure
+  // and only the first one ever surfaced per run).
   const matrix = await read("docs/alignment/windows-desktop/v2.2.1/matrix.md")
   const s12 = matrix.split("| S12 |")[1] ?? ""
   const s37 = matrix.split("| S37 |")[1] ?? ""
@@ -357,17 +390,23 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
   for (const [name, row] of [["S12", s12], ["S37", s37]] as const) {
     if (!row.includes("E30"))
       fail(`3: matrix.md ${name} row lost the E30 evidence marker`)
-    if (!row.includes("issue #74"))
-      fail(`3: matrix.md ${name} row lost the issue #74 marker`)
     if (row.includes("待核对"))
       fail(`3: matrix.md ${name} row still carries a 待核对 residue (issue #74 must leave the terminal state)`)
   }
   if (!s12.includes("保持 WebView 默认"))
     fail("3: matrix.md S12 row lost the ruling statement (保持 WebView 默认)")
-  if (!s12.includes("MatePad 实测"))
-    fail("3: matrix.md S12 row lost the device-QA measured clause (MatePad 实测)")
+  if (!s12.includes("MatePad 主页捏合/双击无缩放"))
+    fail("3: matrix.md S12 row lost the device-QA measured clause (MatePad 主页捏合/双击无缩放)")
+  if (!s12.includes("#102 服务器页迁移未触及捏合行"))
+    fail("3: matrix.md S12 row lost the post-#102 clause (服务器页迁移未触及捏合行)")
   if (!s37.includes("等价"))
     fail("3: matrix.md S37 row lost the equivalence conclusion (等价)")
+  if (!s37.includes("M-045"))
+    fail("3: matrix.md S37 row lost the post-#102 M-045 migration marker")
+  if (!s37.includes("ShellSetting action"))
+    fail("3: matrix.md S37 row lost the post-#102 ShellSetting action clause")
+  if (!s37.includes("仍未验"))
+    fail("3: matrix.md S37 row lost the dynamic write/rollback BLOCKED mark (真服务动态往返仍未验)")
 
   // implementation.md E30 row + narrative + section.
   const implementation = await read("docs/alignment/windows-desktop/v2.2.1/implementation.md")
@@ -387,7 +426,7 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
 console.log(
   "verify-pinch-shell-settings: PASS (" +
     "1: S12 pinch face — general.tsx gate/fetcher/rollback verbatim inside <Show when={desktop()}>, platform.tsx optional members + (desktop only) comments, search-catalog available:'desktop' kept, en.ts pinchZoom keys verbatim; NEW negatives: MainActivity zero setBuiltInZoomControls/setDisplayZoomControls/textZoom/useWideViewPort/loadWithOverviewMode, index.html zero maximum-scale, settings.css zero zoom/pinch/touch-action/overscroll, mobile-hosts zero /pinch/i, app/src zero nextDesktopZoomLevel (full-domain extension; desktop-menu.ts scoped first lock: verify-appearance-settings group 4); witnesses double-FAIL by design: MainActivity setSupportZoom + index.html user-scalable (verify-commands-menus group 4), four-segment viewport (verify-interaction-quality group 3); " +
-    "2: S37 contract face — controllers read path (config.get/config.shells catch, directory boundary, .at(-1)), no-op guard, optimistic mutate + rollback→showToast order, behavior auto-first-item/terminalOnly/tail-push, ShellSetting data-action + ?? options()[0] + autoDefault + terminalOnly suffix, ServerShell wiring + settings-shell: zero-hit (S35 out), en.ts shell keys ×4, protocol GET /api/config/shell + PATCH /api/experimental/config + Schema.Array(ConfigShell.Option), schema ConfigShell.Option path/name/acceptable; witness (first lock: verify-appearance-settings group 2): pin sdk.api.config.update call + experimental negative + no action prop carry; " +
-    "3: docs closure — matrix S12/S37 terminal rows (E30, issue #74, no 待核对), implementation.md E30 row/narrative/section, interaction-quality.md ruling sentence; " +
+    "2: S37 contract face — controllers read path (config.get/config.shells catch, directory boundary, .at(-1)), no-op guard, optimistic mutate + rollback→showToast order, behavior auto-first-item/terminalOnly/tail-push, ShellSetting target signature (optional action + doc comment) + data-action={props.action ?? \"settings-shell\"} + ?? options()[0] + autoDefault + terminalOnly suffix, ServerShell wiring + action thread (M-045: `settings-shell:<key>` for non-selected rows, single/list health gates) + en.ts shell keys ×4, protocol GET /api/config/shell + PATCH /api/experimental/config + Schema.Array(ConfigShell.Option), schema ConfigShell.Option path/name/acceptable; witness (first lock: verify-appearance-settings group 2): pin sdk.api.config.update call + experimental negative; " +
+    "3: docs closure — matrix S12/S37 terminal rows anchored to the post-#102 row texts (E30, no 待核对; S12 migration-did-not-touch clause, S37 M-045 migration + ShellSetting action clause + dynamic write/rollback BLOCKED mark; three stale #74-era pins repaired in this revision because fail() exits first), implementation.md E30 row/narrative/section, interaction-quality.md ruling sentence; " +
     "STATIC check — the on-device pinch outcome (Android WebView default state), the shell select round-trip against a real server and the settings-search face are QA items registered in docs/build-and-verify.md issue #74 (QA-1..QA-3); static equivalence does not prove server-side shell execution semantics (same endpoint + same field = equivalence by construction, E30 boundary note)",
 )
