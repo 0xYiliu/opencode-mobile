@@ -684,7 +684,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (distManifest.fileCount !== 3517 || distManifest.totalBytes !== 159606524)
     // Issue #96 measured: the first-party toggle-semantics fix (extension-manager onChange)
     // rebuilt the payload (3517/159606524; issue #101's settings-framework migration
-    // M-042..M-044 measured +1 chunk / +59460 via the migrated settings files; prior
+    // M-042..M-044 measured +1 chunk / +59859 via the migrated settings files; prior
     // 3516/159546665 = issue #96 toggle-semantics fix rebuild; issue #76's M-041 openExternal
     // bridge call measured 3516/159545922; issue #72's About version face + notices v2.2.1 line
     // measured 3516/159542455; issue #90's amended-M-037 rebuild measured 3516/159542120 +335

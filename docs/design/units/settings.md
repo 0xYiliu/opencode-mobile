@@ -21,6 +21,7 @@
 - `SettingsServerSwitcher`（servers/switcher.tsx，target 逐字）：per-server 页 headerAction 槽；**≤1 服务器不渲染**；菜单 = RadioGroup（健康点 + `ServerLabel` + unreachable 标记）+ 分隔线 + `Manage servers…`（→ servers 页）。
 - `SettingsServerUnavailable`（servers/unavailable.tsx，target 逐字）：per-server 页在所选服务器不可达时的整页态，`role="status"`；出口 = Retry（`global.servers.retry()`，等待一轮探测完成）+ Edit（http 服务器 → 编辑对话框；其余 → Manage servers）。服务移除/失效有出口（issue 验收项）。
 - 五个 page-glue 文件（providers/models/extensions/projects/workspaces）真实渲染 `settings-tab-header-actions` 插槽（`props.headerAction`），switcher 因此在 per-server 页可达；extensions 页另收 `directory` prop（本轮接受不接线——页内 MCP location 布线归所属页 Issue，props 块有标注）。
+- `SettingsServerDataScope`（`server-scope.tsx`）pin↔target **逐字节相同**——本单元仅引用不修改（ServerProvider + ModelsProvider 组合与 `directory` 透传保持原样）。
 - `health.ts` 为 target 形（`{status, retry}` 记录 + `stageHealth` + `hostname` 上报）；`runtime.tsx` 仅取 servers 返回块（`health: serverHealth.status, retry: serverHealth.retry`）+ 三处 `serverHealth.status[key]` 下标（:84/:91/:109 守卫）。`serverCtx()` 未授权服务器不发放 ctx。
 
 ## 搜索契约
@@ -50,7 +51,7 @@
 | 空 | 无服务器：本地设置可进（General/Appearance/About/Shortcuts/Notifications/Experimental）；per-server 组不可用；switcher 不渲染 |
 | 服务器不可达 | per-server 页 → `SettingsServerUnavailable`（Retry/Edit/Manage 出口）；服务器被删 → redirect 去 server |
 | 搜索 | 关键词 → 分组结果 → 选中 → focus reveal → back 回搜索前视图；anchor 缺失 no-op 不崩 |
-| 边界 | `settings.tab.sshHosts` 键仍在册（live consumer servers/connect/screen.tsx）；`settingsProjects` 导出已移除（四个消费者全部随迁移更新）；`new-session` openWorkspaces 改 `openServers(draft?.server)`（登记偏差——计划 shim 的 tab 不经 URL round-trip，会静默退化） |
+| 边界 | `settings.tab.sshHosts` 键仍在册（live consumer servers/connect/screen.tsx）；`settingsProjects` 导出已移除（四个消费者全部随迁移更新）；`new-session` openWorkspaces 改 `openServers(draft?.server)`（登记偏差——取计划 §2.2 具名备选：复用既有 API 成员、保留 draft 服务器上下文、不为即将重做的 new-session 增设待移除的过渡 shim；评审实证：计划 shim 形 `{root,tab,server}` 经 settingsViewUrl/parseSettingsView 对全部 pin 调用形均可忠实 round-trip（目标 rootTabs 含 per-server tabs），拒绝理由非解析限制。vendored screen.tsx 内注释仍为被取代的旧表述，以本条与 manifest reason 为准） |
 
 ## 诚实边界
 
