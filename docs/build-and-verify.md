@@ -2012,6 +2012,45 @@ verify-about-version=0、verify-agent-capabilities=0、verify-appearance-setting
 - **JS seam→transport 一跳的模拟器残差**：插桩轮曾出现「抽屉点击后静默无外跳」的间歇形态（ack 后同文档点击复验通过、部分跨 reload 会话点击静默）——QA 插桩定位为 dist 时序事故（见实施期勘误 1）+ 本会话高频 CDP reload 与握手重试周期竞态的组合；干净 APK 终验在 ack 稳定文档内全链通过。该残差在本会话环境（WebView 91 + QA polyfill + 高频调试 reload）下无法完全排除，**生产 WebView ≥120 族 + 正常用户节奏下的行为以真机复验为准**；对应失败形态为 fail-closed 静默（client 永不 throw、无部分外跳），不产生不安全行为。
 - **CDP 端口冲突事故**对 #75 的影响与双向复核建议见实施期勘误 2；本会话 QA 期副作用清单：`com.android.chrome` disable-user→enable 已复原（resolve-activity 复归 Chrome 实证）、adb forward tcp:19222 与 reverse tcp:46190 已撤除、QA 合成 opencode serve 进程已停止、服务器注册表注入两行残留于 **emulator AVD 数据**（AVD `issue76qa` 保留供复验，主应用数据零触碰——emulator 为一次性 QA 环境）、MatePad 全程未触碰。
 
+## issue #96 段（bug：extension-manager 开关语义反转恒 no-op——checked/disabled 反转直传 records.toggle）——2026-10-31 实测记录
+
+**四段登记（验收 4）**——①**引入**：#26 提交 `2d51373`：`packages/mobile-hosts/src/ui/extension-manager.tsx` 把 Kobalte Switch `onChange(next)` 的 **checked 新值**（checked⇔启用）直传 `setDisabled(id,next)`→`records.toggle(id,next)`（store 契约 `next=true`=禁用，extensions/manager.ts:111 逐字）——语义反转，任何点击恒 no-op（`opencode-mobile.guiext.v1` 持久化恒空集）；#74 设备补验轮 QA-1 三通道实证发现（该行登记于本文 :1408，其「禁用/启用的记录持久化不可验证（受缺陷阻断）」自本期解除）。②**逃逸**：store 单测锁 `true=disabled` 语义（store 侧正确，无错可检）+ 呈现层 mock 以 `!props.checked` 交付 Kobalte 新值契约（忠实模拟，测试侧同一反转从未被断言）+ **端到端断言缺失**（rendered 套件从未驱动一次点击到 store/persist 的全程）+ 此前无任何设备轮点击过该开关。③**修复**：翻转意图在唯一调用点落地 `onChange={(next)=>setDisabled(definition.id,!next)}`（commit `4d75fe3`）——store 的 `true=disabled` 契约与全部既有单测零改动。④**复测**：本段设备轮（下文，四腿全过）。
+
+交付物：`fix` 一处（extension-manager.tsx onChange 调用点 + 机制注释）+ `test` 一处（extension-manager.rendered.test.tsx 新 describe「guiext toggle end-to-end (issue #96)」两测试）+ 三 group-8 探针哨兵回填（159545922→**159546665**，commit `5addd90`）+ 本台账段。**零 vendor/壳/补丁链改动**（补丁集 39=39 不变；verify-closure V3(a) 字节级 PASS）。
+
+### 验证链（本机构建/静态/单测级，最终 HEAD `5addd90`）
+
+| 验证项 | 命令/口径 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| 新 e2e rendered（好树） | `bun test --conditions=browser packages/mobile-hosts/test/extension-manager.rendered.test.tsx` | **11 pass / 0 fail / 61 expect**（旧 9 + 新 2：①真实点击弧——DOM click 激活行为 + change 腿（happy-dom 实测只实现前者，后者本测补发）→ 真组件 handler → 真共享 store 单例（memory port）→ 持久化载荷 `{"version":1,"disabled":["context"]}` → 同 storage 新 store（新进程 loadGuiext 等价）→ 新挂载渲染 unchecked → 回点翻转 → 空载荷往返；②desktop-host 行开关渲染 disabled + 原始 click 腿零触达） | 本文 |
+| 坏树失败证明（修复 stash 对照） | 同命令，`git stash push -- src/ui/extension-manager.tsx` 后实跑 | **FAIL 同型**：`(fail) real click disables, persists, survives a restart…` @ `expect(records.disabled().has("context")).toBe(true)`（line 246）——点击后 store 恒空 = **no-op 精确复现**；同轮旧 9 测试全部继续 pass（逃逸面复现：既有断言对坏树盲） | 本文 |
+| 第一方全量 | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect**；pristine dev tip `7f25580` 对照 = **432/0/2907**（临时 worktree 实测）——净增恰 +2 tests/+13 expects = 本期两条新测试，零回归（任务基线 425/0/2895 为 #90 时代口径，dev tip 自其 后又增 7 tests，如实分账） | 本文 |
+| JVM 单测 + Android 构建 | `ANDROID_HOME=$HOME/.android-sdk gradle-9.6.1 -p android :app:testDebugUnitTest :app:assembleDebug` | BUILD SUCCESSFUL；**31 tests / 0 fail**（7 classes）；APK SHA-256 **`3bbc79f2e0519cf0ee0387fd3cfd805bb4eb3a2866004a1aa31f4932afd3e182`**（65,303,214 bytes） | 本文 |
+| dist 重建 + 哨兵回填 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | **3516 files / 159,546,665 bytes**（较 #76 基线 159,545,922 +743——唯一源级 delta 为 onChange 取反）；三哨兵（verify-gui-plugins/verify-commands-menus/verify-notifications）159545922→159546665 同 commit 回填 + 旧值转历史档 + #96 归因注记，三探针复跑 rc=0 | 本文 |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**：V3(a) 树 == pin + packageSources + 39 补丁字节一致；V3(b) DANGLING=0；V3(c) recordings 排除（补丁集 39=39，本期零 vendor/补丁改动） | 本文 |
+| 全探针 sweep（首轮，构建前） | 32 × `bun run scripts/verify-*.ts`，`rc=$?` 显式捕获 | **30/32 rc=0**；rc=1 两例在册归因：①verify-inline-ssh-device = CDP 127.0.0.1:9222 ConnectionRefused（设备依赖——设备轮 CDP 通道实测可用，见下）；②verify-recovery = "5: runtime.ts lost the ensureTunnel function" 陈旧正则 dev 既有——**pristine `7f25580` 对照复跑同 rc=1 同消息**（临时 worktree 实测，非本期引入） | 本文 |
+| diff/leak 卫生 | `git diff --check`；`bash scripts/leak-scan.sh` | diff --check rc=0；leak-scan rc=1 基线既有（synthetic BEGIN PRIVATE KEY 测试夹具），命中集与 pristine `7f25580` 对照 **逐行 diff 为空（零新增）** | 本文 |
+
+### 设备 QA 实测记录（issue #96 段——2026-10-31，MatePad DBY2-AL00 @ 192.168.3.145:5555，Android 12，横屏；全程 `install -r`、零 uninstall/零 pm clear）
+
+- **三方哈希一致**：工作树构建 APK == `adb install -r` Success == `pm path` pull 回读，SHA-256 均 `3bbc79f2…`（65,303,214 bytes）。
+- **管理面呈现核对**：Extensions 面恰 15 行（web 10 / desktop-host 4 / wsl 静态排除行零 Switch 零按钮），与在册三集一致（#74 QA-1 呈现面复认）。
+- **复测弧（验收 3，四腿全过）**：
+  1. **真实触击 ON→OFF**（`adb input tap` 真触 = #96 三通道之通道 3；坐标经插桩校准 css×2.25 + 状态栏 72px 偏移，`isTrusted:true` pointerdown/up 实证落点 (1118,163) 正中 switch control）：context 行 checked true→**false**，`opencode-mobile.guiext.v1` `{"version":1,"disabled":[]}`→**`{"version":1,"disabled":["context"]}`**；截屏取证：context 行状态文案「Disabled」+ 开关 OFF、其余 web 行全 Active/ON（用后即删）。
+  2. **重启保持**：`am force-stop`（进程死亡，新 pid 13422）→ 重进 Extensions 面：开关仍 **OFF**、状态仍 Disabled、guiext 键保持 `["context"]`——持久化→新进程 loadGuiext→root.tsx 禁用集并集→管理面渲染全链在真机贯通。
+  3. **真实触击切回 OFF→ON**：同坐标再触，checked false→**true**，guiext 回 **`[]`**。
+  4. **再重启保持**：force-stop（pid 13423）→ 开关仍 **ON**、guiext 保持 `[]`。
+- **通道 1 补测（JS click）**：btw 行 `input.click()` 一次→guiext `["btw"]`、再 click→`[]`——同弧往返通过（#96 三通道之通道 1）。
+- **通道 2 环境偏差（如实登记）**：本轮 CDP `Input.dispatchMouseEvent`/`dispatchTouchEvent` 在该 hwschromium WebView 会话内**静默失效**（协议命令全部 rc-ok 但页面 document 级捕获监听零事件到达、touch 变体协议超时；目标唯一且为前台页，Runtime.evaluate 同通道正常）——与 #74 轮「CDP 可信点击」通道可用记录不符，归因设备/WebView 侧输入域限制，非应用行为；真实触击（通道 3）+ JS（通道 1）+ rendered 真实点击链（happy-dom）三路覆盖补位。
+- **环境性处置（在册问题复认）**：设备处于 Asleep（mWakefulness=Asleep、mCurrentFocus=null）致首轮真触零投递——`KEYCODE_WAKEUP` + `settings put system cover_enabled 0`（Smart Cover 误报，#90 轮同源）后恢复；**收尾已复原 `cover_enabled 1`（原值实测读回）**、adb forward 全部撤除、截屏证据删除。
+- **console 全程采集未执行（如实登记）**：本轮未挂全程 console/exception 采集；功能链证据以状态读取+截屏承载（每步 DOM 查询均命中活文档行、零错误边界接管形态）——「零 TypeError」的运行期声明**不主张**。
+
+### 诚实边界（issue #96 段）
+
+- **端到端「重启」的机器侧等价口径**：rendered 测试的「重启」= 同 storage 新 store（loadGuiext 构造期加载）+ 新挂载，为单进程内的结构等价而非真进程重启；真进程死亡重启的保持性由设备腿（force-stop ×2）实证——两端口径分开声明、合并闭环。
+- **CDP 通道 2 的失效原因未进一步取证**（WebView 输入域限制的精确版本/开关未查）——不影响修复有效性判定（另两通道 + 四腿重启弧均过），如后续轮需 CDP 可信点击取证，先在干净会话复测该域。
+- **desktop-host 行触击负例未在设备轮单独执行**（rendered 级已锁其 disabled 渲染 + 原始 click 腿零触达；设备轮聚焦验收 3 的启停保持弧）。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
