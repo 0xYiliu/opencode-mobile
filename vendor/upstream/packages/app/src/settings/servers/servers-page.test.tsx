@@ -198,9 +198,7 @@ try {
     const canaryChild = document.createElement("span")
     canaryChild.textContent = "canary"
     createRoot((dispose) => {
-      const tree = createComponent(SettingsList as (props: { children: unknown }) => unknown, {
-        children: canaryChild,
-      })
+      const tree = createComponent(SettingsList as never, { children: canaryChild } as never)
       insert(canaryHost, tree as never)
       dispose()
     })
@@ -356,7 +354,6 @@ describe("servers page (target-verbatim, issue #102)", () => {
     healthByServer["srv-editable"] = { healthy: true }
     let received: unknown
     pushed.length = 0
-    behavior!.dialogServerProps = undefined
     behavior!.setFireRowEdit(true)
 
     try {

@@ -1,8 +1,8 @@
 diff --git a/packages/app/src/runtime/server/persistence.test.ts b/packages/app/src/runtime/server/persistence.test.ts
-index 96e0d86..2dafac9 100644
+index 96e0d86..dcd0f54 100644
 --- a/packages/app/src/runtime/server/persistence.test.ts
 +++ b/packages/app/src/runtime/server/persistence.test.ts
-@@ -48,8 +48,30 @@ describe("server persistence schema", () => {
+@@ -48,8 +48,31 @@ describe("server persistence schema", () => {
      })
      expect(input.list[1]).toHaveProperty("username", "legacy")
      const encoded = Schema.encodeSync(schema)(state)
@@ -31,7 +31,8 @@ index 96e0d86..2dafac9 100644
 +      lastProject: {},
 +      recentlyClosed: {},
 +    })
-+    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(encoded)
++    const redecoded: unknown = Schema.decodeUnknownSync(schema)(encoded)
++    expect(redecoded).toEqual(encoded)
    })
  
    test("defaults missing or malformed fields and drops invalid entries independently", () => {
@@ -214,10 +215,10 @@ index ccfcd1d..f71c588 100644
          placement="bottom-end"
 diff --git a/packages/app/src/settings/servers/servers-page.test.tsx b/packages/app/src/settings/servers/servers-page.test.tsx
 new file mode 100644
-index 0000000..708cd84
+index 0000000..4188ac0
 --- /dev/null
 +++ b/packages/app/src/settings/servers/servers-page.test.tsx
-@@ -0,0 +1,394 @@
+@@ -0,0 +1,391 @@
 +import { plugin } from "bun"
 +import { describe, expect, mock, test } from "bun:test"
 +import { createComponent, createRoot } from "solid-js"
@@ -418,9 +419,7 @@ index 0000000..708cd84
 +    const canaryChild = document.createElement("span")
 +    canaryChild.textContent = "canary"
 +    createRoot((dispose) => {
-+      const tree = createComponent(SettingsList as (props: { children: unknown }) => unknown, {
-+        children: canaryChild,
-+      })
++      const tree = createComponent(SettingsList as never, { children: canaryChild } as never)
 +      insert(canaryHost, tree as never)
 +      dispose()
 +    })
@@ -576,7 +575,6 @@ index 0000000..708cd84
 +    healthByServer["srv-editable"] = { healthy: true }
 +    let received: unknown
 +    pushed.length = 0
-+    behavior!.dialogServerProps = undefined
 +    behavior!.setFireRowEdit(true)
 +
 +    try {

@@ -71,7 +71,8 @@ describe("server persistence schema", () => {
       lastProject: {},
       recentlyClosed: {},
     })
-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(encoded)
+    const redecoded: unknown = Schema.decodeUnknownSync(schema)(encoded)
+    expect(redecoded).toEqual(encoded)
   })
 
   test("defaults missing or malformed fields and drops invalid entries independently", () => {
