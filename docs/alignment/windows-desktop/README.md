@@ -6,7 +6,7 @@
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.1 | 活跃目标，首个基准 | main `4c2ec43`；vendor `b4525d79bf` | 已有客户端及 APK/局部 MatePad 冒烟记录；目标版本运行等价性未验证 | [矩阵](v2.2.1/matrix.md) · [Windows 基准](v2.2.1/baseline.md) · [实现证据](v2.2.1/implementation.md) |
+| v2.2.1 | 活跃目标，首个基准 | main/dev `c68ccc0`（2026-11-01 远端核对）；全局 vendor `b4525d79bf`，gui-plugins `3ebcf9a` + 移动补丁 | SSH 历史主链与设置/宿主局部补验已有；Inbox、队列/媒体等目标增量及当前双路由任务闭环仍有缺口 | [矩阵](v2.2.1/matrix.md) · [Windows 基准](v2.2.1/baseline.md) · [历史证据](v2.2.1/implementation.md) · [当前复核 E34](v2.2.1/current-review.md) |
 
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 
