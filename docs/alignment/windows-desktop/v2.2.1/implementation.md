@@ -1,5 +1,7 @@
 # 本项目实现证据：固定开发快照
 
+> **当前索引（2026-11-01）**：当前检查基线为 main/dev `c68ccc0c2541e4cf19be4befc706cb09fcce0690`，见 [E34 当前复核](current-review.md)。本文 E01–E33 保留各实施时点的来源与验证历史；其中“待执行”“待用户决策”“等 #67”等表述不能覆盖后续补验、ADR 收口和当前矩阵。最新功能结论见 [matrix.md](matrix.md)，设备事实以 `docs/build-and-verify.md` 对应 issue 的后续补验小节为准。E34 尤其补齐 #90/#96 复验状态、Inbox/队列/导出/Goal 的当前差异。
+
 ## 检查身份与复现
 
 差异盘点使用 `cf1504de929bd47bc7003c62a24e6c4488f2c498`（当时本地 `origin/dev`）；其后 `main@4c2ec43a0440c3aaec53fb5d8ade6dcaa05a8905` 合并 dev 与 issue-58。旧快照用来说明基线，不代表当前集成状态。读取命令：
