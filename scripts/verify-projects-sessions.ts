@@ -68,32 +68,30 @@ const read = async (path: string) => await Bun.file(new URL(path, appRoot)).text
     fail("M-017: home/sessions/archive.ts helper contract changed (remove/onError)")
 }
 
-// --- M-018: SSH hosts entry + guard revision in the multi-server settings layout ---
+// --- M-018 reachability under the migrated (v2.2.1) framework shell (issue #101 revision) ---
 {
   const shell = await read("src/settings/shell.tsx")
 
-  // Guard revision (the reachability PREREQUISITE): the root-tab redirect guard's
-  // includes list must no longer contain "servers" — otherwise the guard createEffect
-  // rewrites view.tab='servers' back to general in the multiple() layout. Asserted on
-  // the SOURCE structure of the guard list, not merely on the entry's existence.
-  const guard = /if \(\[([^\]]+)\]\.includes\(view\.tab\)\)\s*\n\s*surface\.open\("general"\)/.exec(shell)
-  if (!guard) fail('M-018: the root-tab redirect guard block was not found in settings/shell.tsx')
-  const guardTabs = guard![1]!.split(",").map((item) => item.trim().replaceAll('"', ""))
-  if (guardTabs.includes("servers"))
-    fail('M-018: the redirect guard still lists "servers" — the tab would bounce to general in the multiple() layout')
-  for (const kept of ["projects", "workspaces", "providers", "models", "extensions"]) {
-    if (!guardTabs.includes(kept)) fail(`M-018: the redirect guard dropped "${kept}" — upstream redirect semantics must stay`)
-  }
+  // The migration (M-043, target-verbatim shell) REMOVED the pin's root-tab redirect guard
+  // and the per-server nested view: the target layout keeps the "servers" group in the nav
+  // unconditionally and never bounces a root tab, so the M-018 pin guard block must be
+  // ABSENT (its presence would mean a stale pin-era shell came back).
+  if (/if \(\[([^\]]+)\]\.includes\(view\.tab\)\)\s*\n\s*surface\.open\("general"\)/.exec(shell))
+    fail('M-018: the pin root-tab redirect guard block came back — the migrated shell must not bounce root tabs')
 
-  // Entry: the multiple() nav group carries a fixed item opening the "servers" tab.
-  const group = /multiple\(\)\s*\n\s*\? \[[\s\S]*?items: \[[\s\S]*?\{ value: "servers", icon: "server" as const, label: language\.t\("settings\.tab\.sshHosts"\) \}/.exec(shell)
-  if (!group) fail('M-018: the multiple() nav group has no "servers" entry keyed on settings.tab.sshHosts')
+  // Servers-tab reachability asserted structurally: the target nav's unconditional
+  // "servers" group (target shell.tsx:276-283) — reachable with one or many servers.
+  if (!/items: \[\s*\{\s*value: "servers",\s*icon: pageIcons\.servers,\s*label: language\.t\(multiple\(\) \? "settings\.tab\.servers" : pageLabels\.servers\)/.exec(shell))
+    fail('M-018: the migrated nav lost the unconditional "servers" group (target shell.tsx:276-283 shape)')
 
-  // i18n keys exist in BOTH dictionaries.
+  // The settings.tab.sshHosts key stays REGISTERED (patches untouched) and live: its real
+  // consumer is servers/connect/screen.tsx:286.
   for (const dict of ["src/runtime/i18n/en.ts", "src/runtime/i18n/zh.ts"]) {
     if (!(await read(dict)).includes('"settings.tab.sshHosts":'))
       fail(`M-018: the settings.tab.sshHosts key is missing from ${dict}`)
   }
+  if (!(await read("src/servers/connect/screen.tsx")).includes('"settings.tab.sshHosts"'))
+    fail('M-018: the settings.tab.sshHosts key lost its live consumer in servers/connect/screen.tsx')
 }
 
 // --- Path boundaries: the phone filesystem never participates (issue #8) ---

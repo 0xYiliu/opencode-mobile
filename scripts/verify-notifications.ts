@@ -538,15 +538,17 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // Current baseline is read from a fresh Vite build of the tracked source tree.
   // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  // issue #96 measured: the first-party toggle-semantics fix (extension-manager onChange) rebuilt the payload
-  // (3516/159546665; issue #76's M-041 openExternal bridge call measured 3516/159545922; issue #72's About version face +
+  // issue #101 measured: the settings-framework migration (M-042..M-044) rebuilt the payload
+  // (3517/159606524, +1 chunk/+59460 via the migrated settings files; prior
+  // 3516/159546665 = issue #96's first-party toggle-semantics fix rebuild; issue #76's M-041
+  // openExternal bridge call measured 3516/159545922; issue #72's About version face +
   // notices v2.2.1 line measured 3516/159542455; issue #90's amended-M-037 rebuild,
   // prior 3516/159542120; issue #70's btw entry measured 3516/159535257 and issue #67's
   // gui-plugins swap measured 3516/159532385 — now historical).
-  if (distManifest.fileCount !== 3516)
-    fail(`8: current web-dist fileCount drifted (expected 3516, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 159546665)
-    fail(`8: current web-dist totalBytes drifted (expected 159546665, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.fileCount !== 3517)
+    fail(`8: current web-dist fileCount drifted (expected 3517, got ${String(distManifest.fileCount)})`)
+  if (distManifest.totalBytes !== 159606524)
+    fail(`8: current web-dist totalBytes drifted (expected 159606524, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []

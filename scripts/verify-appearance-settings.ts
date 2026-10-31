@@ -9,8 +9,11 @@
 //      withFallback; the system signal is createMediaQuery("@solid-primitives/media"); the
 //      dataset.motion effect is verbatim (system mirrors the media query, on/off override
 //      it). Layering negatives: the W05/S11/sounds faces of the same v2.2.1 file
-//      (sidebarOpen/backgroundActivity/timelineWidth/interfaceEnabled) are NOT carried,
-//      while the M-033 tabLayout three-value line and mobileTitlebarPosition remain.
+//      (backgroundActivity/timelineWidth/interfaceEnabled) are NOT carried, while the M-033
+//      tabLayout three-value line and mobileTitlebarPosition remain. (sidebarOpen left the
+//      negative list at issue #101: M-043 carries it as the framework dep of
+//      shell/sidebar-toggle.tsx — schema field + accessor only, marker-commented; the page
+//      faces stay with the owning issues.)
 //   2. Controllers (settings/general/controllers.ts): the zoom block (available via
 //      platform.zoomLevel presence, options [...desktopZoomLevels], current ?? 1, Intl
 //      percent label, select via setZoomLevel) and the reduceMotion block are verbatim
@@ -157,8 +160,9 @@ const WHITELIST = new Set([
   if (!model.includes(effect)) fail("1: model.tsx dataset.motion arbiter effect is not verbatim")
 
   // Layering negatives: same-file v2.2.1 faces owned by OTHER matrix rows stay out;
-  // M-033/pin lines stay in.
-  for (const token of ["sidebarOpen", "backgroundActivity", "timelineWidth", "interfaceEnabled"]) {
+  // M-033/pin lines stay in. (sidebarOpen is carried since issue #101 / M-043 — the
+  // collapsed-sidebar toggle's framework dep — so it left this negative list.)
+  for (const token of ["backgroundActivity", "timelineWidth", "interfaceEnabled"]) {
     if (model.includes(token)) fail(`1: model.tsx carried the ${token} face (W05/S11/sounds domain — must stay out)`)
   }
   if (!model.includes('tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),'))
@@ -381,16 +385,20 @@ const WHITELIST = new Set([
 // --- 9. Search catalog + A2 test face ---
 {
   const catalog = await read(`${APP}src/settings/search-catalog.ts`)
+  // Issue #101 / M-044 form: the migrated catalog keeps the A2 fields and the M-035 gate
+  // drop as a marker comment (no `available` line).
   const zoomEntry = [
     "  {",
     '    tab: "appearance",',
     '    label: "settings.appearance.row.zoom.title",',
     '    target: "settings-zoom",',
     '    keywords: "scale size text font larger bigger accessibility",',
+    '    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available',
+    "    // on this mobile client (the target row gates it desktop-only).",
     "  },",
   ].join("\n")
   if (!catalog.includes(zoomEntry))
-    fail("9: search-catalog.ts zoom entry is not the A2 form (verbatim fields, NO available line)")
+    fail("9: search-catalog.ts zoom entry is not the M-044 form (A2 fields + mobile(M-035) gate-drop marker)")
   const motionEntry = [
     "  {",
     '    tab: "appearance",',
@@ -407,12 +415,19 @@ const WHITELIST = new Set([
     fail("9: search-catalog.ts appearance entries are not after the terminalFont entry")
 
   const searchTest = await read(`${APP}src/settings/search-results.test.ts`)
-  if (!searchTest.includes("expect(rankSettings(\"font\", items, root)).toHaveLength(4)"))
-    fail("9: search-results.test.ts 'font' expectation is not the A2-forced length 4")
+  // Issue #101 / M-044 form: the migrated test uses the target 2-arg rankSettings, the zoom
+  // row joins the query (gate dropped by M-035), and the capsule assertion is gone with the
+  // three pruned dangling-anchor rows (absence-locked instead).
+  if (!searchTest.includes("expect(rankSettings(\"font\", items)).toHaveLength(4)"))
+    fail("9: search-results.test.ts 'font' expectation is not the M-044 2-arg length 4")
   if (!searchTest.includes("mobile(M-035)"))
     fail("9: search-results.test.ts lost the mobile(M-035) rationale comment on the length change")
   if (searchTest.includes('not.toContain("settings-zoom")'))
-    fail("9: search-results.test.ts carried the v2.2.1 not.toContain(\"settings-zoom\") line (false under A2 — registered future-sync note)")
+    fail("9: search-results.test.ts carried the target not.toContain(\"settings-zoom\") line (false under the M-035 web-availability ruling)")
+  if (searchTest.includes('expect(rankSettings("capsule"'))
+    fail("9: search-results.test.ts still carries the target capsule assertion (row pruned by mobile(M-044))")
+  if (!searchTest.includes('item.view.target === "settings-background-activity"'))
+    fail("9: search-results.test.ts lost the pruned-row absence lock (mobile(M-044) register)")
 }
 
 // --- 10. i18n ---
@@ -511,7 +526,7 @@ const WHITELIST = new Set([
 
 console.log(
   "verify-appearance-settings: PASS (" +
-    "1: reduceMotion three-value literal + system default + withFallback + createMediaQuery + verbatim dataset.motion arbiter, no sidebarOpen/backgroundActivity/timelineWidth/interfaceEnabled, M-033 tabLayout + mobileTitlebarPosition retained; " +
+    "1: reduceMotion three-value literal + system default + withFallback + createMediaQuery + verbatim dataset.motion arbiter, no backgroundActivity/timelineWidth/interfaceEnabled (sidebarOpen carried by issue #101/M-043 as the sidebar-toggle framework dep), M-033 tabLayout + mobileTitlebarPosition retained; " +
     "2: verbatim zoom/reduceMotion controller blocks, no experimental.config.update, pin config.update + behavior re-exports retained; " +
     "3: reduceMotionOptions three items, zoom row Show-gated before reduceMotion row, no sidebarOpen row; " +
     "4: desktopZoomLevels six levels + type, no nextDesktopZoomLevel, DESKTOP_MENU intact; " +
