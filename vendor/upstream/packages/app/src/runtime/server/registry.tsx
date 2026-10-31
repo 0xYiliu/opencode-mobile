@@ -1,4 +1,5 @@
 import { createSimpleContext } from "@opencode/ui/context"
+import { useLanguage } from "@/runtime/i18n/language"
 import { batch, createMemo } from "solid-js"
 import { type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/runtime/persistence/storage"
@@ -31,6 +32,18 @@ export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = fals
   if (conn.displayName && !ignoreDisplayName) return conn.displayName
 
   return conn.http.url.replace(/^https?:\/\//, "").replace(/\/+$/, "")
+}
+
+/**
+ * What switchers and titles call a server: a custom name wins, then, for the server the app runs beside, its
+ * hostname or the fallback; other servers show their address.
+ */
+export function serverLabel(conn: ServerConnection.Any, current?: { hostname?: string; fallback: string }) {
+  if (conn.displayName) return conn.displayName
+
+  if (current) return current.hostname || current.fallback
+
+  return serverName(conn)
 }
 
 function isLocalHost(url: string) {
@@ -315,6 +328,18 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
       return next
     }
 
+    const language = useLanguage()
+
+    // The desktop sidecar, or the server that served the web app.
+    const current = (conn: ServerConnection.Any) =>
+      ServerConnection.builtin(conn) || ServerConnection.key(conn) === props.canonicalLocalServer
+
+    // mobile(M-042): the hostname read stays out of this migration (the persisted `hostnames`
+    // record and the `setHostname` plumbing land with the server-identity issue); the label
+    // falls back to the localized "This computer" for the current server.
+    const label = (conn: ServerConnection.Any) =>
+      serverLabel(conn, current(conn) ? { fallback: language.t("server.thisComputer") } : undefined)
+
     return {
       get list() {
         return allServers()
@@ -335,6 +360,19 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
       remove,
       canRemove,
       scope,
+      current,
+      /** The name switchers, menus and titles show. */
+      label,
+      /** The name a list row shows next to its item: nothing for the current server or when it is the only one. */
+      tag(conn: ServerConnection.Any) {
+        return allServers().length < 2 || current(conn) ? undefined : label(conn)
+      },
+      /** "This computer" beside the current server's name, unless the name already says it. */
+      hint(conn: ServerConnection.Any) {
+        const text = language.t("server.thisComputer")
+
+        return current(conn) && label(conn) !== text ? text : undefined
+      },
       projects: {
         forServer: projectsForServer,
       },

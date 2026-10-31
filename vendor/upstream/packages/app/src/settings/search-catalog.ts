@@ -21,6 +21,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
   { tab: "notifications", label: "settings.tab.notifications" },
   { tab: "shortcuts", label: "settings.shortcuts.title", keywords: "keybind keyboard hotkey" },
   { tab: "about", label: "settings.tab.about", keywords: "version license credits" },
+  { tab: "experimental", label: "settings.tab.experimental", keywords: "experiments preview beta" },
   { tab: "general", label: "settings.general.row.language.title", target: "settings-language" },
   {
     tab: "general",
@@ -41,12 +42,6 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     target: "settings-auto-accept-permissions",
     description: "settings.permissions.autoAccept.default.description",
     keywords: "permissions approve allow auto accept default",
-  },
-  {
-    tab: "general",
-    label: "settings.general.row.terminalPlacement.title",
-    target: "settings-terminal-placement",
-    keywords: "terminal side bottom position",
   },
   {
     tab: "general",
@@ -72,6 +67,18 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     target: "settings-timeline-detail",
     section: "settings.timeline.title",
     keywords: "thinking reasoning tools timeline summary detailed",
+  },
+  // mobile(M-044): the three target rows below were pruned because their reveal anchors live
+  // in page content this migration does not carry (S04+ pages, issues #102–#110). Each row
+  // returns together with its page anchor when the owning page issue lands:
+  //   settings-background-activity + settings-timeline-width -> session/screen page issue (#102/#109 scope, plan §2.3)
+  //   settings-sounds-interface -> notifications page issue
+  {
+    tab: "general",
+    label: "settings.timeline.row.turnDiffs.title",
+    description: "settings.timeline.row.turnDiffs.description",
+    target: "settings-show-turn-diffs",
+    section: "settings.timeline.title",
   },
   {
     tab: "general",
@@ -123,6 +130,8 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     label: "settings.appearance.row.zoom.title",
     target: "settings-zoom",
     keywords: "scale size text font larger bigger accessibility",
+    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
+    // on this mobile client (the target row gates it desktop-only).
   },
   {
     tab: "appearance",
@@ -178,9 +187,12 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     description: "settings.general.sounds.errors.description",
     keywords: "sound audio errors",
   },
+  // mobile(M-044): `settings-sounds-interface` pruned with the other two dangling-anchor
+  // rows above; restored by the notifications page issue together with its page anchor.
 ]
 
-export const serverSettings: Entry<SettingsServerTab>[] = [
+// Pages showing the selected server, and rows of its card on the Servers page.
+export const serverSettings: Entry<SettingsServerTab | "servers">[] = [
   { tab: "projects", label: "settings.tab.projects" },
   { tab: "workspaces", label: "settings.tab.workspaces", keywords: "workspaces disk usage cleanup delete" },
   { tab: "providers", label: "settings.providers.title", keywords: "connect api key credentials" },
@@ -192,21 +204,19 @@ export const serverSettings: Entry<SettingsServerTab>[] = [
     label: "settings.extensions.tab.mcps",
     keywords: "model context protocol tools",
   },
-  { tab: "extensions", subtab: "plugins", label: "settings.extensions.tab.plugins" },
+  {
+    tab: "extensions",
+    subtab: "plugins",
+    label: "settings.extensions.tab.plugins",
+    keywords: "extension gui built-in",
+  },
   { tab: "extensions", subtab: "skills", label: "settings.extensions.tab.skills" },
   {
-    tab: "general",
+    tab: "servers",
     label: "settings.general.row.shell.title",
     target: "settings-shell",
     description: "settings.general.row.shell.description",
     keywords: "bash zsh powershell",
-  },
-  {
-    tab: "general",
-    label: "settings.server.preferences.websearch.title",
-    target: "settings-websearch",
-    description: "settings.server.preferences.websearch.description",
-    keywords: "web search provider",
   },
 ]
 

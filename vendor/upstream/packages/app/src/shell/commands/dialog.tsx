@@ -36,7 +36,10 @@ export function DialogCommandPalette(props: { onOpenFile?: (path: string) => voi
   const items = (q: string) => {
     if (!q) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
 
-    return palette.commandEntries().filter((entry) => matchesCommandPaletteEntry(entry, q))
+    return [
+      ...palette.commandEntries().filter((entry) => matchesCommandPaletteEntry(entry, q)),
+      ...palette.settings.items(q),
+    ]
   }
 
   return (
@@ -238,7 +241,7 @@ function PaletteRow(props: {
           </div>
         }
       >
-        <Match when={props.item.type === "command"}>
+        <Match when={props.item.type === "command" || props.item.type === "setting"}>
           <div class="command-palette-row-main">
             <div class="command-palette-row-text">
               <span class="command-palette-title">{props.item.title}</span>

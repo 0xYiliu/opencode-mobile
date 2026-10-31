@@ -1,0 +1,4161 @@
+diff --git a/packages/app/src/new-session/screen.tsx b/packages/app/src/new-session/screen.tsx
+index 30f28ad..01507f2 100644
+--- a/packages/app/src/new-session/screen.tsx
++++ b/packages/app/src/new-session/screen.tsx
+@@ -1,7 +1,6 @@
+ import { createPromptProjectController } from "@/new-session/project/selector"
+ import { useSettingsSurface } from "@/settings/surface"
+ import { useTabs, type DraftTab } from "@/shell/tabs/tabs"
+-import { useSettingsServers } from "@/settings/servers/inventory"
+ import { useSearchParams } from "@solidjs/router"
+ import { createEffect, createMemo, createResource, on, untrack } from "solid-js"
+ import { createComposerModel } from "@/composer/model"
+@@ -16,7 +15,6 @@ import { createDraftMcpControls } from "./mcp"
+ export default function NewSessionPage(props: { draftId: string }) {
+   const [search, setSearch] = useSearchParams<{ draftId?: string; prompt?: string }>()
+   const tabs = useTabs()
+-  const servers = useSettingsServers()
+   const settingsSurface = useSettingsSurface()
+ 
+   const draftTab = createMemo(() =>
+@@ -26,13 +24,11 @@ export default function NewSessionPage(props: { draftId: string }) {
+   const openWorkspaces = () => {
+     const draft = draftTab()
+ 
+-    if (servers().length > 1 && draft) {
+-      settingsSurface.openServer(draft.server, "workspaces")
+-
+-      return
+-    }
+-
+-    settingsSurface.open("workspaces")
++    // mobile(M-043): the migrated settings framework folds per-server pages into the root
++    // view (`server` on a root view, no root "workspaces" tab), and a non-root tab next to a
++    // server does not survive the view's URL round-trip — so the pin-era deep links open the
++    // Servers page with the server's context until the new-session rework lands.
++    settingsSurface.openServers(draft?.server)
+   }
+ 
+   const workspace = createNewSessionWorkspaceController({
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 4eab4d9..56a3b8c 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -11,6 +11,7 @@ export const dict = {
+   "session.location.moveFailed": "Failed to move session",
+   "server.action.authenticate": "Authenticate",
+   "server.status.connecting": "Connecting over SSH…",
++  "server.thisComputer": "This computer",
+   "server.status.authentication": "Authentication required",
+   "command.category.suggested": "Suggested",
+   "command.category.view": "View",
+@@ -92,6 +93,7 @@ export const dict = {
+   "palette.group.commands": "Commands",
+   "palette.group.files": "Files",
+   "palette.group.recentSessions": "Recent sessions",
++  "palette.group.settings": "Settings",
+ 
+   "dialog.provider.search.placeholder": "Search providers",
+   "dialog.provider.empty": "No providers found",
+@@ -781,6 +783,14 @@ export const dict = {
+   "settings.servers.description": "Manage server connections",
+   "settings.server.description": "Manage this server’s connection and preferences",
+   "settings.server.section.connection": "Connection",
++  "settings.server.switcher.label": "Server",
++  "settings.server.switcher.unreachable": "Unreachable",
++  "settings.server.switcher.manage": "Manage servers…",
++  "settings.server.unreachable.title": "Can't reach {{server}}",
++  "settings.server.unreachable.description":
++    "{{server}} isn't responding. Its settings will appear here once it reconnects.",
++  "settings.server.unreachable.retry": "Retry",
++  "settings.server.unreachable.edit": "Edit server",
+   "settings.server.preferences.websearch.title": "Third-party search",
+   "settings.server.preferences.websearch.description": "Select the search provider agents use to search the web",
+   "settings.projects.title": "Projects",
+diff --git a/packages/app/src/runtime/server/health.ts b/packages/app/src/runtime/server/health.ts
+index 008b804..44a0165 100644
+--- a/packages/app/src/runtime/server/health.ts
++++ b/packages/app/src/runtime/server/health.ts
+@@ -2,12 +2,15 @@ import { usePlatform } from "@/runtime/platform/platform"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import { authTokenFromCredentials } from "./api"
+ import { ClientError, isUnauthorizedError, OpenCode } from "@opencode/client"
+-import { Accessor, createEffect, onCleanup } from "solid-js"
++import { Match } from "effect"
++import { Accessor, createEffect, createSignal, onCleanup } from "solid-js"
+ import { createStore, reconcile } from "solid-js/store"
+ 
+ export type ServerHealth = {
+   healthy: boolean
+   version?: string
++  /** The server machine's name, when the server reports one. */
++  hostname?: string
+   incompatible?: boolean
+   checking?: boolean
+   unauthorized?: boolean
+@@ -37,15 +40,14 @@ function cacheKey(server: ServerConnection.HttpBase) {
+   return `${server.url}\n${server.password ?? ""}`
+ }
+ 
+-function timeoutSignal(timeoutMs: number) {
+-  const timeout = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout
++/** A signal that aborts after a timeout, and how to stop its timer early when one runs. */
++type Timeout = { readonly signal: AbortSignal; readonly clear?: () => void }
+ 
+-  if (timeout) {
++function timeoutSignal(timeoutMs: number): Timeout {
++  // Some runtimes lack `AbortSignal.timeout` or throw from it; a timer stands in.
++  if ("timeout" in AbortSignal) {
+     try {
+-      return {
+-        signal: timeout.call(AbortSignal, timeoutMs),
+-        clear: undefined as (() => void) | undefined,
+-      }
++      return { signal: AbortSignal.timeout(timeoutMs) }
+     } catch {}
+   }
+ 
+@@ -77,6 +79,8 @@ function wait(ms: number, signal?: AbortSignal) {
+   })
+ }
+ 
++// SAFETY: a rejection's reason is unknown by contract; this is the boundary that classifies it, by `instanceof` only.
++// oxlint-disable-next-line anti-slop/no-unknown-parameters -- see SAFETY above
+ function retryable(error: unknown, signal?: AbortSignal) {
+   if (signal?.aborted) return false
+ 
+@@ -107,8 +111,8 @@ export async function checkServerHealth(
+       }
+     : undefined
+ 
+-  const next = (count: number, error: unknown) => {
+-    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false } as const)
++  const next = (count: number, retry: boolean) => {
++    if (count >= retryCount || !retry) return Promise.resolve({ healthy: false } as const)
+ 
+     return wait(retryDelayMs * (count + 1), signal)
+       .then(() => attempt(count + 1))
+@@ -122,7 +126,9 @@ export async function checkServerHealth(
+       headers,
+     })
+       .server.info({ signal })
+-      .then((status) => ({ data: { healthy: true as const, version: status.version } }))
++      .then((status) => ({
++        data: { healthy: true as const, version: status.version, hostname: status.hostname },
++      }))
+       .catch((error) => ({ error }))
+ 
+     if ("data" in current) return current.data
+@@ -131,7 +137,7 @@ export async function checkServerHealth(
+ 
+     if (isUnauthorizedError(current.error)) return { healthy: false, unauthorized: true }
+ 
+-    return next(count, current.error)
++    return next(count, retryable(current.error, signal))
+   }
+ 
+   return attempt(0).finally(() => timeout?.clear?.())
+@@ -139,6 +145,14 @@ export async function checkServerHealth(
+ 
+ const pollMs = 10_000
+ 
++// What a contributed server that is not ready reports: failed and incompatible are known; any other stage is unknown.
++const stageHealth = (stage: ServerConnection.Plugin["state"]) =>
++  Match.value(stage).pipe(
++    Match.when("failed", (): ServerHealth | undefined => ({ healthy: false })),
++    Match.when("incompatible", (): ServerHealth | undefined => ({ healthy: false, incompatible: true })),
++    Match.orElse((): ServerHealth | undefined => undefined),
++  )
++
+ export function useCheckServerHealth() {
+   const platform = usePlatform()
+   const fetcher = platform.fetch ?? globalThis.fetch
+@@ -173,13 +187,19 @@ export function createServerHealth(
+   enabled: Accessor<boolean>,
+   check: (http: ServerConnection.HttpBase) => Promise<ServerHealth>,
+ ) {
+-  const [status, setStatus] = createStore({} as Record<ServerConnection.Key, ServerHealth | undefined>)
++  const [status, setStatus] = createStore<Record<ServerConnection.Key, ServerHealth | undefined>>({})
++  const [attempt, setAttempt] = createSignal(0)
+   const endpoints = new Map<ServerConnection.Key, string>()
++  // Callers of `retry` wait for the probe round it starts.
++  const waiting: (() => void)[] = []
+ 
+   createEffect(() => {
++    attempt()
++
+     if (!enabled()) {
+       endpoints.clear()
+       setStatus(reconcile({}))
++      waiting.splice(0).forEach((resolve) => resolve())
+ 
+       return
+     }
+@@ -196,16 +216,7 @@ export function createServerHealth(
+     for (const conn of list) {
+       if (conn.stage && conn.stage !== "ready") {
+         endpoints.delete(conn.key)
+-        setStatus(
+-          conn.key,
+-          reconcile(
+-            conn.stage === "failed"
+-              ? { healthy: false }
+-              : conn.stage === "incompatible"
+-                ? { healthy: false, incompatible: true }
+-                : undefined,
+-          ),
+-        )
++        setStatus(conn.key, reconcile(stageHealth(conn.stage)))
+         continue
+       }
+ 
+@@ -229,12 +240,7 @@ export function createServerHealth(
+       await Promise.all(
+         list.map(async (conn) => {
+           if (conn.stage && conn.stage !== "ready") {
+-            results[conn.key] =
+-              conn.stage === "failed"
+-                ? { healthy: false }
+-                : conn.stage === "incompatible"
+-                  ? { healthy: false, incompatible: true }
+-                  : undefined
++            results[conn.key] = stageHealth(conn.stage)
+ 
+             return
+           }
+@@ -250,7 +256,9 @@ export function createServerHealth(
+       setStatus(reconcile(results))
+     }
+ 
+-    void refresh()
++    void refresh().finally(() => {
++      if (!dead) waiting.splice(0).forEach((resolve) => resolve())
++    })
+     const id = setInterval(() => void refresh(), pollMs)
+     onCleanup(() => {
+       dead = true
+@@ -258,5 +266,13 @@ export function createServerHealth(
+     })
+   })
+ 
+-  return status
++  return {
++    status,
++    /** Probes every server now instead of at the next poll; resolves when that round finishes. */
++    retry: () =>
++      new Promise<void>((resolve) => {
++        waiting.push(resolve)
++        setAttempt((value) => value + 1)
++      }),
++  }
+ }
+diff --git a/packages/app/src/runtime/server/runtime.tsx b/packages/app/src/runtime/server/runtime.tsx
+index 56b493e..68a9849 100644
+--- a/packages/app/src/runtime/server/runtime.tsx
++++ b/packages/app/src/runtime/server/runtime.tsx
+@@ -81,14 +81,14 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+     // credentials, so its controller waits until health recovers and then starts with the current ones.
+     createMemo(() => {
+       for (const conn of server.list) {
+-        if (serverHealth[ServerConnection.key(conn)]?.unauthorized) continue
++        if (serverHealth.status[ServerConnection.key(conn)]?.unauthorized) continue
+         ensureServerCtx(conn)
+       }
+     })
+ 
+     createEffect(() => {
+       for (const [key] of serverCtxs) {
+-        if (serverHealth[key]?.unauthorized || !server.list.find((conn) => ServerConnection.key(conn) === key))
++        if (serverHealth.status[key]?.unauthorized || !server.list.find((conn) => ServerConnection.key(conn) === key))
+           disposeServerCtx(key)
+       }
+     })
+@@ -96,7 +96,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+     return {
+       servers: {
+         list: () => server.list,
+-        health: serverHealth,
++        health: serverHealth.status,
++        retry: serverHealth.retry,
+       },
+       models,
+       ensureServerCtx(conn: ServerConnection.Any) {
+@@ -106,7 +107,7 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+       serverCtx(key: ServerConnection.Key) {
+         const conn = server.list.find((item) => ServerConnection.key(item) === key)
+ 
+-        if (!conn || serverHealth[key]?.unauthorized) return
++        if (!conn || serverHealth.status[key]?.unauthorized) return
+ 
+         return ensureServerCtx(conn)
+       },
+diff --git a/packages/app/src/settings/command.tsx b/packages/app/src/settings/command.tsx
+index 9e19c24..bf76a81 100644
+--- a/packages/app/src/settings/command.tsx
++++ b/packages/app/src/settings/command.tsx
+@@ -3,6 +3,8 @@ import { useLanguage } from "@/runtime/i18n/language"
+ import { useSettingsSurface } from "./surface"
+ import type { SettingsRootTab } from "./surface"
+ 
++export const settingsOpenCommand = { id: "settings.open", keybind: "mod+comma" }
++
+ export function useSettingsDialog(defaultValue?: SettingsRootTab) {
+   const settings = useSettingsSurface()
+ 
+@@ -16,10 +18,9 @@ export function useSettingsCommand() {
+ 
+   command.register("settings", () => [
+     {
+-      id: "settings.open",
++      ...settingsOpenCommand,
+       title: language.t("command.settings.open"),
+       category: language.t("command.category.settings"),
+-      keybind: "mod+comma",
+       onSelect: show,
+     },
+   ])
+diff --git a/packages/app/src/settings/model.tsx b/packages/app/src/settings/model.tsx
+index 7852176..8b53fcc 100644
+--- a/packages/app/src/settings/model.tsx
++++ b/packages/app/src/settings/model.tsx
+@@ -139,6 +139,9 @@ const appearanceSchema = Persistence.struct({
+   terminal: Schema.String,
+   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
+   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
++  // mobile(M-043): the collapsed-sidebar toggle reads this (shell/sidebar-toggle.tsx, the
++  // settings-framework dependency closure); the page-level schema rework stays with #102+.
++  sidebarOpen: Persistence.optional(Schema.Boolean),
+   reduceMotion: Schema.Literals(["system", "on", "off"]),
+ })
+ 
+@@ -434,6 +437,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+         setTabLayout(value: TabLayout) {
+           setStore("appearance", "tabLayout", value)
+         },
++        sidebarOpen: withFallback(() => store.appearance?.sidebarOpen, true),
++        setSidebarOpen(value: boolean) {
++          setStore("appearance", "sidebarOpen", value)
++        },
+         reduceMotion,
+         setReduceMotion(value: ReduceMotion) {
+           setStore("appearance", "reduceMotion", value)
+diff --git a/packages/app/src/settings/models/models.tsx b/packages/app/src/settings/models/models.tsx
+index 7c6b5aa..c96f0b8 100644
+--- a/packages/app/src/settings/models/models.tsx
++++ b/packages/app/src/settings/models/models.tsx
+@@ -1,6 +1,6 @@
+ import { useFilteredList } from "@opencode/ui/hooks"
+ import { Switch } from "@opencode/ui/switch"
+-import { type Component, createEffect, createMemo, For, Show } from "solid-js"
++import { type Component, type JSX, createEffect, createMemo, For, Show } from "solid-js"
+ 
+ import { Schema } from "effect"
+ import { Persistence } from "@/runtime/persistence/schema"
+@@ -27,6 +27,7 @@ export const SettingsModels: Component<{
+   active?: boolean
+   provider?: string
+   onReveal?: () => void
++  headerAction?: JSX.Element
+ }> = (props) => {
+   const language = useLanguage()
+   const models = useModels()
+@@ -146,6 +147,7 @@ export const SettingsModels: Component<{
+             <h2 class="settings-tab-title">{language.t("settings.models.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.models.description")}</span>
+           </div>
++          <div class="settings-tab-header-actions">{props.headerAction}</div>
+         </div>
+         <SettingsSearchField
+           value={list.filter()}
+diff --git a/packages/app/src/settings/navigation.tsx b/packages/app/src/settings/navigation.tsx
+index 76827b8..e16d716 100644
+--- a/packages/app/src/settings/navigation.tsx
++++ b/packages/app/src/settings/navigation.tsx
+@@ -5,11 +5,12 @@ import { Tabs } from "@opencode/ui/tabs"
+ import { createEffect, ErrorBoundary, For, on, Show, type ComponentProps, type JSX } from "solid-js"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ErrorPage } from "@/shell/errors/error"
++import { CollapsedSidebarToggleSpace } from "@/shell/sidebar-toggle"
+ import { useSettingsSurface } from "./surface"
+ import { SettingsSearch } from "./search"
+ import "./search.css"
+ 
+-export type SettingsNavItem = {
++type SettingsNavItem = {
+   value: string
+   label: string
+   icon: ComponentProps<typeof Icon>["name"]
+@@ -54,10 +55,15 @@ export function SettingsNavigation(props: {
+   return (
+     <Tabs orientation="vertical" variant="settings" value={props.value} onChange={change} class="settings">
+       <div class="settings-mobile-nav">
+-        <button type="button" class="settings-back" onClick={back}>
+-          <Icon name="arrow-left" size="small" class="settings-back-icon" />
+-          <span>{backLabel()}</span>
+-        </button>
++        <div class="flex min-w-0 items-center">
++          {/* Starts after the shell's 8px inset and this row's 16px padding. Its 32px height makes the row 48px tall,
++              like the session header, so the back button centers on the collapsed sidebar toggle's line. */}
++          <CollapsedSidebarToggleSpace start={24} class="h-8" />
++          <button type="button" class="settings-back" onClick={back}>
++            <Icon name="arrow-left" size="small" class="settings-back-icon" />
++            <span>{backLabel()}</span>
++          </button>
++        </div>
+         <div class="settings-mobile-actions">
+           {props.mobileAction}
+           <Menu placement="bottom-end" gutter={8}>
+diff --git a/packages/app/src/settings/pages.ts b/packages/app/src/settings/pages.ts
+index fa1c1f1..2aad8a9 100644
+--- a/packages/app/src/settings/pages.ts
++++ b/packages/app/src/settings/pages.ts
+@@ -14,7 +14,6 @@ export const pageIcons = {
+   extensions: "extensions",
+   servers: "server",
+   experimental: "flask",
+-  "gui-extensions": "extensions",
+   about: "info",
+ } as const satisfies Record<SettingsRootTab, IconProps["name"]>
+ 
+@@ -30,6 +29,5 @@ export const pageLabels = {
+   extensions: "settings.tab.extensions",
+   servers: "settings.section.server",
+   experimental: "settings.tab.experimental",
+-  "gui-extensions": "settings.guiExtensions.title",
+   about: "settings.tab.about",
+ } as const satisfies Record<SettingsRootTab, Parameters<ReturnType<typeof useLanguage>["t"]>[0]>
+diff --git a/packages/app/src/settings/palette.test.ts b/packages/app/src/settings/palette.test.ts
+new file mode 100644
+index 0000000..df00fa4
+--- /dev/null
++++ b/packages/app/src/settings/palette.test.ts
+@@ -0,0 +1,92 @@
++import { describe, expect, mock, test } from "bun:test"
++
++// Narrow tests for the settings → command-palette bridge (issue #101, plan §5):
++// `createSettingsPaletteEntries` returns at most five `type: "setting"` entries with the
++// `setting:` id prefix, a title that starts with the query leads the group, projects are
++// excluded, and selecting an entry hands the setting's view/id to `surface.search.open`.
++// The catalog and surface are synthetic seams; `rankSettings` stays real (pure function).
++
++const opened: Array<{ view: unknown; id: string }> = []
++mock.module("./surface", () => ({
++  useSettingsSurface: () => ({
++    search: {
++      open(view: unknown, id: string) {
++        opened.push({ view, id })
++      },
++    },
++  }),
++}))
++
++mock.module("@/runtime/i18n/language", () => ({
++  useLanguage: () => ({ t: (key: string) => key }),
++}))
++
++const catalog = [
++  {
++    id: "settings-code-font",
++    title: "Code Font",
++    keywords: "code typeface",
++    description: "",
++    owner: "",
++    page: "Appearance",
++    view: { type: "root", tab: "appearance", target: "settings-code-font" },
++  },
++  {
++    id: "settings-font-size",
++    title: "Font size",
++    keywords: "font size text",
++    description: "",
++    owner: "",
++    page: "Appearance",
++    view: { type: "root", tab: "appearance", target: "settings-font-size" },
++  },
++  {
++    id: "settings-project-name",
++    title: "Name",
++    keywords: "rename",
++    description: "",
++    owner: "",
++    page: "Projects",
++    entity: true,
++    projectName: "Opencode",
++    view: { type: "project", server: "srv", project: "/projects/opencode", tab: "general", target: "settings-project-name" },
++  },
++]
++mock.module("./search", () => ({
++  createSettingsSearchCatalog: () => () => catalog,
++}))
++
++const { createSettingsPaletteEntries } = await import("./palette")
++
++describe("settings palette entries", () => {
++  test("returns at most five setting entries with the setting: id prefix", () => {
++    const entries = createSettingsPaletteEntries().items("font")
++
++    expect(entries.length).toBeGreaterThan(0)
++    expect(entries.length).toBeLessThanOrEqual(5)
++    expect(new Set(entries.map((entry) => entry.type))).toEqual(new Set(["setting"]))
++    for (const entry of entries) expect(entry.id).toMatch(/^setting:settings-/)
++    expect(entries.every((entry) => entry.category === "palette.group.settings")).toBeTrue()
++  })
++
++  test("ranks a title that starts with the query first and excludes project entities", () => {
++    const entries = createSettingsPaletteEntries().items("font")
++
++    // The palette's prefix rule (case-insensitive) leads with "Font size"; the score-equal
++    // "Code Font" follows.
++    expect(entries[0]!.title).toBe("Font size")
++    expect(entries.map((entry) => entry.title)).toContain("Code Font")
++    expect(entries.some((entry) => entry.title === "Name")).toBeFalse()
++  })
++
++  test("select hands the setting's view and id to the surface search", () => {
++    const palette = createSettingsPaletteEntries()
++    const entry = palette.items("font")[0]!
++    opened.length = 0
++
++    palette.select(entry)
++    expect(opened).toHaveLength(1)
++    expect(opened[0]!.id).toBe(entry.setting!.id)
++    expect(opened[0]!.view).toEqual(entry.setting!.view)
++  })
++})
+diff --git a/packages/app/src/settings/palette.ts b/packages/app/src/settings/palette.ts
+new file mode 100644
+index 0000000..2c4326b
+--- /dev/null
++++ b/packages/app/src/settings/palette.ts
+@@ -0,0 +1,44 @@
++import { createMemo } from "solid-js"
++import { useLanguage } from "@/runtime/i18n/language"
++import type { CommandPaletteEntry } from "@/shell/commands/palette"
++import { createSettingsSearchCatalog } from "./search"
++import { rankSettings } from "./search-results"
++import { useSettingsSurface } from "./surface"
++
++const LIMIT = 5
++
++/** Settings rows for the command palette; selecting one opens Settings at that row. */
++export function createSettingsPaletteEntries() {
++  const language = useLanguage()
++  const surface = useSettingsSurface()
++  const catalog = createSettingsSearchCatalog()
++  // Servers and projects already have their own palette rows.
++  const settings = createMemo(() => catalog().filter((item) => !item.entity))
++
++  return {
++    items(query: string): CommandPaletteEntry[] {
++      const value = query.trim().toLocaleLowerCase()
++      const category = language.t("palette.group.settings")
++
++      // A title that starts with the query leads the group.
++      return rankSettings(value, settings())
++        .toSorted(
++          (a, b) =>
++            Number(b.title.toLocaleLowerCase().startsWith(value)) -
++            Number(a.title.toLocaleLowerCase().startsWith(value)),
++        )
++        .slice(0, LIMIT)
++        .map((item) => ({
++          id: `setting:${item.id}`,
++          type: "setting",
++          title: item.title,
++          description: item.page === item.title ? undefined : item.page,
++          category,
++          setting: item,
++        }))
++    },
++    select(entry: CommandPaletteEntry) {
++      if (entry.setting) surface.search.open(entry.setting.view, entry.setting.id)
++    },
++  }
++}
+diff --git a/packages/app/src/settings/providers/extensions.tsx b/packages/app/src/settings/providers/extensions.tsx
+index 9cd6cd4..e85854f 100644
+--- a/packages/app/src/settings/providers/extensions.tsx
++++ b/packages/app/src/settings/providers/extensions.tsx
+@@ -1,4 +1,4 @@
+-import { Component, For, createEffect, createMemo, createResource } from "solid-js"
++import { Component, For, createEffect, createMemo, createResource, type JSX } from "solid-js"
+ import { Icon } from "@opencode/ui/icon"
+ import { Switch } from "@opencode/ui/switch"
+ import { Tabs } from "@opencode/ui/tabs"
+@@ -22,8 +22,12 @@ interface PluginRowItem {
+ }
+ 
+ export const SettingsExtensions: Component<{
++  // mobile(M-043): accepted for the migrated shell's call shape; the per-directory MCP
++  // location wiring stays with the owning page issue (the default location is kept).
++  directory?: string
+   subtab?: SettingsView["subtab"]
+   onSubtab: (value: SettingsView["subtab"]) => void
++  headerAction?: JSX.Element
+ }> = (props) => {
+   const language = useLanguage()
+   const serverSdk = useServerSDK()
+@@ -80,6 +84,7 @@ export const SettingsExtensions: Component<{
+             <h2 class="settings-tab-title">{language.t("settings.tab.extensions")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.extensions.description")}</span>
+           </div>
++          <div class="settings-tab-header-actions">{props.headerAction}</div>
+         </div>
+       </div>
+ 
+diff --git a/packages/app/src/settings/providers/providers.tsx b/packages/app/src/settings/providers/providers.tsx
+index 026a5cc..6d52510 100644
+--- a/packages/app/src/settings/providers/providers.tsx
++++ b/packages/app/src/settings/providers/providers.tsx
+@@ -9,7 +9,7 @@ import { showToast } from "@/shell/notifications/toast"
+ import { popularProviders, useProviders } from "@/providers/catalog/providers"
+ import { consoleProviderGroup } from "@/providers/catalog/console"
+ import { useIntegrations } from "@/providers/catalog/integrations"
+-import { createEffect, createMemo, type Component, For, Show } from "solid-js"
++import { createEffect, createMemo, type Component, type JSX, For, Show } from "solid-js"
+ import { createStore, reconcile } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { useServerSDK } from "@/runtime/server/client"
+@@ -41,6 +41,7 @@ const PROVIDER_NOTES = [
+ export const SettingsProviders: Component<{
+   directory: string | undefined
+   onSelectProvider?: (providerID: string) => void
++  headerAction?: JSX.Element
+ }> = (props) => {
+   const dialog = useDialog()
+   const language = useLanguage()
+@@ -398,6 +399,7 @@ export const SettingsProviders: Component<{
+             <h2 class="settings-tab-title">{language.t("settings.providers.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.providers.description")}</span>
+           </div>
++          <div class="settings-tab-header-actions">{props.headerAction}</div>
+         </div>
+       </div>
+ 
+diff --git a/packages/app/src/settings/route.test.ts b/packages/app/src/settings/route.test.ts
+index 3802fab..ac3d4fb 100644
+--- a/packages/app/src/settings/route.test.ts
++++ b/packages/app/src/settings/route.test.ts
+@@ -1,39 +1,57 @@
+ import { describe, expect, test } from "bun:test"
+ import { parseSettingsView, settingsViewRedirect, settingsViewUrl, type SettingsView } from "./route"
+ 
++const parse = (view: SettingsView) => parseSettingsView(new URL(settingsViewUrl(view), "http://localhost").search)
++
+ describe("settings route", () => {
+   test("keeps root preferences at the canonical route", () => {
+     expect(settingsViewUrl({ type: "root", tab: "general" })).toBe("/settings")
+-    expect(parseSettingsView("", false)).toEqual({ type: "root", tab: "general", subtab: undefined })
++    expect(parseSettingsView("")).toEqual({ type: "root", tab: "general", server: undefined, subtab: undefined })
+   })
+ 
+-  test("round trips root, server, and project pages", () => {
++  test("round trips root pages, the selected server, and project pages", () => {
+     const root: SettingsView = { type: "root", tab: "appearance" }
+-    const server: SettingsView = { type: "server", server: "wsl:Debian", tab: "models" }
++    const models: SettingsView = { type: "root", tab: "models", server: "wsl:Debian" }
++    // Preferences with a selected server names its tab, which a link to the old server page lacks.
++    const preferences: SettingsView = { type: "root", tab: "general", server: "wsl:Debian" }
+ 
+     const project: SettingsView = {
+       type: "project",
+       server: "local",
+       project: "C:\\work folder",
+-      parent: "server",
+       tab: "extensions",
+       subtab: "skills",
+     }
+ 
+-    expect(parseSettingsView(new URL(settingsViewUrl(root), "http://localhost").search, false)).toEqual({
+-      ...root,
++    expect(parse(root)).toEqual({ ...root, server: undefined, subtab: undefined })
++    expect(parse(models)).toEqual({ ...models, subtab: undefined })
++    expect(settingsViewUrl(preferences)).toBe("/settings?server=wsl%3ADebian&tab=general")
++    expect(parse(preferences)).toEqual({ ...preferences, subtab: undefined })
++    expect(parse(project)).toEqual(project)
++  })
++
++  test("opens links to a server's old settings page on the flat pages with that server selected", () => {
++    expect(parseSettingsView("?server=wsl%3ADebian")).toEqual({ type: "root", tab: "servers", server: "wsl:Debian" })
++    expect(parseSettingsView("?server=wsl%3ADebian&tab=providers")).toEqual({
++      type: "root",
++      tab: "providers",
++      server: "wsl:Debian",
+       subtab: undefined,
+     })
+-    expect(parseSettingsView(new URL(settingsViewUrl(server), "http://localhost").search, true)).toEqual({
+-      ...server,
+-      subtab: undefined,
++  })
++
++  test("opens links to the desktop's old Plugins page on the Plugins tab of Extensions", () => {
++    expect(parseSettingsView("?tab=plugins")).toEqual({
++      type: "root",
++      tab: "extensions",
++      server: undefined,
++      subtab: "plugins",
+     })
+-    expect(parseSettingsView(new URL(settingsViewUrl(project), "http://localhost").search, true)).toEqual(project)
+   })
+ 
+-  test("derives project ancestry and keeps search reveal state transient", () => {
++  test("keeps search reveal state transient", () => {
+     expect(
+-      parseSettingsView("?server=local&project=%2Fwork&tab=extensions&subtab=plugins", false, {
++      parseSettingsView("?server=local&project=%2Fwork&tab=extensions&subtab=plugins", {
+         target: "settings-plugin",
+         searchActivation: 2,
+       }),
+@@ -41,7 +59,6 @@ describe("settings route", () => {
+       type: "project",
+       server: "local",
+       project: "/work",
+-      parent: "root",
+       tab: "extensions",
+       subtab: "plugins",
+       target: "settings-plugin",
+@@ -49,25 +66,22 @@ describe("settings route", () => {
+     })
+   })
+ 
+-  test("keeps a restored server page until the server lists load", () => {
+-    const view: SettingsView = { type: "server", server: "wsl:Debian", tab: "models" }
++  test("keeps a restored server selection until the server lists load, then drops a removed one", () => {
++    const view: SettingsView = { type: "root", tab: "models", server: "wsl:Debian" }
+     const local = { key: "local", connected: true, starting: false }
+     const wsl = { key: "wsl:Debian", connected: false, starting: true }
+ 
+     expect(settingsViewRedirect({ view, loaded: false, servers: [local] })).toBeUndefined()
+     expect(settingsViewRedirect({ view, loaded: true, servers: [local, wsl] })).toBeUndefined()
+-    expect(settingsViewRedirect({ view, loaded: true, servers: [local] })).toEqual({ type: "back" })
++    expect(settingsViewRedirect({ view, loaded: true, servers: [local] })).toEqual({
++      type: "root",
++      tab: "models",
++      server: undefined,
++    })
+   })
+ 
+   test("keeps a project page while its server starts", () => {
+-    const view: SettingsView = {
+-      type: "project",
+-      server: "wsl:Debian",
+-      project: "/work",
+-      parent: "server",
+-      tab: "general",
+-    }
+-
++    const view: SettingsView = { type: "project", server: "wsl:Debian", project: "/work", tab: "general" }
+     const local = { key: "local", connected: true, starting: false }
+ 
+     expect(
+@@ -83,40 +97,24 @@ describe("settings route", () => {
+         loaded: true,
+         servers: [local, { key: "wsl:Debian", connected: false, starting: false }],
+       }),
+-    ).toEqual({ type: "server", server: "wsl:Debian" })
+-  })
+-
+-  test("moves a single server's page to the root settings", () => {
+-    const local = { key: "local", connected: true, starting: false }
+-    expect(
+-      settingsViewRedirect({
+-        view: { type: "server", server: "local", tab: "general" },
+-        loaded: true,
+-        servers: [local],
+-      }),
+-    ).toEqual({ type: "root", tab: "servers" })
+-    expect(
+-      settingsViewRedirect({
+-        view: { type: "server", server: "local", tab: "models" },
+-        loaded: true,
+-        servers: [local],
+-      }),
+-    ).toEqual({ type: "root", tab: "models" })
++    ).toEqual({ type: "root", tab: "projects", server: "wsl:Debian" })
++    expect(settingsViewRedirect({ view, loaded: true, servers: [local] })).toEqual({ type: "root", tab: "projects" })
+   })
+ 
+   test("falls back for invalid scope and tab combinations", () => {
+-    expect(parseSettingsView("?tab=unknown", false)).toEqual({ type: "root", tab: "general" })
+-    expect(parseSettingsView("?project=%2Fwork&tab=extensions", false)).toEqual({ type: "root", tab: "general" })
+-    expect(parseSettingsView("?server=local&tab=about", true)).toEqual({ type: "root", tab: "general" })
+-    expect(parseSettingsView("?tab=toString", false)).toEqual({ type: "root", tab: "general" })
+-    expect(parseSettingsView("?tab=extensions&subtab=toString", false)).toEqual({
++    expect(parseSettingsView("?tab=unknown")).toEqual({ type: "root", tab: "general" })
++    expect(parseSettingsView("?project=%2Fwork&tab=extensions")).toEqual({ type: "root", tab: "general" })
++    expect(parseSettingsView("?tab=toString")).toEqual({ type: "root", tab: "general" })
++    expect(parseSettingsView("?tab=extensions&subtab=toString")).toEqual({
+       type: "root",
+       tab: "extensions",
++      server: undefined,
+       subtab: undefined,
+     })
+-    expect(parseSettingsView("?tab=extensions&subtab=lsps", false)).toEqual({
++    expect(parseSettingsView("?tab=extensions&subtab=lsps")).toEqual({
+       type: "root",
+       tab: "extensions",
++      server: undefined,
+       subtab: undefined,
+     })
+   })
+diff --git a/packages/app/src/settings/route.ts b/packages/app/src/settings/route.ts
+index 5b06177..bb5c4b4 100644
+--- a/packages/app/src/settings/route.ts
++++ b/packages/app/src/settings/route.ts
+@@ -10,7 +10,6 @@ export type SettingsRootTab =
+   | "extensions"
+   | "servers"
+   | "experimental"
+-  | "gui-extensions"
+   | "about"
+ 
+ declare const pluginTab: unique symbol
+@@ -18,7 +17,8 @@ declare const pluginTab: unique symbol
+ /** A root page a GUI plugin contributes; the value is its SettingsPage id. */
+ export type SettingsPluginTab = string & { readonly [pluginTab]: true }
+ 
+-export type SettingsServerTab = "general" | "projects" | "workspaces" | "providers" | "models" | "extensions"
++/** Root pages that show one server's settings: the selected server, or the default one. */
++export type SettingsServerTab = "projects" | "workspaces" | "providers" | "models" | "extensions"
+ 
+ export type SettingsProjectTab = "general" | "workspaces" | "extensions"
+ 
+@@ -28,21 +28,18 @@ type SettingsViewState = {
+   searchActivation?: number
+ }
+ 
+-type SettingsNestedView =
+-  | { type: "server"; server: string; tab: SettingsServerTab }
+-  | {
+-      type: "project"
+-      server: string
+-      project: string
+-      tab: SettingsProjectTab
+-      parent: "root" | "server"
+-    }
+-
+-export type SettingsView = ({ type: "root"; tab: SettingsRootTab | SettingsPluginTab } | SettingsNestedView) &
++type SettingsProjectView = { type: "project"; server: string; project: string; tab: SettingsProjectTab }
++
++/** `server` on a root view is the server its per-server pages show; without it they show the default server. */
++export type SettingsView = (
++  | { type: "root"; tab: SettingsRootTab | SettingsPluginTab; server?: string }
++  | SettingsProjectView
++) &
+   SettingsViewState
+ 
+ /** A view of a page the host owns. */
+-export type SettingsHostView = ({ type: "root"; tab: SettingsRootTab } | SettingsNestedView) & SettingsViewState
++export type SettingsHostView = ({ type: "root"; tab: SettingsRootTab; server?: string } | SettingsProjectView) &
++  SettingsViewState
+ 
+ export type SettingsTransientView = Pick<SettingsView, "target" | "searchActivation">
+ 
+@@ -58,19 +55,9 @@ const rootTabs: Record<SettingsRootTab, true> = {
+   extensions: true,
+   servers: true,
+   experimental: true,
+-  "gui-extensions": true,
+   about: true,
+ }
+ 
+-const serverTabs: Record<SettingsServerTab, true> = {
+-  general: true,
+-  projects: true,
+-  workspaces: true,
+-  providers: true,
+-  models: true,
+-  extensions: true,
+-}
+-
+ const projectTabs: Record<SettingsProjectTab, true> = {
+   general: true,
+   workspaces: true,
+@@ -86,37 +73,31 @@ const subtabs: Record<NonNullable<SettingsView["subtab"]>, true> = {
+ 
+ export function parseSettingsView(
+   search: string,
+-  multipleServers: boolean,
+   transient?: SettingsTransientView,
+   pluginTabs?: ReadonlySet<string>,
+ ): SettingsView {
+   const params = new URLSearchParams(search)
+   const tab = params.get("tab") ?? "general"
+-  const server = params.get("server")
++  const server = params.get("server") ?? undefined
+   const project = params.get("project")
+   const subtab = params.get("subtab")
+   const nested = subtab && isSubtab(subtab) && tab === "extensions" ? subtab : undefined
+ 
+-  if (project && server && isProjectTab(tab)) {
+-    return {
+-      type: "project",
+-      server,
+-      project,
+-      parent: multipleServers ? "server" : "root",
+-      tab,
+-      subtab: nested,
+-      ...transient,
+-    }
+-  }
++  if (project && server && isProjectTab(tab))
++    return { type: "project", server, project, tab, subtab: nested, ...transient }
+ 
+-  if (!project && server && isServerTab(tab))
+-    return { type: "server", server, tab, subtab: nested === "lsps" ? undefined : nested, ...transient }
++  // Links to a server's own page, which the Servers page replaced, name a server without a tab.
++  if (!project && server && !params.has("tab")) return { type: "root", tab: "servers", server, ...transient }
+ 
+-  if (!project && !server && isRootTab(tab))
+-    return { type: "root", tab, subtab: nested === "lsps" ? undefined : nested, ...transient }
++  // The desktop's Plugins page is now the Plugins tab of Extensions, so links to it and `layout.settings("plugins")`
++  // land there.
++  if (!project && tab === "plugins") return { type: "root", tab: "extensions", server, subtab: "plugins", ...transient }
+ 
+-  if (!project && !server && pluginTabs && isExtensionTab(tab, pluginTabs))
+-    return { type: "root", tab, subtab: undefined, ...transient }
++  if (!project && isRootTab(tab))
++    return { type: "root", tab, server, subtab: nested === "lsps" ? undefined : nested, ...transient }
++
++  if (!project && pluginTabs && isPluginTab(tab, pluginTabs))
++    return { type: "root", tab, server, subtab: undefined, ...transient }
+ 
+   return { type: "root", tab: "general", ...transient }
+ }
+@@ -124,11 +105,12 @@ export function parseSettingsView(
+ export function settingsViewUrl(view: SettingsView) {
+   const params = new URLSearchParams()
+ 
+-  if (view.type !== "root") params.set("server", view.server)
++  if (view.server) params.set("server", view.server)
+ 
+   if (view.type === "project") params.set("project", view.project)
+ 
+-  if (view.tab !== "general") params.set("tab", view.tab)
++  // A server without a tab names the Servers page, so a root view with a server always names its tab.
++  if (view.tab !== "general" || (view.type === "root" && view.server)) params.set("tab", view.tab)
+ 
+   if (view.tab === "extensions" && view.subtab) params.set("subtab", view.subtab)
+   const search = params.toString()
+@@ -138,25 +120,24 @@ export function settingsViewUrl(view: SettingsView) {
+ 
+ type RedirectServer = { key: string; connected: boolean; starting: boolean }
+ 
+-/** Where a server or project view must go when its server is gone, unreachable, or the only one. */
++/** Where a view must go when the server it names is gone, or a project's server is unavailable. */
+ export function settingsViewRedirect(input: {
+   view: SettingsView
+   /** False while the saved, WSL, and SSH server lists load; a restored route waits for them. */
+   loaded: boolean
+   servers: readonly RedirectServer[]
+-}): { type: "back" } | { type: "server"; server: string } | { type: "root"; tab: SettingsRootTab } | undefined {
++}): SettingsView | undefined {
+   const view = input.view
+ 
+-  if (view.type === "root" || !input.loaded) return
++  if (!view.server || !input.loaded) return
+   const server = input.servers.find((item) => item.key === view.server)
+ 
+-  if (!server) return { type: "back" }
++  if (view.type === "root") return server ? undefined : { ...view, server: undefined }
+ 
+-  // A starting WSL or SSH server connects shortly; only an unavailable one leaves the project page.
+-  if (view.type === "project" && !server.connected && !server.starting) return { type: "server", server: server.key }
++  if (!server) return { type: "root", tab: "projects" }
+ 
+-  if (view.type === "server" && input.servers.length === 1)
+-    return { type: "root", tab: view.tab === "general" ? "servers" : view.tab }
++  // A starting WSL or SSH server connects shortly; only an unavailable one leaves the project page.
++  if (!server.connected && !server.starting) return { type: "root", tab: "projects", server: server.key }
+ }
+ 
+ export function isRootTab(value: string): value is SettingsRootTab {
+@@ -164,14 +145,10 @@ export function isRootTab(value: string): value is SettingsRootTab {
+ }
+ 
+ /** Host tabs win over a plugin page with the same id. */
+-export function isExtensionTab(value: string, tabs: ReadonlySet<string>): value is SettingsPluginTab {
++export function isPluginTab(value: string, tabs: ReadonlySet<string>): value is SettingsPluginTab {
+   return !isRootTab(value) && tabs.has(value)
+ }
+ 
+-export function isServerTab(value: string): value is SettingsServerTab {
+-  return Object.hasOwn(serverTabs, value)
+-}
+-
+ export function isProjectTab(value: string): value is SettingsProjectTab {
+   return Object.hasOwn(projectTabs, value)
+ }
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index abe19a6..1d52195 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -21,6 +21,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+   { tab: "notifications", label: "settings.tab.notifications" },
+   { tab: "shortcuts", label: "settings.shortcuts.title", keywords: "keybind keyboard hotkey" },
+   { tab: "about", label: "settings.tab.about", keywords: "version license credits" },
++  { tab: "experimental", label: "settings.tab.experimental", keywords: "experiments preview beta" },
+   { tab: "general", label: "settings.general.row.language.title", target: "settings-language" },
+   {
+     tab: "general",
+@@ -42,12 +43,6 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     description: "settings.permissions.autoAccept.default.description",
+     keywords: "permissions approve allow auto accept default",
+   },
+-  {
+-    tab: "general",
+-    label: "settings.general.row.terminalPlacement.title",
+-    target: "settings-terminal-placement",
+-    keywords: "terminal side bottom position",
+-  },
+   {
+     tab: "general",
+     label: "settings.general.row.followUpBehavior.title",
+@@ -73,6 +68,29 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     section: "settings.timeline.title",
+     keywords: "thinking reasoning tools timeline summary detailed",
+   },
++  {
++    tab: "general",
++    label: "settings.timeline.row.backgroundActivity.title",
++    description: "settings.timeline.row.backgroundActivity.description",
++    target: "settings-background-activity",
++    section: "settings.timeline.title",
++    keywords: "capsule panel subagent shell background activity position alignment hidden left center right",
++  },
++  {
++    tab: "general",
++    label: "settings.timeline.row.width.title",
++    description: "settings.timeline.row.width.description",
++    target: "settings-timeline-width",
++    section: "settings.timeline.title",
++    keywords: "column line length measure narrow focused comfortable wide readability",
++  },
++  {
++    tab: "general",
++    label: "settings.timeline.row.turnDiffs.title",
++    description: "settings.timeline.row.turnDiffs.description",
++    target: "settings-show-turn-diffs",
++    section: "settings.timeline.title",
++  },
+   {
+     tab: "general",
+     label: "settings.general.row.showCustomAgents.title",
+@@ -123,6 +141,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     label: "settings.appearance.row.zoom.title",
+     target: "settings-zoom",
+     keywords: "scale size text font larger bigger accessibility",
++    available: "desktop",
+   },
+   {
+     tab: "appearance",
+@@ -178,9 +197,18 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     description: "settings.general.sounds.errors.description",
+     keywords: "sound audio errors",
+   },
++  {
++    tab: "notifications",
++    label: "settings.general.sounds.interface.title",
++    target: "settings-sounds-interface",
++    section: "settings.general.section.sounds",
++    description: "settings.general.sounds.interface.description",
++    keywords: "sound audio interface effects wordmark logo",
++  },
+ ]
+ 
+-export const serverSettings: Entry<SettingsServerTab>[] = [
++// Pages showing the selected server, and rows of its card on the Servers page.
++export const serverSettings: Entry<SettingsServerTab | "servers">[] = [
+   { tab: "projects", label: "settings.tab.projects" },
+   { tab: "workspaces", label: "settings.tab.workspaces", keywords: "workspaces disk usage cleanup delete" },
+   { tab: "providers", label: "settings.providers.title", keywords: "connect api key credentials" },
+@@ -192,22 +220,20 @@ export const serverSettings: Entry<SettingsServerTab>[] = [
+     label: "settings.extensions.tab.mcps",
+     keywords: "model context protocol tools",
+   },
+-  { tab: "extensions", subtab: "plugins", label: "settings.extensions.tab.plugins" },
++  {
++    tab: "extensions",
++    subtab: "plugins",
++    label: "settings.extensions.tab.plugins",
++    keywords: "extension gui built-in",
++  },
+   { tab: "extensions", subtab: "skills", label: "settings.extensions.tab.skills" },
+   {
+-    tab: "general",
++    tab: "servers",
+     label: "settings.general.row.shell.title",
+     target: "settings-shell",
+     description: "settings.general.row.shell.description",
+     keywords: "bash zsh powershell",
+   },
+-  {
+-    tab: "general",
+-    label: "settings.server.preferences.websearch.title",
+-    target: "settings-websearch",
+-    description: "settings.server.preferences.websearch.description",
+-    keywords: "web search provider",
+-  },
+ ]
+ 
+ export const projectSettings: Entry<SettingsProjectTab>[] = [
+diff --git a/packages/app/src/settings/search-index.ts b/packages/app/src/settings/search-index.ts
+index 471a9a7..62ae72d 100644
+--- a/packages/app/src/settings/search-index.ts
++++ b/packages/app/src/settings/search-index.ts
+@@ -19,13 +19,16 @@ export type SettingsSearchPlugin = { plugin: string; value: SettingsPage }
+ 
+ export function settingsSearchIndex(input: {
+   servers: readonly SettingsSearchServer[]
++  /** The server per-server pages show; only its settings and projects are indexed. */
++  selected?: string
+   desktop: boolean
+   browser: boolean
+   mobile: boolean
+   translate: ReturnType<typeof useLanguage>["t"]
+-  extensions?: readonly SettingsSearchPlugin[]
++  plugins?: readonly SettingsSearchPlugin[]
+ }) {
+   const items: SettingsSearchResult[] = []
++  const multiple = input.servers.length > 1
+ 
+   const add = (
+     entry: (typeof clientSettings)[number],
+@@ -42,7 +45,9 @@ export function settingsSearchIndex(input: {
+             entry.section ??
+               (view.type !== "root" && view.tab === "general"
+                 ? "settings.general.section.general"
+-                : pageLabels[view.tab]),
++                : view.tab === "servers" && multiple
++                  ? "settings.tab.servers"
++                  : pageLabels[view.tab]),
+           )
+ 
+     items.push({
+@@ -61,10 +66,10 @@ export function settingsSearchIndex(input: {
+     })
+   }
+ 
+-  const extensions = input.extensions ?? []
++  const plugins = input.plugins ?? []
+ 
+   // Plugin entries are keyed by plugin and entry id; their copy is already translated.
+-  const addExtension = (
++  const addPlugin = (
+     item: SettingsSearchPlugin,
+     entry: NonNullable<SettingsPage["entries"]>[number],
+     view: SettingsView,
+@@ -94,7 +99,7 @@ export function settingsSearchIndex(input: {
+     if (entry.available === "mobile" && !input.mobile) return
+     add(entry, { type: "root", tab: entry.tab, target: entry.target }, "")
+   })
+-  extensions.forEach((item) => {
++  plugins.forEach((item) => {
+     const setting = item.value
+ 
+     if (setting.page === "servers") return
+@@ -103,7 +108,7 @@ export function settingsSearchIndex(input: {
+       const section = setting.section ? input.translate("settings.general.section.general") : setting.title
+ 
+       return setting.entries?.forEach((entry) =>
+-        addExtension(
++        addPlugin(
+           item,
+           entry,
+           { type: "root", tab: "general", target: entry.id },
+@@ -116,18 +121,16 @@ export function settingsSearchIndex(input: {
+     // SAFETY: a SettingsPage without a host page is a plugin tab under its id, as `createSettingsPages().tabs` lists.
+     const tab = setting.id as SettingsPluginTab
+     const page = setting.entries?.find((entry) => entry.id === setting.id)
+-    addExtension(item, { ...page, id: setting.id, title: setting.title }, { type: "root", tab }, setting.title, "")
++    addPlugin(item, { ...page, id: setting.id, title: setting.title }, { type: "root", tab }, setting.title, "")
+     setting.entries?.forEach((entry) => {
+       if (entry.id === setting.id) return
+-      addExtension(item, entry, { type: "root", tab, target: entry.id }, setting.title, "")
++      addPlugin(item, entry, { type: "root", tab, target: entry.id }, setting.title, "")
+     })
+   })
+   input.servers.forEach((server) => {
+-    const view = (tab: SettingsServerTab, target?: string, subtab?: SettingsView["subtab"]): SettingsHostView => {
+-      if (input.servers.length === 1) return { type: "root", tab: tab === "general" ? "servers" : tab, target, subtab }
+-
+-      return { type: "server", server: server.key, tab, target, subtab }
+-    }
++    // With several servers, a result names the server its page shows.
++    const view = (tab: SettingsServerTab | "servers", target?: string, subtab?: SettingsView["subtab"]) =>
++      ({ type: "root", tab, server: multiple ? server.key : undefined, target, subtab }) satisfies SettingsHostView
+ 
+     items.push({
+       id: `server:${server.key}`,
+@@ -138,16 +141,16 @@ export function settingsSearchIndex(input: {
+       owner: input.translate("settings.tab.servers"),
+       page: input.translate("settings.server.section.connection"),
+       server: server.key,
+-      view: view("general"),
++      view: view("servers"),
+     })
+ 
+-    if (!server.connected) return
++    if (!server.connected || server.key !== input.selected) return
+     serverSettings.forEach((entry) => add(entry, view(entry.tab, entry.target, entry.subtab), server.name, server.key))
+-    // Sections on the servers page render under each server's general page.
+-    extensions.forEach((item) => {
++    // Sections on the servers page render with each server's connection.
++    plugins.forEach((item) => {
+       if (item.value.page !== "servers") return
+       item.value.entries?.forEach((entry) =>
+-        addExtension(item, entry, view("general", entry.id), item.value.title, server.name, server.key),
++        addPlugin(item, entry, view("servers", entry.id), item.value.title, server.name, server.key),
+       )
+     })
+     server.projects.forEach((project) => {
+@@ -156,7 +159,6 @@ export function settingsSearchIndex(input: {
+         server: server.key,
+         project: project.worktree,
+         tab: "general",
+-        parent: input.servers.length > 1 ? "server" : "root",
+       }
+ 
+       const name = displayName(project)
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index 75bebac..abd1f55 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -3,38 +3,35 @@ import { dict } from "@opencode/ui/i18n/en"
+ import en from "@/runtime/i18n/en"
+ import { settingsSearchIndex, type SettingsSearchServer } from "./search-index"
+ import { rankSettings } from "./search-results"
+-import type { SettingsView } from "./surface"
+ 
+-const strings: Record<string, string> = { ...dict, ...en }
++const strings = new Map(Object.entries({ ...dict, ...en }))
+ 
+-const project = { id: "proj_opencode", name: "OpenCode", worktree: "/projects/opencode", expanded: false }
++const project = { id: "proj_opencode", name: "OpenCode", worktree: "/projects/opencode" }
+ 
+ const servers: SettingsSearchServer[] = [
+   { key: "local", name: "Local server", connected: true, projects: [project] },
+   { key: "remote", name: "Build server", connected: true, projects: [project] },
+ ]
+ 
+-const root: SettingsView = { type: "root", tab: "general" }
+-
+ function index(input: Partial<Parameters<typeof settingsSearchIndex>[0]> = {}) {
+   return settingsSearchIndex({
+     servers,
++    selected: "local",
+     desktop: false,
+     browser: false,
+     mobile: false,
+-    translate: (key) => strings[key],
++    translate: (key) => strings.get(key) ?? key,
+     ...input,
+   })
+ }
+ 
+ describe("settings search index", () => {
+-  test("uses concrete server identity and adapts single-server destinations", () => {
+-    const multi = rankSettings("models", index(), root).filter((item) => item.topLevel)
++  test("indexes the selected server's pages and names it only when there are several servers", () => {
++    const multi = rankSettings("models", index({ selected: "remote" })).filter((item) => item.topLevel)
+     expect(multi.map((item) => item.view)).toEqual([
+-      { type: "server", server: "local", tab: "models", target: undefined, subtab: undefined },
+-      { type: "server", server: "remote", tab: "models", target: undefined, subtab: undefined },
++      { type: "root", server: "remote", tab: "models", target: undefined, subtab: undefined },
+     ])
+-    const single = rankSettings("models", index({ servers: [servers[0]] }), root).find((item) => item.topLevel)!
++    const single = rankSettings("models", index({ servers: [servers[0]] })).find((item) => item.topLevel)!
+     expect(single.server).toBe("local")
+     expect(single.view).toEqual({ type: "root", tab: "models", target: undefined, subtab: undefined })
+   })
+@@ -42,25 +39,24 @@ describe("settings search index", () => {
+   test("keeps unavailable servers discoverable without advertising unloaded settings", () => {
+     const items = index({ servers: [{ ...servers[0], connected: false }] })
+     expect(items.filter((item) => item.server).map((item) => item.id)).toEqual(["server:local"])
+-    expect(rankSettings("Local server", items, root)[0].view).toEqual({
++    expect(rankSettings("Local server", items)[0].view).toEqual({
+       type: "root",
+       tab: "servers",
+       target: undefined,
+       subtab: undefined,
+     })
+-    // mobile(M-035): the zoom entry (issue #65) drops the upstream `available: "desktop"`
+-    // gate — the web shell implements the zoom platform face (M-035) — so the "font"
+-    // query (the zoom keywords include "font") returns the three font rows plus zoom.
+-    expect(rankSettings("font", items, root)).toHaveLength(4)
++    expect(rankSettings("font", items)).toHaveLength(3)
+   })
+ 
+   test("only advertises settings supported by this platform", () => {
+     const targets = (input: Parameters<typeof index>[0]) => index(input).map((item) => item.view.target)
+     expect(targets({})).not.toContain("settings-pinch-zoom")
++    expect(targets({})).not.toContain("settings-zoom")
+     expect(targets({})).not.toContain("settings-experimental-browser")
+     expect(targets({})).not.toContain("settings-show-project-icon")
+     expect(targets({})).toContain("settings-tab-layout")
+     expect(targets({ desktop: true })).toContain("settings-pinch-zoom")
++    expect(targets({ desktop: true })).toContain("settings-zoom")
+     expect(targets({ browser: true })).not.toContain("settings-experimental-browser")
+     expect(targets({})).not.toContain("settings-show-project-icon")
+     expect(targets({})).not.toContain("settings-mobile-titlebar-bottom")
+@@ -70,83 +66,78 @@ describe("settings search index", () => {
+   test("uses section labels and stable identities independent of translated text", () => {
+     const items = index()
+     expect(new Set(items.map((item) => item.id)).size).toBe(items.length)
+-    expect(index({ translate: (key) => `translated ${strings[key]}` }).map((item) => item.id)).toEqual(
++    expect(index({ translate: (key) => `translated ${strings.get(key) ?? key}` }).map((item) => item.id)).toEqual(
+       items.map((item) => item.id),
+     )
+     expect(
+-      rankSettings("agent", items, root)
++      rankSettings("agent", items)
+         .filter((item) => item.title === "Agent")
+         .map((item) => item.page),
+     ).toEqual(["Desktop notifications", "Sound effects"])
+-    expect(rankSettings("terminal placement", items, root)[0].page).toBe("Preferences / General")
++    expect(rankSettings("follow-up behavior", items)[0].page).toBe("Preferences / General")
++    expect(rankSettings("capsule", items)[0].view).toMatchObject({
++      tab: "general",
++      target: "settings-background-activity",
++    })
+     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
+   })
+ 
+   test("retains project avatars and excludes color when a custom icon owns its appearance", () => {
+     const withIcon = { ...project, icon: { color: "orange", override: "data:image/png;base64,example" } }
+     const items = index({ servers: [{ ...servers[0], projects: [withIcon] }] })
+-    expect(rankSettings("opencode", items, root)[0].projectInfo).toEqual(withIcon)
+-    expect(rankSettings("opencode color", items, root)).toEqual([])
++    expect(rankSettings("opencode", items)[0].projectInfo).toEqual(withIcon)
++    expect(rankSettings("opencode color", items)).toEqual([])
+   })
+ })
+ 
+ describe("settings search ranking", () => {
+   test("prioritizes top-level pages and omits generic project-setting copies", () => {
+-    expect(rankSettings("work", index({ servers: [servers[0]] }), root).map((item) => item.title)).toEqual([
++    expect(rankSettings("work", index({ servers: [servers[0]] })).map((item) => item.title)).toEqual([
+       "Worktrees",
+       "Default environment",
+     ])
+-    expect(rankSettings("mcps", index(), root).map((item) => item.view.type)).toEqual(["server", "server"])
+-    expect(rankSettings("project name", index(), root)).toEqual([])
+-    expect(rankSettings("startup", index(), root)).toEqual([])
++    expect(rankSettings("mcps", index()).map((item) => item.view)).toEqual([
++      { type: "root", server: "local", tab: "extensions", target: undefined, subtab: "mcps" },
++    ])
++    expect(rankSettings("project name", index())).toEqual([])
++    expect(rankSettings("startup", index())).toEqual([])
+   })
+ 
+-  test("qualifies project settings by project name and supports explicit server names", () => {
+-    const matches = rankSettings("opencode name", index(), root)
+-    expect(matches.map((item) => item.view.target)).toEqual(["settings-project-name", "settings-project-name"])
+-    expect(rankSettings("Build server opencode name", index(), root).map((item) => item.server)).toEqual(["remote"])
+-    expect(rankSettings("opencode skills", index(), root).map((item) => item.view.subtab)).toEqual(["skills", "skills"])
++  test("qualifies project settings by project name on the selected server", () => {
++    expect(rankSettings("opencode name", index()).map((item) => item.view.target)).toEqual(["settings-project-name"])
++    expect(rankSettings("opencode name", index({ selected: "remote" })).map((item) => item.server)).toEqual([
++      "remote",
++    ])
++    expect(rankSettings("opencode skills", index()).map((item) => item.view.subtab)).toEqual(["skills"])
+   })
+ 
+   test("project names alone find projects, including names that are setting labels", () => {
+     const items = index({ servers: [{ ...servers[0], projects: [{ ...project, name: "Skills" }] }] })
+     expect(
+-      rankSettings("skills", items, root)
++      rankSettings("skills", items)
+         .filter((item) => item.project)
+         .map((item) => item.entity),
+     ).toEqual([true])
+-    expect(rankSettings("opencode", index(), root).map((item) => item.entity)).toEqual([true, true])
++    expect(rankSettings("opencode", index()).map((item) => item.entity)).toEqual([true])
+   })
+ 
+   test("normalizes whitespace, case, and Unicode in qualified names", () => {
+     const items = index({ servers: [{ ...servers[0], projects: [{ ...project, name: "Open Code" }] }] })
+-    expect(rankSettings("  ＯＰＥＮ   ＣＯＤＥ   name  ", items, root).map((item) => item.view.target)).toEqual([
++    expect(rankSettings("  ＯＰＥＮ   ＣＯＤＥ   name  ", items).map((item) => item.view.target)).toEqual([
+       "settings-project-name",
+     ])
+   })
+ 
+   test("does not search paths or use the Projects category to match unrelated names", () => {
+     const items = index({ servers: [{ ...servers[0], projects: [{ ...project, name: "codename" }] }] })
+-    expect(rankSettings("project name", items, root).some((item) => item.project)).toBe(false)
+-    expect(rankSettings("/projects/opencode", items, root)).toEqual([])
+-  })
+-
+-  test("ranks equivalent matches by origin without merging different servers", () => {
+-    const origin: SettingsView = {
+-      type: "project",
+-      server: "remote",
+-      project: project.worktree,
+-      tab: "general",
+-      parent: "server",
+-    }
+-
+-    expect(rankSettings("opencode name", index(), origin).map((item) => item.server)).toEqual(["remote", "local"])
++    expect(rankSettings("project name", items).some((item) => item.project)).toBe(false)
++    expect(rankSettings("/projects/opencode", items)).toEqual([])
+   })
+ 
+   test("supports synonyms and fuzzy title matches while rejecting unrelated queries", () => {
+-    expect(rankSettings("dark mode", index(), root)[0].view.target).toBe("settings-color-scheme")
+-    expect(rankSettings("termfont", index(), root)[0].title).toBe("Terminal Font")
+-    expect(rankSettings("  ", index(), root)).toEqual([])
+-    expect(rankSettings("zzzzzzzzz", index(), root)).toEqual([])
++    expect(rankSettings("dark mode", index())[0].view.target).toBe("settings-color-scheme")
++    expect(rankSettings("termfont", index())[0].title).toBe("Terminal Font")
++    expect(rankSettings("  ", index())).toEqual([])
++    expect(rankSettings("zzzzzzzzz", index())).toEqual([])
+   })
+ })
+diff --git a/packages/app/src/settings/search-results.ts b/packages/app/src/settings/search-results.ts
+index c526385..a0433df 100644
+--- a/packages/app/src/settings/search-results.ts
++++ b/packages/app/src/settings/search-results.ts
+@@ -21,7 +21,7 @@ export type SettingsSearchResult = {
+   view: SettingsView
+ }
+ 
+-export function rankSettings(query: string, items: SettingsSearchResult[], origin: SettingsView) {
++export function rankSettings(query: string, items: SettingsSearchResult[]) {
+   const value = normalize(query)
+ 
+   if (!value) return []
+@@ -59,20 +59,12 @@ export function rankSettings(query: string, items: SettingsSearchResult[], origi
+ 
+       if (!score) return []
+ 
+-      const proximity =
+-        origin.type === "project" && origin.server === item.server && origin.project === item.project
+-          ? 2
+-          : origin.type !== "root" && origin.server === item.server
+-            ? 1
+-            : 0
+-
+-      return [{ item, score, proximity }]
++      return [{ item, score }]
+     })
+     .sort(
+       (a, b) =>
+         Number(!!b.item.topLevel) - Number(!!a.item.topLevel) ||
+         b.score - a.score ||
+-        b.proximity - a.proximity ||
+         a.item.title.localeCompare(b.item.title),
+     )
+     .map((result) => result.item)
+diff --git a/packages/app/src/settings/search-reveal.test.ts b/packages/app/src/settings/search-reveal.test.ts
+new file mode 100644
+index 0000000..38c11a6
+--- /dev/null
++++ b/packages/app/src/settings/search-reveal.test.ts
+@@ -0,0 +1,63 @@
++import { describe, expect, test } from "bun:test"
++import { revealSettingsSearch } from "./search-reveal"
++
++// The migrated catalog (issue #101) pruned the three target-only rows whose page anchors do
++// not exist on this tree yet (mobile(M-044) markers in search-catalog.ts), and any future
++// page-issue gap can produce more. This locks the general mechanism: a reveal aimed at a
++// missing anchor must degrade to a no-op — never throw, never leave marker attributes
++// behind — while a present anchor still reveals and cleans up after dispose.
++
++describe("settings search reveal", () => {
++  test("no-ops on a missing target anchor and disposes without throwing", async () => {
++    const root = document.createElement("div")
++    const panel = document.createElement("div")
++    panel.className = "settings-panel"
++    root.appendChild(panel)
++    document.body.appendChild(root)
++
++    const dispose = revealSettingsSearch(root, {
++      type: "root",
++      tab: "general",
++      target: "settings-anchor-that-does-not-exist",
++    })
++
++    // The queued reveal attempt runs without throwing; the anchor stays unrevealed.
++    await Promise.resolve()
++    expect(panel.querySelector("[data-search-target]")).toBeNull()
++
++    // Disposing twice is safe (the search activation cleanup path can outlive the view).
++    dispose()
++    dispose()
++    root.remove()
++  })
++
++  test("reveals a present anchor and restores it on dispose", async () => {
++    const root = document.createElement("div")
++    const panel = document.createElement("div")
++    panel.className = "settings-panel"
++    const control = document.createElement("button")
++    control.dataset.action = "settings-color-scheme"
++    // Happy-dom has no layout engine: the reveal's visibility probe, scroll, and animation
++    // lookup are stubbed on the control to exercise the real reveal path.
++    control.getClientRects = () => [new DOMRect(0, 0, 10, 10)] as unknown as DOMRectList
++    control.scrollIntoView = () => {}
++    control.getAnimations = () => []
++    panel.appendChild(control)
++    root.appendChild(panel)
++    document.body.appendChild(root)
++
++    const dispose = revealSettingsSearch(root, {
++      type: "root",
++      tab: "appearance",
++      target: "settings-color-scheme",
++    })
++
++    await Promise.resolve()
++    const row = panel.querySelector("[data-search-target]")
++
++    expect(row).not.toBeNull()
++    dispose()
++    expect(panel.querySelector("[data-search-target]")).toBeNull()
++    root.remove()
++  })
++})
+diff --git a/packages/app/src/settings/search.css b/packages/app/src/settings/search.css
+index df2e620..bbfae10 100644
+--- a/packages/app/src/settings/search.css
++++ b/packages/app/src/settings/search.css
+@@ -1,16 +1,9 @@
+-.settings-search,
+-.settings-search-matches {
++.settings-search {
+   display: flex;
+   flex-direction: column;
+-  gap: 8px;
+   min-height: 0;
+ }
+ 
+-.settings-search {
+-  position: relative;
+-  gap: 0;
+-}
+-
+ .settings-search[data-empty="true"] [data-slot="text-input-v2-icon-button"] {
+   visibility: hidden;
+ }
+@@ -26,15 +19,15 @@
+   color: var(--v2-icon-icon-base);
+ }
+ 
+-.settings-search > [data-component="text-input-v2"] {
++.settings-search [data-component="text-input-v2"] {
+   width: 100%;
+   flex-shrink: 0;
+   background: transparent;
+   box-shadow: none;
+ }
+ 
+-.settings-search > [data-component="text-input-v2"]:is(:hover, :focus-within):not([data-disabled]),
+-.settings-search > [data-component="text-input-v2"]:has(input:not(:placeholder-shown)):not([data-disabled]) {
++.settings-search [data-component="text-input-v2"]:is(:hover, :focus-within):not([data-disabled]),
++.settings-search [data-component="text-input-v2"]:has(input:not(:placeholder-shown)):not([data-disabled]) {
+   background: var(--v2-overlay-simple-overlay-hover);
+ }
+ 
+@@ -68,12 +61,23 @@
+   white-space: pre;
+ }
+ 
++/* Centred like every search list's empty state, with even insets on the rows' text spine. */
++.settings-search [data-slot="search-list-empty"] .settings-search-empty {
++  justify-content: center;
++  margin-block-start: 0;
++  padding-inline: 18px;
++}
++
+ .settings-search-empty-quoted {
+   flex: 1;
+   min-width: 0;
+   color: var(--v2-text-text-base);
+ }
+ 
++.settings-search [data-slot="search-list-empty"] .settings-search-empty-quoted {
++  flex: 0 1 auto;
++}
++
+ .settings-search-empty-measure {
+   position: absolute;
+   visibility: hidden;
+@@ -89,68 +93,14 @@
+   width: max-content;
+ }
+ 
+-.settings-search-category,
+-.settings-search-group,
+-.settings-search-detail,
+-.settings-search-note {
+-  color: var(--v2-text-text-muted);
++.settings-search-empty,
++.settings-search-empty-measure {
+   font-size: 13px;
++  font-weight: 440;
+   line-height: var(--line-height-compact);
+   letter-spacing: -0.04px;
+ }
+ 
+-.settings-search-results {
+-  display: flex;
+-  flex-direction: column;
+-  gap: 4px;
+-  min-height: 0;
+-  padding: 0;
+-  /* Keep the first and last results clear of the fades when scrolling to either end. */
+-  padding-block: 16px 32px;
+-}
+-
+-.settings-search-scroll {
+-  /* The 4px thumb is centered in a 12px hit target, leaving an 8px gap beside the rows. */
+-  padding-inline-end: 16px;
+-}
+-
+-@container settings-screen (min-width: 800px) {
+-  .settings-search-scroll {
+-    width: calc(100% + 16px);
+-    margin-inline-end: -16px;
+-  }
+-}
+-
+-.settings-search-scroll > .scroll-view__viewport {
+-  overscroll-behavior: contain;
+-  scroll-padding-block: 16px 32px;
+-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 32px), transparent);
+-  mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 32px), transparent);
+-}
+-
+-.settings-search-scroll[data-empty="true"] {
+-  display: none;
+-}
+-
+-.settings-search-category {
+-  padding: 16px 6px 4px;
+-  padding-inline-start: 8px;
+-  overflow-wrap: anywhere;
+-  font-weight: 530;
+-}
+-
+-.settings-search-category:first-child {
+-  padding-block: 6px;
+-}
+-
+-.settings-search-group {
+-  padding: 8px 6px 4px;
+-  padding-inline-start: 8px;
+-  overflow-wrap: anywhere;
+-  font-weight: 440;
+-}
+-
+-.settings-search-result,
+ .settings-search-empty {
+   display: flex;
+   align-items: center;
+@@ -162,100 +112,6 @@
+   color: var(--v2-text-text-muted);
+ }
+ 
+-.settings-search-result {
+-  gap: 8px;
+-  border: 0;
+-  border-radius: 4px;
+-  background: transparent;
+-  text-align: start;
+-  cursor: default;
+-}
+-
+-.settings-search-result:has(.settings-search-detail) {
+-  flex-direction: column;
+-  align-items: stretch;
+-  justify-content: center;
+-  gap: 3px;
+-  height: auto;
+-  min-height: 48px;
+-  padding-block: 6px;
+-}
+-
+-.settings-search-title,
+-.settings-search-empty,
+-.settings-search-empty-measure {
+-  font-size: 13px;
+-  font-weight: 440;
+-  line-height: var(--line-height-compact);
+-  letter-spacing: -0.04px;
+-}
+-
+-.settings-search-title {
+-  color: var(--v2-text-text-base);
+-  grid-column: 2;
+-  justify-self: start;
+-  max-width: 100%;
+-  min-width: 0;
+-  overflow: hidden;
+-  text-overflow: ellipsis;
+-  white-space: nowrap;
+-}
+-
+-.settings-search-detail {
+-  min-width: 0;
+-  padding-inline-start: 24px;
+-  overflow: hidden;
+-  text-overflow: ellipsis;
+-  white-space: nowrap;
+-}
+-
+-.settings-search-label {
+-  display: grid;
+-  grid-template-columns: 16px minmax(0, 1fr);
+-  width: 100%;
+-  min-width: 0;
+-  align-items: center;
+-  gap: 8px;
+-}
+-
+-.settings-search-result[data-icons="false"] .settings-search-label {
+-  grid-template-columns: 0 minmax(0, 1fr);
+-  gap: 0;
+-}
+-
+-.settings-search-result[data-icons="false"] .settings-search-detail {
+-  padding-inline-start: 0;
+-}
+-
+-.settings-search-project-icon[data-component="project-avatar-v2"] {
+-  width: 16px;
+-  height: 16px;
+-  flex-shrink: 0;
+-}
+-
+-.settings-search-result[data-highlighted="true"],
+-.settings-search-result[aria-current="location"],
+-.settings-search-result:active {
+-  background: var(--v2-background-bg-layer-03);
+-  color: var(--v2-text-text-base);
+-}
+-
+-.settings-search-result:focus-visible {
+-  outline: none;
+-  background: var(--v2-background-bg-layer-03);
+-  color: var(--v2-text-text-base);
+-}
+-
+-@media (hover: hover) {
+-  .settings-search-result:hover:not([data-highlighted="true"]):not([aria-current="location"]):not(:active) {
+-    background: var(--v2-background-bg-layer-03);
+-  }
+-}
+-
+-.settings-search-note {
+-  padding: 12px 6px 0;
+-}
+-
+ [data-component="settings-list"] {
+   --settings-search-inset: 20px;
+ }
+diff --git a/packages/app/src/settings/search.tsx b/packages/app/src/settings/search.tsx
+index be41e80..f53d398 100644
+--- a/packages/app/src/settings/search.tsx
++++ b/packages/app/src/settings/search.tsx
+@@ -1,16 +1,17 @@
+-import { createEffect, createMemo, createUniqueId, For, on, onMount, Show } from "solid-js"
++import { createEffect, createMemo, on, onMount, Show } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { createMediaQuery } from "@solid-primitives/media"
+ import { createResizeObserver } from "@solid-primitives/resize-observer"
+ import { Icon } from "@opencode/ui/icon"
++import { SearchHighlight, SearchList, type SearchListHandle } from "@opencode/ui/search-list"
++import { Slash } from "@opencode/ui/slash"
+ import { TextInput } from "@opencode/ui/text-input"
+-import { ScrollView } from "@opencode/ui/scroll-view"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { useGlobal } from "@/runtime/server/runtime"
+ import { ProjectIcon } from "@/shell/layout/project-icon"
+ import { useCommand } from "@/shell/commands/command"
+-import { settingsProjects, useSettingsServers } from "./servers/inventory"
++import { useSettingsServers } from "./servers/inventory"
+ import { useSettingsSurface } from "./surface"
+ import { rankSettings, type SettingsSearchResult } from "./search-results"
+ import { settingsSearchIndex } from "./search-index"
+@@ -19,17 +20,13 @@ import { SettingsSearchEmpty } from "./search-empty"
+ export function SettingsSearch() {
+   const language = useLanguage()
+   const command = useCommand()
+-  const platform = usePlatform()
+-  const global = useGlobal()
+   const servers = useSettingsServers()
+   const surface = useSettingsSurface()
+   const search = surface.search
+-  const mobile = createMediaQuery("(max-width: 767px)")
+   const [state, setState] = createStore({ narrow: false, overflow: { start: false, end: false } })
+-  const listID = `settings-results-${createUniqueId()}`
+   let root: HTMLDivElement | undefined
+   let input: HTMLInputElement | undefined
+-  let results: HTMLDivElement | undefined
++  let list: SearchListHandle<SettingsSearchResult> | undefined
+ 
+   const updateOverflow = () => {
+     if (!input) return
+@@ -56,38 +53,17 @@ export function SettingsSearch() {
+       keybind: "mod+f",
+       hidden: true,
+       onSelect: () => {
++        // A root pick in a wide window closes the results but keeps focus, so focusing again would not reopen them.
++        search.expand()
+         input?.focus({ preventScroll: true })
+         input?.select()
+       },
+     },
+   ])
+ 
+-  const inventory = createMemo(() =>
+-    servers().map((server) => {
+-      const context = server.connection ? global.ensureServerCtx(server.connection) : undefined
+-
+-      return {
+-        ...server,
+-        connected: context?.sdk.connection.status() === "connected",
+-        projects: context ? settingsProjects(context) : [],
+-      }
+-    }),
+-  )
+-
+-  const origin = () => search.state.origin ?? surface.view()
+-
+-  const catalog = createMemo(() =>
+-    settingsSearchIndex({
+-      servers: inventory(),
+-      desktop: platform.platform === "desktop",
+-      browser: platform.platform === "desktop",
+-      mobile: mobile(),
+-      translate: language.t,
+-      extensions: surface.plugins.items(),
+-    }),
+-  )
++  const catalog = createSettingsSearchCatalog()
+ 
+-  const matches = createMemo(() => rankSettings(search.state.query, catalog(), origin()))
++  const matches = createMemo(() => rankSettings(search.state.query, catalog()))
+ 
+   const category = (item: SettingsSearchResult) =>
+     item.topLevel
+@@ -98,19 +74,12 @@ export function SettingsSearch() {
+           ? "settings.search.group.projects"
+           : "settings.search.group.servers"
+ 
++  // A category's rows stay together, whichever of its groups ranks first, so its header shows once.
+   const shown = createMemo(() => {
+-    const groups = new Map<ReturnType<typeof category>, SettingsSearchResult[]>()
+-    matches()
+-      .slice(0, 60)
+-      .forEach((item) => {
+-        const key = category(item)
+-        const items = groups.get(key)
+-
+-        if (items) return items.push(item)
+-        groups.set(key, [item])
+-      })
++    const top = matches().slice(0, 60)
++    const order = [...new Set(top.map(category))]
+ 
+-    return Array.from(groups.values()).flat()
++    return order.flatMap((key) => top.filter((item) => category(item) === key))
+   })
+ 
+   const iconGroups = createMemo(
+@@ -122,19 +91,6 @@ export function SettingsSearch() {
+       ),
+   )
+ 
+-  const expanded = () => !!search.state.query.trim() && (!state.narrow || search.state.expanded)
+-  const highlighted = () => shown().find((item) => item.id === search.state.highlighted) ?? shown()[0]
+-  const optionID = (id: string) => `${listID}-${encodeURIComponent(id)}`
+-  createEffect(
+-    on(
+-      () => search.state.query,
+-      () => {
+-        if (results) results.scrollTop = 0
+-      },
+-      { defer: true },
+-    ),
+-  )
+-
+   const group = (item: SettingsSearchResult) => {
+     if (item.entity && !item.project) return ""
+ 
+@@ -143,7 +99,13 @@ export function SettingsSearch() {
+     return item.projectName ?? ""
+   }
+ 
++  const expanded = () => !!search.state.query.trim() && (!state.narrow || search.state.expanded)
++
+   const select = (item: SettingsSearchResult) => {
++    list?.setActive(item.id)
++
++    // A wide layout keeps the results beside the page, so the keys stay with them.
++    if (item.view.type === "root" && !state.narrow) input?.focus({ preventScroll: true })
+     surface.search.open(item.view, item.id)
+ 
+     if (state.narrow && item.view.type === "root") {
+@@ -158,31 +120,43 @@ export function SettingsSearch() {
+   }
+ 
+   return (
+-    <div
+-      ref={root}
+-      class="settings-search"
+-      data-expanded={search.state.expanded}
+-      data-empty={!search.state.query.trim()}
+-      on:keydown={{
+-        // Handle result navigation before ScrollView's generic scrolling keys.
+-        capture: true,
+-        handleEvent: (event) => {
+-          if (
+-            event.defaultPrevented ||
+-            event.isComposing ||
+-            event.altKey ||
+-            event.ctrlKey ||
+-            event.metaKey ||
+-            event.shiftKey
+-          )
+-            return
+-
+-          if (
+-            event.target !== input &&
+-            !(event.target instanceof Element && event.target.closest(".settings-search-result"))
+-          )
+-            return
+-
++    <div ref={root} class="settings-search" data-empty={!search.state.query.trim()}>
++      <SearchList
++        query={search.state.query}
++        onQuery={(query) => search.input(query)}
++        placeholder={language.t("settings.search.placeholder")}
++        label={language.t("settings.search.results")}
++        open={expanded()}
++        popover={state.narrow}
++        items={shown()}
++        key={(item) => item.id}
++        section={(item) => `${category(item)}\u0000${group(item)}`}
++        header={(item) => (
++          <>
++            <span class="shrink-0">{language.t(category(item))}</span>
++            <Show when={group(item)}>
++              {(name) => (
++                <>
++                  <Slash gap={0} />
++                  <bdi dir="auto" class="min-w-0 truncate">
++                    {name()}
++                  </bdi>
++                </>
++              )}
++            </Show>
++          </>
++        )}
++        empty={<SettingsSearchEmpty query={search.state.query} />}
++        footer={matches().length > shown().length ? language.t("settings.search.refine") : undefined}
++        scrollTop={search.state.scrollTop}
++        onScroll={(top) => search.scroll(top)}
++        ref={(handle) => {
++          list = handle
++          handle.setActive(search.state.highlighted || undefined)
++        }}
++        onActive={(item) => item && search.highlight(item.id)}
++        onSelect={select}
++        onKeyDown={(event) => {
+           if (event.key === "Escape" && search.state.query) {
+             event.preventDefault()
+             event.stopPropagation()
+@@ -191,166 +165,117 @@ export function SettingsSearch() {
+             return
+           }
+ 
+-          if (event.key === "Enter" && expanded() && highlighted()) {
++          if (
++            !expanded() &&
++            search.state.query.trim() &&
++            (event.key === "ArrowDown" || event.key === "ArrowUp") &&
++            !event.shiftKey &&
++            !event.ctrlKey &&
++            !event.altKey &&
++            !event.metaKey
++          ) {
+             event.preventDefault()
+-            event.stopPropagation()
+-            select(highlighted()!)
+-
+-            return
++            search.expand()
+           }
++        }}
++        field={(field) => (
++          <TextInput
++            {...field}
++            ref={input}
++            type="search"
++            value={search.state.query}
++            leadingIcon={<Icon name="magnifying-glass" size="small" />}
++            placeholder={language.t("settings.search.placeholder")}
++            aria-label={language.t("settings.search.placeholder")}
++            data-overflow-start={state.overflow.start}
++            data-overflow-end={state.overflow.end}
++            showClearButton
++            clearIcon="circle-xmark"
++            onClearClick={clear}
++            onFocus={() => search.expand()}
++            onScroll={updateOverflow}
++            spellcheck={false}
++            autocomplete="off"
++          />
++        )}
++      >
++        {(item, row) => (
++          <button
++            type="button"
++            {...row}
++            tabIndex={-1}
++            aria-label={
++              item().page === item().title && !item().owner
++                ? item().title
++                : language.t(
++                    item().page === item().title
++                      ? "settings.search.page"
++                      : item().owner
++                        ? "settings.search.result"
++                        : "settings.search.result.unscoped",
++                    { title: item().title, scope: item().owner, page: item().page },
++                  )
++            }
++            aria-current={search.state.selected === item().id ? "location" : undefined}
++            data-setting-target={item().view.target}
++            data-result-id={item().id}
++            title={[item().owner, item().page].filter(Boolean).join(" › ")}
++          >
++            <span class="flex min-w-0 items-center gap-2 text-[13px] font-[440] leading-text-compact tracking-[-0.04px]">
++              <Show when={iconGroups().has(category(item()))}>
++                <span class="flex size-4 shrink-0 items-center justify-center text-v2-icon-icon-muted">
++                  <Show
++                    when={item().projectInfo}
++                    fallback={<Show when={item().topLevel && item().icon}>{(icon) => <Icon name={icon()} />}</Show>}
++                  >
++                    {(project) => <ProjectIcon project={project()} class="shrink-0" aria-hidden="true" />}
++                  </Show>
++                </span>
++              </Show>
++              <bdi dir="auto" class="min-w-0 truncate text-v2-text-text-base">
++                <SearchHighlight text={item().title} />
++              </bdi>
++              <Show when={item().page !== item().title && !(item().entity && item().project)}>
++                <span class="min-w-0 truncate text-v2-text-text-muted">{item().page}</span>
++              </Show>
++            </span>
++          </button>
++        )}
++      </SearchList>
++    </div>
++  )
++}
+ 
+-          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+-
+-          if ((event.key === "Home" || event.key === "End") && event.target === input) return
+-          event.preventDefault()
+-          event.stopPropagation()
+-          search.expand()
+-          const index = shown().findIndex((item) => item.id === highlighted()?.id)
++/** The settings search index for the current platform, servers, and plugins. */
++export function createSettingsSearchCatalog() {
++  const language = useLanguage()
++  const platform = usePlatform()
++  const global = useGlobal()
++  const servers = useSettingsServers()
++  const surface = useSettingsSurface()
++  const mobile = createMediaQuery("(max-width: 767px)")
+ 
+-          const next =
+-            shown()[
+-              event.key === "Home"
+-                ? 0
+-                : event.key === "End"
+-                  ? shown().length - 1
+-                  : Math.max(0, Math.min(shown().length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))
+-            ]
++  const inventory = createMemo(() =>
++    servers().map((server) => {
++      const context = server.connection ? global.ensureServerCtx(server.connection) : undefined
+ 
+-          if (!next) return
+-          search.highlight(next.id)
+-          const row = results?.querySelector<HTMLElement>(`#${CSS.escape(optionID(next.id))}`)
++      return {
++        ...server,
++        connected: context?.sdk.connection.status() === "connected",
++        projects: context ? context.projects.list() : [],
++      }
++    }),
++  )
+ 
+-          if (event.target !== input) row?.focus({ preventScroll: true })
+-          row?.scrollIntoView({ block: "nearest", inline: "nearest" })
+-        },
+-      }}
+-    >
+-      <TextInput
+-        ref={input}
+-        type="search"
+-        role="combobox"
+-        aria-autocomplete="list"
+-        aria-expanded={expanded()}
+-        aria-activedescendant={expanded() && highlighted() ? optionID(highlighted()!.id) : undefined}
+-        value={search.state.query}
+-        leadingIcon={<Icon name="magnifying-glass" size="small" />}
+-        placeholder={language.t("settings.search.placeholder")}
+-        aria-label={language.t("settings.search.placeholder")}
+-        aria-controls={search.state.query.trim() ? listID : undefined}
+-        data-overflow-start={state.overflow.start}
+-        data-overflow-end={state.overflow.end}
+-        showClearButton
+-        clearIcon="circle-xmark"
+-        onClearClick={clear}
+-        onFocus={() => search.expand()}
+-        onScroll={updateOverflow}
+-        onInput={(event) => {
+-          search.input(event.currentTarget.value)
+-        }}
+-        spellcheck={false}
+-        autocomplete="off"
+-      />
+-      <Show when={search.state.query.trim()}>
+-        <div class="settings-search-matches">
+-          <ScrollView
+-            class="settings-search-scroll"
+-            data-empty={!shown().length}
+-            viewportRef={(element) => {
+-              results = element
+-              queueMicrotask(() => {
+-                if (element.isConnected) element.scrollTop = search.state.scrollTop
+-              })
+-            }}
+-            onScroll={(event) => search.scroll(event.currentTarget.scrollTop)}
+-          >
+-            <div
+-              id={listID}
+-              class="settings-search-results"
+-              role="listbox"
+-              aria-label={language.t("settings.search.results")}
+-            >
+-              <For each={shown()}>
+-                {(item, index) => (
+-                  <>
+-                    <Show when={index() === 0 || category(shown()[index() - 1]) !== category(item)}>
+-                      <div class="settings-search-category" role="presentation">
+-                        {language.t(category(item))}
+-                      </div>
+-                    </Show>
+-                    <Show
+-                      when={
+-                        group(item) &&
+-                        (index() === 0 ||
+-                          category(shown()[index() - 1]) !== category(item) ||
+-                          group(shown()[index() - 1]) !== group(item))
+-                      }
+-                    >
+-                      <div class="settings-search-group" role="presentation">
+-                        <bdi dir="auto">{group(item)}</bdi>
+-                      </div>
+-                    </Show>
+-                    <button
+-                      id={optionID(item.id)}
+-                      role="option"
+-                      aria-selected={highlighted()?.id === item.id}
+-                      aria-label={
+-                        item.page === item.title && !item.owner
+-                          ? item.title
+-                          : language.t(
+-                              item.page === item.title
+-                                ? "settings.search.page"
+-                                : item.owner
+-                                  ? "settings.search.result"
+-                                  : "settings.search.result.unscoped",
+-                              { title: item.title, scope: item.owner, page: item.page },
+-                            )
+-                      }
+-                      type="button"
+-                      class="settings-search-result"
+-                      data-icons={iconGroups().has(category(item))}
+-                      data-setting-target={item.view.target}
+-                      data-result-id={item.id}
+-                      data-highlighted={highlighted()?.id === item.id}
+-                      aria-current={search.state.selected === item.id ? "location" : undefined}
+-                      title={[item.owner, item.page].filter(Boolean).join(" › ")}
+-                      tabIndex={highlighted()?.id === item.id ? 0 : -1}
+-                      onFocus={() => search.highlight(item.id)}
+-                      onClick={(event) => {
+-                        if (item.view.type === "root" && !state.narrow)
+-                          event.currentTarget.focus({ preventScroll: true })
+-                        select(item)
+-                      }}
+-                    >
+-                      <span class="settings-search-label">
+-                        <Show
+-                          when={item.projectInfo}
+-                          fallback={<Show when={item.topLevel && item.icon}>{(icon) => <Icon name={icon()} />}</Show>}
+-                        >
+-                          {(project) => (
+-                            <ProjectIcon project={project()} class="settings-search-project-icon" aria-hidden="true" />
+-                          )}
+-                        </Show>
+-                        <bdi dir="auto" class="settings-search-title">
+-                          {item.title}
+-                        </bdi>
+-                      </span>
+-                      <Show when={item.page !== item.title && !(item.entity && item.project)}>
+-                        <span class="settings-search-detail">{item.page}</span>
+-                      </Show>
+-                    </button>
+-                  </>
+-                )}
+-              </For>
+-            </div>
+-          </ScrollView>
+-          <Show when={!matches().length}>
+-            <SettingsSearchEmpty query={search.state.query} />
+-          </Show>
+-          <Show when={matches().length > shown().length}>
+-            <p class="settings-search-note">{language.t("settings.search.refine")}</p>
+-          </Show>
+-        </div>
+-      </Show>
+-    </div>
++  return createMemo(() =>
++    settingsSearchIndex({
++      servers: inventory(),
++      selected: surface.server()?.key,
++      desktop: platform.platform === "desktop",
++      browser: platform.platform === "desktop",
++      mobile: mobile(),
++      translate: language.t,
++      plugins: surface.plugins.items(),
++    }),
+   )
+ }
+diff --git a/packages/app/src/settings/servers/inventory.test.ts b/packages/app/src/settings/servers/inventory.test.ts
+index 1ee2f78..a03194c 100644
+--- a/packages/app/src/settings/servers/inventory.test.ts
++++ b/packages/app/src/settings/servers/inventory.test.ts
+@@ -1,7 +1,7 @@
+ import { describe, expect, test } from "bun:test"
+-import { ServerConnection } from "@/runtime/server/registry"
++import { ServerConnection, serverName } from "@/runtime/server/registry"
+ import type { PluginServer } from "@/runtime/plugin/servers"
+-import { settingsProjects, settingsServers } from "./inventory"
++import { settingsServers } from "./inventory"
+ 
+ const ssh: PluginServer = {
+   key: "ssh:build",
+@@ -21,35 +21,9 @@ const connection: ServerConnection.Plugin = {
+   http: { url: "http://127.0.0.1:4000", password: "secret" },
+ }
+ 
+-test("settings project inventory reads metadata without acquiring directory stores", () => {
+-  const projects = Array.from({ length: 40 }, (_, index) => ({
+-    id: `project-${index}`,
+-    worktree: `/projects/${index}`,
+-    name: `Project ${index}`,
+-    icon: { color: "orange" },
+-    commands: { start: "bun install" },
+-    time: { created: 1, updated: 1, active: 1 },
+-    sandboxes: [],
+-    worktrees: [],
+-  }))
+-
+-  const tracked = { ...projects[0], expanded: true, icon: { override: "local-icon" } }
+-
+-  const inventory = settingsProjects({
+-    projects: { list: () => [tracked], closed: () => [projects[1].worktree] },
+-    sync: { data: { project: projects } },
+-  })
+-
+-  expect(inventory).toHaveLength(39)
+-  expect(inventory[0]).toBe(tracked)
+-  expect(inventory.some((project) => project.id === projects[1].id)).toBe(false)
+-  expect(inventory[1]).toEqual({ ...projects[2], expanded: false })
+-  expect(inventory[38]).toEqual({ ...projects[39], expanded: false })
+-})
+-
+ describe("settings server inventory", () => {
+   test("includes contributed servers before they connect", () => {
+-    expect(settingsServers([], [ssh])).toEqual([
++    expect(settingsServers([], [ssh], serverName)).toEqual([
+       {
+         key: ServerConnection.Key.make("ssh:build"),
+         name: "Build server",
+@@ -60,7 +34,7 @@ describe("settings server inventory", () => {
+ 
+   test("joins a ready contributed server to its live connection and withholds it while disconnected", () => {
+     const ready = { ...ssh, entry: { ...ssh.entry, state: "ready" as const } }
+-    expect(settingsServers([connection], [ready])).toEqual([
++    expect(settingsServers([connection], [ready], serverName)).toEqual([
+       {
+         key: ServerConnection.Key.make("ssh:build"),
+         name: "Build server",
+@@ -68,6 +42,6 @@ describe("settings server inventory", () => {
+         source: ready,
+       },
+     ])
+-    expect(settingsServers([connection], [ssh])[0].connection).toBeUndefined()
++    expect(settingsServers([connection], [ssh], serverName)[0].connection).toBeUndefined()
+   })
+ })
+diff --git a/packages/app/src/settings/servers/inventory.ts b/packages/app/src/settings/servers/inventory.ts
+index 6929c57..7b518a0 100644
+--- a/packages/app/src/settings/servers/inventory.ts
++++ b/packages/app/src/settings/servers/inventory.ts
+@@ -1,25 +1,7 @@
+ import { createMemo } from "solid-js"
+-import { ServerConnection, serverName, useServers } from "@/runtime/server/registry"
++import { ServerConnection, useServers } from "@/runtime/server/registry"
+ import { usePluginServers, type PluginServer } from "@/runtime/plugin/servers"
+-import type { ServerCtx } from "@/runtime/server/runtime"
+-import { pathKey } from "@/workspaces/path-key"
+-
+-export function settingsProjects(context: {
+-  projects: Pick<ServerCtx["projects"], "list" | "closed">
+-  sync: { data: Pick<ServerCtx["sync"]["data"], "project"> }
+-}) {
+-  const tracked = context.projects.list()
+-  const paths = new Set(tracked.map((project) => pathKey(project.worktree)))
+-  const closed = new Set(context.projects.closed().map(pathKey))
+-
+-  return [
+-    ...tracked,
+-    // Inventory reads must not allocate directory stores: async cache hydration can trigger an eviction/reload loop.
+-    ...context.sync.data.project
+-      .filter((project) => !paths.has(pathKey(project.worktree)) && !closed.has(pathKey(project.worktree)))
+-      .map((project) => ({ ...project, expanded: false })),
+-  ]
+-}
++import type { ServerHealth } from "@/runtime/server/health"
+ 
+ export type SettingsServer = {
+   key: ServerConnection.Key
+@@ -29,7 +11,11 @@ export type SettingsServer = {
+   source?: PluginServer
+ }
+ 
+-export function settingsServers(connections: readonly ServerConnection.Any[], sources: readonly PluginServer[]) {
++export function settingsServers(
++  connections: readonly ServerConnection.Any[],
++  sources: readonly PluginServer[],
++  label: (connection: ServerConnection.Any) => string,
++) {
+   const byKey = new Map(sources.map((item) => [item.key, item]))
+   const connected = new Set<string>(connections.map(ServerConnection.key))
+ 
+@@ -40,20 +26,16 @@ export function settingsServers(connections: readonly ServerConnection.Any[], so
+ 
+       return {
+         key,
+-        name: source?.entry.name ?? (serverName(connection) || key),
++        name: source?.entry.name ?? (label(connection) || key),
+         connection: source && source.entry.state !== "ready" ? undefined : connection,
+         source,
+       }
+     }),
+-    ...sources
+-      .filter((item) => !connected.has(item.key))
+-      .map(
+-        (item): SettingsServer => ({
+-          key: ServerConnection.Key.make(item.key),
+-          name: item.entry.name,
+-          source: item,
+-        }),
+-      ),
++    ...sources.flatMap((item): SettingsServer[] =>
++      connected.has(item.key)
++        ? []
++        : [{ key: ServerConnection.Key.make(item.key), name: item.entry.name, source: item }],
++    ),
+   ]
+ }
+ 
+@@ -69,5 +51,10 @@ export function useSettingsServers() {
+   const servers = useServers()
+   const plugins = usePluginServers()
+ 
+-  return createMemo(() => settingsServers(servers.list, plugins.entries()))
++  return createMemo(() => settingsServers(servers.list, plugins.entries(), servers.label))
++}
++
++/** Whether a server's pages can load: it runs and its last health check did not fail. */
++export function settingsServerReachable(server: SettingsServer, health: ServerHealth | undefined) {
++  return !!server.connection && health?.healthy !== false
+ }
+diff --git a/packages/app/src/settings/servers/servers.tsx b/packages/app/src/settings/servers/servers.tsx
+index de69ae1..d497826 100644
+--- a/packages/app/src/settings/servers/servers.tsx
++++ b/packages/app/src/settings/servers/servers.tsx
+@@ -1,6 +1,9 @@
+ import { Button } from "@opencode/ui/button"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import { createMemo, Show, type Component } from "solid-js"
++// mobile(M-043): this file carries only the two pieces the migrated shell renders — the
++// target `SettingsServerList` and the retargeted `SettingsServerGeneral` signature. The
++// row/auth content stays at the M-037 state; issue #102 replaces it with the target file.
++import { createMemo, For, Show, type Component } from "solid-js"
+ import { ServerRowMenu } from "@/servers/registry/row-menu"
+ import { ServerHealthIndicator } from "@/servers/registry/row"
+ import { PluginServerRow } from "@/servers/registry/plugin-row"
+@@ -15,19 +18,13 @@ import { createServerShellController } from "@/settings/general/controllers"
+ import type { SettingsServer } from "./inventory"
+ import "@/settings/settings.css"
+ 
+-export const SettingsServerGeneral: Component<{
+-  entry: SettingsServer
+-  nested?: boolean
+-  onAddServer?: () => void
+-  onServerChange?: (server: ServerConnection.Any) => void
+-}> = (props) => {
++export const SettingsServerGeneral: Component<{ entry: SettingsServer; onAddServer: () => void }> = (props) => {
+   const dialog = useDialog()
+   const language = useLanguage()
+   const controller = useServerCollectionController()
+   const health = createMemo(() => controller.collection.health()[props.entry.key])
+ 
+-  const edit = (server: ServerConnection.Http) =>
+-    void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
++  const edit = (server: ServerConnection.Http) => void dialog.push(() => <DialogServer mode="edit" server={server} />)
+ 
+   // An HTTP server that rejects its saved credentials signs in again through the edit dialog.
+   const signedOut = (server: ServerConnection.Any) =>
+@@ -38,15 +35,13 @@ export const SettingsServerGeneral: Component<{
+       <div class="settings-tab-header">
+         <div class="settings-tab-header-row">
+           <div class="flex flex-col gap-1">
+-            <h2 class="settings-tab-title">
+-              {props.nested ? props.entry.name : language.t("settings.section.server")}
+-            </h2>
++            <h2 class="settings-tab-title">{language.t("settings.section.server")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">
+-              {language.t(props.nested ? "settings.server.description" : "settings.servers.description")}
++              {language.t("settings.servers.description")}
+             </span>
+           </div>
+-          <Show when={!props.nested && props.onAddServer}>
+-            <AddServerMenu onAddServer={() => props.onAddServer?.()} />
++          <Show when={props.onAddServer}>
++            <AddServerMenu onAddServer={props.onAddServer} />
+           </Show>
+         </div>
+       </div>
+@@ -114,3 +109,120 @@ function ServerShell(props: { server: ServerConnection.Any }) {
+     </section>
+   )
+ }
++
++/** Every server, each with its connection and terminal shell. */
++// mobile(M-043): target-verbatim except the `action` prop thread into `ShellSetting` (the
++// vendored general page's ShellSetting has no `action` prop yet; the reveal-naming refinement
++// lands with issue #102's full servers.tsx migration).
++export const SettingsServerList: Component<{
++  servers: readonly SettingsServer[]
++  /** The server whose shell row search results reveal. */
++  selected?: string
++  onAddServer: () => void
++  onServerChange: (server: ServerConnection.Any) => void
++}> = (props) => {
++  const language = useLanguage()
++  const controller = useServerCollectionController()
++
++  return (
++    <>
++      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} />
++
++      <div class="settings-tab-body settings-tab-body--sectioned">
++        <For each={props.servers}>
++          {(entry) => (
++            <section
++              class="settings-section settings-server-connection"
++              data-component="settings-server-connection"
++              aria-label={entry.name}
++            >
++              <SettingsList>
++                <ServerConnectionRow entry={entry} onServerChange={props.onServerChange} />
++                <Show
++                  when={
++                    entry.connection && controller.collection.health()[entry.key]?.healthy !== false
++                      ? entry.connection
++                      : undefined
++                  }
++                  keyed
++                >
++                  {(server) => <ServerShell server={server} />}
++                </Show>
++              </SettingsList>
++            </section>
++          )}
++        </For>
++      </div>
++    </>
++  )
++}
++
++function SettingsServersHeader(props: { title: string; onAddServer: () => void }) {
++  const language = useLanguage()
++
++  return (
++    <div class="settings-tab-header">
++      <div class="settings-tab-header-row">
++        <div class="flex min-w-0 flex-col gap-1">
++          <h2 class="settings-tab-title">{props.title}</h2>
++          <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
++        </div>
++        <div class="settings-tab-header-actions">
++          <AddServerMenu onAddServer={props.onAddServer} />
++        </div>
++      </div>
++    </div>
++  )
++}
++
++function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (server: ServerConnection.Any) => void }) {
++  const dialog = useDialog()
++  const language = useLanguage()
++  const controller = useServerCollectionController()
++  const health = createMemo(() => controller.collection.health()[props.entry.key])
++
++  const edit = (server: ServerConnection.Http) =>
++    void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
++
++  // An HTTP server that rejects its saved credentials signs in again through the edit dialog.
++  const signedOut = (server: ServerConnection.Any) =>
++    server.type === "http" && health()?.unauthorized ? server : undefined
++
++  return (
++    <Show
++      when={props.entry.source?.entry.row ? props.entry.key : undefined}
++      keyed
++      fallback={
++        <Show when={props.entry.connection}>
++          {(server) => (
++            <div class="settings-servers-row">
++              <div class="settings-servers-lead">
++                <ServerHealthIndicator health={health()} authenticationRequired={!!health()?.unauthorized} />
++                <div class="settings-servers-copy">
++                  <bdi class="settings-servers-name" dir="auto">
++                    {props.entry.name}
++                  </bdi>
++                  <bdi class="settings-servers-meta" dir="ltr">
++                    {server().http.url}
++                  </bdi>
++                </div>
++              </div>
++              <div class="settings-servers-actions">
++                <Show when={signedOut(server())}>
++                  {(http) => (
++                    <Button size="small" variant="neutral" onClick={() => edit(http())}>
++                      {language.t("server.action.authenticate")}
++                    </Button>
++                  )}
++                </Show>
++                <ServerRowMenu server={server()} domain={controller} onEdit={edit} />
++              </div>
++            </div>
++          )}
++        </Show>
++      }
++    >
++      {(key) => <PluginServerRow server={key} controller={controller} />}
++    </Show>
++  )
++}
+diff --git a/packages/app/src/settings/servers/switcher.tsx b/packages/app/src/settings/servers/switcher.tsx
+new file mode 100644
+index 0000000..336d691
+--- /dev/null
++++ b/packages/app/src/settings/servers/switcher.tsx
+@@ -0,0 +1,82 @@
++import { Button } from "@opencode/ui/button"
++import { Icon } from "@opencode/ui/icon"
++import { Menu } from "@opencode/ui/menu"
++import { For, Show } from "solid-js"
++import { useLanguage } from "@/runtime/i18n/language"
++import { useGlobal } from "@/runtime/server/runtime"
++import type { ServerHealth } from "@/runtime/server/health"
++import { ServerHealthIndicator } from "@/servers/registry/row"
++import { ServerLabel } from "@/servers/registry/label"
++import { useSettingsSurface } from "@/settings/surface"
++import { settingsServerReachable, useSettingsServers, type SettingsServer } from "./inventory"
++
++/** Chooses the server per-server pages show; renders nothing with one server. */
++export function SettingsServerSwitcher() {
++  const language = useLanguage()
++  const global = useGlobal()
++  const surface = useSettingsSurface()
++  const servers = useSettingsServers()
++  const health = (server: SettingsServer) => global.servers.health[server.key]
++  const unreachable = (server: SettingsServer) => !settingsServerReachable(server, health(server))
++
++  return (
++    <Show when={servers().length > 1 && surface.server()}>
++      {(selected) => (
++        <Menu placement="bottom-end" gutter={6} modal={false}>
++          <Menu.Trigger
++            as={Button}
++            size="small"
++            variant="outline"
++            class="settings-server-switcher"
++            data-action="settings-server-select"
++          >
++            <ServerDot health={health(selected())} unreachable={unreachable(selected())} />
++            <span class="settings-server-switcher-label">{language.t("settings.server.switcher.label")}</span>
++            <ServerLabel
++              class="settings-server-switcher-name"
++              server={selected().connection}
++              name={selected().name}
++            />
++            <Icon name="chevron-down" class="settings-server-switcher-chevron" />
++          </Menu.Trigger>
++          <Menu.Portal>
++            <Menu.Content class="settings-server-switcher-menu">
++              <Menu.RadioGroup value={selected().key} onChange={(key) => surface.selectServer(key)}>
++                <For each={servers()}>
++                  {(server) => (
++                    <Menu.RadioItem value={server.key} closeOnSelect>
++                      <ServerDot health={health(server)} unreachable={unreachable(server)} />
++                      <ServerLabel class="settings-server-switcher-option" server={server.connection} name={server.name} hint />
++                      <Show when={unreachable(server)}>
++                        <span class="settings-server-switcher-status">
++                          {language.t("settings.server.switcher.unreachable")}
++                        </span>
++                      </Show>
++                    </Menu.RadioItem>
++                  )}
++                </For>
++              </Menu.RadioGroup>
++              <Menu.Separator />
++              <Menu.Item onSelect={() => surface.select("servers")}>
++                <span class="settings-server-switcher-icon">
++                  <Icon name="server" />
++                </span>
++                {language.t("settings.server.switcher.manage")}
++              </Menu.Item>
++            </Menu.Content>
++          </Menu.Portal>
++        </Menu>
++      )}
++    </Show>
++  )
++}
++
++function ServerDot(props: { health: ServerHealth | undefined; unreachable: boolean }) {
++  const health = () => props.health ?? (props.unreachable ? { healthy: false } : undefined)
++
++  return (
++    <span class="settings-server-switcher-icon">
++      <ServerHealthIndicator health={health()} authenticationRequired={!!health()?.unauthorized} />
++    </span>
++  )
++}
+diff --git a/packages/app/src/settings/servers/unavailable.tsx b/packages/app/src/settings/servers/unavailable.tsx
+new file mode 100644
+index 0000000..5004a33
+--- /dev/null
++++ b/packages/app/src/settings/servers/unavailable.tsx
+@@ -0,0 +1,86 @@
++import { Button } from "@opencode/ui/button"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { Icon } from "@opencode/ui/icon"
++import type { JSX } from "solid-js"
++import { createStore } from "solid-js/store"
++import { useLanguage } from "@/runtime/i18n/language"
++import { useGlobal } from "@/runtime/server/runtime"
++import { ServerConnection } from "@/runtime/server/registry"
++import { DialogServer } from "@/servers/connect/dialog"
++import { SettingsList } from "@/settings/list"
++import type { SettingsServer } from "./inventory"
++import "@/settings/settings.css"
++
++/** A per-server page while its server is unreachable. */
++export function SettingsServerUnavailable(props: {
++  entry: SettingsServer
++  title: string
++  description: string
++  headerAction?: JSX.Element
++  /** Opens the Servers page, for servers this page cannot edit. */
++  onManage: () => void
++  onServerChange: (server: ServerConnection.Any) => void
++}) {
++  const language = useLanguage()
++  const dialog = useDialog()
++  const global = useGlobal()
++  const [state, setState] = createStore({ retrying: false })
++
++  const http = () =>
++    props.entry.connection?.type === "http" && !ServerConnection.builtin(props.entry.connection)
++      ? props.entry.connection
++      : undefined
++
++  const retry = () => {
++    setState("retrying", true)
++    void global.servers.retry().finally(() => setState("retrying", false))
++  }
++
++  const edit = () => {
++    const server = http()
++
++    if (!server) return props.onManage()
++    void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
++  }
++
++  return (
++    <>
++      <div class="settings-tab-header">
++        <div class="settings-tab-header-row">
++          <div class="flex min-w-0 flex-col gap-1">
++            <h2 class="settings-tab-title">{props.title}</h2>
++            <span class="text-11-regular text-v2-text-text-muted">{props.description}</span>
++          </div>
++          <div class="settings-tab-header-actions">{props.headerAction}</div>
++        </div>
++      </div>
++      <div class="settings-tab-body">
++        <SettingsList>
++          <div class="settings-server-unavailable" role="status">
++            <Icon name="outline-hexagonal-warning" class="settings-server-unavailable-icon" />
++            <div class="settings-server-unavailable-title">
++              {language.t("settings.server.unreachable.title", { server: props.entry.name })}
++            </div>
++            <div class="settings-server-unavailable-description">
++              {language.t("settings.server.unreachable.description", { server: props.entry.name })}
++            </div>
++            <div class="settings-server-unavailable-actions">
++              <Button
++                size="normal"
++                variant="neutral"
++                icon="refresh"
++                disabled={state.retrying}
++                onClick={retry}
++              >
++                {language.t("settings.server.unreachable.retry")}
++              </Button>
++              <Button size="normal" variant="ghost-muted" onClick={edit}>
++                {language.t("settings.server.unreachable.edit")}
++              </Button>
++            </div>
++          </div>
++        </SettingsList>
++      </div>
++    </>
++  )
++}
+diff --git a/packages/app/src/settings/settings.css b/packages/app/src/settings/settings.css
+index 041778c..8fffd4c 100644
+--- a/packages/app/src/settings/settings.css
++++ b/packages/app/src/settings/settings.css
+@@ -533,6 +533,113 @@
+   color: var(--v2-text-text-base);
+ }
+ 
++/* As tall as the title's line box, so header actions center on the title rather than on the title and description. */
++.settings-tab-header-actions {
++  display: flex;
++  flex-shrink: 0;
++  align-self: flex-start;
++  align-items: center;
++  gap: 8px;
++  height: var(--line-height-base);
++}
++
++.settings-tab-header-actions:not(:has(*)) {
++  display: none;
++}
++
++.settings-server-switcher[data-component="button-v2"] {
++  max-width: 240px;
++  gap: 6px;
++  padding-inline: 6px;
++}
++
++.settings-server-switcher-icon {
++  display: inline-flex;
++  width: 16px;
++  height: 16px;
++  flex-shrink: 0;
++  align-items: center;
++  justify-content: center;
++  color: var(--v2-icon-icon-muted);
++}
++
++.settings-server-switcher-label {
++  flex-shrink: 0;
++  color: var(--v2-text-text-muted);
++  font-weight: 440;
++}
++
++.settings-server-switcher-name {
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.settings-server-switcher-chevron {
++  flex-shrink: 0;
++  color: var(--v2-icon-icon-muted);
++}
++
++.settings-server-switcher-menu[data-component="menu-v2-content"] {
++  min-width: 220px;
++  max-width: min(320px, calc(100vw - 32px));
++}
++
++/* One grid for every row: a 16px status or icon column, the name, then the selection check. */
++.settings-server-switcher-menu [data-component="menu-v2-item"] {
++  padding-inline-start: 8px;
++}
++
++.settings-server-switcher-option {
++  min-width: 0;
++  flex: 1;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.settings-server-switcher-status {
++  flex-shrink: 0;
++  color: var(--v2-text-text-faint);
++}
++
++.settings-server-unavailable {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 8px;
++  padding: 40px 16px;
++  text-align: center;
++}
++
++.settings-server-unavailable-icon {
++  margin-bottom: 4px;
++  color: var(--v2-icon-icon-muted);
++}
++
++.settings-server-unavailable-title {
++  color: var(--v2-text-text-base);
++  font-size: 13px;
++  font-weight: 530;
++  line-height: var(--line-height-compact);
++}
++
++.settings-server-unavailable-description {
++  max-width: 360px;
++  color: var(--v2-text-text-muted);
++  font-size: 13px;
++  line-height: var(--line-height-base);
++}
++
++.settings-server-unavailable-actions {
++  display: flex;
++  flex-wrap: wrap;
++  justify-content: center;
++  gap: 8px;
++  margin-top: 12px;
++}
++
+ .settings-tab-body {
+   display: flex;
+   flex-direction: column;
+@@ -767,22 +874,6 @@
+     display: none;
+   }
+ 
+-  .settings-search[data-expanded="false"] .settings-search-matches {
+-    display: none;
+-  }
+-
+-  .settings-search-matches {
+-    position: absolute;
+-    inset-block-start: calc(100% + 8px);
+-    inset-inline: 0;
+-    z-index: 12;
+-    max-height: 45vh;
+-    padding-block: 8px;
+-    border-radius: 8px;
+-    background: var(--v2-background-bg-base);
+-    box-shadow: var(--v2-elevation-raised);
+-  }
+-
+   .settings-screen > .settings > .settings-sidebar[data-searchable="false"] {
+     display: none;
+   }
+@@ -797,6 +888,11 @@
+     flex-wrap: wrap;
+   }
+ 
++  /* Wrapped below the description, the actions no longer share the title's line. */
++  .settings-tab-header-actions {
++    height: auto;
++  }
++
+   .settings-tab-header-row [data-component="select-v2-root"] {
+     width: 100%;
+   }
+@@ -2015,6 +2111,7 @@
+ 
+ .settings-extension-row {
+   display: flex;
++  min-height: 56px;
+   align-items: center;
+   justify-content: space-between;
+   gap: 12px;
+@@ -2026,6 +2123,51 @@
+   border-bottom: 0;
+ }
+ 
++.settings-extension-trailing {
++  display: flex;
++  min-width: 60px;
++  flex-shrink: 0;
++  justify-content: flex-end;
++  font-size: 13px;
++  font-weight: 440;
++  line-height: var(--line-height-compact);
++}
++
++.settings-mcp-row .settings-extension-trailing {
++  min-width: 0;
++  align-items: center;
++  gap: 8px;
++  white-space: nowrap;
++}
++
++.settings-mcp-row {
++  gap: 16px;
++}
++
++/* The MCP status dot takes the icon's 16px slot, so names line up with the plugin and skill rows. */
++.settings-mcp-status {
++  display: grid;
++  width: 16px;
++  height: 16px;
++  flex-shrink: 0;
++  place-items: center;
++}
++
++.settings-mcp-row[data-status="disabled"] .settings-extension-name {
++  color: var(--v2-text-text-muted);
++}
++
++/* A quiet toggle under a plugin's error, its label lined up with the error text above it. */
++.settings-plugin-error-toggle[data-component="button-v2"][data-size="small"] {
++  height: 20px;
++  margin-inline-start: -5px;
++  padding-inline: 5px;
++  font-size: 11px;
++  font-weight: 440;
++  line-height: 16px;
++  letter-spacing: 0.05px;
++}
++
+ .settings-extension-lead {
+   display: flex;
+   flex: 1;
+diff --git a/packages/app/src/settings/shell.tsx b/packages/app/src/settings/shell.tsx
+index 357afec..c7f6883 100644
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -1,28 +1,12 @@
+ import { Tabs } from "@opencode/ui/tabs"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import {
+-  createEffect,
+-  createMemo,
+-  lazy,
+-  on,
+-  onCleanup,
+-  onMount,
+-  Show,
+-  Suspense,
+-  Switch,
+-  Match,
+-  type Accessor,
+-} from "solid-js"
++import { createEffect, createMemo, For, on, onCleanup, onMount, Show, Switch, Match, type Accessor } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
+-import { usePlatform } from "@/runtime/platform/platform"
+-import { useLayout } from "@/shell/state/layout"
+ import { useTabs } from "@/shell/tabs/tabs"
+ import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import type { LocalProject } from "@/shell/state/layout"
+-import { useServerCollectionController } from "@/servers/registry/controller"
+-import { AddServerMenu } from "@/servers/registry/add-menu"
+ import { DialogServer } from "@/servers/connect/dialog"
+ import { LocationProvider } from "@/workspaces/location"
+ import { SettingsGeneral } from "./general/general"
+@@ -32,8 +16,10 @@ import { SettingsKeybinds } from "./keybinds/keybinds"
+ import { SettingsNotifications } from "./notifications/notifications"
+ import { SettingsProviders } from "./providers/providers"
+ import { SettingsModels } from "./models/models"
+-import { SettingsServerGeneral } from "./servers/servers"
+-import { useSettingsServers, useSettingsServersLoaded, type SettingsServer } from "./servers/inventory"
++import { SettingsServerGeneral, SettingsServerList } from "./servers/servers"
++import { SettingsServerSwitcher } from "./servers/switcher"
++import { SettingsServerUnavailable } from "./servers/unavailable"
++import { settingsServerReachable, useSettingsServers, useSettingsServersLoaded } from "./servers/inventory"
+ import { SettingsWorkspaces } from "./workspaces/workspaces"
+ import { useWorkspacesPrefetch } from "./workspaces/queries"
+ import { SettingsProjects } from "./workspaces/projects"
+@@ -45,46 +31,11 @@ import { SettingsProjectGeneral } from "./workspaces/project"
+ import { ProjectSettingsExtensions } from "./workspaces/project-extensions"
+ import { useSettingsSurface } from "./surface"
+ import { settingsViewRedirect } from "./route"
+-import { pageIcons } from "./pages"
++import { pageIcons, pageLabels } from "./pages"
+ import { revealSettingsSearch } from "./search-reveal"
+ import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
+-// mobile(M-026): the plugin host handle for the first-party GUI extension manager.
+-import { usePluginHost } from "@/runtime/plugin/host"
+ import "@/settings/settings.css"
+ 
+-const GuiExtensionsSettings = import.meta.env.DEV
+-  ? lazy(() =>
+-      import("@/runtime/plugin/settings-page-dev").then((module) => ({ default: module.GuiExtensionsSettings })),
+-    )
+-  : undefined
+-
+-// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
+-const MobileHostManager = lazy(() =>
+-  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
+-)
+-
+-// mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
+-// "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
+-// props (the shared package never imports app internals).
+-const ExtensionManager = lazy(() =>
+-  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.ExtensionManager })),
+-)
+-
+-function MobileExtensionManager() {
+-  const host = usePluginHost()
+-
+-  return (
+-    <Suspense>
+-      <ExtensionManager
+-        definitions={host.definitions()}
+-        statusOf={(id) => host.state.status[id]}
+-        failureOf={(id) => host.state.failures[id]?.error}
+-        onReload={(id) => host.reload(id)}
+-      />
+-    </Suspense>
+-  )
+-}
+-
+ const rootClientTabs = [
+   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
+   { value: "appearance", icon: pageIcons.appearance, label: "settings.general.section.appearance" },
+@@ -93,28 +44,28 @@ const rootClientTabs = [
+ ] as const
+ 
+ const serverTabs = [
+-  { value: "projects", icon: pageIcons.projects, label: "settings.tab.projects" },
+-  { value: "workspaces", icon: pageIcons.workspaces, label: "settings.tab.workspaces" },
+   { value: "providers", icon: pageIcons.providers, label: "settings.providers.title" },
+   { value: "models", icon: pageIcons.models, label: "settings.models.title" },
+   { value: "extensions", icon: pageIcons.extensions, label: "settings.tab.extensions" },
++  { value: "projects", icon: pageIcons.projects, label: "settings.tab.projects" },
++  { value: "workspaces", icon: pageIcons.workspaces, label: "settings.tab.workspaces" },
+ ] as const
+ 
++// The heading of each per-server page, which its unreachable state keeps.
++const serverPages = {
++  providers: { title: "settings.providers.title", description: "settings.providers.description" },
++  models: { title: "settings.models.title", description: "settings.models.description" },
++  extensions: { title: "settings.tab.extensions", description: "settings.extensions.description" },
++  projects: { title: "settings.projects.title", description: "settings.projects.description" },
++  workspaces: { title: "settings.tab.workspaces", description: "settings.workspaces.description" },
++} as const
++
+ const experimentalTab = [
+   { value: "experimental", icon: pageIcons.experimental, label: "settings.tab.experimental" },
+ ] as const
+ 
+-const guiExtensionsTab = [
+-  { value: "gui-extensions", icon: pageIcons["gui-extensions"], label: "settings.guiExtensions.title" },
+-] as const
+-
+ const aboutTab = [{ value: "about", icon: pageIcons.about, label: "settings.tab.about" }] as const
+ 
+-const nestedServerTabs = [
+-  { value: "general", icon: pageIcons.servers, label: "settings.general.section.general" },
+-  ...serverTabs,
+-] as const
+-
+ const nestedProjectTabs = [
+   { value: "general", icon: pageIcons.projects, label: "settings.general.section.general" },
+   { value: "workspaces", icon: pageIcons.workspaces, label: "settings.tab.workspaces" },
+@@ -167,20 +118,16 @@ export function SettingsScreen() {
+ 
+   const connection = (key: string) => servers().find((item) => item.key === key)
+ 
+-  const project = (server: ServerConnection.Any, directory: string) => {
+-    const context = global.ensureServerCtx(server)
+-
+-    const value =
+-      context.projects.list().find((item) => item.worktree === directory) ??
+-      context.sync.data.project.find((item) => item.worktree === directory)
+-
+-    return value ? { expanded: false, ...value } : undefined
+-  }
++  const project = (server: ServerConnection.Any, directory: string) =>
++    global
++      .ensureServerCtx(server)
++      .projects.list()
++      .find((item) => item.worktree === directory)
+ 
+   const targetServer = createMemo(() => {
+     const view = surface.view()
+ 
+-    if (view.type === "root") return undefined
++    if (view.type !== "project") return undefined
+ 
+     return connection(view.server)
+   })
+@@ -205,11 +152,7 @@ export function SettingsScreen() {
+       })),
+     })
+ 
+-    if (next?.type === "back") surface.back()
+-
+-    if (next?.type === "server") surface.replaceServer(next.server)
+-
+-    if (next?.type === "root") surface.open(next.tab)
++    if (next) surface.replace(next)
+   })
+ 
+   return (
+@@ -232,14 +175,29 @@ export function SettingsScreen() {
+ 
+         surface.back()
+       }}
++      onWheel={(event) => {
++        if (!root || event.ctrlKey || !event.deltaY || !(event.target instanceof Element)) return
++
++        // The page scrolls inside its panel, so a wheel over the gutters or sidebar would otherwise do nothing.
++        if (event.target.closest(".settings-content") || scrollsNatively(event.target, root, event.deltaY)) return
++        const panel = root.querySelector<HTMLElement>(".settings-content > .settings-panel")
++
++        if (!panel) return
++
++        const unit =
++          event.deltaMode === WheelEvent.DOM_DELTA_PAGE
++            ? panel.clientHeight
++            : event.deltaMode === WheelEvent.DOM_DELTA_LINE
++              ? 16
++              : 1
++
++        panel.scrollBy({ top: event.deltaY * unit })
++      }}
+     >
+       <Switch>
+         <Match when={surface.view().type === "root"}>
+           <RootSettings />
+         </Match>
+-        <Match when={surface.view().type === "server"}>
+-          <Show when={targetServer()}>{(server) => <ServerSettings entry={server()} />}</Show>
+-        </Match>
+         <Match when={surface.view().type === "project"}>
+           <Show when={targetServer()?.connection} keyed>
+             {(server) => (
+@@ -252,141 +210,86 @@ export function SettingsScreen() {
+   )
+ }
+ 
++function scrollsNatively(target: Element, root: Element, deltaY: number) {
++  for (let node: Element | null = target; node && node !== root; node = node.parentElement) {
++    if (!/auto|scroll/.test(getComputedStyle(node).overflowY)) continue
++
++    if (deltaY < 0 ? node.scrollTop > 0 : node.scrollHeight - node.clientHeight - node.scrollTop > 1) return true
++  }
++
++  return false
++}
++
+ function RootSettings() {
+   const language = useLanguage()
+   const dialog = useDialog()
+   const surface = useSettingsSurface()
+-  const layout = useLayout()
+-  const tabs = useTabs()
+-  const servers = useServerCollectionController()
++  const global = useGlobal()
+   const inventory = useSettingsServers()
+-  const loaded = useSettingsServersLoaded()
+-  const platform = usePlatform()
+ 
+   const [state, setState] = createStore<{ worktreeFilterReset: number; modelProvider: string | undefined }>({
+     worktreeFilterReset: 0,
+     modelProvider: undefined,
+   })
+ 
+-  const list = servers.collection.items
+-  const singleEntry = createMemo(() => (inventory().length === 1 ? inventory()[0] : undefined))
+-  const single = createMemo(() => singleEntry()?.connection)
+-  const prefetchWorkspaces = useWorkspacesPrefetch(single)
+   const multiple = createMemo(() => inventory().length > 1)
+ 
+-  const ordered = createMemo(() => {
+-    const order = new Map(list().map((server, index) => [ServerConnection.key(server), index]))
+-
+-    return inventory().toSorted((a, b) => (order.get(a.key) ?? list().length) - (order.get(b.key) ?? list().length))
+-  })
+-
+-  const sourceServer = createMemo(() => {
+-    const route = surface.route()
+-
+-    if (route.type === "session") return connectionFor(list(), route.server)
+-
+-    if (route.type === "draft") {
+-      const draft = tabs.store.find((item) => item.type === "draft" && item.draftID === route.draftID)
++  // The selected server while its pages can load; an unreachable one shows its pages' unavailable state instead.
++  const reachable = createMemo(() => {
++    const entry = surface.server()
+ 
+-      return connectionFor(list(), draft?.server)
+-    }
+-
+-    return connectionFor(list(), layout.home.selection().server)
++    return entry && settingsServerReachable(entry, global.servers.health[entry.key]) ? entry.connection : undefined
+   })
+ 
+-  const sourceDirectory = useSettingsDirectory(sourceServer)
+-  // Development builds list the built-in GUI extensions of this window.
+-  const guiExtensions = !!GuiExtensionsSettings && platform.platform === "desktop"
+-  // mobile(M-026): non-desktop builds mount the first-party GUI extension manager (issue
+-  // #26) on the same tab — the upstream DEV+desktop face above stays untouched, so desktop
+-  // behavior is unchanged.
+-  const mobileGuiExtensions = platform.platform !== "desktop"
++  const prefetchWorkspaces = useWorkspacesPrefetch(reachable)
++  const activeDirectory = useSettingsDirectory(reachable)
+   createEffect(() => {
+     const view = surface.view()
+ 
+     if (view.type !== "root") return
+ 
+     if (view.tab === "experimental" && !experimentalSettingsAvailable) surface.open("general")
+-
+-    // mobile(M-026): the guard only bounces the tab where NEITHER face is mounted — on
+-    // non-desktop builds the first-party manager takes the tab.
+-    if (view.tab === "gui-extensions" && !guiExtensions && !mobileGuiExtensions) surface.open("general")
+   })
+ 
+-  const addServer = () =>
+-    void dialog.push(() => (
+-      <DialogServer mode="add" onSave={(server) => surface.openServer(ServerConnection.key(server))} />
+-    ))
++  const selectServer = (server: ServerConnection.Any) => surface.selectServer(ServerConnection.key(server))
++
++  const addServer = () => void dialog.push(() => <DialogServer mode="add" onSave={selectServer} />)
++
++  const pluginTabs = (group?: "about") =>
++    surface.plugins
++      .pages()
++      .filter((item) => item.value.group === group)
++      .map((item) => ({ value: item.value.id, icon: item.value.icon ?? pageIcons.extensions, label: item.value.title }))
+ 
+   const groups = createMemo<SettingsNavGroup[]>(() => [
++    {
++      items: serverTabs.map((item) => ({
++        ...item,
++        label: language.t(item.label),
++        onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
++      })),
++    },
++    {
++      items: [...rootClientTabs.map((item) => ({ ...item, label: language.t(item.label) })), ...pluginTabs()],
++    },
+     {
+       items: [
+-        ...rootClientTabs.map((item) => ({ ...item, label: language.t(item.label) })),
+-        ...surface.plugins.pages().map((item) => ({
+-          value: item.value.id,
+-          icon: item.value.icon ?? pageIcons.extensions,
+-          label: item.value.title,
+-        })),
++        {
++          value: "servers",
++          icon: pageIcons.servers,
++          label: language.t(multiple() ? "settings.tab.servers" : pageLabels.servers),
++        },
+       ],
+     },
+-    ...(multiple()
+-      ? [
+-          {
+-            label: language.t("settings.tab.servers"),
+-            action: <AddServerMenu compact onAddServer={addServer} />,
+-            items: [
+-              // mobile(M-018): fixed entry to the "servers" tab (the first-party SSH
+-              // host manager) — the guard above no longer redirects it in this layout.
+-              { value: "servers", icon: "server" as const, label: language.t("settings.tab.sshHosts") },
+-              ...ordered().map((server) => ({
+-                value: `server:${server.key}`,
+-                icon: "server" as const,
+-                label: server.name,
+-              })),
+-            ],
+-          },
+-        ]
+-      : [
+-          {
+-            items: [
+-              ...serverTabs.map((item) => ({
+-                ...item,
+-                label: language.t(item.label),
+-                disabled: !single(),
+-                onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
+-              })),
+-              { value: "servers", icon: "server" as const, label: language.t("settings.section.server") },
+-            ],
+-          },
+-        ]),
+     ...(experimentalSettingsAvailable
+       ? [{ items: experimentalTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
+       : []),
+-    ...((guiExtensions || mobileGuiExtensions)
+-      ? [{ items: guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
+-      : []),
+-    { items: aboutTab.map((item) => ({ ...item, label: language.t(item.label) })) },
++    {
++      items: [...aboutTab.map((item) => ({ ...item, label: language.t(item.label) })), ...pluginTabs("about")],
++    },
+   ])
+ 
+-  createEffect(() => {
+-    const view = surface.view()
+-
+-    if (view.type !== "root" || !loaded() || !multiple()) return
+-
+-    // mobile(M-018): "servers" stays reachable in the multi-server layout — the tab
+-    // hosts the first-party SSH host manager (M-008). The other five tabs are still
+-    // redirected: their panels are per-server and carried by the per-server entries.
+-    if (["projects", "workspaces", "providers", "models", "extensions"].includes(view.tab))
+-      surface.open("general")
+-  })
+-
+   const change = (value: string) => {
+-    if (value.startsWith("server:")) {
+-      surface.openServer(value.slice("server:".length))
+-
+-      return
+-    }
+-
+     if (value === "workspaces") setState("worktreeFilterReset", (current) => current + 1)
+     surface.select(value)
+   }
+@@ -398,7 +301,6 @@ function RootSettings() {
+       backLabel={language.t("settings.backToApp")}
+       onBack={() => surface.close()}
+       onChange={change}
+-      mobileAction={multiple() ? <AddServerMenu compact onAddServer={addServer} /> : undefined}
+     >
+       <Tabs.Content value="general" class="settings-panel">
+         <SettingsGeneral />
+@@ -416,51 +318,39 @@ function RootSettings() {
+       <Tabs.Content value="experimental" class="settings-panel">
+         <SettingsExperimental />
+       </Tabs.Content>
+-      {GuiExtensionsSettings && guiExtensions && (
+-        <Tabs.Content value="gui-extensions" class="settings-panel">
+-          <Suspense>
+-            <GuiExtensionsSettings />
+-          </Suspense>
+-        </Tabs.Content>
+-      )}
+-      {/* mobile(M-026): the first-party GUI extension manager on non-desktop builds — the
+-          disable records feed root.tsx's disabled union (M-025). Mutual exclusion with the
+-          upstream branch is structural: guiExtensions implies desktop, mobileGuiExtensions
+-          implies not desktop. */}
+-      {!guiExtensions && mobileGuiExtensions && (
+-        <Tabs.Content value="gui-extensions" class="settings-panel">
+-          <Suspense>
+-            <MobileExtensionManager />
+-          </Suspense>
+-        </Tabs.Content>
+-      )}
+       <Tabs.Content value="about" class="settings-panel settings-about">
+         <SettingsAbout active={surface.view().tab === "about"} />
+       </Tabs.Content>
+-      <Show when={single()} keyed>
++      <Show
++        when={reachable()}
++        keyed
++        fallback={
++          <Show when={surface.server()}>
++            {(entry) => (
++              <For each={serverTabs}>
++                {(item) => (
++                  <Tabs.Content value={item.value} class="settings-panel">
++                    <SettingsServerUnavailable
++                      entry={entry()}
++                      title={language.t(serverPages[item.value].title)}
++                      description={language.t(serverPages[item.value].description)}
++                      headerAction={<SettingsServerSwitcher />}
++                      onManage={() => surface.openServers(entry().key)}
++                      onServerChange={selectServer}
++                    />
++                  </Tabs.Content>
++                )}
++              </For>
++            )}
++          </Show>
++        }
++      >
+         {(server) => (
+           <SettingsServerDataScope server={server}>
+-            <Tabs.Content value="projects" class="settings-panel">
+-              <SettingsProjects
+-                server={server}
+-                active={surface.view().tab === "projects"}
+-                onOpenProject={(project) =>
+-                  surface.openProject({
+-                    server: ServerConnection.key(server),
+-                    project: project.worktree,
+-                  })
+-                }
+-              />
+-            </Tabs.Content>
+-            <Tabs.Content value="workspaces" class="settings-panel">
+-              <SettingsWorkspaces
+-                activeDirectory={sourceServer() === server ? sourceDirectory() : undefined}
+-                resetProjectFilter={() => state.worktreeFilterReset}
+-              />
+-            </Tabs.Content>
+             <Tabs.Content value="providers" class="settings-panel">
+               <SettingsProviders
+                 directory={undefined}
++                headerAction={<SettingsServerSwitcher />}
+                 onSelectProvider={(providerID) => {
+                   setState("modelProvider", providerID)
+                   surface.select("models")
+@@ -471,84 +361,26 @@ function RootSettings() {
+               <SettingsModels
+                 active={surface.view().tab === "models"}
+                 provider={state.modelProvider}
++                headerAction={<SettingsServerSwitcher />}
+                 onReveal={() => setState("modelProvider", undefined)}
+               />
+             </Tabs.Content>
+             <Tabs.Content value="extensions" class="settings-panel">
+-              <SettingsExtensions subtab={surface.view().subtab} onSubtab={(value) => surface.subtab(value)} />
++              <SettingsExtensions
++                directory={activeDirectory()}
++                subtab={surface.view().subtab}
++                headerAction={<SettingsServerSwitcher />}
++                onSubtab={(value) => surface.subtab(value)}
++              />
+             </Tabs.Content>
+-          </SettingsServerDataScope>
+-        )}
+-      </Show>
+-      {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
+-          upstream single-server panel; it renders even with an empty upstream list so the
+-          first SSH host can be created. */}
+-      <Tabs.Content value="servers" class="settings-panel">
+-        <MobileHostManager />
+-        <Show when={singleEntry()} keyed>
+-          {(entry) => <SettingsServerGeneral entry={entry} onAddServer={addServer} />}
+-        </Show>
+-      </Tabs.Content>
+-    </SettingsNavigation>
+-  )
+-}
+-
+-function ServerSettings(props: { entry: SettingsServer }) {
+-  const language = useLanguage()
+-  const surface = useSettingsSurface()
+-  const activeDirectory = useSettingsDirectory(() => props.entry.connection)
+-  const prefetchWorkspaces = useWorkspacesPrefetch(() => props.entry.connection)
+-
+-  const [state, setState] = createStore<{ worktreeFilterReset: number; modelProvider: string | undefined }>({
+-    worktreeFilterReset: 0,
+-    modelProvider: undefined,
+-  })
+-
+-  const groups = createMemo<SettingsNavGroup[]>(() => [
+-    {
+-      items: nestedServerTabs.map((item) => ({
+-        ...item,
+-        label: item.value === "general" ? props.entry.name : language.t(item.label),
+-        disabled: item.value !== "general" && !props.entry.connection,
+-        onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
+-      })),
+-    },
+-  ])
+-
+-  createEffect(() => {
+-    if (!props.entry.connection && surface.view().tab !== "general") surface.select("general")
+-  })
+-
+-  const change = (value: string) => {
+-    if (value === "workspaces") setState("worktreeFilterReset", (current) => current + 1)
+-    surface.select(value)
+-  }
+-
+-  return (
+-    <SettingsNavigation
+-      value={surface.view().tab}
+-      groups={groups()}
+-      backLabel={language.t("settings.backToSettings")}
+-      onBack={() => surface.back()}
+-      onChange={change}
+-    >
+-      <Tabs.Content value="general" class="settings-panel">
+-        <SettingsServerGeneral
+-          entry={props.entry}
+-          nested
+-          onServerChange={(server) => surface.replaceServer(ServerConnection.key(server))}
+-        />
+-      </Tabs.Content>
+-      <Show when={props.entry.connection} keyed>
+-        {(server) => (
+-          <SettingsServerDataScope server={server}>
+             <Tabs.Content value="projects" class="settings-panel">
+               <SettingsProjects
+                 server={server}
+                 active={surface.view().tab === "projects"}
++                headerAction={<SettingsServerSwitcher />}
+                 onOpenProject={(project) =>
+                   surface.openProject({
+-                    server: props.entry.key,
++                    server: ServerConnection.key(server),
+                     project: project.worktree,
+                   })
+                 }
+@@ -558,30 +390,27 @@ function ServerSettings(props: { entry: SettingsServer }) {
+               <SettingsWorkspaces
+                 activeDirectory={activeDirectory()}
+                 resetProjectFilter={() => state.worktreeFilterReset}
++                headerAction={<SettingsServerSwitcher />}
+               />
+             </Tabs.Content>
+-            <Tabs.Content value="providers" class="settings-panel">
+-              <SettingsProviders
+-                directory={undefined}
+-                onSelectProvider={(providerID) => {
+-                  setState("modelProvider", providerID)
+-                  surface.select("models")
+-                }}
+-              />
+-            </Tabs.Content>
+-            <Tabs.Content value="models" class="settings-panel">
+-              <SettingsModels
+-                active={surface.view().tab === "models"}
+-                provider={state.modelProvider}
+-                onReveal={() => setState("modelProvider", undefined)}
+-              />
+-            </Tabs.Content>
+-            <Tabs.Content value="extensions" class="settings-panel">
+-              <SettingsExtensions subtab={surface.view().subtab} onSubtab={(value) => surface.subtab(value)} />
+-            </Tabs.Content>
+           </SettingsServerDataScope>
+         )}
+       </Show>
++      <Tabs.Content value="servers" class="settings-panel">
++        <Show
++          when={multiple() ? undefined : inventory()[0]}
++          fallback={
++            <SettingsServerList
++              servers={inventory()}
++              selected={surface.server()?.key}
++              onAddServer={addServer}
++              onServerChange={selectServer}
++            />
++          }
++        >
++          {(entry) => <SettingsServerGeneral entry={entry()} onAddServer={addServer} />}
++        </Show>
++      </Tabs.Content>
+     </SettingsNavigation>
+   )
+ }
+@@ -620,8 +449,7 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
+             <SettingsProjectGeneral
+               server={props.server}
+               project={props.project}
+-              onOpenServer={() => surface.replaceServer(ServerConnection.key(props.server))}
+-              onClose={() => surface.back()}
++              onOpenServer={() => surface.openServers(ServerConnection.key(props.server))}
+             />
+           </Tabs.Content>
+           <Tabs.Content value="workspaces" class="settings-panel">
+@@ -636,10 +464,6 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
+   )
+ }
+ 
+-function connectionFor(list: readonly ServerConnection.Any[], key: string | undefined) {
+-  return list.find((item) => ServerConnection.key(item) === key)
+-}
+-
+ function useSettingsDirectory(server: Accessor<ServerConnection.Any | undefined>) {
+   const surface = useSettingsSurface()
+   const tabs = useTabs()
+diff --git a/packages/app/src/settings/surface.test.ts b/packages/app/src/settings/surface.test.ts
+new file mode 100644
+index 0000000..5610449
+--- /dev/null
++++ b/packages/app/src/settings/surface.test.ts
+@@ -0,0 +1,199 @@
++import { describe, expect, mock, test } from "bun:test"
++import { createComponent, createContext, createRoot, createSignal, useContext } from "solid-js"
++
++// Test environment (derived from the settings-search-plugin.test.tsx findings): Bun 1.4.2's
++// transpiler ignores the ui preload's `jsx: "react-jsx"` config — ui-package provider
++// components (ui/src/context/helper.tsx) still emit classic React.createElement and throw
++// "React is not defined" when CALLED. Rather than a transform plugin (the preload's plugin
++// is registered first and wins), the context factory seam below is mocked JSX-free: the
++// gate:false branch of the real helper is exactly `ctx.Provider` around the children, which
++// createComponent builds without JSX.
++
++// Narrow tests for the migrated settings surface's server scope (issue #101, plan §5):
++// `server()` resolution order (view server → source server → local connected → first),
++// `selectServer` as a no-op off the root view, `openServers` showing the Servers page, and
++// the search open() activation bump. Everything mounts the real SettingsSurfaceProvider
++// over mocked environment seams (the same mock.module precedent as
++// settings-search-plugin.test.tsx); the registry module is mocked so the suite does not
++// depend on the @opencode-mobile/mobile-hosts alias the bundler resolves at runtime.
++
++const [search, setSearch] = createSignal("")
++const [homeServer, setHomeServer] = createSignal("srv-a")
++
++let navigated: Array<{ url: string; replace: boolean | undefined }> = []
++mock.module("@solidjs/router", () => ({
++  useNavigate: () => (url: string, opts?: { replace?: boolean }) => {
++    navigated.push({ url, replace: opts?.replace })
++  },
++  useLocation: () => ({ get search() { return search() }, state: undefined }),
++}))
++
++mock.module("@/shell/state/layout", () => ({
++  useLayout: () => ({
++    route: () => ({ type: "home" as const }),
++    home: { selection: () => ({ server: homeServer() }) },
++  }),
++}))
++
++mock.module("@/shell/tabs/tabs", () => ({
++  useTabs: () => ({ store: [] as unknown[] }),
++}))
++
++const triggered: string[] = []
++mock.module("@/shell/commands/command", () => ({
++  useCommand: () => ({
++    register: () => () => {},
++    trigger: (id: string) => triggered.push(id),
++  }),
++}))
++
++mock.module("@/runtime/plugin/settings-pages", () => ({
++  createSettingsPages: () => ({ pages: () => [], tabs: () => new Set<string>() }),
++}))
++
++mock.module("@/runtime/server/registry", () => ({
++  ServerConnection: {
++    // The surface only asks whether a connection is the local one.
++    local: (connection: { local?: boolean } | undefined) => !!connection?.local,
++    Key: { make: (value: string) => value },
++  },
++}))
++
++const alpha = { key: "srv-a", name: "Alpha", connection: { id: "remote-a" } }
++const beta = { key: "srv-b", name: "Beta", connection: { id: "remote-b" } }
++const local = { key: "local", name: "This computer", connection: { id: "local", local: true } }
++const [entries, setEntries] = createSignal([alpha, beta, local])
++mock.module("@/settings/servers/inventory", () => ({
++  useSettingsServers: () => entries,
++  useSettingsServersLoaded: () => () => true,
++}))
++
++// JSX-free replica of the real createSimpleContext (ui/src/context/helper.tsx) for the
++// gate:false providers this suite mounts; the remaining exports pass through.
++const uiContext = await import("@opencode/ui/context")
++mock.module("@opencode/ui/context", () => ({
++  ...uiContext,
++  createSimpleContext: (input: { name: string; gate?: boolean; init: (props: any) => any }) => {
++    const ctx = createContext<unknown>() as unknown as { Provider: Parameters<typeof createComponent>[0] }
++
++    return {
++      provider: (props: Record<string, unknown>) => {
++        const init = input.init(props)
++
++        if (input.gate === false)
++          return createComponent(ctx.Provider, { value: init, get children() { return props.children } })
++
++        // gate defaults to true: the surfaces here are all gate:false; the ready gate is
++        // only exercised by providers this suite never mounts.
++        throw new Error(`settings-surface.test mock supports gate:false providers only (${input.name})`)
++      },
++      use: () => {
++        const value = useContext(ctx as never)
++
++        if (!value) throw new Error(`${input.name} context must be used within a context provider`)
++
++        return value
++      },
++    }
++  },
++}))
++
++const { useSettingsSurface, SettingsSurfaceProvider } = await import("./surface")
++
++function mountSurface(): ReturnType<typeof useSettingsSurface> {
++  let surface: ReturnType<typeof useSettingsSurface> | undefined
++  const host = document.createElement("div")
++  document.body.appendChild(host)
++
++  createRoot((dispose) => {
++    const tree = createComponent(SettingsSurfaceProvider, {
++      get children() {
++        return createComponent(() => {
++          surface = useSettingsSurface()
++
++          return document.createElement("span")
++        }, {})
++      },
++    })
++
++    if (tree instanceof Node) host.appendChild(tree)
++    queueMicrotask(dispose)
++  })
++
++  if (!surface) throw new Error("settings surface did not initialize")
++
++  return surface
++}
++
++describe("settings surface server scope", () => {
++  // The unit-test conditions resolve solid-js to its server dist, whose createMemo computes
++  // once (no reactive graph), so each resolution stage mounts a fresh surface after the
++  // environment signals are set.
++  test("resolves the view's server first, then the source server, then the local connection, then the first", () => {
++    // No view server and the home selection names srv-a.
++    expect(String(mountSurface().server()?.key)).toBe("srv-a")
++
++    // A root view carrying a server wins over the source server.
++    setSearch("?tab=projects&server=srv-b")
++    expect(String(mountSurface().server()?.key)).toBe("srv-b")
++
++    // An unknown view server and unknown source fall through to the local connection.
++    setSearch("?tab=projects&server=missing")
++    setHomeServer("also-missing")
++    expect(String(mountSurface().server()?.key)).toBe("local")
++
++    // With no local connection anywhere, the first listed server is the default.
++    setEntries([alpha, beta])
++    expect(String(mountSurface().server()?.key)).toBe("srv-a")
++
++    setSearch("")
++    setHomeServer("srv-a")
++    setEntries([alpha, beta, local])
++  })
++
++  test("selectServer is a no-op off the root view and switches the server on it", () => {
++    setSearch("?server=srv-a&project=/projects/opencode&tab=general")
++    navigated = []
++    mountSurface().selectServer("srv-b")
++    expect(navigated).toEqual([])
++
++    setSearch("?tab=projects&server=srv-a")
++    mountSurface().selectServer("srv-b")
++    expect(navigated).toHaveLength(1)
++    expect(navigated[0]!.url).toContain("server=srv-b")
++    setSearch("")
++  })
++
++  test("openServers shows the Servers page with the named server", () => {
++    const surface = mountSurface()
++
++    navigated = []
++    surface.openServers("srv-b")
++    expect(navigated).toHaveLength(1)
++    expect(navigated[0]!.url).toContain("tab=servers")
++    expect(navigated[0]!.url).toContain("server=srv-b")
++
++    navigated = []
++    surface.openServers()
++    expect(navigated[0]!.url).toContain("tab=servers")
++    expect(navigated[0]!.url).not.toContain("server=")
++  })
++
++  test("search.open records the selection and bumps the activation", () => {
++    const surface = mountSurface()
++
++    const before = surface.search.state.activation
++    surface.search.open({ type: "root", tab: "general" }, "row-1")
++    expect(surface.search.state.activation).toBe(before + 1)
++    expect(surface.search.state.selected).toBe("row-1")
++    expect(surface.search.state.highlighted).toBe("row-1")
++  })
++
++  test("back on a root view triggers the app-level back command", () => {
++    const surface = mountSurface()
++
++    triggered.length = 0
++    surface.back()
++    expect(triggered).toEqual(["common.goBack"])
++  })
++})
+diff --git a/packages/app/src/settings/surface.tsx b/packages/app/src/settings/surface.tsx
+index f9e9044..15da98c 100644
+--- a/packages/app/src/settings/surface.tsx
++++ b/packages/app/src/settings/surface.tsx
+@@ -1,22 +1,22 @@
+ import { useLocation, useNavigate } from "@solidjs/router"
+-import { batch, createEffect, on } from "solid-js"
++import { batch, createEffect, createMemo, on } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { createSimpleContext } from "@opencode/ui/context"
+ import { useLayout, type LayoutRoute } from "@/shell/state/layout"
++import { useTabs } from "@/shell/tabs/tabs"
++import { ServerConnection } from "@/runtime/server/registry"
+ import { useCommand } from "@/shell/commands/command"
+ import { createSettingsPages } from "@/runtime/plugin/settings-pages"
+ import { useSettingsServers } from "./servers/inventory"
+ import {
+-  isExtensionTab as isPluginTab,
++  isPluginTab,
+   isProjectTab,
+   isRootTab,
+-  isServerTab,
+   parseSettingsView,
+   settingsViewUrl,
+-  type SettingsExtensionTab as SettingsPluginTab,
++  type SettingsPluginTab,
+   type SettingsProjectTab,
+   type SettingsRootTab,
+-  type SettingsServerTab,
+   type SettingsTransientView,
+   type SettingsView,
+ } from "./route"
+@@ -38,17 +38,48 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
+     const layout = useLayout()
+     const command = useCommand()
+     const servers = useSettingsServers()
++    const tabs = useTabs()
+ 
+     const location = useLocation<{
+       settings?: { route: Exclude<LayoutRoute, { type: "settings" }>; view?: SettingsTransientView }
+     }>()
+ 
+-    const extensions = createSettingsPages()
++    const plugins = createSettingsPages()
+     const open = () => layout.route().type === "settings"
+-    const source = () => location.state?.settings?.route ?? { type: "home" as const }
+ 
+-    const view = () =>
+-      parseSettingsView(location.search, servers().length > 1, location.state?.settings?.view, extensions.tabs())
++    // While Settings is closed, the current tab is where it would open from.
++    const source = () => {
++      const route = layout.route()
++
++      if (route.type !== "settings") return route
++
++      return location.state?.settings?.route ?? { type: "home" as const }
++    }
++
++    const view = () => parseSettingsView(location.search, location.state?.settings?.view, plugins.tabs())
++
++    // The server of the tab settings opened from, which per-server pages show until another is selected.
++    const sourceServer = createMemo(() => {
++      const route = source()
++
++      if (route.type === "session") return route.server
++
++      if (route.type === "draft")
++        return tabs.store.find((item) => item.type === "draft" && item.draftID === route.draftID)?.server
++
++      return layout.home.selection().server
++    })
++
++    const server = createMemo(() => {
++      const list = servers()
++      const key = view().server ?? sourceServer()
++
++      return (
++        list.find((item) => item.key === key) ??
++        list.find((item) => !!item.connection && ServerConnection.local(item.connection)) ??
++        list[0]
++      )
++    })
+ 
+     const [search, setSearch] = createStore<{
+       query: string
+@@ -103,7 +134,10 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
+       active: open,
+       route: source,
+       view,
+-      plugins: extensions,
++      /** The server per-server pages show; undefined only while no server is listed. */
++      server,
++      sourceServer,
++      plugins,
+       search: {
+         state: search,
+         input(query: string) {
+@@ -141,31 +175,31 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
+       open(tab: SettingsRootTab | SettingsPluginTab = "general") {
+         show({ type: "root", tab })
+       },
+-      openServer(server: string, tab: SettingsServerTab = "general") {
+-        show({ type: "server", server, tab })
++      /** Shows another server on the per-server pages, staying on the current page. */
++      selectServer(server: string) {
++        const current = view()
++
++        if (current.type !== "root") return
++        show({ ...current, server, target: undefined })
+       },
+-      replaceServer(server: string, tab: SettingsServerTab = "general") {
+-        show({ type: "server", server, tab })
++      openServers(server?: string) {
++        show({ type: "root", tab: "servers", server })
++      },
++      replace(view: SettingsView) {
++        show(view)
+       },
+       openProject(input: { server: string; project: string; tab?: SettingsProjectTab }) {
+-        show({
+-          type: "project",
+-          ...input,
+-          parent: servers().length > 1 ? "server" : "root",
+-          tab: input.tab ?? "general",
+-        })
++        show({ type: "project", ...input, tab: input.tab ?? "general" })
+       },
+       select(tab: string) {
+         const current = view()
+ 
+         const next: SettingsView =
+-          current.type === "root" && (isRootTab(tab) || isExtensionTab(tab, extensions.tabs()))
++          current.type === "root" && (isRootTab(tab) || isPluginTab(tab, plugins.tabs()))
+             ? { ...current, tab }
+-            : current.type === "server" && isServerTab(tab)
++            : current.type === "project" && isProjectTab(tab)
+               ? { ...current, tab }
+-              : current.type === "project" && isProjectTab(tab)
+-                ? { ...current, tab }
+-                : current
++              : current
+ 
+         show({ ...next, target: undefined, subtab: undefined })
+       },
+@@ -181,12 +215,7 @@ export const { use: useSettingsSurface, provider: SettingsSurfaceProvider } = cr
+           return
+         }
+ 
+-        const parent: SettingsView =
+-          current.type === "server" || current.parent === "root"
+-            ? { type: "root", tab: current.type === "server" ? "general" : "projects" }
+-            : { type: "server", server: current.server, tab: "projects" }
+-
+-        show(parent)
++        show({ type: "root", tab: "projects", server: current.server })
+       },
+       close() {
+         if (open()) command.trigger("common.goBack")
+diff --git a/packages/app/src/settings/workspaces/project.tsx b/packages/app/src/settings/workspaces/project.tsx
+index 005bca9..d4fe0fa 100644
+--- a/packages/app/src/settings/workspaces/project.tsx
++++ b/packages/app/src/settings/workspaces/project.tsx
+@@ -27,7 +27,9 @@ export const SettingsProjectGeneral: Component<{
+   project: LocalProject
+   server: ServerConnection.Any
+   onOpenServer: () => void
+-  onClose: () => void
++  // mobile(M-043): optional on the migrated shell (the target call site passes no onClose);
++  // the option's own consumer rework stays with the owning page issue.
++  onClose?: () => void
+ }> = (props) => {
+   const language = useLanguage()
+   const model = createEditProjectModel(props)
+diff --git a/packages/app/src/settings/workspaces/projects.tsx b/packages/app/src/settings/workspaces/projects.tsx
+index 8b1f78d..095ac9b 100644
+--- a/packages/app/src/settings/workspaces/projects.tsx
++++ b/packages/app/src/settings/workspaces/projects.tsx
+@@ -1,4 +1,4 @@
+-import { Show, createEffect, createMemo, type Component } from "solid-js"
++import { Show, createEffect, createMemo, type Component, type JSX } from "solid-js"
+ import { Key } from "@solid-primitives/keyed"
+ import { createStore } from "solid-js/store"
+ import { Button } from "@opencode/ui/button"
+@@ -11,7 +11,6 @@ import { homeProjectDirectories } from "@/shell/layout/helpers"
+ import type { LocalProject } from "@/shell/state/layout"
+ import { useDirectoryPicker } from "@/workspaces/selection/picker"
+ import { addProjects } from "@/home/projects/add"
+-import { settingsProjects } from "../servers/inventory"
+ import { SettingsSearchEmpty } from "../search-empty"
+ import { SettingsSearchField } from "../search-field"
+ import { SettingsProjectRow } from "./project-row"
+@@ -22,13 +21,16 @@ export const SettingsProjects: Component<{
+   server: ServerConnection.Any
+   active: boolean
+   onOpenProject: (project: LocalProject) => void
++  headerAction?: JSX.Element
+ }> = (props) => {
+   const language = useLanguage()
+   const global = useGlobal()
+   const pickDirectory = useDirectoryPicker()
+   const [store, setStore] = createStore({ filter: "" })
+   const context = createMemo(() => global.ensureServerCtx(props.server))
+-  const projects = createMemo(() => settingsProjects(context()))
++  // mobile(M-043): the migrated inventory no longer exports `settingsProjects`; the
++  // context accessor is the target form.
++  const projects = createMemo(() => context().projects.list())
+   const searchable = createMemo(() => projects().length > 7)
+ 
+   const filtered = createMemo(() => {
+@@ -71,11 +73,14 @@ export const SettingsProjects: Component<{
+             <h2 class="settings-tab-title">{language.t("settings.projects.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.projects.description")}</span>
+           </div>
+-          <Show when={projects().length > 0}>
+-            <Button variant="ghost-muted" icon="plus" onClick={addProject}>
+-              {language.t("home.project.add")}
+-            </Button>
+-          </Show>
++          <div class="settings-tab-header-actions">
++            <Show when={projects().length > 0}>
++              <Button variant="ghost-muted" icon="plus" onClick={addProject}>
++                {language.t("home.project.add")}
++              </Button>
++            </Show>
++            {props.headerAction}
++          </div>
+         </div>
+         <Show when={searchable()}>
+           <SettingsSearchField
+diff --git a/packages/app/src/settings/workspaces/workspaces.tsx b/packages/app/src/settings/workspaces/workspaces.tsx
+index efde90c..8bd8291 100644
+--- a/packages/app/src/settings/workspaces/workspaces.tsx
++++ b/packages/app/src/settings/workspaces/workspaces.tsx
+@@ -1,4 +1,4 @@
+-import type { Component } from "solid-js"
++import type { Component, JSX } from "solid-js"
+ import { For, Show, createEffect, createMemo, createSignal } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { createResizeObserver } from "@solid-primitives/resize-observer"
+@@ -49,6 +49,7 @@ export const SettingsWorkspaces: Component<{
+   activeDirectory?: string
+   resetProjectFilter?: () => number
+   projectID?: string
++  headerAction?: JSX.Element
+ }> = (props) => {
+   const dialog = useDialog()
+   const language = useLanguage()
+@@ -391,6 +392,7 @@ export const SettingsWorkspaces: Component<{
+             <h2 class="settings-tab-title">{language.t("settings.tab.workspaces")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.workspaces.description")}</span>
+           </div>
++          <div class="settings-tab-header-actions">{props.headerAction}</div>
+         </div>
+       </div>
+ 
+diff --git a/packages/app/src/shell/commands/dialog.tsx b/packages/app/src/shell/commands/dialog.tsx
+index 2034155..c60e31f 100644
+--- a/packages/app/src/shell/commands/dialog.tsx
++++ b/packages/app/src/shell/commands/dialog.tsx
+@@ -36,7 +36,10 @@ export function DialogCommandPalette(props: { onOpenFile?: (path: string) => voi
+   const items = (q: string) => {
+     if (!q) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
+ 
+-    return palette.commandEntries().filter((entry) => matchesCommandPaletteEntry(entry, q))
++    return [
++      ...palette.commandEntries().filter((entry) => matchesCommandPaletteEntry(entry, q)),
++      ...palette.settings.items(q),
++    ]
+   }
+ 
+   return (
+@@ -238,7 +241,7 @@ function PaletteRow(props: {
+           </div>
+         }
+       >
+-        <Match when={props.item.type === "command"}>
++        <Match when={props.item.type === "command" || props.item.type === "setting"}>
+           <div class="command-palette-row-main">
+             <div class="command-palette-row-text">
+               <span class="command-palette-title">{props.item.title}</span>
+diff --git a/packages/app/src/shell/commands/palette.ts b/packages/app/src/shell/commands/palette.ts
+index 59463d7..f064153 100644
+--- a/packages/app/src/shell/commands/palette.ts
++++ b/packages/app/src/shell/commands/palette.ts
+@@ -16,12 +16,15 @@ import { resolveProjectForSession } from "@/shell/layout/helpers"
+ import { usePluginHost } from "@/runtime/plugin/host"
+ import { usePluginAttachment } from "@/runtime/plugin/host-apis"
+ import { looksLikeSessionID } from "@/session/search"
++import { createSettingsPaletteEntries } from "@/settings/palette"
++import type { SettingsSearchResult } from "@/settings/search-results"
+ 
+ export type CommandPaletteEntry = {
+   id: string
+-  type: "command" | "file" | "session"
++  type: "command" | "file" | "session" | "setting"
+   title: string
+   description?: string
++  keywords?: string
+   keybind?: string
+   category: string
+   option?: CommandOption
+@@ -32,6 +35,7 @@ export type CommandPaletteEntry = {
+   project?: LocalProject
+   archived?: number
+   updated?: number
++  setting?: SettingsSearchResult
+ }
+ 
+ const ENTRY_LIMIT = 5
+@@ -86,6 +90,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+   const appTabs = useTabs()
+   const attachment = usePluginAttachment()
+   const openFile = createCommandPaletteFileOpener(props.onOpenFile)
++  const settings = createSettingsPaletteEntries()
+   const state: PaletteHighlight = { cleanup: undefined, committed: false }
+   const filesOnly = () => props.filesOnly?.() ?? false
+ 
+@@ -190,6 +195,8 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+       return
+     }
+ 
++    if (item.type === "setting") return settings.select(item)
++
+     if (!item.path) return
+     openFile(item.path)
+   }
+@@ -207,6 +214,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+     recentFileEntries,
+     rootFileEntries,
+     sessions,
++    settings,
+     highlight,
+     select,
+     close: () => dialog.close(),
+diff --git a/packages/client/src/promise/generated/types.ts b/packages/client/src/promise/generated/types.ts
+index a0fa192..1ebec42 100644
+--- a/packages/client/src/promise/generated/types.ts
++++ b/packages/client/src/promise/generated/types.ts
+@@ -3,6 +3,10 @@ export type JsonValue = null | boolean | number | string | Array<JsonValue> | {
+ export type ServerInfo = {
+   version: string
+   pid: number
++  // mobile(M-043): the settings framework's health face reads the server machine's name
++  // (health.ts stage/version poll); the full v2.2.1 client regeneration stays with its
++  // owning sync.
++  hostname?: string | undefined
+   urls: Array<string>
+   paths: { tmp: string }
+   capabilities?: { persistentPty?: boolean | undefined } | undefined

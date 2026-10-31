@@ -16,12 +16,15 @@ import { resolveProjectForSession } from "@/shell/layout/helpers"
 import { usePluginHost } from "@/runtime/plugin/host"
 import { usePluginAttachment } from "@/runtime/plugin/host-apis"
 import { looksLikeSessionID } from "@/session/search"
+import { createSettingsPaletteEntries } from "@/settings/palette"
+import type { SettingsSearchResult } from "@/settings/search-results"
 
 export type CommandPaletteEntry = {
   id: string
-  type: "command" | "file" | "session"
+  type: "command" | "file" | "session" | "setting"
   title: string
   description?: string
+  keywords?: string
   keybind?: string
   category: string
   option?: CommandOption
@@ -32,6 +35,7 @@ export type CommandPaletteEntry = {
   project?: LocalProject
   archived?: number
   updated?: number
+  setting?: SettingsSearchResult
 }
 
 const ENTRY_LIMIT = 5
@@ -86,6 +90,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
   const appTabs = useTabs()
   const attachment = usePluginAttachment()
   const openFile = createCommandPaletteFileOpener(props.onOpenFile)
+  const settings = createSettingsPaletteEntries()
   const state: PaletteHighlight = { cleanup: undefined, committed: false }
   const filesOnly = () => props.filesOnly?.() ?? false
 
@@ -190,6 +195,8 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
       return
     }
 
+    if (item.type === "setting") return settings.select(item)
+
     if (!item.path) return
     openFile(item.path)
   }
@@ -207,6 +214,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
     recentFileEntries,
     rootFileEntries,
     sessions,
+    settings,
     highlight,
     select,
     close: () => dialog.close(),

@@ -84,7 +84,10 @@
     "patches/mobile/0037-M-037-gui-plugins-migration.patch",
     "patches/mobile/0038-M-038-btw-narrow-entry.patch",
     "patches/mobile/0040-M-040-about-version-face.patch",
-    "patches/mobile/0041-M-041-open-external-platform-face.patch"
+    "patches/mobile/0041-M-041-open-external-platform-face.patch",
+    "patches/mobile/0042-M-042-settings-framework-target-deps.patch",
+    "patches/mobile/0043-M-043-settings-framework-target-migration.patch",
+    "patches/mobile/0044-M-044-settings-framework-mobile-faces.patch"
   ],
   "excluded": {
     "packages": [

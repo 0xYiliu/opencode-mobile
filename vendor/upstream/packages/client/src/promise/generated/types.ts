@@ -3,6 +3,10 @@ export type JsonValue = null | boolean | number | string | Array<JsonValue> | { 
 export type ServerInfo = {
   version: string
   pid: number
+  // mobile(M-043): the settings framework's health face reads the server machine's name
+  // (health.ts stage/version poll); the full v2.2.1 client regeneration stays with its
+  // owning sync.
+  hostname?: string | undefined
   urls: Array<string>
   paths: { tmp: string }
   capabilities?: { persistentPty?: boolean | undefined } | undefined

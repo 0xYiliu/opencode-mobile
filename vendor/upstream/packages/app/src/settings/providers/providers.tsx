@@ -9,7 +9,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { popularProviders, useProviders } from "@/providers/catalog/providers"
 import { consoleProviderGroup } from "@/providers/catalog/console"
 import { useIntegrations } from "@/providers/catalog/integrations"
-import { createEffect, createMemo, type Component, For, Show } from "solid-js"
+import { createEffect, createMemo, type Component, type JSX, For, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
@@ -41,6 +41,7 @@ const PROVIDER_NOTES = [
 export const SettingsProviders: Component<{
   directory: string | undefined
   onSelectProvider?: (providerID: string) => void
+  headerAction?: JSX.Element
 }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
@@ -398,6 +399,7 @@ export const SettingsProviders: Component<{
             <h2 class="settings-tab-title">{language.t("settings.providers.title")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.providers.description")}</span>
           </div>
+          <div class="settings-tab-header-actions">{props.headerAction}</div>
         </div>
       </div>
 
