@@ -174,7 +174,15 @@ export function ExtensionManager(props: ExtensionManagerProps) {
                       hideLabel
                       checked={!disabledIds().has(definition.id)}
                       disabled={desktopHost || !records}
-                      onChange={(next: boolean) => setDisabled(definition.id, next)}
+                      // Kobalte's onChange(next) delivers the switch's NEW CHECKED value
+                      // (checked ⇔ enabled here), while setDisabled's second parameter is
+                      // the DISABLED intent — the negation of next. Passing next straight
+                      // through inverted the semantics into a guaranteed no-op (issue #96,
+                      // introduced in #26's 2d51373): an enabled switch computed next=false
+                      // → toggle(id,false)=stay enabled, a disabled one next=true → stay
+                      // disabled. The flip lives at this one call site; the store's
+                      // true=disabled contract (extensions/manager.ts) is untouched.
+                      onChange={(next: boolean) => setDisabled(definition.id, !next)}
                     >
                       {definition.id}
                     </ToggleSwitch>
