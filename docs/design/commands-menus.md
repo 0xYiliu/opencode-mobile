@@ -28,7 +28,7 @@
 | new-session | `new-session/commands.tsx`（`new-session` 组） | `command.palette`（hidden）、`input.focus`、`project.select`、`session.location.cycle` |
 | desktop 门 | `shell/commands/desktop.tsx`（`desktop` 组） | `logs.export`——**平台门** `platform.platform !== "desktop"` 时早退，web 构建永不注册 |
 
-- **扩展命令发布**（`runtime/extension/commands.tsx`）：`${extension}.${id}` 模板发布（如 `terminal.toggle`、`browser.open`、`debug.heap`、`wsl.retry`）；13 个内建 GUI 扩展全部在 web 构建同表激活（`gui-extensions/src/renderer.ts` `builtins` 无平台门）；`enabled === false → disabled`（见 §七第④层）。内建扩展命令族：terminal `toggle`/`new`/`close`、browser `open`/`reload`/`address`/`close`/`inspect`、btw `ask`、debug `toggle`/`heap`（`if (desktop)` 条件注册——web 永不注册）、pairing `open`、updater `check`、wsl `retry`。
+- **扩展命令发布**（`runtime/plugin/commands.tsx`）：`${extension}.${id}` 模板发布（如 `terminal.toggle`、`browser.open`、`debug.heap`、`wsl.retry`）；15 个内建 GUI 插件全部在 web 构建注册表同表激活（`gui-plugins/src/renderer.ts` `builtins` compose 对象无平台门）；移动面按 M-025 白名单三分（见矩阵 S41/N11）：web 10 可启停、desktop-host 4（browser/pairing/ssh/updater）呈现禁用、wsl 静态排除行零操作；`enabled === false → disabled`（见 §七第④层）。内建扩展命令族：terminal `toggle`/`new`/`close`、browser `open`/`reload`/`address`/`close`/`inspect`、btw `ask`、debug `toggle`/`heap`（`if (desktop)` 条件注册——web 永不注册）、pairing `open`、updater `check`、wsl `retry`。
 - **web 构建的命令可达面**（=移动实态，四面）：①composer slash 列表（软键盘；静态 11 键见 [interaction-quality.md](interaction-quality.md) §七 + 扩展动态面 `/terminal`、`/btw` 经 `slashAfter` 挂入）；②Settings > Shortcuts 页（`settings/keybinds/keybinds.tsx` 消费 `command.catalog` 持久化元数据+活体 options，键位覆盖可触屏编辑含 "none" 禁用）；③More 抽屉/一级 tab/设置入口（#20 §二/§七在册）；④全局 keydown（物理键盘）。**命令面板本体无触屏入口（keybind-only）为 #20 §七/§八在册实态，本文不推翻不重复收口**。
 - **/btw 窄屏可达（issue #70/M-038 状态注记）**：btw `ask` 命令门自 `!layout.narrow() && mounted()` 放宽为 `mounted()`（`gui-plugins/src/btw/renderer.tsx`——15 内建之一的 renderer 侧注册；桌面 ≥768px 按构造恒等），窄屏（<768px 视口）composer slash 面出现 `/btw`，答案经 btw 的 mobile face（order 80，More 抽屉）呈现；动态挂入面仍不锁集合（上行口径不变）。
 
@@ -110,7 +110,7 @@
 1. 命令面板 `commandPaletteOptions` 过滤 `disabled+hidden`（command.tsx）——不可用命令出面板。
 2. composer slash 列表过滤 `!item.disabled && !item.id.startsWith("suggested.") && item.slash`（composer/model.ts）——/agent 在 agent 不可见时**缺席**而非悬挂。
 3. 面板偏好项 `COMMON_COMMAND_IDS` 对未注册 id（含 `workspace.new`）经 `order.has` **静默跳过**（`shell/commands/palette.ts`）。
-4. 扩展命令 `enabled === false → disabled: true` → 出面板出 slash 且键位关停（runtime/extension/commands.tsx + `gui-extensions/src/sdk/registries.ts` 注释逐字「False takes the command out of the palette and turns its keybind off. Defaults to true. Reactive.」）；实例：terminal `enabled: routed()`、browser 五命令 `enabled: pane.visible()…`（桌面 pane 专属，移动 pane 缺席→命令禁用出面板）、debug `heap` 的 `if (desktop)` 条件注册（注释逐字「Offered only while main answers: never on the web」）。
+4. 扩展命令 `enabled === false → disabled: true` → 出面板出 slash 且键位关停（runtime/plugin/commands.tsx + `plugin/src/gui/registries.ts` 注释逐字「False takes the command out of the palette and turns its keybind off. Defaults to true. Reactive.」）；实例：terminal `enabled: routed()`、browser 五命令 `enabled: pane.visible()…`（桌面 pane 专属，移动 pane 缺席→命令禁用出面板）、debug `heap` 的 `if (desktop)` 条件注册（注释逐字「Offered only while main answers: never on the web」）。
 5. 唯一渲染禁用行的 face（`WindowsAppMenu` 的 `commandDisabled` 对未注册 id 返回 true 渲染为禁用行）在 web 不渲染。
 
 **菜单引用命令对账表**（13 行；探针组 2 集合相等断言，文档缺行即 FAIL）：
@@ -125,7 +125,7 @@
 | `common.goForward` | 已注册 | shell/titlebar/titlebar.tsx | 同上 |
 | `session.previous` | 已注册 | shell/titlebar/tab-strip.tsx | 键位 alt+↑；移动等价=MobileDrawer tab 触屏切换 |
 | `session.next` | 已注册 | shell/titlebar/tab-strip.tsx | 同上 |
-| `terminal.toggle` | 已注册（扩展发布） | gui-extensions terminal renderer（`id: "toggle"`）+ extension/commands.tsx 模板 | `/terminal` slash（routed 时）+ More 抽屉 Terminal 项 |
+| `terminal.toggle` | 已注册（扩展发布） | gui-plugins terminal renderer（`id: "toggle"`）+ plugin/commands.tsx 模板 | `/terminal` slash（routed 时）+ More 抽屉 Terminal 项 |
 | `project.open` | **未注册** | —（`command.project.open` i18n 键有四处 UI 标题消费：home/projects/controller.tsx、workspaces/selection/dialog.tsx、new-session/project/selector.tsx、settings/workspaces/projects.tsx——全部 `language.t` 标题形态，**零 `command.register` 消费**，非命令） | 桌面菜单 face 恒禁用行；移动等价=home 添加项目双挂载面（#8/#22） |
 | `project.previous` | **未注册** | — | 同上；移动等价=home 项目列表触屏（G19） |
 | `project.next` | **未注册** | — | 同上 |
