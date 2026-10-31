@@ -272,21 +272,33 @@ const HOSTS = "packages/mobile-hosts/"
 {
   const runtime = await read(`${HOSTS}src/runtime.ts`)
 
-  // ensureTunnel: bounded loop with the ready/early-exit/retry shape.
-  const tunnel = /const ensureTunnel = async \(id: string, signal\?: AbortSignal\): Promise<TransportEndpoint \| undefined> => \{[\s\S]*?\n  \}/.exec(
+  // ensureTunnel: bounded loop with the ready/early-exit/retry shape. The
+  // return type drifted to a multi-line inline-object form (`{ endpoint,
+  // attempt } | undefined`) when the reconnect hook started handing the
+  // attempt handle upstream; the anchor tolerates the object layout but still
+  // pins the exact name/params and the `} | undefined> => {` close, so
+  // deleting or renaming the function keeps failing here.
+  const tunnel = /const ensureTunnel = async \(id: string, signal\?: AbortSignal\): Promise<\{[\s\S]*?\} \| undefined> => \{[\s\S]*?\n  \}/.exec(
     runtime,
   )
   if (!tunnel) fail("5: runtime.ts lost the ensureTunnel function")
   const body = tunnel![0]
   if (!body.includes("for (;;)")) fail("5: ensureTunnel lost its bounded loop")
-  if (!body.includes('if (state === "ready") return endpointOf(id)'))
-    fail("5: ensureTunnel lost the ready early-return")
+  // The ready early-return became a block (endpoint + attempt returned as a
+  // pair behind the attempt-abort guard); both halves are locked.
+  if (!body.includes('if (state === "ready") {'))
+    fail("5: ensureTunnel lost the ready branch")
+  if (!body.includes("return { endpoint, attempt }"))
+    fail("5: ensureTunnel lost the ready endpoint+attempt return")
   if (!body.includes('if (state !== "offline") return undefined'))
     fail("5: ensureTunnel lost the non-offline give-up (idle hosts get NO hidden attempt)")
   if (!body.includes("retry(id)")) fail("5: ensureTunnel lost the retry driver")
   if (!runtime.includes("RECONNECT_MAX_RETRIES + 1 attempts, no infinite loop."))
     fail("5: runtime.ts lost the bounded-budget comment")
-  if (!runtime.includes('if (!endpoint) throw new Error("ssh tunnel unavailable")'))
+  // The guard drifted from `if (!endpoint)` to the post-await revalidation
+  // shape (session/abort/record rechecked before the throw) — same intent:
+  // an unresolvable tunnel must throw so the vendored client re-calls the hook.
+  if (!runtime.includes('if (!session || signal.aborted || !recordAtStart) throw new Error("ssh tunnel unavailable")'))
     fail("5: runtime.ts lost the ssh tunnel unavailable throw")
 
   // The budget lives in the machine.
@@ -306,14 +318,15 @@ const HOSTS = "packages/mobile-hosts/"
   if (!map.includes("...(input.reconnect ? { reconnect: input.reconnect } : {})"))
     fail("5: upstream-map.ts lost the reconnect hook forwarding")
 
-  // Direct connections have NO reconnect hook (extension/sidecar only).
+  // Direct connections have NO reconnect hook (plugin/sidecar only; the conn
+  // discriminator renamed extension→plugin with the M-037 gui-plugins move).
   const clientAssembly = await read(`${APP}src/runtime/server/client.tsx`)
   if (
     !clientAssembly.includes(
-      'const reconnect = server.type === "extension" || server.type === "sidecar" ? server.reconnect : undefined',
+      'const reconnect = server.type === "plugin" || server.type === "sidecar" ? server.reconnect : undefined',
     )
   )
-    fail("5: client.tsx lost the extension/sidecar-only reconnect ternary (direct connections must stay hook-free)")
+    fail("5: client.tsx lost the plugin/sidecar-only reconnect ternary (direct connections must stay hook-free)")
 }
 
 // --- 6. Recovery presentation ---
@@ -339,12 +352,22 @@ const HOSTS = "packages/mobile-hosts/"
   )
     fail("6: host-manager.tsx lost the idle|failed|incompatible|authRequired → connect Match set")
 
-  // Host-key-changed danger recovery chain.
+  // Host-key-changed danger recovery chain. The two-step recovery moved out of
+  // host-manager.tsx into the HostKeyRecovery component (inline-SSH round);
+  // the anchors follow it: the manager still guards on host-key-changed and
+  // mounts the component, and the component carries the danger entry +
+  // explicit confirmation pair over runtime.forgetHostKey.
   if (!manager.includes('runtime.failureReasonOf(host.id) === "host-key-changed"'))
     fail("6: host-manager.tsx lost the host-key-changed failure guard")
-  if (!manager.includes("recoverHostKey")) fail("6: host-manager.tsx lost the recoverHostKey action")
-  if (!manager.includes('{t("hostKey.changed.recover")}'))
-    fail("6: host-manager.tsx lost the hostKey.changed.recover danger button")
+  if (!manager.includes("<HostKeyRecovery runtime={runtime} hostId={host.id} />"))
+    fail("6: host-manager.tsx lost the HostKeyRecovery mount (changed-key recovery entry)")
+  const keyRecovery = await read(`${HOSTS}src/ui/host-key-recovery.tsx`)
+  if (!keyRecovery.includes("props.runtime.forgetHostKey(props.hostId)"))
+    fail("6: host-key-recovery.tsx lost the forgetHostKey recovery action")
+  if (!keyRecovery.includes('{t("hostKey.changed.recover")}'))
+    fail("6: host-key-recovery.tsx lost the hostKey.changed.recover danger button")
+  if (!keyRecovery.includes('{t("hostKey.changed.confirmRemove")}'))
+    fail("6: host-key-recovery.tsx lost the hostKey.changed.confirmRemove explicit confirmation")
 
   // Pending session skeleton (not blank, not an error).
   const route = await read(`${APP}src/session/route.tsx`)

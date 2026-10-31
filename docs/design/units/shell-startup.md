@@ -13,7 +13,7 @@
 | 返回键 | 系统 | — | `webView.canGoBack()` 为真 → `goBack()`；否则交系统结束 Activity | 预测性返回迁移留后续 issue（见 [../interaction.md](../interaction.md) 基线） |
 | SSL 错误回调 | WebView | — | 恒 `handler.cancel()`，仅记录错误类别到 logcat | 绝不 proceed（红线） |
 | 控制台消息 | WebView | — | 固定 tag `OpencodeShell` 写 logcat：消息文本 + 行号 | 不打 URL 查询参数/请求头/凭据 |
-| 深链 | 系统 | — | 不实现（未注册 VIEW intent-filter，代码留 TODO） | TODO 状态：已确认未实现；评估完成（issue #71，[决策 0007](../../decisions/0007-pairing-deep-link.md) 提案态：推荐维持不实现，决策待用户） |
+| 深链 | 系统 | — | 不实现（未注册 VIEW intent-filter，代码留 TODO） | 已确认不实施（[决策 0007](../../decisions/0007-pairing-deep-link.md)，2026-10-31；评估与激活条件在册） |
 | 相机授权 | WebView 页面（扫码） | — | `WebChromeClient.onPermissionRequest`：`CameraGrantPolicy` 白名单（回环 origin 解析三元组 + 恰 video 资源）→ OS 运行时授权（请求码 41004）→ grant；拒绝/取消/无相机路径由页面既有错误/hint 呈现 | issue #71；契约权威见 [connection.md](connection.md) 配对专节⑦-2（frames 不出页面、零值日志） |
 | Activity 销毁 | 系统 | — | 仅停本地回环 asset server，随后销毁 WebView | 远程服务/任务永不因客户端断开而停止（红线，代码注释双写） |
 

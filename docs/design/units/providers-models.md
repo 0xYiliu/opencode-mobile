@@ -54,7 +54,7 @@
 
 **取消双路径**：对话框卸载 `onCleanup` → `cancelAttempt()`（`oauth.cancel` DELETE 释放服务端资源）+ `cancelPolling()` generation 失效；授权请求迟到（已换代）时对返回的 attempt 补 cancel。
 
-**壳层能力边界（如实登记；issue #76 交付更新）**：壳无 VIEW intent-filter（`MainActivity.kt` 注释逐字「Not implemented (TODO): deep links (no VIEW intent-filter is registered)…」——入站面不变，决策 0007 提案态）；**外跳浏览器 seam 已随 issue #76 落定**：FilesBridge 第四 op `openExternal` + native `ExternalOpenPolicy`（http/https 强制、拒绝/失败固定文案 Toast）经 M-041 承接 `window.open`——既往「`window.open("_blank")` 在壳 WebView 内的实际行为（同窗导航 vs 静默阻断）是唯一真实不确定点」的表述已随该交付消解，G25③ 首项实测对象改为外跳面浏览器打开实态（QA-1）与拒绝路径 Toast（QA-2/QA-3）。协议流本身不依赖回跳（轮询），三回退中 copy-link 与 code 粘贴在「能切出 App 手动完成」的前提下可用。
+**壳层能力边界（如实登记；issue #76 交付更新）**：壳无 VIEW intent-filter（`MainActivity.kt` 注释逐字「Not implemented (TODO): deep links (no VIEW intent-filter is registered)…」——入站面不变，外链唤起已确认不实施（决策 0007，2026-10-31））；**外跳浏览器 seam 已随 issue #76 落定**：FilesBridge 第四 op `openExternal` + native `ExternalOpenPolicy`（http/https 强制、拒绝/失败固定文案 Toast）经 M-041 承接 `window.open`——既往「`window.open("_blank")` 在壳 WebView 内的实际行为（同窗导航 vs 静默阻断）是唯一真实不确定点」的表述已随该交付消解，G25③ 首项实测对象改为外跳面浏览器打开实态（QA-1）与拒绝路径 Toast（QA-2/QA-3）。协议流本身不依赖回跳（轮询），三回退中 copy-link 与 code 粘贴在「能切出 App 手动完成」的前提下可用。
 
 **凭据刷新/过期**：OAuth token 刷新是服务端行为（`Credential.OAuth { refresh, access, expires }`——secret 只存服务端）；客户端可见的失效形态=`Connection.Status.needs_auth`（重新走 connect 流程）；服务端凭据变更经 SSE 事件推进客户端（见契约表）——凭据刷新不触碰客户端任何 host/project/session 状态键（host/project/session 由 ServerScope 机制承载，凭据面与状态面正交）。
 
