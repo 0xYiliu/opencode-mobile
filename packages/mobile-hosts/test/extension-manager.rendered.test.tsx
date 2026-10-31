@@ -7,6 +7,8 @@ import { render } from "solid-js/web"
 import { messages, type Locale } from "../src/i18n"
 import { createMobileHosts } from "../src/runtime"
 import type { MobileHosts } from "../src/runtime"
+import { createMemoryStorage } from "../src/storage"
+import { GUIEXT_STORAGE_KEY, createExtensionDisabled, createExtensionDisabledStore } from "../src/extensions/manager"
 
 // Issue #62/N12: the static WSL exclusion row (decision 0001). The row is a PRESENTATION
 // of a product-scope exclusion, not a host state: it renders the id, the fixed disabled
@@ -206,6 +208,74 @@ describe("WSL static exclusion row (issue #62/N12)", () => {
     expect(row.querySelectorAll('[data-testid="row-switch"]').length).toBe(0)
     expect(row.textContent).toContain(messages.en["guiext.excluded.wsl.reason"])
     expect(row.textContent).not.toContain(messages.en["guiext.capability.web"])
+    view.dispose()
+  })
+})
+
+describe("guiext toggle end-to-end (issue #96)", () => {
+  // The real chain, no mock pre-inversion on any leg: a DOM click sequence reaches the
+  // REAL component handler, which drives the REAL reactive store (the shell-wide
+  // singleton the component reads via sharedExtensionDisabled()) over an isolated memory
+  // port — the same wiring root.tsx boots in the app (window.localStorage there, a
+  // StoragePort here). The Switch stand-in's onChange(!props.checked) is the faithful
+  // Kobalte contract (onChange delivers the NEW checked value); the assertions below
+  // never encode that inversion themselves — they read the store, the persisted payload
+  // and a fresh mount's rendered face.
+  const storage = createMemoryStorage()
+  const records = createExtensionDisabled(storage)
+
+  const persisted = () => JSON.parse(storage.getItem(GUIEXT_STORAGE_KEY)!) as { version: number; disabled: string[] }
+  const rowSwitch = (host: HTMLElement, id: string) =>
+    host.querySelector<HTMLInputElement>(`li[data-extension-id="${id}"] input[data-testid="row-switch"]`)!
+
+  test("real click disables, persists, survives a restart; clicking back re-enables and persists the empty set", () => {
+    expect(records.ids()).toEqual([])
+    const view = fixture("en")
+    const sw = rowSwitch(view.host, "context")
+    expect(sw.checked).toBe(true) // enabled at mount (checked ⇔ enabled)
+    expect(sw.disabled).toBe(false) // web row + shell instance present
+
+    // A real click is two legs in a browser: the activation behavior toggles the input
+    // and the browser then fires a change event carrying the new value. happy-dom
+    // implements the first leg only (verified: input.click() flips checked, fires no
+    // change) — the second leg is dispatched here, reaching the component's real
+    // onChange → setDisabled → records.toggle → saveGuiext chain.
+    sw.click()
+    sw.dispatchEvent(new Event("change"))
+
+    expect(records.disabled().has("context")).toBe(true)
+    expect(persisted()).toEqual({ version: 1, disabled: ["context"] })
+
+    // Restart equivalent: a fresh store over the SAME storage is exactly what a new
+    // process loads (extensions/manager loadGuiext on construction), and a fresh mount
+    // of the manager must render the persisted state — the switch comes up unchecked.
+    expect(createExtensionDisabledStore(storage).ids()).toEqual(["context"])
+    const restarted = fixture("en")
+    expect(rowSwitch(restarted.host, "context").checked).toBe(false)
+
+    // Toggle back through the same real-click arc: the previously disabled row's switch
+    // reads checked=false at event time, the handler passes the flipped intent, and the
+    // persisted payload returns to the empty set.
+    const back = rowSwitch(restarted.host, "context")
+    back.click()
+    back.dispatchEvent(new Event("change"))
+    expect(records.disabled().has("context")).toBe(false)
+    expect(persisted()).toEqual({ version: 1, disabled: [] })
+    expect(createExtensionDisabledStore(storage).ids()).toEqual([])
+    const reenabled = fixture("en")
+    expect(rowSwitch(reenabled.host, "context").checked).toBe(true)
+
+    view.dispose()
+    restarted.dispose()
+    reenabled.dispose()
+  })
+
+  test("a desktop-host row's switch is rendered non-interactive and a raw click leg never reaches the records", () => {
+    const view = fixture("en")
+    const sw = rowSwitch(view.host, "browser")
+    expect(sw.disabled).toBe(true) // desktopHost || !records — the honest not-toggleable face
+    sw.click() // disabled form control: activation suppressed, no change leg follows
+    expect(records.ids()).toEqual([])
     view.dispose()
   })
 })
