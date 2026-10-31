@@ -70,9 +70,11 @@ mock.module("@/shell/commands/command", () => ({
 }))
 
 const inventory = await import("@/settings/servers/inventory")
+// mobile(M-044): the migrated inventory no longer exports `settingsProjects` (the target
+// search catalog reads `context.projects.list()` instead), so the mock only replaces the
+// server list seam.
 mock.module("@/settings/servers/inventory", () => ({
   ...inventory,
-  settingsProjects: () => [],
   useSettingsServers: () => () => [],
 }))
 
@@ -119,7 +121,9 @@ const lazy = (create: () => unknown) => {
 describe("settings search plugin catalog", () => {
   test("reads the migrated plugin handle from the search source", async () => {
     const source = await Bun.file(new URL("./search.tsx", import.meta.url)).text()
-    expect(source).toContain("extensions: surface.plugins.items()")
+    // mobile(M-044): the migrated (v2.2.1) search source reads the surface's `plugins`
+    // handle natively — the assertion now pins the target form.
+    expect(source).toContain("plugins: surface.plugins.items()")
     expect(source).not.toContain("surface.extensions.")
   })
 
@@ -178,9 +182,11 @@ describe("settings search plugin catalog", () => {
       browser: false,
       mobile: false,
       translate: (key: string) => key,
-      extensions: surface!.plugins.items(),
+      // mobile(M-044): the migrated index reads the surface's `plugins` handle and
+      // rankSettings is the target 2-arg form.
+      plugins: surface!.plugins.items(),
     })
-    expect(rankSettings("general", catalog, { type: "root", tab: "general" }).length).toBeGreaterThan(0)
+    expect(rankSettings("general", catalog).length).toBeGreaterThan(0)
 
     dispose()
     host.remove()

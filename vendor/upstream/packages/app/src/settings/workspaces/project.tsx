@@ -27,7 +27,9 @@ export const SettingsProjectGeneral: Component<{
   project: LocalProject
   server: ServerConnection.Any
   onOpenServer: () => void
-  onClose: () => void
+  // mobile(M-043): optional on the migrated shell (the target call site passes no onClose);
+  // the option's own consumer rework stays with the owning page issue.
+  onClose?: () => void
 }> = (props) => {
   const language = useLanguage()
   const model = createEditProjectModel(props)

@@ -32,9 +32,9 @@
 
 | ID | 功能/Windows v2.2.1 目标 | 本项目实现 | 策略与当前差距 | 证据/验证 |
 | --- | --- | --- | --- | --- |
-| S01 | 设置导航、进入/退出与返回上下文 | 已有代码 | 适配；Server keyed Show 与搜索崩溃已修复；返回/键盘完整流程仍待验 | E13/E31/E34；#90 补验 Settings 可达 PASS |
-| S02 | 搜索设置并定位设置行 | 部分实现 | 对齐；搜索可用、插件索引已修复；目标 SearchList/SearchHighlight、分组与聚焦交互尚未全迁移 | E02/E31/E34；#90 搜索命中 PASS |
-| S03 | 设置中的服务器选择与数据隔离 | 已有代码 | 对齐；ServerScope 已有；跨服务不串数据待真服务验证 | E02/E04，G13 |
+| S01 | 设置导航、进入/退出与返回上下文 | 已实现（未验证） | 对齐；**框架已迁移至 v2.2.1（issue #101/M-043/M-044）**：单一 RootSettings 布局 + CollapsedSidebarToggleSpace 48px 返回行 + view 模型（root{server?}/project，pin 嵌套 server 视图移除）+ settingsViewRedirect 出口表；返回链（search.back→clear→surface.back→common.goBack）与键盘避让设备冒烟 PASS（DBY2-AL00）；宽窄导航一致性的 Desktop 对照仍 BLOCKED（无 Windows 参考端） | E13/E31/E34；#90 补验 Settings 可达 PASS |
+| S02 | 搜索设置并定位设置行 | 已实现（未验证） | 对齐；**目标 SearchList/SearchHighlight/Slash 分组搜索已迁移（issue #101/M-043）**，聚焦定位（searchActivation→revealSettingsSearch，anchor 缺失 no-op 不崩）与命令面板桥（≤5 条 setting 行）；mobile(M-044) 剪除三悬挂目录行（background-activity/timeline-width/sounds-interface——行与页 anchor 一并归各页 Issue 恢复）；#90 回归不复现（源断言+设备实测）；设备冒烟 font→4 结果含 Zoom→定位→返回 PASS；分组/聚焦 Desktop 对照 BLOCKED | E02/E31/E34；#90 搜索命中 PASS |
+| S03 | 设置中的服务器选择与数据隔离 | 已实现（未验证） | 对齐；**server scope 单一事实来源已迁移（issue #101/M-043/M-044）**：surface.server() 解析序（视图 server→source→本地连接→第一台）、selectServer/openServers、目标 SettingsServerSwitcher（≤1 不渲染，RadioGroup+健康点+Manage 出口）与 SettingsServerUnavailable（Retry/Edit 出口）；设备冒烟：三服务器 switcher 换选保页 PASS（authorized-bastion→bastion-main）；**真服务隔离（项目列表归属核对）仍待真服务验证**；Unavailable 整页态未在冒烟中捕获（服务器停留 Loading 态）——结构+单测锁定，实态归 G 门禁 | E02/E04，G13 |
 | S04 | Top / Side / Inbox 模式 | 部分实现 | 适配；三模式设置与持久化已有；Inbox 实际仍是 Side rail，缺分组/跨服务聚合/相应徽标；不等于旧 tabs 无未读状态 | E19/E34；MatePad 宽屏实态已验，<768px 未验 |
 | S05 | 语言切换 | 已有代码 | 对齐；新增键多处按上游策略回退英文，不能宣称全量中文覆盖 | E02/E20–E23 |
 | S06 | 默认工作区目的地 | 已有代码 | 对齐；默认值与远程目录执行语义仍需目标行为核对 | E02/E03 |
@@ -168,7 +168,7 @@
 | 顺序 | 具体工作 | 涉及实现/功能 | 完成依据 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | 1. 基线与参考 | 对比当前实际树与固定目标，逐页列出差异、移动补丁、依赖及可达条件；采集上游参考，记录版本、构建、视口和主题 | `app/src/settings/`、`ui` 及 `runtime/plugin`；S01–S43 | 明确每个页面哪些可直接复用、哪些依赖需迁移、哪些是平台例外；不得将 pin→目标的原始 diff 全当作剩余缺口 | 待处理 |
-| 2. 设置框架迁移 | 迁移目标设置壳、导航、路由、搜索及共用样式，连同必要共享依赖；按仓库规则登记可重放的 vendor 补丁 | `shell.tsx`、`navigation.tsx`、`route.ts`、`surface.tsx`、`search*`、`settings.css`；S01–S03 | 导航/搜索/返回上下文符合目标；离线与远程不可用时有出口，服务器身份不串；不以旧结构覆盖 CSS 模仿目标 | 待处理，依赖 1 |
+| 2. 设置框架迁移 | 迁移目标设置壳、导航、路由、搜索及共用样式，连同必要共享依赖；按仓库规则登记可重放的 vendor 补丁 | `shell.tsx`、`navigation.tsx`、`route.ts`、`surface.tsx`、`search*`、`settings.css`；S01–S03 | 导航/搜索/返回上下文符合目标；离线与远程不可用时有出口，服务器身份不串；不以旧结构覆盖 CSS 模仿目标 | **已完成（issue #101，M-042/M-043/M-044）**：worktree issue-101-settings-framework @ 3ebcf9a 框架迁移（基线 c9339b2）；verify:closure PASS、app 单测无新失败（keyed 冻结失败升级为通过）、build+dist 3517/159,606,524、探针全量 33 个：28 rc=0、3 预存 rc=1（pinch-shell-settings/debug-bar/inline-ssh-device——对 base c9339b2 复测逐字节同败，非本轮引入）、2 仅在 gradle build 产物在场时误报（permission-requests/session-workbench——源树 rc=0）、设备冒烟（DBY2-AL00 @192.168.3.145）六步中五步 PASS（详见 build-and-verify.md issue #101 段）；页面内容（阶段 3）与对照回归（阶段 4）归后续 Issue/轮次 |
 | 3. 页面与接入 | 按目标统一所有设置页及贡献区域；重接移动主机、凭据、权限和 GUI 管理面，保留已有数据与偏好 | S04–S43；`servers/` 的切换/不可用态、第一方 mobile-hosts、Android 适配边界 | 各页面正常/不可用状态呈现可对照，移动差异逐项有依据；既有 SSH、设置搜索和插件开关修复不回退 | 待处理，依赖 2 |
 | 4. 对照与回归 | 执行下表验收；修正视觉与交互偏差，记录实际构建、服务版本、截图和结果 | 全部受影响设置单元及交叉回归项 | 对应代码检查/构建通过；必要模拟器或真机检查通过；无法执行的项目标未验证并保留阻塞原因 | 待处理，依赖 3 |
 | 5. 回填交付 | 更新受影响设计条目、逐行矩阵与运行台账，提交实现 PR | 本节、关联 S 行、`docs/design/`、`docs/build-and-verify.md` | 已实现/局部通过/未验证分别标记；所有承诺验收通过才可写本单元已闭环 | 待处理，依赖 4 |

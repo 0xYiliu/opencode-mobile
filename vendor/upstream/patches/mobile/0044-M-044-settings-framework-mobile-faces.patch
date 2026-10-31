@@ -1,0 +1,414 @@
+diff --git a/packages/app/src/settings/keyed-server-entry.test.tsx b/packages/app/src/settings/keyed-server-entry.test.tsx
+index 9591c24..e42ccc9 100644
+--- a/packages/app/src/settings/keyed-server-entry.test.tsx
++++ b/packages/app/src/settings/keyed-server-entry.test.tsx
+@@ -1,32 +1,66 @@
+ import { describe, expect, test } from "bun:test"
+-import { createComponent, Show } from "solid-js"
+-import { render } from "solid-js/web"
++import { createComponent, createRoot, Show, type Accessor } from "solid-js"
++
++// mobile(M-044) rewrite for the migrated (v2.2.1) servers-tab shape (issue #101, plan §3.3):
++// the target `<Show when={multiple() ? undefined : inventory()[0]} fallback={...}>` is NOT
++// keyed — its callback receives the plain value, which is why the value must be passed on as
++// `entry={entry()}` (the frozen-baseline failure was the pin-era keyed form passing the
++// getter wrapper to `SettingsServerGeneral entry={entry}`). The render below uses
++// createComponent + createRoot + a manual host append instead of `render()` from
++// solid-js/web, whose server dist throws `notSup` under the unit-test conditions (the
++// frozen baseline's environment failure; the same render-free harness as the M-044
++// surface.test.ts).
+ 
+ describe("root Settings Server keyed entry", () => {
+-  test("renders and passes the keyed entry value directly to the root server panel", async () => {
++  test("passes the plain entry value to the root server panel (non-keyed target form)", () => {
+     const entry = { key: "synthetic-server", name: "Synthetic server" }
+     const host = document.createElement("div")
+-    const dispose = render(
+-      () => createComponent(Show, {
+-        get when() { return entry },
+-        keyed: true,
++    document.body.appendChild(host)
++
++    createRoot((dispose) => {
++      const tree = createComponent(Show, {
++        get when() {
++          return entry
++        },
+         get children() {
+-          return (value: typeof entry) => {
++          return (value: Accessor<typeof entry>) => {
++            // Non-keyed function children receive an accessor; the panel prop unwraps it
++            // (`entry={entry()}`), which is exactly the identity this test locks.
++            expect(value()).toBe(entry)
++
+             const heading = document.createElement("h2")
+             heading.dataset.testid = "server-name"
+-            heading.textContent = value.name
++            heading.textContent = value().name
++
+             return heading
+           }
+         },
+-      }),
+-      host,
+-    )
++      })
++
++      if (tree instanceof Node) host.appendChild(tree)
++      queueMicrotask(dispose)
++    })
+ 
+     expect(host.querySelector("[data-testid=server-name]")?.textContent).toBe("Synthetic server")
++  })
++
++  test("the migrated shell renders the target servers-tab shape with the host manager first", async () => {
+     const source = await Bun.file(new URL("./shell.tsx", import.meta.url)).text()
+-    expect(source).toContain("<Show when={singleEntry()} keyed>")
+-    expect(source).toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
+-    expect(source).not.toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
+-    dispose()
++
++    // mobile(M-008): the first-party SSH host manager is the tab's first child.
++    expect(source).toContain('<Tabs.Content value="servers" class="settings-panel">')
++    expect(source).toContain("<MobileHostManager />")
++    expect(source.indexOf("<MobileHostManager />")).toBeGreaterThan(
++      source.indexOf('<Tabs.Content value="servers" class="settings-panel">'),
++    )
++
++    // Target form: non-keyed Show with the SettingsServerList fallback wired to the
++    // surface's server scope, and the plain value passed to the root server panel.
++    expect(source).toContain("when={multiple() ? undefined : inventory()[0]}")
++    expect(source).toContain("<SettingsServerList")
++    expect(source).toContain("selected={surface.server()?.key}")
++    expect(source).toContain("onServerChange={selectServer}")
++    expect(source).toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
++    expect(source).not.toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
+   })
+ })
+diff --git a/packages/app/src/settings/pages.ts b/packages/app/src/settings/pages.ts
+index 2aad8a9..fe9de06 100644
+--- a/packages/app/src/settings/pages.ts
++++ b/packages/app/src/settings/pages.ts
+@@ -14,6 +14,8 @@ export const pageIcons = {
+   extensions: "extensions",
+   servers: "server",
+   experimental: "flask",
++  // mobile(M-044): restored with the "gui-extensions" root tab (M-026 face, D4).
++  "gui-extensions": "extensions",
+   about: "info",
+ } as const satisfies Record<SettingsRootTab, IconProps["name"]>
+ 
+@@ -29,5 +31,7 @@ export const pageLabels = {
+   extensions: "settings.tab.extensions",
+   servers: "settings.section.server",
+   experimental: "settings.tab.experimental",
++  // mobile(M-044): restored with the "gui-extensions" root tab (M-026 face, D4).
++  "gui-extensions": "settings.guiExtensions.title",
+   about: "settings.tab.about",
+ } as const satisfies Record<SettingsRootTab, Parameters<ReturnType<typeof useLanguage>["t"]>[0]>
+diff --git a/packages/app/src/settings/route.ts b/packages/app/src/settings/route.ts
+index bb5c4b4..4f545b0 100644
+--- a/packages/app/src/settings/route.ts
++++ b/packages/app/src/settings/route.ts
+@@ -10,6 +10,11 @@ export type SettingsRootTab =
+   | "extensions"
+   | "servers"
+   | "experimental"
++  // mobile(M-044): the "gui-extensions" root tab is restored for the first-party GUI
++  // extension manager (M-026 face, unit contract D4 in docs/design/units/gui-plugins.md).
++  // Deliberate deviation from the target route model; dropped if a later issue moves the
++  // mobile manager into the plugin settings-page registry.
++  | "gui-extensions"
+   | "about"
+ 
+ declare const pluginTab: unique symbol
+@@ -55,6 +60,7 @@ const rootTabs: Record<SettingsRootTab, true> = {
+   extensions: true,
+   servers: true,
+   experimental: true,
++  "gui-extensions": true,
+   about: true,
+ }
+ 
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index 1d52195..37ab82f 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -68,22 +68,11 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     section: "settings.timeline.title",
+     keywords: "thinking reasoning tools timeline summary detailed",
+   },
+-  {
+-    tab: "general",
+-    label: "settings.timeline.row.backgroundActivity.title",
+-    description: "settings.timeline.row.backgroundActivity.description",
+-    target: "settings-background-activity",
+-    section: "settings.timeline.title",
+-    keywords: "capsule panel subagent shell background activity position alignment hidden left center right",
+-  },
+-  {
+-    tab: "general",
+-    label: "settings.timeline.row.width.title",
+-    description: "settings.timeline.row.width.description",
+-    target: "settings-timeline-width",
+-    section: "settings.timeline.title",
+-    keywords: "column line length measure narrow focused comfortable wide readability",
+-  },
++  // mobile(M-044): the three target rows below were pruned because their reveal anchors live
++  // in page content this migration does not carry (S04+ pages, issues #102–#110). Each row
++  // returns together with its page anchor when the owning page issue lands:
++  //   settings-background-activity + settings-timeline-width -> session/screen page issue (#102/#109 scope, plan §2.3)
++  //   settings-sounds-interface -> notifications page issue
+   {
+     tab: "general",
+     label: "settings.timeline.row.turnDiffs.title",
+@@ -141,7 +130,8 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     label: "settings.appearance.row.zoom.title",
+     target: "settings-zoom",
+     keywords: "scale size text font larger bigger accessibility",
+-    available: "desktop",
++    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
++    // on this mobile client (the target row gates it desktop-only).
+   },
+   {
+     tab: "appearance",
+@@ -197,14 +187,8 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     description: "settings.general.sounds.errors.description",
+     keywords: "sound audio errors",
+   },
+-  {
+-    tab: "notifications",
+-    label: "settings.general.sounds.interface.title",
+-    target: "settings-sounds-interface",
+-    section: "settings.general.section.sounds",
+-    description: "settings.general.sounds.interface.description",
+-    keywords: "sound audio interface effects wordmark logo",
+-  },
++  // mobile(M-044): `settings-sounds-interface` pruned with the other two dangling-anchor
++  // rows above; restored by the notifications page issue together with its page anchor.
+ ]
+ 
+ // Pages showing the selected server, and rows of its card on the Servers page.
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index abd1f55..47f3e82 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -45,13 +45,16 @@ describe("settings search index", () => {
+       target: undefined,
+       subtab: undefined,
+     })
+-    expect(rankSettings("font", items)).toHaveLength(3)
++    // mobile(M-035): the zoom row drops the target's desktop gate, so it joins the "font"
++    // query (4 results instead of the target's 3).
++    expect(rankSettings("font", items)).toHaveLength(4)
+   })
+ 
+   test("only advertises settings supported by this platform", () => {
+     const targets = (input: Parameters<typeof index>[0]) => index(input).map((item) => item.view.target)
+     expect(targets({})).not.toContain("settings-pinch-zoom")
+-    expect(targets({})).not.toContain("settings-zoom")
++    // mobile(M-035): the zoom row is web-available on this client (gate dropped).
++    expect(targets({})).toContain("settings-zoom")
+     expect(targets({})).not.toContain("settings-experimental-browser")
+     expect(targets({})).not.toContain("settings-show-project-icon")
+     expect(targets({})).toContain("settings-tab-layout")
+@@ -75,10 +78,12 @@ describe("settings search index", () => {
+         .map((item) => item.page),
+     ).toEqual(["Desktop notifications", "Sound effects"])
+     expect(rankSettings("follow-up behavior", items)[0].page).toBe("Preferences / General")
+-    expect(rankSettings("capsule", items)[0].view).toMatchObject({
+-      tab: "general",
+-      target: "settings-background-activity",
+-    })
++    // mobile(M-044): the target's `rankSettings("capsule", ...)` -> settings-background-activity
++    // assertion is deleted with the three dangling-anchor catalog rows; this locks their
++    // absence until the owning page issues restore each row with its page anchor.
++    expect(items.some((item) => item.view.target === "settings-background-activity")).toBe(false)
++    expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(false)
++    expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(false)
+     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
+   })
+ 
+diff --git a/packages/app/src/settings/settings-search-plugin.test.tsx b/packages/app/src/settings/settings-search-plugin.test.tsx
+index 20cf54a..053a569 100644
+--- a/packages/app/src/settings/settings-search-plugin.test.tsx
++++ b/packages/app/src/settings/settings-search-plugin.test.tsx
+@@ -70,9 +70,11 @@ mock.module("@/shell/commands/command", () => ({
+ }))
+ 
+ const inventory = await import("@/settings/servers/inventory")
++// mobile(M-044): the migrated inventory no longer exports `settingsProjects` (the target
++// search catalog reads `context.projects.list()` instead), so the mock only replaces the
++// server list seam.
+ mock.module("@/settings/servers/inventory", () => ({
+   ...inventory,
+-  settingsProjects: () => [],
+   useSettingsServers: () => () => [],
+ }))
+ 
+@@ -119,7 +121,9 @@ const lazy = (create: () => unknown) => {
+ describe("settings search plugin catalog", () => {
+   test("reads the migrated plugin handle from the search source", async () => {
+     const source = await Bun.file(new URL("./search.tsx", import.meta.url)).text()
+-    expect(source).toContain("extensions: surface.plugins.items()")
++    // mobile(M-044): the migrated (v2.2.1) search source reads the surface's `plugins`
++    // handle natively — the assertion now pins the target form.
++    expect(source).toContain("plugins: surface.plugins.items()")
+     expect(source).not.toContain("surface.extensions.")
+   })
+ 
+@@ -178,9 +182,11 @@ describe("settings search plugin catalog", () => {
+       browser: false,
+       mobile: false,
+       translate: (key: string) => key,
+-      extensions: surface!.plugins.items(),
++      // mobile(M-044): the migrated index reads the surface's `plugins` handle and
++      // rankSettings is the target 2-arg form.
++      plugins: surface!.plugins.items(),
+     })
+-    expect(rankSettings("general", catalog, { type: "root", tab: "general" }).length).toBeGreaterThan(0)
++    expect(rankSettings("general", catalog).length).toBeGreaterThan(0)
+ 
+     dispose()
+     host.remove()
+diff --git a/packages/app/src/settings/shell.tsx b/packages/app/src/settings/shell.tsx
+index c7f6883..9e3e5ab 100644
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -1,8 +1,12 @@
+ import { Tabs } from "@opencode/ui/tabs"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import { createEffect, createMemo, For, on, onCleanup, onMount, Show, Switch, Match, type Accessor } from "solid-js"
++// mobile(M-044): `lazy` + `Suspense` return for the mobile faces below; `usePlatform` feeds
++// the non-desktop gui-extensions predicate (R4-1 decision: the M-026 mount keeps its
++// <Suspense> wrapper, so the Suspense import is re-added on the migrated target shell).
++import { createEffect, createMemo, For, lazy, on, onCleanup, onMount, Show, Suspense, Switch, Match, type Accessor } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { usePlatform } from "@/runtime/platform/platform"
+ import { useTabs } from "@/shell/tabs/tabs"
+ import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
+ import { ServerConnection } from "@/runtime/server/registry"
+@@ -34,8 +38,37 @@ import { settingsViewRedirect } from "./route"
+ import { pageIcons, pageLabels } from "./pages"
+ import { revealSettingsSearch } from "./search-reveal"
+ import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
++// mobile(M-026): the plugin host handle for the first-party GUI extension manager.
++import { usePluginHost } from "@/runtime/plugin/host"
+ import "@/settings/settings.css"
+ 
++// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
++const MobileHostManager = lazy(() =>
++  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
++)
++
++// mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
++// "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
++// props (the shared package never imports app internals).
++const ExtensionManager = lazy(() =>
++  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.ExtensionManager })),
++)
++
++function MobileExtensionManager() {
++  const host = usePluginHost()
++
++  return (
++    <Suspense>
++      <ExtensionManager
++        definitions={host.definitions()}
++        statusOf={(id) => host.state.status[id]}
++        failureOf={(id) => host.state.failures[id]?.error}
++        onReload={(id) => host.reload(id)}
++      />
++    </Suspense>
++  )
++}
++
+ const rootClientTabs = [
+   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
+   { value: "appearance", icon: pageIcons.appearance, label: "settings.general.section.appearance" },
+@@ -64,6 +97,12 @@ const experimentalTab = [
+   { value: "experimental", icon: pageIcons.experimental, label: "settings.tab.experimental" },
+ ] as const
+ 
++// mobile(M-026): the tab id stays "gui-extensions" (unit contract D4,
++// docs/design/units/gui-plugins.md); route.ts/pages.ts restore it in M-044.
++const guiExtensionsTab = [
++  { value: "gui-extensions", icon: pageIcons["gui-extensions"], label: "settings.guiExtensions.title" },
++] as const
++
+ const aboutTab = [{ value: "about", icon: pageIcons.about, label: "settings.tab.about" }] as const
+ 
+ const nestedProjectTabs = [
+@@ -226,6 +265,7 @@ function RootSettings() {
+   const surface = useSettingsSurface()
+   const global = useGlobal()
+   const inventory = useSettingsServers()
++  const platform = usePlatform()
+ 
+   const [state, setState] = createStore<{ worktreeFilterReset: number; modelProvider: string | undefined }>({
+     worktreeFilterReset: 0,
+@@ -241,6 +281,12 @@ function RootSettings() {
+     return entry && settingsServerReachable(entry, global.servers.health[entry.key]) ? entry.connection : undefined
+   })
+ 
++  // mobile(M-026): non-desktop builds mount the first-party GUI extension manager (issue
++  // #26) on the same tab — the upstream DEV+desktop face is upstream-removed on the
++  // migrated shell (the DEV plugin face lives in PluginSettingsPages/settings-page-dev),
++  // so every pin condition containing `guiExtensions` collapses to this single face.
++  const mobileGuiExtensions = platform.platform !== "desktop"
++
+   const prefetchWorkspaces = useWorkspacesPrefetch(reachable)
+   const activeDirectory = useSettingsDirectory(reachable)
+   createEffect(() => {
+@@ -249,6 +295,11 @@ function RootSettings() {
+     if (view.type !== "root") return
+ 
+     if (view.tab === "experimental" && !experimentalSettingsAvailable) surface.open("general")
++
++    // mobile(M-026): the guard bounces the tab where the face is not mounted — on
++    // non-desktop builds the first-party manager takes the tab (the pin's `!guiExtensions`
++    // term is dropped with the upstream DEV+desktop face).
++    if (view.tab === "gui-extensions" && !mobileGuiExtensions) surface.open("general")
+   })
+ 
+   const selectServer = (server: ServerConnection.Any) => surface.selectServer(ServerConnection.key(server))
+@@ -284,6 +335,9 @@ function RootSettings() {
+     ...(experimentalSettingsAvailable
+       ? [{ items: experimentalTab.map((item) => ({ ...item, label: language.t(item.label) })) }]
+       : []),
++    // mobile(M-026): the pin's `...((guiExtensions || mobileGuiExtensions)` condition
++    // collapses to the single non-desktop face on the migrated shell.
++    ...(mobileGuiExtensions ? [{ items: guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) }] : []),
+     {
+       items: [...aboutTab.map((item) => ({ ...item, label: language.t(item.label) })), ...pluginTabs("about")],
+     },
+@@ -315,6 +369,17 @@ function RootSettings() {
+         <SettingsKeybinds active={surface.view().tab === "shortcuts"} />
+       </Tabs.Content>
+       <PluginSettingsPages />
++      {/* mobile(M-026): the first-party GUI extension manager on non-desktop builds — the
++          disable records feed root.tsx's disabled union (M-025). The pin's
++          `!guiExtensions && ` prefix is dropped: the upstream DEV+desktop face is
++          upstream-removed on the migrated shell, so mutual exclusion is structural. */}
++      {mobileGuiExtensions && (
++        <Tabs.Content value="gui-extensions" class="settings-panel">
++          <Suspense>
++            <MobileExtensionManager />
++          </Suspense>
++        </Tabs.Content>
++      )}
+       <Tabs.Content value="experimental" class="settings-panel">
+         <SettingsExperimental />
+       </Tabs.Content>
+@@ -397,6 +462,10 @@ function RootSettings() {
+         )}
+       </Show>
+       <Tabs.Content value="servers" class="settings-panel">
++        {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
++            upstream server panel; it renders even with an empty upstream list so the first
++            SSH host can be created. */}
++        <MobileHostManager />
+         <Show
+           when={multiple() ? undefined : inventory()[0]}
+           fallback={

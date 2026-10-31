@@ -2082,6 +2082,49 @@ verify-about-version=0、verify-agent-capabilities=0、verify-appearance-setting
 - **设备侧零验证**：本轮无任何设备/模拟器动作；三份决策的暂缓/不实施均为产品决策记录，不代表任何功能验证状态变化（W24 实现格保持「未实现」、S40/N09 推「不实现」终态、D03 保持部分实现）。
 - **文档同步的探针覆盖边界**：矩阵/设计文档本轮改写不触及任何探针锁定串（27 rc=0 中含全部锁 docs 的探针——pairing/debug-bar/pinch-shell-settings/interaction-quality/recovery/commands-menus 等）；四 rc=1 探针已证明零 docs 域。
 
+## issue #101 段（S01–S03：Settings 导航、搜索与页面框架对齐 Desktop v2.2.1——M-042/M-043/M-044）——2026-11-01 实测记录
+
+**分支/基线**：worktree `issue-101-settings-framework`（base `c9339b240c3b295dbe02a9cff8844a2dbf593579` = PR #100）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a32c`（v2.2.1）+ 42 移动补丁（M-001…M-044，M-019/M-039 reserved-absent）。实施补丁 M-042（依赖闭包）/M-043（目标迁移+手术 hunk+3 新测试）/M-044（移动面重锚+测试完成）登记于双 manifest；计划偏差与类型门补遗写入各 manifest `reason`/`upstreamBaseline` 字段（en.ts 9 键、registry label/hint 块、project.tsx onClose 可选、client ServerInfo.hostname）。**openServer shim 偏差勘误（评审 F-1）**：实取计划 §2.2 具名备选 `openServers(draft?.server)`（复用既有成员保留 draft 服务器上下文、不新增待移除的过渡 shim）；初审记录的「shim 的 tab 不经 URL round-trip 会静默退化」理由**有误**——评审与实施双重复核实证：`{root,general,server}`/`{root,workspaces,server}`/`{root,servers,server}` 经 settingsViewUrl/parseSettingsView 均忠实 round-trip（目标 rootTabs 记录含 per-server tabs），拒绝理由非解析限制；vendored screen.tsx 注释仍为被取代表述（不改代码，以 manifest reason 与本段为准）。
+
+### 工程门禁（§6.1，实跑输出）
+
+| 命令 | 结果 | 关键数字 |
+| --- | --- | --- |
+| `bun run verify:closure` | **PASS** | pin+packageSources+42 补丁链 round-trip 逐字节相等；DANGLING=0 |
+| `cd vendor/upstream/packages/app && bun run test:unit` | **无新失败**（delta 如实） | 迁移后 643 pass / **25 fail** / 24 errors / 1976 expect，668 tests / 114 files；基线 631/26/24/1927，657 tests/111 files。唯一变化：`keyed-server-entry` 冻结基线失败**升级为通过**（M-044 重写）；`server persistence schema` 真实失败保持原样（非本 Issue 面）；24 个文件级 `Cannot find module '@opencode-mobile/mobile-hosts'` 与基线同数（vite alias 仅运行期解析）；新增 3 测试文件 10 测试全过（surface 5 / palette 3 / search-reveal 2） |
+| `bun run typecheck:tsc`（vendored `typecheck` 脚本 `bun check` 在本 bun 1.4.2 报 Script not found，以 `tsc -b` 记录） | **net +1**（390→391），逐条归类 | 新增 7 条 = target `search-results.test.ts` 的 `{id,name,worktree}` 对 pin-era `LocalProject` 形差（:12/:13/:92/:93/:120/:130/:137）（layout 类型随 #102+ 迁移后消除）；surface.test.ts 已修至 0；host-apis `notifications` 两条为**消息串漂移**（useGlobal 形状串进 message，同位置同错）；registry/shell 的 mobile-hosts 4 条为行号平移同错；shell id 隐式 any 3 条为行号平移同错；keyed/search-plugin 各自同错平移；surface.tsx 3 条基线错（isPluginTab unused / isExtensionTab / SettingsExtensionTab）随目标逐字迁移**消除** |
+| `bun run build:web` + `bash scripts/copy-web-dist.sh` | **成功** | dist `3517 files / 159,606,524 bytes`（基线 3516/159,546,665；+1 chunk/+59,859——迁移设置文件新 chunk；M-043 补遗后复测 +399 字节并回填探针常量）；壳 bootstrap 标记仍在 dist |
+| `git diff --check` | **干净** | 零空白/冲突标记 |
+| `bash scripts/leak-scan.sh` | rc=1 **既有态** | 命中恰 5 行 = `packages/mobile-hosts/test/host-credential.test.ts`（:22/:44/:51/:59/:78，同一文件的 synthetic PEM fixture 串——在册预存）；本 Issue 改动文件**零新增命中** |
+| `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail** | 与基线同数（434/2920 expect/39 files）；mobile-hosts 零改动（M-008/M-026 挂载签名不变） |
+| 探针轮（本轮面 13 个 rc=0；全量 33 个普查：28 rc=0 + 3 预存 rc=1 + 2 仅 build 产物在场误报） | **rc=0 ×13** | 9 个修订探针（commands-menus/about-version/gui-plugins/attachments-artifacts/appearance-settings/notifications/agent-capabilities/projects-sessions/provider-models）+ 新 `verify-settings-framework.ts` + 收容面 3 个（interaction-quality 组 4 集合扩容+interaction-quality.md §4 重计 23/21→24/22、experimental-settings sidebarOpen 负例移除、appearance zoom 条目 M-044 形）；interface-mode/recovery rc=0；**pinch-shell-settings/debug-bar/inline-ssh-device rc=1 为预存陈旧锚**（对 base c9339b2 复测同败，matrix.md 未改）；permission-requests/session-workbench 仅在 gradle build 中间产物在场时误报（`android/app/build` 内旧 chunk 命中 closed-set 扫描——移出 build 目录后双 rc=0，非源面回归） |
+| `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**（基线轮 24s + 终轮 up-to-date 复验） | APK SHA-256 `6a11e7491bb016befa9bfc6db8242dc202b172e5b08129b699032f2e63ae95ea`（app-debug，versionCode 1 / versionName 0.1.0）；APK 内含新 payload（route-B1IxkIWY.js） |
+
+### 设备冒烟（§6.3，导航-only；零 uninstall/零 pm clear/零连接变更）
+
+| 步骤 | 设备 | 结果 |
+| --- | --- | --- |
+| 安装 | DBY2-AL00 @192.168.3.145:5555（Android 12，横屏 2800×1840） | `adb install -r` **Success**（数据保留：3 台 SSH 主机与项目配置原样） |
+| 安装 | vivo V1934A @192.168.3.209:5555 | **失败 [-200]**（厂商 USB 安装确认策略，`pm list packages` 无既有包）；按任务书记为设备受限，冒烟在 .145 单设备完成 |
+| 1 进入/退出/返回 | .145 | **PASS**：home→Settings（真实数据：3 SSH 服务器 + 项目列表）→ 返回键回 home |
+| 2 搜索→定位→返回 | .145 | **PASS**：搜 `font` → Settings 组 **4 结果含 Zoom**（M-035 web 可用）；选中 Zoom → Appearance 页聚焦 reveal 到 Zoom 行（100%）；返回键清搜索/回 home；#90 崩溃回归未复现（输入/清空/重复） |
+| 4 服务器身份隔离 | .145 | **PASS**：Worktrees 页 switcher 菜单（RadioGroup 三服务器 + Manage servers…）→ 选 bastion-main → **标签更新且保持当前页**（authorized-bastion→bastion-main）；单一事实来源（surface.server()） |
+| 5 移动面 | .145 | **PASS**：Servers tab = M-008 host manager（SSH hosts/Credentials/Add host + 三主机卡）**上**目标 `SettingsServerList`（Servers/Add server + 每服务器连接行+Terminal shell 偏好）；gui-extensions tab = M-026 第一方 ExtensionManager（context/btw/debug/terminal/file/review/details/browser… 卡片） |
+| 3 离线进入 | .145 | **部分 PASS（如实）**：全部服务器未连接状态下 Settings 可进、本地页（Appearance/General）正常渲染；per-server 页带 switcher 正常呈现；**`SettingsServerUnavailable` 整页态未捕获**（服务器停留 Loading 态，health 未判失败）——该面由单测+静态探针锁定，实态归 G 门禁 |
+| 6 键盘避让+返回键 | .145 | **PASS**：搜索输入软键盘弹起时视口 resizes-content 布局保持（截图 s2b）；返回键逐级收起（结果→清除→退出） |
+
+### 参考 renderer 预检（§6.2；组件/响应式级，**非 Desktop 验收**）
+
+- `git -C ~/.cache/opencode-upstream worktree add /tmp/ref-3ebcf9a 3ebcf9a32c…` + `bun install`（1800 packages）+ `vite dev`（:3000，依赖预扫描 PARSE_ERROR 但按需编译正常，页面 200）。
+- 截图 24 张 @ 390×844 与 1024×768 × light/dark（**/tmp/shots-issue101/，不提交**；SHA256 前缀与尺寸已登记本轮工作记录）：settings 宽/窄导航（宽=分组侧导航：Providers/Models/Extensions/Projects/Worktrees/Preferences/Appearance/Notifications/Shortcuts/Server/Experimental/About；窄=返回行+下拉+48px 行）、搜索 overlay/results（font→Settings 组 SearchList 高亮）、Servers 页（This computer 行 + Add server）、Add server 对话框（pairing-link 与 password 两变体）。
+- **限制（如实）**：无 Windows Desktop 安装包（视觉验收 BLOCKED）；参考端无移动补丁；「Add server 死端口」流在参考端被表单校验拦（不可用整页态未在参考端捕获）；switcher 菜单需 ≥2 服务器（参考端单服务器不渲染，设备端实测覆盖）。
+- mobile dev 构建（:3001）：连接门拦（无活服务不进壳——M-027 门为既有行为），迁移面 UI 证据由设备冒烟（真实数据）承载。
+
+### 文档同步
+
+`docs/design/units/settings.md`（新建）；`docs/design/README.md`（索引行）；`docs/design/architecture.md`（设置框架单元行 + M-042/043/044 补丁表行 + 设置段落框架条款）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（步骤 2 行已完成 + S01/S02/S03 行更新）；`docs/design/interaction-quality.md`（§4 断点集合重计 23/21→24/22，M-042 sidebar-toggle.tsx 收入）。
+
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |

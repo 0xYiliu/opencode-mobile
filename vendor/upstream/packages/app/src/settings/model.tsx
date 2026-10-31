@@ -139,6 +139,9 @@ const appearanceSchema = Persistence.struct({
   terminal: Schema.String,
   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
+  // mobile(M-043): the collapsed-sidebar toggle reads this (shell/sidebar-toggle.tsx, the
+  // settings-framework dependency closure); the page-level schema rework stays with #102+.
+  sidebarOpen: Persistence.optional(Schema.Boolean),
   reduceMotion: Schema.Literals(["system", "on", "off"]),
 })
 
@@ -433,6 +436,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         tabLayout: withFallback(() => store.appearance?.tabLayout, defaultSettings.appearance.tabLayout),
         setTabLayout(value: TabLayout) {
           setStore("appearance", "tabLayout", value)
+        },
+        sidebarOpen: withFallback(() => store.appearance?.sidebarOpen, true),
+        setSidebarOpen(value: boolean) {
+          setStore("appearance", "sidebarOpen", value)
         },
         reduceMotion,
         setReduceMotion(value: ReduceMotion) {

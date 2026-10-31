@@ -391,21 +391,23 @@ let osScanFiles = 0
   if (!runtime.includes('persisted(Persist.global("model"),ModelState,{'))
     fail("5: the createGlobalModels Persist.global(\"model\") preference EXCEPTION moved (anti-overclaim anchor — preferences are cross-server global upstream)")
 
-  // Dual-layout mounts: guard + two providers/models Tabs.Content pairs +
-  // the per-server nested tabs.
+  // Migrated (v2.2.1) single-layout mounts (issue #101 / M-043): the pin's dual layout is
+  // gone — the five-tab redirect guard and the nestedServerTabs composition are
+  // target-REMOVED (absence assertions), and providers/models each mount exactly ONCE in
+  // the single RootSettings layout.
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
-  if (!shell.includes('if(["projects","workspaces","providers","models","extensions"].includes(view.tab))surface.open("general")'))
-    fail("5: the multi-server redirect guard (five per-server tabs) changed")
-  if (!shell.includes("constnestedServerTabs=[") || !shell.includes("...serverTabs,"))
-    fail("5: the per-server nested tabs composition changed")
+  if (shell.includes('if(["projects","workspaces","providers","models","extensions"].includes(view.tab))surface.open("general")'))
+    fail("5: the pin five-tab redirect guard came back (target-removed by the M-043 migration)")
+  if (shell.includes("constnestedServerTabs=[") || shell.includes("...serverTabs,"))
+    fail("5: the pin per-server nested tabs composition came back (target-removed by the M-043 migration)")
   if (!shell.includes("constserverTabs=[") || !shell.includes('{value:"providers",icon:pageIcons.providers,label:"settings.providers.title"},') || !shell.includes('{value:"models",icon:pageIcons.models,label:"settings.models.title"},'))
     fail("5: the serverTabs providers/models registration changed")
   const providersTabs = shell.match(/<Tabs\.Contentvalue="providers"/g) ?? []
   const modelsTabs = shell.match(/<Tabs\.Contentvalue="models"/g) ?? []
-  if (providersTabs.length !== 2 || modelsTabs.length !== 2)
-    fail(`5: providers/models Tabs.Content must mount exactly twice each (single + per-server layouts; got ${providersTabs.length}/${modelsTabs.length})`)
+  if (providersTabs.length !== 1 || modelsTabs.length !== 1)
+    fail(`5: providers/models Tabs.Content must mount exactly once each (single RootSettings layout; got ${providersTabs.length}/${modelsTabs.length})`)
   if ((shell.match(/SettingsServerDataScope/g) ?? []).length < 4)
-    fail("5: the SettingsServerDataScope wraps are missing (both layouts + ServerSettings)")
+    fail("5: the SettingsServerDataScope wraps are missing (per-server pages + project view)")
   const pages = await read(`${APP}src/settings/pages.ts`)
   if (!pages.includes('providers: "providers",') || !pages.includes('models: "models",'))
     fail("5: the settings pages providers/models registration moved")

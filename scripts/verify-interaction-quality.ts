@@ -330,9 +330,10 @@ function walk(dir: string, out: string[] = []): string[] {
     }
   }
 
-  // 8 min-768 hits in 6 app files; 14 max-767 hits (13 app files + 1 gui-ext);
-  // plus the host-apis.ts comment anchor = the documented 22 hits / 20 files (issue #67
-  // recount: v2.2.1 dropped the settings-pages.ts media query).
+  // 9 min-768 hits in 7 app files (issue #101: M-042 adds shell/sidebar-toggle.tsx, the
+  // settings framework's CollapsedSidebarToggleSpace dependency, with the useCollapsedSlot
+  // desktop breakpoint — interaction-quality.md §4 recounted 23/21 -> 24/22);
+  // 14 max-767 hits (13 app files + 1 gui-ext); plus the host-apis.ts comment anchor.
   const expectedMin = [
     `${APP}src/runtime/plugin/host-apis.tsx`,
     `${APP}src/runtime/plugin/panels.tsx`,
@@ -340,6 +341,7 @@ function walk(dir: string, out: string[] = []): string[] {
     `${APP}src/session/header/session-header.tsx`,
     `${APP}src/session/model.ts`,
     `${APP}src/session/timeline/virtualizer.tsx`,
+    `${APP}src/shell/sidebar-toggle.tsx`,
   ].sort()
   const expectedMax = [
     `${APP}src/composer/composer.tsx`,
@@ -370,7 +372,7 @@ function walk(dir: string, out: string[] = []): string[] {
   }
   setEq(minFiles, expectedMin, "min-width: 768px")
   setEq(maxFiles, expectedMax, "max-width: 767px")
-  if (minHits !== 8) fail(`4: min-width: 768px hit count drifted (expected 8, got ${minHits})`)
+  if (minHits !== 9) fail(`4: min-width: 768px hit count drifted (expected 9, got ${minHits})`)
   if (maxHits !== 13) fail(`4: max-width: 767px hit count drifted (expected 13, got ${maxHits})`)
 
   // The 21st file's anchor: the gui-ext SDK viewport comment.

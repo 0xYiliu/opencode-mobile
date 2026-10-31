@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, type Component } from "solid-js"
+import { Show, createEffect, createMemo, type Component, type JSX } from "solid-js"
 import { Key } from "@solid-primitives/keyed"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode/ui/button"
@@ -11,7 +11,6 @@ import { homeProjectDirectories } from "@/shell/layout/helpers"
 import type { LocalProject } from "@/shell/state/layout"
 import { useDirectoryPicker } from "@/workspaces/selection/picker"
 import { addProjects } from "@/home/projects/add"
-import { settingsProjects } from "../servers/inventory"
 import { SettingsSearchEmpty } from "../search-empty"
 import { SettingsSearchField } from "../search-field"
 import { SettingsProjectRow } from "./project-row"
@@ -22,13 +21,16 @@ export const SettingsProjects: Component<{
   server: ServerConnection.Any
   active: boolean
   onOpenProject: (project: LocalProject) => void
+  headerAction?: JSX.Element
 }> = (props) => {
   const language = useLanguage()
   const global = useGlobal()
   const pickDirectory = useDirectoryPicker()
   const [store, setStore] = createStore({ filter: "" })
   const context = createMemo(() => global.ensureServerCtx(props.server))
-  const projects = createMemo(() => settingsProjects(context()))
+  // mobile(M-043): the migrated inventory no longer exports `settingsProjects`; the
+  // context accessor is the target form.
+  const projects = createMemo(() => context().projects.list())
   const searchable = createMemo(() => projects().length > 7)
 
   const filtered = createMemo(() => {
@@ -71,11 +73,14 @@ export const SettingsProjects: Component<{
             <h2 class="settings-tab-title">{language.t("settings.projects.title")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.projects.description")}</span>
           </div>
-          <Show when={projects().length > 0}>
-            <Button variant="ghost-muted" icon="plus" onClick={addProject}>
-              {language.t("home.project.add")}
-            </Button>
-          </Show>
+          <div class="settings-tab-header-actions">
+            <Show when={projects().length > 0}>
+              <Button variant="ghost-muted" icon="plus" onClick={addProject}>
+                {language.t("home.project.add")}
+              </Button>
+            </Show>
+            {props.headerAction}
+          </div>
         </div>
         <Show when={searchable()}>
           <SettingsSearchField

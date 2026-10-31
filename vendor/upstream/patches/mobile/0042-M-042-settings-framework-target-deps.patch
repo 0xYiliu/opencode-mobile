@@ -1,0 +1,875 @@
+diff --git a/packages/app/src/runtime/server/registry.tsx b/packages/app/src/runtime/server/registry.tsx
+index b503bbe..c5bc4eb 100644
+--- a/packages/app/src/runtime/server/registry.tsx
++++ b/packages/app/src/runtime/server/registry.tsx
+@@ -1,4 +1,5 @@
+ import { createSimpleContext } from "@opencode/ui/context"
++import { useLanguage } from "@/runtime/i18n/language"
+ import { batch, createMemo } from "solid-js"
+ import { type SetStoreFunction, type Store } from "solid-js/store"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+@@ -33,6 +34,18 @@ export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = fals
+   return conn.http.url.replace(/^https?:\/\//, "").replace(/\/+$/, "")
+ }
+ 
++/**
++ * What switchers and titles call a server: a custom name wins, then, for the server the app runs beside, its
++ * hostname or the fallback; other servers show their address.
++ */
++export function serverLabel(conn: ServerConnection.Any, current?: { hostname?: string; fallback: string }) {
++  if (conn.displayName) return conn.displayName
++
++  if (current) return current.hostname || current.fallback
++
++  return serverName(conn)
++}
++
+ function isLocalHost(url: string) {
+   const host = url.replace(/^https?:\/\//, "").split(":")[0]
+ 
+@@ -315,6 +328,18 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+       return next
+     }
+ 
++    const language = useLanguage()
++
++    // The desktop sidecar, or the server that served the web app.
++    const current = (conn: ServerConnection.Any) =>
++      ServerConnection.builtin(conn) || ServerConnection.key(conn) === props.canonicalLocalServer
++
++    // mobile(M-042): the hostname read stays out of this migration (the persisted `hostnames`
++    // record and the `setHostname` plumbing land with the server-identity issue); the label
++    // falls back to the localized "This computer" for the current server.
++    const label = (conn: ServerConnection.Any) =>
++      serverLabel(conn, current(conn) ? { fallback: language.t("server.thisComputer") } : undefined)
++
+     return {
+       get list() {
+         return allServers()
+@@ -335,6 +360,19 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+       remove,
+       canRemove,
+       scope,
++      current,
++      /** The name switchers, menus and titles show. */
++      label,
++      /** The name a list row shows next to its item: nothing for the current server or when it is the only one. */
++      tag(conn: ServerConnection.Any) {
++        return allServers().length < 2 || current(conn) ? undefined : label(conn)
++      },
++      /** "This computer" beside the current server's name, unless the name already says it. */
++      hint(conn: ServerConnection.Any) {
++        const text = language.t("server.thisComputer")
++
++        return current(conn) && label(conn) !== text ? text : undefined
++      },
+       projects: {
+         forServer: projectsForServer,
+       },
+diff --git a/packages/app/src/servers/registry/label.tsx b/packages/app/src/servers/registry/label.tsx
+new file mode 100644
+index 0000000..b103dd0
+--- /dev/null
++++ b/packages/app/src/servers/registry/label.tsx
+@@ -0,0 +1,23 @@
++import { Show } from "solid-js"
++import { type ServerConnection, useServers } from "@/runtime/server/registry"
++
++/** A server's name; menu rows that choose a server pass `hint` to add a muted "This computer" beside the current one. */
++export function ServerLabel(props: { server?: ServerConnection.Any; name?: string; hint?: boolean; class?: string }) {
++  const servers = useServers()
++
++  return (
++    <span data-component="server-label" class={`flex min-w-0 items-center gap-1 ${props.class ?? ""}`}>
++      <bdi dir="auto" class="min-w-0 truncate">
++        {props.name ?? (props.server ? servers.label(props.server) : "")}
++      </bdi>
++      <Show when={props.hint && props.server && servers.hint(props.server)}>
++        {(hint) => (
++          <span data-slot="server-label-hint" class="shrink-0 whitespace-nowrap text-v2-text-text-muted">
++            <span aria-hidden="true">· </span>
++            {hint()}
++          </span>
++        )}
++      </Show>
++    </span>
++  )
++}
+diff --git a/packages/app/src/shell/sidebar-peek.css b/packages/app/src/shell/sidebar-peek.css
+new file mode 100644
+index 0000000..07a9c8d
+--- /dev/null
++++ b/packages/app/src/shell/sidebar-peek.css
+@@ -0,0 +1,22 @@
++/* The closed sidebar peeks in the docked sidebar's own box, over the content and without resizing its zero-width aside,
++   so docking from a peek only has to move the layout. */
++[data-slot="vertical-tabs-sidebar"][data-peek] > [data-slot="vertical-tabs-panel"] {
++  inset-inline-end: auto;
++  width: var(--sidebar-peek-width);
++  overflow: visible;
++  contain: none;
++}
++
++/* Backs the peek and lifts it off the content along its end edge. */
++[data-slot="vertical-tabs-peek-surface"] {
++  display: none;
++}
++
++[data-slot="vertical-tabs-sidebar"][data-peek] [data-slot="vertical-tabs-peek-surface"] {
++  display: block;
++}
++
++/* The collapsed toggle is the one in reach while the sidebar peeks; the docked one's spot stays empty. */
++[data-slot="vertical-tabs-sidebar"][data-peek] [data-slot="sidebar-header"] > :last-child {
++  visibility: hidden;
++}
+diff --git a/packages/app/src/shell/sidebar-peek.ts b/packages/app/src/shell/sidebar-peek.ts
+new file mode 100644
+index 0000000..1f72802
+--- /dev/null
++++ b/packages/app/src/shell/sidebar-peek.ts
+@@ -0,0 +1,428 @@
++import { createEffect, createSignal, on, onCleanup, type Accessor } from "solid-js"
++import { makeEventListener } from "@solid-primitives/event-listener"
++import { frameLoop, prefersReducedMotion, Spring, type DurationOptions } from "@opencode/ui/motion"
++import { motionTimeScale } from "@opencode/ui/motion-tuning"
++import "./sidebar-peek.css"
++
++// The peek's own spring, quicker than the docked sidebar's.
++const spring: DurationOptions = { duration: 0.18, bounce: 0 }
++
++// How long the pointer rests before the sidebar peeks, in ms. The edge stays quick: it's crossed in a frame or two and
++// rarely by accident. The toggle waits longer, because the header row is crossed far more often on the way to the
++// breadcrumb or the traffic lights, and a peek there should only open when the pointer means to rest on it.
++const dwell = { edge: 40, toggle: 500 }
++
++/** Whether any session in the vertical sidebar draws its unread dot, published by the sidebar's tab strip. */
++export const [sidebarUnread, setSidebarUnread] = createSignal(false)
++
++const toggles = 'button[aria-controls="vertical-tabs-sidebar"]'
++
++const menus = '[data-component="menu-v2-content"], [role="menu"]'
++
++// A drag in progress, or a dialog over the app, which no peek should open under.
++const busy = '[data-dragging="true"], [role="dialog"], [role="alertdialog"]'
++
++// The zone along the window's start edge that peeks the sidebar: the shell's 8px frame gutter, outside the content's
++// card, plus a tunable reach into the content. It only reads where the pointer is, so clicks, scrollbars and text
++// selection under it work as usual, and a held button never peeks. It starts below the session header's 56px band,
++// which holds the traffic lights and the toggle.
++const gutter = 8
++
++const edgeZone = 16
++
++const header = 56
++
++// How far past the sidebar and toggle the pointer may stray, and for how long, before the peek closes.
++const margin = 15
++
++const grace = 100
++
++// Reduced motion fades the peek in place, in about the time it would take to slide.
++const fade = { duration: 0.15, bounce: 0 }
++
++type Point = { x: number; y: number }
++
++type Box = { left: number; right: number; top: number; bottom: number }
++
++/**
++ * While the left sidebar is closed, resting the pointer on the window's start edge or on the sidebar's
++ * toggle slides the real sidebar in over the app without moving the layout, on a quicker spring than the docked
++ * sidebar's and in its own box. Docking from a peek continues from where it is: the sidebar stays, finishing its slide on
++ * the peek's spring, and the layout makes room on the docked sidebar's.
++ *
++ * The peek holds while the pointer stays within the box spanning the toggle and the sidebar, plus a margin, so the way
++ * from the toggle into the sidebar never closes it. Closing reads the pointer's last known position on every move,
++ * scroll and wheel, and on a slow interval, rather than trusting enter and leave events on elements, against boxes read
++ * once per layout change rather than on every move.
++ */
++export function createSidebarPeek(input: {
++  /** Whether a peek may start: the sidebar is fully closed. */
++  available: Accessor<boolean>
++  open: Accessor<boolean>
++  aside: Accessor<HTMLElement | undefined>
++  /** The sidebar's box while it peeks, which doesn't move while the content inside it slides. */
++  panel: Accessor<HTMLElement | undefined>
++  /** Paints how far in the peek has the sidebar, from 0 to 1, on every frame it moves; undefined once it isn't peeking. */
++  paint: (shown: number | undefined) => void
++  /** Runs `run` once the docked sidebar's flight lands. */
++  whenDocked: (run: () => void) => void
++}) {
++  const [shown, setShown] = createSignal(false)
++  // Percent shown, so the spring's rest threshold stays well under a pixel.
++  const motion = new Spring(0)
++  let stop: (() => void) | undefined
++  let toggle: HTMLElement | undefined
++  let opening: { from: "edge" | "toggle"; timer: ReturnType<typeof setTimeout> } | undefined
++  let closing: ReturnType<typeof setTimeout> | undefined
++  let watch: ReturnType<typeof setInterval> | undefined
++  // The pointer's last position in the window, or undefined once it has left the window.
++  let pointer: Point | undefined
++  let pressed = false
++  let keyboard = false
++  // Whether the sidebar last docked from a peek, which already shows it.
++  let handedOff = false
++  let viewport = window.innerWidth
++  // Where the edge zone starts, and the box spanning the toggle and the sidebar, until the layout next changes.
++  let edgeTop: number | undefined
++  let corridor: Box | undefined
++
++  const paint = () => input.paint(Math.min(1, Math.max(0, motion.value / 100)))
++
++  const step = (dt: number) => {
++    motion.step(dt)
++    paint()
++
++    if (!motion.resting) return true
++    stop = undefined
++
++    if (motion.target === 0) end()
++
++    return false
++  }
++
++  // Retargeting keeps the current position and velocity, so a peek that turns around mid-flight stays smooth.
++  const run = (target: number) => {
++    const tuning = prefersReducedMotion() ? fade : { ...spring, duration: spring.duration * motionTimeScale() }
++    motion.omega = (2 * Math.PI) / tuning.duration
++    motion.zeta = 1 - tuning.bounce
++    motion.set(target)
++    stop ??= frameLoop.add(step)
++  }
++
++  const cancelOpen = () => {
++    clearTimeout(opening?.timer)
++    opening = undefined
++  }
++
++  const cancelClose = () => {
++    clearTimeout(closing)
++    closing = undefined
++  }
++
++  const show = () => {
++    cancelOpen()
++    cancelClose()
++
++    if (!input.panel()) return
++
++    // Painted out of view before the peek's box lays out, so its first frame doesn't show the sidebar in place.
++    if (!shown()) {
++      paint()
++      setShown(true)
++    }
++
++    watch ??= setInterval(check, 150)
++    run(100)
++  }
++
++  const end = () => {
++    cancelOpen()
++    cancelClose()
++    clearInterval(watch)
++    watch = undefined
++    stop?.()
++    stop = undefined
++    motion.snap(0)
++    toggle = undefined
++    corridor = undefined
++
++    if (!shown()) return
++    setShown(false)
++    input.paint(undefined)
++  }
++
++  const hide = (focus?: boolean) => {
++    cancelClose()
++
++    if (!shown() || input.open()) return
++    clearInterval(watch)
++    watch = undefined
++    const aside = input.aside()
++
++    if (aside?.contains(document.activeElement)) {
++      if (focus && toggle?.isConnected) toggle.focus({ preventScroll: true })
++
++      if (!focus && document.activeElement instanceof HTMLElement) document.activeElement.blur()
++    }
++
++    run(0)
++  }
++
++  // Both dwells share one path: a press, a drag, a dialog or a resize clears whichever peek is pending.
++  const start = (from: "edge" | "toggle", still: () => boolean) => {
++    cancelOpen()
++    opening = {
++      from,
++      timer: setTimeout(() => {
++        opening = undefined
++
++        if (input.available() && !interrupted() && still()) show()
++      }, dwell[from]),
++    }
++  }
++
++  const interrupted = () => pressed || !!document.querySelector(busy)
++
++  // A visible menu, a drag, or typing in one of the sidebar's fields keeps it open wherever the pointer goes.
++  const held = () => {
++    const active = document.activeElement
++
++    const typing =
++      active instanceof HTMLElement &&
++      input.aside()?.contains(active) &&
++      (active.matches("input, textarea") || active.isContentEditable) &&
++      active.getClientRects().length > 0
++
++    const menu = [...document.querySelectorAll(menus)].some((element) => element.getClientRects().length > 0)
++
++    return pressed || typing || menu || !!document.querySelector('[data-dragging="true"]')
++  }
++
++  const inside = (point: Point) => {
++    const box = (corridor ??= measureCorridor())
++
++    return (
++      !!box &&
++      point.x >= box.left - margin &&
++      point.x <= box.right + margin &&
++      point.y >= box.top - margin &&
++      point.y <= box.bottom + margin
++    )
++  }
++
++  // The box spanning the toggle and the sheet is the corridor from one into the other. The sheet holds still while the
++  // sidebar slides inside it.
++  const measureCorridor = () => {
++    const panel = input.panel()
++
++    if (!panel) return
++    const sheet = panel.getBoundingClientRect()
++    const button = toggle?.isConnected ? toggle.getBoundingClientRect() : sheet
++
++    return {
++      left: Math.min(sheet.left, button.left),
++      right: Math.max(sheet.right, button.right),
++      top: Math.min(sheet.top, button.top),
++      bottom: Math.max(sheet.bottom, button.bottom),
++    }
++  }
++
++  const atEdge = (point: Point) => {
++    const rtl = document.documentElement.dir === "rtl"
++
++    const edge = gutter + edgeZone
++
++    if (rtl ? point.x < viewport - edge : point.x > edge) return false
++    edgeTop ??= (input.aside()?.getBoundingClientRect().top ?? Infinity) + header
++
++    return point.y >= edgeTop
++  }
++
++  const relayout = () => {
++    viewport = window.innerWidth
++    edgeTop = undefined
++    corridor = undefined
++  }
++
++  function check() {
++    if (!shown() || input.open() || !watch) return
++
++    if ((pointer && inside(pointer)) || held()) return cancelClose()
++    closing ??= setTimeout(() => {
++      closing = undefined
++
++      if (!(pointer && inside(pointer)) && !held()) hide()
++    }, grace)
++  }
++
++  // Starts the edge's dwell while the pointer rests at the window's start edge, and cancels it once the pointer leaves.
++  const approach = (event: PointerEvent | WheelEvent) => {
++    if (shown() && motion.target === 100) return
++    const target = event.target
++
++    const near =
++      !pressed &&
++      !!pointer &&
++      input.available() &&
++      atEdge(pointer) &&
++      // Within the shell's own layout, not a dialog or popover portaled over it.
++      target instanceof Node &&
++      !!input.aside()?.parentElement?.contains(target)
++
++    if (!near) {
++      if (opening?.from === "edge") cancelOpen()
++
++      return
++    }
++
++    // Back at the edge while it slides out: it turns around at once.
++    if (shown()) return show()
++
++    if (opening) return
++    start("edge", () => !!pointer && !held() && atEdge(pointer))
++  }
++
++  const track = (event: PointerEvent | WheelEvent) => {
++    if (event instanceof PointerEvent && event.pointerType === "touch") return
++
++    if (event instanceof PointerEvent) pressed = event.buttons !== 0
++    pointer = { x: event.clientX, y: event.clientY }
++    approach(event)
++    check()
++  }
++
++  createEffect(() => {
++    makeEventListener(
++      document,
++      "pointerover",
++      (event) => {
++        if (event.pointerType === "touch" || !(event.target instanceof Element)) return
++        const button = event.target.closest<HTMLElement>(toggles)
++
++        if (!button || input.aside()?.contains(button)) return
++
++        if (toggle !== button) corridor = undefined
++        toggle = button
++
++        if (shown()) return show()
++
++        if (!input.available() || opening?.from === "toggle") return
++        start("toggle", () => !!toggle?.matches(":hover"))
++      },
++      { passive: true },
++    )
++    makeEventListener(
++      document,
++      "pointerout",
++      (event) => {
++        // Leaving the window, or into an iframe or native view, reports no related target.
++        if (!event.relatedTarget) {
++          pointer = undefined
++          check()
++        }
++
++        if (opening?.from !== "toggle" || !(event.target instanceof Element)) return
++        const button = event.target.closest(toggles)
++
++        if (button && !(event.relatedTarget instanceof Node && button.contains(event.relatedTarget))) cancelOpen()
++      },
++      { passive: true },
++    )
++    makeEventListener(document, "pointermove", track, { passive: true, capture: true })
++    makeEventListener(document, "wheel", track, { passive: true, capture: true })
++    makeEventListener(document, "scroll", () => check(), { passive: true, capture: true })
++    makeEventListener(
++      document,
++      "pointerdown",
++      (event) => {
++        keyboard = false
++        pressed = event.pointerType !== "touch"
++        cancelOpen()
++      },
++      { passive: true, capture: true },
++    )
++    makeEventListener(window, "pointerup", () => (pressed = false), { passive: true, capture: true })
++    makeEventListener(window, "pointercancel", () => (pressed = false), { passive: true, capture: true })
++    makeEventListener(document.documentElement, "pointerleave", () => {
++      pointer = undefined
++      check()
++    })
++    // Resizing the window from its start edge is no reason to peek.
++    makeEventListener(window, "resize", () => {
++      relayout()
++      cancelOpen()
++    })
++    makeEventListener(document, "dragstart", cancelOpen, { passive: true, capture: true })
++    makeEventListener(document, "keydown", (event) => {
++      keyboard = true
++
++      if (event.key !== "Escape" || !shown() || input.open() || event.defaultPrevented || held()) return
++      hide(true)
++    })
++    makeEventListener(window, "blur", () => {
++      pressed = false
++      hide()
++    })
++
++    const aside = input.aside()
++
++    if (!aside) return
++    // A titlebar or panel that moves the sidebar's row changes where the edge zone starts.
++    const observer = new ResizeObserver(relayout)
++    observer.observe(aside.parentElement ?? aside)
++    onCleanup(() => observer.disconnect())
++
++    // Keyboard focus leaving the peek closes it; pointer clicks elsewhere already close it by leaving.
++    const leave = (event: FocusEvent) => {
++      const next = event.relatedTarget
++
++      if (!keyboard || !shown() || input.open() || !(next instanceof Element)) return
++
++      if (aside.contains(next) || toggle?.contains(next) || next.closest(menus)) return
++      hide()
++    }
++
++    aside.addEventListener("focusout", leave)
++    onCleanup(() => aside.removeEventListener("focusout", leave))
++  })
++
++  // Docking keeps the peeked sidebar where it is, sliding the rest of the way in if it hadn't arrived, while the layout
++  // makes room; the docked sidebar takes over once it lands. Closing again before then slides the peek back out.
++  createEffect(
++    on(
++      input.open,
++      (open) => {
++        if (!open) {
++          handedOff = false
++
++          return hide()
++        }
++
++        handedOff = shown()
++
++        if (!handedOff) return end()
++        cancelOpen()
++        cancelClose()
++        clearInterval(watch)
++        watch = undefined
++        run(100)
++        // After the docked sidebar's own effect has started its flight, which effects don't order.
++        queueMicrotask(() => {
++          if (!input.open() || !shown()) return
++          input.whenDocked(() => {
++            if (input.open()) end()
++          })
++        })
++      },
++      { defer: true },
++    ),
++  )
++
++  onCleanup(end)
++
++  return {
++    shown,
++    /** Whether the sidebar last docked from a peek, which already shows it. */
++    handedOff: () => handedOff,
++  }
++}
+diff --git a/packages/app/src/shell/sidebar-toggle.tsx b/packages/app/src/shell/sidebar-toggle.tsx
+new file mode 100644
+index 0000000..31ba5c3
+--- /dev/null
++++ b/packages/app/src/shell/sidebar-toggle.tsx
+@@ -0,0 +1,256 @@
++import { createEffect, onCleanup, Show } from "solid-js"
++import { createMediaQuery } from "@solid-primitives/media"
++import { Icon } from "@opencode/ui/icon"
++import { IconButton } from "@opencode/ui/icon-button"
++import { Keybind } from "@opencode/ui/keybind"
++import { Tooltip } from "@opencode/ui/tooltip"
++import { useCommand } from "@/shell/commands/command"
++import { useLanguage } from "@/runtime/i18n/language"
++import { usePlatform } from "@/runtime/platform/platform"
++import { useSettings } from "@/settings/model"
++import { sidebarUnread } from "@/shell/sidebar-peek"
++
++// The toggle's dot for sidebar sessions with unread activity, shown while the sidebar is closed.
++function UnreadBadge(props: { show: boolean; ring: "base" | "deep" }) {
++  return (
++    <Show when={props.show}>
++      <span
++        data-slot="sidebar-toggle-unread"
++        aria-hidden="true"
++        class="pointer-events-none absolute -top-0.5 -end-0.5 size-[7px] rounded-full bg-v2-background-bg-accent"
++        classList={{
++          "shadow-[0_0_0_1.5px_var(--v2-background-bg-base)]": props.ring === "base",
++          "shadow-[0_0_0_1.5px_var(--v2-background-bg-deep)]": props.ring === "deep",
++        }}
++      />
++    </Show>
++  )
++}
++
++// The desktop window sets `trafficLightPosition: { x: 14, y: 14 }`, and the titlebar moves the buttons down to share the
++// header's center line in vertical tabs. macOS 26 and later draw 14px buttons on a 23px pitch, so the zoom button ends
++// 74px from the window edge. macOS 15 and earlier end at 68px.
++const macTrafficLightsBaseWidth = 74
++
++// Vertical tabs center the 14pt traffic lights on the session header's center line, 32px from the top, and inset them as
++// far from the left edge as from the top. The center scales with zoom. Returns window points; `width` is where the zoom
++// button ends.
++export function macVerticalTrafficLights(zoom: number) {
++  const inset = 32 * zoom - 7
++
++  return { x: inset, y: inset, width: inset + macTrafficLightsBaseWidth - 14 }
++}
++
++// Matches the horizontal titlebar, whose first control starts 16px past the traffic lights.
++const macTrafficLightsGap = 16
++
++// The toggle's 28px plus a 4px gap before the header contents.
++const slotWidth = 32
++
++// The shell's 8px inline inset plus the session header's 10px start padding.
++const contentStart = 18
++
++/** Where the collapsed toggle's slot ends without traffic lights, in pixels from the window's start edge. */
++export const collapsedSidebarToggleEnd = contentStart + slotWidth
++
++/**
++ * `handoff` makes this one of the two vertical-tabs toggles that read as one icon: "out" sits in the sidebar's header
++ * and shows only while the sidebar rests open; "in" shows otherwise, travelling from the header's spot to the
++ * collapsed one on the sidebar's spring as its glyph turns from the open one to the closed one.
++ */
++export function SidebarToggle(props: { handoff?: "out" | "in" }) {
++  const command = useCommand()
++  const language = useLanguage()
++  const settings = useSettings()
++  const keybind = () => command.keybindParts("sidebar.toggle")
++  const side = props.handoff
++  let full: SVGSVGElement | undefined
++  let outline: HTMLSpanElement | undefined
++  const unread = () => !settings.appearance.sidebarOpen() && sidebarUnread()
++
++  const paints = {
++    out: (button: HTMLElement, closed: number) => {
++      travel.header = button
++      button.style.opacity = closed === 0 ? "" : "0"
++    },
++    in: (button: HTMLElement, closed: number) => {
++      travel.toggle = button
++      const moving = closed > 0 && closed < 1
++      travel.dx = moving ? travel.x * (1 - closed) : 0
++      travel.dy = moving ? travel.y * (1 - closed) : 0
++      button.style.opacity = closed === 0 ? "0" : ""
++      button.style.transform = moving ? `translate3d(${travel.dx}px, ${travel.dy}px, 0)` : ""
++
++      if (full) full.style.opacity = `${1 - closed}`
++
++      if (outline) outline.style.opacity = `${closed}`
++    },
++  }
++
++  const ref = side ? collapsedRef(paints[side]) : undefined
++
++  return (
++    <Tooltip
++      class="shrink-0 [app-region:no-drag]"
++      placement="bottom"
++      // Held shut while the closed sidebar peeks on hover, where it would cover the peek.
++      forceOpen={!settings.appearance.sidebarOpen() ? false : undefined}
++      value={
++        <>
++          {language.t("command.sidebar.toggle")}
++          <Show when={keybind().length > 0}>
++            <Keybind keys={keybind()} variant="neutral" />
++          </Show>
++        </>
++      }
++    >
++      <IconButton
++        ref={ref}
++        type="button"
++        variant="ghost-muted"
++        size="large"
++        class="shrink-0"
++        onMouseDown={(event) => event.preventDefault()}
++        onClick={() => settings.appearance.setSidebarOpen(!settings.appearance.sidebarOpen())}
++        aria-label={language.t(unread() ? "command.sidebar.toggle.unread" : "command.sidebar.toggle")}
++        aria-expanded={settings.appearance.sidebarOpen()}
++        aria-controls="vertical-tabs-sidebar"
++        icon={
++          side === "in" ? (
++            <span class="relative flex">
++              <Icon ref={full} name="layout-left-full" />
++              <span ref={outline} class="absolute inset-0 flex">
++                <Icon name="layout-left" />
++                <UnreadBadge show={unread()} ring="base" />
++              </span>
++            </span>
++          ) : (
++            <span class="relative flex">
++              <Icon
++                name={
++                  side === "out" || (!side && settings.appearance.sidebarOpen()) ? "layout-left-full" : "layout-left"
++                }
++              />
++              <UnreadBadge show={!side && unread()} ring="deep" />
++            </span>
++          )
++        }
++      />
++    </Tooltip>
++  )
++}
++
++// Where the collapsed sidebar's toggle sits at the start of the content area. Windows keeps its titlebar in vertical
++// tabs mode, so the toggle lives there instead.
++function useCollapsedSlot() {
++  const platform = usePlatform()
++  const settings = useSettings()
++  const desktop = createMediaQuery("(min-width: 768px)")
++  const windows = () => platform.platform === "desktop" && platform.os === "windows"
++  const mac = () => platform.platform === "desktop" && platform.os === "macos" && !platform.windowFullscreen?.()
++
++  return {
++    visible: () => desktop() && !windows() && settings.appearance.tabLayout() !== "horizontal",
++    open: settings.appearance.sidebarOpen,
++    // Lays the toggle out as if the traffic lights were the header's first control.
++    width: () =>
++      mac()
++        ? macVerticalTrafficLights(platform.webviewZoom?.() ?? 1).width / (platform.webviewZoom?.() ?? 1) +
++          macTrafficLightsGap -
++          contentStart +
++          slotWidth
++        : slotWidth,
++  }
++}
++
++const slotClass = "flex shrink-0 justify-end overflow-hidden"
++
++// How far closed the left sidebar is, from 0 to 1. The shell paints it on every frame of the sidebar's motion; the
++// space headers keep for the collapsed toggle grows with it, so header contents travel with the sidebar's edge.
++const collapsed = { closed: 0, slots: new Set<() => void>() }
++
++export function paintCollapsedSlots(closed: number) {
++  collapsed.closed = closed
++  collapsed.slots.forEach((paint) => paint())
++}
++
++// The two vertical-tabs toggles, how far the header one rests from the collapsed one (x, y), and the offset the
++// collapsed one is drawn at now (dx, dy).
++type Travel = { header?: HTMLElement; toggle?: HTMLElement; x: number; y: number; dx: number; dy: number }
++
++const travel: Travel = {
++  x: 0,
++  y: 0,
++  dx: 0,
++  dy: 0,
++}
++
++/**
++ * Measures, in the frame loop's read phase of the sidebar's motion, how far the header toggle rests from the collapsed
++ * one. The header toggle rides the sidebar's contents, `offset` pixels short of where it rests open.
++ */
++export function measureSidebarToggles(offset: number) {
++  if (!travel.header?.isConnected || !travel.toggle?.isConnected) return
++  const header = travel.header.getBoundingClientRect()
++  const toggle = travel.toggle.getBoundingClientRect()
++  const direction = document.documentElement.dir === "rtl" ? -1 : 1
++  travel.x = header.left + direction * offset - (toggle.left - travel.dx)
++  travel.y = header.top - (toggle.top - travel.dy)
++}
++
++/** A ref whose element `paint` styles from how far closed the sidebar is, now and on every frame of its motion. */
++function collapsedRef(paint: (element: HTMLElement, closed: number) => void) {
++  let target: HTMLElement | undefined
++
++  const repaint = () => {
++    if (target) paint(target, collapsed.closed)
++  }
++
++  collapsed.slots.add(repaint)
++  onCleanup(() => collapsed.slots.delete(repaint))
++  createEffect(repaint)
++
++  return (element: HTMLElement) => {
++    target = element
++    repaint()
++  }
++}
++
++/** A ref for a slot that is `width` wide while the sidebar is closed. */
++function slotRef(width: () => number) {
++  return collapsedRef((slot, closed) => (slot.style.width = `${width() * closed}px`))
++}
++
++// Floats over the top of every screen, centered on the session header's 48px row, where the content starts once the
++// sidebar has closed. It sits outside the sidebar and the content, so neither clips it as it travels.
++export function CollapsedSidebarToggle() {
++  const slot = useCollapsedSlot()
++
++  return (
++    <Show when={slot.visible()}>
++      <div
++        data-slot="collapsed-sidebar-toggle"
++        style={{ width: `${slot.width()}px` }}
++        class={`absolute top-[calc(var(--shell-top-inset,8px)+10px)] start-[calc(var(--shell-inline-inset,8px)+10px)] z-40 flex shrink-0 justify-end`}
++        inert={slot.open()}
++      >
++        <div class="flex shrink-0 pe-1">
++          <SidebarToggle handoff="in" />
++        </div>
++      </div>
++    </Show>
++  )
++}
++
++// Reserves the floating toggle's room in a header, pushing its contents along while the toggle is shown. `start` is where
++// the space begins, in pixels from the content area's start edge, so every header's contents line up after the toggle.
++export function CollapsedSidebarToggleSpace(props: { start?: number; class?: string }) {
++  const slot = useCollapsedSlot()
++  const ref = slotRef(() => slot.width() + contentStart - (props.start ?? contentStart))
++
++  return (
++    <Show when={slot.visible()}>
++      <div ref={ref} aria-hidden="true" class={`${slotClass} ${props.class ?? ""}`} />
++    </Show>
++  )
++}
+diff --git a/packages/ui/package.json b/packages/ui/package.json
+index 9145654..cdf25ae 100644
+--- a/packages/ui/package.json
++++ b/packages/ui/package.json
+@@ -72,6 +72,7 @@
+     "./text-input": "./src/forms/text-input/text-input.tsx",
+     "./text-input.css": "./src/forms/text-input/text-input.css",
+     "./textarea": "./src/forms/textarea/textarea.tsx",
++    "./slash": "./src/typography/slash/slash.tsx",
+     "./text-shimmer": "./src/typography/text-shimmer/text-shimmer.tsx",
+     "./toast": "./src/feedback/toast/toast.tsx",
+     "./tooltip": "./src/overlays/tooltip/tooltip.tsx",
+diff --git a/packages/ui/src/typography/slash/slash.css b/packages/ui/src/typography/slash/slash.css
+new file mode 100644
+index 0000000..4963f71
+--- /dev/null
++++ b/packages/ui/src/typography/slash/slash.css
+@@ -0,0 +1,14 @@
++[data-component="slash"] {
++  flex-shrink: 0;
++  color: var(--v2-icon-icon-faint);
++  /* The space between the slash's ink and the text on each side, less the neighbours' own side bearing. */
++  margin-inline: max(0px, calc(var(--slash-gap, 6px) - 0.5px));
++}
++
++/* Generated content keeps the separator empty for assistive tech; it takes the neighbouring text's size. */
++[data-component="slash"]::before {
++  content: "/";
++  font-weight: var(--font-weight-normal);
++  /* Cancels the glyph's side bearings so the margins measure to its ink. */
++  margin-inline: -0.25px -0.34px;
++}
+diff --git a/packages/ui/src/typography/slash/slash.tsx b/packages/ui/src/typography/slash/slash.tsx
+new file mode 100644
+index 0000000..2adedab
+--- /dev/null
++++ b/packages/ui/src/typography/slash/slash.tsx
+@@ -0,0 +1,16 @@
++import "./slash.css"
++
++/**
++ * The "/" between path segments, such as project / session or provider / model: the neighbouring text's height in its
++ * regular weight, with `gap` px of visible space on each side (6 by default). `gap={0}` leaves the spacing to the parent.
++ */
++export function Slash(props: { gap?: number; class?: string }) {
++  return (
++    <span
++      data-component="slash"
++      class={props.class}
++      style={props.gap === undefined ? undefined : { "--slash-gap": `${props.gap}px` }}
++      aria-hidden="true"
++    />
++  )
++}

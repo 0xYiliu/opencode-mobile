@@ -390,17 +390,18 @@ let mhFiles = 0
     const got = specifiers.get(key) ?? -1
     if (got !== count) fail(`3: the @opencode plugin/gui specifier set changed: "${key}" expected ${count}, got ${got}`)
   }
-  // ④ settings entry double gate (DEV-only lazy + desktop-only + guard). Issue #26
-  // revision (deliberate, NOT a bypass): the redirect guard gained the !mobileGuiExtensions
-  // term — on non-desktop builds the tab is taken by the first-party manager (M-026);
-  // the DEV-only lazy gate and the desktop-only upstream gate lines are UNTOUCHED.
+  // ④ settings entry (issue #101 / M-044 forms). The migrated (v2.2.1) shell REMOVED the
+  // DEV-only lazy gate and the desktop-only gate (the DEV plugin face lives in
+  // PluginSettingsPages/settings-page-dev, carried by M-037), and the redirect guard
+  // collapsed to the single M-044 face form — SAME-FACE as verify-gui-plugins group 3/4
+  // (common witness, drift double-FAILs preserved).
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
-  if (!shell.includes("constGuiExtensionsSettings=import.meta.env.DEV"))
-    fail("3: the gui-extensions settings DEV-only lazy gate moved")
-  if (!shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
-    fail("3: the gui-extensions settings desktop-only gate moved")
-  if (!shell.includes('if(view.tab==="gui-extensions"&&!guiExtensions&&!mobileGuiExtensions)surface.open("general")'))
-    fail("3: the gui-extensions redirect guard moved (issue #26 revised shape: !guiExtensions && !mobileGuiExtensions)")
+  if (shell.includes("constGuiExtensionsSettings=import.meta.env.DEV"))
+    fail("3: shell.tsx still carries the pin DEV-only lazy gate (target-removed by the M-043 migration)")
+  if (shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
+    fail("3: shell.tsx still carries the pin guiExtensions desktop gate (target-removed by the M-043 migration)")
+  if (!shell.includes('if(view.tab==="gui-extensions"&&!mobileGuiExtensions)surface.open("general")'))
+    fail("3: the gui-extensions redirect guard lost the M-044 single-face form (issue #101 re-anchor)")
   // Anti-overclaim: renderer side DOES run on web (os filter + bridge-less
   // inertness), and the details mobile drawer chain stays in place.
   const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))

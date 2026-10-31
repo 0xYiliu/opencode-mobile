@@ -1,7 +1,6 @@
 import { createPromptProjectController } from "@/new-session/project/selector"
 import { useSettingsSurface } from "@/settings/surface"
 import { useTabs, type DraftTab } from "@/shell/tabs/tabs"
-import { useSettingsServers } from "@/settings/servers/inventory"
 import { useSearchParams } from "@solidjs/router"
 import { createEffect, createMemo, createResource, on, untrack } from "solid-js"
 import { createComposerModel } from "@/composer/model"
@@ -16,7 +15,6 @@ import { createDraftMcpControls } from "./mcp"
 export default function NewSessionPage(props: { draftId: string }) {
   const [search, setSearch] = useSearchParams<{ draftId?: string; prompt?: string }>()
   const tabs = useTabs()
-  const servers = useSettingsServers()
   const settingsSurface = useSettingsSurface()
 
   const draftTab = createMemo(() =>
@@ -26,13 +24,11 @@ export default function NewSessionPage(props: { draftId: string }) {
   const openWorkspaces = () => {
     const draft = draftTab()
 
-    if (servers().length > 1 && draft) {
-      settingsSurface.openServer(draft.server, "workspaces")
-
-      return
-    }
-
-    settingsSurface.open("workspaces")
+    // mobile(M-043): the migrated settings framework folds per-server pages into the root
+    // view (`server` on a root view, no root "workspaces" tab), and a non-root tab next to a
+    // server does not survive the view's URL round-trip — so the pin-era deep links open the
+    // Servers page with the server's context until the new-session rework lands.
+    settingsSurface.openServers(draft?.server)
   }
 
   const workspace = createNewSessionWorkspaceController({

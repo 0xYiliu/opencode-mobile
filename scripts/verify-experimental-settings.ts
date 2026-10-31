@@ -177,8 +177,12 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 
   // Negative boundary: S11 companions must not have been carried in.
   // mobile(M-035 rebase round, issue #65): "reduceMotion" removed — the S17 face now
-  // legitimately lives in model.tsx (registered delta); the other three stay.
-  for (const token of ["backgroundActivity", "timelineWidth", "sidebarOpen"]) {
+  // legitimately lives in model.tsx (registered delta). Issue #101 / M-043: "sidebarOpen"
+  // removed from this list — it now legitimately lives in model.tsx as the settings
+  // framework's sidebar-toggle dependency (schema field + accessor only, marker-commented);
+  // backgroundActivity/timelineWidth stay out (their page/session faces belong to the
+  // owning issues).
+  for (const token of ["backgroundActivity", "timelineWidth"]) {
     if (model.includes(token)) fail(`3: model.tsx adopted v2.2.1 content outside S38 (${token})`)
   }
   // Pin anchors survive: the retired-preference shape is unchanged.

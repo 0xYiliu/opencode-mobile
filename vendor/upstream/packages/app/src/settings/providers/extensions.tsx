@@ -1,4 +1,4 @@
-import { Component, For, createEffect, createMemo, createResource } from "solid-js"
+import { Component, For, createEffect, createMemo, createResource, type JSX } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { Switch } from "@opencode/ui/switch"
 import { Tabs } from "@opencode/ui/tabs"
@@ -22,8 +22,12 @@ interface PluginRowItem {
 }
 
 export const SettingsExtensions: Component<{
+  // mobile(M-043): accepted for the migrated shell's call shape; the per-directory MCP
+  // location wiring stays with the owning page issue (the default location is kept).
+  directory?: string
   subtab?: SettingsView["subtab"]
   onSubtab: (value: SettingsView["subtab"]) => void
+  headerAction?: JSX.Element
 }> = (props) => {
   const language = useLanguage()
   const serverSdk = useServerSDK()
@@ -80,6 +84,7 @@ export const SettingsExtensions: Component<{
             <h2 class="settings-tab-title">{language.t("settings.tab.extensions")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.extensions.description")}</span>
           </div>
+          <div class="settings-tab-header-actions">{props.headerAction}</div>
         </div>
       </div>
 
