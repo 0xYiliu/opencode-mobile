@@ -1277,6 +1277,19 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | QA-6 zh 回退实态 | 待执行 | 设置两行与 Read more 按钮呈英文（登记实态确认） |
 | QA-7 TalkBack | 待执行 | 两开关名称/描述/状态播报；Read more 播报 expanded 状态（aria-expanded） |
 
+### 设备补验轮（2026-10-31，MatePad DBY2-AL00 @ 192.168.3.145:5555；构建 = dev tip `c1cff1f` 临时 worktree，`bun run build:web` + `copy-web-dist.sh`（3516 files / 159,545,922 bytes）+ gradle `:app:assembleDebug`，APK SHA-256 `3386020b1f6be8e1712fc89f7577c1bdedd317ae5c8938566dbe91bddfe83222`，`install -r` 后 `pm path` pull 回读哈希与工作树产物一致；全程零 pm clear/零 uninstall；QA 方法 = CDP DOM 只读取证 + `adb input tap` 真触（坐标 = CSS rect × dpr × zoom + 窗口偏移，经 a11y bounds 标定）+ uiautomator dump 用后即删）
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| QA-1 入口可达 | **PASS** | 设置导航呈「实验」组（flask 语义）+ 两行开关（New icons/Fold long messages）+ Sources 行第三——title/description 完整、零溢出，全程零异常 |
+| QA-2 newIcons 真实视觉行为 | **PASS** | 开 → 全壳 `<use>` sprite 0→15/20 切 `opencode-v2-icon-new-*`；force-stop 重启 → settings.v3 `newIcons:true` 保持、13/16 复现；关 → 还原 0、settings.v3 false；默认态 false 与升级前一致 |
+| QA-3 fold 真实视觉行为 | BLOCKED | 需 >12 渲染行用户消息的会话环境——本轮无活服务/无会话（见 #90 补验 S2），折叠展开/Read more/disclosure 均不可达 |
+| QA-4 性能 | BLOCKED | 500 行级消息依赖会话环境，同上 |
+| QA-5 WebView 能力确认 | **PASS** | `CSS.supports('height','8lh')`/`'font-size','8lh'` 均 true（Chrome/114.0.5735.196）——`8lh` 生效性前提在目标 WebView 成立 |
+| QA-6 zh 回退实态 | **PASS** | 切简体中文后：实验组标题译出（实验/尝试实验性功能）而两行开关 + Sources 行全部英文——登记实态；验后已还原 English |
+| QA-7 TalkBack | 部分 | uiautomator a11y 树未暴露 visually-hidden switch input（WebView a11y 桥未激活态）；CDP aria 审计：两开关 `aria-checked` 可读，但 SettingsRow（上游 v2.2.1 逐字）无 title↔switch 程序化名称关联——**上游同态登记，非移动回归**；对比：extension-manager 行开关具备 sr-only label（`aria-labelledby`）；TalkBack 语音实听未录（设备未启用读屏服务） |
+| （协调员清单）SAF 导出全链 | BLOCKED | 会话导出→保存→系统文件应用核对 = #16 G27④，需会话/工件环境——无服务不可达，G27 在册口径不变 |
+
 ### 诚实边界（issue #64 段）
 
 - **设备 QA 全部待执行**：本轮完成代码层全链验证（V3/探针/子集/构建/APK），实验开关的真实视觉行为、fold 折叠展开、`lh` 单位在目标设备 WebView 的生效性、TalkBack 播报均未在设备上验证——验收标准第 2 条的「与目标一致」部分依赖设备 QA 项，当前证据形态为源码逐字移植 + 静态探针 + 构建，**不声称设备级行为已验证**。
@@ -1340,6 +1353,20 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 - **降级语义为逐字段回落**：非法 reduceMotion 值仅该字段回落 `"system"`（recover() 逐字段机制，与 S04 小节同源）；zoom 值非法/存储不可读回落 1（web.ts 校验 + try/catch）。
 - **探针证明力**：静态结构检查（文本锚/正则/逐文件枚举/集合相等/补丁面/双 manifest/负例注入），对运行时行为零证明力；负例演练证明的是门禁自身有效性与补丁-树一致性，非界面行为。
 
+### 设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）
+
+| 项（计划 §9 十项归并） | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| 设置呈现/持久化 | **PASS** | Reduce motion 三选项 System/On/Off 与 Zoom 六档 100%–200% 均呈列；On→settings.v3 `appearance.reduceMotion:"on"`、Off→`"off"`、System→`"system"` 持久化实测，验后还原 system |
+| 三态动效实测 | **PASS（显式两档）** | On → `dataset.motion="reduce"` 即时（无重载）、采样按钮 computed transition-duration 0s、活动样式表实测含 14 条 `:root[data-motion="reduce"]` 规则（消费链端到端）；Off → `"full"`；**system 档映射在本机不成立**（见下） |
+| Android 系统移除动画映射与实时联动 | **环境性 FAIL（登记）** | `settings put global animator_duration_scale 0` 下 `matchMedia('(prefers-reduced-motion: reduce)')` 实测恒 false（Chrome/114.0.5735.196 无该映射——上游 Chromium 后续版本能力）→ System 档在本机退化为 full；与 M-035 源码/构建证据（media query 消费）不冲突，登记环境差异、不加静默回退（在册纪律） |
+| hero 画布边界对照 | 未覆盖 | go-upsell hero prod 场景不可达（无 upsell 上下文）；唯一未转换消费点在册口径不变 |
+| 缩放视觉对比与 overlay 扫查 | **PASS** | 125% → `documentElement.style.zoom=1.25`（computed 1.25）、零横向溢出（scrollWidth==clientWidth=1245）、截图视觉正常（文本/控件等比放大、Select/输入框无错位）；localStorage `opencode-ui-zoom-level=1.25` 跨 WebView 重建保持；验后还原 100%（键回 1、inline zoom 清除） |
+| 系统字号联动结论（textZoom×CSS zoom） | **PASS（结论在册）** | font_scale 1.3 → 描述文本 computed font-size 13px→16.9px（×1.3，textZoom）、布局高 20→26px，root CSS zoom 1.25 并行不变——两机制独立作用、最终呈现相乘；font_scale 变更触发 WebView 重建（密度变化）而 zoom 偏好持久无损；验后 font_scale 还原 1.0 |
+| 软键盘避让（zoom>1） | **PASS** | zoom 1.25 下真实 tap 聚焦设置搜索框 → IME 弹出（`mInputShown=true`）→ 输入框完整可见无遮挡（本机华为 IME 为悬浮面板形态；visualViewport 高度恒 786——resize 通道未被系统采用，本位置无避让压力；未录语音/视频） |
+| 搜索命中 | **PASS** | 设置搜索 "zoom" → 命中 Settings/Zoom/Appearance 条目；"motion" → 命中 Settings/Reduce motion/Appearance（A2 裁定的移动可达面实测成立） |
+| TalkBack | 部分 | 同 #64 段口径：Select 控件可见文本可读；语音实听未录 |
+
 ## issue #66 段（W22+W23：注册 Goal 与 Sources 面板，v2.2.1 delta）——2026-10-30 实测记录
 
 交付物：**vendor 补丁 M-036**（`patches/mobile/0036-M-036-goal-sources-panels.patch`，34 文件面：schema 1 + gui-extensions 9 + session-ui 13 + app 3 + ui 8；`patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 双登记 33→**34**；对 pristine pin + M-001..M-034 树 `git apply --check` 为硬门禁）+ 差异核对与登记（[implementation.md](alignment/windows-desktop/v2.2.1/implementation.md) E22 行 + W22/W23 小节七条差异登记 + goal 服务能力降级契约三态表；[matrix.md](alignment/windows-desktop/v2.2.1/matrix.md) W22/W23 行终态）+ [units/gui-extensions.md](design/units/gui-extensions.md)（清单 13→15、web 定义表恰 12→恰 14/管理面 13→15 行算术、清单表 +sources/+goal 两行、能力映射 web 8→10、移动面板注册表 +order 60/70、gate shim 存储注记、#67 迁移映射表）+ [interaction-quality.md](design/interaction-quality.md)（gate 存储行 + Goal 失败三态/Sources 空态与 favicon 隐私两行）+ 新探针 `scripts/verify-goal-sources.ts`（八组断言）。**移植形态三裁定**（计划 v2 §12 评审放行）：goal 契约逐字 + Panel 重表壳（D1，ComposerPill 延迟 #67）；sources 按 `0f379f0a33` 旧宿主形态逐字移植 + 三处登记的第一方增量（mobile face 60 / mobile-face 路径分支 / gate shim + 开关行，D2/D3）；sources.test.ts 随包移植（子集口径破例 +1，仅测本期移植的 turnMessages/turnSources 纯函数面）。
@@ -1373,6 +1400,19 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | QA-6 TalkBack | 待执行 | 15 行管理器、gate 行、chip 按钮、面板标题、goal 三动作均可聚焦播报；禁用/空态可感知 |
 | QA-7 隐私复验 | 待执行 | icons 恒 letters——QA 期间抓包/日志确认零 `favicon.ico` 第三方请求 |
 | QA-8 记录回写 | 待执行 | 结果记入本文 #66 段；环境不足项（如无 v2.2.1 服务端）明确标注未验证并引用降级契约的静态证据（探针组 3 + 上游注释逐字在册） |
+
+### 设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| QA-1 管理器 15 行 | **呈现 PASS / 启停 FAIL（新缺陷）** | Extensions 面恰 15 行：web 10（context/btw/debug/terminal/file/review/details/microsoft-office/sources/goal）各带 Switch(aria-checked=true)+Reload，desktop-host 4（browser/pairing/updater/ssh）各带 Switch+Reload+「Desktop only + 原因」全文，wsl 静态排除行零 Switch 零按钮 + 排除原因全文——呈现与在册三集一致；**启停缺陷**：web 行开关（debug 行为代表）在 JS `.click()`、CDP `Input.dispatchMouseEvent` 可信点击、`adb input tap` 真触三通道下均弹回原态、`opencode-mobile.guiext.v1` 恒 `{"version":1,"disabled":[]}`——根因（源码级）：`extension-manager.tsx` 把 Kobalte `onChange(next)` 的 **checked 新值** 直传 `setDisabled(id,next)`→`records.toggle(id,next)`（`next=true` 入禁用集/`next=false` 出禁用集），而 `checked={!disabledIds().has(id)}`（checked⇔启用）——**语义反转，任何点击均为 no-op**；该接线自 #26 `2d51373` 引入，store 单测锁 `true=disabled` 语义、呈现层 mock 以 `!props.checked` 预反转（恰好把同一反转再反转回 store 正确语义），端到端断言缺失 + 此前从未有设备轮点击过该开关，故逃逸至今；禁用/启用的记录持久化因此**不可验证**（受缺陷阻断） |
+| QA-2 gate 行为 | **PASS** | Experimental 面呈 Sources 行（默认关实测 false）；开 → `opencode.motion.v2={"sources.enabled":1}` → force-stop 重启保持开；关 → 键删除 → 重启保持关（默认）；zh 呈英文登记（见 #64 补验 QA-6）；真模块读旧记录口径成立 |
+| QA-3 Sources 宽屏 | BLOCKED | chip→面板需含 websearch 来源的真实 turn（会话环境）——无服务无会话 |
+| QA-4 Goal 双服务端对照 | BLOCKED | 需 v2.2.1 服务端与 pin 版服务端双对照——无任何活服务；Goal 面不可达 |
+| QA-5 窄屏 | BLOCKED | 设备 CSS 视口下限 818px（S04 在册），窄屏 face 不可真机演练（在册口径不变） |
+| QA-6 TalkBack | 部分 | 管理器行开关具 sr-only label（`aria-labelledby=switch-cl-*-label` 实测）+ 行 id/能力/状态文本可读；语音实听未录；禁用/空态感知面受 QA-1 缺陷阻断 |
+| QA-7 隐私复验 | **PASS** | 整轮 `performance.getEntriesByType('resource')` 250 条目：host 集合仅 `127.0.0.1:18090`（自持）与 `127.0.0.1:0`（断连重试拒绝）——**零第三方 host、零第三方 favicon.ico 请求**（仅自持 `/icons/dev/favicon.ico`）；icons 恒 letters 正向成立 |
+| QA-8 记录回写 | 完成 | 即本小节；环境不足项引用在册静态证据口径 |
 
 ### 诚实边界（issue #66 段）
 
@@ -1436,6 +1476,18 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 **登记面（差异 D1–D5 + 执行期勘误）**：D1 goal 呈现=侧面板 Panel 重表壳（非 v2.2.1 composer pill）；D2 桌面 DEV 管理页保留适配（settings-page-dev.tsx → runtime/plugin/）；D3 settings-pages.ts 取 v2.2.1 形态（`available` 字段删除——pairing/updater 页宽屏外溢为正向对齐）；D4 移动设置 tab id/标签仍为 "gui-extensions"、`settings.guiExtensions.*` 9 键保留；D5 file-tree 无视觉差异（additional-icons 专属画作两树逐字等同，别名仅实验开启时生效）。执行期勘误（对照计划）：①panels.tsx/side-region.tsx **不取 v2.2.1 verbatim**（pin 结构 + 新宿主 token 迁移，DockRegion 休眠重落——gui-plugins 将 terminal 移至 side region，无 region:"dock" 贡献者，dock 渲染 inert）；②createRegion 参数面随 pin 结构（closed/open/side 未收）；③级联 drag-ins 4+4 文件（panel-motion/session-tabs(+test)/util 四叶/ui 预览四组件）与 ui i18n 4 键、ui package.json `./document-surface.css` export；④conn 判别面 `"extension"`→`"plugin"` 扇出到 6 个计划外文件（health/client/view/remote.test/picker.test/registry.test）；⑤message-timeline 的 running-menu 消费面随 C 组删除（工作指示器替代，session-working-indicator 逐字）；⑥desktop-menu WithPlugins、route.ts PluginTab 符号族、inventory.test PluginServer/Plugin 类型、ui tailwind `@source` 改指 gui-plugins、ui `./*` exports 增 `./document-surface.css`；⑦**e2e/component-tests/test-browser 保持 pin 形态**（引用旧路径——不在任何在册验证链内，如实登记为遗留限制，下次 e2e 域 pin 更新拾取）；⑧settings-page-dev 的 Bridge 消息类型 `extensions`→`installed`（v2.2.1 Bridge 形态）。
 
 **设备 QA 待执行**（计划 §8 十项；本机无设备轮，协调员合并后调度）：管理器 15 行（web 10 可切换含 sources/goal；desktop-host 4 行；wsl 静态排除零操作）、面板回归（file menu 20/review tab 10/terminal menu 30/context menu 40/details drawer 50/sources menu 60/goal menu 70 + 空态图标抽查）、宿主降级（browser/pairing/ssh/updater 渲染器不可达；D3 pairing 页宽屏降级可读）、设置贡献面（General review wrap-lines、Experimental Sources 行）、motion-tuning 互通（真模块读旧记录；debug 调参台 prod 不可见）、TalkBack、既有冒烟（SSH/通知/工件 + terminal ghostty 加载）。
+
+**设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）**——计划 §8 十项实测归并登记：
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| 管理器 15 行 | **呈现 PASS / 启停 FAIL** | 15 行呈现与三集归类逐项复核一致（同 #66 补验 QA-1）；**开关启停反转缺陷为 #67 迁移后管理面共面**（缺陷详情与根因见 #66 补验 QA-1——`extension-manager.tsx` 属第一方 mobile-hosts，非 M-037 迁移面，M-037 仅改 vendored 消费端） |
+| 面板回归 + 空态图标抽查 | BLOCKED | 全部面板（file/review/terminal/context/details/sources/goal）属会话工作台域——无服务无会话不可达；file-tree 空态 additional-icons 画作抽查同 BLOCKED |
+| 宿主降级 | 部分 | desktop-host 4 行「Desktop only + 主进程在桌面端」降级文案实测呈现（browser/pairing/updater/ssh 全具 Reload+Switch 呈现态）；**D3 pairing 页宽屏降级不声称**——bare `/pairing` 路由呈可读错误边界（Something went wrong + Version 0.1.0 + Reload，零异常），sanctioned 连接对话框 Pairing 面入口本轮未定位（G37 连接对话框渲染在 #58 段在册）；渲染器不可达四行的「呈现不崩」由管理器面本身承载 |
+| 设置贡献面 | **PASS** | General 面「Wrap lines——Wrap long lines in mobile diffs instead of scrolling horizontally」行实测呈现；Experimental Sources 行实测呈现（#66 补验 QA-2） |
+| motion-tuning 互通 | **PASS（prod 不可见侧）** | debug bar store 实测 `{"visible":…,"motion":false}`（motion 槽位关闭）；DebugBar 实测仅 3 元素零 Motion 格（调参台 prod 不可见负证）；真模块读旧记录 = `opencode.motion.v2` gate 键持久化+被读（#66 补验 QA-2） |
+| TalkBack | 部分 | 同 #66 补验 QA-6 口径 |
+| 既有冒烟 | 部分 | SSH 冒烟 = #90 补验 S2 连接链（SSH 认证段 PASS + 三主机错误分类呈现）；通知/工件/terminal ghostty 加载 BLOCKED（均需会话环境） |
 
 **rebase 轮收口（dev 35c96ac，#68/#69 合并后）**：五提交全部重放成功（新哈希 aebfb24→713a311→458dbd8→adb36bb→2ed011a）。冲突三处，两侧内容完整保留：①`build-and-verify.md`——#68/#69 段（dev 新增）与 #67 段（本分支）同插于 BLOCKED 表前，按编号升序合并为 #67→#68→#69 三段并存；②`implementation.md` 证据索引——dev 的 E22 段落演进（至 rebase 收口止）与本分支的 E23 句尾追加同段异改，取并集形态（E22 全文 + E23 句），dev 新增的 E24/E25 两条独立依据行（文档级核对，基线 ef10718/70232d0，均注明「#67 尚未合并」——合并后实态自动成立）紧随其后；E23/E24/E25 三行在证据表并存；③`matrix.md`——dev 更新的 S40 行（ADR 0005 草案形态）与本分支 S41 终态行合并（dev 侧旧 S40 E09 占位行丢弃，内容被新行取代）。W24 行与 N11 终态行各自完整。dist 实测确认不变：`web-dist/manifest.json` sha256 `f1edb799…`（3516/159,532,385）与 rebase 前逐字节一致——#68/#69 零 vendor 改动。最终 HEAD 复跑（B-1 教训执行）：全探针 sweep 29 项 = **27 rc=0 + 2 rc=1**（verify-recovery 正则过期与 verify-inline-ssh-device 设备依赖——stash-replay 已证基线既有）；gradle 构建产物 intermediates 假阳性（permission-requests/session-workbench）按在册先例 build 移出后 rc=0 复测、原样还原；`verify-closure.sh` PASS（36=36）；`verify-gui-plugins.ts` rc=0（组 7 锚在合并树仍绿）；上游定向子集 settings 41/0/98、session-ui 151/0/421、ui i18n 19/0/24、gui-plugins address 3/0/7；第一方 423/0/2885；`git diff --check` rc=0。
 **提交结构与双写注记（评审 B-1 收口轮补记）**：web-dist/manifest.json 在提交 1（b3acda7，首建登记）与提交 3 复跑刷新后各落一版（提交 4 又随 sourcemap 跨构建不可复现限制刷新哈希——fileCount/totalBytes 恒 3516/159,532,385 不变）；提交 2（cd03f5e 探针层）夹带三份文档（gui-plugins.md 单元文档、gui-extensions.md 移交声明、interaction.md G35 行）——verify-gui-plugins 组 7 的文档闭包锚与探针同 commit 落地是硬耦合（分离提交会使探针层自身 rc=1），故文档随探针先行、索引层（README/architecture/E23/matrix）留提交 4。教训登记：提交 3 的「29/29 sweep」跑在文档提交之前——**全探针 sweep 必须以最终 HEAD 复跑为准**（B-1 收口轮已复跑，逐项 rc 见下）。
@@ -1533,6 +1585,10 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 | QA-4 桌面宽度不变 | ≥768px 视口（MatePad 横屏/分屏）：strip btw tabs 行为与改前一致（每问一 tab、关闭即忘）、slash 开侧面板路径不变、无 mobile face 重复呈现 | 验收 2 |
 | QA-5 TalkBack | 抽屉项、面板标题、两组复制按钮、retry、空态均可聚焦播报 | G35⑨/G31⑦ 复核位 |
 | QA-6 记录回写 | 结果回写本段 + E26 结论句；环境不足项标注未验证并引静态证据 | E26 |
+
+### 设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）
+
+**六项全部 BLOCKED（如实登记，在册口径不变）**：/btw 的 slash 可达、抽屉入口（order 80）、最近问答/复制/retry/跟随、诚实空态、桌面宽度 strip、TalkBack 全部属会话工作台域——本轮无活服务无会话（#90 补验 S2：bastion 三主机分别 SSH 认证成功后服务转发被拒/超时/端口拒绝，远端服务停运），composer 与 More 抽屉不可达；窄屏 face 另受设备 CSS 视口下限 818px 限制（S04 在册）。零「以静态证据冒充运行验证」。
 
 ### 诚实边界（issue #70 段）
 
@@ -1642,6 +1698,18 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 
 rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终 HEAD）」行；本模块证据编号 **E28**（自 E27 顺延，E27=#71 实占）。
 
+### 设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| QA-1 About 可达与三行实显 | **部分 PASS** | Settings → About 可达（含设置搜索 "version" → 命中 About 链接路径）；版本行 `Version 0.1.0`、基座行 `Upstream OpenCode 2.1.4` 实显；服务行需已连服务——**BLOCKED**（无活服务；`servers.collection.items()[0]` 为 mobile-ssh 注册项而 health 恒 undefined → 行渲染 `Checking server version…` 恒驻，源码语义 about.tsx :81） |
+| QA-2 服务行降级路径 | 部分 | never-connected 稳态实测 = 服务行**恒驻 checking 文案**（行非空白、显式字符串，符合「不留空白」底线；health undefined→checking 键为源码分支）；「停远端服务→unavailable 文案」转换面需先有连接——**BLOCKED**；R4 先行挂载时序全程零异常（不崩溃成立） |
+| QA-3 notices 弹窗行为级 | **PASS** | Third-party notices 弹窗打开、`[data-scrollable]` 容器在 WebView 内实测可滚动（scrollHeight 5327 / clientHeight 404 / scrollTop 可设 200）——v2.2.1 交换的行为级验证成立；验后关闭还原 |
+| QA-4 zh 回退实态 | **PASS** | 切简体中文：既有行呈中文「版本0.1.0」（版本{{version}} 模板）、新行 `Upstream OpenCode 2.1.4`/`Checking server version…` 呈英文——登记实态非缺陷；许可/致谢行整段译出；验后还原 English |
+| QA-5 布局无回归 | **PASS** | 许可行/notices 按钮/wordmark/credits/intro 原样呈现，版本锚点行插入不挤压原布局（截图+DOM 双证，截图用后即删） |
+| QA-6 记录回写 | 完成 | 即本小节 |
+| （附属观察）contributors 计数动态 | 登记 | 同一面两次读数不同（`and 1057 others` → 「和其他935人」）——动态拉取数据面，无验收锚，登记不判定 |
+
 ### 诚实边界（issue #72 段）
 
 - **设备 QA 六项全部待执行**（上表）：本模块以静态探针 + 构建层证据 + 负例演练先行（沿 #66/#70 先例）；「三行版本实显/降级路径/notices 滚动/zh 回退」在设备复测前不得声称已运行验证。
@@ -1696,6 +1764,14 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 ### 最终 HEAD 复扫（issue #73 段，B-1 纪律——台账提交 9edcb98 后实跑）
 
 全探针 sweep 复跑（30 × `bun run scripts/verify-*.ts`，HEAD `9edcb98`）：**24/30 rc=0，逐项 rc 与首轮完全一致**——rc=1 六例同集同归因（verify-recovery 在册陈旧正则 / verify-inline-ssh-device 设备依赖 / verify-ssh + verify-service-ops 拷贝 web 载荷 ENOENT / verify-direct-connection + verify-attachments-artifacts web 构建输出 ENOENT——四例构建见证类为本期零构建轮 + fresh worktree 的环境性缺席，基线对照实证见首轮行）；新探针 verify-debug-bar rc=0、既有交叉探针 verify-gui-plugins/verify-commands-menus rc=0、组 8 哨兵三探针 rc=0 复证不变。`verify-closure.sh` 复跑 **PASS**（V3(a)/DANGLING=0/V3(c)）；`git diff --check` rc=0；工作树零未提交变更。台账提交仅增本文 prose（无探针读 build-and-verify.md——S0 实测），最终 HEAD 数字即为终态。
+
+### 设备补验轮（2026-10-31，方法与构建同 #64 段补验小节头注）
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| QA-1 宽屏 bar 命令与呈现 | **PASS** | 命令面板经在册通道③（CDP `Input.dispatchKeyEvent` 可信 ctrl+k——JS 合成 keydown 与设置面内注入均不开、home 面才响应，通道实态如实登记）打开；执行 `debug.toggle` → DebugBar（`aside[aria-label="Provider performance diagnostics"]`）呈现且**仅 3 元素**：Hide debug bar 按钮（=CLOSE）+ TIME（i18n `duration.label="TIME"` 实证 =DURATION 格）+ TPS——诊断格族/MEMORY/Motion/FOCUS 零存在负例成立；再 Hide → 消失（`opencode.global.dat:plugin.debug.bar` visible:false）；force-stop 重启 → **store 态双向保持**（visible:true 重启复现开；visible:false 重启保持关） |
+| QA-2 desktop-only 命令负例 | **PASS** | 面板检索 "debug" 唯一命中「Toggle debug bar」（debug.toggle 存在）；`debug.heap` **零存在**（逐字核对命令级缺席，与 commands-menus.md 先锁一致） |
+| QA-3 管理面行实态 | **FAIL（受 #66 补验 QA-1 新缺陷阻断）** | Settings → GUI 扩展 tab debug 行为可启停 web 行语义（呈现一致），但开关反转缺陷使「禁用 → debug.toggle 从命令面板消失、bar Slot 撤除；启用 → 恢复」不可执行——该子项判 FAIL 并引缺陷记录；结果不改 G35 行状态（在册口径维持） |
 
 ## issue #74 段（S12+S37：捏合缩放裁定 + 每服务器 Shell 等价性核对）——2026-10-31 实测记录
 
@@ -1790,6 +1866,20 @@ rebase 后复测（最终 HEAD 纪律）见上文验证表「rebase 轮（最终
 - **rendered 测试 harness 三项勘误**为 Bun 1.4.2 + 本仓预载机制实态（见验证表 harness 注记）——不改动 packages/ui 预载与上游 test:unit 脚本（pin 形不动）；新测试自带转换插件仅限本文件运行。
 - **V3(a) 依赖 `OPENCODE_UPSTREAM_CACHE` 缺省 `~/.cache/opencode-upstream`**（本轮实测存在且 pin/packageSources 均可解析；fresh 环境需先 vendor-sync）。
 - **sweep 首轮 rc 捕获脚本缺陷如实登记**：`echo "$(basename $f) rc=$?"` 中命令替换先行执行吞掉 `$?` 致误报全 0——重跑以 `rc=$?` 显式捕获，29/31 终态以重跑为准。
+
+### 设备补验轮（2026-10-31，S1/S2/S3——**在原 #90 修复构建上补测**：设备现装 APK 三方哈希核对一致 `231c3776…`；随后统一轮才升级至 dev tip 构建，两段时序如实分立；全程 `install -r`、零 pm clear/零 uninstall；CDP 通道本轮全程可用无受阻）
+
+| 项 | 状态 | 结果与证据（一句话） |
+| --- | --- | --- |
+| S1-A Settings 点击可达（修复验证） | **PASS** | 首页 Settings 行 DOM 点击 → `/settings` 完整渲染（Preferences/Appearance/…/SSH hosts 三行/Experimental/Extensions/About），**零 TypeError、零错误边界接管**——M-037 消费点修复在真机实证 |
+| S1-B 设置搜索产出 | **PASS** | `.settings-search input` 键入 "version" → 命中 About 链接（SettingsSearch——即崩溃点组件——setup 后 catalog 构建与检索功能正常） |
+| S1-C 3 个已保存主机呈列 | **PASS** | 首页 Projects 三独立行（authorized-bastion/bastion-main/bastion-aux 各带 SSH 徽标）+ Settings SSH hosts 管理面三行（各带 Connect/Edit/Service operations/Delete）——塌缩修复双侧实证 |
+| S1-D CDP 读 `opencode-mobile.hosts.v1` | **PASS（D1 分叉：键存在分支）** | 键存在，结构取证（值脱敏）：`version:1`、恰 3 hosts、每项 id（36 字形）/name/target(`<user>@<addr>:<port>` 形)/credentialRef（`mobile-credential:` 前缀，vault 绑定）/servicePort（4096/4096/49374）/createdAt 齐——无塌缩无缺键 |
+| S1-E Reload ×2 幂等 | **PASS** | Page.reload ×2：`/settings` 每次完整渲染（三 SSH hosts 行恒在），全程零异常 |
+| S1-F console 零 TypeError | **PASS** | 全轮 CDP Runtime/Log 采集（含 Settings 点击、搜索、Reload×2、导航若干）：**EXC_COUNT=0**；console 仅 info 级 `[global-sdk] event stream disconnected` 重试噪声与 `127.0.0.1:0` 网络拒绝（断连态预期行为，非异常） |
+| S2 连接链（post-#67 首次真机实证） | **部分 PASS + BLOCKED** | 三主机 Connect 全走：**bastion-main → SSH 认证成功**（设备 vault 密钥在位——链首段真机实证）→ 隧道服务转发被拒（呈「SSH authentication succeeded, but the remote host refused to forward to the service…」→ Failed 态）；authorized-bastion（Tailscale 地址）→「did not answer in time」；bastion-aux（:2222）→「SSH port refused」——**三种错误分类在真机正确呈现、全程零异常**；远端 OpenCode 服务停运为轮前既存（本机对 4096 的连通预检在任何连接尝试前即 refused）；**会话列表/工作台/断开红线抽查/连接态 Settings 再达 BLOCKED**——无活服务且本轮无授权启动远端服务（不施加远端副作用），本机亦无 bastion SSH 凭据做进程存活旁证；红线另注：host-manager 面自述「remote services and tasks keep running」为静态文案；「Settings 再达」在连接失败态下反复实测可达（S1 项覆盖） |
+| S3 `reading 'healthy'` TypeError 取证 | **零复现（按 D2「消失」分支登记）** | 覆盖集：冷启、首页 Settings 点击 ×2、Reload ×3、（disabled）主机行点击、三主机连接尝试与 Failed 态面——全程零 TypeError；**同族归因**：#74 轮观察点（02:23:02 异步 TypeError）发生于修复前错误边界级联会话（搜索索引构建器抛错→边界接管→health/server store 生命周期被破坏的运行态），修复构建该级联不存在、独立复现路径未寻获——登记为「同族级联症状未复现」的当轮运行期证据，非原机制证明（D2 三分支中的消失分支按本轮证据闭合，SW 混载/独立缺陷分支因无复现而未触发） |
+| 设备副作用复原（前轮清单） | **完成** | `cover_enabled 0→1`（原值）、`stay_on_while_plugged_in 7→0`（Android stock）、`screen_off_timeout 600000→60000`（stock；前轮未记录原值的两项按 stock 默认复原并如实登记）、`animator_duration_scale` 本轮临时 0→删除（还原 unset）；本轮新增临时态（语言/缩放/动效/newIcons/gate/debug bar）全部还原默认 |
 
 ## issue #75 段（M03 门禁：返回/安全区/软键盘——核对 + 勘误 + 模拟器替代 QA 轮）——2026-10-31 实测记录
 
