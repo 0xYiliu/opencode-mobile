@@ -1,0 +1,774 @@
+diff --git a/packages/app/src/runtime/server/persistence.test.ts b/packages/app/src/runtime/server/persistence.test.ts
+index 96e0d86..2dafac9 100644
+--- a/packages/app/src/runtime/server/persistence.test.ts
++++ b/packages/app/src/runtime/server/persistence.test.ts
+@@ -48,8 +48,30 @@ describe("server persistence schema", () => {
+     })
+     expect(input.list[1]).toHaveProperty("username", "legacy")
+     const encoded = Schema.encodeSync(schema)(state)
+-    expect(encoded).toEqual(state)
+-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
++    // mobile(M-002): password stripped at encode (memory-only) — the encoded (stored) form
++    // never contains a password, so the upstream lossless-roundtrip expectation is aligned
++    // to the strip semantics: `encoded` equals the decoded state minus the passwords, and
++    // decoding the stripped form is stable (a missing password re-decodes as absent).
++    // See the mobile(M-002) note on MemoryOnlyPassword in persistence.ts and the issue #3
++    // record in docs/build-and-verify.md; audit-secret-persistence pins the semantic.
++    expect(encoded).toEqual({
++      list: [
++        { type: "http", http: { url: "http://localhost:4096" } },
++        { type: "http", http: { url: "https://flat.example" } },
++        {
++          type: "http",
++          displayName: "Remote",
++          label: "Production",
++          authToken: true,
++          http: { url: "https://nested.example" },
++        },
++      ],
++      hidden: {},
++      projects: input.projects,
++      lastProject: {},
++      recentlyClosed: {},
++    })
++    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(encoded)
+   })
+ 
+   test("defaults missing or malformed fields and drops invalid entries independently", () => {
+diff --git a/packages/app/src/servers/connect/redeem.ts b/packages/app/src/servers/connect/redeem.ts
+index c7170f9..b6ab401 100644
+--- a/packages/app/src/servers/connect/redeem.ts
++++ b/packages/app/src/servers/connect/redeem.ts
+@@ -3,7 +3,7 @@ import { usePlatform } from "@/runtime/platform/platform"
+ import { isMixedContent } from "./browser"
+ import { legacyPairingLink, pairingLink, redeemPairingLink, type Pairing } from "./pairing"
+ 
+-export type Redemption = { readonly pairing: Pairing } | { readonly error: string }
++type Redemption = { readonly pairing: Pairing } | { readonly error: string }
+ 
+ /** Redeems a pasted or scanned pairing link; resolves undefined when the value is not a pairing link at all. */
+ export type RedeemPairing = (value: string) => Promise<Redemption | undefined>
+diff --git a/packages/app/src/servers/registry/row.tsx b/packages/app/src/servers/registry/row.tsx
+index 4a79171..9f49046 100644
+--- a/packages/app/src/servers/registry/row.tsx
++++ b/packages/app/src/servers/registry/row.tsx
+@@ -1,109 +1,9 @@
+-import { Tooltip } from "@opencode/ui/tooltip"
+ import { Icon } from "@opencode/ui/icon"
+-import { Spinner } from "@opencode/ui/spinner"
++import { Loader } from "@opencode/ui/loader"
+ import { useLanguage } from "@/runtime/i18n/language"
+-import { createResizeObserver } from "@solid-primitives/resize-observer"
+-import {
+-  children,
+-  createEffect,
+-  createMemo,
+-  createSignal,
+-  type JSXElement,
+-  onMount,
+-  type ParentProps,
+-  Show,
+-} from "solid-js"
+-import { type ServerConnection, serverName } from "@/runtime/server/registry"
++import { Show } from "solid-js"
+ import type { ServerHealth } from "@/runtime/server/health"
+ 
+-interface ServerRowProps extends ParentProps {
+-  conn: ServerConnection.Any
+-  status?: ServerHealth
+-  class?: string
+-  nameClass?: string
+-  versionClass?: string
+-  dimmed?: boolean
+-  badge?: JSXElement
+-  showCredentials?: boolean
+-}
+-
+-export function ServerRow(props: ServerRowProps) {
+-  const [truncated, setTruncated] = createSignal(false)
+-  let nameRef: HTMLSpanElement | undefined
+-  let versionRef: HTMLSpanElement | undefined
+-  const name = createMemo(() => serverName(props.conn))
+-
+-  const check = () => {
+-    const nameTruncated = nameRef ? nameRef.scrollWidth > nameRef.clientWidth : false
+-    const versionTruncated = versionRef ? versionRef.scrollWidth > versionRef.clientWidth : false
+-    setTruncated(nameTruncated || versionTruncated)
+-  }
+-
+-  createEffect(() => {
+-    name()
+-    props.conn.http.url
+-    props.status?.version
+-    queueMicrotask(check)
+-  })
+-
+-  onMount(() => {
+-    if (typeof ResizeObserver !== "function") return
+-    createResizeObserver([nameRef, versionRef], check)
+-    check()
+-  })
+-
+-  const tooltipValue = () => (
+-    <span class="flex items-center gap-2">
+-      <span>{serverName(props.conn, true)}</span>
+-      <Show when={props.status?.version}>
+-        <span class="text-text-invert-weak">v{props.status?.version}</span>
+-      </Show>
+-    </span>
+-  )
+-
+-  const badge = children(() => props.badge)
+-
+-  return (
+-    <Tooltip
+-      appearance="standard"
+-      class="flex-1 min-w-0"
+-      value={tooltipValue()}
+-      contentStyle={{ "max-width": "none", "white-space": "nowrap" }}
+-      placement="top-start"
+-      inactive={!truncated() && !props.conn.displayName}
+-    >
+-      <div class={props.class} classList={{ "opacity-50": props.dimmed }}>
+-        <div class="flex flex-col items-start min-w-0 w-full">
+-          <div class="flex flex-row items-center gap-2 min-w-0 w-full">
+-            <span ref={nameRef} class={`${props.nameClass ?? "truncate"} min-w-0`}>
+-              {name()}
+-            </span>
+-            <Show
+-              when={badge()}
+-              fallback={
+-                <Show when={props.status?.version}>
+-                  <span
+-                    ref={versionRef}
+-                    class={`${props.versionClass ?? "text-text-weak text-14-regular truncate"} min-w-0`}
+-                  >
+-                    v{props.status?.version}
+-                  </span>
+-                </Show>
+-              }
+-            >
+-              {(badge) => badge()}
+-            </Show>
+-          </div>
+-          <Show when={props.showCredentials && props.conn.type === "http" && props.conn.http.password}>
+-            <span class="text-text-weak">••••••••</span>
+-          </Show>
+-        </div>
+-        {props.children}
+-      </div>
+-    </Tooltip>
+-  )
+-}
+-
+ export function ServerHealthIndicator(props: {
+   health?: ServerHealth
+   connecting?: boolean
+@@ -126,7 +26,7 @@ export function ServerHealthIndicator(props: {
+                     "size-1.5 rounded-full shrink-0 my-[3.5px]": true,
+                     "bg-icon-success-base": props.health?.healthy === true,
+                     "bg-icon-critical-base": props.health?.healthy === false,
+-                    "bg-border-weak-base": props.health === undefined,
++                    "bg-v2-icon-icon-faint": props.health === undefined,
+                   }}
+                 />
+               }
+@@ -140,7 +40,7 @@ export function ServerHealthIndicator(props: {
+             aria-label={language.t("server.status.connecting")}
+             class="inline-flex h-3.5 w-1.5 shrink-0 items-center justify-center text-v2-icon-icon-muted"
+           >
+-            <Spinner class="size-3 shrink-0" />
++            <Loader class="size-3 shrink-0" />
+           </span>
+         </Show>
+       }
+diff --git a/packages/app/src/settings/general/general.tsx b/packages/app/src/settings/general/general.tsx
+index ccfcd1d..f71c588 100644
+--- a/packages/app/src/settings/general/general.tsx
++++ b/packages/app/src/settings/general/general.tsx
+@@ -67,7 +67,15 @@ const WorkspaceDestinationSetting: Component = () => {
+   )
+ }
+ 
+-export const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
++// mobile(M-045): only the ShellSetting action hunk is migrated from target (issue #102 — the
++// Servers page names per-server shell rows for search reveal). The rest of this file stays at
++// the pin/M-037 state; the remaining target delta (FollowUpBehavior/BackgroundActivity rows
++// etc.) belongs to the General page unit and lands with the later settings-general issue.
++export const ShellSetting: Component<{
++  controller: ShellSettingsController
++  /** Search reveals the row with the default action; the Servers page names the other servers' rows apart. */
++  action?: string
++}> = (props) => {
+   const language = useLanguage()
+ 
+   const options = createMemo(() =>
+@@ -83,7 +91,7 @@ export const ShellSetting: Component<{ controller: ShellSettingsController }> =
+       description={language.t("settings.general.row.shell.description")}
+     >
+       <Select
+-        data-action="settings-shell"
++        data-action={props.action ?? "settings-shell"}
+         options={options()}
+         current={options().find((option) => option.value === props.controller.current()) ?? options()[0]}
+         placement="bottom-end"
+diff --git a/packages/app/src/settings/servers/servers-page.test.tsx b/packages/app/src/settings/servers/servers-page.test.tsx
+new file mode 100644
+index 0000000..708cd84
+--- /dev/null
++++ b/packages/app/src/settings/servers/servers-page.test.tsx
+@@ -0,0 +1,394 @@
++import { plugin } from "bun"
++import { describe, expect, mock, test } from "bun:test"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++import type { ServerConnection } from "@/runtime/server/registry"
++
++// Issue #102 regression (mobile M-045): the servers page is target-verbatim
++// (v2.2.1). The pins below lock the shapes the shell and the General page rely
++// on so a later re-glue cannot silently regress them:
++//   - source: SettingsServerGeneral delegates to the shared ServerConnectionRow
++//     and health-gates the Shell preferences section (`healthy !== false`),
++//     SettingsServersHeader is the header of both page faces, the per-server
++//     shell row search action (`settings-shell:<key>`, defaulting for the
++//     selected server) threads servers.tsx -> ServerShell -> ShellSetting ->
++//     data-action, and the row edit dialog carries the server through
++//     `onSave` (the shell.tsx `selectServer` seam).
++//   - behavior: an unauthorized HTTP server renders the Authenticate face, an
++//     unhealthy server hides its Shell section, and a row edit reaches
++//     DialogServer with `onSave` wired to the caller's onServerChange.
++//
++// Harness (precedent: ../settings-search-plugin.test.tsx, itself "borrowed in
++// spirit" from packages/mobile-hosts rendered tests): environment providers are
++// stubbed at their seams with mock.module, and the mount uses createRoot +
++// createComponent instead of `render()` from solid-js/web, whose server dist
++// throws `notSup` under the unit-test conditions. Two leaf widgets are replaced
++// by probes: the row menu (a corvu dropdown whose portal click-through is out
++// of scope here) fires the real `onEdit` callback so the page's real edit
++// closure runs, and the Select shell of ShellSetting forwards `data-action` so
++// the full action thread is observable.
++//
++// Transform note (same finding settings-search-plugin.test.tsx records): Bun
++// 1.4.2's transpiler ignores an inline tsconfig `jsx: "react-jsx"` (it still
++// emits classic React.createElement without the matching import), so this file
++// registers the classic `jsxFactory: "h"` transform against Solid's
++// hyperscript runtime, prepending the imports the classic form needs. When the
++// shared ../ui/test/solid-jsx.ts preload is also loaded (the unit suite and the
++// directed subset), the preload's own transform wins on the shared sources and
++// executing real modules' JSX raises `React is not defined`; the behavioral
++// group below detects that via a canary mount and degrades to the source pins
++// (test.skipIf), which run in every environment. The behavioral evidence run is
++// standalone, without the shared preload (the settings-search-plugin evidence
++// convention from issue #101):
++//   bun test --conditions=browser --isolate --preload ./happydom.ts \
++//     src/settings/servers/servers-page.test.tsx
++// The mock graph deliberately avoids every module that imports the
++// `@opencode-mobile/mobile-hosts` seam (registry/runtime/connect dialog are
++// either mocked or only type-imported here), so even the source pins load and
++// run in a fresh worktree where that gitignored symlink does not exist.
++const transpiler = new Bun.Transpiler({
++  loader: "tsx",
++  trimUnusedImports: true,
++  tsconfig: { compilerOptions: { jsx: "react", jsxFactory: "h", jsxFragmentFactory: "Fragment" } },
++})
++
++plugin({
++  name: "servers-page-rendered-solid-jsx",
++  setup(build) {
++    build.onLoad({ filter: /packages\/(app|ui)\/src\/.*\.tsx$/ }, async (args) => ({
++      contents:
++        'import h from "solid-js/h";\nimport { Fragment } from "solid-js/h/jsx-runtime";\n' +
++        transpiler.transformSync(await Bun.file(args.path).text()),
++      loader: "js",
++    }))
++  },
++})
++
++// The controller seam: only `collection.health()` is read by the page itself
++// (the row menu's domain actions are probed away below).
++const healthByServer: Record<string, { healthy?: boolean; unauthorized?: boolean }> = {}
++
++// The http fixture matches the persistence schema shape; the runtime module is
++// only imported as a type (its value side reaches the mobile-hosts seam).
++const httpServer = (url: string) => ({ type: "http", http: { url } }) as unknown as ServerConnection.Http
++const serverKey = (key: string) => key as unknown as ServerConnection.Key
++
++// Behavioral harness; `undefined` when this environment cannot render real
++// modules' JSX (shared-preload runs), in which case only the source pins run.
++let behavior:
++  | {
++      SettingsServerGeneral: (props: never) => unknown
++      SettingsServerList: (props: never) => unknown
++      SettingsList: (props: { children: unknown }) => unknown
++      pushed: Array<() => unknown>
++      dialogServerProps: { mode?: string; server?: unknown; onSave?: unknown } | undefined
++      setFireRowEdit: (fire: boolean) => void
++    }
++  | undefined
++
++try {
++  const language = await import("@/runtime/i18n/language")
++  mock.module("@/runtime/i18n/language", () => ({
++    ...language,
++    useLanguage: () => ({
++      t: (key: string) => key,
++      locale: () => "en",
++      intl: () => "en-US",
++      plural: () => "other",
++    }),
++  }))
++
++  const uiDialog = await import("@opencode/ui/context/dialog")
++  const pushed: Array<() => unknown> = []
++  mock.module("@opencode/ui/context/dialog", () => ({
++    ...uiDialog,
++    useDialog: () => ({
++      push: (render: () => unknown) => {
++        pushed.push(render)
++      },
++      close: () => {},
++      active: undefined,
++    }),
++  }))
++
++  mock.module("@/servers/registry/controller", () => ({
++    useServerCollectionController: () => ({
++      collection: {
++        items: () => [],
++        health: () => healthByServer,
++      },
++      connection: {
++        canRemove: () => true,
++        canHide: () => false,
++        isHidden: () => false,
++        setHidden: () => {},
++        remove: () => {},
++      },
++    }),
++  }))
++
++  // The Shell preferences controller fetches the remote shell list; the page
++  // wiring under test only needs the row to mount.
++  mock.module("@/settings/general/controllers", () => ({
++    createShellOptions: (input: { shells: unknown[] }) => [
++      { id: "auto", value: "", name: "", terminalOnly: false },
++      ...input.shells,
++    ],
++    createSoundPreviewController: () => ({}),
++    createServerShellController: () => ({
++      shells: () => [],
++      current: () => "auto",
++      select: () => {},
++    }),
++  }))
++
++  // The header's add-server button reads plugin-contributed kinds; none in this
++  // harness, so the plain button fallback renders.
++  mock.module("@/runtime/plugin/servers", () => ({
++    usePluginServers: () => ({ entries: () => [], entry: () => undefined, ready: () => true }),
++    useServerAddItems: () => () => [],
++    useServerRowItems: () => () => [],
++  }))
++
++  // Probe: the row menu normally opens a dropdown whose Edit item fires
++  // `onEdit`; the probe fires it directly so the page's real edit closure runs.
++  let fireRowEdit = false
++  mock.module("@/servers/registry/row-menu", () => ({
++    ServerRowMenu: (props: { server: { type?: string }; onEdit: (server: never) => void }) => {
++      if (fireRowEdit && props.server.type === "http") props.onEdit(props.server as never)
++
++      return document.createElement("div")
++    },
++  }))
++
++  // Probe: ShellSetting's Select forwards `data-action` onto the DOM so the
++  // servers.tsx -> ServerShell -> ShellSetting action thread is observable.
++  const uiSelect = await import("@opencode/ui/select")
++  mock.module("@opencode/ui/select", () => ({
++    ...uiSelect,
++    Select: (props: Record<string, unknown>) => {
++      const el = document.createElement("div")
++      if (props["data-action"] !== undefined) el.setAttribute("data-action", String(props["data-action"]))
++
++      return el
++    },
++  }))
++
++  // Probe: the edit dialog body is out of scope (M-005/M-013 machinery); the
++  // page's contract is which props it instantiates DialogServer with.
++  let dialogServerProps: { mode?: string; server?: unknown; onSave?: unknown } | undefined
++  mock.module("@/servers/connect/dialog", () => ({
++    DialogServer: (props: { mode?: string; server?: unknown; onSave?: unknown }) => {
++      dialogServerProps = props
++
++      return document.createElement("div")
++    },
++  }))
++
++  const { SettingsServerGeneral, SettingsServerList } = await import("./servers")
++  const { SettingsList } = await import("@/settings/list")
++
++  // Canary: execute one real module's JSX. Under the shared solid-jsx preload
++  // the module graph was compiled to classic React.createElement without the
++  // matching import, which raises here; standalone (this file's own transform
++  // registered and no competing preload) the hyperscript runtime handles it.
++  {
++    const canaryHost = document.createElement("div")
++    document.body.appendChild(canaryHost)
++    const canaryChild = document.createElement("span")
++    canaryChild.textContent = "canary"
++    createRoot((dispose) => {
++      const tree = createComponent(SettingsList as (props: { children: unknown }) => unknown, {
++        children: canaryChild,
++      })
++      insert(canaryHost, tree as never)
++      dispose()
++    })
++    const rendered = canaryHost.querySelector('[data-component="settings-list"]')
++    if (!rendered || !rendered.contains(canaryChild)) throw new Error("canary render no-op")
++  }
++
++  behavior = {
++    SettingsServerGeneral: SettingsServerGeneral as (props: never) => unknown,
++    SettingsServerList: SettingsServerList as (props: never) => unknown,
++    SettingsList: SettingsList as (props: { children: unknown }) => unknown,
++    pushed,
++    get dialogServerProps() {
++      return dialogServerProps
++    },
++    set dialogServerProps(value) {
++      dialogServerProps = value
++    },
++    setFireRowEdit: (fire: boolean) => {
++      fireRowEdit = fire
++    },
++  }
++} catch {
++  // Degrade to the source pins (see the header note for the environments).
++}
++
++// Mount a component element into a host. The hyperscript runtime returns lazy
++// thunks, so the tree goes through solid-js/web's insert (what `render()` does
++// before its server dist raises notSup), which materializes thunks and arrays.
++const mount = (ui: () => unknown) => {
++  const host = document.createElement("div")
++  document.body.appendChild(host)
++
++  createRoot((dispose) => {
++    insert(host, createComponent(ui as never, {}) as never)
++    queueMicrotask(dispose)
++  })
++
++  return host
++}
++
++const preferencesCount = (host: HTMLElement) => (host.textContent.match(/settings\.tab\.preferences/g) ?? []).length
++
++// In the list face the Shell section renders without the preferences header;
++// its observable body is the ShellSetting row (title + data-action).
++const shellRowCount = (host: HTMLElement) => (host.textContent.match(/settings\.general\.row\.shell\.title/g) ?? []).length
++
++describe("servers page (target-verbatim, issue #102)", () => {
++  test("source: target rows, health gate, header reuse and the shell action thread", async () => {
++    const source = await Bun.file(new URL("./servers.tsx", import.meta.url)).text()
++
++    // SettingsServerGeneral delegates to the shared row and health-gates Shell.
++    expect(source).toContain("<ServerConnectionRow entry={props.entry} />")
++    expect(source).toContain(
++      "props.entry.connection && health()?.healthy !== false ? props.entry.connection : undefined",
++    )
++    // SettingsServersHeader is the header of both faces.
++    expect(source.match(/<SettingsServersHeader /g)?.length).toBe(2)
++    // The per-server shell row action: default for the selected server, named apart otherwise.
++    expect(source).toContain("action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}")
++    // ServerShell carries the optional action into ShellSetting.
++    expect(source).toContain("function ServerShell(props: { server: ServerConnection.Any; action?: string })")
++    expect(source).toContain("<ShellSetting controller={controller} action={props.action} />")
++  })
++
++  test("source: ShellSetting carries the optional action into data-action", async () => {
++    const source = await Bun.file(new URL("../general/general.tsx", import.meta.url)).text()
++
++    expect(source).toContain("action?: string")
++    expect(source).toContain('data-action={props.action ?? "settings-shell"}')
++    expect(source).not.toContain('data-action="settings-shell"')
++  })
++
++  test.skipIf(!behavior)("behavior: an unauthorized HTTP server renders the Authenticate face", () => {
++    const { SettingsServerList } = behavior!
++    const connection = httpServer("http://locked.local:40910")
++    healthByServer["srv-locked"] = { healthy: false, unauthorized: true }
++    const host = mount(() =>
++      createComponent(SettingsServerList as never, {
++        servers: [{ key: serverKey("srv-locked"), name: "Locked", connection }],
++        onAddServer: () => {},
++        onServerChange: () => {},
++      }),
++    )
++
++    expect(host.textContent).toContain("server.action.authenticate")
++    expect(host.querySelector('[aria-label="server.status.authentication"]')).not.toBeNull()
++    // 401 maps to healthy:false + unauthorized, so the shell section stays hidden.
++    expect(shellRowCount(host)).toBe(0)
++  })
++
++  test.skipIf(!behavior)("behavior: unhealthy rows hide Shell; healthy rows thread the shell action", () => {
++    const { SettingsServerList } = behavior!
++    const alpha = httpServer("http://alpha.local:40911")
++    const beta = httpServer("http://beta.local:40912")
++    const gamma = httpServer("http://gamma.local:40913")
++    healthByServer["srv-alpha"] = { healthy: true }
++    healthByServer["srv-beta"] = { healthy: true }
++    healthByServer["srv-gamma"] = { healthy: false }
++
++    const host = mount(() =>
++      createComponent(SettingsServerList as never, {
++        servers: [
++          { key: serverKey("srv-alpha"), name: "Alpha", connection: alpha },
++          { key: serverKey("srv-beta"), name: "Beta", connection: beta },
++          { key: serverKey("srv-gamma"), name: "Gamma", connection: gamma },
++        ],
++        selected: "srv-alpha",
++        onAddServer: () => {},
++        onServerChange: () => {},
++      }),
++    )
++
++    // Two healthy rows show Shell preferences, the unhealthy one does not.
++    expect(shellRowCount(host)).toBe(2)
++    // Selected server's row keeps the default action; others are named apart.
++    expect(host.querySelectorAll('[data-action="settings-shell"]').length).toBe(1)
++    expect(host.querySelector('[data-action="settings-shell:srv-beta"]')).not.toBeNull()
++    expect(host.querySelector('[data-action="settings-shell:srv-gamma"]')).toBeNull()
++  })
++
++  test.skipIf(!behavior)("behavior: single-server view shows Shell when healthy, hides it when not", () => {
++    const { SettingsServerGeneral } = behavior!
++    const connection = httpServer("http://single.local:40914")
++    healthByServer["srv-single"] = { healthy: true }
++
++    const healthyHost = mount(() =>
++      createComponent(SettingsServerGeneral as never, {
++        entry: { key: serverKey("srv-single"), name: "Single", connection },
++        onAddServer: () => {},
++      }),
++    )
++    expect(preferencesCount(healthyHost)).toBe(1)
++    expect(healthyHost.textContent).toContain("settings.section.server")
++    expect(healthyHost.textContent).toContain("dialog.server.add.button")
++
++    healthByServer["srv-single"] = { healthy: false }
++    const unhealthyHost = mount(() =>
++      createComponent(SettingsServerGeneral as never, {
++        entry: { key: serverKey("srv-single"), name: "Single", connection },
++        onAddServer: () => {},
++      }),
++    )
++    expect(preferencesCount(unhealthyHost)).toBe(0)
++    // The connection row itself still renders (health dot, name, url).
++    expect(unhealthyHost.textContent).toContain("Single")
++    expect(unhealthyHost.textContent).toContain("http://single.local:40914")
++  })
++
++  test.skipIf(!behavior)("behavior: a row edit reaches DialogServer with server and onServerChange", () => {
++    const { SettingsServerList, pushed } = behavior!
++    const connection = httpServer("http://editable.local:40915")
++    healthByServer["srv-editable"] = { healthy: true }
++    let received: unknown
++    pushed.length = 0
++    behavior!.dialogServerProps = undefined
++    behavior!.setFireRowEdit(true)
++
++    try {
++      mount(() =>
++        createComponent(SettingsServerList as never, {
++          servers: [{ key: serverKey("srv-editable"), name: "Editable", connection }],
++          onAddServer: () => {},
++          onServerChange: (server: ServerConnection.Any) => {
++            received = server
++          },
++        }),
++      )
++
++      // The row menu probe fired the page's real edit closure, which pushed the dialog.
++      expect(pushed.length).toBe(1)
++      const dialogHost = document.createElement("div")
++      document.body.appendChild(dialogHost)
++      createRoot((dispose) => {
++        insert(dialogHost, createComponent(pushed[0] as never, {}) as never)
++        queueMicrotask(dispose)
++      })
++
++      expect(behavior!.dialogServerProps?.mode).toBe("edit")
++      expect(behavior!.dialogServerProps?.server).toBe(connection)
++      // onSave IS the caller's onServerChange: saving from the dialog selects the server.
++      expect(behavior!.dialogServerProps?.onSave).toBeTypeOf("function")
++
++      const onSave = behavior!.dialogServerProps?.onSave as (server: ServerConnection.Any) => void
++      onSave(connection)
++      expect(received).toBe(connection)
++    } finally {
++      behavior!.setFireRowEdit(false)
++    }
++  })
++})
+diff --git a/packages/app/src/settings/servers/servers.tsx b/packages/app/src/settings/servers/servers.tsx
+index d497826..3ef7fa3 100644
+--- a/packages/app/src/settings/servers/servers.tsx
++++ b/packages/app/src/settings/servers/servers.tsx
+@@ -1,15 +1,12 @@
+ import { Button } from "@opencode/ui/button"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-// mobile(M-043): this file carries only the two pieces the migrated shell renders — the
+-// target `SettingsServerList` and the retargeted `SettingsServerGeneral` signature. The
+-// row/auth content stays at the M-037 state; issue #102 replaces it with the target file.
+ import { createMemo, For, Show, type Component } from "solid-js"
+ import { ServerRowMenu } from "@/servers/registry/row-menu"
+ import { ServerHealthIndicator } from "@/servers/registry/row"
+ import { PluginServerRow } from "@/servers/registry/plugin-row"
+ import { AddServerMenu } from "@/servers/registry/add-menu"
+ import { useLanguage } from "@/runtime/i18n/language"
+-import { ServerConnection, serverName } from "@/runtime/server/registry"
++import { ServerConnection } from "@/runtime/server/registry"
+ import { useServerCollectionController } from "@/servers/registry/controller"
+ import { DialogServer } from "@/servers/connect/dialog"
+ import { SettingsList } from "@/settings/list"
+@@ -18,102 +15,40 @@ import { createServerShellController } from "@/settings/general/controllers"
+ import type { SettingsServer } from "./inventory"
+ import "@/settings/settings.css"
+ 
++/** The only server's connection and preferences. */
+ export const SettingsServerGeneral: Component<{ entry: SettingsServer; onAddServer: () => void }> = (props) => {
+-  const dialog = useDialog()
+   const language = useLanguage()
+   const controller = useServerCollectionController()
+   const health = createMemo(() => controller.collection.health()[props.entry.key])
+ 
+-  const edit = (server: ServerConnection.Http) => void dialog.push(() => <DialogServer mode="edit" server={server} />)
+-
+-  // An HTTP server that rejects its saved credentials signs in again through the edit dialog.
+-  const signedOut = (server: ServerConnection.Any) =>
+-    server.type === "http" && health()?.unauthorized ? server : undefined
+-
+   return (
+     <>
+-      <div class="settings-tab-header">
+-        <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
+-            <h2 class="settings-tab-title">{language.t("settings.section.server")}</h2>
+-            <span class="text-11-regular text-v2-text-text-muted">
+-              {language.t("settings.servers.description")}
+-            </span>
+-          </div>
+-          <Show when={props.onAddServer}>
+-            <AddServerMenu onAddServer={props.onAddServer} />
+-          </Show>
+-        </div>
+-      </div>
++      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} />
+ 
+       <div class="settings-tab-body settings-tab-body--sectioned">
+         <section class="settings-section settings-server-connection" data-component="settings-server-connection">
+           <h3 class="settings-section-title">{language.t("settings.server.section.connection")}</h3>
+           <SettingsList>
+-            <Show
+-              when={props.entry.source?.entry.row ? props.entry.key : undefined}
+-              keyed
+-              fallback={
+-                <Show when={props.entry.connection}>
+-                  {(server) => (
+-                    <div class="settings-servers-row">
+-                      <div class="settings-servers-lead">
+-                        <ServerHealthIndicator health={health()} authenticationRequired={!!health()?.unauthorized} />
+-                        <div class="settings-servers-copy">
+-                          <bdi class="settings-servers-name" dir="auto">
+-                            {serverName(server()) || props.entry.key}
+-                          </bdi>
+-                          <bdi class="settings-servers-meta" dir="ltr">
+-                            {server().http.url}
+-                          </bdi>
+-                        </div>
+-                      </div>
+-                      <div class="settings-servers-actions">
+-                        <Show when={signedOut(server())}>
+-                          {(http) => (
+-                            <Button size="small" variant="neutral" onClick={() => edit(http())}>
+-                              {language.t("server.action.authenticate")}
+-                            </Button>
+-                          )}
+-                        </Show>
+-                        <ServerRowMenu server={server()} domain={controller} onEdit={edit} />
+-                      </div>
+-                    </div>
+-                  )}
+-                </Show>
+-              }
+-            >
+-              {(key) => <PluginServerRow server={key} controller={controller} />}
+-            </Show>
++            <ServerConnectionRow entry={props.entry} />
+           </SettingsList>
+         </section>
+ 
+-        <Show when={props.entry.connection} keyed>
+-          {(server) => <ServerShell server={server} />}
++        <Show when={props.entry.connection && health()?.healthy !== false ? props.entry.connection : undefined} keyed>
++          {(server) => (
++            <section class="settings-section">
++              <h3 class="settings-section-title">{language.t("settings.tab.preferences")}</h3>
++              <SettingsList>
++                <ServerShell server={server} />
++              </SettingsList>
++            </section>
++          )}
+         </Show>
+       </div>
+     </>
+   )
+ }
+ 
+-function ServerShell(props: { server: ServerConnection.Any }) {
+-  const language = useLanguage()
+-  const controller = createServerShellController(() => props.server)
+-
+-  return (
+-    <section class="settings-section">
+-      <h3 class="settings-section-title">{language.t("settings.tab.preferences")}</h3>
+-      <SettingsList>
+-        <ShellSetting controller={controller} />
+-      </SettingsList>
+-    </section>
+-  )
+-}
+-
+ /** Every server, each with its connection and terminal shell. */
+-// mobile(M-043): target-verbatim except the `action` prop thread into `ShellSetting` (the
+-// vendored general page's ShellSetting has no `action` prop yet; the reveal-naming refinement
+-// lands with issue #102's full servers.tsx migration).
+ export const SettingsServerList: Component<{
+   servers: readonly SettingsServer[]
+   /** The server whose shell row search results reveal. */
+@@ -146,7 +81,12 @@ export const SettingsServerList: Component<{
+                   }
+                   keyed
+                 >
+-                  {(server) => <ServerShell server={server} />}
++                  {(server) => (
++                    <ServerShell
++                      server={server}
++                      action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}
++                    />
++                  )}
+                 </Show>
+               </SettingsList>
+             </section>
+@@ -226,3 +166,9 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
+     </Show>
+   )
+ }
++
++function ServerShell(props: { server: ServerConnection.Any; action?: string }) {
++  const controller = createServerShellController(() => props.server)
++
++  return <ShellSetting controller={controller} action={props.action} />
++}

@@ -48,8 +48,30 @@ describe("server persistence schema", () => {
     })
     expect(input.list[1]).toHaveProperty("username", "legacy")
     const encoded = Schema.encodeSync(schema)(state)
-    expect(encoded).toEqual(state)
-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
+    // mobile(M-002): password stripped at encode (memory-only) — the encoded (stored) form
+    // never contains a password, so the upstream lossless-roundtrip expectation is aligned
+    // to the strip semantics: `encoded` equals the decoded state minus the passwords, and
+    // decoding the stripped form is stable (a missing password re-decodes as absent).
+    // See the mobile(M-002) note on MemoryOnlyPassword in persistence.ts and the issue #3
+    // record in docs/build-and-verify.md; audit-secret-persistence pins the semantic.
+    expect(encoded).toEqual({
+      list: [
+        { type: "http", http: { url: "http://localhost:4096" } },
+        { type: "http", http: { url: "https://flat.example" } },
+        {
+          type: "http",
+          displayName: "Remote",
+          label: "Production",
+          authToken: true,
+          http: { url: "https://nested.example" },
+        },
+      ],
+      hidden: {},
+      projects: input.projects,
+      lastProject: {},
+      recentlyClosed: {},
+    })
+    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(encoded)
   })
 
   test("defaults missing or malformed fields and drops invalid entries independently", () => {
