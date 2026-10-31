@@ -2051,6 +2051,37 @@ verify-about-version=0、verify-agent-capabilities=0、verify-appearance-setting
 - **CDP 通道 2 的失效原因未进一步取证**（WebView 输入域限制的精确版本/开关未查）——不影响修复有效性判定（另两通道 + 四腿重启弧均过），如后续轮需 CDP 可信点击取证，先在干净会话复测该域。
 - **desktop-host 行触击负例未在设备轮单独执行**（rendered 级已锁其 disabled 渲染 + 原始 click 腿零触达；设备轮聚焦验收 3 的启停保持弧）。
 
+## 决策收口与文档同步轮（2026-10-31，无代码行为变更）——实测记录
+
+**本轮性质**：纯文档收口 + 一处 dev 探针锚修复。零运行时代码、零 vendor/壳/补丁改动、零 dist 重建——补丁集 39=39（verify-closure V3(a) 字节级 PASS，见下表）、dist 基线 3516 files / **159,546,665 bytes** 不变（哨兵值即 #96 轮登记值，本轮未构建）；`git diff --stat bbe8926..HEAD` 仅列 `docs/**` 与 `scripts/verify-recovery.ts`（14 文件）。**本轮无设备轮**——无代码行为变更可验证，全部验证为本机静态/探针级（本机验证），设备门禁归属不变。
+
+### 登记内容
+
+1. **三份决策记录定稿（用户决策 2026-10-31）**：[决策记录 0005](decisions/0005-apk-update.md)（APK 更新**暂缓**——(c) 不做为当前运营姿态、(b) 外部引导安装登记为契约同型未来形态，激活条件 §4.2 在册）、[决策记录 0006](decisions/0006-voice-call.md)（语音通话**暂缓**——当前默认不做为运营姿态，激活条件 §4.2 与实施前提 §5 保持在册）、[决策记录 0007](decisions/0007-pairing-deep-link.md)（配对外链唤起**已确认不实施**，激活条件 §4.2 在册）。三文按各自 §9.3 拍板路径落子：标题去草案化、L3 引言与状态行改已确认框架、§9.1 状态表移「已确认（2026-10-31）」、§9.2/§9.3 补确认记录；§1–§8 事实/分析原样保留，零验证声称增量（0005/0006 的零设备验证边界与 0007 的文档级评估边界原句保持）。
+2. **依从文档同步**：矩阵 S40/N09 推「不实现（APK 更新，依据 ADR 0005 暂缓）」终态；W24 实现格不动、策略格保持「待决策」态词并记录用户确认的暂缓（0006 §9.3 规定暂缓不改实现格）；D03 外链唤起子句改已决态（相机扫码子句不动，整行保持部分实现）；「剩余决定与推进口径」第 4 项三项候选收口（/btw 窄屏与相机扫码已交付，issue #70/#71）；`project-scope.md` 配对行 + 决策索引补 0005–0007；六处设计文档 0007「提案态/决策待用户」字样同步为已确认不实施（[interaction.md](design/interaction.md)、[interaction-quality.md](design/interaction-quality.md)、[connection.md](design/units/connection.md) ×2、[shell-startup.md](design/units/shell-startup.md)、[providers-models.md](design/units/providers-models.md)、[attachments-artifacts.md](design/units/attachments-artifacts.md)——living docs；dated logs 不动）。
+3. **矩阵/单元文档同步到已合并的 issue #96 修复态**（PR #97，commits 4d75fe3/0a211a7/5addd90）：S41/N11 管理面开关 FAIL 字样改已修复态（调用点取反 `!next` + 端到端 rendered 断言 + 真机四腿复测全过——本文件 #96 段为证据源）；W28 QA-3 改「阻断已解除、禁用→撤除链路本体待设备复测（不得写 PASS）」；[gui-plugins.md](design/units/gui-plugins.md) toggle 链按修复后接线重写并显式钉住取反映射（Switch checked⇔启用 → Kobalte onChange 交付 checked 新值 → 调用点取反 `!next` → `manager.toggle(id, 禁用意图)`，store 契约 true=禁用）。
+4. **verify-recovery 锚修复**（`fix(verify)`）：探针因 ensureTunnel 正则陈旧自 dev 既有即 rc=1 且于组 5 退出（#96 段 sweep 行在册），下游断言从未到达。按当前源修复漂移、零断言删除：①多行内联对象返回类型正则（`packages/mobile-hosts/src/runtime.ts:605`）；②ready 早退改块形双锚（`if (state === "ready") {` + `return { endpoint, attempt }`，:612-617）；③ssh tunnel unavailable 守卫新形（:633 post-await 复验形态）；④M-037 后 conn 判别名 extension→plugin（app `client.tsx`）；⑤新到达的组 6 两处——changed-key 恢复已迁移至 `HostKeyRecovery` 组件（5a46934，inline-SSH 轮），锚随迁：manager 须在 host-key-changed 守卫下挂载组件 + `host-key-recovery.tsx` 须承载 `forgetHostKey` + recover 危险按钮 + confirmRemove 显式确认（净增强）。修复后 rc=0（见下表）。
+5. **commands-menus.md 后 #67 命名同步**（issue #70 诚实边界在册项收口）：`runtime/extension/commands.tsx`→`runtime/plugin/commands.tsx`；`gui-extensions/src/renderer.ts` `builtins`→`gui-plugins/src/renderer.ts` `builtins` compose 对象（:39，注释 :38 "The only place host builds name built-ins"——15 内建注册、无平台门）；「13 个内建」改 **15** 并并列移动实态（M-025 白名单三分：web 10 + desktop-host 4 + wsl 静态排除 1——`extension-manager.tsx` 三集常量与矩阵 S41/N11 设备轮实测同源）；`gui-extensions/src/sdk/registries.ts`→`plugin/src/gui/registries.ts`（注释「False takes the command out of the palette…」今在 ：51）；对照表 `terminal.toggle` 行路径更新。`verify-commands-menus` rc=0 保持（该探针锁标题/诚实句/对照表行 id，不锁本轮改的路径——编辑前实测确认）。
+
+### 本机验证表（隔离工作树 `docs--decisions-closeout`，base=origin/dev `bbe8926`；dist 未构建、无设备）
+
+| 验证项 | 命令/口径 | 结果 | 备注 |
+| --- | --- | --- | --- |
+| verify-recovery（修复后） | `bun run scripts/verify-recovery.ts` | **rc=0** | 组 1–7 全过；组 6 为修复后首次到达并 PASS |
+| verify-commands-menus（命名同步后） | `bun run scripts/verify-commands-menus.ts` | **rc=0** | 同步前后各跑一次均 rc=0 |
+| 全探针 sweep | 32 × `bun run scripts/verify-*.ts`，rc 显式捕获 | **27/32 rc=0** | rc=0：verify-about-version、verify-agent-capabilities、verify-appearance-settings、verify-artifacts、verify-browser、verify-commands-menus、verify-connection-inline-ssh、verify-credential-ref、verify-credential-vault、verify-debug-bar、verify-diff、verify-experimental-settings、verify-files、verify-goal-sources、verify-gui-plugins、verify-interaction-quality、verify-interface-mode、verify-notifications、verify-open-external、verify-pairing、verify-permission-requests、verify-pinch-shell-settings、verify-projects-sessions、verify-provider-models、verify-recovery、verify-session-workbench、verify-terminal |
+| sweep rc=1（在册） | verify-inline-ssh-device | rc=1 | CDP `http://127.0.0.1:9222/json/list` **ConnectionRefused**——设备依赖在册失败形态不变（本轮无设备轮），非文档碰撞 |
+| sweep rc=1（环境） ×4 | verify-attachments-artifacts / verify-direct-connection / verify-service-ops / verify-ssh | rc=1 | **ENOENT 于未跟踪构建产物目录**（`vendor/upstream/packages/app/dist/_assets/` 与 `android/app/src/main/assets/web/`——隔离工作树未构建，本轮按纪律不重建 dist）。归因证据：①`git archive bbe8926` 抽取 pristine 对照实跑同 rc=1 同 ENOENT 路径（非本轮引入）；②四探针源码 `grep "docs/"` 实测**零 docs 断言域**，与本轮文档编辑零交集；③#96 轮 30/32 的 sweep 于有构建产物的环境取得——两轮差异为环境差，非回归 |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（V3(a) 字节级 + DANGLING=0 + V3(c)） | 补丁集 39=39，本轮零 vendor/补丁改动 |
+| diff/leak 卫生 | `git diff --check bbe8926..HEAD`；`bash scripts/leak-scan.sh` | diff --check rc=0；leak-scan rc=1 | leak-scan rc=1 为基线既有（`packages/mobile-hosts/test/` synthetic BEGIN PRIVATE KEY 测试夹具，#76 轮起在册）；本轮改动集仅 `docs/**` + `scripts/verify-recovery.ts`，**零 test fixture 触碰**——命中集与基线必然相同（未逐行比对，以改动集证明） |
+| 改动域核对 | `git diff --stat bbe8926..HEAD` | 仅 `docs/**`（13 文件）+ `scripts/verify-recovery.ts`（1 文件） | 零 runtime 代码、零 vendor/补丁、零 dist、零 android/ 改动 |
+
+### 诚实边界（本段）
+
+- **四探针 rc=1 为环境态而非通过**：verify-attachments-artifacts / verify-direct-connection / verify-service-ops / verify-ssh 在本隔离工作树因缺构建产物不可达其 dist 组断言——pristine 对照仅证明失败非本轮引入，**不证明其断言在当前 HEAD 全过**；有构建产物的环境（或下轮构建后）须复跑归零。
+- **设备侧零验证**：本轮无任何设备/模拟器动作；三份决策的暂缓/不实施均为产品决策记录，不代表任何功能验证状态变化（W24 实现格保持「未实现」、S40/N09 推「不实现」终态、D03 保持部分实现）。
+- **文档同步的探针覆盖边界**：矩阵/设计文档本轮改写不触及任何探针锁定串（27 rc=0 中含全部锁 docs 的探针——pairing/debug-bar/pinch-shell-settings/interaction-quality/recovery/commands-menus 等）；四 rc=1 探针已证明零 docs 域。
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
