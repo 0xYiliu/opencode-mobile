@@ -29,7 +29,7 @@
 - 组件：`SearchList`/`SearchHighlight`（ui/search-list）+ `Slash` 分隔（ui/slash，M-042 新依赖）；narrow = `<800px`。
 - 目录：`createSettingsSearchCatalog()`（search.tsx 内，target 形）= platform/servers/selected/plugins 输入；分组/排序/60 条上限/`rankSettings(query, items)` 两参形（origin/proximity 评分已随目标移除）。
 - 聚焦/定位：`surface.search.open(view, id)` 写 `searchActivation`；壳 effect 触发 `revealSettingsSearch(root, view)`——目标 anchor 缺失时**静默 no-op 不崩**（search-reveal.test.ts 锁定该机制；本轮被剪行见下）。
-- **mobile(M-044) 剪除三行 → 已全部恢复**：`settings-background-activity`、`settings-timeline-width` 两行随 **issue #103/M-046** 连同 general.tsx 真实页面 anchor 一并恢复（搜索命中 → 定位真实行）；`settings-sounds-interface` 随 **issue #107/M-050** 恢复——search-catalog.ts 目录行（target 逐字 8 行）+ notifications.tsx 真实页面 anchor（`data-action="settings-sounds-interface"` Switch）双正锚，设备实测 `interface`/`sound` 查询命中 → 定位真实行在视口内。search-catalog.ts 内 `mobile(M-044)` 剪除注记**已随该行恢复而移除**（grep `mobile(M-044)` 在 search-catalog.ts 现为零命中；route.ts 保留自己的 M-044 注记——gui-extensions 移动面，owner #109）。每个可选中结果都落到真实行。
+- **mobile(M-044) 剪除三行 → 已全部恢复**：`settings-background-activity`、`settings-timeline-width` 两行随 **issue #103/M-046** 连同 general.tsx 真实页面 anchor 一并恢复（搜索命中 → 定位真实行）；`settings-sounds-interface` 随 **issue #107/M-050** 恢复——search-catalog.ts 目录行（target 逐字 8 行）+ notifications.tsx 真实页面 anchor（`data-action="settings-sounds-interface"` Switch）双正锚，设备实测 `interface`/`sound` 查询命中 → 定位真实行在视口内。search-catalog.ts 内 `mobile(M-044)` 剪除注记**已随该行恢复而移除**（grep `mobile(M-044)` 在 search-catalog.ts 现为零命中；route.ts 保留自己的 M-044 注记——gui-extensions 移动面，issue #109/M-052 已决：tab 保留，注记就地改写为已决语义）。每个可选中结果都落到真实行。
 - 命令面板桥：`createSettingsPaletteEntries()` ≤5 条 `type:"setting"` 行（前缀优先排序、排除 project 实体），select → `surface.search.open(view, id)`；`palette.group.settings` 分类键；`settings.search.focus`（mod+f）隐藏命令保留。
 - **#90 回归不复现**：search.tsx 目标原生读 `plugins: surface.plugins.items()`（M-037 修复吸收）；settings-search-plugin.test.tsx 源断言更新为目标形。
 
@@ -40,7 +40,7 @@
 ## 移动面挂载（M-044，全部保留）
 
 - **M-008**：`MobileHostManager` 懒挂载为目标 servers `Tabs.Content` 的**第一个子元素**（Show 之上）——空上游列表也渲染。
-- **M-026**：`mobileGuiExtensions = platform.platform !== "desktop"` 谓词 + 守卫 `if (view.tab === "gui-extensions" && !mobileGuiExtensions) surface.open("general")` + nav 组 `...(mobileGuiExtensions ? [{ items: guiExtensionsTab… }] : [])` + `<Tabs.Content value="gui-extensions"><Suspense><MobileExtensionManager /></Suspense></Tabs.Content>`（R4-1：目标 shell 无 Suspense——M-044 重加 import，包裹从 pin 逐字保留）。上游 DEV+desktop 面不恢复（目标已移除；DEV 插件面在 PluginSettingsPages/settings-page-dev）。route.ts/pages.ts 的 `"gui-extensions"` root tab 恢复 = **登记的有意偏离**（D4 单元契约；插件页注册表接管时移除）。
+- **M-026**：`mobileGuiExtensions = platform.platform !== "desktop"` 谓词 + 守卫 `if (view.tab === "gui-extensions" && !mobileGuiExtensions) surface.open("general")` + nav 组 `...(mobileGuiExtensions ? [{ items: guiExtensionsTab… }] : [])` + `<Tabs.Content value="gui-extensions"><Suspense><MobileExtensionManager /></Suspense></Tabs.Content>`（R4-1：目标 shell 无 Suspense——M-044 重加 import，包裹从 pin 逐字保留）。上游 DEV+desktop 面不恢复（目标已移除；DEV 插件面在 PluginSettingsPages/settings-page-dev）。route.ts/pages.ts 的 `"gui-extensions"` root tab 恢复 = **登记的有意偏离，issue #109/M-052 已决为永久保留**（D4 单元契约解决——目标注册表只承载插件自有贡献，目标 Extensions face 为 server 域仅名单呈现且内容只在 reachable-server scope 下渲染，无三集分类/wsl 零控件行承载面，详见 [gui-plugins.md](gui-plugins.md) §四 D4 解决段；M-052 就地改写两文件注记并把 tab 标签改歧义为 "GUI extensions"/"GUI 扩展"，与 `settings.tab.extensions` 不再同值）。
 - **M-035**：zoom 目录行**不带** `available: "desktop"`（web 可用），search-catalog.ts 内留 `mobile(M-035)` 标注；search-results.test.ts 四处编辑（zoom toContain、font 长度 4、capsule 断言删、注释保留）。
 
 ## 状态矩阵（框架层）
@@ -61,14 +61,14 @@
 
 # 单元：偏好页内面（General/Experimental）——issue #103（S04–S11、S13、S38）
 
-**状态行：偏好页内面已实现（未验证）**——General 页随 **M-046**（0046-M-046-general-experimental-pages-target-migration.patch，双 manifest 在册第 44 个补丁）迁移至 v2.2.1 目标（`general.tsx` 目标逐字），Experimental 页自有内容经核对已目标形（**零改动复用**；M-036 Sources 行保留归 #109）。运行证据：[build-and-verify.md issue #103 段](../../build-and-verify.md)。Desktop 实机视觉对照 **BLOCKED** 继承（无 Windows 参考端）；W05 Inbox 实态、W15 queue/steer 执行链**不因设置面通过而关闭**（见下）。
+**状态行：偏好页内面已实现（未验证）**——General 页随 **M-046**（0046-M-046-general-experimental-pages-target-migration.patch，双 manifest 在册第 44 个补丁）迁移至 v2.2.1 目标（`general.tsx` 目标逐字），Experimental 页自有内容经核对已目标形（**零改动复用**；M-036 Sources 行为注册偏离，#109 复核保留不迁移）。运行证据：[build-and-verify.md issue #103 段](../../build-and-verify.md)。Desktop 实机视觉对照 **BLOCKED** 继承（无 Windows 参考端）；W05 Inbox 实态、W15 queue/steer 执行链**不因设置面通过而关闭**（见下）。
 
 ## General 页行清单（目标形，含默认值与顺序）
 
 - **General 段**：InterfaceModeSetting（S04 三模式 top/side/inbox，fieldset+radio+预览卡，默认 horizontal；Inbox 选项选择后的实态仍呈 Side rail——**W05 登记**，不称模式体验已对齐）→ Language → Workspace destination（默认 last-used）→ Auto-approve permissions（**默认关 = opt-in**；执行面归属 permission-requests 单元契约——S07 的代答语义、once/always 落盘与批量扩散在该单元，设置行只写 `permissions.autoApprove` 默认值）→ Show custom agents（默认 false）→ Follow-up behavior（queue/steer，默认 steer；行只写 `general.followUpBehavior`——排队/转向的执行链归属 session-workbench 单元契约（**W15 登记**），设置面通过不关闭该差距）→ Pinch zoom 行（`platform==="desktop"` 条件可见）→ PluginSettingsSections(general/general)（M-037 Plugin 命名）→ **mobile() 标题栏行**（`<768px` 才渲染：mobileTitlebarBottom 开关，目标原生）。
 - **Timeline 段**（目标形）：TimelineDetailControl（M-043/M-042 早已落地，包 `border-b-[0.5px] border-v2-border-border-base` 分隔——M-046 引入）→ **Timeline width**（focused/comfortable/wide，默认 comfortable，`data-action="settings-timeline-width"`）→ **Background activity**（off/left/center/right，默认 left，`data-action="settings-background-activity"`；**composer 呈现消费链不接**——目标消费点 `session/composer/composer-lane.tsx`/`activity-chips.tsx` 在 vendored 树不存在（W05 相邻工作台面），字段+行+搜索行落地，呈现归后续）→ Turn diffs（默认 false）。
 - **Terminal placement 行已消失**（目标行为；组件与渲染槽随 M-046 删除）——`terminalPlacement` schema/default/accessor 保留为登记偏离（见下），session dock 行为保持 pin 态。
-- **Experimental 页**：newIcons（默认 false，S38 图标切换）+ foldUserMessages（默认 false，8lh 折叠）两行目标形（M-034 已吸收，本轮零改动）；M-036 Sources 行（插件贡献 gate）原样保留，迁移归 #109（I）。
+- **Experimental 页**：newIcons（默认 false，S38 图标切换）+ foldUserMessages（默认 false，8lh 折叠）两行目标形（M-034 已吸收，本轮零改动）；M-036 Sources 行（插件贡献 gate）原样保留，#109 复核保留不迁移（注册偏离维持）。
 
 ## settings.v3 持久化边界
 
@@ -85,8 +85,9 @@
 - **`terminalPlacement`**：type 导出 + `Literals(["side","bottom"])` + 默认 `"side"` + withFallback + set accessor——消费者 `session/screen-layout.ts:21,22`；目标已删除该设置行（行消失 = 目标行为），schema 保留直至 W04/W05 session 屏/dock 重构所属 issue 退役。
 - **`showFileTree`**：`Schema.Boolean` + 默认 `false` + init accessor + store API + `visibility.fileTree`——消费者 `screen-layout.ts:26`、`use-session-commands.tsx:70,452`（fileTree.toggle 命令注册门）。目标把它移入 retired 块（Persistence.optional）——保留为活偏好直至同上收敛。
 - **S10 不采纳**：`commentary: placementOnlySchema` 槽、`settings.timeline.category.commentary` 键、timeline.description.compact/.quiet 目标新文案——依赖 session-ui `timeline/detail.ts` 的 `timelineCategories` 目标形（compact/quiet 预设 subagents grouped→separate）。vendored 文案如实描述 vendored 预设现行为；目标桌面写出的含 commentary 槽的 settings 文档在本客户端 decode 时该槽被丢弃（Persistence.struct 未知键行为，M-002 先例口径）——随 S10 呈现链后续 issue 收敛，矩阵 S10「类别枚举与实际呈现尚未逐项证明等价」保持。
-- **搜索目录**：`settings-background-activity`/`settings-timeline-width` 两行已随 #103 恢复（catalog 行 + general.tsx 真实 anchor 双正锚）；`settings-sounds-interface` 已随 **#107/M-050** 恢复（catalog 行 + notifications.tsx 真实 anchor 双正锚，M-044 剪除注记随之移除——见「通知页内面」单元）；**搜索目录现存唯一目录级偏离 = M-035 zoom 行**继续不带 `available:"desktop"`（route.ts 的 gui-extensions M-044 注记为另一文件的登记，owner #109）；目标 `@source stories` 改名**不采纳**（vendored 无 stories 目录）。
-- **M-036 Sources**：experimental.tsx 的插件 Sources gate 行零改动，迁移归 #109。
+- **搜索目录**：`settings-background-activity`/`settings-timeline-width` 两行已随 #103 恢复（catalog 行 + general.tsx 真实 anchor 双正锚）；`settings-sounds-interface` 已随 **#107/M-050** 恢复（catalog 行 + notifications.tsx 真实 anchor 双正锚，M-044 剪除注记随之移除——见「通知页内面」单元）；**搜索目录现存唯一目录级偏离 = M-035 zoom 行**继续不带 `available:"desktop"`（route.ts 的 gui-extensions M-044 注记经 #109/M-052 改写为已决保留语义）；目标 `@source stories` 改名**不采纳**（vendored 无 stories 目录）。
+- **M-036 Sources**：experimental.tsx 的插件 Sources gate 行零改动（**注册偏离维持**——目标无 settings 行，旋钮在 DEV motion-tuning 台；#109 不迁移，仅加锁（verify-settings-framework 组 12 四锚）与设备 QA）。
+- **插件贡献行宿主承载（issue #109/S41/S14）**：General 页两处 `<PluginSettingsSections>` 挂载（`page="general" section="general"` 节点 + `page="general"` 页级节点，均目标逐字）承载插件自有节/行；review 的 Wrap-lines 行经其 `SettingsPage { id: "mobile-diff", page: "general", section: "general", entries: [{ id: "settings-mobile-diff-wrap", … }] }` 贡献落在 general/general 节点（页面 `data-action="settings-mobile-diff-wrap"`），搜索以宿主 General 节标签揭示（search-index.ts:108——`section` 在场读宿主 `settings.general.section.general`，插件 title 只是 page 级**无** `section` 贡献的节标签；settings-search-plugin.test.tsx 两个 fixture 断言锁定双形）；Experimental 页 M-036 Sources 行（`data-action="settings-sources"`，`storedToggle("sources.enabled")`）在册。pairing/updater 的 SettingsPage 注册在各自 `if (!ctx.desktop) return` 之后——移动上贡献结构性缺席，app 侧零平台过滤（gui-plugins.md §十登记）。
 
 ## 历史参考
 
@@ -164,7 +165,7 @@ Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED**（无 Windows 
 - **FU-1 连接对话框族目标重设计**：`providers/connect/controller.ts`（143 行增量：command 认证方法、`CONSOLE_PROVIDERS` 移除、`connectMethods` 排序、keyProvider 移除）+ `providers/connect/dialog.tsx`（1617→1813 重设计：Integrations 对话框、command 方法 UI、`dialog.provider.*` 键族）+ stories + `providers/credentials/` 三件目标删除（并入 FU-1 范围注记）。S21/S22 剩余差异列指向 FU-1。取消/过期/失败恢复在当前对话框形**已可达**（pin controller 的 `oauth.cancel` 两处/complete/failed/expired 分支/statusFailed retry/`onCleanup`——verify-provider-models 组 3 钉定，[providers-models.md](providers-models.md) 状态矩阵/OAuth 专节）。
 - **FU-2 模型选择器族目标形**：`providers/models/*`（select-dialog 988、models.tsx 87、selection.tsx 67、details.tsx +175 NEW、manage/unpaid/provider-group/search 小增量、css +203/+108 NEW、models.test.ts +55 NEW）。S24 剩余差异列指向 FU-2；设置页目标形与选择器 pin 形共用 `useModels`（现形一致性由共享控制器承载）。
 - **FU-3 运行期项目持久层目标形**（#106 登记）：target `runtime/server/registry.tsx` `createServerProjects` 存储形迁移（`usedProjectIDs`/`lastProjectID` 按项目 ID 键控、`hostnames` 按连接键控，替代 pin 目录键控 `projects`/`lastProject`/`recentlyClosed`）+ `runtime/server/runtime.tsx` ctx.projects 新面（`add`/`unique`/`used`/`forDirectory`/`hide`/`last`/`touch(directory→id)`，165 行）+ `home/model.ts` add/used/last 消费链 + 相邻 `shell/state/layout.tsx`（343 行，`LocalProject` 去 `expanded`）——合计 ~343+165 行，owner = home/layout 工作单元。S27/S28 剩余差异列指向 FU-3；projects-sessions.md #8 吞错缺口（add.ts 校验失败被 `catch(() => undefined)` 吞）的收敛随 FU-3（原「预留 M-019」无主表述改指 FU-3）；#106 设备实测 S29 auto-accept 行因 pin 形项目无 `id` 而 `<Show when={key()}>` 门控为潜伏面，数据供给随 FU-3 落地。S27 页面级等价不依赖 FU-3。
-- `settings/pages.ts` 的 `gui-extensions` 移除**归 #109**（插件页注册表接管；M-026 登记偏离届时移除）。
+- `settings/pages.ts` 的 `gui-extensions` 移除**原归 #109**——#109 已决：不移除，tab 保留（M-052 注记改写 + 标签改歧义；M-026 登记偏离转正为永久保留，证据链见 [gui-plugins.md](gui-plugins.md) §四 D4 解决段）。
 
 # 单元：项目/工作区页内面——issue #106（S27–S34）
 
