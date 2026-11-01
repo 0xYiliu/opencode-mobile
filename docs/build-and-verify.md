@@ -2125,6 +2125,73 @@ verify-about-version=0、verify-agent-capabilities=0、verify-appearance-setting
 `docs/design/units/settings.md`（新建）；`docs/design/README.md`（索引行）；`docs/design/architecture.md`（设置框架单元行 + M-042/043/044 补丁表行 + 设置段落框架条款）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（步骤 2 行已完成 + S01/S02/S03 行更新）；`docs/design/interaction-quality.md`（§4 断点集合重计 23/21→24/22，M-042 sidebar-toggle.tsx 收入）。
 
 
+## issue #102 段（S35–S37：服务器选择、连接管理与 Shell 设置对齐 Desktop v2.2.1——M-045）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-102-servers-page`，base `9eafa63`（origin/main，#101 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `779fefa`（feat vendor 迁移）→ `a174485`（chore verify 探针修订）→ `fd1918d`（fix vendor 类型面），未 push。开工基线复核：verify:closure PASS（42 补丁）、app 单测（无 seam 口径）643/25/24/1976（唯一真实失败=persistence M-002 冻结失败）、mobile-hosts 434/0/2920、typecheck 双口径复测 391/391（见下方勘误注）、dist 3517/159,606,524、探针普查 33 个。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（43 补丁字节级重放，DANGLING=0；M-045 注册于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 各 43 条，M-019/M-039 reserved-absent 保持） |
+| app 全量单测（在册口径=无 seam） | `cd vendor/upstream/packages/app && bun run test:unit`（先摘除 gitignored seam 软链） | **646 pass / 4 skip / 24 fail / 24 errors / 1986 expect()（674 tests/115 files）**；对基线逐项对账：**唯一 delta = persistence 冻结失败升级为通过**（25→24 fail，+3 pass=对齐 1+新文件源锚 2，+4 skip=新测试行为组降级，24 个加载错误文件与基线逐一相同） |
+| app 全量单测（有 seam 对照环境） | 同上（绝对路径 seam 软链在场） | 791 pass / 4 skip / 1 fail / 2346 expect()——唯一 fail 为 #101 的 settings-search-plugin（其 `render()` 在 solid 条件下命中 server dist notSup，该文件证据口径=#101 在册的独立运行约定，本轮未触碰其源面） |
+| 定向子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/servers/{servers-page,inventory}.test.tsx src/servers/registry/{management,controller}.test.ts src/runtime/server/{registry,client,api}.test.ts` | **31 pass / 4 skip / 0 fail / rc=0** |
+| servers-page 行为组（独立证据运行） | `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/servers-page.test.tsx` | **6 pass / 0 fail / 27 expect()**（源锚 2 + 行为 4：401 Authenticate 面、健康门显隐、单视图门、行编辑→DialogServer onSave 回传） |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（与基线同数） |
+| typecheck | `bun run typecheck:tsc`（app；清空增量状态后双口径实测） | **391 errors 无 seam / 391 errors 有 seam**；与 9eafa63 清状态复测基线（391/391）**逐类持平**（TS 类分布完全一致）；触及文件（servers.tsx/general.tsx/row.tsx/redeem.ts/servers-page.test.tsx/persistence.test.ts）**零错误**；7 条 search-results LocalProject 与 mobile-hosts seam 跟随类既有错误保持。**勘误注**：开工简报的「390（无 seam）/391（有 seam）」差 1 在清空 composite tsbuildinfo 后未复现——纯净状态双口径同为 391，本轮以同法同态对账 |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3517 files / 159,599,027 bytes**（fileCount 与上轮同、**-7,497 bytes**：servers.tsx/row.tsx 目标删量大于增量；web-dist/manifest.json 已刷新并同提交回填全部 dist 探针常量） |
+| 探针普查 | `for f in scripts/verify-*.ts; do bun run $f; done`（33 个） | **31 rc=0 / 2 rc=1**：pinch-shell-settings 修订后转 rc=0（预期 29→31：permission-requests/session-workbench 本轮源树 rc=0）；debug-bar 与 inline-ssh-device rc=1 为**预存陈旧锚**——对 HEAD（实施前）复测**逐字节同败**（debug-bar 锁 W28 行、本轮未触；本轮只改 S12/S35/S36/S37 行） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 行（逐行同位），零新增 |
+| 机械检查 | `git diff --check`（9eafa63..HEAD 与工作树） | clean |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，含 dist 标记） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 24s**（41 tasks）；APK SHA-256 `5d95b75bdf760923c4f8d9e94e192aec835db630eabcfa989b021980e3517c83` |
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12，横屏 2800×1840，WebView Chrome/114.0.5735.196，DPR 2.25，CSS 视口 1245×786，深色主题；`adb install -r` Success 数据保留；一次性记录创建并在退出时移除；**零 uninstall/零 pm clear**）
+
+| Tier / 步骤 | 结果 |
+| --- | --- |
+| Tier A.1 页面构成 | **PASS**：Servers tab = M-008 host manager（三 SSH 主机独立呈列+Credential bound 徽标+删除说明文案）**上**目标 `SettingsServerList`（Servers/Add server 头 + 每服务器段：健康点/`entry.name`/url/行菜单/Terminal shell 行）；竖屏窄布局同构复验 |
+| Tier A.2 切换器 | **PASS**：Providers 页 headerAction switcher（RadioGroup 三服务器+健康点+Manage servers…）→ authorized-bastion→bastion-main→authorized-bastion 双向切换，页面保持且作用域随选；Manage servers… → servers tab 可达 |
+| Tier A.3 添加/编辑/取消/重试 | **PARTIAL（如实）**：添加对话框（pairing/password 两形态）、Use password 切换、字段填写、Cancel 还原、死目标保存**零持久化**（存储逐次核验）均验证；**M-013 行内分类错误面未捕获**——保存按钮的 mutate 在自动化驱动下未触发（DOM click/真坐标 tap/焦点+Enter/DPAD 四路均尝试；首实例坐标 tap 可达对话框外控件，对话框内控件全部无响应；根因未定，疑与 WebView 114 事件/构造相关，**非判定为应用缺陷**——同对话框的 method 切换/Cancel 等其余 handler 均正常）；该面语义由 M-013 在册单测与探针承载 |
+| Tier A.4 不可用/错误面 | **PARTIAL**：authorized-bastion（真实主机 100.87.216.92）误触连接触发真实超时 → 行内 Failed 面（「The SSH host did not answer in time…」）实拍；`SettingsServerUnavailable` 整页态未捕获（与 #101 同因：服务器停留加载态） |
+| Tier A.5 Shell 段可见性 + 搜索命名 | **PASS（部分动态）**：注入的 401 一次性记录（真 serve 响应）→ 健康点转红（healthy:false）→ Shell 段隐藏（健康门目标行为）；`settings-shell` / `settings-shell:mobile-ssh:<uuid>` data-action 在真 DOM 逐一读出（选中行默认命名+非选中行逐服务器命名）；**行内 Authenticate 按钮未呈现**（401→unauthorized 标志未置位——该记录经存储注入、未过对话框密码路径，分类差异如实登记） |
+| Tier A.6 切页/重建身份 | **PASS**：force-stop → 重启：三主机+凭据绑定原样、home 服务器作用域保持、零数据丢失 |
+| Tier A.7 对照条件 | 已记录：390 级 CSS 视口 1245×786 @DPR 2.25（横屏 1840×2800 物理）+ 竖屏 1840×2800 两态截图；深色主题实拍（系统 light 切换后应用保持深色——主题跟随口径归 S15 行，本轮不改）；TalkBack 未启用（无 enabled_accessibility_services），完整走查归 G31；Desktop 参考端无（视觉对照 BLOCKED 继承） |
+| Tier A.8 配对入口回归 | **PASS**：Add server 对话框 Pairing link 输入位/Scan QR code 入口/Use password 切换均在位（导入入口可达；QR 全链仍归 D03） |
+| Tier B.9 指纹两径（开发机辅助 sshd，见下） | **PASS（本轮唯一完整执行的 Tier B 项）**：①未知键：:2223 全新键 sshd → 设备 Add host → Connect → **Verify host 面显示真实指纹 SHA256:kYiAsD9k…（与本机密钥 `ssh-keygen -lf` 逐字一致）** → **Reject** → 行态「The host key was rejected, so no connection was attempted. Failed」+ **known_hosts :2223 零新增**（前后各 grep=0）；②变更键：:2222 新键 sshd（设备 known_hosts 持 #61 期旧键）→ 既有 bastion-aux 记录 Connect → **DANGER 面**「the host key no longer matches the stored record…connection was refused…**No credentials were sent and no tunnel was established**」→ 行 Failed；**known_hosts 原条目逐字未动**；「Remove stored key and re-verify」步骤在册**未执行**（不改动用户信任态），re-prompt 子项未单独复验 |
+| Tier B.10 认证面 | **PARTIAL/BLOCKED**：辅助环境已建并验证（`opencode serve` :4096 自动生成密码=真 401 源；设备侧 curl 200/401 双验证）；一次性记录经存储注入后健康轮询真 401→红点，但行内 Authenticate 面未呈现（见 A.5 注）且对话框保存路径受阻（同 A.3）——signout→Authenticate→ready 动态链未达；真实密码流 Tier C 保持 BLOCKED |
+| Tier B.11 Shell 写入/回滚 | **BLOCKED（动态）**：无 ready 记录可渲染 Shell 行（健康门按目标隐藏不健康行）；静态/单测回滚序锚在册（探针组 2 + servers-page 测试） |
+| Tier B.12 断开不停止远程任务 | **未执行**（无会话可建立）；红线五处在册口径零新增断言零违例 |
+| Tier C（14–17） | **BLOCKED**（需用户真实服务凭据/双活服务——零凭据请求） |
+
+### Tier B 辅助环境（开发机 LAN 变体，#61 先例方法；评审 round-2 advisory 授权项）
+
+- 开发机即 192.168.3.152（=既有 bastion-main/aux 目标本机）：aux sshd :2223（全新 host key，未知键径）与 :2222（全新 host key，变更键径；配置/密钥/PID 全部置于 `/tmp/qa102-aux/`，AuthorizedKeysFile 独立空文件）、`opencode serve` :4096（v2.2.1 前版本 v2.1.1；**启动即自动生成服务密码**——即真 401 源，无需额外代理）；设备侧连通性 `curl http://192.168.3.152:4096` = 200 实测。
+- **完整拆除（退出时逐项验证）**：两 sshd kill（pidfile）+ serve kill → `ss -tln` 2222/2223/4096 三端口 **0 监听** → `/tmp/qa102-aux/` 与 `.ssh/qa102_aux_authorized_keys` 删除 → 设备 `accelerometer_rotation` 恢复 1、`user_rotation` 删除、`stayon` 还原。零用户主机记录/凭据/信任态变更（known_hosts 三条目逐字未动）。
+
+### 一次性记录与用户数据（诚实披露）
+
+- **一次性记录**：`qa102-aux-unknown`（SSH host，:2223 指纹径）与 `qa102-aux-serve`（HTTP record，401 健康径）——QA 中创建、退出时**删除并 reload 复核**（注册表回到三主机、stored list 清空、页面行逐一核对）。
+- **authorized-bastion 误删与完全复原（如实披露）**：Tier A 期间一次坐标 tap（(2429,304)，落在该主机行 Delete 按钮边缘）**误删了该 SSH 主机记录**。复原凭据全部来自设备侧权威源：`id`（projects 存储键 `mobile-ssh:82b0aaaa-…` 逐字）、`name`（UI 逐字）、`target`（**设备 known_hosts** `100.87.216.92:22` + 行内 `peterhan@` 前缀）、`credentialRef`（vault index.json 时间戳配对——37ce1141=该主机创建时刻的 privateKey 条目，现孤儿区，恢复引用后重新绑定）、`servicePort: 4096`（同族记录一致）；`createdAt/updatedAt` 以凭据创建时刻锚定重建（±3ms 惯例，**非逐字原值，如实标注**）。复原后 reload 复核：行呈现、Credential bound 徽标、指纹 trust 关系全部在位（该凭据本体全程未被删除——按设计孤儿区保留）。删除按钮单击即删（无确认步）的面式观察如实记录。
+
+### 基线偏差与计划对照
+
+| 项 | 处置 |
+| --- | --- |
+| persistence.test.ts 冻结失败 | **按计划默认 ALIGN**：encode 断言对齐 M-002 语义（密码剥离 + 剥离形重解码稳定），mobile(M-002) 注记引用 persistence.ts 与 #3 台账；升级为本 issue 域内的通过项（25→24 fail） |
+| general.tsx 部分迁移 | ShellSetting action 检字 + mobile(M-045) owner 注记；其余保持 M-037 态归 S04（manifest reason/单元文档/本段三处登记） |
+| controllers.ts 零改动 | 按计划：behavior 再导出边界 + pin `config.update` 命名保留（线等价：生成客户端 PATCH `/api/experimental/config`），verify-appearance-settings rc=0 复验，矩阵 S37 记录 |
+| pinch 探针三处陈旧矩阵钉 | 修复至 **#102 后行文**（S12「#102 服务器页迁移未触及捏合行」、S37 M-045 迁移句）；fail()-exits-first 行为在探针头注记；两路负例演练（改写 action 线程 / 改回常量 data-action）→ FAIL rc=1 → 恢复 PASS |
+| 单测基线环境勘误 | 简报 643/25/24 基于「无 seam」环境（seam 软链随 bun install 缺失）；本轮以同口径对账（上表）；有 seam 环境额外暴露 settings-search-plugin 的 notSup（#101 在册独立运行约定，非本轮引入） |
+| typecheck 简报 390/391 | 清空增量状态后复测基线 391/391（差 1 未复现，判为 tsbuildinfo 环境残差）；同法同态对账零漂移 |
+| .209 设备 | `adb install -r` → **Failure [-200]**（厂商策略，120s+ 无确认窗）；如实记录，与 #101 一致 |
+
+### 文档同步
+
+`docs/design/units/settings.md`（F 侧翻转 + #102 增补）；`docs/design/units/server-list.md`（管理面目标形态更新）；`docs/design/units/connection.md`（对话框目标行 + redeem 去导出）；`docs/design/units/service-ops.md`（命令面保留声明）；`docs/design/recovery.md`（六A 节：身份单源/回滚/红线/健康门）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S12/S35/S36/S37 行 + 阶段 3 行部分完成）。
+
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |

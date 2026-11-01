@@ -30,8 +30,8 @@
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
 //      M-020/M-021 and exactly the registered ID set M-001..M-044 except reserved M-019/M-039
-//      (42 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038,
-//      #72 M-040, #76 M-041, #101 M-042..M-044 in
+//      (43 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038,
+//      #72 M-040, #76 M-041, #101 M-042..M-044, #102 M-045 in
 //      respective same-commit revisions; issue #23/#26/#55/#63/#64/#65/#66/#67 count revisions
 //      remain documented history —
 //      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
@@ -341,16 +341,17 @@ let distAssetCount = 0
   }
   const patchRows = patchManifest.patches ?? []
   const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
-  // Issue #101: 42 registered = M-001..M-044 with M-019 and M-039 reserved-absent (M-038
+  // Issue #102: 43 registered = M-001..M-045 with M-019 and M-039 reserved-absent (M-038
   // registered by the btw narrow-screen entry; M-039 reserved for the parallel issue #71
   // branch, a hole at apply time tolerated like M-019/0031; M-041 registered by the N08
-  // external-open bridge face; M-042..M-044 by the settings-framework migration).
+  // external-open bridge face; M-042..M-044 by the settings-framework migration; M-045 by
+  // the servers-page target migration).
   const expectedPatchIds = new Set(
-    Array.from({ length: 44 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
+    Array.from({ length: 45 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
   )
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 42 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 42 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 43 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 43 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
@@ -364,7 +365,7 @@ let distAssetCount = 0
   const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
   if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
       registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the 42 unique registered patch paths")
+    fail("6: vendor-manifest mobilePatches paths must equal the 43 unique registered patch paths")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
@@ -444,7 +445,7 @@ console.log(
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact 39-ID set (M-001..M-041 minus reserved M-019/M-039; M-041 by issue #76), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67/#72/#76 count revisions retained in build records" +    (distAssetCount > 0
+     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact registered ID set (43 = M-001..M-045 minus reserved M-019/M-039; M-042..M-044 by issue #101, M-045 by issue #102), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67/#72/#76 count revisions retained in build records" +    (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +
     "; 7: zero server-path/OS/credential shapes in the new faces (" +

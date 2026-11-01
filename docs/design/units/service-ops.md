@@ -2,6 +2,8 @@
 
 本单元承载 issue #7：在已批准的 SSH 能力上发现远端 OpenCode 服务与版本、并以显式授权动作执行 install/start/upgrade/replace/stop。事实状态：**已实现（未验证）**；设备/真 OS 门禁 G18 与三 OS E2E 全部 BLOCKED（见 [interaction.md](../interaction.md) 与[决策 0004](../../decisions/0004-service-operations.md)）。
 
+**issue #102 增补（M-045）**：命令面**保留不动**——本轮未新增远端命令/OS 管理能力，service-ops 面板、service-auth-prompt、行内挂载在服务器页迁移后原位可用（设备复核 2026-11-01：三主机行的 Service operations 入口在迁移后的 servers 页正常呈列）；发现/版本/兼容谓词与 #29 兼容反馈共有面零改动。
+
 ## 1. 两层发现模型
 
 | 层 | 载体 | 能回答 | 不能回答（诚实限制） |

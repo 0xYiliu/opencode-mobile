@@ -79,6 +79,13 @@
 - **壳层实例状态恢复未实现**（`onSaveInstanceState` TODO，[units/shell-startup.md](units/shell-startup.md) 权威）——进程重建恢复全部依赖 web 层持久化是设计实态。
 - **范围外（R7）**：离线队列/断线自动重发、push 通知保活类产品能力不在本期范围（project-scope 开发前确认项 7「不默认承诺进程被杀后仍保活或收到通知」沿用）。
 
+## 六A、issue #102 增补（服务器页迁移的恢复面，M-045）
+
+- **身份单源不变**：切页/重建后的 per-server 身份仍由 `surface.server()` 单源决定（settings.md 权威），M-045 迁移未引入第二 current-server 状态；设备复核 2026-11-01：force-stop 后重启，服务器身份/主机列表/凭据绑定原样恢复（杀进程重建走冷启动八环链，见场景④——本轮 DBY2-AL00 实测主机行 idle、记录零丢失）。
+- **Shell 写失败→回滚→重查**：目标代码路径（乐观 mutate → `actions.mutate(previous)` 回滚 → toast → 权威重查）由探针 `verify-pinch-shell-settings` 组 2 的回滚序锚与 `servers-page.test.tsx` 单测锁定；**动态写/回滚本轮未在真机执行**（辅助服务授权下的 B.11 尝试因对话框保存路径自动化受阻未达，见 build-and-verify.md issue #102 段）——动态面仍归 G30/后续授权轮，**不得声称动态已验**。
+- **断开红线**：本轮未新增可执行证据（无 ready 服务会话可断开）；既有五处在册口径与 #61 历史证据不变（红线专节权威），本轮**零新增断言、零违例**。
+- **健康门与恢复呈现**：不可达/401 服务器的 Shell 段随 `healthy !== false` 隐藏（settings.md/server-list.md 权威）；恢复期呈现（重试/编辑/Manage servers 出口）保持 target 形。
+
 ## 七、验证与门禁
 
 - 静态结构锚：`scripts/verify-recovery.ts`（七组断言+负例四组；与 `verify-session-workbench.ts` 分工——组 2 的 pagehide→stop 与 foreground resync 两锚为交叉引用复核性断言（引用性，非首锁），其余为既有探针未覆盖的新锁）。

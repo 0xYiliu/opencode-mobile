@@ -67,7 +67,15 @@ const WorkspaceDestinationSetting: Component = () => {
   )
 }
 
-export const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
+// mobile(M-045): only the ShellSetting action hunk is migrated from target (issue #102 — the
+// Servers page names per-server shell rows for search reveal). The rest of this file stays at
+// the pin/M-037 state; the remaining target delta (FollowUpBehavior/BackgroundActivity rows
+// etc.) belongs to the General page unit and lands with the later settings-general issue.
+export const ShellSetting: Component<{
+  controller: ShellSettingsController
+  /** Search reveals the row with the default action; the Servers page names the other servers' rows apart. */
+  action?: string
+}> = (props) => {
   const language = useLanguage()
 
   const options = createMemo(() =>
@@ -83,7 +91,7 @@ export const ShellSetting: Component<{ controller: ShellSettingsController }> = 
       description={language.t("settings.general.row.shell.description")}
     >
       <Select
-        data-action="settings-shell"
+        data-action={props.action ?? "settings-shell"}
         options={options()}
         current={options().find((option) => option.value === props.controller.current()) ?? options()[0]}
         placement="bottom-end"
