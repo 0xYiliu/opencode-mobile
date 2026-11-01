@@ -539,8 +539,9 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
   // issue #105 measured: the providers/models/extensions settings-page target migration (M-048)
-  // rebuilt the payload to 3520/159663930 (+3 files/+64134 bytes; the migrated mcp-dialog/
-  // extension-plugins faces split into new lazy chunks). issue #104 measured: the ui theme component-family target-form trim (M-047 dead-export
+  // rebuilt the payload to 3520/159663930 (+3 files/+64134 bytes; net-new = the mcp-dialog css
+  // chunk (search-list.css import) + the shared TruncatedText chunk, netting out the removed
+  // panel.css; ExtensionPlugins ships in the renamed shell chunk, zero new files). issue #104 measured: the ui theme component-family target-form trim (M-047 dead-export
   // convergence) rebuilt the payload to 3517/159599796 (-1225 bytes at the same file count;
   // the trimmed theme index barrel/loader/default-themes dead code previously only survived
   // via tree-shaking). issue #103 measured: the general/experimental preferences-page migration (M-046)

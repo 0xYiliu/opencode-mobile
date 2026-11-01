@@ -683,8 +683,9 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
   if (distManifest.fileCount !== 3520 || distManifest.totalBytes !== 159663930)
     // Issue #105 measured: the providers/models/extensions settings-page target migration (M-048)
-    // rebuilt the payload to 3520/159663930 (+3 files/+64134 bytes; the migrated mcp-dialog/
-    // extension-plugins faces split into new lazy chunks). Issue #104 measured: the ui theme component-family target-form trim (M-047 dead-export
+    // rebuilt the payload to 3520/159663930 (+3 files/+64134 bytes; net-new = the mcp-dialog css chunk
+    // (search-list.css import) + the shared TruncatedText chunk, netting out the removed panel.css;
+    // ExtensionPlugins ships in the renamed shell chunk, zero new files). Issue #104 measured: the ui theme component-family target-form trim (M-047 dead-export
     // convergence) rebuilt the payload to 3517/159599796 (-1225 bytes at the same file
     // count; the trimmed theme index barrel/loader/default-themes dead code previously only
     // survived via tree-shaking). Issue #103 measured: the general/experimental preferences-page migration (M-046)
