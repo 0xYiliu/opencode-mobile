@@ -1,0 +1,87 @@
+diff --git a/packages/app/src/settings/notifications/notifications.tsx b/packages/app/src/settings/notifications/notifications.tsx
+index 1f14743..c6e9a3b 100644
+--- a/packages/app/src/settings/notifications/notifications.tsx
++++ b/packages/app/src/settings/notifications/notifications.tsx
+@@ -170,6 +170,17 @@ export const SettingsNotifications: Component = () => {
+             <SoundSetting kind="agent" channel={sounds.agent} />
+             <SoundSetting kind="permissions" channel={sounds.permissions} />
+             <SoundSetting kind="errors" channel={sounds.errors} />
++            <SettingsRow
++              title={language.t("settings.general.sounds.interface.title")}
++              description={language.t("settings.general.sounds.interface.description")}
++            >
++              <div data-action="settings-sounds-interface">
++                <Switch
++                  checked={settings.sounds.interfaceEnabled()}
++                  onChange={(checked) => settings.sounds.setInterfaceEnabled(checked)}
++                />
++              </div>
++            </SettingsRow>
+           </SettingsList>
+         </div>
+       </div>
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index bb71148..154f1f6 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -198,10 +198,14 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     description: "settings.general.sounds.errors.description",
+     keywords: "sound audio errors",
+   },
+-  // mobile(M-044): `settings-sounds-interface` stays pruned — its reveal anchor lives in the
+-  // notifications page, which this migration does not carry; the row returns with the
+-  // notifications page issue. (settings-background-activity and settings-timeline-width were
+-  // restored together with their page anchors by issue #103.)
++  {
++    tab: "notifications",
++    label: "settings.general.sounds.interface.title",
++    target: "settings-sounds-interface",
++    section: "settings.general.section.sounds",
++    description: "settings.general.sounds.interface.description",
++    keywords: "sound audio interface effects wordmark logo",
++  },
+ ]
+ 
+ // Pages showing the selected server, and rows of its card on the Servers page.
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index c7e5c09..ac29580 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -83,9 +83,9 @@ describe("settings search index", () => {
+       target: "settings-background-activity",
+     })
+     expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(true)
+-    // mobile(M-044): `settings-sounds-interface` stays pruned until the notifications page
+-    // issue restores it with its page anchor (issue #103 restored the other two rows above).
+-    expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(false)
++    // mobile(#107): `settings-sounds-interface` is restored with its real page anchor in the
++    // notifications page (issue #103 restored the two rows above; issue #107 closes this row).
++    expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)
+     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
+   })
+ 
+diff --git a/packages/app/src/shell/notifications/sound.ts b/packages/app/src/shell/notifications/sound.ts
+index f97c740..4d89381 100644
+--- a/packages/app/src/shell/notifications/sound.ts
++++ b/packages/app/src/shell/notifications/sound.ts
+@@ -60,9 +60,9 @@ export const SOUND_OPTIONS = [
+   { id: "yup-06", label: "sound.option.yup06" },
+ ] as const
+ 
+-export type SoundOption = (typeof SOUND_OPTIONS)[number]
++type SoundOption = (typeof SOUND_OPTIONS)[number]
+ 
+-export type SoundID = SoundOption["id"]
++type SoundID = SoundOption["id"]
+ 
+ function getLoads() {
+   if (loads) return loads
+@@ -81,7 +81,7 @@ function getLoads() {
+ 
+ const cache = new Map<SoundID, Promise<string | undefined>>()
+ 
+-export function soundSrc(id: string | undefined) {
++function soundSrc(id: string | undefined) {
+   const loads = getLoads()
+ 
+   if (!id || !(id in loads)) return Promise.resolve(undefined)
