@@ -90,7 +90,8 @@
     "patches/mobile/0044-M-044-settings-framework-mobile-faces.patch",
     "patches/mobile/0045-M-045-servers-page-target-migration.patch",
     "patches/mobile/0046-M-046-general-experimental-pages-target-migration.patch",
-    "patches/mobile/0047-M-047-theme-component-target-form.patch"
+    "patches/mobile/0047-M-047-theme-component-target-form.patch",
+    "patches/mobile/0048-M-048-providers-models-extensions-target-migration.patch"
   ],
   "excluded": {
     "packages": [
