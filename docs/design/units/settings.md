@@ -108,13 +108,13 @@
 6. **Zoom**（`settings-zoom`）——六档 Select 100/110/125/150/175/200%（`desktopZoomLevels`），默认 100%；平台层消费见下节。
 7. **Reduce motion**（`settings-reduce-motion`）——system/on/off 三值，默认 system；`dataset.motion` 仲裁 effect 消费（system 档接 `prefers-reduced-motion` media query）。
 
-搜索行七条正锚（`search-catalog.ts`）：zoom/reduceMotion 两行 tab appearance（`settings.appearance.row.*` 标签键），colorScheme/theme/uiFont/codeFont/terminalFont 五行 tab general（`settings.general.row.*` 标签键）——设备实测搜索 zoom/motion/theme/font/scheme 全命中真实行并点击定位视口内。
+搜索行七条正锚（`search-catalog.ts`）：**七行全部 `tab: "appearance"`**（color-scheme/theme/ui-font/code-font/terminal-font/zoom/reduce-motion）；general/appearance 之分只在**标签键命名空间**——zoom/reduceMotion 五键用 `settings.appearance.row.*`、colorScheme/theme/uiFont/codeFont(=font)/terminalFont 五行用 `settings.general.row.*` 标签键——设备实测搜索 zoom/motion/theme/font/scheme 全命中真实行并点击定位视口内。
 
 ## 主题机制（target-form 声明 + M-047 死代码收敛）
 
 - `ui/src/theme/context.tsx` 438 行 vs target **byte-identical**；`themes/*.json`、`theme/v2/*`、`desktop-theme.schema.json`、`types.ts` 文件集合与 target 全等——主题选择/应用机制本轮零改动。
 - 主题状态存储在 theme context **自有 localStorage 键**（不在 settings.v3）：`opencode-theme-id`（默认 oc-2）、`opencode-color-scheme`（默认 system→matchMedia）、`opencode-theme-css-light/dark`（派生 CSS 缓存，非用户偏好）——`oc-theme-preload.js` 首帧前消费，`verify-interaction-quality.ts` 组 6 在册。
-- **M-047（死导出裁剪，非整族删除）**：`index.ts` 落 target 36 行 barrel（types + color 基元 + v2 resolve + context/useTheme 保留；去掉 loader 五函数、64 名 DEFAULT_THEMES 块与 generateAlphaScale/lighten/darken/resolveTheme 再导出）；`color.ts` **仅删 generateAlphaScale 函数**（其余 13 导出保持 pin 字节形=target 余部）；`resolve.ts` **仅删 resolveTheme(theme) helper + DesktopTheme import**（`resolveThemeVariant`/`themeToCss` 保留，gui-plugins terminal 消费者在册）；`loader.ts`（123 行）与 `default-themes.ts`（148 行、37 export const）**整文件删除**（vendored 树零 importer，仅 index.ts 自我再导出）。净删 359 行；5 文件内零 mobile hunks（纯 pin→target 重整）。负例演练：向 index.ts 回灌 `export { applyTheme } from "./loader"` → tsc `error TS2307: Cannot find module './loader'`（theme/index.ts:37）→ 还原 byte-identical。
+- **M-047（死导出裁剪，非整族删除）**：`index.ts` 落 target 35 行 barrel（types + color 基元 + v2 resolve + context/useTheme 保留；去掉 loader 五函数、37 名 DEFAULT_THEMES 块（桶常量 + 36 主题名导出）与 generateAlphaScale/lighten/darken/resolveTheme 再导出）；`color.ts` **仅删 generateAlphaScale 函数**（其余 13 导出保持 pin 字节形=target 余部）；`resolve.ts` **仅删 resolveTheme(theme) helper + DesktopTheme import**（`resolveThemeVariant`/`themeToCss` 保留，gui-plugins terminal 消费者在册）；`loader.ts`（123 行）与 `default-themes.ts`（148 行、37 export const）**整文件删除**（vendored 树零 importer，仅 index.ts 自我再导出）。净删 359 行；5 文件内零 mobile hunks（纯 pin→target 重整）。负例演练：向 index.ts 回灌 `export { applyTheme } from "./loader"` → tsc `error TS2307: Cannot find module './loader'`（theme/index.ts:37）→ 还原 byte-identical。
 
 ## Zoom 平台层存储边界（非凭据）
 
