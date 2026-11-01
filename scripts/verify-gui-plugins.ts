@@ -681,8 +681,12 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3520 || distManifest.totalBytes !== 159665590)
-    // Issue #107 measured: the notifications/sounds settings-page target form (M-050)
+  if (distManifest.fileCount !== 3520 || distManifest.totalBytes !== 159672996)
+    // Issue #108 measured: the keybinds/command-catalog target form (M-051) rebuilt the
+    // payload to 3520/159672996 (+7406 bytes at the same 3520 file count; the Shortcuts
+    // unbind i18n key + Unbind button + ghost-danger ui variant + the command catalog
+    // plugin/follows fields + commandKeymap custom-priority ship inside existing chunks,
+    // zero new chunks). Issue #107 measured: the notifications/sounds settings-page target form (M-050)
     // rebuilt the payload to 3520/159665590 (+1563 bytes at the same 3520 file count; the
     // sounds-interface row + its catalog row restore + the sound.ts export trim ship
     // inside existing chunks, zero new chunks). Issue #106 measured: the projects/workspaces settings-page target form (M-049)
@@ -708,7 +712,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     // measured 3516/159542455; issue #90's amended-M-037 rebuild measured 3516/159542120 +335
     // via the settings search consumer rename; issue #70's btw entry measured 3516/159535257
     // and issue #67's gui-plugins swap measured 3516/159532385 — now historical).
-    fail(`8: current web-dist baseline drifted (expected 3520/159665590, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+    fail(`8: current web-dist baseline drifted (expected 3520/159672996, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
