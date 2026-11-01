@@ -1,0 +1,427 @@
+diff --git a/packages/ui/src/theme/color.ts b/packages/ui/src/theme/color.ts
+index 6b060208d8a6adc0be3388dd0bc8ddb329e98d9c..0a1743bae356bc35e983e9a1a165a0e47a5d9c96 100644
+--- a/packages/ui/src/theme/color.ts
++++ b/packages/ui/src/theme/color.ts
+@@ -233,24 +233,6 @@ export function generateNeutralScale(seed: HexColor, isDark: boolean, ink?: HexC
+   return scale
+ }
+ 
+-export function generateAlphaScale(scale: HexColor[], isDark: boolean): HexColor[] {
+-  const alphas = isDark
+-    ? [0.02, 0.04, 0.08, 0.12, 0.16, 0.2, 0.26, 0.36, 0.44, 0.52, 0.76, 0.96]
+-    : [0.01, 0.03, 0.06, 0.09, 0.12, 0.15, 0.2, 0.28, 0.48, 0.56, 0.64, 0.88]
+-
+-  return scale.map((hex, i) => {
+-    const { r, g, b } = hexToRgb(hex)
+-    const a = alphas[i]
+-
+-    const bg = isDark ? 0 : 1
+-    const blendedR = r * a + bg * (1 - a)
+-    const blendedG = g * a + bg * (1 - a)
+-    const blendedB = b * a + bg * (1 - a)
+-
+-    return rgbToHex(blendedR, blendedG, blendedB)
+-  })
+-}
+-
+ export function mixColors(color1: HexColor, color2: HexColor, amount: number): HexColor {
+   const c1 = hexToOklch(color1)
+   const c2 = hexToOklch(color2)
+@@ -301,24 +283,6 @@ export function blend(color: HexColor, background: HexColor, alpha: number): Hex
+   )
+ }
+ 
+-export function lighten(color: HexColor, amount: number): HexColor {
+-  const oklch = hexToOklch(color)
+-
+-  return oklchToHex({
+-    ...oklch,
+-    l: clamp(oklch.l + amount, 0, 1),
+-  })
+-}
+-
+-export function darken(color: HexColor, amount: number): HexColor {
+-  const oklch = hexToOklch(color)
+-
+-  return oklchToHex({
+-    ...oklch,
+-    l: clamp(oklch.l - amount, 0, 1),
+-  })
+-}
+-
+ export function withAlpha(color: HexColor, alpha: number): string {
+   const { r, g, b } = hexToRgb(color)
+ 
+diff --git a/packages/ui/src/theme/default-themes.ts b/packages/ui/src/theme/default-themes.ts
+deleted file mode 100644
+index 5279536f40e8a2be10c829f73772c6a3f96c2539..0000000000000000000000000000000000000000
+--- a/packages/ui/src/theme/default-themes.ts
++++ /dev/null
+@@ -1,148 +0,0 @@
+-import type { DesktopTheme } from "./types"
+-import oc2ThemeJson from "./themes/oc-2.json"
+-import amoledThemeJson from "./themes/amoled.json"
+-import auraThemeJson from "./themes/aura.json"
+-import ayuThemeJson from "./themes/ayu.json"
+-import carbonfoxThemeJson from "./themes/carbonfox.json"
+-import catppuccinThemeJson from "./themes/catppuccin.json"
+-import catppuccinFrappeThemeJson from "./themes/catppuccin-frappe.json"
+-import catppuccinMacchiatoThemeJson from "./themes/catppuccin-macchiato.json"
+-import cobalt2ThemeJson from "./themes/cobalt2.json"
+-import cursorThemeJson from "./themes/cursor.json"
+-import draculaThemeJson from "./themes/dracula.json"
+-import everforestThemeJson from "./themes/everforest.json"
+-import flexokiThemeJson from "./themes/flexoki.json"
+-import githubThemeJson from "./themes/github.json"
+-import gruvboxThemeJson from "./themes/gruvbox.json"
+-import kanagawaThemeJson from "./themes/kanagawa.json"
+-import lucentOrngThemeJson from "./themes/lucent-orng.json"
+-import materialThemeJson from "./themes/material.json"
+-import matrixThemeJson from "./themes/matrix.json"
+-import mercuryThemeJson from "./themes/mercury.json"
+-import monokaiThemeJson from "./themes/monokai.json"
+-import nightowlThemeJson from "./themes/nightowl.json"
+-import nordThemeJson from "./themes/nord.json"
+-import oneDarkThemeJson from "./themes/one-dark.json"
+-import oneDarkProThemeJson from "./themes/onedarkpro.json"
+-import orngThemeJson from "./themes/orng.json"
+-import osakaJadeThemeJson from "./themes/osaka-jade.json"
+-import palenightThemeJson from "./themes/palenight.json"
+-import rosepineThemeJson from "./themes/rosepine.json"
+-import shadesOfPurpleThemeJson from "./themes/shadesofpurple.json"
+-import solarizedThemeJson from "./themes/solarized.json"
+-import synthwave84ThemeJson from "./themes/synthwave84.json"
+-import tokyonightThemeJson from "./themes/tokyonight.json"
+-import vercelThemeJson from "./themes/vercel.json"
+-import vesperThemeJson from "./themes/vesper.json"
+-import zenburnThemeJson from "./themes/zenburn.json"
+-
+-export const oc2Theme = oc2ThemeJson as DesktopTheme
+-
+-export const amoledTheme = amoledThemeJson as DesktopTheme
+-
+-export const auraTheme = auraThemeJson as DesktopTheme
+-
+-export const ayuTheme = ayuThemeJson as DesktopTheme
+-
+-export const carbonfoxTheme = carbonfoxThemeJson as DesktopTheme
+-
+-export const catppuccinTheme = catppuccinThemeJson as DesktopTheme
+-
+-export const catppuccinFrappeTheme = catppuccinFrappeThemeJson as DesktopTheme
+-
+-export const catppuccinMacchiatoTheme = catppuccinMacchiatoThemeJson as DesktopTheme
+-
+-export const cobalt2Theme = cobalt2ThemeJson as DesktopTheme
+-
+-export const cursorTheme = cursorThemeJson as DesktopTheme
+-
+-export const draculaTheme = draculaThemeJson as DesktopTheme
+-
+-export const everforestTheme = everforestThemeJson as DesktopTheme
+-
+-export const flexokiTheme = flexokiThemeJson as DesktopTheme
+-
+-export const githubTheme = githubThemeJson as DesktopTheme
+-
+-export const gruvboxTheme = gruvboxThemeJson as DesktopTheme
+-
+-export const kanagawaTheme = kanagawaThemeJson as DesktopTheme
+-
+-export const lucentOrngTheme = lucentOrngThemeJson as DesktopTheme
+-
+-export const materialTheme = materialThemeJson as DesktopTheme
+-
+-export const matrixTheme = matrixThemeJson as DesktopTheme
+-
+-export const mercuryTheme = mercuryThemeJson as DesktopTheme
+-
+-export const monokaiTheme = monokaiThemeJson as DesktopTheme
+-
+-export const nightowlTheme = nightowlThemeJson as DesktopTheme
+-
+-export const nordTheme = nordThemeJson as DesktopTheme
+-
+-export const oneDarkTheme = oneDarkThemeJson as DesktopTheme
+-
+-export const oneDarkProTheme = oneDarkProThemeJson as DesktopTheme
+-
+-export const orngTheme = orngThemeJson as DesktopTheme
+-
+-export const osakaJadeTheme = osakaJadeThemeJson as DesktopTheme
+-
+-export const palenightTheme = palenightThemeJson as DesktopTheme
+-
+-export const rosepineTheme = rosepineThemeJson as DesktopTheme
+-
+-export const shadesOfPurpleTheme = shadesOfPurpleThemeJson as DesktopTheme
+-
+-export const solarizedTheme = solarizedThemeJson as DesktopTheme
+-
+-export const synthwave84Theme = synthwave84ThemeJson as DesktopTheme
+-
+-export const tokyonightTheme = tokyonightThemeJson as DesktopTheme
+-
+-export const vercelTheme = vercelThemeJson as DesktopTheme
+-
+-export const vesperTheme = vesperThemeJson as DesktopTheme
+-
+-export const zenburnTheme = zenburnThemeJson as DesktopTheme
+-
+-export const DEFAULT_THEMES: Record<string, DesktopTheme> = {
+-  "oc-2": oc2Theme,
+-  amoled: amoledTheme,
+-  aura: auraTheme,
+-  ayu: ayuTheme,
+-  carbonfox: carbonfoxTheme,
+-  catppuccin: catppuccinTheme,
+-  "catppuccin-frappe": catppuccinFrappeTheme,
+-  "catppuccin-macchiato": catppuccinMacchiatoTheme,
+-  cobalt2: cobalt2Theme,
+-  cursor: cursorTheme,
+-  dracula: draculaTheme,
+-  everforest: everforestTheme,
+-  flexoki: flexokiTheme,
+-  github: githubTheme,
+-  gruvbox: gruvboxTheme,
+-  kanagawa: kanagawaTheme,
+-  "lucent-orng": lucentOrngTheme,
+-  material: materialTheme,
+-  matrix: matrixTheme,
+-  mercury: mercuryTheme,
+-  monokai: monokaiTheme,
+-  nightowl: nightowlTheme,
+-  nord: nordTheme,
+-  "one-dark": oneDarkTheme,
+-  onedarkpro: oneDarkProTheme,
+-  orng: orngTheme,
+-  "osaka-jade": osakaJadeTheme,
+-  palenight: palenightTheme,
+-  rosepine: rosepineTheme,
+-  shadesofpurple: shadesOfPurpleTheme,
+-  solarized: solarizedTheme,
+-  synthwave84: synthwave84Theme,
+-  tokyonight: tokyonightTheme,
+-  vercel: vercelTheme,
+-  vesper: vesperTheme,
+-  zenburn: zenburnTheme,
+-}
+diff --git a/packages/ui/src/theme/index.ts b/packages/ui/src/theme/index.ts
+index 74b04c129e14b391692f5210cf3b66709fc86761..4d5462d70e8a77063cc71a09a7c025950d853bd9 100644
+--- a/packages/ui/src/theme/index.ts
++++ b/packages/ui/src/theme/index.ts
+@@ -21,60 +21,15 @@ export {
+   oklchToRgb,
+   generateScale,
+   generateNeutralScale,
+-  generateAlphaScale,
+   fitOklch,
+   blend,
+   mixColors,
+   shift,
+-  lighten,
+-  darken,
+   withAlpha,
+ } from "./color"
+ 
+-export { resolveThemeVariant, resolveTheme, themeToCss } from "./resolve"
++export { resolveThemeVariant, themeToCss } from "./resolve"
+ 
+ export { resolveThemeVariantV2, resolveThemeV2, themeV2ToCss, generateV2Primitives } from "./v2/resolve"
+ 
+-export { applyTheme, loadThemeFromUrl, getActiveTheme, removeTheme, setColorScheme } from "./loader"
+-
+ export { ThemeProvider, useTheme, type ColorScheme } from "./context"
+-
+-export {
+-  DEFAULT_THEMES,
+-  oc2Theme,
+-  amoledTheme,
+-  auraTheme,
+-  ayuTheme,
+-  carbonfoxTheme,
+-  catppuccinTheme,
+-  catppuccinFrappeTheme,
+-  catppuccinMacchiatoTheme,
+-  cobalt2Theme,
+-  cursorTheme,
+-  draculaTheme,
+-  everforestTheme,
+-  flexokiTheme,
+-  githubTheme,
+-  gruvboxTheme,
+-  kanagawaTheme,
+-  lucentOrngTheme,
+-  materialTheme,
+-  matrixTheme,
+-  mercuryTheme,
+-  monokaiTheme,
+-  nightowlTheme,
+-  nordTheme,
+-  oneDarkTheme,
+-  oneDarkProTheme,
+-  orngTheme,
+-  osakaJadeTheme,
+-  palenightTheme,
+-  rosepineTheme,
+-  shadesOfPurpleTheme,
+-  solarizedTheme,
+-  synthwave84Theme,
+-  tokyonightTheme,
+-  vercelTheme,
+-  vesperTheme,
+-  zenburnTheme,
+-} from "./default-themes"
+diff --git a/packages/ui/src/theme/loader.ts b/packages/ui/src/theme/loader.ts
+deleted file mode 100644
+index 06a27866f70c3d10b98869ed56041e93ad1dd95b..0000000000000000000000000000000000000000
+--- a/packages/ui/src/theme/loader.ts
++++ /dev/null
+@@ -1,123 +0,0 @@
+-import type { DesktopTheme, ResolvedTheme, ResolvedV2Theme } from "./types"
+-import { resolveThemeVariant, themeToCss } from "./resolve"
+-import { resolveThemeVariantV2, themeV2ToCss } from "./v2/resolve"
+-
+-let activeTheme: DesktopTheme | null = null
+-
+-const THEME_STYLE_ID = "opencode-theme"
+-
+-function ensureLoaderStyleElement(): HTMLStyleElement {
+-  const existing = document.getElementById(THEME_STYLE_ID) as HTMLStyleElement | null
+-
+-  if (existing) {
+-    return existing
+-  }
+-
+-  const element = document.createElement("style")
+-  element.id = THEME_STYLE_ID
+-  document.head.appendChild(element)
+-
+-  return element
+-}
+-
+-export function applyTheme(theme: DesktopTheme, themeId?: string): void {
+-  activeTheme = theme
+-  const lightTokens = resolveThemeVariant(theme.light, false)
+-  const darkTokens = resolveThemeVariant(theme.dark, true)
+-  const lightV2Tokens = resolveThemeVariantV2(theme.light, false)
+-  const darkV2Tokens = resolveThemeVariantV2(theme.dark, true)
+-  const targetThemeId = themeId ?? theme.id
+-  const css = buildThemeCss(lightTokens, darkTokens, lightV2Tokens, darkV2Tokens, targetThemeId)
+-  const themeStyleElement = ensureLoaderStyleElement()
+-  themeStyleElement.textContent = css
+-  document.documentElement.setAttribute("data-theme", targetThemeId)
+-}
+-
+-function buildThemeCss(
+-  light: ResolvedTheme,
+-  dark: ResolvedTheme,
+-  lightV2: ResolvedV2Theme,
+-  darkV2: ResolvedV2Theme,
+-  themeId: string,
+-): string {
+-  const isDefaultTheme = themeId === "oc-2"
+-  const lightCss = `${themeToCss(light)}\n  ${themeV2ToCss(lightV2)}`
+-  const darkCss = `${themeToCss(dark)}\n  ${themeV2ToCss(darkV2)}`
+-
+-  if (isDefaultTheme) {
+-    return `
+-:root {
+-  color-scheme: light;
+-  --text-mix-blend-mode: multiply;
+-
+-  ${lightCss}
+-
+-  @media (prefers-color-scheme: dark) {
+-    color-scheme: dark;
+-    --text-mix-blend-mode: plus-lighter;
+-
+-    ${darkCss}
+-  }
+-}
+-`
+-  }
+-
+-  return `
+-html[data-theme="${themeId}"] {
+-  color-scheme: light;
+-  --text-mix-blend-mode: multiply;
+-
+-  ${lightCss}
+-
+-  @media (prefers-color-scheme: dark) {
+-    color-scheme: dark;
+-    --text-mix-blend-mode: plus-lighter;
+-
+-    ${darkCss}
+-  }
+-}
+-`
+-}
+-
+-export async function loadThemeFromUrl(url: string): Promise<DesktopTheme> {
+-  const response = await fetch(url)
+-
+-  if (!response.ok) {
+-    throw new Error(`Failed to load theme from ${url}: ${response.statusText}`)
+-  }
+-
+-  return response.json()
+-}
+-
+-export function getActiveTheme(): DesktopTheme | null {
+-  const activeId = document.documentElement.getAttribute("data-theme")
+-
+-  if (!activeId) {
+-    return null
+-  }
+-
+-  if (activeTheme?.id === activeId) {
+-    return activeTheme
+-  }
+-
+-  return null
+-}
+-
+-export function removeTheme(): void {
+-  activeTheme = null
+-  const existingElement = document.getElementById(THEME_STYLE_ID)
+-
+-  if (existingElement) {
+-    existingElement.remove()
+-  }
+-
+-  document.documentElement.removeAttribute("data-theme")
+-}
+-
+-export function setColorScheme(scheme: "light" | "dark" | "auto"): void {
+-  if (scheme === "auto") {
+-    document.documentElement.style.removeProperty("color-scheme")
+-  } else {
+-    document.documentElement.style.setProperty("color-scheme", scheme)
+-  }
+-}
+diff --git a/packages/ui/src/theme/resolve.ts b/packages/ui/src/theme/resolve.ts
+index 00e1a2f38fed470c9d0447635e94bf46e34a9ac5..0ac7357f399c005fd08cf9f00c53b1c9cc82a7ba 100644
+--- a/packages/ui/src/theme/resolve.ts
++++ b/packages/ui/src/theme/resolve.ts
+@@ -1,4 +1,4 @@
+-import type { ColorValue, DesktopTheme, HexColor, ResolvedTheme, ThemeVariant } from "./types"
++import type { ColorValue, HexColor, ResolvedTheme, ThemeVariant } from "./types"
+ import { blend, generateNeutralScale, generateScale, hexToOklch, hexToRgb, shift, withAlpha } from "./color"
+ 
+ export function resolveThemeVariant(variant: ThemeVariant, isDark: boolean): ResolvedTheme {
+@@ -554,13 +554,6 @@ function getHex(value: ColorValue | undefined): HexColor | undefined {
+   return value as HexColor
+ }
+ 
+-export function resolveTheme(theme: DesktopTheme): { light: ResolvedTheme; dark: ResolvedTheme } {
+-  return {
+-    light: resolveThemeVariant(theme.light, false),
+-    dark: resolveThemeVariant(theme.dark, true),
+-  }
+-}
+-
+ export function themeToCss(tokens: ResolvedTheme): string {
+   return Object.entries(tokens)
+     .map(([key, value]) => `--${key}: ${value};`)
