@@ -1,6 +1,6 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）与 **Notifications 页内面（#107/M-050，见下方「通知页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）与 **Notifications 页内面（#107/M-050，见下方「通知页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
