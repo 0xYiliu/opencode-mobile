@@ -198,10 +198,14 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     description: "settings.general.sounds.errors.description",
     keywords: "sound audio errors",
   },
-  // mobile(M-044): `settings-sounds-interface` stays pruned — its reveal anchor lives in the
-  // notifications page, which this migration does not carry; the row returns with the
-  // notifications page issue. (settings-background-activity and settings-timeline-width were
-  // restored together with their page anchors by issue #103.)
+  {
+    tab: "notifications",
+    label: "settings.general.sounds.interface.title",
+    target: "settings-sounds-interface",
+    section: "settings.general.section.sounds",
+    description: "settings.general.sounds.interface.description",
+    keywords: "sound audio interface effects wordmark logo",
+  },
 ]
 
 // Pages showing the selected server, and rows of its card on the Servers page.

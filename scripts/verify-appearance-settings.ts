@@ -48,7 +48,8 @@
 //      A2-forced "font" length change 3→4 with the mobile(M-035) comment and NOT the
 //      v2.2.1 :54 not.toContain("settings-zoom") line (registered future-sync note).
 //      Issue #103: the restored rows carry the target capsule toMatchObject + the
-//      timeline-width positive anchor while the sounds-interface negative assertion stays.
+//      timeline-width positive anchor. Issue #107: the sounds-interface assertion is
+//      flipped positive too (row restored with its real notifications.tsx anchor).
 //  10. i18n: the seven en keys verbatim, inserted after interfaceMode.experimental and
 //      before the notifications block; zh (and sampled locales) stay key-free; language.tsx
 //      still spreads the en base first (fallback chain intact).
@@ -445,9 +446,9 @@ const WHITELIST = new Set([
   // Issue #101 / M-044 form: the migrated test uses the target 2-arg rankSettings and the
   // zoom row joins the query (gate dropped by M-035). Issue #103 / M-046: the restored
   // rows flip the M-044 absence locks to the target shape — the capsule query resolves to
-  // settings-background-activity, the timeline-width row is present, and the
-  // sounds-interface negative assertion stays (that row remains pruned with the
-  // notifications-page issue).
+  // settings-background-activity and the timeline-width row is present. Issue #107 /
+  // M-050: the sounds-interface assertion is flipped to the positive .toBe(true) form too
+  // (row restored with its real page anchor in the notifications page).
   if (!searchTest.includes("expect(rankSettings(\"font\", items)).toHaveLength(4)"))
     fail("9: search-results.test.ts 'font' expectation is not the M-044 2-arg length 4")
   if (!searchTest.includes("mobile(M-035)"))
@@ -458,8 +459,8 @@ const WHITELIST = new Set([
     fail("9: search-results.test.ts lost the target capsule assertion (issue #103 restored the row)")
   if (!searchTest.includes('item.view.target === "settings-timeline-width")).toBe(true)'))
     fail("9: search-results.test.ts lost the timeline-width positive anchor (issue #103 restored the row)")
-  if (!searchTest.includes('item.view.target === "settings-sounds-interface"'))
-    fail("9: search-results.test.ts lost the sounds-interface negative assertion (the row stays pruned with the notifications-page issue)")
+  if (!searchTest.includes('expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)'))
+    fail("9: search-results.test.ts lost the sounds-interface positive assertion (issue #107 restored the row)")
 }
 
 // --- 10. i18n ---
@@ -566,7 +567,7 @@ console.log(
     "6: 25 CSS files / 31 blocks + 3 TS consumers converted per-file (no bare @media reduce block, no bare matchMedia reduce read), motion/reduced.ts verbatim + minimized index + ./motion export only; " +
     "7: whole-tree prefers-reduced-motion file set EXACTLY the six-file WHITELIST {settings/model.tsx, go-upsell-hero-art.ts, motion/reduced.ts, shell/palette-menu.css, ui forms/search-list.css, shell/search-list.css (issue #105 M-048 drag-in)} (app+ui subscan identical); " +
     "8: tailwind comment + two custom variants + @source gui-plugins root (stories rename still out — vendored tree has no stories dir), verbatim timeline-width token block + --container-session comment sentence (issue #103/M-046); " +
-    "9: A2 zoom entry without available line + reduceMotion entry, search-results 'font' length 4 with mobile(M-035) comment, no not.toContain settings-zoom line, target capsule toMatchObject + timeline-width positive anchor with the sounds-interface negative kept (issue #103); " +
+    "9: A2 zoom entry without available line + reduceMotion entry, search-results 'font' length 4 with mobile(M-035) comment, no not.toContain settings-zoom line, target capsule toMatchObject + timeline-width positive anchor (issue #103) + sounds-interface positive assertion (issue #107 restored the row); " +
     "10: seven en keys between interfaceMode.experimental and notifications block, zero keys in zh/zht/ko/de/fr, en base-first merge intact; " +
     "11: both model.test.ts reduceMotion expectations + showFileTree/terminalPlacement rows kept as issue #103 retained deviations + M-034 newIcons/foldUserMessages rows (rebase round onto #64); " +
     "12: M-035 in BOTH manifests, patch face == manifest targets (41 files), platform.tsx and go-upsell-hero-art.ts absent; " +

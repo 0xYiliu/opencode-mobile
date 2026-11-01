@@ -1,6 +1,6 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）与 **Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）已交付**；Projects/Workspaces/Notifications/About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）与 **Notifications 页内面（#107/M-050，见下方「通知页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
@@ -29,7 +29,7 @@
 - 组件：`SearchList`/`SearchHighlight`（ui/search-list）+ `Slash` 分隔（ui/slash，M-042 新依赖）；narrow = `<800px`。
 - 目录：`createSettingsSearchCatalog()`（search.tsx 内，target 形）= platform/servers/selected/plugins 输入；分组/排序/60 条上限/`rankSettings(query, items)` 两参形（origin/proximity 评分已随目标移除）。
 - 聚焦/定位：`surface.search.open(view, id)` 写 `searchActivation`；壳 effect 触发 `revealSettingsSearch(root, view)`——目标 anchor 缺失时**静默 no-op 不崩**（search-reveal.test.ts 锁定该机制；本轮被剪行见下）。
-- **mobile(M-044) 剪除三行 → #103 后余一行**：`settings-background-activity`、`settings-timeline-width` 两行已随 **issue #103/M-046** 连同 general.tsx 真实页面 anchor 一并恢复（搜索命中 → 定位真实行）；`settings-sounds-interface` **保持剪除**（reveal anchor 在 notifications 页内容中，归该页所属 issue 恢复），search-catalog.ts 内 `mobile(M-044)` 注记收窄为该行专用（grep `mobile(M-044)` 可审计）。每个可选中结果都落到真实行。
+- **mobile(M-044) 剪除三行 → 已全部恢复**：`settings-background-activity`、`settings-timeline-width` 两行随 **issue #103/M-046** 连同 general.tsx 真实页面 anchor 一并恢复（搜索命中 → 定位真实行）；`settings-sounds-interface` 随 **issue #107/M-050** 恢复——search-catalog.ts 目录行（target 逐字 8 行）+ notifications.tsx 真实页面 anchor（`data-action="settings-sounds-interface"` Switch）双正锚，设备实测 `interface`/`sound` 查询命中 → 定位真实行在视口内。search-catalog.ts 内 `mobile(M-044)` 剪除注记**已随该行恢复而移除**（grep `mobile(M-044)` 在 search-catalog.ts 现为零命中；route.ts 保留自己的 M-044 注记——gui-extensions 移动面，owner #109）。每个可选中结果都落到真实行。
 - 命令面板桥：`createSettingsPaletteEntries()` ≤5 条 `type:"setting"` 行（前缀优先排序、排除 project 实体），select → `surface.search.open(view, id)`；`palette.group.settings` 分类键；`settings.search.focus`（mod+f）隐藏命令保留。
 - **#90 回归不复现**：search.tsx 目标原生读 `plugins: surface.plugins.items()`（M-037 修复吸收）；settings-search-plugin.test.tsx 源断言更新为目标形。
 
@@ -85,7 +85,7 @@
 - **`terminalPlacement`**：type 导出 + `Literals(["side","bottom"])` + 默认 `"side"` + withFallback + set accessor——消费者 `session/screen-layout.ts:21,22`；目标已删除该设置行（行消失 = 目标行为），schema 保留直至 W04/W05 session 屏/dock 重构所属 issue 退役。
 - **`showFileTree`**：`Schema.Boolean` + 默认 `false` + init accessor + store API + `visibility.fileTree`——消费者 `screen-layout.ts:26`、`use-session-commands.tsx:70,452`（fileTree.toggle 命令注册门）。目标把它移入 retired 块（Persistence.optional）——保留为活偏好直至同上收敛。
 - **S10 不采纳**：`commentary: placementOnlySchema` 槽、`settings.timeline.category.commentary` 键、timeline.description.compact/.quiet 目标新文案——依赖 session-ui `timeline/detail.ts` 的 `timelineCategories` 目标形（compact/quiet 预设 subagents grouped→separate）。vendored 文案如实描述 vendored 预设现行为；目标桌面写出的含 commentary 槽的 settings 文档在本客户端 decode 时该槽被丢弃（Persistence.struct 未知键行为，M-002 先例口径）——随 S10 呈现链后续 issue 收敛，矩阵 S10「类别枚举与实际呈现尚未逐项证明等价」保持。
-- **搜索目录**：`settings-background-activity`/`settings-timeline-width` 两行已随 #103 恢复（catalog 行 + general.tsx 真实 anchor 双正锚）；`settings-sounds-interface` **保持剪除**（M-044 注记收窄为该行专用——notifications 页 issue 恢复）；M-035 zoom 行继续不带 `available:"desktop"`；目标 `@source stories` 改名**不采纳**（vendored 无 stories 目录）。
+- **搜索目录**：`settings-background-activity`/`settings-timeline-width` 两行已随 #103 恢复（catalog 行 + general.tsx 真实 anchor 双正锚）；`settings-sounds-interface` 已随 **#107/M-050** 恢复（catalog 行 + notifications.tsx 真实 anchor 双正锚，M-044 剪除注记随之移除——见「通知页内面」单元）；**搜索目录现存唯一目录级偏离 = M-035 zoom 行**继续不带 `available:"desktop"`（route.ts 的 gui-extensions M-044 注记为另一文件的登记，owner #109）；目标 `@source stories` 改名**不采纳**（vendored 无 stories 目录）。
 - **M-036 Sources**：experimental.tsx 的插件 Sources gate 行零改动，迁移归 #109。
 
 ## 历史参考
@@ -192,3 +192,28 @@ Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED**（无 Windows 
 ## 诚实边界
 
 Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED** 继承（无 Windows 参考端）；`<768px` 两侧联验 **BLOCKED** 继承（DPR 2.25 物理不可达）；TalkBack/外接键盘完整走查归 G 门禁。同名项目/不同服务不串写的结构性双键隔离在册（ServerScope+pathKey，projects-sessions.md），双服务同名实态 BLOCKED（布置）。删除/脚本写入的用户工作目录零副作用红线本轮全程保持（QA 前后 localStorage 全量 dump 逐键相等 18/18、hosts.v1 credentialRef 引用形白名单）。
+
+# 单元：通知页内面（Notifications）——issue #107（S18–S19）
+
+## 交付清单（M-050，4 targets）与逐 hunk 处置
+
+M-050（0050-M-050-notifications-page-target-form.patch，双 manifest 在册第 48 个补丁，47→48）四 targets：
+
+- `settings/notifications/notifications.tsx`：采纳目标的 **11 行 sounds-interface SettingsRow**（`settings.general.sounds.interface.title/.description`，control = `div[data-action="settings-sounds-interface"]` 包 `Switch checked={settings.sounds.interfaceEnabled()} onChange={(checked) => settings.sounds.setInterfaceEnabled(checked)}`），插入在三个 `SoundSetting` 行之后与目标同位；M-024 Android 权限面 hunks（createSignal 导入、`activeNotificationsPort` seam 导入 + 注记、请求逻辑块、3× `onChange={onNotificationSwitch(...)}` 包装、Android 状态行 + 注记）逐字保留——两段面互不相交，结果 189 行 = 目标 139 + M-024 残留 50。`model.tsx` 的 interfaceEnabled schema/默认/accessor/setInterfaceEnabled 链为 M-046 在册交付，本轮零改动；i18n 两键已在 vendored en.ts（与 target 逐字同文，zh 双侧缺席 = target parity），**零新增键**。
+- `settings/search-catalog.ts`：`settings-sounds-interface` 目录行恢复（8 行，target 逐字：keywords `sound audio interface effects wordmark logo`），替换 M-044 剪除注记——**search-catalog.ts 内 `mobile(M-044)` 注记随之消失**（grep 零命中）；`mobile(M-035)` zoom 注记保留为目录级唯一登记偏离；route.ts 自有的 gui-extensions M-044 注记不动（owner #109）。
+- `settings/search-results.test.ts`：sounds-interface 断言负翻正（`.toBe(false)` → `.toBe(true)`，#103 恢复行/timeline-width 正锚先例）+ `mobile(#107)` 注记——**蓄意的第一方扩展**（target 无该断言），双向探针钉定（verify-settings-framework 组 5/7 + verify-appearance-settings 组 9 要求正形）；expect 计数不变。
+- `shell/notifications/sound.ts`：采纳目标 3 个 export 关键字移除（`SoundOption`/`SoundID`/`soundSrc` 转模块私有，vendored 树内 measured 零消费者；`playSoundById`/`SOUND_OPTIONS` 双侧保持导出）——文件与 target **逐字节相同**。
+
+## S18/S19 口径
+
+三类通知开关（agent/permissions/errors）+ Android 状态行（M-024 权限面）+ 三类声音 Select + **Interface 声音行**（字段 + Switch + 持久化 + 搜索行）全部落地目标形；Interface 行的**播放消费者惰性**登记（target 在 new-session/view.tsx wordmark/PinBoard/弹珠面消费 `sounds.interfaceEnabled`——整个消费族不在 vendored 树，vendored wordmark.tsx 为 17 行 stub；呈现归后续 new-session issue，S11 backgroundActivity 先例）。
+
+## 不采纳登记（owner 明示）
+
+- `shell/notifications/notification.tsx` 目标 +16 `hasRunningChild` subagent 守卫——投递面（工作台/S18 呈现层），非 Settings 层；owner = 后续 notification-face/workbench issue，G33 域；M-023 不动。
+- **`shell/notifications/toast.tsx` no-owner-gap**：目标 dead-export 收敛（移除 `dismissToast` 导出 + `toaster` 导入，vendored 树 measured 零消费者）**不采纳**——本轮 shell/notifications 源面在两个在册 target 文件（notifications.tsx 域的 sound.ts）之外零触碰；显式登记为**无主缺口**（当前无 carve 的后续 issue），candidate rider = 未来 notification-face / dead-export-sweep issue；登记落在 M-050 manifest reason + notifications.md ⑨ + 本单元。
+- notifications 桥**冻结**：零桥/Kotlin/mobile-hosts 改动，op 白名单保持恰 `{notify, requestPermission}`，不新增读权限状态 op（冻结白名单红线 + issue「只在迁移影响时调整 notifications 桥」）。
+
+## 诚实边界
+
+三类开关/声音选择/静音/搜索返回/界面行持久化 + 重启恢复：设备 QA PASS（DBY2-AL00，深浅双 sweep，QA 前后 localStorage 逐键相等 18/18）；声音**播放路径**机证（`Audio.prototype.play` promise resolution：emitted `alert-01` + 内联 data-URL `staplebops-01/-02` 双形态；emitted 文件 loads-phase fetch 200）+ logcat AudioTrack 归因（`createTrack … pkgName ai.opencode.mobile`）——**人耳可听性不可验**（无声学通路），如实登记。Android 权限面：行语义设备验证（OFF→ON 触发请求 → 结果落显式状态行，零 dialog，OS 授权态零 adb 变更）；本轮环境 seam fail-closed → 行呈 unavailable 文案，API<33 granted:true 直答保真**未在本环境可观察**（探针钉定代码证据 + 登记保真上限）；同进程页切换行保留上次结果（组件 keep-alive），跨重启回中性文案（session-signal 设计，信号不持久）已验证。真实通知投递/点击路由/失败恢复 **BLOCKED**（无可达服务——G33 不动）；allow/deny/revoke 全矩阵 **BLOCKED**（API 31 无 runtime POST_NOTIFICATIONS dialog，API 33+ 模拟器缺）；Desktop 视觉对照 / `<768px` / TalkBack **BLOCKED** 继承。

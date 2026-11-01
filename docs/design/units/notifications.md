@@ -92,7 +92,9 @@
 
 - **三开关**（上游闭包在册）：agent（默认 true）/ permissions（默认 true）/ errors（默认 false）——`settings.notifications.*`；M-023 后 permissions 开关获得运行时效果（死开关消灭）。
 - **三声音**（上游闭包在册）：`settings.sounds.{agentEnabled, permissionsEnabled, errorsEnabled}` + 45 音选择（默认 `staplebops-01`/`staplebops-02`/`nope-03`）；M-023 后 permissions 声音获得事件面消费（`playSoundById` 事件面恰 3 处）。
-- **Android 权限显态**（M-024 新增）：开关开启触发用户在场的 POST_NOTIFICATIONS 请求；拒绝/桥缺席显态描述行（`settings.general.notifications.android.*` 键族，en/zh）；再授权后自动恢复投递（`areNotificationsEnabled()` 每次通知复核）。
+- **Interface 声音行**（issue #107/M-050 恢复，target 11 行 SettingsRow）：`settings.sounds.interfaceEnabled` 持久化 Switch（`data-action="settings-sounds-interface"`）+ 搜索目录行（keywords `sound audio interface effects wordmark logo`）随 M-050 回归——**播放消费者惰性登记**：target 由 new-session 面（wordmark/PinBoard/pin-sound 族）消费 `sounds.interfaceEnabled()`，该消费族不在 vendored 树；呈现归后续 new-session issue（S11 backgroundActivity 先例：字段+行+搜索行落地，呈现归后续）。45 音资源双侧同树 hash（26 emitted + 19 内联 data-URL，三默认音内联）；sound.ts 随目标收敛 3 个 export（`SoundOption`/`SoundID`/`soundSrc` 转模块私有，vendored 零消费者）。
+- **Android 权限显态**（M-024 新增）：开关开启触发用户在场的 POST_NOTIFICATIONS 请求；拒绝/桥缺席显态描述行（`settings.general.notifications.android.*` 键族，en/zh）；再授权后自动恢复投递（`areNotificationsEnabled()` 每次通知复核）。**再进入语义**（#107 设备 QA 登记）：状态行是 **session-signal**（M-024 createSignal，不入 settings.v3）——同进程内切页返回行保留上次结果（设置壳 tab 组件 keep-alive），跨重启回中性文案；per-notify `areNotificationsEnabled()` 复核不变。#107 设备实测：OFF→ON 可信点击触发请求 → 结果（本轮环境 seam fail-closed = unavailable 文案）落显式状态行，零 dialog、零 adb 授权态变更。
+- **toast.tsx no-owner-gap 登记**（#107，manifest M-050 reason 同源）：target 的 toast.tsx dead-export 收敛（移除 `dismissToast` 导出 + `toaster` 导入，vendored 树 measured 零消费者）本轮**不采纳**——shell/notifications 源面在 sound.ts 之外零触碰；显式登记为无主缺口（当前无 carve 后续 issue），candidate rider = 未来 notification-face / dead-export-sweep issue。
 - 设置侧边栏 notifications 根级 tab 上游已装配（settings/shell.tsx，守卫重定向列表不含 notifications——双布局可达，无 M-018 类守卫问题）。
 
 ## ⑩ 不支持流清单

@@ -23,8 +23,10 @@
 //      search-results.ts): SearchList/SearchHighlight/Slash, the 2-arg rankSettings, the
 //      zoom row present WITHOUT the desktop gate (mobile(M-035)), the general-page pair of
 //      dangling-anchor rows restored by issue #103/M-046 (catalog rows + general.tsx
-//      data-action anchors) while settings-sounds-interface stays pruned behind its
-//      narrowed mobile(M-044) owner note, and the pin search consumer form gone.
+//      data-action anchors) and the settings-sounds-interface row restored by issue
+//      #107/M-050 (catalog row + notifications.tsx data-action anchor — the narrowed
+//      mobile(M-044) catalog note is gone; route.ts keeps its own M-044 note for
+//      gui-extensions until #109), and the pin search consumer form gone.
 //   6. Command-palette bridge (shell/commands/palette.ts + dialog.tsx + settings/palette.ts):
 //      the `setting` entry type, the createSettingsPaletteEntries plumbing, and the
 //      palette.group.settings category key.
@@ -186,8 +188,10 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     fail("5: the zoom catalog row still carries an availability gate (M-035 drop regressed)")
   if (!catalog.includes('target: "settings-zoom"')) fail("5: the zoom catalog row is missing")
   if (!catalog.includes("mobile(M-035)")) fail("5: the zoom row lost the mobile(M-035) marker")
-  // Issue #103 / M-046: the two general-page rows return with their page anchors; the
-  // sounds-interface row stays pruned (the notifications-page issue owns its anchor).
+  // Issue #103 / M-046: the two general-page rows return with their page anchors.
+  // Issue #107 / M-050: settings-sounds-interface returns the same way — catalog row plus
+  // a real notifications.tsx anchor (the narrowed mobile(M-044) catalog note is gone;
+  // route.ts keeps its own M-044 note for the gui-extensions faces until #109).
   for (const restored of ["settings-background-activity", "settings-timeline-width"]) {
     if (!catalog.includes(`target: "${restored}"`)) fail(`5: the restored catalog row ${restored} is missing (issue #103)`)
   }
@@ -195,11 +199,31 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   for (const anchor of ['data-action="settings-background-activity"', 'data-action="settings-timeline-width"']) {
     if (!generalPage.includes(anchor)) fail(`5: general.tsx lost the restored page anchor ${anchor} (issue #103)`)
   }
-  if (catalog.includes('target: "settings-sounds-interface"'))
-    fail("5: the pruned catalog row settings-sounds-interface came back (still owned by the notifications-page issue)")
-  if (!catalog.includes("settings-sounds-interface"))
-    fail("5: search-catalog.ts lost the narrowed mobile(M-044) owner note for settings-sounds-interface")
-  if (!catalog.includes("mobile(M-044)")) fail("5: search-catalog.ts lost the narrowed mobile(M-044) prune register")
+  const interfaceRow = catalog.indexOf('target: "settings-sounds-interface"')
+  if (interfaceRow < 0)
+    fail("5: the restored catalog row settings-sounds-interface is missing (issue #107)")
+  {
+    const rowText = catalog.slice(Math.max(0, catalog.lastIndexOf("{", interfaceRow)), catalog.indexOf("}", interfaceRow))
+    for (const part of [
+      'label: "settings.general.sounds.interface.title"',
+      'section: "settings.general.section.sounds"',
+      'description: "settings.general.sounds.interface.description"',
+      'keywords: "sound audio interface effects wordmark logo"',
+    ]) {
+      if (!rowText.includes(part)) fail(`5: the restored settings-sounds-interface catalog row lost: ${part}`)
+    }
+  }
+  if (catalog.includes("mobile(M-044)"))
+    fail("5: search-catalog.ts still carries the mobile(M-044) prune register (issue #107 restored the row; route.ts keeps its own note for gui-extensions)")
+
+  const notificationsPage = await read(`${APP}src/settings/notifications/notifications.tsx`)
+  for (const anchor of [
+    'data-action="settings-sounds-interface"',
+    "settings.sounds.interfaceEnabled()",
+    "settings.sounds.setInterfaceEnabled(",
+  ]) {
+    if (!notificationsPage.includes(anchor)) fail(`5: notifications.tsx lost the restored page anchor ${anchor} (issue #107)`)
+  }
 
   const index = await read(`${APP}src/settings/search-index.ts`)
   if (!index.includes("selected?: string") || !index.includes("plugins?: readonly SettingsSearchPlugin[]"))
@@ -236,12 +260,17 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   if (!searchTest.includes('expect(rankSettings("font", items)).toHaveLength(4)')) fail("7: the font length flip is missing (M-044)")
   if (!searchTest.includes('expect(targets({})).toContain("settings-zoom")')) fail("7: the zoom toContain flip is missing (M-044)")
   if (!searchTest.includes("mobile(M-035)")) fail("7: search-results.test.ts lost the mobile(M-035) comment")
-  // Issue #103 / M-046: the target capsule assertion is back with the restored rows, and
-  // the sounds-interface negative assertion stays.
+  // Issue #103 / M-046: the target capsule assertion is back with the restored rows.
+  // Issue #107 / M-050: the sounds-interface assertion is flipped positive (row restored
+  // with its real page anchor; deliberate first-party extension, timeline-width precedent).
   if (!searchTest.includes('expect(rankSettings("capsule", items)[0].view).toMatchObject({'))
     fail("7: search-results.test.ts lost the target capsule assertion (issue #103 restored the rows)")
-  if (!searchTest.includes('item.view.target === "settings-sounds-interface"'))
-    fail("7: search-results.test.ts lost the sounds-interface negative assertion (the row stays pruned)")
+  if (
+    !searchTest.includes(
+      'expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)',
+    )
+  )
+    fail("7: search-results.test.ts lost the sounds-interface positive assertion (issue #107 restored the row)")
 
   const pluginTest = await read(`${APP}src/settings/settings-search-plugin.test.tsx`)
   if (!pluginTest.includes('toContain("plugins: surface.plugins.items()")')) fail("7: the search-plugin test lost the target source assertion")
@@ -349,9 +378,9 @@ console.log(
     "2: navigation CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem; " +
     "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4); " +
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +
-    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) with settings-sounds-interface still pruned behind the narrowed mobile(M-044) note, target plugins consumer form; " +
+    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/M-050 (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone), target plugins consumer form; " +
     "6: command-palette bridge — setting entry type + createSettingsPaletteEntries + select branch + dialog Match/items; " +
-    "7: tests — M-044 keyed/search-results/search-plugin forms (search-results capsule assertion flipped to the issue #103 restored-row shape) + three new first-party test files; " +
+    "7: tests — M-044 keyed/search-results/search-plugin forms (capsule + sounds-interface assertions at the issue #103/#107 restored-row shapes) + three new first-party test files; " +
     "8: page glue — headerAction rendered in all five pages + projects accessor swap; " +
     "9: i18n — nine en.ts keys (plan's 8 + server.thisComputer), sshHosts retained; " +
     "10: M-042 dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +

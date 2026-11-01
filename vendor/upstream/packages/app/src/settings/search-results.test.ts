@@ -83,9 +83,9 @@ describe("settings search index", () => {
       target: "settings-background-activity",
     })
     expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(true)
-    // mobile(M-044): `settings-sounds-interface` stays pruned until the notifications page
-    // issue restores it with its page anchor (issue #103 restored the other two rows above).
-    expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(false)
+    // mobile(#107): `settings-sounds-interface` is restored with its real page anchor in the
+    // notifications page (issue #103 restored the two rows above; issue #107 closes this row).
+    expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)
     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
   })
 
