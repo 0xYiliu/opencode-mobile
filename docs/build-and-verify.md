@@ -2612,6 +2612,69 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 - Desktop 参考端无 → 视觉对照 BLOCKED 继承（#104/#105/#106/#107 同判）；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记）；TalkBack 走查按适用面登记（捕获态/Unbind 行为语义已 DOM 级实测，读屏描述串未走查）。
 - 命令面板本体移动可达性不变（keybind-only 在册实态）；palette/dialog/search 与 command-search/session-search/safe-triangle 归后续 palette/搜索 issue；G34 域运行期贯通不因本页通过自动关闭。
 
+## issue #109 段（S14/S41/S43：GUI 插件管理与贡献设置对齐 Desktop v2.2.1——M-052）——2026-11-02 实测记录
+
+**分支与基线**：worktree `issue-109-gui-plugins`，base `cc78698`（origin/main，#118 合入后，M-051 交付）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）+ 49 移动补丁（M-019/M-039 reserved-absent）；实施提交链 feat(vendor)（M-052 六 targets）→ chore(verify)（探针修订 + dist 常量回填 + 回归测试）→ docs 同步，未 push。开工基线复核（cc78698 同法）：verify:closure PASS（49 补丁）、app 单测（无 seam）653/4/24 errors/1997（681 tests/115 files，错误集 = 23× runtime/server/registry.tsx + 1× shell/notifications/notification.tsx + 2× persistence disk-full）、seam 口径 798/4/1/2357（唯一 fail = settings-search-plugin notSup 预存）、mobile-hosts 434/0/2920、tsc 双口径 389/389、dist 3520/159,672,996、探针普查（本树 build 前）27 rc=0 + 4 产物条件性（vendor dist/_assets 与 android assets/web 未建时 ENOENT——attachments-artifacts/direct-connection 需 vendor dist，service-ops/ssh 需 android assets，构建后全 rc=0）+ debug-bar（matrix W28 陈旧锚）与 inline-ssh-device（设备态）2 项预存 rc=1——与在册口径一致，零源码漂移。
+
+### D4 契约解决（M-052 派生与登记要点）
+
+- **裁决**：专用 gui-extensions root tab **永久保留**（原登记偏差条件「若后续 issue 将移动管理面移入插件设置页注册表则撤除」实测不可满足）。目标不可承载的三点证据（3ebcf9a + origin/main 实测，详见 [gui-plugins.md](design/units/gui-plugins.md) §四）：(a) 目标注册表 `PluginSettingsPages`/`PluginSettingsSections` 只承载插件自有贡献页/节/行；(b) 目标管理 face（`extension-plugins.tsx`，Extensions 页 Plugins tab）为 server 域——`own = !!platform.plugins && ServerConnection.builtin(...)`（providers/extensions.tsx:77-78（注释行+代码行））在 web/mobile 恒 false → 仅名单零控件，内建行注释逐字「Built-ins always run and stay hidden unless they failed」（extension-plugins.tsx:52），且页面内容在 reachable-server data scope 下渲染（shell.tsx `reachable()` memo + `SettingsServerUnavailable` + `SettingsServerDataScope`，零服务器不渲染）；(c) 目标无任何 face 承载三集分类或 N12 WSL 零控件行（v2.2.1 全树 `GuiExtensionsSettings|guiExtensions` 零命中）。
+- **M-052 = 6 targets（4 注释/标签 + 2 测试文件回归锁；测试改动随补丁携带——M-044 先例，否则 V3(a) 对 vendored 测试文件的直改即 FAIL，初版 4-target 登记即实测触发该失败后重派生修正）**：route.ts + pages.ts 三处 M-044 注记就地改写为已决语义（`mobile(M-044)` marker 串与 `"gui-extensions"` union/rootTabs/icon/label 四锚逐字保留——VSF 组 3 钉定）；en.ts/zh.ts `settings.guiExtensions.title` 值 "Extensions"/"扩展" → "GUI extensions"/"GUI 扩展"（原值与 `settings.tab.extensions` 逐字相撞，削弱「GUI 行 vs 服务端 Plugins 列表区分清晰」验收；键集 9 键预算零增删，zh 键存在性负锚 VGP 组 5 钉键不钉值）。派生 = scratch `git archive` 累积树（pin + packageSources + M-001..M-051 依 vendor-manifest 序）→ 6 编辑 → `git diff`；第二棵 freshly-built 累积树（重放 M-001..M-051——注册后的 mobilePatches 50 项含 M-052 本身，派生重放须排除末项）`git apply --check` + apply 后六文件 cmp 全等 + 整 packages 树 diff 零残；工作树落盘经 GNU patch -p1（环境注记：git 2.53 `git apply` 在本 worktree 恒「Skipped patch」空转——git add/commit 已实证正常，仅 apply 命令受影响，补丁字节本身 git-apply 兼容由累积树 apply 证明）；verify:closure PASS（双 manifest 50=50、DANGLING=0、V3(a) 字节级重放 M-001..M-052）。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包（50 补丁） | `bun run verify:closure` | **PASS**（双 manifest 50=50、DANGLING=0、V3(a) byte-identical replay；manifest.json 纯追加 14 行、vendor-manifest.json 纯追加 1 行） |
+| app 全量单测（无 seam） | `cd vendor/upstream/packages/app && bun run test:unit`（先摘除 seam 软链） | **655 pass / 4 skip / 24 fail / 24 errors / 2000 expect()（683 tests/115 files）**；对基线 delta = **+2 pass/+2 tests/+3 expect() = route.test 新增 gui-extensions 解析与 host-tab 优先两例**（settings-search-plugin.test.tsx 在无 seam 口径随 @opencode-mobile/mobile-hosts 模块解析错误整文件缺席——其两 fixture 例不在本口径计数，计入 seam 口径的四新例）；错误行集（uniq -c sort diff）与基线**逐字节相同**（23× registry.tsx + 1× notification.tsx + 2× disk-full），零新失败 |
+| app 全量单测（seam 口径） | 同上（五包 seam 软链在场） | **802 pass / 4 skip / 1 fail / 2367 expect()（807 tests/115 files）**（+4 pass/+4 tests/+10 expect = 本期四新例全数入计；唯一 fail = settings-search-plugin mount 组与基线同名同位——seam 在场模块解析形态预存行为，standalone 无 seam 复跑原始文件同 fail 确认预存） |
+| 定向子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/model.test.ts src/settings/search-results.test.ts src/settings/route.test.ts` | **43 pass / 0 fail / 108 expect()**（route.test 10 = 原 8 + 新 2） |
+| search-plugin fixture 组 | `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/settings-search-plugin.test.tsx` | **3 pass / 1 fail**（新两例 PASS：宿主节标签 fixture 断言 `page = "settings.tab.preferences / settings.general.section.general"` + 无 section 时插件 title 作节标签；1 fail = mount 组预存）。fixture 两例曾触发 TS2741（SettingsPage.render 必填）→ 采纳 `render: () => h("div")()`（h 为柯里化形态，`() =>` 直接形态 TS2322）后 tsc 恢复基线恒同 |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（桥冻结零改动）；重启持久化组在册（extension-manager.test.ts:82–99「fresh store over the same storage sees the persisted records」）绿——按计划 v2 修订不新增用例 |
+| vendored tsc 双口径 | `bun run typecheck:tsc`（纯净态先 `find vendor/upstream/packages -name "*.tsbuildinfo" -delete`） | **纯净 389 / 增量 389**；分布 diff（对基线集合）= **恰零**（基线逐字节恒同；中间态曾 +2 TS2741 = fixture 缺 render，修复后恢复恒同——如实记录修复轨迹）；期间 mobile-hosts src 曾生成 7 个 .d.ts 副产物（tsc declaration emit 落源树，未提交已清理，不影响计数） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3520 files / 159,673,641 bytes**（+645 bytes，同 3520 文件数——两 i18n 标签值 + 注释剥离入既有分块，零新 chunk）；web-dist/manifest.json 已刷新（chore verify 提交） |
+| dist 哨兵回填 | verify-commands-menus / verify-gui-plugins / verify-notifications 组 8 | 三探针 3520/159672996 → **3520/159673641** + 注释链前插 #109 测量段 + **两条 #108 遗留标签段补正**（VGP/notifications 的 PASS 标签链此前停在 #107 的 159665590——#108 只更新了常量未进标签链，本次按正确数字补齐并注明勘误）+ VGP 组 8 新增 "GUI extensions" 产物正锚（语言 chunk 实测命中） |
+| 计数三探针 | verify-commands-menus 组 8（:653/:665）+ verify-about-version 组 6（:279/:295 + :54 头注）+ verify-attachments-artifacts 组 6（:359 + 期望集 length 51→52） | 49→**50** 全部修订；三探针 rc=0（expected-set 上界同步 51→52——M-052 注册后「unexpected member M-052」实练发现） |
+| verify-settings-framework | 组 3/组 5 注释链更新（「until #109」→ 已决 KEEP 语义；marker 不变）+ 组 11 增 M-052 登记锚 + **新组 12**（计划「新组 11」因文件既有组 11 = manifest 登记顺延为 12——偏差如实登记）：PluginSettingsPages 壳挂载 + General 页双 PluginSettingsSections 放置（S41 宿主承载首锁）+ review renderer `id: "mobile-diff"/page/section/entry id` 四锚 + review settings.tsx `data-component="settings-row"`/`data-action="settings-mobile-diff-wrap"`/`ctx.stores.mobileDiff` 三锚 + experimental.tsx Sources 四锚（storedToggle/setStoredToggle/data-action/mobile(M-036)）+ en/zh 新标签值正锚 + en 裸 "Extensions" 值负锚（标签相撞回归守卫） | **PASS rc=0**（12 组 + 静态声明） |
+| verify-gui-plugins | 组 1–7 不变全绿 + 组 4 新增 S41 宿主子块（shell `<PluginSettingsPages />` raw 锚 + general.tsx import/两放置 raw 三锚）+ 组 8 哨兵/标签/产物正锚 | **PASS rc=0** |
+| 零修订探针 | verify-agent-capabilities 组 3（M-044 单面形锚）/ verify-diff（mobile-diff SettingsPage + wrap overflow 锚） | 双双 rc=0——M-052 编辑零触碰在册锚（同面交叉核对成立） |
+| 探针普查（build 后 33 个） | `for f in scripts/verify-*.ts; do bun run $f; done` | **31 rc=0 / 2 rc=1**：修订探针 6 个全 rc=0；debug-bar（matrix W28 陈旧锚）与 inline-ssh-device（设备态 ConnectionRefused）rc=1 预存（与 #105/#106/#108 段同判） |
+| 探针普查（gradle 后） | 同上（android/app/build 中间产物在场） | **29 rc=0 / 4 rc=1**（+permission-requests/session-workbench 走进 gradle intermediates——#101 在册构建产物条件性，源树 rc=0 按设计） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰 5 条预存** host-credential.test.ts 合成 fixture 行（:22/:44/:51/:59/:78）+ 低置信 synthetic 测试行（probe/runtime-ssh/ssh-bridge/vault-envelope/service-auth-prompt/audit 脚本——既有测试域）+ 文档化 AWS 示例 7 行过滤，非本轮引入 |
+| 凭据持久化审计 | `bun run scripts/audit-secret-persistence.ts` | **PASS**（A–G 全组；G 组 dist markers mobile(M-002)/mobile(vault-v1) 在场——构建后口径） |
+| git diff --check | `git diff --check` | rc=0 clean（零冲突标记/零尾随空白） |
+| APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**（rc=0，41 tasks）；app-debug.apk **SHA-256 = 6dea775b77017d411073237002a8bc15ce79b60385e51ba491662e89894e86f1**（65,349,007 bytes）；`adb install -r` **Success**（.145，数据保留——零 uninstall/零 pm clear） |
+
+### 负例演练（探针可证伪性；还原字节形后复跑 rc=0）
+
+1. en.ts `settings.guiExtensions.title` 值回退为裸 "Extensions"（标签相撞回归态）→ verify-settings-framework 组 12 **FAIL**（`12: en.ts lost the "GUI extensions" label value (issue #109 label disambiguation)`——同组负锚并覆盖该形态）→ 还原 rc=0（git diff 零残留）——标签改歧义自此机检，不只依赖设备可见。
+2. 过程记录（非注入）：M-052 注册后、计数三探针修订前，三探针以旧期望集实测 **FAIL**（`unexpected member "M-052"` / `has unexpected M-052`）——期望集上界 51→52 修订后 rc=0；该中间态即计数负例的实证形态。
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12/API 31；APK `6dea775b…`；`adb install -r` Success 数据保留；驱动 = adb forward tcp:9222 + CDP `Runtime.evaluate` DOM 核对 + `Page.captureScreenshot` /tmp 不提交；视口/DPR 如实记录：QA 前段竖屏 CSS 818×1213 DPR 2.25 dark——中段设备自动转横屏 1245×786（设备侧状态，如实记录）；QA 始末 `dumpsys input` 全部输入设备 `IsExternal:false`——无外接键盘，本轮零键位注入）
+
+| 步骤 | 操作 | 判定 |
+| --- | --- | --- |
+| 0 前置 | 全量 localStorage dump = pre-dump（18 键，`opencode-mobile.guiext.v1 = {"version":1,"disabled":[]}` 全启用态）；APK SHA 记录；dumpsys input 外接键盘双查 | 记录完成 |
+| 1 tabs + 标签（S41/D4） | Settings 导航 DOM 实测 | **PASS**：`data-value="gui-extensions"` 标签 **"GUI extensions"** 与 per-server `data-value="extensions"` 标签 "Extensions" **并存且不同值**（M-052 标签改歧义设备实测；zh 值 "GUI 扩展" 由 VSF 组 12 键值锚静态钉定，本轮 locale=en 未切换） |
+| 2 管理面（S43/N11） | gui-extensions tab 行 DOM 全扫 | **PASS**：恰 **15 行 = 14 宿主定义行 + 1 静态 wsl 排除行**；`data-capability` 三集与 VGP 组 7 锁定集合**逐 id 一致**（web 10：context/btw/debug/terminal/file/review/details/microsoft-office/sources/goal——Switch 可切换；desktop-host 4：browser/pairing/ssh/updater——Switch `aria-disabled=true` + `disabled=true` + "Desktop only" 能力列；excluded 1：wsl 零控件） |
+| 3 #96 非反转 ×N（≥2 扩展双向） | review OFF → 复核四处撤除 → ON → 复核恢复；terminal OFF/ON 复核 | **PASS（设置面）**：review off = Switch `aria-checked=false` + `guiext.v1 = {"disabled":["review"]}` 同步 + **General 页 wrap 行消失**（`[data-action="settings-mobile-diff-wrap"]` 零命中）+ 搜索 "wrap" **0 命中**；on = 四处全恢复 + 搜索 "wrap" **恰 1 命中**（页标签 = **"Preferences / General" 宿主 General 节标签**——search-index.ts:108 节标签语义设备级实证，与 fixture 单测断言互证）；terminal off/on = Switch 与 `guiext.v1` 双向同步（`{"disabled":["terminal"]}` ↔ `{"disabled":[]}`）。**会话 strip/More 抽屉撤除恢复如实 BLOCK**（无可达服务无会话面——撤除/恢复机制为 vendored 宿主 §三同帧批量语义 + rendered 测试承载，本项不作设备级声称） |
+| 4 持久化 | 写后 ≥11s flush → force-stop → 重启复核 ×2 | **PASS（双向）**：review 禁用态跨 force-stop 存活（存储 `{"disabled":["review"]}` + UI Switch false 双复核）→ 重启用 → 二次 force-stop → `{"disabled":[]}` 干净回归 |
+| 5 WSL 行（N12） | 零操作专项 DOM 断言 | **PASS**：`data-capability="excluded"` 行 **零 button/零 switch/零 role=alert/零可聚焦元素**（全控件扫描 = 0）；id `dir="ltr"`；状态文案复用 Disabled + 决策 0001 原因全文在视口内（"Excluded by product decision: this app does not discover, install, start, stop or manage WSL distributions — including on a Windows host —…"） |
+| 6 Wrap lines（S14） | 行在位 + 搜索揭示 + toggle 写读 + 重启存活 + 长 Diff 翻转 | **行面 PASS**：General 页 wrap 行在位（"Wrap lines"）；搜索 "wrap" 揭示（target=settings-mobile-diff-wrap，节标签=宿主 Preferences/General）；toggle OFF → `opencode.global.dat:plugin.review.mobileDiff = {"wrap":false}` 写入 → force-stop 重启 → Switch false 存活（迁移 pick general.mobileDiffWrap 链在册）；复原 ON → `{"wrap":true}`。**真实长 Diff overflow 翻转 BLOCK（如实）**：无可达服务无会话 Changes 面（继承「无可达服务」边界；真实长 Diff 待验与 matrix S14 登记一致） |
+| 7 Sources gate | Experimental 行 + toggle 写读 + 复原 | **行面 PASS**：行在位默认 off（`data-action="settings-sources"`）；on → `opencode.motion.v2 = {"sources.enabled":1}` 写入；off → **键整体移除**（空记录移除键的上游格式，零残留）。**chip 呈现 BLOCK（如实）**：需服务器 websearch/webfetch turn 数据（无可达服务，继承边界） |
+| 8 服务端 Plugins 列表区分 | Extensions → Plugins 子 tab | **零 Switch 实测**：页面在默认服务器作用域渲染（authorized-bastion host 预置为默认），Plugins 子 tab **零行零 Switch**（服务器不可达列表不载）；**完整名单呈现 BLOCK（如实）**（需可达服务器——「names-only」结构的 own 门为代码+探针级证据） |
+| 9 失败/Reload | 活性行（context）Reload | **PASS**：Reload 点击 → 状态保持 Active、零崩溃、零 role=alert（失败注入不可控上游在册——失败呈现面 error `<pre>`/alert 为代码+rendered 测试证据，G35③ 口径） |
+| 10 TalkBack 抽查 | 行语义 DOM 级核对 | **语义 PASS（走查未行）**：行为 LI 单文本块（id/状态/原因连读）、Switch role=switch、wsl 行纯文本**无 alert 语义零可聚焦**；TalkBack 实机走查按 G35⑨ 抽查位登记（#108 同判继承） |
+| 8→11 凭据红线 | QA 前后全量 localStorage dump 对照 | **PASS**：pre 18 键/post 19 键——**18 个原键值逐字节相等**；+1 键 = QA toggle 往返物化的 `opencode.global.dat:plugin.review.mobileDiff = {"wrap":true}`（值 = store 默认值，状态等价但非字节等价——识别为 QA 侧物化后移除，复测 **18/18 全等**，Python dict 比对 rc=0）；零凭据形新键、hosts.v1 credentialRef 引用形白名单不变（值域逐字节相同） |
+
+**QA 后恢复**：wrap 偏好复原 pre 值（{"wrap":true}）、guiext.v1 复原 `{"disabled":[]}`、Sources motion 键随 off 自清、QA 物化默认值键移除后全量 dump 与 pre-dump `pre == post` 全等（18/18，rc=0）；adb forward 已撤除；截图存 /tmp 不提交。
+
+### 诚实边界与 BLOCKED 登记（本期新增/继承）
+
+- **会话依赖面 BLOCKED（继承「无可达服务」总边界）**：strip/More 抽屉撤除恢复（#96 回归的会话面证据）、真实长 Diff overflow 翻转（S14 残项）、Sources chip 呈现、服务端 Plugins 名单呈现（#8）——四项均需可达服务器/真实 diff 数据；结构面由 vendored 宿主 §三同帧语义 + rendered 测试 + 探针承载，不作设备级声称。
+- Desktop 参考端无 → 视觉对照 BLOCKED 继承（#104–#108 同判）；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记；本轮设备视口 818/1245 均 ≥768px）；TalkBack 实机走查未行（语义 DOM 级已核，G35⑨ 抽查位登记）。
+- **D4 保留不等于运行期验收闭环**：G35 十项运行期门禁仍 BLOCKED（gui-plugins.md §首第二十一处落字口径不变）；#109 交付为契约解决 + 静态/单测/构建/设备行面证据，不据此关闭 G35。
+
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
 `bun run scripts/license-audit.ts`：1089 packages 审计，STOP 于以下 12 项（9 个独立包，按平台二进制折叠为 6 家族；NOTICE-THIRD-PARTY.md 因此未生成）：

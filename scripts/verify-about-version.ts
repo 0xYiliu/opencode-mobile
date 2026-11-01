@@ -51,8 +51,8 @@
 //      spill from this unit.
 //   6. Manifest dual registration: manifest.json has an M-040 entry with the exact patch
 //      path, the five targets and a non-empty upstreamBaseline; vendor-manifest.json
-//      mobilePatches lists the same path; both registries hold exactly 49 entries (49=49)
-//      and agree path-for-path.
+//      mobilePatches lists the same path; both registries hold exactly 50 entries (50=50
+//      since issue #109's M-052) and agree path-for-path.
 //
 // HONEST BOUNDARY (same tradition as the verify-* family): this is a static STRUCTURE
 // check. It proves source shape, NOT runtime behavior: the actual three-row rendering,
@@ -270,13 +270,14 @@ const M040_TARGETS = [
     fail("5: goal renderer.tsx lost its mobile face (M-036 zero-spill negative)")
 }
 
-// --- 6. Manifest dual registration (49=49) ---
+// --- 6. Manifest dual registration (50=50) ---
 {
   const manifest = JSON.parse(await read(MANIFEST)) as {
     patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown }>
   }
   const rows = manifest.patches ?? []
-  if (rows.length !== 49) fail(`6: patches manifest must register exactly 49 patches (got ${rows.length})`)
+  // Issue #109: M-052 (gui-extensions D4 resolution + label disambiguation) -> 50.
+  if (rows.length !== 50) fail(`6: patches manifest must register exactly 50 patches (got ${rows.length})`)
   const m040 = rows.filter((row) => row.id === "M-040")
   if (m040.length !== 1) fail("6: patches manifest must carry exactly one M-040 entry")
   const entry = m040[0]!
@@ -292,11 +293,11 @@ const M040_TARGETS = [
   const paths = Array.isArray(vendorManifest.mobilePatches)
     ? (vendorManifest.mobilePatches as unknown[]).filter((value): value is string => typeof value === "string")
     : []
-  if (paths.length !== 49) fail(`6: vendor-manifest mobilePatches must list exactly 49 patches (got ${paths.length})`)
+  if (paths.length !== 50) fail(`6: vendor-manifest mobilePatches must list exactly 50 patches (got ${paths.length})`)
   if (!paths.includes("patches/mobile/0040-M-040-about-version-face.patch"))
     fail("6: vendor-manifest mobilePatches lost the M-040 path")
 
-  // Path-for-path agreement (the 49=49 core).
+  // Path-for-path agreement (the 50=50 core).
   const manifestPaths = rows.map((row) => row.patch).filter((value): value is string => typeof value === "string")
   const sortedA = manifestPaths.toSorted()
   const sortedB = paths.toSorted()

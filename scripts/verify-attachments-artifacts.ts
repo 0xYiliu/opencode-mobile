@@ -351,13 +351,14 @@ let distAssetCount = 0
   // providers/models/extensions settings-page target migration. Issue #106: M-049 by the
   // projects/workspaces settings-page target form (FU-3 runtime persistence deferred). Issue #107: M-050 by the
   // notifications/sounds settings-page target form (sounds-interface search row restored) -> 48.
-  // Issue #108: M-051 by the keybinds/command-catalog target form -> 49.
+  // Issue #108: M-051 by the keybinds/command-catalog target form -> 49. Issue #109:
+  // M-052 by the gui-extensions D4 resolution (tab kept) and the label disambiguation -> 50.
   const expectedPatchIds = new Set(
-    Array.from({ length: 51 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
+    Array.from({ length: 52 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
   )
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 49 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 49 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 50 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 50 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
@@ -371,7 +372,7 @@ let distAssetCount = 0
   const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
   if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
       registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (49 unique, path-for-path)")
+    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (50 unique, path-for-path)")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
