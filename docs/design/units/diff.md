@@ -73,6 +73,8 @@
 
 ### worktree.remove 五层确认链（唯一不可逆操作，零静默路径）
 
+**#106 注记（M-049，零契约变更）**：`workspaces.tsx` 的 DialogDeleteWorkspaces/DialogDeleteWorkspace Cancel 按钮携目标形 `autofocus`（v2.2.1 3ebcf9a）——确认对话框打开时默认焦点落取消按钮，裸 Enter 不会直接武装 danger 删除按钮（第 3 层对话框细节的加固）；负例机检在册（verify-projects-sessions #106 锚：剥 autofocus 即 FAIL）。
+
 1. **preflight** `inspect()`=`vcs.status`+`vcs.diff(mode:"branch")`+sessions 三并联→`inspectWorkspaceDeletion`（`workspaces/paths.ts:65`，分类 `{active, linked, dirty}`，`paths.test.ts` 在 #8 子集）；
 2. **非 force 三态拦截**：任一命中→blocked toast（`settings.workspaces.delete.blocked.active/linked`+`workspace.status.dirty`「检测到未合并的更改。」）**不删**；
 3. **确认对话框** `DialogDeleteWorkspace`——标题 `workspace.delete.confirm`（「删除"x"吗？」）+ 位置 code 块（远程绝对路径纯展示）+ 固定警告（「工作区目录和分支将被永久移除」）+ 动态 inspection 消息（checking/error）+ 取消/**danger 按钮 `disabled={status.isPending || status.isError}`**——**stale/失败态不盲确认**；
