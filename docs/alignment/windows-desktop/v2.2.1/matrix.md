@@ -35,16 +35,16 @@
 | S01 | 设置导航、进入/退出与返回上下文 | 已实现（未验证） | 对齐；**框架已迁移至 v2.2.1（issue #101/M-043/M-044）**：单一 RootSettings 布局 + CollapsedSidebarToggleSpace 48px 返回行 + view 模型（root{server?}/project，pin 嵌套 server 视图移除）+ settingsViewRedirect 出口表；返回链（search.back→clear→surface.back→common.goBack）与键盘避让设备冒烟 PASS（DBY2-AL00）；宽窄导航一致性的 Desktop 对照仍 BLOCKED（无 Windows 参考端） | E13/E31/E34；#90 补验 Settings 可达 PASS |
 | S02 | 搜索设置并定位设置行 | 已实现（未验证） | 对齐；**目标 SearchList/SearchHighlight/Slash 分组搜索已迁移（issue #101/M-043）**，聚焦定位（searchActivation→revealSettingsSearch，anchor 缺失 no-op 不崩）与命令面板桥（≤5 条 setting 行）；mobile(M-044) 剪除三悬挂目录行（background-activity/timeline-width/sounds-interface——行与页 anchor 一并归各页 Issue 恢复）；#90 回归不复现（源断言+设备实测）；设备冒烟 font→4 结果含 Zoom→定位→返回 PASS；分组/聚焦 Desktop 对照 BLOCKED | E02/E31/E34；#90 搜索命中 PASS |
 | S03 | 设置中的服务器选择与数据隔离 | 已实现（未验证） | 对齐；**server scope 单一事实来源已迁移（issue #101/M-043/M-044）**：surface.server() 解析序（视图 server→source→本地连接→第一台）、selectServer/openServers、目标 SettingsServerSwitcher（≤1 不渲染，RadioGroup+健康点+Manage 出口）与 SettingsServerUnavailable（Retry/Edit 出口）；设备冒烟：三服务器 switcher 换选保页 PASS（authorized-bastion→bastion-main）；**真服务隔离（项目列表归属核对）仍待真服务验证**；Unavailable 整页态未在冒烟中捕获（服务器停留 Loading 态）——结构+单测锁定，实态归 G 门禁 | E02/E04，G13 |
-| S04 | Top / Side / Inbox 模式 | 部分实现 | 适配；三模式设置与持久化已有；Inbox 实际仍是 Side rail，缺分组/跨服务聚合/相应徽标；不等于旧 tabs 无未读状态 | E19/E34；MatePad 宽屏实态已验，<768px 未验 |
-| S05 | 语言切换 | 已有代码 | 对齐；新增键多处按上游策略回退英文，不能宣称全量中文覆盖 | E02/E20–E23 |
-| S06 | 默认工作区目的地 | 已有代码 | 对齐；默认值与远程目录执行语义仍需目标行为核对 | E02/E03 |
-| S07 | 默认自动批准权限 | 已有代码 | 对齐；已有权限契约，真服务审批门禁未完成 | E02/E03，G21 |
-| S08 | 显示自定义 Agent | 已有代码 | 对齐；已有开关/能力契约，新增行为待核 | E02/E04 |
-| S09 | 后续消息 queue / steer | 部分实现 | 对齐；设置存在，但执行链仍为旧 queue；具体增量缺口见 W15 | E03/E34 |
-| S10 | 时间线详情分类与预设 | 已有代码 | 对齐；类别枚举与实际呈现尚未逐项证明等价 | E02/E03 |
-| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已有代码 | 适配；字段与窄屏效果待逐项核对，不能由设置页存在推定等价 | E02/E03 |
-| S12 | 捏合缩放 | 已有代码（平台默认态） | 适配；保持 WebView 默认，不移植 desktop-only 捏合开关；MatePad 主页捏合/双击无缩放且无布局破损；工作台交叉场景未验；#102 服务器页迁移未触及捏合行（General 页逐字保留） | E30；界面放大另见 S42 |
-| S13 | 窄屏标题栏顶部/底部 | 已有代码 | 适配；返回键、安全区、软键盘及 <768px 实态仍需联验 | E02/E32 |
+| S04 | Top / Side / Inbox 模式 | 部分实现 | **设置面已目标形（issue #103/M-046）**：InterfaceModeSetting 三模式行随 general.tsx 目标逐字迁移（设置与持久化已有）；Inbox 选择后的实际呈现仍是 Side rail，缺分组/跨服务聚合/相应徽标（W05 保持）——不以设置面存在推定模式体验对齐 | E19/E34；MatePad 宽屏实态已验，<768px 未验；#103 设备逐项持久化见台账 |
+| S05 | 语言切换 | 已实现（未验证） | 对齐；#103 新增 13 键 en-only（backgroundActivity 6/width 5/sounds.interface 2），回退英文为上游 v2.2.1 实态，不能宣称全量中文覆盖；被移除的 terminalPlacement 4 键只清 en 与 9 个 typed locale 字典（其余 53 个无类型 locale 的滞留键惰性保留） | E02/E20–E23 |
+| S06 | 默认工作区目的地 | 已实现（未验证） | 对齐；WorkspaceDestinationSetting 行经 #103 逐字核对=目标形（默认 last-used、三选项序）；远程目录执行语义仍归 G 运行面 | E02/E03 |
+| S07 | 默认自动批准权限 | 已实现（未验证） | 对齐；AutoApprovePermissionsSetting 行经 #103 逐字核对=目标形，**默认关（opt-in）保持**；代答执行面（once/always 落盘/批量扩散）归属 permission-requests 单元契约，真服务审批门禁归 G21 | E02/E03，G21 |
+| S08 | 显示自定义 Agent | 已实现（未验证） | 对齐；行经 #103 逐字核对=目标形（默认 false），开关/能力契约已有，新增行为待核 | E02/E04 |
+| S09 | 后续消息 queue / steer | 部分实现 | **设置行对齐（issue #103/M-046）**：FollowUpBehaviorSetting 行随 general.tsx 目标逐字（默认 steer、mod+enter 描述）；执行链仍为旧 queue（W15 保持）——设置面通过不关闭执行链差距 | E03/E34 |
+| S10 | 时间线详情分类与预设 | 已实现（未验证） | **timeline-detail 控件零增量复用（pin=target 逐字节）**；预设/枚举呈现链明确登记为 session-ui 后续：`timelineCategories` 目标形增 commentary、compact/quiet 预设 subagents grouped→separate——对应 `commentary` placement 槽与 `settings.timeline.category.commentary` 键/新文案**不采纳**（M-046 登记，避免 copy 与 vendored 预设行为不符）；目标写出的含 commentary 槽文档 decode 丢槽；「类别枚举与实际呈现尚未逐项证明等价」保持 | E02/E03 |
+| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已实现（未验证） | **字段+行+搜索行+宽度消费 token 已落地（issue #103/M-046）**：backgroundActivity（默认 left）/timelineWidth（默认 comfortable）schema+defaults+store API+设置行+恢复的搜索目录行；`dataset.timelineWidth` → `:root[data-timeline-width=…]` → `--container-session`（488/744/1000px）→ 7 个既有 `md:max-w-session` 消费点（≥768px 断点域）；**逐项实测口径**（不再以设置页存在推定等价）：宽度三档实态/重启保持为 #103 设备 QA 项；backgroundActivity 的 composer 呈现消费不接（目标消费文件在 vendored 树不存在，W05 相邻面登记）；每轮 Diff（turnDiffs）行目标形已有 | E02/E03；#103 设备宽度三档记录 |
+| S12 | 捏合缩放 | 已有代码（平台默认态） | 适配；保持 WebView 默认，不移植 desktop-only 捏合开关；MatePad 主页捏合/双击无缩放且无布局破损；工作台交叉场景未验；#102 服务器页迁移未触及捏合行（General 页逐字保留）；#103 General 页目标迁移后捏合行与 desktop 条件门在目标形中原样保留（桌面平台条件可见） | E30；界面放大另见 S42 |
+| S13 | 窄屏标题栏顶部/底部 | 已实现（未验证） | **设置面无增量**（mobile() 标题栏行目标原生含于 M-046 迁移的 general.tsx）；返回键、安全区、软键盘及 <768px 实态仍需联验——设备 DPR 2.25 下最小原生 CSS 宽 ≈818px>768，物理达不到窄断点；CDP `Emulation.setDeviceMetricsOverride` 路径可用则实测，否则 BLOCKED 并记录 DPR 依据 | E02/E32；#103 按可做/阻塞口径记录 |
 | S14 | Diff 换行 | 已有代码 | 对齐；review 贡献设置已有，真实长 Diff 与偏好恢复待验 | E05/E23，G23 |
 | S15 | 主题与系统/浅色/深色 | 已有代码 | 对齐；已有主题实现，全流程效果待验 | E02 |
 | S16 | 界面/代码/终端字体 | 已有代码 | 适配；三类字体设置已有，Android 回退字体待验 | E02，G31 |
@@ -69,7 +69,7 @@
 | S35 | HTTP 服务管理、认证与健康状态 | 已有代码及局部运行证据 | 适配；#102 服务器页已迁移至 v2.2.1 目标（M-045）：目标行组件/健康门/`settings-shell:<key>` 搜索命名/`entry.name` 行名已落地，DBY2-AL00 复核三 SSH 主机独立呈列、切换器双向切换与 Manage servers… 可达；一次性记录经存储注入后真 401 响应映射为红点健康门（Shell 段隐藏），但行内 Authenticate 子面未呈现、对话框保存路径自动化未通（见 #102 段），认证/编辑面动态证据 PARTIAL；UTF-8 Basic auth、当前活服务全链、非 ASCII 密码仍未验 | E14/E18/E31/E34；M-045；#102 |
 | S36 | SSH 连接、认证、隧道与恢复 | 已有代码及历史主链证据 | 适配；#102 构建上以开发机辅助 sshd 复验指纹两径：未知键（Verify host 面显示真实指纹 SHA256 与本机密钥逐字一致）→ Reject → Failed + known_hosts 零新增；变更键（:2222 旧信任 vs 新密钥）→ DANGER 面拒绝连接、明示未发凭据未建隧道，known_hosts 原条目零改动（forget 步骤在册未执行——不改动用户信任态）；SSH 后服务认证/隧道全链在 #102 构建的复验仍未完成，incompatible、换端口/任务存活仍有缺口 | E13–E18/E34；#102 |
 | S37 | 每服务器 Shell 选择 | 已有代码 | 对齐；#102 服务器页已迁移至 v2.2.1 目标（M-045）：servers.tsx/row.tsx 目标逐字，ShellSetting action 搜索命名线程接通，Shell 段随服务器健康门显隐；候选/读写/回滚线协议已核等价，保留 pin 的 config.update 命名；写入成功/失败回滚有单测与探针回滚序锚，真服务动态往返仍未验 | E30/E31/E34；M-045；#102 |
-| S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；长消息折叠展开与性能仍阻塞 | E20/E34；#64 补验 |
+| S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；长消息折叠展开与性能仍阻塞；#103/M-046 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认 |
 | S39 | About、版本、许可与声明 | 已有代码及局部运行证据 | 对齐/适配；notices 滚动目标差异已补齐；另显示移动版本与基座，服务版本取排序首项为移动边界；已验页面/滚动，服务行未验 | E28/E34；#72 补验；完整许可审计另见台账 V4 |
 | S40 | 更新检查、安装与发行说明 | 不实现（当前暂缓） | 已确认暂缓；当前只保留已有 What's New 外联面，APK 更新待已签名 release 与版本清单等激活条件；上游 external 契约不等于已有生产实现 | E24；[ADR 0005](../../../decisions/0005-apk-update.md) |
 | S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | 对齐；gui-plugins/宿主迁移已有，设置贡献面已验；旧 pane 结构、移动 tab 命名及 Goal Panel 等差异保留 | E23/E34；面板回归未全验 |
@@ -169,7 +169,7 @@
 | --- | --- | --- | --- | --- |
 | 1. 基线与参考 | 对比当前实际树与固定目标，逐页列出差异、移动补丁、依赖及可达条件；采集上游参考，记录版本、构建、视口和主题 | `app/src/settings/`、`ui` 及 `runtime/plugin`；S01–S43 | 明确每个页面哪些可直接复用、哪些依赖需迁移、哪些是平台例外；不得将 pin→目标的原始 diff 全当作剩余缺口 | 待处理 |
 | 2. 设置框架迁移 | 迁移目标设置壳、导航、路由、搜索及共用样式，连同必要共享依赖；按仓库规则登记可重放的 vendor 补丁 | `shell.tsx`、`navigation.tsx`、`route.ts`、`surface.tsx`、`search*`、`settings.css`；S01–S03 | 导航/搜索/返回上下文符合目标；离线与远程不可用时有出口，服务器身份不串；不以旧结构覆盖 CSS 模仿目标 | **已完成（issue #101，M-042/M-043/M-044）**：worktree issue-101-settings-framework @ 3ebcf9a 框架迁移（基线 c9339b2）；verify:closure PASS、app 单测无新失败（keyed 冻结失败升级为通过）、build+dist 3517/159,606,524、探针全量 33 个：28 rc=0、3 预存 rc=1（pinch-shell-settings/debug-bar/inline-ssh-device——对 base c9339b2 复测逐字节同败，非本轮引入）、2 仅在 gradle build 产物在场时误报（permission-requests/session-workbench——源树 rc=0）、设备冒烟（DBY2-AL00 @192.168.3.145）六步中五步 PASS（详见 build-and-verify.md issue #101 段）；页面内容（阶段 3）与对照回归（阶段 4）归后续 Issue/轮次 |
-| 3. 页面与接入 | 按目标统一所有设置页及贡献区域；重接移动主机、凭据、权限和 GUI 管理面，保留已有数据与偏好 | S04–S43；`servers/` 的切换/不可用态、第一方 mobile-hosts、Android 适配边界 | 各页面正常/不可用状态呈现可对照，移动差异逐项有依据；既有 SSH、设置搜索和插件开关修复不回退 | **Servers 页部分完成（issue #102，M-045）**：`settings/servers/*`+`row.tsx` 目标逐字、ShellSetting action 线程、redeem 去导出、`persistence.test.ts` M-002 对齐；verify:closure PASS（43 补丁）、单测无新失败（persistence 冻结失败升级为通过）、dist 3517/159,599,027、探针 31 rc=0 + 2 预存 rc=1、设备 DBY2-AL00 Tier A 通过 + 指纹两径复验（详见 build-and-verify.md issue #102 段）；General/Timeline 等其余页面内容（S04+）与对照回归（阶段 4）归后续 Issue/轮次 |
+| 3. 页面与接入 | 按目标统一所有设置页及贡献区域；重接移动主机、凭据、权限和 GUI 管理面，保留已有数据与偏好 | S04–S43；`servers/` 的切换/不可用态、第一方 mobile-hosts、Android 适配边界 | 各页面正常/不可用状态呈现可对照，移动差异逐项有依据；既有 SSH、设置搜索和插件开关修复不回退 | **Servers 页部分完成（issue #102，M-045）**：`settings/servers/*`+`row.tsx` 目标逐字、ShellSetting action 线程、redeem 去导出、`persistence.test.ts` M-002 对齐；verify:closure PASS（43 补丁）、单测无新失败（persistence 冻结失败升级为通过）、dist 3517/159,599,027、探针 31 rc=0 + 2 预存 rc=1、设备 DBY2-AL00 Tier A 通过 + 指纹两径复验（详见 build-and-verify.md issue #102 段）。**General/Experimental 偏好页内面部分完成（issue #103，M-046）**：general.tsx 目标逐字（S04/S09/S11 设置行 + BackgroundActivity/TimelineWidth 组件 + timeline-width 消费 token）、model.tsx 目标 schema 面 + terminalPlacement/showFileTree 登记偏离、搜索两行恢复、en +13/−4、九 typed locale 同步清键；其余页面内容（Notifications/Providers/Models/Projects/Workspaces/About）与阶段 4 对照回归归后续 Issue/轮次 |
 | 4. 对照与回归 | 执行下表验收；修正视觉与交互偏差，记录实际构建、服务版本、截图和结果 | 全部受影响设置单元及交叉回归项 | 对应代码检查/构建通过；必要模拟器或真机检查通过；无法执行的项目标未验证并保留阻塞原因 | 待处理，依赖 3 |
 | 5. 回填交付 | 更新受影响设计条目、逐行矩阵与运行台账，提交实现 PR | 本节、关联 S 行、`docs/design/`、`docs/build-and-verify.md` | 已实现/局部通过/未验证分别标记；所有承诺验收通过才可写本单元已闭环 | 待处理，依赖 4 |
 

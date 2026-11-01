@@ -2192,6 +2192,65 @@ verify-about-version=0、verify-agent-capabilities=0、verify-appearance-setting
 `docs/design/units/settings.md`（F 侧翻转 + #102 增补）；`docs/design/units/server-list.md`（管理面目标形态更新）；`docs/design/units/connection.md`（对话框目标行 + redeem 去导出）；`docs/design/units/service-ops.md`（命令面保留声明）；`docs/design/recovery.md`（六A 节：身份单源/回滚/红线/健康门）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S12/S35/S36/S37 行 + 阶段 3 行部分完成）。
 
 
+## issue #103 段（S04–S11、S13、S38：通用偏好与实验设置对齐 Desktop v2.2.1——M-046）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-103-general-experimental`，base `5fe6d8e`（origin/main，#112=#102 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d27c8e4`（feat vendor 迁移，M-046 16 文件）→ `66d6b89`（chore verify 探针修订 + dist 常量）→ docs 提交，未 push。开工基线复核（5fe6d8e 同法同态）：verify:closure PASS（43 补丁）、app 单测（无 seam 口径）646/4/24/1986（24 errors 全部为 `@opencode-mobile/mobile-hosts` seam 解析错：registry.tsx×23 + notification.tsx×1）、mobile-hosts 434/0/2920、typecheck 清状态 391、探针普查 33 个——**fresh worktree 环境 27 rc=0 + 6 rc=1**（其中 4 个为产物条件性：attachments-artifacts/direct-connection 需 `dist/_assets`、ssh/service-ops 需 `android/app/src/main/assets/web`——build+copy 后转 rc=0；debug-bar/inline-ssh-device 为预存陈旧锚 rc=1）。
+
+### 计划对账（v3 执行偏差，两处，均已登记）
+
+| 项 | 处置 |
+| --- | --- |
+| en.ts「其他 locale 滞留键惰性无害」假设被 tsc 证伪 | 62 个非 en locale 中 **9 个携带 typed 字典**（`type Keys = keyof typeof en`：dz/de/bn/no/tr/ne/si/zh/zht），en 删 4 键后其滞留 `settings.general.row.terminalPlacement.*` 变为 TS2353 excess-property（+9 错误，391→400）；其余 53 个无类型 locale 的滞留键确为惰性。处置：4 键从该 9 个 typed locale 一并移除（M-046 targets 7→16 文件），typecheck 恢复 391 且逐文件分布与基线全等；manifest reason 已补记。 |
+| 普查基线环境差 | 计划预期的 31/2 以「dist + android assets 在场」为前提；fresh worktree 实测 27/6（4 个产物条件性 probe），build 后收敛为 **31 rc=0 + 2 预存 rc=1**，与计划图谱一致。 |
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（44 补丁字节级重放，DANGLING=0；M-046 注册于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 各 44 条，M-019/M-039 reserved-absent 保持；M-046 派生 = scratch 内 pin+packageSources 重建 pristine 累积树 → 依序应用 M-001..M-045 → `diff -U3`（context=累积树）→ 回放校验 16 文件 byte-identical + 全树 diff 零多余） |
+| app 全量单测（在册口径=无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | **646 pass / 4 skip / 24 fail / 24 errors / 1986 expect()（674 tests/115 files）——与基线逐项相同**；24 个 fail = mobile-hosts seam 解析错（registry.tsx×23 + notification.tsx×1，逐一同位），零新失败 |
+| 定向子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/{model,search-results,search-reveal,palette,route}.test.ts src/settings/keyed-server-entry.test.tsx` | **48 pass / 0 fail / 131 expect() / rc=0**（model.test 新期望通过：plugins copy-out 测试名、backgroundActivity/timelineWidth defaults+invalid 边界、notifications agent=false、sounds.interfaceEnabled） |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（与基线同数） |
+| typecheck | `bun run typecheck:tsc`（清空 tsbuildinfo 后） | **391 errors**（首测 400 = +9 TS2353 typed-locale 滞留键，按上表处置后复测）；**逐文件分布与 5fe6d8e 基线全等**（51 文件 uniq 计数 diff 为空）；触及 16 文件零新增错误；7 条 search-results LocalProject 既有类同位不动；`TimelineDetail`/session-ui 类型面零新增错（commentary 槽不采纳自证） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3517 files / 159,601,021 bytes**（fileCount 与上轮同、**+1,994 bytes**：新设置行/i18n 键/timeline-width token 块大于删除的 terminalPlacement 串；web-dist/manifest.json 已刷新并同提交回填 gui-plugins/notifications/commands-menus 三探针 dist 常量） |
+| 探针普查 | `for f in scripts/verify-*.ts; do bun run $f; done`（33 个） | **31 rc=0 / 2 rc=1**：7 个修订探针（experimental-settings/appearance-settings/settings-framework/about-version/attachments-artifacts/commands-menus/interface-mode）全 rc=0；3 个复跑确认（pinch-shell-settings/goal-sources/notifications）rc=0；debug-bar（matrix.md W28 行陈旧锚）与 inline-ssh-device（CDP :9222 ConnectionRefused）rc=1 为**预存**——对 HEAD 5fe6d8e 复测**同败同文**（debug-bar 同一 FAIL 消息；inline-ssh-device 同 ConnectionRefused），非本轮引入 |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行（:22/:44/:51/:59/:78，逐行同位）；低置信 REVIEW 集合同基线，零新增 |
+| 机械检查 | `git diff --check`（5fe6d8e..HEAD 与工作树） | clean |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，含 dist 标记） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 34s**（41 tasks）；APK SHA-256 `9e7113317634dd58df076ef8416d31fa88e4b81f794d01a68cea1709fdf7005f` |
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12，物理 1840×2800 @DPR 2.25，WebView Chrome/114，横屏 CSS 1245×786，深色主题；`adb install -r` Success 数据保留；**零 uninstall/零 pm clear**；QA 后 settings.v3 已逐项还原为 QA 前原值并经全量 dump 复核）
+
+驱动方式：debug APK WebView DevTools（adb forward + CDP Runtime.evaluate 读 DOM data-action/settings.v3/computed style）+ 坐标 tap（CSS×2.25+状态栏 72px 偏移）；下拉/开关可写，每步以 localStorage `settings.v3` 与 DOM 读数复核。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 1. 逐项修改/切页/重启保持（S04–S11/S38 遍历） | **PASS**：followUpBehavior=queue、timelineWidth、backgroundActivity=right、showCustomAgents=on、showTurnDiffs=on、newIcons/foldUserMessages=on、workspace destination=new 各自修改 → 切页/返回 → `am force-stop` + 重启 → settings.v3 全部保持；保留偏离值（terminalPlacement="side"、showFileTree=false）同步保持 |
+| 2. S04 三模式 | **PASS（设置面+持久化）**：Side→vertical、Inbox→inbox、Top→horizontal 逐个选择并持久化，重启保持 |
+| 3. S09 queue/steer | **PASS（行面）**：queue 持久化；**如实**：执行链不动（W15 登记）——无真服务会话可注入 follow-up |
+| 4. S11 宽度三档实态 | **PASS（DOM 级三通道）**：focused→`--container-session` 488px、comfortable→744px、wide→1000px（probe 元素 `md:max-w-session` computed maxWidth 实测 + `dataset.timelineWidth` + settings.v3 三通道一致）；**PARTIAL（如实）**：session 列的视觉截图不可采——三主机记录态服务器停留 Loading，无活会话可渲染 `md:max-w-session` 面（授权服务归 G 门禁） |
+| 5. S38 newIcons/fold 回归 | **PASS**：newIcons=on 时 DOM 注入 72 个 `opencode-v2-icon-new-*` symbol、13 个活 `<use>` 引用（图标切换实态）；fold 开关持久化（折叠视觉需长消息会话——无会话，视觉归 G20/G31） |
+| 6. S07 默认权限 opt-in | **PASS**：默认 false；开→关需显式操作，设置行直写 `permissions.autoApprove`，执行面归属 permission-requests 契约 |
+| 7. 搜索回归 | **PASS**：`capsule` → 命中「Background activity｜Preferences / Timeline」→ 选中定位 → general.tsx 真实行（settings-background-activity）在视口内可见；`timeline width` → 「Timeline width」命中；`interface` → 仅 Interface 模式/字体/语言行，**零 sounds-interface 行**（M-044 收窄注记口径） |
+| 8. Terminal placement 行消失 + dock 行为 | **PASS（行面）**：General 页 data-action 全集无 `settings-terminal-placement`；`terminalPlacement` schema/存储值保留（偏离登记）；MatePad 横屏 session 布局零回归核对不可采（无会话——归 G20） |
+| 9. Experimental 页 | **PASS**：newIcons/fold 目标形 + M-036 Sources 行（settings-sources）在位（gate 迁移归 #109 不回归） |
+| 10. 通知默认翻转 | **PASS（如实两分）**：既有 profile `notifications.agent=true` 存储值经重启保留（decode 保留已存值实态）；**全新 profile 默认 false 由 model.test 单测锁定**——设备侧不可采（禁止 pm clear），如实记录 |
+| 11. zoom × 宽度 token 叠加抽查 | **PASS（观察）**：`documentElement.style.zoom=1.5` 下 token 仍 744px、probe 元素布局宽 744（CSS zoom 等比绘制，无布局破坏）；S42 六档缩放本体不回归（#65 在册） |
+| 12. S13 `<768px` 移动侧（F5） | **BLOCKED（如实）**：设备 DPR 2.25、物理 1840×2800 → 竖屏原生 CSS 宽 ≈818px（`screen.width`=1245 横屏/818 竖屏实读）>768，物理达不到窄断点；CDP `Emulation.setDeviceMetricsOverride(390×844, mobile)` 返回成功但布局视口不变（1245×786 复读）——Android WebView surface 由视图层级持有，模拟不生效（**非应用缺陷，不据此推断**）；S13「<768px 实态仍需联验」保持，mobile() 标题栏行代码面由目标 general.tsx 原生携带 |
+
+### 对照条件
+
+横屏 CSS 视口 1245×786 @ DPR 2.25（竖屏 CSS ≈818×1245）、WebView Chrome/114.0.5735.196、深色主题、语言 English、系统字体缩放默认；APK SHA-256 `9e711331…`；截图（/tmp，不提交）：qa-dropdown.png（Timeline 段目标行）、qa-inbox-mode.png（Inbox 选中后实态仍 Side rail——W05 证据）、qa-width-focused.png（focused 档）、qa-home-newicons.png（新图标集）。**Desktop 参考端无**——视觉对照 BLOCKED 继承；`<768px` Desktop 侧对照同理。
+
+### 阻塞项（如实，不写通过）
+
+Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联验（DPR 物理不可达 + CDP 模拟在嵌入 WebView 不生效）；session 列宽度三档视觉/Inbox 实态聚合/背景活动 composer 呈现（无活会话——归 G20/G21/W05）；TalkBack 完整走查（G31）；真服务 queue/steer 执行增量（W15）；`settings-sounds-interface` 行（notifications 页 issue）；S10 commentary 槽/文案与 compact/quiet 预设（session-ui timeline 呈现链后续）；Sources gate 迁移（#109）。
+
+### 文档同步
+
+`docs/design/units/settings.md`（新增「偏好页内面」单元 + #101 指引更新为 #103 交付态 + M-044 剪除段收窄）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S04–S13/S38 行 + 阶段 3 行 #103 增补）；补丁 manifest M-046 reason/rebase 字段即偏离登记文档（16 targets、保留偏离、不采纳项、typed-locale 延伸）。
+
+
 ## BLOCKED 总表
 
 | 项 | 缺失条件 | 归属 |
