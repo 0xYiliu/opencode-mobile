@@ -659,6 +659,10 @@ let mhFiles = 0
     `${APP}src/settings/providers/extensions.tsx`,
     `${APP}src/providers/connect/mcp-dialog.tsx`,
     `${APP}src/runtime/plugin/extension-plugins.tsx`,
+    // Issue #107: the notifications page joins the guard — its static language.t
+    // literals (notification/sound/interface rows) must exist in en.ts; the dynamic
+    // `language.t(androidPermissionDescription())` form contributes no literal.
+    `${APP}src/settings/notifications/notifications.tsx`,
   ]) {
     const source = await read(rel)
     let checked = 0
