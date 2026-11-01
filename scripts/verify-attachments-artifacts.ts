@@ -369,7 +369,7 @@ let distAssetCount = 0
   const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
   if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
       registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (46 unique, path-for-path)")
+    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (47 unique, path-for-path)")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
