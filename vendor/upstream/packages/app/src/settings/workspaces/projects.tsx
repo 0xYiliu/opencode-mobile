@@ -69,7 +69,7 @@ export const SettingsProjects: Component<{
     <>
       <div class="settings-tab-header" classList={{ "settings-tab-header--stacked": searchable() }}>
         <div class="settings-tab-header-row">
-          <div class="flex flex-col gap-1">
+          <div class="flex min-w-0 flex-col gap-1">
             <h2 class="settings-tab-title">{language.t("settings.projects.title")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.projects.description")}</span>
           </div>
