@@ -2557,6 +2557,8 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 | #107 Android 权限 allow/deny/revoke 全矩阵（授权后重进状态正确） | API 33+ 模拟器/设备（运行时 POST_NOTIFICATIONS dialog；.145 为 API 31——bridge 对 <33 直答 granted 不弹窗，deny/revoke 路径不可达；本轮环境 seam fail-closed → 行呈 unavailable 文案，granted 保真未在本环境可观察——如实登记）；**零 adb 授权态变更红线保持** | issue #107（验收「权限允许/拒绝/撤销后重新进入状态正确」）；归属 G33 |
 | #107 声音预览人耳可听性确认 | 声学通路（自动化验证无听觉）；播放路径机证已到位（`Audio.prototype.play` promise resolution 双形态 + loads-phase fetch 200 + logcat AudioTrack `createTrack … pkgName ai.opencode.mobile` 归因）——「默认音频资源不可播须修复」条款以「资源在册 + 播放路径执行」满足，可听性如实登记不可验 | issue #107（验收「默认音频资源不可播须修复或登记未完成」） |
 | #108 快捷键执行链物理键核对（冲突反馈 toast 文案 + 捕获完成写入 + 实际命令触发） | 外接键盘（.145 实测无——`dumpsys input` QA 始末双查全部输入设备 `IsExternal:false`；CDP 合成按键不作证据，issue 明文）；冲突/优先级/skip 逻辑由 command.test.ts 目标块单测（定向子集 63 pass/0 fail）+ 代码证据覆盖，触摸可达项（搜索/捕获开合/Unbind/恢复默认/迁移重启保持）设备实测 PASS | issue #108（验收「冲突反馈→取消/保存→实际命令触发→恢复默认」执行链）；归属 G34 |
+| #110 About 服务行真服务版本展示（checking→version→unavailable 全转换链 + 真服务行值） | 可达远程服务（hosts 不可达为总边界）；可验半边（显式降级串 `Checking server version…` 恒驻、非空白、无伪版本）已随 #110 设备实测 PASS（12s 六采样恒同，与 #72 同形） | issue #110（继承 #72 QA-1/QA-2 残项与「无可达服务」总边界） |
+| #110 whatsNew 真实版本跃迁触发弹窗路径 | 下一次真实 versionName 升版轮（合成 localStorage 伪造 previous 不作证据）；seen 水位 `plugin.updater.seen={"version":"0.1.0"}` 与冷启动无伪弹窗已随 #110 设备实测 PASS；激活条件 = ADR 0005 §4.2（首个对外可下载已签名 release + 版本清单），暂缓非永久排除 | issue #110（S40 邻外面；ADR 0005 §6 R1 裁定 (c) 维持） |
 
 ## issue #108 段（S20：快捷键配置与恢复对齐 Desktop v2.2.1——M-051）——2026-11-01 实测记录
 
@@ -2674,6 +2676,66 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 - **会话依赖面 BLOCKED（继承「无可达服务」总边界）**：strip/More 抽屉撤除恢复（#96 回归的会话面证据）、真实长 Diff overflow 翻转（S14 残项）、Sources chip 呈现、服务端 Plugins 名单呈现（#8）——四项均需可达服务器/真实 diff 数据；结构面由 vendored 宿主 §三同帧语义 + rendered 测试 + 探针承载，不作设备级声称。
 - Desktop 参考端无 → 视觉对照 BLOCKED 继承（#104–#108 同判）；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记；本轮设备视口 818/1245 均 ≥768px）；TalkBack 实机走查未行（语义 DOM 级已核，G35⑨ 抽查位登记）。
 - **D4 保留不等于运行期验收闭环**：G35 十项运行期门禁仍 BLOCKED（gui-plugins.md §首第二十一处落字口径不变）；#109 交付为契约解决 + 静态/单测/构建/设备行面证据，不据此关闭 G35。
+
+## issue #110 段（S39–S40：About、许可与发行说明界面对齐 Desktop——零新补丁复验收口）——2026-11-02 实测记录
+
+**分支与基线**：worktree `issue-110-about`，base `33baf5e`（origin/main，#119 合入后，M-052 交付）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）+ 50 移动补丁（M-019/M-039 reserved-absent）；实施提交链 chore(verify)（探针陈旧见证串勘误，`a967a0c`）→ chore(verify)（web-dist manifest 刷新 + 非确定性归因，`b65344a`）→ docs 同步，未 push。**主线判定 = 零新补丁成立**：§2 逐文件 blob 实测（对固定 git 对象，非工作树）——`animated-wordmark.tsx`/`notices/dialog.tsx` vendored==target（`117e2f2`/`5dd18fb`，随 M-035/M-040 轨 1 带入）、`about.tsx` pin==target（`01ce931`）vendored=`c71e0d9`（M-040 已批准区域级例外保留）、`contributors.ts`/`contributors.test.ts`/`legal.svg`/`anomaly-brush.svg` 与 notices 六数据文件 pin==target==vendored、`settings.css` vendored==target（`8fffd4c8`，M-040 css hunk 恰 +1/−0 R6 守卫不变）、`external-link.tsx`==target（`133e752e`）、`search-catalog.ts` about 行 :23 逐字、`pages.ts`/`route.ts` about 条目逐字同形、en.ts 上游 about 键集==target + M-040 四键恰 :783–786（zh/zht 零键负锚成立，zh :821 "关于"）、web.ts 差集恰 M-011×1+M-020×6+M-035×2+M-041×1（M-020/M-035 计入枚举——计划 v1 只列 M-011/M-041 经评审 M-4 更正）、updater 79 文件==target（63 i18n+16 非 i18n，`contract.ts` 正确缺席）、`plugin/root.tsx`+mobile-hosts `extension-manager.tsx` desktop-host 禁用行与 `i18n.ts:249` "Desktop only" 在位、AndroidManifest 零 REQUEST_INSTALL_PACKAGES/零 VIEW intent-filter（仅 MAIN/LAUNCHER）、双 manifest 50=50、M-040 五 targets 恰在册。**任何漂移均未出现**，§3.2 M-053 应急线未触发。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包（50 补丁） | `bun run verify:closure` | **PASS**（双 manifest 50=50、DANGLING=0、V3(a) 字节级重放 M-001..M-052；开工与收尾各一跑，零源码改动下两次恒同）。收尾轮一次 FAIL 归因登记：`bun install` 工作区解析在 `vendor/upstream/packages/gui-extensions/` 落下**仅含 node_modules 的空壳目录**（零文件，install 时点产物；diff -r 的 --exclude=node_modules 不覆盖「目录仅含被排除内容」的存在性差）——识别为安装产物后删除（#109 `.d.ts` 副产物清理同型先例），复跑 PASS；排除清单措辞与该形态的边界如实留注 |
+| app 全量单测（无 seam） | `cd vendor/upstream/packages/app && bun run test:unit`（seam 软链摘除） | **655 pass / 4 skip / 24 fail / 24 errors / 2000 expect()（683 tests/115 files）**；错误行集 uniq 归一 = **23× runtime/server/registry.tsx + 1× shell/notifications/notification.tsx + 2× disk-full**，与 #109 基线逐字节相同，零新失败 |
+| app 全量单测（seam 口径） | 同上（六包 seam 软链绝对路径重建：app/session-ui/ui/client/gui-extensions/plugin-browser → `packages/mobile-hosts`） | **802 pass / 4 skip / 1 fail / 2367 expect()（807 tests/115 files）**（唯一 fail = settings-search-plugin mount 组预存，与基线同名同位） |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()（39 文件）**（桥冻结零改动；extension-manager 重启持久化测试在册绿） |
+| vendored tsc 双口径 | `bun run typecheck:tsc`（纯净态先清 tsbuildinfo） | **纯净 389 / 增量 389**（与 #109 基线恒同；零源码改动下分布恒同按构造成立；期间 mobile-hosts src 生成 7 个 .d.ts 副产物，未提交已清理——#109 同现象在册） |
+| 探针普查（build 前，fresh worktree） | `for f in scripts/verify-*.ts; do bun run $f; done`（33 个） | **27 rc=0 + 4 rc=1 产物条件性 + 2 rc=1 预存**——M-5 预注册形态（先于测量落字：attachments-artifacts/direct-connection 需 vendor dist/_assets、service-ops/ssh 需 android assets/web，构建后全 rc=0；debug-bar W28 陈旧锚、inline-ssh-device 设备态 CDP）**实测与预注册逐成员一致**（#105/#107/#109 段同判口径） |
+| 探针普查（gradle 后） | 同上 | **29 rc=0 / 4 rc=1**（+ permission-requests/session-workbench 走进 gradle mergeDebugAssets 中间产物，#101 在册产物条件性 by design） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3520 files / 159,673,641 bytes——与在册 #109 哨兵逐字节恒同，零哨兵改动**；`web-dist/manifest.json` 头两字段恒同，体差 = `generatedAt` 时间戳 + 29/1636 条 `.js.map` sourcemap hash churn（**零 .js/.css/.aac/font 资产条目变化**——rolldown map 发射非确定性，已归因并在 chore(verify) `b65344a` 提交说明落字；零漂移归因程序触发） |
+| APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**（rc=0，41 tasks）；app-debug.apk **SHA-256 = 24a4a29092df1fa17a453beda50e2f905fe3330c0da3268efe15c5d71368ef4f**（65,349,007 bytes——与 #109 APK 同字节数，debug 签名时间戳致 SHA 不同）；`adb install -r` **Success**（.145，数据保留——零 uninstall/零 pm clear） |
+| leak-scan | `bash scripts/leak-scan.sh` | rc=1 恰 **5 条预存** fixture 行（packages/mobile-hosts/test/host-credential.test.ts :22/:44/:51/:59/:78 "synthetic fixture"）——对 base `33baf5e` 同文件逐字节相同（预存同败同文），零新增泄漏面 |
+| audit-secret-persistence | `bun run scripts/audit-secret-persistence.ts` | **PASS**（G 组 dist markers 构建后口径：mobile(M-002)/mobile(vault-v1) 在 built assets 命中；vault 元数据 value-free） |
+| git diff --check | 终提交树 | clean（rc=0） |
+
+### 探针勘误（chore(verify) `a967a0c`——M-1 grep-sweep 全量，注释/标签层，断言行 diff 为零）
+
+sweep 域 = scripts/verify-*.ts 全量（陈旧见证串形态：`49=49`/`39=39`/`159672996`/`expected <stale-dist>`/陈旧 N=N 头注/陈旧 M-001..M-040 范围），修复 8 处/4 文件：
+
+1. `verify-about-version.ts` 头注（M-5 更正：实为 :5 非 :4）「M-001..M-040, M-039 reserved-absent for the parallel #71 branch」→「M-001..M-052, M-019/M-039 reserved-absent」；`:54` 头注「50=50 since issue #109's M-052」补「re-verified by issue #110」；`:315` PASS 标签「49=49」→「50=50」（该探针 :280/:296 断言本就锁 50——纯标签；顺带补 M-052 by issue #109 归因）。
+2. `verify-open-external.ts` 头注 :41 + WITNESS 注释 :260 + PASS 标签 :272 三处「39=39」→「50=50」（39 为 #76 时代总数，落字历史标注；MASTER lock 三探针归属不变，纯见证串）。
+3. `verify-gui-plugins.ts` :735 组 8 FAIL 消息「expected 3520/159672996」→「expected 3520/159673641」（消息携带 #108 陈旧值而断言 :701 已检 #109 现值——消息层勘误，断言不动；sweep 中 `:706` 等历史叙述段保留 = vgp 先例「明确历史标注不改」）。
+4. `verify-pinch-shell-settings.ts` 头注「patch chain stays 38=38」→「38=38 at the #74 era, 50=50 since issue #109's M-052」（历史标注化）+ 范围 M-001..M-040→M-001..M-052（活探针 rc=0，同类头注勘误）。
+
+**sweep 排除登记**：verify-debug-bar.ts 头注范围保持 M-001..M-040 原样（该探针为在册陈旧锚 rc=1/W28，字节稳定用于「同败同文」交叉核对，本轮不触）；verify-agent-capabilities.ts :94 的 7=7/4=4 为该探针自断言 feature 域计数（非补丁链计数，组内自洽）；commands-menus/notifications/gui-plugins PASS 链中「prior <dist>」历史链保留（显式历史叙述）。
+
+**负例演练（三组，注入→rc=1 FAIL→还原→rc=0）**：①about-version 计数断言 50→49 注入 → `FAIL: 6: patches manifest must register exactly 50 patches (got 50)` → 还原；②open-external M-041 路径常量篡改 → `FAIL: 3: vendor-manifest mobilePatches lost the M-041 path` → 还原；③gui-plugins 组 8 哨兵断言注入陈旧值 159672996 → FAIL 消息**以更正后的现值**呈现（`expected 3520/159673641, got 3520/159673641`——消息勘误实效实证）→ 还原。四触探针复跑全 rc=0。
+
+### 设备 QA（§6.2；DBY2-AL00 @192.168.3.145:5555，Android 12/API 31，竖屏 CSS 818×1213 DPR 2.25，WebView 114.0.5735.196，locale=en dark；APK `24a4a290…`；`adb install -r` Success 数据保留——零 uninstall/零 pm clear/零主动断连；驱动 = adb forward tcp:9222 + CDP `Runtime.evaluate` DOM 核对 + 真触 tap（rect×dpr + 窗口 72px 标题栏偏移标定，uiautomator dump 实测 WebView 边界 (0,72)-(1840,2800)）+ `Page.captureScreenshot` /tmp 不提交 + `dumpsys activity activities` 外跳观察；locale=en 为主 + zh 专项 QA-G）
+
+| 项 | 操作（诚实方法） | 判定 |
+| --- | --- | --- |
+| QA-H 前置 | 全量 localStorage dump = pre-dump（**18 键**，含 `plugin.updater.seen`/`extension.updater.seen`/`hosts.v1`） | 记录完成 |
+| QA-A About 可达与三行 | Settings → About（`button[role=tab][data-value=about]`）；`settings-about-versions` 锚在场；DOM 断言三行实显 `Version 0.1.0` / `Upstream OpenCode 2.1.4` / 服务行显式串；设置搜索 "version license credits" → About 行揭示 | **PASS**（三行实显 + 搜索命中；截图在册） |
+| QA-B 服务行诚实降级 | 无活服务稳态 12s 六次采样服务行文案 | **PASS（可验半边）**：行显 `Checking server version…`（explicit checking 键、非空白、无伪版本）恒驻——与 #72 所见**同形**（health undefined→checking 分支；M-043 框架迁移未在本环境改变该行时序，如实记录无形态变化）；checking→version→unavailable 全转换链与真服务展示 **BLOCKED** 继承 |
+| QA-C notices 弹窗复验 | 打开 Third-party notices；`.settings-notices-scroll[data-scrollable]` 存在性 + `overflow-y: auto` 实测；scrollTop 读数记录；长文行截图 | **PASS**：clientH 404 / scrollH 5327；scrollTop 0→2929（55%，BetterOffice/Apache 段）→4923（=max 4923，License texts/crates 段）——可滚动 + 长文可读（#72 QA-3 迁移后复验不回退）；动态 import 失败 Toast 面不做故障注入（代码+探针组 1 承载） |
+| QA-D 链接外跳（本期新验收核心） | About 页逐链接真触点击（`input tap` 标定坐标）：`www.opencode.ai`、contributor `github.com/thdxr`、notices 弹窗内 entry.url `github.com/openooxml/betteroffice`；点击前后 `dumpsys activity activities` + CDP page target URL + 截图双证；返回后 About 态复原核对 | **形态实测（判定 PASS，机制更正登记）**：三链接真触点击均**在本 WebView 内原位打开目标页**（CDP page target 实测依次变为 `https://opencode.ai/`、`https://github.com/thdxr`、`https://github.com/openooxml/betteroffice`；`topResumedActivity` 恒为本 app——无浏览器包切换）；系统 BACK 回退 WebView 历史 → About 态完整复原（DOM+截图）。**计划前提更正**：About 外联为 ExternalLink 目标形 plain `<a target="_blank">`（external-link.tsx==target blob），**非 M-041 `platform.openExternal` 消费者**（M-041 face 服务于 connect/mcp/usage/error/host-apis 在册消费者，#76 证据归属不变）——移动 WebView 无 multi-window/onCreateWindow 下目标 `_blank` 语义 = 同窗回退，链接「可打开」半边成立。「明确失败」半边不可从 About 链接触发（全合法 https，无 refused 域；M-3 预判成立）——**继承 #76 JVM 31/0 + AVD Toast 显式失败证据**；合成 JS click 不触发该导航（trusted-event 行为差，如实登记）。OAuth 回流等更宽外跳边界不属本期（N08 在册） |
+| QA-E 更新暂缓态不误导 | gui-extensions tab 行 DOM 全扫 + 设置导航 tab 集全扫 + About 页控件扫描 | **PASS（三负例全成立）**：①15 行中 browser/pairing/**updater**/ssh 四行 `data-capability="desktop-host"`——Switch `aria-disabled="true"`+`disabled`+"Desktop only"（`i18n.ts:249` 键值设备实显）；②13 个 tab 集合零 update/whats-new/beta 面（上游 Updates 页 `ctx.desktop` 门后不注册）；③About 页 update 控件扫描 = 0 |
+| QA-F What's New 邻外面负例 | 冷启动观察（进程 10580→10581→10584 多轮自然重启均适用）+ localStorage 水位读取 | **PASS**：无发行说明弹窗自发弹出（`whatsNew()` `previous===version` 早退）；无 What's New/changelog 文案、零 role=alert；seen 水位实测 `opencode.global.dat:plugin.updater.seen = {"version":"0.1.0"}`（=MOBILE_APP_VERSION；highlights seen 存储的持久化键名如实登记——非字面 "highlights.v1"）；`extension.updater.seen = {"version":"2.1.4"}` 另储（gui-plugins updater 域，既有）。**真实版本跃迁触发弹窗路径 BLOCKED**（激活条件 = 下一次真实 versionName 升版轮；不用合成 localStorage 伪造 previous） |
+| QA-G zh 回退抽查 | 语言 Select 真触切换 简体中文 → About 页核对 → 复原 English（DOM+截图） | **PASS**：lang=zh-Hans，13 tab 全中文（提供商/模型/…/关于/GUI 扩展）、`版本0.1.0`/「根据麻省理工学院许可证发布」中文实显；**M-040 两行保持英文**（"Upstream OpenCode 2.1.4"/"Checking server version…"——en-base-first 回退链在册形态，非缺陷）；English 已复原（#72 QA-4 不回退） |
+| QA-H 数据红线 | post 全量 dump 对照 pre-dump（Python dict 比对） | **PASS：18/18 键逐字节相等**（零新增/零缺失/零值变——zh 往返后 `language` 键值复原全等）；零凭据形新键；`hosts.v1` credentialRef 引用形在位且零 secret/password 字形 |
+
+**对照条件登记**：APK SHA-256 `24a4a290…`（65,349,007 bytes）；WebView Chrome/114.0.5735.196；CSS 视口 818×1213 / DPR 2.25（竖屏实测，不虚构 390×844）；locale en（QA-G zh 专项往返已复原）/dark；数据态 = 三 SSH 主机预置（authorized-bastion/bastion-main/bastion-aux，hosts.v1 与 #109 轮一致）。Desktop 视觉对照 **BLOCKED 继承**（无 Windows 参考端；源码级 target 等价 + 设备渲染证据不作 Desktop 实机声称）。**服务行真服务展示 BLOCKED 继承**（hosts 不可达；激活条件 = 可达服务器环境）。
+
+**设备环境注记（如实，非 app 缺陷）**：①开工时设备处于 Smart Cover 盖态锁屏（系统 `ShowTpMsgActivity` 全屏阻断触控面板，`cover_enabled=1`）——以 `settings put global cover_enabled 0` 解除后完成 QA，**QA 后已复原 `cover_enabled=1`**；②华为电源管理无视 30 分钟 screen_off_timeout 设置（QA 中多次自动息屏致 WebView 暂停/devtools 静默——每步「唤醒→动作」紧邻执行；两次第三方页面在屏时进程被系统回收重启（10580→10581→10584），均 cold-start 恢复、数据零丢失（QA-H 18/18 佐证）；`screen_off_timeout` 已复原 60000；adb forward 已撤除；截图存 /tmp 不提交。
+
+### 诚实边界与 BLOCKED 登记（本期新增/继承）
+
+- **服务行真服务版本展示 BLOCKED**（挂 #110）：无可达服务——激活条件 = 可达服务器环境（继承 #105/#106/#109「无可达服务」总边界）；本验半边（显式降级串、非空白、无伪版本）已 PASS。
+- **whatsNew 真实版本跃迁触发弹窗路径 BLOCKED**（挂 #110）：激活条件 = 下一次真实 versionName 升版轮（ADR 0005 §4.2 未满足——首个对外可下载已签名 release + 版本清单；暂缓不是永久排除，ADR 0005 零改动）。
+- About 链接「原生浏览器外跳」呈现形态实测为**目标形原位打开**（S39 行更正落字）；「明确失败」反馈面继承 #76 JVM/AVD 证据（M-3 登记），不重复声称设备级失败路径。
+- Desktop 视觉对照 BLOCKED 继承；`<768px` 两侧联验 BLOCKED 继承；TalkBack 走查按适用面登记（About 行/弹窗行语义 DOM 级已核，读屏实走未行）。
+- 许可审计 V4 12 项保持「待用户决策」原样引用；`docs/decisions/0005-apk-update.md` 零改动（引用不改变——本段与 settings.md 均只引用）。
 
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
