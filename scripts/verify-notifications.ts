@@ -538,7 +538,10 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // Current baseline is read from a fresh Vite build of the tracked source tree.
   // The M-026/M-027/M-028 values below in comments/docs remain historical measurements.
   const distManifest = JSON.parse(await read(DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
-  // issue #103 measured: the general/experimental preferences-page migration (M-046)
+  // issue #104 measured: the ui theme component-family target-form trim (M-047 dead-export
+  // convergence) rebuilt the payload to 3517/159599796 (-1225 bytes at the same file count;
+  // the trimmed theme index barrel/loader/default-themes dead code previously only survived
+  // via tree-shaking). issue #103 measured: the general/experimental preferences-page migration (M-046)
   // rebuilt the payload to 3517/159601021 (+1994 bytes at the same file count; the new
   // settings rows / i18n keys / timeline-width token block outweigh the removed
   // terminalPlacement strings). issue #102 measured: the servers-page target migration (M-045) rebuilt the payload to
@@ -553,8 +556,8 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // gui-plugins swap measured 3516/159532385 — now historical).
   if (distManifest.fileCount !== 3517)
     fail(`8: current web-dist fileCount drifted (expected 3517, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 159601021)
-    fail(`8: current web-dist totalBytes drifted (expected 159601021, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 159599796)
+    fail(`8: current web-dist totalBytes drifted (expected 159599796, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
