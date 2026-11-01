@@ -72,7 +72,7 @@
 
 ## settings.v3 持久化边界
 
-- 单一 persisted store `settings.v3`（`Persistence.struct` + per-field `recover()`：未知字面量**仅该字段**回退默认，兄弟字段无损——model.test.ts invalid-decase 边界锁定）。逐项修改 → 切页 → force-stop 重启后保持（设备 QA 项）。
+- 单一 persisted store `settings.v3`（`Persistence.struct` + per-field `recover()`：未知字面量**仅该字段**回退默认，兄弟字段无损——model.test.ts invalid-decode 边界锁定）。逐项修改 → 切页 → force-stop 重启后保持（设备 QA 项）。
 - **`notifications.agent` 默认 true→false**（M-046 采纳目标形）：**仅影响全新 profile**；已存储 settings.v3 的 decode 保留既有值（Persistence 字段级回退只在键缺失时生效）。
 - `sounds.interfaceEnabled: Schema.optional(Schema.Boolean)`（默认 true）落地为**惰性字段**——vendored 树暂无消费者；设置行与搜索行归 notifications 页所属 issue。
 
