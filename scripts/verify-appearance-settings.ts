@@ -133,6 +133,9 @@ const WHITELIST = new Set([
   // prefers-reduced-motion blocks (upstream never data-motion-converted them).
   `${APP}src/shell/palette-menu.css`,
   `${UI}src/forms/search-list/search-list.css`,
+  // Issue #105 M-048 drag-in: v2.2.1-native file (same class as palette-menu.css)
+  // — its pending-dot guard is `@media (prefers-reduced-motion: reduce)`.
+  `${APP}src/shell/search-list.css`,
 ])
 
 // --- 1. Three-state enum + arbiter (settings/model.tsx) ---
@@ -366,7 +369,7 @@ const WHITELIST = new Set([
   // The plan v2 §8 step 3b app+ui subscan: same set, asserted over the narrower scope.
   const appUi = actual.filter((f) => f.startsWith(APP) || f.startsWith(UI))
   if (JSON.stringify(appUi) !== JSON.stringify(expected))
-    fail(`7: app+ui subscan is not the exact five-file whitelist — got ${JSON.stringify(appUi)}`)
+    fail(`7: app+ui subscan is not the exact six-file whitelist — got ${JSON.stringify(appUi)}`)
 }
 
 // --- 8. Tailwind custom variants only ---
@@ -561,7 +564,7 @@ console.log(
     "4: desktopZoomLevels six levels + type, no nextDesktopZoomLevel, DESKTOP_MENU intact; " +
     "5: web.ts zoom faces (CSS zoom + opencode-ui-zoom-level localStorage + desktopZoomLevels validation + mobile(M-035) marker) via spread, platform.tsx type file zero zoom content; " +
     "6: 25 CSS files / 31 blocks + 3 TS consumers converted per-file (no bare @media reduce block, no bare matchMedia reduce read), motion/reduced.ts verbatim + minimized index + ./motion export only; " +
-    "7: whole-tree prefers-reduced-motion file set EXACTLY {settings/model.tsx, go-upsell-hero-art.ts, motion/reduced.ts} (app+ui subscan identical); " +
+    "7: whole-tree prefers-reduced-motion file set EXACTLY the six-file WHITELIST {settings/model.tsx, go-upsell-hero-art.ts, motion/reduced.ts, shell/palette-menu.css, ui forms/search-list.css, shell/search-list.css (issue #105 M-048 drag-in)} (app+ui subscan identical); " +
     "8: tailwind comment + two custom variants + @source gui-plugins root (stories rename still out — vendored tree has no stories dir), verbatim timeline-width token block + --container-session comment sentence (issue #103/M-046); " +
     "9: A2 zoom entry without available line + reduceMotion entry, search-results 'font' length 4 with mobile(M-035) comment, no not.toContain settings-zoom line, target capsule toMatchObject + timeline-width positive anchor with the sounds-interface negative kept (issue #103); " +
     "10: seven en keys between interfaceMode.experimental and notifications block, zero keys in zh/zht/ko/de/fr, en base-first merge intact; " +

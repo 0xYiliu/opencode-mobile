@@ -365,7 +365,9 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   }
 
   // Out-of-domain fact (declared, not asserted as a violation): the upstream app
-  // has exactly four writeText sites in exactly three files, none in the pairing flow.
+  // has exactly five writeText sites in exactly four files, none in the pairing flow.
+  // Issue #105/M-048: providers/connect/mcp-dialog.tsx gains the MCP error-details
+  // copy fallback (platform.writeClipboardText ?? navigator.clipboard.writeText).
   const appFiles = (await listFiles(APP_SRC)).filter((file) => /\.(ts|tsx)$/.test(file))
   const writers: string[] = []
   let writes = 0
@@ -379,11 +381,12 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   }
   const expectedWriters = [
     `${APP_SRC}providers/connect/dialog.tsx`,
+    `${APP_SRC}providers/connect/mcp-dialog.tsx`,
     `${APP_SRC}runtime/plugin/host-apis.tsx`,
     `${APP_SRC}session/commands/use-session-commands.tsx`,
   ].sort()
-  if (writes !== 4 || writers.length !== 3 || writers.some((file, i) => file !== expectedWriters[i]))
-    fail(`5: the app/src clipboard-write fact changed (expected exactly 4 writes in 3 declared files ${expectedWriters.join(", ")}; got ${writes} writes in ${writers.length} files: ${writers.join(", ")}) — re-review the connection.md §④ domain split before keeping it`)
+  if (writes !== 5 || writers.length !== 4 || writers.some((file, i) => file !== expectedWriters[i]))
+    fail(`5: the app/src clipboard-write fact changed (expected exactly 5 writes in 4 declared files ${expectedWriters.join(", ")}; got ${writes} writes in ${writers.length} files: ${writers.join(", ")}) — re-review the connection.md §④ domain split before keeping it`)
 
   // Zero logging in the import path (pairing/redeem/scanner/camera).
   for (const [name, path] of [["pairing.ts", PAIRING], ["redeem.ts", REDEEM], ["scanner.tsx", SCANNER], ["camera.ts", CAMERA]] as const) {
