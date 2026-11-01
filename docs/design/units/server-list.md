@@ -58,6 +58,7 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 | host-key-prompt | [connection.md](connection.md) | 连接状态机 hostKeyUnverified 态 | 指纹确认（stub fail-closed，BLOCKED #6） |
 
 - 设计单元归属说明：host-manager/host-dialog/credential-manager 并入本单元（它们是服务器列表的管理面），host-key-prompt 并入 connection 单元（它是连接确认交互）；architecture.md 设计单元清单不单列新行。
+- **issue #102 管理面上游形态更新（M-045，目标逐字）**：servers 标签页的上游列表行现为目标 `ServerConnectionRow`（每行 `settings-shell:<key>` 搜索命名——选中服务器行保持默认 `settings-shell`，其余行逐服务器命名供 Settings 搜索 reveal；健康点 + `entry.name` 行名 + 未授权 401 时行内 Authenticate 入口），每个服务器段的 Shell 偏好段随 `healthy !== false` **健康门显隐**（不可达/401 服务器不再显示 Shell 行——目标行为，勿报回归）；单服务器 General 视图同一行组件 + 同一健康门。`Manage servers…`（switcher 菜单）可达 servers 标签页。M-008 主机管理器挂载（Tabs.Content 第一子元素）不变，第一方行/凭据/服务认证面与上游行**并列独立呈列**（设备复核 2026-11-01：3 个既有 SSH 主机独立呈列，凭据绑定徽标正常）。设备复核另见 [../../build-and-verify.md](../../build-and-verify.md) issue #102 段。
 - host-dialog 凭据绑定块（issue #4）：SSH 主机不再手输引用标识符——密码凭据通过上游连接对话框的「记住」勾选（M-009）或主机表单绑定；表单内不再存在任何凭据值输入位。
 - 诚实边界：
   - 多 host 一窗、设置页/home 内 extension 行渲染待真机核对，归 G13/G15；Settings → Server 的 M-008 主机管理器与已保存行已在 MatePad 运行核对（2026-10-29），保存主机 Connect 可达 host-key prompt，未确认指纹。

@@ -164,6 +164,8 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 
 直连服务沿用上游原生注册表与连接对话框（M-005/M-006/M-009/M-010 已承载），issue #5 补齐传输卫生与错误分类：secure-fetch（M-011）、上传 XHR 校验（M-012）、probe 先行分类反馈（M-013）、probe 桥接线（M-014）。实现位置 `packages/mobile-hosts/src/transport/`、`src/probe.ts` 与 `android/app/src/main/java/ai/opencode/mobile/probe/`。
 
+**issue #102 增补（M-045）**：连接对话框的新增/编辑条目现渲染目标形态行——servers 列表行委托共享 `ServerConnectionRow`（行内 Authenticate 入口、`entry.name` 行名），对话框本体（M-005 credentialRef 保留、M-009 记住分支、M-013 probe 分类错误、`onSave` 回传选中）全部保留不变；`servers/connect/redeem.ts` 的 `Redemption` 类型随目标**取消导出**（树内零消费者，纯收紧）。指纹/凭据契约本轮零改动（交叉引用见上）。
+
 ### 四通道认证覆盖表（现状=上游已统一 Authorization 头；M-011 不触头语义）
 
 | 通道 | 载体 | 认证方式 | URL 中有无凭据 | 本轮动作 |

@@ -5,7 +5,7 @@
 ## 单元边界（A/F 分界）
 
 - **A（本单元，issue #101）**：设置外层壳（`settings/shell.tsx` 单一 RootSettings 布局）、导航（`settings/navigation.tsx`）、路由/视图模型（`settings/route.ts`）、surface 与服务器上下文（`settings/surface.tsx` 的 `surface.server()`/`selectServer`/`openServers`）、搜索（index/catalog/results/UI/focus-reveal）、设置→命令面板桥（`settings/palette.ts` + `shell/commands/palette.ts`）、共享设置 CSS、以及依赖闭包（M-042：sidebar-toggle/sidebar-peek/servers-registry label/ui slash + registry label/hint 块）。
-- **F（issue #102 起）**：Servers 页内面（连接行/认证操作）、各配置页内容对齐。A 只搬了壳渲染所需的两个件——目标 `SettingsServerList` 与重定签名后的 `SettingsServerGeneral(entry, onAddServer)`；servers.tsx 其余行/认证内容保持 M-037 态，`ShellSetting` 的 `action` 线程未接（#102 全量迁移时接回，servers.tsx 内有 mobile(M-043) 标注）。
+- **F（issue #102 已完成 Servers 页部分）**：Servers 页内面已随 **M-045**（0045-M-045-servers-page-target-migration.patch，双 manifest 在册第 43 个补丁）迁移至 v2.2.1 目标——`servers.tsx`/`servers/registry/row.tsx` **目标逐字**（SettingsServerGeneral 委托共享 ServerConnectionRow、Shell 段随 `healthy !== false` 健康门显隐、`settings-shell:<key>` 搜索命名线程、死代码 ServerRow 删除）、`redeem.ts` Redemption 去导出；`general/general.tsx` 仅接 `ShellSetting` action 检字（文件其余保持 M-037 态，mobile(M-045) owner 注记标注，General 页内容对齐归 S04 后续 issue）；`settings/general/controllers.ts` **零改动**（两个既有 mobile hunks 保留：behavior 再导出边界 + pin 的 `config.update` 命名——生成客户端 PATCH `/api/experimental/config` 线等价，verify-appearance-settings 在册钉定，矩阵 S37 记录该保留偏离）。其余配置页内容对齐（General/Timeline/Providers 页内面等）仍归后续 issue。
 - 单一事实来源：**无第二 current-server 状态**。per-server 页显示哪台服务器由 `surface.server()` 独家决定（解析序：视图 `server` → source server → 本地已连接 → 第一台）；#102 经 `selectServer`/`onServerChange` 消费，不得另存状态。
 
 ## 壳/导航契约
@@ -56,3 +56,5 @@
 ## 诚实边界
 
 无 Windows Desktop 参考端（视觉对照 BLOCKED）；真 SSH/直连服务行为、失败反馈、重启恢复归 G 门禁；TalkBack/覆盖面完整走查归 G31；参考 renderer 预检仅组件/响应式级（截图 /tmp，不提交），mobile dev 构建被连接门拦（无活服务不进壳）如实登记。
+
+**issue #102 增补**：服务器页目标逐字迁移后，`SettingsServerGeneral` 单服务器视图在 `healthy === false`（含 401 未授权映射）时**隐藏 Shell 偏好段**（M-037 态为有连接即显示——目标行为变化，矩阵 S37 已记录，避免被误报为回归）；行名改用 `entry.name`；单视图编辑对话框不再经 `onServerChange` 回切。`servers-page.test.tsx`（M-045 随补丁携带）锁定上述形状：源锚在共享预载环境下运行，行为组在无共享预载的独立命令下降级为 skip（settings-search-plugin 先例），行为证据以独立运行记录为准。
