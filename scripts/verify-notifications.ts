@@ -569,10 +569,14 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // notices v2.2.1 line measured 3516/159542455; issue #90's amended-M-037 rebuild,
   // prior 3516/159542120; issue #70's btw entry measured 3516/159535257 and issue #67's
   // gui-plugins swap measured 3516/159532385 — now historical).
+  // Issue #108 measured: the keybinds/command-catalog target form (M-051) rebuilt the
+  // payload to 3520/159672996 (+7406 bytes at the same 3520 file count — the Shortcuts
+  // unbind key + Unbind button + ghost-danger variant + command catalog/keymap core ship
+  // inside existing chunks, zero new chunks; cross-reference verify-commands-menus group 8).
   if (distManifest.fileCount !== 3520)
     fail(`8: current web-dist fileCount drifted (expected 3520, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 159665590)
-    fail(`8: current web-dist totalBytes drifted (expected 159665590, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 159672996)
+    fail(`8: current web-dist totalBytes drifted (expected 159672996, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []

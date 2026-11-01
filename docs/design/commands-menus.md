@@ -15,7 +15,7 @@
 
 ## 二、命令注册系统全景
 
-- **registry 机制**（`shell/commands/command.tsx`，上游 582 行）：`command.register(key, cb)` 键控注册（同 key 后挂载者覆盖先挂载者，`addCommandRegistration` 前插 + `activeCommandRegistrations` 保每 key 首见）；不同注册面同 id 保**先见者**（`registered()` 的 `seen` 去重）；`placeAfterSlash` 让 `slashAfter` 命令挂入他面 slash 列表；全局 keydown keymap（`dialog.active` 或 suspended 早退；可编辑焦点内无 mod 且无 `editable` 让行）；键位解析 `mod` = macOS meta / 其余 ctrl；设置键位覆盖 `settings.keybinds.get(actionId(id))`（含 `"none"` 禁用）。
+- **registry 机制**（`shell/commands/command.tsx`，上游 610 行——issue #108/M-051 随目标形收敛，582→610）：`command.register(key, cb)` 键控注册（同 key 后挂载者覆盖先挂载者，`addCommandRegistration` 前插 + `activeCommandRegistrations` 保每 key 首见）；不同注册面同 id 保**先见者**（`registered()` 的 `seen` 去重）；`placeAfterSlash` 让 `slashAfter` 命令挂入他面 slash 列表；全局 keydown keymap（`dialog.active` 或 suspended 早退；可编辑焦点内无 mod 且无 `editable` 让行）；键位解析 `mod` = macOS meta / 其余 ctrl；设置键位覆盖 `settings.keybinds.get(actionId(id))`（含 `"none"` 禁用）。**#108 目标形增量**：①导出 `commandKeymap(options, custom)`——用户自定义绑定排在同键默认之前（配置真正作用于命令的核心语义，上游单测 commandKeymap 优先级块锁定）；②键让行两语义——绑定的 `skip?: (event)=>boolean`（键让行给目标命令）与 `onSelect` 返回 `false` 即拒绝按键（键交给目标）；③`bind(id, def, follows?)` 第三参——被跟随命令（follows）无自有覆盖时兜底继承跟随者的自定义键；④`CommandSource`/`COMMAND_SEARCH_ID` 转导出、`KeybindConfig`/`CommandCatalogItem` 转模块私有（vendored 树实测零外部消费者）、keys/named 改 `Map`、`bracketKey` ⇧[ 布局修正。
 - **第一方静态注册面清单**（本期穷举，约 45 id）：
 
 | 注册面 | 文件 | 命令 id |
@@ -29,7 +29,7 @@
 | desktop 门 | `shell/commands/desktop.tsx`（`desktop` 组） | `logs.export`——**平台门** `platform.platform !== "desktop"` 时早退，web 构建永不注册 |
 
 - **扩展命令发布**（`runtime/plugin/commands.tsx`）：`${extension}.${id}` 模板发布（如 `terminal.toggle`、`browser.open`、`debug.heap`、`wsl.retry`）；15 个内建 GUI 插件全部在 web 构建注册表同表激活（`gui-plugins/src/renderer.ts` `builtins` compose 对象无平台门）；移动面按 M-025 白名单三分（见矩阵 S41/N11）：web 10 可启停、desktop-host 4（browser/pairing/ssh/updater）呈现禁用、wsl 静态排除行零操作；`enabled === false → disabled`（见 §七第④层）。内建扩展命令族：terminal `toggle`/`new`/`close`、browser `open`/`reload`/`address`/`close`/`inspect`、btw `ask`、debug `toggle`/`heap`（`if (desktop)` 条件注册——web 永不注册）、pairing `open`、updater `check`、wsl `retry`。
-- **web 构建的命令可达面**（=移动实态，四面）：①composer slash 列表（软键盘；静态 11 键见 [interaction-quality.md](interaction-quality.md) §七 + 扩展动态面 `/terminal`、`/btw` 经 `slashAfter` 挂入）；②Settings > Shortcuts 页（`settings/keybinds/keybinds.tsx` 消费 `command.catalog` 持久化元数据+活体 options，键位覆盖可触屏编辑含 "none" 禁用）；③More 抽屉/一级 tab/设置入口（#20 §二/§七在册）；④全局 keydown（物理键盘）。**命令面板本体无触屏入口（keybind-only）为 #20 §七/§八在册实态，本文不推翻不重复收口**。
+- **web 构建的命令可达面**（=移动实态，四面）：①composer slash 列表（软键盘；静态 11 键见 [interaction-quality.md](interaction-quality.md) §七 + 扩展动态面 `/terminal`、`/btw` 经 `slashAfter` 挂入）；②Settings > Shortcuts 页（`settings/keybinds/keybinds.tsx` 消费 `command.catalog` 持久化元数据+活体 options，键位覆盖可触屏编辑含 "none" 禁用；#108/M-051 目标形增量：已卸载插件命令经 `usePluginHost().definitions()` 过滤剔除、follows 命令无自有覆盖时不单列、捕获态 Unbind 按钮（ghost-danger）触屏置 "none"——运行期核对见 [units/settings.md](units/settings.md) 快捷键页内面单元）；③More 抽屉/一级 tab/设置入口（#20 §二/§七在册）；④全局 keydown（物理键盘）。**命令面板本体无触屏入口（keybind-only）为 #20 §七/§八在册实态，本文不推翻不重复收口**。
 - **/btw 窄屏可达（issue #70/M-038 状态注记）**：btw `ask` 命令门自 `!layout.narrow() && mounted()` 放宽为 `mounted()`（`gui-plugins/src/btw/renderer.tsx`——15 内建之一的 renderer 侧注册；桌面 ≥768px 按构造恒等），窄屏（<768px 视口）composer slash 面出现 `/btw`，答案经 btw 的 mobile face（order 80，More 抽屉）呈现；动态挂入面仍不锁集合（上行口径不变）。
 
 ## 三、DESKTOP_MENU 七菜单映射主表（验收 1 本体）
@@ -139,7 +139,7 @@
 
 - **focus**：命令面板 `TextInput` autofocus + Esc 关闭 + ArrowUp/Down + Enter（dialog.tsx）；`input.focus` 命令（ctrl+l）与 new-session `restoreFocus`；`WindowsAppMenu` `rememberFocus`/edit.* 动作后 `lastFocused.focus({ preventScroll: true })`（桌面 face）；权限/提问 dock 无 autoFocus 无键盘默认审批（#10 在册）。palette 对话框焦点陷阱与读屏实态归 G31⑦ 复核位（G34⑧ 引用不重锁）。
 - **无障碍**：面板行 `role="option"`/`aria-selected`/listbox 容器（dialog.tsx）；`WindowsAppMenu` `aria-label={language.t("desktop.menu.ariaLabel")}`（桌面 face）；菜单 i18n 全量在册（`desktop.menu.*` zh 45 键；en 经 `DESKTOP_NATIVE_ENGLISH` 汇入）。
-- **状态恢复**：①键位覆盖=`settings.v3.keybinds` record（#20 §六在册）+ `keybindRenames` 迁移（旧 id 目录清理，Shortcuts 每命令列一次）；②命令元数据目录=`command.catalog.v1`（`persisted(Persist.global("command.catalog.v1"), CommandCatalog, {})`）——持久化 title/description/category/section/keybind/slash/hidden，**显式剥离可执行字段**（上游单测 command.test.ts 第 1 块锁定）；Shortcuts 页据此在 owner 未挂载时仍列出命令；③命令触发的导航落 tabs 持久化链（`Persist.window("tabs")`/`tabs.closed`，#8/#19 在册）；④会话级命令效果随快照恢复（#9/#19 权威）。运行期贯通归 G31⑩/G19（G34⑨ 复核位）。
+- **状态恢复**：①键位覆盖=`settings.v3.keybinds` record（#20 §六在册）+ `keybindRenames` 迁移（旧 id 目录清理，Shortcuts 每命令列一次；#108/M-051 增 `"home.sessions.search.focus"→"sessions.search"` 项——启动时旧 id 覆盖移至新 id、旧条目清零，新 id 已有覆盖时旧值让位；设备实测见 settings.md 快捷键单元）；②命令元数据目录=`command.catalog.v1`（`persisted(Persist.global("command.catalog.v1"), CommandCatalog, {})`）——持久化 title/description/category/section/keybind/slash/hidden + **plugin/follows 元数据（#108/M-051 目标形；keywords 同批）**，**显式剥离可执行字段**（上游单测 command.test.ts 第 1 块锁定；`onSelect` 负断言由 verify-commands-menus 组 6 钉定，plugin/follows 仍为元数据不破坏该断言）；Shortcuts 页据此在 owner 未挂载时仍列出命令并按 plugin 过滤；③命令触发的导航落 tabs 持久化链（`Persist.window("tabs")`/`tabs.closed`，#8/#19 在册）；④会话级命令效果随快照恢复（#9/#19 权威）。运行期贯通归 G31⑩/G19（G34⑨ 复核位）。
 
 ## 九、Windows-only host 命令排除清单（per #1）
 

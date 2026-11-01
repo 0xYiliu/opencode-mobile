@@ -1030,6 +1030,7 @@ export const dict = {
   "settings.shortcuts.conflict.description": "{{keybind}} is already assigned to {{titles}}.",
   "settings.shortcuts.unassigned": "Unassigned",
   "settings.shortcuts.pressKeys": "Press keys",
+  "settings.shortcuts.unbind": "Unbind",
   "settings.shortcuts.search.placeholder": "Search shortcuts",
 
   "settings.shortcuts.group.general": "General",

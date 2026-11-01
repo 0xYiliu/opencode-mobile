@@ -51,7 +51,7 @@
 //      spill from this unit.
 //   6. Manifest dual registration: manifest.json has an M-040 entry with the exact patch
 //      path, the five targets and a non-empty upstreamBaseline; vendor-manifest.json
-//      mobilePatches lists the same path; both registries hold exactly 48 entries (48=48)
+//      mobilePatches lists the same path; both registries hold exactly 49 entries (49=49)
 //      and agree path-for-path.
 //
 // HONEST BOUNDARY (same tradition as the verify-* family): this is a static STRUCTURE
@@ -270,13 +270,13 @@ const M040_TARGETS = [
     fail("5: goal renderer.tsx lost its mobile face (M-036 zero-spill negative)")
 }
 
-// --- 6. Manifest dual registration (48=48) ---
+// --- 6. Manifest dual registration (49=49) ---
 {
   const manifest = JSON.parse(await read(MANIFEST)) as {
     patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown }>
   }
   const rows = manifest.patches ?? []
-  if (rows.length !== 48) fail(`6: patches manifest must register exactly 48 patches (got ${rows.length})`)
+  if (rows.length !== 49) fail(`6: patches manifest must register exactly 49 patches (got ${rows.length})`)
   const m040 = rows.filter((row) => row.id === "M-040")
   if (m040.length !== 1) fail("6: patches manifest must carry exactly one M-040 entry")
   const entry = m040[0]!
@@ -292,11 +292,11 @@ const M040_TARGETS = [
   const paths = Array.isArray(vendorManifest.mobilePatches)
     ? (vendorManifest.mobilePatches as unknown[]).filter((value): value is string => typeof value === "string")
     : []
-  if (paths.length !== 48) fail(`6: vendor-manifest mobilePatches must list exactly 48 patches (got ${paths.length})`)
+  if (paths.length !== 49) fail(`6: vendor-manifest mobilePatches must list exactly 49 patches (got ${paths.length})`)
   if (!paths.includes("patches/mobile/0040-M-040-about-version-face.patch"))
     fail("6: vendor-manifest mobilePatches lost the M-040 path")
 
-  // Path-for-path agreement (the 48=48 core).
+  // Path-for-path agreement (the 49=49 core).
   const manifestPaths = rows.map((row) => row.patch).filter((value): value is string => typeof value === "string")
   const sortedA = manifestPaths.toSorted()
   const sortedB = paths.toSorted()
@@ -311,6 +311,6 @@ console.log(
     "3: three-way version sync MOBILE_APP_VERSION == gradle versionName == mobile-hosts package.json + index export + entry injection; " +
     "4: en exactly the four M-040 keys (3 serverVersion + 1 upstreamVersion), zh/zht zero new keys, language.tsx en-base-first fallback anchors verbatim (registered en-only lineage); " +
     "5: negative boundaries - Sentry pkg.version release + pkg import verbatim, createWebPlatform(pkg.version) absent, error.tsx both platform.version consumers, host-apis ctx.app.version, search-catalog about row verbatim AND outside the M-040 touch set (MINOR-1 two-condition: row lock, not file-level - the ~88-line file delta is other patches' work), M-040 touch face exactly the five declared files, btw/goal M-036..038 zero spill; " +
-    "6: manifest dual registration 48=48 with M-040 targets/baseline and path-for-path agreement (M-041 by issue #76, M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107; M-039 reserved-absent for the parallel #71 branch); " +
+    "6: manifest dual registration 49=49 with M-040 targets/baseline and path-for-path agreement (M-041 by issue #76, M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107, M-051 by issue #108; M-039 reserved-absent for the parallel #71 branch); " +
     "STATIC check - row rendering, degradation transitions, notices scrolling and zh fallback presentation are device-QA items registered in docs/build-and-verify.md issue #72; tree byte-equivalence is V3 verify-closure)",
 )
