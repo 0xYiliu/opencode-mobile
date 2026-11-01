@@ -2,7 +2,7 @@
 // displays alignment, patch M-040).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patches
-// M-001..M-040, M-039 reserved-absent for the parallel #71 branch), the structural facts
+// M-001..M-052, M-019/M-039 reserved-absent), the structural facts
 // the S39 alignment record (E27) relies on. Dual-track delivery, registered separately:
 //
 //   Track 1 (upstream alignment — the last v2.2.1 target-face gap closed verbatim):
@@ -52,7 +52,7 @@
 //   6. Manifest dual registration: manifest.json has an M-040 entry with the exact patch
 //      path, the five targets and a non-empty upstreamBaseline; vendor-manifest.json
 //      mobilePatches lists the same path; both registries hold exactly 50 entries (50=50
-//      since issue #109's M-052) and agree path-for-path.
+//      since issue #109's M-052, re-verified by issue #110) and agree path-for-path.
 //
 // HONEST BOUNDARY (same tradition as the verify-* family): this is a static STRUCTURE
 // check. It proves source shape, NOT runtime behavior: the actual three-row rendering,
@@ -312,6 +312,6 @@ console.log(
     "3: three-way version sync MOBILE_APP_VERSION == gradle versionName == mobile-hosts package.json + index export + entry injection; " +
     "4: en exactly the four M-040 keys (3 serverVersion + 1 upstreamVersion), zh/zht zero new keys, language.tsx en-base-first fallback anchors verbatim (registered en-only lineage); " +
     "5: negative boundaries - Sentry pkg.version release + pkg import verbatim, createWebPlatform(pkg.version) absent, error.tsx both platform.version consumers, host-apis ctx.app.version, search-catalog about row verbatim AND outside the M-040 touch set (MINOR-1 two-condition: row lock, not file-level - the ~88-line file delta is other patches' work), M-040 touch face exactly the five declared files, btw/goal M-036..038 zero spill; " +
-    "6: manifest dual registration 49=49 with M-040 targets/baseline and path-for-path agreement (M-041 by issue #76, M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107, M-051 by issue #108; M-039 reserved-absent for the parallel #71 branch); " +
+    "6: manifest dual registration 50=50 with M-040 targets/baseline and path-for-path agreement (M-041 by issue #76, M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107, M-051 by issue #108, M-052 by issue #109; M-019/M-039 reserved-absent); " +
     "STATIC check - row rendering, degradation transitions, notices scrolling and zh fallback presentation are device-QA items registered in docs/build-and-verify.md issue #72; tree byte-equivalence is V3 verify-closure)",
 )
