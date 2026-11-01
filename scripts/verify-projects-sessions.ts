@@ -15,6 +15,10 @@
 //          filesystem never participates in project/session paths.
 //   N-5    zero host-OS conditionals (process.platform / navigator.platform /
 //          node os module) inside the whitelisted projects/sessions directories.
+//   #106   the settings projects/workspaces pages keep the v2.2.1 target form
+//          (M-049): delete-dialog Cancel autofocus x2, project server label via
+//          registry.label/useServers, projects page min-w-0 header, and the
+//          project-options mobile close face (M-043 hunks) stays.
 //
 // HONEST BOUNDARY (same tradition as verify-credential-ref.ts): this is a static
 // STRUCTURE check (text anchors / regex on source files). It proves source shape,
@@ -120,6 +124,46 @@ const read = async (path: string) => await Bun.file(new URL(path, appRoot)).text
     fail("paths: the web platform object must not define openDirectoryPickerDialog")
 }
 
+// --- #106: projects/workspaces settings pages keep the target form + the mobile close face ---
+{
+  // 1. Delete-confirmation Cancel buttons keep the target autofocus (focus defaults to
+  //    Cancel so a bare Enter cannot arm the danger remove button) — exactly two, the
+  //    DialogDeleteWorkspaces and DialogDeleteWorkspace footers.
+  const workspaces = await read("src/settings/workspaces/workspaces.tsx")
+  const cancelFocus =
+    workspaces.match(/<Button type="button" variant="neutral" autofocus onClick=\{\(\) => dialog\.close\(\)\}>/g) ?? []
+  if (cancelFocus.length !== 2)
+    fail(`#106: delete-dialog Cancel autofocus anchors must appear exactly twice in settings/workspaces/workspaces.tsx (got ${cancelFocus.length})`)
+
+  // 2. The project settings server label comes from the registry label member (M-042),
+  //    not the pin serverName(...) || ServerConnection.key(...) fallback.
+  const project = await read("src/settings/workspaces/project.tsx")
+  if (!project.includes('import { type ServerConnection, useServers } from "@/runtime/server/registry"'))
+    fail("#106: project.tsx lost the useServers registry import (target server-label source)")
+  if (!project.includes("const registry = useServers()"))
+    fail("#106: project.tsx lost the registry instance")
+  if (!project.includes('<bdi dir="auto">{registry.label(props.server)}</bdi>'))
+    fail("#106: project.tsx server label no longer routes through registry.label")
+  if (/serverName\(props\.server\)/.test(project))
+    fail("#106: project.tsx pin server-label fallback form came back")
+
+  // 3. The projects page header keeps the target min-w-0 shrink guard.
+  const projects = await read("src/settings/workspaces/projects.tsx")
+  if (!projects.includes('<div class="flex min-w-0 flex-col gap-1">'))
+    fail("#106: projects.tsx page header lost the target min-w-0 guard")
+
+  // 4. The mobile close entry in project-options stays (M-043 hunks): onClose prop,
+  //    close() helper forwarding and the close Menu.Item — a future target-form revert
+  //    must not silently drop the mobile close affordance.
+  const options = await read("src/settings/workspaces/project-options.tsx")
+  if (!options.includes("onClose?: () => void"))
+    fail("#106: project-options.tsx lost the mobile(M-043) onClose prop")
+  if (!options.includes("props.onClose?.()"))
+    fail("#106: project-options.tsx close() helper no longer forwards onClose")
+  if (!options.includes("onSelect={close}"))
+    fail("#106: project-options.tsx lost the close Menu.Item (mobile close entry)")
+}
+
 // --- N-5: zero host-OS conditionals in the whitelisted projects/sessions dirs ---
 {
   const whitelist = [
@@ -154,7 +198,7 @@ const read = async (path: string) => await Bun.file(new URL(path, appRoot)).text
   if (scanned < 20) fail(`N-5: whitelist scan covered only ${scanned} files — the directory set looks wrong`)
 
   console.log(
-    "verify-projects-sessions: PASS (M-017 home archive wiring: stub gone, session.update archived:true call shape, archiveHomeSession helper + cache row removal + invalidate/resync kept; M-018 guard revision: includes list without \"servers\" + fixed SSH hosts entry + en/zh keys; path boundaries: web picker stays remote / reveal+file-manager desktop gates / web.ts has no openDirectoryPickerDialog; N-5: zero host-OS conditionals across " +
+    "verify-projects-sessions: PASS (M-017 home archive wiring: stub gone, session.update archived:true call shape, archiveHomeSession helper + cache row removal + invalidate/resync kept; M-018 guard revision: includes list without \"servers\" + fixed SSH hosts entry + en/zh keys; path boundaries: web picker stays remote / reveal+file-manager desktop gates / web.ts has no openDirectoryPickerDialog; #106: workspaces delete-dialog Cancel autofocus x2 + project.tsx registry.label/useServers server-label source + projects.tsx min-w-0 header + project-options mobile close face (M-043 hunks); N-5: zero host-OS conditionals across " +
       scanned +
       " whitelisted files; STATIC check - runtime semantics and navigation reachability are G19)",
   )

@@ -1,0 +1,74 @@
+diff --git a/packages/app/src/settings/workspaces/project.tsx b/packages/app/src/settings/workspaces/project.tsx
+index d4fe0fa..d331c36 100644
+--- a/packages/app/src/settings/workspaces/project.tsx
++++ b/packages/app/src/settings/workspaces/project.tsx
+@@ -11,7 +11,7 @@ import { TextInput } from "@opencode/ui/text-input"
+ import { For, Show, createMemo, type Component } from "solid-js"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import type { LocalProject } from "@/shell/state/layout"
+-import { ServerConnection, serverName } from "@/runtime/server/registry"
++import { type ServerConnection, useServers } from "@/runtime/server/registry"
+ import { useSettingsServers } from "@/settings/servers/inventory"
+ import { useServerCtx } from "@/runtime/server/runtime"
+ import { projectSettingsKey, useSettings } from "@/settings/model"
+@@ -34,6 +34,7 @@ export const SettingsProjectGeneral: Component<{
+   const language = useLanguage()
+   const model = createEditProjectModel(props)
+   const servers = useSettingsServers()
++  const registry = useServers()
+ 
+   return (
+     <>
+@@ -56,7 +57,7 @@ export const SettingsProjectGeneral: Component<{
+               </h2>
+               <Show when={servers().length > 1}>
+                 <button type="button" class="project-settings-server-link" onClick={() => props.onOpenServer()}>
+-                  <bdi dir="auto">{serverName(props.server) || ServerConnection.key(props.server)}</bdi>
++                  <bdi dir="auto">{registry.label(props.server)}</bdi>
+                 </button>
+               </Show>
+             </div>
+diff --git a/packages/app/src/settings/workspaces/projects.tsx b/packages/app/src/settings/workspaces/projects.tsx
+index 095ac9b..79813a4 100644
+--- a/packages/app/src/settings/workspaces/projects.tsx
++++ b/packages/app/src/settings/workspaces/projects.tsx
+@@ -69,7 +69,7 @@ export const SettingsProjects: Component<{
+     <>
+       <div class="settings-tab-header" classList={{ "settings-tab-header--stacked": searchable() }}>
+         <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
++          <div class="flex min-w-0 flex-col gap-1">
+             <h2 class="settings-tab-title">{language.t("settings.projects.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.projects.description")}</span>
+           </div>
+diff --git a/packages/app/src/settings/workspaces/workspaces.tsx b/packages/app/src/settings/workspaces/workspaces.tsx
+index 8bd8291..ca52263 100644
+--- a/packages/app/src/settings/workspaces/workspaces.tsx
++++ b/packages/app/src/settings/workspaces/workspaces.tsx
+@@ -388,7 +388,7 @@ export const SettingsWorkspaces: Component<{
+     <>
+       <div class="settings-tab-header settings-workspaces-header">
+         <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
++          <div class="flex min-w-0 flex-col gap-1">
+             <h2 class="settings-tab-title">{language.t("settings.tab.workspaces")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.workspaces.description")}</span>
+           </div>
+@@ -599,7 +599,7 @@ function DialogDeleteWorkspaces(props: {
+         />
+       </DialogHeader>
+       <DialogFooter>
+-        <Button type="button" variant="neutral" onClick={() => dialog.close()}>
++        <Button type="button" variant="neutral" autofocus onClick={() => dialog.close()}>
+           {language.t("common.cancel")}
+         </Button>
+         <Button type="button" variant="danger" onClick={remove}>
+@@ -665,7 +665,7 @@ function DialogDeleteWorkspace(props: {
+         />
+       </DialogHeader>
+       <DialogFooter>
+-        <Button type="button" variant="neutral" onClick={() => dialog.close()}>
++        <Button type="button" variant="neutral" autofocus onClick={() => dialog.close()}>
+           {language.t("common.cancel")}
+         </Button>
+         <Button type="button" variant="danger" disabled={status.isPending || status.isError} onClick={remove}>

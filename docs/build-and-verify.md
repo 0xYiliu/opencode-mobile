@@ -2370,6 +2370,69 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 `docs/design/units/settings.md`（状态行 + F 边界 + 新增「供应商/模型/服务端扩展页内面——issue #105（S21–S26）」单元：交付清单/MCP 行面矩阵/FU 登记）；`docs/design/units/providers-models.md`（页内面目标形行/目录重试/mcp.ts 命名注记/局部 QA/FU-1·FU-2/zh 缺口族零变化注记）；`docs/design/units/agent-capabilities.md`（extensions 三子 tab 行目标形/plugin.list、mcp.list 调用面更新（B1 退役）/#105 更新块含 S25/S26 QA 与护栏）；`docs/design/units/connection.md`（§④ 剪贴板域外事实 + mcp-dialog copy 面）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S21–S26 行升级 + 阶段 3 行 #105 增补 + 推进回填栏）；补丁 manifest M-048 reason/verification/rebase 字段即偏离登记文档（9 targets、键集 parity 口径 + 死键保留、mcp.ts 命名线等价引文、appearance WHITELIST 注记、FU 登记）。
 
 
+## issue #106 段（S27–S34：项目与工作区设置对齐 Desktop v2.2.1——M-049）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-106-projects-workspaces`，base `9f5d7f2`（origin/main，#115/#105 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 feat vendor 迁移（M-049 三文件）→ chore verify（探针修订 + dist 常量回填）→ docs 提交，未 push。开工基线复核（9f5d7f2 同法同态）：verify:closure PASS（46 补丁）、app 单测（无 seam 口径）646/4/24/1986（674 tests/115 files；24 errors = mobile-hosts seam 解析错，零真实）、mobile-hosts 434/0/2920、typecheck:tsc 391（逐文件分布 51 文件 uniq 与基线全等——本轮自比口径）、探针普查 33 个 fresh worktree **27 rc=0 + 6 rc=1**（4 产物条件性：attachments-artifacts/direct-connection/service-ops/ssh + debug-bar W28/inline-ssh-device CDP 预存，与 #105 段同判）。
+
+### 计划对账（实测差异，如实记录）
+
+| 项 | 处置 |
+| --- | --- |
+| 计划 v1 误记「vendored Button autofocus 先例 6 处」 | 实测全树普查=**5 处真实 Button 组件先例**（`providers/connect/chatgpt-welcome.tsx:31`、`runtime/plugin/dialogs.tsx:26/:31/:50`、`providers/connect/chatgpt-usage-limit.tsx:29`）；`providers/connect/mcp-dialog.tsx:146` 为原生 `<button>` 元素、`providers/models/manage.tsx:119` 为 TextInput 搜索框，均非 Button 组件先例——评审勘误按实采纳，落字于 manifest reason/settings.md/本段，tsc 安全性结论不变 |
+| 计划 §1 FU-3 定义原文「hostnames 按项目 ID 键控」 | hostnames 分组实为**按连接键控**（非项目 ID 键控）——评审勘误采纳，FU-3 三处登记（settings.md 后续工作块/matrix S27/S28 指针/M-049 manifest reason）均按连接键控表述 |
+| project.tsx `const registry = useServers()` 声明序 | 目标把 `servers` 行置于 `registry` 行**之前**（首次放置反序经 diff 对账纠正），采纳后残差恰 M-043 onClose 三行 |
+| verify-projects-sessions 白名单扫描计数 | `scanned` 随 M-049 零增文件保持 28（新增 #106 锚为读文件断言，不增白名单目录扫描面） |
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（47 补丁字节级重放，DANGLING=0；M-049 注册于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 各 47 条，M-019/M-039 reserved-absent 保持；M-049 派生 = scratch 内 git-archive HEAD 累积树（=pin+packageSources+M-001..M-048，由开工 closure PASS(46) 等价性保证）→ **M-049 `git apply --check` PASS** → 应用后全树 `diff -r` 与工作树**字节同一（rc=0 零输出，node_modules 除外）** → `git diff --check` clean） |
+| M-049 面 | 3 targets 实测 | workspaces.tsx **目标逐字**（677 行；与 3ebcf9a 逐字节同——min-w-0 页头 + 两删除确认 Cancel `autofocus`）；projects.tsx 目标 min-w-0 页头 + 残差恰登记 mobile hunks（M-043 注释两行 + vendored addProject 同步守卫形）；project.tsx 目标 import/registry/registry.label + 残差恰 M-043 onClose 三行；project-options.tsx 零改动（M-043 关闭面在位、内容对 target 零 delta）；8 个零 delta 文件逐一 `git show 3ebcf9a:…` 对账 IDENTICAL |
+| app 全量单测（在册口径=无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | **646 pass / 4 skip / 24 fail / 24 errors / 1986 expect()（674 tests/115 files）——与基线逐项相同**；24 errors = mobile-hosts seam 解析错，零新失败 |
+| app 全量单测（seam 口径对照） | 同上（绝对路径 seam 软链在场） | **791 pass / 4 skip / 1 fail / 2346 expect()——与基线逐项相同**（唯一 fail=`settings search plugin catalog > mounts the search over the real surface plugin handle…`，预存行为组） |
+| 定向子集 | settings 三文件 `model/search-results/route` | **41 pass / 0 fail / 105 expect()**（与 #104/#105 在册同数） |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（与基线同数） |
+| typecheck | `bun run typecheck:tsc`（无 seam 口径） | **391 errors**；逐文件分布 M-049 前后**全等**（51 文件 uniq diff 为空）；触及三文件零新增错误（registry.label= M-042 在册成员；autofocus= Kobalte prop + 5 处真实 Button 先例） |
+| 零修订探针（免修证据） | `verify-diff`（组 2/3/8）/ `verify-settings-framework`（组 8）/ `verify-agent-capabilities`（组 5）/ `verify-appearance-settings`（组 7）/ `verify-provider-models` | 均 **rc=0 原样 PASS**（采纳 hunk 零 `prefers-reduced-motion`/零调用点移动/零 OS 条件——safe-by-construction 兑现） |
+| 探针修订（46→47 钉 + #106 面） | `verify-about-version` / `verify-attachments-artifacts` / `verify-commands-menus` / `verify-projects-sessions` | 计数三钉 46→47、ID 上界 48→49、counts 尾行 M-049=47、注释链补 issue #106 行——rc=0（attachments-artifacts 产物条件性，dist 重建后 rc=0）；projects-sessions：**#106 四锚**（workspaces.tsx Cancel `autofocus` 恰 ×2、project.tsx `registry.label`/`useServers` 服务器标签源 + pin 回退形负锚、projects.tsx min-w-0 页头、project-options.tsx mobile close face 三正锚）——rc=0 |
+| 负例演练 A（服务器标签源） | project.tsx 回灌 pin 形 `<bdi>{serverName(props.server) \|\| ServerConnection.key(props.server)}</bdi>` | verify-projects-sessions **FAIL：`#106: project.tsx server label no longer routes through registry.label`** → 还原 byte-form → rc=0 + closure PASS（目标服务器标签源可机检） |
+| 负例演练 B（Cancel autofocus） | 剥离 DialogDeleteWorkspaces Cancel `autofocus` | verify-projects-sessions **FAIL：`#106: delete-dialog Cancel autofocus anchors must appear exactly twice … (got 1)`** → 还原 byte-form → rc=0 + closure PASS（焦点默认=取消语义可机检） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行；低置信审阅行集合与本轮改动文件**零交集**（逐文件 grep 对账，内容与 #105 段全等） |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段；F 段 dist 标记 mobile(M-002)/mobile(vault-v1) 命中新 dist） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3520 files / 159,664,027 bytes**（**+0 文件 / +97 bytes**——3 hunk 并入既有 chunk，零新 chunk，与计划预判「3520 恒同、字节微增」一致；web-dist/manifest.json 已刷新并在 chore verify 同提交回填 commands-menus/gui-plugins/notifications 三探针 dist 常量 3520/159,663,930→3520/159,664,027）；dist 正例检索：`settings.workspaces.delete.blocked.active` 命中 language chunk（mn-CFm1FwzE.js 等）、shell 分块 `flex min-w-0 flex-col gap-1` ×8 + `variant:"neutral"` + `autofocus:!0` 恰两处（两删除确认 Cancel 按钮入包） |
+| 探针普查（build 后） | 33 个 | **31 rc=0 / 2 rc=1**：全部修订探针 rc=0；debug-bar（W28 陈旧锚）/inline-ssh-device（CDP）预存 rc=1 同败同文；gradle 后复测 **29 rc=0 / 4 rc=1**（permission-requests/session-workbench 产物条件性 by design，#101 在册口径） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 24s**（41 tasks）；APK SHA-256 `68d9d45712e43cdf103eceae3346e7b4f775892d45cd5fb52c23b9fe219f5d76`；`.145` 设备 `adb install -r` **Success**（数据保留升级；零 uninstall/零 pm clear/零主动断连） |
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12，物理 1840×2800 @DPR 2.25；`adb install -r` Success 数据保留；**零 uninstall/零 pm clear/零主动断连**；驱动=adb forward tcp:9222 + CDP `Input.dispatchMouseEvent/KeyEvent` 注入 + `Runtime.evaluate` DOM 核对 + `Page.captureScreenshot` 截图 /tmp 不提交；**交互严格只读**——仅设置页导航/点击/搜索输入，零 add/edit/save/delete 项目或工作区数据）
+
+| 步骤 | 结果 |
+| --- | --- |
+| 1. S27 Projects 页目标形 | **PASS**：页头 `flex min-w-0 flex-col gap-1`（DOM class 实测）+ `settings-tab-header-actions` 槽（Add project 按钮 + 服务器切换槽 `Server authorized-bastion ▾`）；两真实项目行（wecom-protocol-research/opencode-mobile）含图标渲染；**切换槽端到端（开合）**：下拉开=authorized-bastion ✓/bastion-main/bastion-aux/Manage servers… 三主机状态点逐主机呈现 → Escape 关闭（未切换，只读） |
+| 2. S28 项目设置壳 | **PASS**：General/Worktrees/Extensions 三子 tab；页头 O 头像 + 项目名 + **`project-settings-server-link` > `<bdi>authorized-bastion</bdi>`（M-049 registry.label 目标标签源 DOM 实测）**；`data-action` 锚 settings-project-name/icon/color 各 ×1 命中；名称输入/图标/九色板/启动脚本编辑面全字段渲染（零改动退出） |
+| 3. S29 auto-accept 行 | **观察（结构性 FU-3 边界，非回归）**：行未渲染——pin 形 `createServerProjects.open()` 建目录键控 `{worktree, expanded}` 项目无 `id`，`projectSettingsKey(scope, undefined)` = undefined，`<Show when={key()}>` 门控不满足；代码形为目标（探针钉定）；数据供给随 FU-3 落地（settings.md FU-3 条目在册） |
+| 4. S30 启动脚本编辑面 | **PASS（渲染）**：textarea + `e.g. bun install` 占位 + `$OPENCODE_WORKTREE_BASE`/`$OPENCODE_WORKTREE_PATH` 提示文案呈现；保存链 BLOCKED（不碰） |
+| 5. S31 Worktrees 页 | **PARTIAL（头 PASS、列表 BLOCKED）**：页头 `flex min-w-0 flex-col gap-1`（DOM 实测）+ 「Review worktrees and manage disk usage」；列表区持续 Loading（≥30s 不返；远端 worktree inventory 查询挂起——同 #105 服务器状态退化口径，如实登记环境阻塞）；删除确认对话框无从打开（列表空），Cancel `autofocus` 视觉核验随之 BLOCKED——机械证据=探针 #106 锚 + 负例演练 B |
+| 6. S33 Extensions 四子 tab | **PASS**：MCPs/Plugins/Skills/LSPs 四子 tab；MCPs=「No MCPs yet」+「Manage in opencode.json」空态 |
+| 7. S34 LSPs 子 tab | **PARTIAL（子 tab PASS、列表 BLOCKED）**：「Configured language servers」+「Auto-detected from file types」渲染；列表持续 Loading（同 S31 环境口径）；loadFailed retry 实态 BLOCKED |
+| 8. 文件选择取消不破坏原图标 | **PASS**：Add project → 远端目录 picker 对话框（~/Root/Parent/Select folder/Cancel）→ Cancel → 对话框关闭，项目行集合与图标**零变化**（前后 `[listitem]` 文本快照逐项相等：wecom-protocol-research/opencode-mobile）——picker 浏览为只读 file.list，弱证据口径（无可设图标项目）如实：本证为「列表零变化」 |
+| 9. 设置搜索 | **PARTIAL（机制 PASS、目录行环境受限）**：搜索面板开、`language` 命中「Language — Preferences / General」（rankSettings 实态）；`workspaces` → 「No results」——per-server/project 目录行仅入索引 when 选中服务器 connected（search-index.ts:146 门，#105 步 4 同款 caveat；本轮 authorized-bastion 会话中途出现远端查询挂起——如实登记「connected 态下待复验」，非 M-049 回归，目录行本身 #101 目标形在册） |
+| 10. 凭据红线 | **PASS**：QA 前后 localStorage 全量 dump **逐键相等 18/18、零值变化**；`opencode-mobile.hosts.v1` 字段白名单 {id,name,target,createdAt,updatedAt,credentialRef,servicePort} 全过、credentialRef 恰 `mobile-credential:*` 引用形（值在 vault） |
+
+### 阻塞项（如实，不写通过）
+
+- **S27/S28 编辑保存**：项目名称/图标/颜色修改与 `project.update` 服务端写、S29 三值写盘、S30 启动脚本保存协议/失败路径——**需授权测试项目**（用户真实仓库零写入红线）。
+- **S31/S32 逐字段实态与删除确认链全流程**：worktree inventory/筛选/占用/关联会话字段、删除/批量清理确认→执行→失败重查（`worktree.remove force` 唯一不可逆）——需可达服务器返回 inventory + **仅可在授权测试仓库执行**；本轮远端查询挂起双重阻塞。
+- **S33 作用域差集**：项目级 vs 全局 MCP 集差呈现——需带项目级 opencode.json 配置的测试项目。
+- **S34 LSP 列表/loadFailed retry**：只读，需可达服务器 + 已配置 LSP 的项目（本轮远端查询挂起，BLOCKED）。
+- **同名项目/不同服务不串写实态**：结构性双键隔离在册（scope 单测/探针）；≥2 台授权服务器 + 同名项目布置 BLOCKED。
+- **Desktop 实机视觉对照**（无 Windows 参考端，继承）；`<768px` 两侧联验（DPR 2.25 物理不可达，继承）；TalkBack/外接键盘完整走查（归 G 门禁）。
+- **FU-3 登记为 Milestone 1 后续工作**（协调者 carve 后续 issue）：运行期项目持久层目标形（registry usedProjectIDs/lastProjectID 按项目 ID 键控 + hostnames 按连接键控、runtime ctx.projects 新面、home/model.ts 消费链、layout.tsx LocalProject 去 expanded，~343+165 行，owner=home/layout 单元）——S27/S28 剩余差异列指向，#8 吞错缺口收敛随 FU-3；S27 页面级等价不依赖 FU-3。
+
+### 文档同步
+
+`docs/design/units/settings.md`（状态行 + 新增「项目/工作区页内面——issue #106（S27–S34）」单元：交付清单/逐 hunk 处置/S27–S34 口径/诚实边界 + **「登记为 Milestone 1 后续工作」块新增 FU-3 条目**）；`docs/design/units/projects-sessions.md`（能力来源表 settings 层行 M-049 指针 + #8 吞错缺口收敛归属改指 FU-3 + 探针 #106 四锚注记）；`docs/design/units/agent-capabilities.md`（项目级 extensions 四子 tab 行 #106 复验 + LSP QA/阻塞）；`docs/design/units/permission-requests.md`（S29 设置行落点注记 + 行潜伏 FU-3 边界）；`docs/design/units/diff.md`（worktree.remove 五层确认链第 3 层 Cancel `autofocus` 注记，零契约变更）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S27–S34 行升级 + S27/S28 FU-3 指针 + 阶段 3 行 #106 增补 + 推进回填栏）；补丁 manifest M-049 reason/verification/rebase = 偏离登记权威文本（3 targets、autofocus 先例精确口径 5 处、FU-3 同段登记）。
+
 
 ## BLOCKED 总表
 

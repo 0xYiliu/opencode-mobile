@@ -7,7 +7,8 @@
 | 操作 | 上游实现（`vendor/upstream/packages/app`） | 服务 API（生成客户端 `packages/client/src/promise/generated/client.ts`） | 状态 |
 | --- | --- | --- | --- |
 | 浏览/选择远程目录 | `workspaces/selection/picker.tsx` `useDirectoryPicker`（server 模式对远端 `file.list`/`file.find` 浏览、`~` 展开远端 home、`normalizePickerDrive` 兼容 Windows 盘符输入、手输绝对路径兜底） | `file.list` / `file.find` | 已实现（未验证） |
-| 添加项目 | `home/projects/controller.tsx` `pickDirectory` → `home/projects/add.ts`（`file.list` 校验 + `location.get` 取 project + `sync.child`） | `file.list` / `location.get` | 已实现（未验证）；`add.ts` 的校验失败被 `catch(() => undefined)` 吞掉且 `projects.open` 无条件执行——不可访问目录加入列表的真实反馈形态待 G19 首项核对（缺陷成立则预留 M-019，本期不预设） |
+| 添加项目 | `home/projects/controller.tsx` `pickDirectory` → `home/projects/add.ts`（`file.list` 校验 + `location.get` 取 project + `sync.child`）；settings 页入口 `settings/workspaces/projects.tsx` addProject（M-049 后保持 vendored 同步守卫形，M-043 注释行在册） | `file.list` / `location.get` | 已实现（未验证）；`add.ts` 的校验失败被 `catch(() => undefined)` 吞掉且 `projects.open` 无条件执行——不可访问目录加入列表的真实反馈形态待 G19 首项核对；**该缺口与目标异步 add 链（add.ts async + `ctx.projects.add` + home/model.ts 消费）的收敛归属 = FU-3（运行期项目持久层目标形，[settings.md](settings.md)「登记为 Milestone 1 后续工作」块；原「预留 M-019」无主表述由 #106 起改指 FU-3）** |
+| 设置层项目/工作区页（S27/S30/S32 页面） | `settings/workspaces/projects.tsx` / `workspaces.tsx` / `project.tsx`（**M-049**，v2.2.1 目标形：workspaces.tsx 目标逐字含删除确认 Cancel `autofocus`；projects.tsx min-w-0 页头 + vendored addProject hunks；project.tsx `registry.label` 服务器标签 + M-043 onClose；S29 auto-accept 行 `<Show when={key()}>` 由 pin 形项目无 `id` 门控为潜伏面，数据供给随 FU-3） | `project.list` / `project.update` / `worktree.*` / `vcs.*` | 页面目标形已实现；M-049 在册（双 manifest 第 47 补丁）；运行期面（编辑保存/删除确认链全流程/逐字段实态）BLOCKED——需授权测试项目与可达服务器，见 build-and-verify.md issue #106 段 |
 | 新会话项目选择 | `new-session/project/selector.tsx`（同一 picker） | 同上 | 已实现（未验证） |
 | 创建会话 | `new-session/` 流 | `session.create` | 已实现（未验证） |
 | 打开会话 | home 行（`home/sessions/controller.tsx` `open`）→ 会话 tab | `session.get`（`time.archived` 随 info 返回） | 已实现（未验证） |
@@ -80,7 +81,7 @@
 ## 门禁与验证
 
 - **G19（新设，见 [interaction.md](../interaction.md)）**：projects-sessions 全部运行期行为的真机门禁——单窗口切换保持、同名隔离、空项目、错误恢复、M-018 入口可达且不弹回、双路由各一遍。
-- 静态探针：`scripts/verify-projects-sessions.ts`（M-017 文本锚/调用形态、M-018 守卫修订+入口、路径边界负例、零 OS 分支白名单扫描；诚实标注为静态结构检查）。
+- 静态探针：`scripts/verify-projects-sessions.ts`（M-017 文本锚/调用形态、M-018 守卫修订+入口、路径边界负例、零 OS 分支白名单扫描；**#106 增补四锚**：workspaces.tsx 删除确认 Cancel `autofocus` ×2、project.tsx `registry.label`/`useServers` 服务器标签源、projects.tsx min-w-0 页头、project-options.tsx mobile close face 正锚；诚实标注为静态结构检查）。
 - 上游定向回归子集与 V2 构建冒烟：见 [../../build-and-verify.md](../../build-and-verify.md) issue #8 段。
 
 ## 文案口径

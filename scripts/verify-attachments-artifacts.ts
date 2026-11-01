@@ -348,13 +348,14 @@ let distAssetCount = 0
   // the servers-page target migration). Issue #103: M-046 by the general/experimental
   // preferences-page target migration. Issue #104: M-047 by the ui theme component-family
   // target-form trim (dead-export convergence). Issue #105: M-048 by the
-  // providers/models/extensions settings-page target migration -> 46.
+  // providers/models/extensions settings-page target migration. Issue #106: M-049 by the
+  // projects/workspaces settings-page target form (FU-3 runtime persistence deferred) -> 47.
   const expectedPatchIds = new Set(
-    Array.from({ length: 48 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
+    Array.from({ length: 49 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
   )
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 46 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 46 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 47 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 47 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
@@ -368,7 +369,7 @@ let distAssetCount = 0
   const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
   if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
       registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (46 unique, path-for-path)")
+    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (47 unique, path-for-path)")
   for (const patch of [
     "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
     "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
@@ -448,7 +449,7 @@ console.log(
     "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact registered ID set (46 = M-001..M-048 minus reserved M-019/M-039; M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67/#72/#76 count revisions retained in build records" +    (distAssetCount > 0
+     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact registered ID set (47 = M-001..M-049 minus reserved M-019/M-039; M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67/#72/#76 count revisions retained in build records" +    (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +
     "; 7: zero server-path/OS/credential shapes in the new faces (" +

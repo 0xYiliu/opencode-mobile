@@ -163,4 +163,32 @@ Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED**（无 Windows 
 
 - **FU-1 连接对话框族目标重设计**：`providers/connect/controller.ts`（143 行增量：command 认证方法、`CONSOLE_PROVIDERS` 移除、`connectMethods` 排序、keyProvider 移除）+ `providers/connect/dialog.tsx`（1617→1813 重设计：Integrations 对话框、command 方法 UI、`dialog.provider.*` 键族）+ stories + `providers/credentials/` 三件目标删除（并入 FU-1 范围注记）。S21/S22 剩余差异列指向 FU-1。取消/过期/失败恢复在当前对话框形**已可达**（pin controller 的 `oauth.cancel` 两处/complete/failed/expired 分支/statusFailed retry/`onCleanup`——verify-provider-models 组 3 钉定，[providers-models.md](providers-models.md) 状态矩阵/OAuth 专节）。
 - **FU-2 模型选择器族目标形**：`providers/models/*`（select-dialog 988、models.tsx 87、selection.tsx 67、details.tsx +175 NEW、manage/unpaid/provider-group/search 小增量、css +203/+108 NEW、models.test.ts +55 NEW）。S24 剩余差异列指向 FU-2；设置页目标形与选择器 pin 形共用 `useModels`（现形一致性由共享控制器承载）。
+- **FU-3 运行期项目持久层目标形**（#106 登记）：target `runtime/server/registry.tsx` `createServerProjects` 存储形迁移（`usedProjectIDs`/`lastProjectID` 按项目 ID 键控、`hostnames` 按连接键控，替代 pin 目录键控 `projects`/`lastProject`/`recentlyClosed`）+ `runtime/server/runtime.tsx` ctx.projects 新面（`add`/`unique`/`used`/`forDirectory`/`hide`/`last`/`touch(directory→id)`，165 行）+ `home/model.ts` add/used/last 消费链 + 相邻 `shell/state/layout.tsx`（343 行，`LocalProject` 去 `expanded`）——合计 ~343+165 行，owner = home/layout 工作单元。S27/S28 剩余差异列指向 FU-3；projects-sessions.md #8 吞错缺口（add.ts 校验失败被 `catch(() => undefined)` 吞）的收敛随 FU-3（原「预留 M-019」无主表述改指 FU-3）；#106 设备实测 S29 auto-accept 行因 pin 形项目无 `id` 而 `<Show when={key()}>` 门控为潜伏面，数据供给随 FU-3 落地。S27 页面级等价不依赖 FU-3。
 - `settings/pages.ts` 的 `gui-extensions` 移除**归 #109**（插件页注册表接管；M-026 登记偏离届时移除）。
+
+# 单元：项目/工作区页内面——issue #106（S27–S34）
+
+**状态行：页面目标形已实现；运行期编辑/删除/逐字段实态 BLOCKED（需授权测试项目与可达服务器）。** M-049（0049-M-049-workspaces-pages-target-form.patch，双 manifest 第 47 补丁）把 `settings/workspaces/` 四个有 delta 文件收敛到 v2.2.1 目标（3ebcf9a）；其余 8 文件（project-extensions/project-folder-missing/project-lsp+test/project-model/project-row/project.css/queries）实测逐字节等于目标（零改动复用）。设备 QA（.145，APK `68d9d457…`）：S27 项目页/S28 项目设置壳/S30 启动脚本编辑面/S33 四子 tab 目标形渲染（min-w-0 ×2 与 `registry.label` 服务器标签 DOM 实测）、服务器切换槽三主机、文件选择取消零变化 PASS；Worktrees 列表与 LSPs 列表内容 Loading 不返（远端查询挂起，环境）、S29 auto-accept 行潜伏（FU-3 边界）——详见 [build-and-verify.md issue #106 段](../../build-and-verify.md)。
+
+## 交付清单（M-049，3 targets）与逐 hunk 处置
+
+- `workspaces.tsx`：**目标逐字**（677 行，3 hunk 采纳）——页头 `min-w-0`（与 M-043 `settings-tab-header-actions` 槽同形在位）+ DialogDeleteWorkspaces/DialogDeleteWorkspace Cancel 按钮 `autofocus`（删除确认默认焦点落取消，裸 Enter 不直接武装 danger 删除按钮；vendored Button 的 Kobalte `autofocus` prop 有 **5 处真实 Button 先例**：`providers/connect/chatgpt-welcome.tsx:31`、`runtime/plugin/dialogs.tsx:26/:31/:50`、`providers/connect/chatgpt-usage-limit.tsx:29`——`mcp-dialog.tsx:146` 为原生 `<button>`、`manage.tsx:119` 为 TextInput，非 Button 先例）。
+- `projects.tsx`：仅采纳目标 `min-w-0` 页头（target l.62）；`addProject onSelect` **保持 vendored pin 同步守卫形**（登记 mobile hunk，M-043 注释行保留）——目标异步链（add.ts async + `ctx.projects.add` + home/model.ts 消费）依赖 FU-3；#8 吞错缺口保持登记，收敛归属改指 FU-3。
+- `project.tsx`：采纳目标 import 行（`type ServerConnection, useServers`）+ `const registry = useServers()` + `<bdi dir="auto">{registry.label(props.server)}</bdi>`（替换 pin `serverName(...) || ServerConnection.key(...)`；registry.label/tag/hint 为 M-042 在册成员）；**M-043 mobile onClose 三行保留**（注释 + `onClose?: () => void` + ProjectOptions 透传）。
+- `project-options.tsx`：**不在补丁内**——M-043 mobile hunks（onClose prop、close() helper、Menu.Separator + close Menu.Item）已在位，内容对 target 零 delta；verify-projects-sessions 正锚防目标化回退时静默丢失移动关闭入口。
+- 零新增 i18n 键（三个内容 hunk 均不含 `language.t`；zh 不动）。
+
+## S27–S34 页内面口径
+
+- **S27 项目列表/搜索**：页头 min-w-0 + Add project + 服务器切换槽（多服务器渲染切换、单服务器不渲染）；搜索进入=设置搜索面板 + `projectSettings` 目录 10 行（name/icon/color/auto-accept-permissions + workspaces + extensions 四子 tab 含 lsps）。add 链剩余差异=FU-3（S27 剩余差异列指向）。
+- **S28 名称/图标/颜色**：project.tsx 页面壳目标形（`data-action` 锚 settings-project-name/icon/color 在位）；保存链（`project.update` 写服务端）BLOCKED——需授权测试项目；avatar `generated` 面随 FU-3 同域登记。
+- **S29 权限继承/开/关**：`AutoAcceptPermissionsSetting` 页面行目标形（`<Show when={key()}>` 门控）；**设备实测行潜伏**——pin 形 `createServerProjects.open()` 建目录键控 `{worktree, expanded}` 无 `id`，`projectSettingsKey(scope, undefined)` 为 undefined（结构性 FU-3 边界，非迁移缺陷；负例探针钉定代码形）；写盘实态 BLOCKED。
+- **S30 启动脚本**：编辑面目标形（textarea + `$OPENCODE_WORKTREE_BASE`/`$OPENCODE_WORKTREE_PATH` 提示文案）渲染 PASS；保存协议/失败路径 BLOCKED（需授权测试项目+真实仓库）。
+- **S31 工作区筛选/占用/关联会话**：页面头目标形；列表内容 BLOCKED（远端 worktree inventory 查询挂起不返——环境，同 #105 服务器状态退化口径）。
+- **S32 删除/批量清理**：确认链目标形（preflight/inspect/blocked 双 toast/dirty/danger disabled/transact force 十一锚在册，verify-diff 组 3）+ Cancel `autofocus` 采纳（负例机检：剥 autofocus → verify-projects-sessions FAIL → 还原）；对话框视觉焦点与不可逆执行 BLOCKED（仅可在授权测试仓库执行）。
+- **S33 项目扩展作用域**：四子 tab（MCPs/Plugins/Skills/LSPs）页面零 delta 目标形复验，MCPs 空态 + Manage in opencode.json 渲染 PASS；作用域差集实态 BLOCKED（需带项目级 opencode.json 的测试项目）。
+- **S34 LSP**：只读呈现（`config.list` 的 `info.lsp` + loadFailed retry 按钮）零 delta 目标形复验，**不新增配置编辑器**；子 tab + 「Auto-detected from file types」渲染 PASS，列表内容 BLOCKED（同 S31 环境口径）。
+
+## 诚实边界
+
+Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED** 继承（无 Windows 参考端）；`<768px` 两侧联验 **BLOCKED** 继承（DPR 2.25 物理不可达）；TalkBack/外接键盘完整走查归 G 门禁。同名项目/不同服务不串写的结构性双键隔离在册（ServerScope+pathKey，projects-sessions.md），双服务同名实态 BLOCKED（布置）。删除/脚本写入的用户工作目录零副作用红线本轮全程保持（QA 前后 localStorage 全量 dump 逐键相等 18/18、hosts.v1 credentialRef 引用形白名单）。
