@@ -1,0 +1,640 @@
+diff --git a/packages/app/src/settings/general/general.tsx b/packages/app/src/settings/general/general.tsx
+index f71c58822470675e3e121de4466b2b8248bf3baa..7d35c9098364a82613a641e0f26583e004f6837f 100644
+--- a/packages/app/src/settings/general/general.tsx
++++ b/packages/app/src/settings/general/general.tsx
+@@ -7,15 +7,17 @@
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"
+ import {
++  type BackgroundActivity,
+   type FollowUpBehavior,
+-  type TerminalPlacement,
++  type TimelineWidth,
+   type WorkspaceDefaultDestination,
+   useSettings,
+ } from "@/settings/model"
+ import { formatKeybind } from "@/shell/commands/command"
+ import { SettingsList } from "@/settings/list"
+ import { SettingsRow } from "@/settings/row"
+-import { createShellOptions, type ShellSettingsController } from "./controllers"
++import { createShellOptions } from "./behavior"
++import type { ShellSettingsController } from "./controllers"
+ import { InterfaceModeSetting } from "./interface-mode"
+ import "@/settings/settings.css"
+ 
+@@ -67,10 +69,6 @@
+   )
+ }
+ 
+-// mobile(M-045): only the ShellSetting action hunk is migrated from target (issue #102 — the
+-// Servers page names per-server shell rows for search reveal). The rest of this file stays at
+-// the pin/M-037 state; the remaining target delta (FollowUpBehavior/BackgroundActivity rows
+-// etc.) belongs to the General page unit and lands with the later settings-general issue.
+ export const ShellSetting: Component<{
+   controller: ShellSettingsController
+   /** Search reveals the row with the default action; the Servers page names the other servers' rows apart. */
+@@ -110,59 +108,92 @@
+   )
+ }
+ 
+-const TerminalPlacementSetting: Component = () => {
++const FollowUpBehaviorSetting: Component = () => {
+   const language = useLanguage()
+   const settings = useSettings()
+ 
+-  const options = createMemo((): { value: TerminalPlacement; label: string }[] => [
+-    { value: "side", label: language.t("settings.general.row.terminalPlacement.side") },
+-    { value: "bottom", label: language.t("settings.general.row.terminalPlacement.bottom") },
++  const options = createMemo((): { value: FollowUpBehavior; label: string }[] => [
++    { value: "queue", label: language.t("settings.general.row.followUpBehavior.queue") },
++    { value: "steer", label: language.t("settings.general.row.followUpBehavior.steer") },
+   ])
+ 
+   return (
+     <SettingsRow
+-      title={language.t("settings.general.row.terminalPlacement.title")}
+-      description={language.t("settings.general.row.terminalPlacement.description")}
++      title={language.t("settings.general.row.followUpBehavior.title")}
++      description={language.t("settings.general.row.followUpBehavior.description", {
++        keybind: formatKeybind("mod+enter", language.t),
++      })}
+     >
+       <Select
+-        data-action="settings-terminal-placement"
++        data-action="settings-follow-up-behavior"
+         options={options()}
+-        current={options().find((option) => option.value === settings.general.terminalPlacement())}
++        current={options().find((option) => option.value === settings.general.followUpBehavior())}
+         value={(option) => option.value}
+         label={(option) => option.label}
+         placement="bottom-end"
+         gutter={6}
+-        onSelect={(option) => option && settings.general.setTerminalPlacement(option.value)}
++        onSelect={(option) => option && settings.general.setFollowUpBehavior(option.value)}
+       />
+     </SettingsRow>
+   )
+ }
+ 
+-const FollowUpBehaviorSetting: Component = () => {
++const BackgroundActivitySetting = () => {
+   const language = useLanguage()
+   const settings = useSettings()
+ 
+-  const options = createMemo((): { value: FollowUpBehavior; label: string }[] => [
+-    { value: "queue", label: language.t("settings.general.row.followUpBehavior.queue") },
+-    { value: "steer", label: language.t("settings.general.row.followUpBehavior.steer") },
++  const options = createMemo((): { value: BackgroundActivity; label: string }[] => [
++    { value: "off", label: language.t("settings.timeline.row.backgroundActivity.off") },
++    { value: "left", label: language.t("settings.timeline.row.backgroundActivity.left") },
++    { value: "center", label: language.t("settings.timeline.row.backgroundActivity.center") },
++    { value: "right", label: language.t("settings.timeline.row.backgroundActivity.right") },
+   ])
+ 
+   return (
+     <SettingsRow
+-      title={language.t("settings.general.row.followUpBehavior.title")}
+-      description={language.t("settings.general.row.followUpBehavior.description", {
+-        keybind: formatKeybind("mod+enter", language.t),
+-      })}
++      title={language.t("settings.timeline.row.backgroundActivity.title")}
++      description={language.t("settings.timeline.row.backgroundActivity.description")}
+     >
+       <Select
+-        data-action="settings-follow-up-behavior"
++        data-action="settings-background-activity"
++        aria-label={language.t("settings.timeline.row.backgroundActivity.title")}
+         options={options()}
+-        current={options().find((option) => option.value === settings.general.followUpBehavior())}
++        current={options().find((option) => option.value === settings.general.backgroundActivity())}
+         value={(option) => option.value}
+         label={(option) => option.label}
+         placement="bottom-end"
+         gutter={6}
+-        onSelect={(option) => option && settings.general.setFollowUpBehavior(option.value)}
++        onSelect={(option) => option && settings.general.setBackgroundActivity(option.value)}
++      />
++    </SettingsRow>
++  )
++}
++
++const TimelineWidthSetting = () => {
++  const language = useLanguage()
++  const settings = useSettings()
++
++  const options = createMemo((): { value: TimelineWidth; label: string }[] => [
++    { value: "focused", label: language.t("settings.timeline.row.width.focused") },
++    { value: "comfortable", label: language.t("settings.timeline.row.width.comfortable") },
++    { value: "wide", label: language.t("settings.timeline.row.width.wide") },
++  ])
++
++  return (
++    <SettingsRow
++      title={language.t("settings.timeline.row.width.title")}
++      description={language.t("settings.timeline.row.width.description")}
++    >
++      <Select
++        data-action="settings-timeline-width"
++        aria-label={language.t("settings.timeline.row.width.title")}
++        options={options()}
++        current={options().find((option) => option.value === settings.general.timelineWidth())}
++        value={(option) => option.value}
++        label={(option) => option.label}
++        placement="bottom-end"
++        gutter={6}
++        onSelect={(option) => option && settings.general.setTimelineWidth(option.value)}
+       />
+     </SettingsRow>
+   )
+@@ -240,7 +271,6 @@
+           </div>
+         </SettingsRow>
+ 
+-        <TerminalPlacementSetting />
+         <FollowUpBehaviorSetting />
+ 
+         <Show when={desktop()}>
+@@ -291,12 +321,14 @@
+         <section class="settings-section" aria-label={language.t("settings.timeline.title")}>
+           <h3 class="settings-section-title">{language.t("settings.timeline.title")}</h3>
+           <SettingsList>
+-            <div class="py-5">
++            <div class="border-b-[0.5px] border-v2-border-border-base py-5">
+               <TimelineDetailControl
+                 value={settings.general.timelineDetail()}
+                 onChange={settings.general.setTimelineDetail}
+               />
+             </div>
++            <TimelineWidthSetting />
++            <BackgroundActivitySetting />
+             <SettingsRow
+               title={language.t("settings.timeline.row.turnDiffs.title")}
+               description={language.t("settings.timeline.row.turnDiffs.description")}
+diff --git a/packages/app/src/settings/model.tsx b/packages/app/src/settings/model.tsx
+index 8b53fcc9c3dcd43df07e9c63101e2dce1c695189..e35c08565d960b13048b9b510f17dbec3b85417d 100644
+--- a/packages/app/src/settings/model.tsx
++++ b/packages/app/src/settings/model.tsx
+@@ -19,6 +19,10 @@
+ 
+ export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
+ 
++export type BackgroundActivity = Settings["general"]["backgroundActivity"]
++
++export type TimelineWidth = Settings["general"]["timelineWidth"]
++
+ export type TabLayout = Settings["appearance"]["tabLayout"]
+ 
+ export type ReduceMotion = Settings["appearance"]["reduceMotion"]
+@@ -105,7 +109,8 @@
+ const generalSchema = Persistence.struct({
+   // Retired preferences without readers; kept so stored values still decode and round-trip.
+   autoSave: Persistence.optional(Schema.Boolean),
+-  // Owned by the updater extension, which copies it out once; kept so settings rewrites cannot drop it first.
++  showTurnNavigator: Persistence.optional(Schema.Boolean),
++  // Owned by the updater plugin, which copies it out once; kept so settings rewrites cannot drop it first.
+   releaseNotes: Persistence.optional(Schema.Boolean),
+   showFileTree: Schema.Boolean,
+   showNavigation: Persistence.optional(Schema.Boolean),
+@@ -121,12 +126,14 @@
+   }),
+   showCustomAgents: Schema.Boolean,
+   showTurnDiffs: Schema.Boolean,
++  backgroundActivity: Schema.Literals(["off", "left", "center", "right"]),
++  timelineWidth: Schema.Literals(["focused", "comfortable", "wide"]),
+   // The "New icons" design experiment, off until it ships.
+   newIcons: Schema.Boolean,
+   // The "Fold long messages" experiment, off until it ships.
+   foldUserMessages: Schema.Boolean,
+   mobileTitlebarPosition: Schema.Literals(["top", "bottom"]),
+-  // Owned by the review extension, which copies it out once; kept so settings rewrites cannot drop it first.
++  // Owned by the review plugin, which copies it out once; kept so settings rewrites cannot drop it first.
+   mobileDiffWrap: Persistence.optional(Schema.Boolean),
+   terminalPlacement: Schema.Literals(["side", "bottom"]),
+   followUpBehavior: Schema.Literals(["queue", "steer"]),
+@@ -139,8 +146,6 @@
+   terminal: Schema.String,
+   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
+   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
+-  // mobile(M-043): the collapsed-sidebar toggle reads this (shell/sidebar-toggle.tsx, the
+-  // settings-framework dependency closure); the page-level schema rework stays with #102+.
+   sidebarOpen: Persistence.optional(Schema.Boolean),
+   reduceMotion: Schema.Literals(["system", "on", "off"]),
+ })
+@@ -174,11 +179,12 @@
+   permissions: Schema.String,
+   errorsEnabled: Schema.Boolean,
+   errors: Schema.String,
++  interfaceEnabled: Schema.optional(Schema.Boolean),
+ })
+ 
+ export const settingsSchema = Persistence.struct({
+   general: generalSchema,
+-  // Owned by the details extension, which copies it out once; kept so settings rewrites cannot drop it first.
++  // Owned by the details plugin, which copies it out once; kept so settings rewrites cannot drop it first.
+   sessionSummary: Schema.optional(
+     Persistence.struct({ projectExpanded: Schema.Boolean, serverExpanded: Schema.Boolean }),
+   ),
+@@ -293,6 +299,8 @@
+     timelineDetail: { ...timelinePresets[2].value },
+     showCustomAgents: false,
+     showTurnDiffs: false,
++    backgroundActivity: "left",
++    timelineWidth: "comfortable",
+     newIcons: false,
+     foldUserMessages: false,
+     mobileTitlebarPosition: "top",
+@@ -303,7 +311,7 @@
+   keybinds: {},
+   permissions: { autoApprove: false, autoApproveProjects: {} },
+   workspaces: { defaultDestination: "last-used", lastUsed: {} },
+-  notifications: { agent: true, permissions: true, errors: false },
++  notifications: { agent: false, permissions: true, errors: false },
+   sounds: {
+     agentEnabled: true,
+     agent: "staplebops-01",
+@@ -311,6 +319,7 @@
+     permissions: "staplebops-02",
+     errorsEnabled: true,
+     errors: "nope-03",
++    interfaceEnabled: true,
+   },
+ }
+ 
+@@ -354,6 +363,14 @@
+       document.documentElement.dataset.motion = reduce ? "reduce" : "full"
+     })
+ 
++    const timelineWidth = withFallback(() => store.general?.timelineWidth, defaultSettings.general.timelineWidth)
++
++    // The session column's width token keys off this attribute, so every surface sharing it follows the setting.
++    createEffect(() => {
++      if (typeof document === "undefined") return
++      document.documentElement.dataset.timelineWidth = timelineWidth()
++    })
++
+     const autoApproveDefault = withFallback(
+       () => store.permissions?.autoApprove,
+       defaultSettings.permissions.autoApprove,
+@@ -385,6 +402,17 @@
+         setShowTurnDiffs(value: boolean) {
+           setStore("general", "showTurnDiffs", value)
+         },
++        backgroundActivity: withFallback(
++          () => store.general?.backgroundActivity,
++          defaultSettings.general.backgroundActivity,
++        ),
++        setBackgroundActivity(value: BackgroundActivity) {
++          setStore("general", "backgroundActivity", value)
++        },
++        timelineWidth,
++        setTimelineWidth(value: TimelineWidth) {
++          setStore("general", "timelineWidth", value)
++        },
+         newIcons,
+         setNewIcons(value: boolean) {
+           setStore("general", "newIcons", value)
+@@ -555,6 +583,13 @@
+         setErrors(value: string) {
+           setStore("sounds", "errors", value)
+         },
++        interfaceEnabled: withFallback(
++          () => store.sounds?.interfaceEnabled,
++          defaultSettings.sounds.interfaceEnabled ?? true,
++        ),
++        setInterfaceEnabled(value: boolean) {
++          setStore("sounds", "interfaceEnabled", value)
++        },
+       },
+     }
+   },
+diff --git a/packages/app/src/settings/model.test.ts b/packages/app/src/settings/model.test.ts
+index 0a7cafd1268dd6a1b3ecc3ce555a9905bd129cc1..bd44e538f19153e3bac32e94f2fd7ea35a64e45b 100644
+--- a/packages/app/src/settings/model.test.ts
++++ b/packages/app/src/settings/model.test.ts
+@@ -37,7 +37,7 @@
+ })
+ 
+ describe("settings schema", () => {
+-  test("keeps the values extensions copy out once and discards retired preferences", () => {
++  test("keeps the values plugins copy out once and discards retired preferences", () => {
+     const settings = decode({
+       general: {
+         showStatus: true,
+@@ -94,6 +94,8 @@
+         timelineDetail: timelinePresets[2].value,
+         showCustomAgents: false,
+         showTurnDiffs: false,
++        backgroundActivity: "left",
++        timelineWidth: "comfortable",
+         newIcons: false,
+         foldUserMessages: false,
+         mobileTitlebarPosition: "top",
+@@ -111,7 +113,7 @@
+       keybinds: {},
+       permissions: { autoApprove: false, autoApproveProjects: {} },
+       workspaces: { defaultDestination: "last-used", lastUsed: {} },
+-      notifications: { agent: true, permissions: true, errors: false },
++      notifications: { agent: false, permissions: true, errors: false },
+       sounds: {
+         agentEnabled: true,
+         agent: "staplebops-01",
+@@ -119,6 +121,7 @@
+         permissions: "staplebops-02",
+         errorsEnabled: true,
+         errors: "nope-03",
++        interfaceEnabled: true,
+       },
+     })
+   })
+@@ -131,6 +134,8 @@
+         releaseNotes: undefined,
+         reasoningMode: 3,
+         followUpBehavior: "invalid",
++        backgroundActivity: "invalid",
++        timelineWidth: "invalid",
+       },
+       appearance: { fontSize: "large", mono: "Custom Mono", tabLayout: "vertical", showProjectName: true },
+       permissions: { autoApprove: true, autoApproveProjects: { on: true, off: false, bad: "yes" } },
+@@ -145,6 +150,8 @@
+       autoSave: false,
+       timelineDetail: timelinePresets[2].value,
+       followUpBehavior: "steer",
++      backgroundActivity: "left",
++      timelineWidth: "comfortable",
+     })
+     expect(settings.appearance).toEqual({
+       fontSize: 14,
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index 37ab82f153d4bdc53c62eb18b809131530fa19fa..bb711483deadbec0f529a979d44cbd123b959f61 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -68,11 +68,22 @@
+     section: "settings.timeline.title",
+     keywords: "thinking reasoning tools timeline summary detailed",
+   },
+-  // mobile(M-044): the three target rows below were pruned because their reveal anchors live
+-  // in page content this migration does not carry (S04+ pages, issues #102–#110). Each row
+-  // returns together with its page anchor when the owning page issue lands:
+-  //   settings-background-activity + settings-timeline-width -> session/screen page issue (#102/#109 scope, plan §2.3)
+-  //   settings-sounds-interface -> notifications page issue
++  {
++    tab: "general",
++    label: "settings.timeline.row.backgroundActivity.title",
++    description: "settings.timeline.row.backgroundActivity.description",
++    target: "settings-background-activity",
++    section: "settings.timeline.title",
++    keywords: "capsule panel subagent shell background activity position alignment hidden left center right",
++  },
++  {
++    tab: "general",
++    label: "settings.timeline.row.width.title",
++    description: "settings.timeline.row.width.description",
++    target: "settings-timeline-width",
++    section: "settings.timeline.title",
++    keywords: "column line length measure narrow focused comfortable wide readability",
++  },
+   {
+     tab: "general",
+     label: "settings.timeline.row.turnDiffs.title",
+@@ -187,8 +198,10 @@
+     description: "settings.general.sounds.errors.description",
+     keywords: "sound audio errors",
+   },
+-  // mobile(M-044): `settings-sounds-interface` pruned with the other two dangling-anchor
+-  // rows above; restored by the notifications page issue together with its page anchor.
++  // mobile(M-044): `settings-sounds-interface` stays pruned — its reveal anchor lives in the
++  // notifications page, which this migration does not carry; the row returns with the
++  // notifications page issue. (settings-background-activity and settings-timeline-width were
++  // restored together with their page anchors by issue #103.)
+ ]
+ 
+ // Pages showing the selected server, and rows of its card on the Servers page.
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index 47f3e82863ef796787448923b71feadfb8bbac7f..c7e5c095935be6cf24477c52bdf59a9ef0156bcf 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -78,11 +78,13 @@
+         .map((item) => item.page),
+     ).toEqual(["Desktop notifications", "Sound effects"])
+     expect(rankSettings("follow-up behavior", items)[0].page).toBe("Preferences / General")
+-    // mobile(M-044): the target's `rankSettings("capsule", ...)` -> settings-background-activity
+-    // assertion is deleted with the three dangling-anchor catalog rows; this locks their
+-    // absence until the owning page issues restore each row with its page anchor.
+-    expect(items.some((item) => item.view.target === "settings-background-activity")).toBe(false)
+-    expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(false)
++    expect(rankSettings("capsule", items)[0].view).toMatchObject({
++      tab: "general",
++      target: "settings-background-activity",
++    })
++    expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(true)
++    // mobile(M-044): `settings-sounds-interface` stays pruned until the notifications page
++    // issue restores it with its page anchor (issue #103 restored the other two rows above).
+     expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(false)
+     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
+   })
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 56a3b8c9bfdd26cff2ec07b00b2ab87046670aa0..b885afc0b234af9c2698060caf5bb4a2e8a10126 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -847,6 +847,17 @@
+   "settings.general.section.sounds": "Sound effects",
+ 
+   "settings.timeline.title": "Timeline",
++  "settings.timeline.row.backgroundActivity.title": "Background activity",
++  "settings.timeline.row.backgroundActivity.description": "Show running subagents and shells above the composer",
++  "settings.timeline.row.backgroundActivity.off": "Hidden",
++  "settings.timeline.row.backgroundActivity.left": "Left",
++  "settings.timeline.row.backgroundActivity.center": "Center",
++  "settings.timeline.row.backgroundActivity.right": "Right",
++  "settings.timeline.row.width.title": "Timeline width",
++  "settings.timeline.row.width.description": "Narrower lines are easier to scan. Wider lines show more at once",
++  "settings.timeline.row.width.focused": "Focused",
++  "settings.timeline.row.width.comfortable": "Comfortable",
++  "settings.timeline.row.width.wide": "Wide",
+   "settings.timeline.detail": "Timeline detail",
+   "settings.timeline.description": "Choose how much detail appears in the session timeline.",
+   "settings.timeline.summary": "{{preset}}:",
+@@ -887,10 +898,6 @@
+   "settings.general.row.shell.description": "Shell used by the terminal and agent tools",
+   "settings.general.row.shell.autoDefault": "Auto (Default)",
+   "settings.general.row.shell.terminalOnly": "terminal only",
+-  "settings.general.row.terminalPlacement.title": "Terminal placement",
+-  "settings.general.row.terminalPlacement.description": "Choose where the terminal opens in sessions",
+-  "settings.general.row.terminalPlacement.side": "Side",
+-  "settings.general.row.terminalPlacement.bottom": "Bottom",
+   "settings.general.row.colorScheme.title": "Color scheme",
+   "settings.general.row.colorScheme.description": "Choose whether OpenCode follows the system, light, or dark theme",
+   "settings.general.row.theme.title": "Theme",
+@@ -983,6 +990,9 @@
+   "settings.general.sounds.permissions.description": "Play sound when a permission is required",
+   "settings.general.sounds.errors.title": "Errors",
+   "settings.general.sounds.errors.description": "Play sound when an error occurs",
++  "settings.general.sounds.interface.title": "Interface",
++  "settings.general.sounds.interface.description":
++    "Play subtle sounds when the wordmark appears and when you play with it",
+ 
+   "settings.shortcuts.title": "Keyboard shortcuts",
+   "settings.shortcuts.reset.button": "Reset to defaults",
+diff --git a/packages/ui/src/styles/tailwind/index.css b/packages/ui/src/styles/tailwind/index.css
+index 10e74356e8b02608d92d89112ab3afb86f38c8b1..9647ad4e7fa4fd001d3f8835d485c86fee2cc8b9 100644
+--- a/packages/ui/src/styles/tailwind/index.css
++++ b/packages/ui/src/styles/tailwind/index.css
+@@ -53,7 +53,8 @@
+   --container-6xl: 72rem;
+   --container-7xl: 80rem;
+   /* Shared by the session timeline, composer dock, and drop target so their edges stay aligned.
+-     The composer dock's 12px gutter leaves the design's 720px composer. */
++     The composer dock's 12px gutter leaves the design's 720px composer. The timeline width setting
++     overrides it below. */
+   --container-session: 744px;
+ 
+   --font-sans: var(--font-family-sans);
+@@ -100,3 +101,13 @@
+ }
+ 
+ @import "./colors.css";
++
++/* With Inter at 14px, after the timeline's 24px side padding, these give about 66 characters per line
++   (the classic optimum for scanning prose); the 744px default gives about 105 and 1000px about 144. */
++:root[data-timeline-width="focused"] {
++  --container-session: 488px;
++}
++
++:root[data-timeline-width="wide"] {
++  --container-session: 1000px;
++}
+diff --git a/packages/app/src/runtime/i18n/dz.ts b/packages/app/src/runtime/i18n/dz.ts
+index 44182e88fd3ac37946f58862e24b75b7404f492b..e157fea5dca8d4430dc8ffaaa047809c7dbaed8e 100644
+--- a/packages/app/src/runtime/i18n/dz.ts
++++ b/packages/app/src/runtime/i18n/dz.ts
+@@ -628,10 +628,6 @@
+   "session.error.incompatible.description":
+     "{{server}} གིས་ གློག་རིམ་འདི་དང་མཐུན་འགྱུར་མེད་པའི་ OpenCode {{version}} གཡོག་བཀོལ་དོ། འཕྲོ་མཐུད་ཀྱི་དོན་ལུ་ སར་བར་འདི་ OpenCode V2 ལུ་ཡར་སེང་འབད།",
+   "session.background.moveInline": "གཡོག་བཀོལ་དོ་ཡོད་པའི་ལཱ་འདི་རྒྱབ་ཁར་སྤོ་ནིའི་དོན་ལུ་ {{keybind}} ཨེབ།",
+-  "settings.general.row.terminalPlacement.title": "ཊར་མི་ནཱལ་བཞག་ས།",
+-  "settings.general.row.terminalPlacement.description": "ལཱ་ཡུན་ཚུ་ནང་ ཊར་མི་ནཱལ་ག་ཏེ་ཁ་ཕྱེ་ནི་ཨིན་ན་གདམ་ཁ་རྐྱབས།",
+-  "settings.general.row.terminalPlacement.side": "ཟུར་ཁ།",
+-  "settings.general.row.terminalPlacement.bottom": "མཇུག་ལུ།",
+   "command.session.background": "རྒྱབ་ཁར་སྤོ།",
+   "settings.tab.preferences": "དགའ་གདམ་ཚུ།",
+   "settings.tab.notifications": "བརྡ་བསྐུལ་ཚུ།",
+diff --git a/packages/app/src/runtime/i18n/de.ts b/packages/app/src/runtime/i18n/de.ts
+index b6fd08301dd91da18d4a7583a8396f3c724e46b5..efd4bd293f36c76c9bf3c9d69e39cffe3b9d557d 100644
+--- a/packages/app/src/runtime/i18n/de.ts
++++ b/packages/app/src/runtime/i18n/de.ts
+@@ -905,10 +905,6 @@
+   "session.error.incompatible.description":
+     "Auf {{server}} wird OpenCode {{version}} ausgeführt, das mit dieser App nicht kompatibel ist. Aktualisieren Sie den Server auf OpenCode V2, um fortzufahren.",
+   "session.background.moveInline": "Drücken Sie {{keybind}}, um laufende Arbeit in den Hintergrund zu verschieben",
+-  "settings.general.row.terminalPlacement.title": "Terminalposition",
+-  "settings.general.row.terminalPlacement.description": "Wählen Sie aus, wo das Terminal in Sitzungen geöffnet wird",
+-  "settings.general.row.terminalPlacement.side": "Seitlich",
+-  "settings.general.row.terminalPlacement.bottom": "Unten",
+   "command.session.location.cycle": "Sitzungsort wechseln",
+   "dialog.provider.anthropic.note": "Direkter Zugriff auf Claude-Modelle per API-Schlüssel",
+   "provider.connect.title.anthropicProMax": "Bei Anthropic anmelden",
+diff --git a/packages/app/src/runtime/i18n/bn.ts b/packages/app/src/runtime/i18n/bn.ts
+index fc065cef438a5b457ae7afa85d5a774721595650..e2fa5eb2559206f3eae5d5052f222d31ce2a2ca8 100644
+--- a/packages/app/src/runtime/i18n/bn.ts
++++ b/packages/app/src/runtime/i18n/bn.ts
+@@ -676,10 +676,6 @@
+   "session.error.incompatible.description":
+     "{{server}}-এ OpenCode {{version}} চলছে, যা এই অ্যাপের সঙ্গে সামঞ্জস্যপূর্ণ নয়। চালিয়ে যেতে সার্ভারটি OpenCode V2-এ আপগ্রেড করুন।",
+   "session.background.moveInline": "চলমান কাজটি পটভূমিতে সরাতে {{keybind}} চাপুন",
+-  "settings.general.row.terminalPlacement.title": "টার্মিনালের অবস্থান",
+-  "settings.general.row.terminalPlacement.description": "সেশনে টার্মিনাল কোথায় খুলবে তা বেছে নিন",
+-  "settings.general.row.terminalPlacement.side": "পাশে",
+-  "settings.general.row.terminalPlacement.bottom": "নিচে",
+   "dialog.server.menu.hide": "প্রকল্পের তালিকা থেকে লুকান",
+   "dialog.server.menu.show": "প্রকল্পের তালিকায় দেখান",
+   "session.queue.count.one": "{{count}}টি সারিবদ্ধ",
+diff --git a/packages/app/src/runtime/i18n/no.ts b/packages/app/src/runtime/i18n/no.ts
+index 64f0d66bf0eb8f3e3399fdf41e6141df2bd64fc4..a99adfa36ec9e40475e60d2d63e6753b95942623 100644
+--- a/packages/app/src/runtime/i18n/no.ts
++++ b/packages/app/src/runtime/i18n/no.ts
+@@ -946,10 +946,6 @@
+   "session.error.incompatible.description":
+     "{{server}} kjører OpenCode {{version}}, som ikke er kompatibel med denne appen. Oppgrader serveren til OpenCode V2 for å fortsette.",
+   "session.background.moveInline": "Trykk på {{keybind}} for å flytte pågående arbeid til bakgrunnen",
+-  "settings.general.row.terminalPlacement.title": "Terminalplassering",
+-  "settings.general.row.terminalPlacement.description": "Velg hvor terminalen åpnes i sesjoner",
+-  "settings.general.row.terminalPlacement.side": "Siden",
+-  "settings.general.row.terminalPlacement.bottom": "Nederst",
+   "command.session.location.cycle": "Bytt øktplassering",
+   "dialog.provider.anthropic.note": "Direkte tilgang til Claude-modeller via API-nøkkel",
+   "provider.connect.title.anthropicProMax": "Logg på med Anthropic",
+diff --git a/packages/app/src/runtime/i18n/tr.ts b/packages/app/src/runtime/i18n/tr.ts
+index ab9692a1f54e0057b9399e7c2676d5d8ffa6a327..36880d28ab3d95c2dc10296c18f2df23a1d9078e 100644
+--- a/packages/app/src/runtime/i18n/tr.ts
++++ b/packages/app/src/runtime/i18n/tr.ts
+@@ -693,10 +693,6 @@
+   "session.error.incompatible.description":
+     "{{server}}, bu uygulamayla uyumlu olmayan OpenCode {{version}} sürümünü çalıştırıyor. Devam etmek için sunucuyu OpenCode V2'ye yükseltin.",
+   "session.background.moveInline": "Çalışan işi arka plana taşımak için {{keybind}} tuşuna basın",
+-  "settings.general.row.terminalPlacement.title": "Terminal yerleşimi",
+-  "settings.general.row.terminalPlacement.description": "Oturumlarda terminalin nerede açılacağını seçin",
+-  "settings.general.row.terminalPlacement.side": "Yan",
+-  "settings.general.row.terminalPlacement.bottom": "Alt",
+ 
+   "command.session.background": "Arka plana taşı",
+ 
+diff --git a/packages/app/src/runtime/i18n/ne.ts b/packages/app/src/runtime/i18n/ne.ts
+index b7c0e2bba6ffd625ee7fe80ab3f5b2dc35e937ef..52d843a1caa126f9f81042bf8fb4821e3d4e38a7 100644
+--- a/packages/app/src/runtime/i18n/ne.ts
++++ b/packages/app/src/runtime/i18n/ne.ts
+@@ -677,10 +677,6 @@
+   "session.error.incompatible.description":
+     "{{server}} मा OpenCode {{version}} चलिरहेको छ, जुन यस एपसँग मिल्दैन। जारी राख्न सर्भरलाई OpenCode V2 मा अद्यावधिक गर्नुहोस्।",
+   "session.background.moveInline": "चलिरहेको काम पृष्ठभूमिमा सार्न {{keybind}} थिच्नुहोस्",
+-  "settings.general.row.terminalPlacement.title": "टर्मिनलको स्थान",
+-  "settings.general.row.terminalPlacement.description": "सत्रहरूमा टर्मिनल कहाँ खुल्ने छान्नुहोस्",
+-  "settings.general.row.terminalPlacement.side": "छेउमा",
+-  "settings.general.row.terminalPlacement.bottom": "तल",
+   "dialog.server.menu.hide": "परियोजना सूचीबाट लुकाउनुहोस्",
+   "dialog.server.menu.show": "परियोजना सूचीमा देखाउनुहोस्",
+   "session.queue.count.one": "{{count}} पङ्क्तिमा",
+diff --git a/packages/app/src/runtime/i18n/si.ts b/packages/app/src/runtime/i18n/si.ts
+index aa408b2a3e98f59060196b766d5e58c7d7174620..69802a6740290d83c7a7e6015adb5e6c845ed3bc 100644
+--- a/packages/app/src/runtime/i18n/si.ts
++++ b/packages/app/src/runtime/i18n/si.ts
+@@ -672,10 +672,6 @@
+   "session.error.incompatible.description":
+     "{{server}} හි OpenCode {{version}} ධාවනය වන අතර එය මෙම යෙදුම සමඟ නොගැළපේ. ඉදිරියට යාමට සේවාදායකය OpenCode V2 වෙත උත්ශ්‍රේණි කරන්න.",
+   "session.background.moveInline": "ධාවනය වන කාර්යය පසුබිමට ගෙන යාමට {{keybind}} ඔබන්න",
+-  "settings.general.row.terminalPlacement.title": "ටර්මිනලයේ පිහිටීම",
+-  "settings.general.row.terminalPlacement.description": "සැසි තුළ ටර්මිනලය විවෘත වන ස්ථානය තෝරන්න",
+-  "settings.general.row.terminalPlacement.side": "පැත්තේ",
+-  "settings.general.row.terminalPlacement.bottom": "පහළ",
+   "dialog.server.menu.hide": "ව්‍යාපෘති ලැයිස්තුවෙන් සඟවන්න",
+   "dialog.server.menu.show": "ව්‍යාපෘති ලැයිස්තුවේ පෙන්වන්න",
+   "session.queue.count.one": "{{count}} ක් පෝලිමේ",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index 6a9d5315f03088554c8bc3146d11a3bd912fd690..57fc3c392e2d6e79d2b3c3a2edf987d55ff265c4 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -770,10 +770,6 @@
+   "session.error.incompatible.description":
+     "{{server}} 正在运行 OpenCode {{version}}，与此应用不兼容。请将服务器升级到 OpenCode V2 以继续。",
+   "session.background.moveInline": "按 {{keybind}} 将正在运行的任务移至后台",
+-  "settings.general.row.terminalPlacement.title": "终端位置",
+-  "settings.general.row.terminalPlacement.description": "选择会话中终端的打开位置",
+-  "settings.general.row.terminalPlacement.side": "侧边",
+-  "settings.general.row.terminalPlacement.bottom": "底部",
+   "dialog.server.menu.hide": "从项目列表中隐藏",
+   "dialog.server.menu.show": "在项目列表中显示",
+   "session.queue.count.one": "{{count}} 个已排队",
+diff --git a/packages/app/src/runtime/i18n/zht.ts b/packages/app/src/runtime/i18n/zht.ts
+index 82ab93c2ee6a46361ea6c2a503ad7e4fcdf62031..e2dd5ba396c704aacf452b6130490bd92a64913d 100644
+--- a/packages/app/src/runtime/i18n/zht.ts
++++ b/packages/app/src/runtime/i18n/zht.ts
+@@ -726,10 +726,6 @@
+   "session.error.incompatible.description":
+     "{{server}} 正在執行 OpenCode {{version}}，與此應用程式不相容。請將伺服器升級至 OpenCode V2 以繼續。",
+   "session.background.moveInline": "按下 {{keybind}} 將執行中的工作移至背景",
+-  "settings.general.row.terminalPlacement.title": "終端機位置",
+-  "settings.general.row.terminalPlacement.description": "選擇終端機在工作階段中的開啟位置",
+-  "settings.general.row.terminalPlacement.side": "側邊",
+-  "settings.general.row.terminalPlacement.bottom": "底部",
+   "dialog.server.menu.hide": "從專案清單中隱藏",
+   "dialog.server.menu.show": "在專案清單中顯示",
+   "session.queue.count.one": "{{count}} 個已排入佇列",

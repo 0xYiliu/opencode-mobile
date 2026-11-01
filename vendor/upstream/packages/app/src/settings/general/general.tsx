@@ -7,15 +7,17 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"
 import {
+  type BackgroundActivity,
   type FollowUpBehavior,
-  type TerminalPlacement,
+  type TimelineWidth,
   type WorkspaceDefaultDestination,
   useSettings,
 } from "@/settings/model"
 import { formatKeybind } from "@/shell/commands/command"
 import { SettingsList } from "@/settings/list"
 import { SettingsRow } from "@/settings/row"
-import { createShellOptions, type ShellSettingsController } from "./controllers"
+import { createShellOptions } from "./behavior"
+import type { ShellSettingsController } from "./controllers"
 import { InterfaceModeSetting } from "./interface-mode"
 import "@/settings/settings.css"
 
@@ -67,10 +69,6 @@ const WorkspaceDestinationSetting: Component = () => {
   )
 }
 
-// mobile(M-045): only the ShellSetting action hunk is migrated from target (issue #102 — the
-// Servers page names per-server shell rows for search reveal). The rest of this file stays at
-// the pin/M-037 state; the remaining target delta (FollowUpBehavior/BackgroundActivity rows
-// etc.) belongs to the General page unit and lands with the later settings-general issue.
 export const ShellSetting: Component<{
   controller: ShellSettingsController
   /** Search reveals the row with the default action; the Servers page names the other servers' rows apart. */
@@ -110,34 +108,6 @@ export const ShellSetting: Component<{
   )
 }
 
-const TerminalPlacementSetting: Component = () => {
-  const language = useLanguage()
-  const settings = useSettings()
-
-  const options = createMemo((): { value: TerminalPlacement; label: string }[] => [
-    { value: "side", label: language.t("settings.general.row.terminalPlacement.side") },
-    { value: "bottom", label: language.t("settings.general.row.terminalPlacement.bottom") },
-  ])
-
-  return (
-    <SettingsRow
-      title={language.t("settings.general.row.terminalPlacement.title")}
-      description={language.t("settings.general.row.terminalPlacement.description")}
-    >
-      <Select
-        data-action="settings-terminal-placement"
-        options={options()}
-        current={options().find((option) => option.value === settings.general.terminalPlacement())}
-        value={(option) => option.value}
-        label={(option) => option.label}
-        placement="bottom-end"
-        gutter={6}
-        onSelect={(option) => option && settings.general.setTerminalPlacement(option.value)}
-      />
-    </SettingsRow>
-  )
-}
-
 const FollowUpBehaviorSetting: Component = () => {
   const language = useLanguage()
   const settings = useSettings()
@@ -163,6 +133,67 @@ const FollowUpBehaviorSetting: Component = () => {
         placement="bottom-end"
         gutter={6}
         onSelect={(option) => option && settings.general.setFollowUpBehavior(option.value)}
+      />
+    </SettingsRow>
+  )
+}
+
+const BackgroundActivitySetting = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+
+  const options = createMemo((): { value: BackgroundActivity; label: string }[] => [
+    { value: "off", label: language.t("settings.timeline.row.backgroundActivity.off") },
+    { value: "left", label: language.t("settings.timeline.row.backgroundActivity.left") },
+    { value: "center", label: language.t("settings.timeline.row.backgroundActivity.center") },
+    { value: "right", label: language.t("settings.timeline.row.backgroundActivity.right") },
+  ])
+
+  return (
+    <SettingsRow
+      title={language.t("settings.timeline.row.backgroundActivity.title")}
+      description={language.t("settings.timeline.row.backgroundActivity.description")}
+    >
+      <Select
+        data-action="settings-background-activity"
+        aria-label={language.t("settings.timeline.row.backgroundActivity.title")}
+        options={options()}
+        current={options().find((option) => option.value === settings.general.backgroundActivity())}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        placement="bottom-end"
+        gutter={6}
+        onSelect={(option) => option && settings.general.setBackgroundActivity(option.value)}
+      />
+    </SettingsRow>
+  )
+}
+
+const TimelineWidthSetting = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+
+  const options = createMemo((): { value: TimelineWidth; label: string }[] => [
+    { value: "focused", label: language.t("settings.timeline.row.width.focused") },
+    { value: "comfortable", label: language.t("settings.timeline.row.width.comfortable") },
+    { value: "wide", label: language.t("settings.timeline.row.width.wide") },
+  ])
+
+  return (
+    <SettingsRow
+      title={language.t("settings.timeline.row.width.title")}
+      description={language.t("settings.timeline.row.width.description")}
+    >
+      <Select
+        data-action="settings-timeline-width"
+        aria-label={language.t("settings.timeline.row.width.title")}
+        options={options()}
+        current={options().find((option) => option.value === settings.general.timelineWidth())}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        placement="bottom-end"
+        gutter={6}
+        onSelect={(option) => option && settings.general.setTimelineWidth(option.value)}
       />
     </SettingsRow>
   )
@@ -240,7 +271,6 @@ export const SettingsGeneral: Component = () => {
           </div>
         </SettingsRow>
 
-        <TerminalPlacementSetting />
         <FollowUpBehaviorSetting />
 
         <Show when={desktop()}>
@@ -291,12 +321,14 @@ export const SettingsGeneral: Component = () => {
         <section class="settings-section" aria-label={language.t("settings.timeline.title")}>
           <h3 class="settings-section-title">{language.t("settings.timeline.title")}</h3>
           <SettingsList>
-            <div class="py-5">
+            <div class="border-b-[0.5px] border-v2-border-border-base py-5">
               <TimelineDetailControl
                 value={settings.general.timelineDetail()}
                 onChange={settings.general.setTimelineDetail}
               />
             </div>
+            <TimelineWidthSetting />
+            <BackgroundActivitySetting />
             <SettingsRow
               title={language.t("settings.timeline.row.turnDiffs.title")}
               description={language.t("settings.timeline.row.turnDiffs.description")}
