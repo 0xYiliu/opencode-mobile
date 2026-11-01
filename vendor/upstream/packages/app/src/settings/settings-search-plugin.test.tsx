@@ -191,4 +191,71 @@ describe("settings search plugin catalog", () => {
     dispose()
     host.remove()
   })
+
+  // Issue #109 (S14 search reveal): the review plugin's Wrap-lines contribution is hosted
+  // on the General page via PluginSettingsSections, and the search index must reveal it
+  // with the host-scoped section label. search-index.ts:108: a `page: "general"`
+  // contribution WITH `section` set reads the HOST's General-section label
+  // (settings.general.section.general); the plugin title is the section label only for a
+  // page-level contribution WITHOUT `section`. The fixtures mimic review/renderer.tsx's
+  // SettingsPage shape ({ id: "mobile-diff", page: "general", section: "general", ... }).
+  test("indexes a hosted wrap-lines entry under the host's General section label", () => {
+    const catalog = settingsSearchIndex({
+      servers: [],
+      desktop: false,
+      browser: false,
+      mobile: false,
+      translate: (key: string) => key,
+      plugins: [
+        {
+          plugin: "review",
+          value: {
+            id: "mobile-diff",
+            page: "general",
+            section: "general",
+            title: "Review",
+            entries: [
+              { id: "settings-mobile-diff-wrap", title: "Wrap long lines in mobile diffs", keywords: "diff wrap lines" },
+            ],
+            // Data-only fixture: the index never mounts the page; h() satisfies the JSX.Element return.
+            render: () => h("div")(),
+          },
+        },
+      ],
+    })
+
+    const wrap = catalog.find((item) => item.view.target === "settings-mobile-diff-wrap")
+    expect(wrap).toBeDefined()
+    expect(wrap?.view).toMatchObject({ type: "root", tab: "general", target: "settings-mobile-diff-wrap" })
+    expect(wrap?.title).toBe("Wrap long lines in mobile diffs")
+    // Host-owned presentation: the host General-section label, host icon.
+    expect(wrap?.page).toBe("settings.tab.preferences / settings.general.section.general")
+    expect(wrap?.icon).toBe("sliders")
+  })
+
+  test("uses the plugin title as the section label only without a host section", () => {
+    const catalog = settingsSearchIndex({
+      servers: [],
+      desktop: false,
+      browser: false,
+      mobile: false,
+      translate: (key: string) => key,
+      plugins: [
+        {
+          plugin: "acme",
+          value: {
+            id: "acme-page",
+            page: "general",
+            title: "Acme",
+            entries: [{ id: "settings-acme-row", title: "Acme row", keywords: "acme" }],
+            render: () => h("div")(),
+          },
+        },
+      ],
+    })
+
+    const row = catalog.find((item) => item.view.target === "settings-acme-row")
+    expect(row).toBeDefined()
+    expect(row?.page).toBe("settings.tab.preferences / Acme")
+  })
 })

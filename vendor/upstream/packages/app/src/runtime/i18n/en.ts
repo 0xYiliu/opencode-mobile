@@ -722,7 +722,7 @@ export const dict = {
   "settings.experimental.row.foldUserMessages.description": "Fold your messages past 12 lines behind a Read more button",
   "settings.experimental.row.sources.title": "Sources",
   "settings.experimental.row.sources.description": "Pages a turn searched and read",
-  "settings.guiExtensions.title": "Extensions",
+  "settings.guiExtensions.title": "GUI extensions",
   "settings.guiExtensions.description": "Built-in GUI extensions in this window. Development builds only.",
   "settings.guiExtensions.reload": "Reload",
   "settings.guiExtensions.status.loading": "Loading",

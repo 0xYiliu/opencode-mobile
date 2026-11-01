@@ -12,8 +12,12 @@ export type SettingsRootTab =
   | "experimental"
   // mobile(M-044): the "gui-extensions" root tab is restored for the first-party GUI
   // extension manager (M-026 face, unit contract D4 in docs/design/units/gui-plugins.md).
-  // Deliberate deviation from the target route model; dropped if a later issue moves the
-  // mobile manager into the plugin settings-page registry.
+  // Deliberate deviation from the target route model; issue #109 resolved the D4 contract
+  // and the tab is KEPT: the target PluginSettingsPages registry hosts plugin-owned
+  // contributions only, and the target Extensions face is server-scoped (bridge-driven
+  // ExtensionPlugins - names-only with zero controls on web/mobile where platform.plugins
+  // is undefined, built-ins hidden unless failed, no WSL excluded row) and renders only
+  // under reachable-server data scope, while this manager is window-local.
   | "gui-extensions"
   | "about"
 

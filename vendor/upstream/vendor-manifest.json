@@ -94,7 +94,8 @@
     "patches/mobile/0048-M-048-providers-models-extensions-target-migration.patch",
     "patches/mobile/0049-M-049-workspaces-pages-target-form.patch",
     "patches/mobile/0050-M-050-notifications-page-target-form.patch",
-    "patches/mobile/0051-M-051-keybinds-command-catalog-target-form.patch"
+    "patches/mobile/0051-M-051-keybinds-command-catalog-target-form.patch",
+    "patches/mobile/0052-M-052-guiext-tab-decision-and-label.patch"
   ],
   "excluded": {
     "packages": [
