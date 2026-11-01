@@ -14,8 +14,9 @@
 //   2. Navigation (settings/navigation.tsx): the CollapsedSidebarToggleSpace back-row
 //      dependency (M-042 file) and the 48px row comment.
 //   3. Route model (settings/route.ts + pages.ts): no `type: "server"` views, the
-//      gui-extensions root tab restored (mobile faces, documented deviation), the
-//      `plugins`→extensions subtab redirect.
+//      gui-extensions root tab restored (mobile faces, documented deviation; issue #109
+//      resolved the D4 contract as KEEP — M-052 rewrote the pending-removal notes in
+//      place, marker strings unchanged), the `plugins`→extensions subtab redirect.
 //   4. Server scope (settings/surface.tsx + servers/inventory.ts): the resolution order
 //      (view server → source server → local connected → first), selectServer/openServers,
 //      settingsServerReachable exported, settingsProjects gone.
@@ -26,7 +27,8 @@
 //      data-action anchors) and the settings-sounds-interface row restored by issue
 //      #107/M-050 (catalog row + notifications.tsx data-action anchor — the narrowed
 //      mobile(M-044) catalog note is gone; route.ts keeps its own M-044 note for
-//      gui-extensions until #109), and the pin search consumer form gone.
+//      gui-extensions, which issue #109 resolved as a KEEP), and the pin search consumer
+//      form gone.
 //   6. Command-palette bridge (shell/commands/palette.ts + dialog.tsx + settings/palette.ts):
 //      the `setting` entry type, the createSettingsPaletteEntries plumbing, and the
 //      palette.group.settings category key.
@@ -191,7 +193,8 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   // Issue #103 / M-046: the two general-page rows return with their page anchors.
   // Issue #107 / M-050: settings-sounds-interface returns the same way — catalog row plus
   // a real notifications.tsx anchor (the narrowed mobile(M-044) catalog note is gone;
-  // route.ts keeps its own M-044 note for the gui-extensions faces until #109).
+  // route.ts keeps its own M-044 note for the gui-extensions faces — issue #109 resolved
+  // the note's pending question as KEEP, marker unchanged).
   for (const restored of ["settings-background-activity", "settings-timeline-width"]) {
     if (!catalog.includes(`target: "${restored}"`)) fail(`5: the restored catalog row ${restored} is missing (issue #103)`)
   }
@@ -214,7 +217,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     }
   }
   if (catalog.includes("mobile(M-044)"))
-    fail("5: search-catalog.ts still carries the mobile(M-044) prune register (issue #107 restored the row; route.ts keeps its own note for gui-extensions)")
+    fail("5: search-catalog.ts still carries the mobile(M-044) prune register (issue #107 restored the row; route.ts keeps its own note for gui-extensions — #109 resolved it as KEEP)")
 
   const notificationsPage = await read(`${APP}src/settings/notifications/notifications.tsx`)
   for (const anchor of [
@@ -370,20 +373,69 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   for (const id of ["M-042", "M-043", "M-044"]) {
     if (!ids.has(id)) fail(`11: the patches manifest lost the ${id} registration`)
   }
+  // Issue #109 / M-052 registered (the D4-resolution patch this probe's group 12 locks).
+  if (!ids.has("M-052")) fail("11: the patches manifest lost the M-052 registration (issue #109)")
+}
+
+// --- 12. Plugin settings-contribution hosting + label disambiguation (issue #109:
+//         S41/S14/Sources static locks; the plan's "new group 11" — renumbered 12
+//         because the file's group 11 (manifest registration) predates it) ---
+{
+  // Hosting surface: the target PluginSettingsPages/PluginSettingsSections pair mounts in
+  // the migrated shell (plugin-owned root pages) and twice in the General page (the
+  // review Wrap-lines row lands in the "general/general" section placement).
+  const shell = await read(`${APP}src/settings/shell.tsx`)
+  if (!shell.includes("<PluginSettingsPages />")) fail("12: shell.tsx lost the PluginSettingsPages mount (issue #109 S41)")
+  const general = await read(`${APP}src/settings/general/general.tsx`)
+  if (!general.includes('import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"'))
+    fail("12: general.tsx lost the PluginSettingsSections import (issue #109 S41)")
+  if (!general.includes('<PluginSettingsSections page="general" section="general" />'))
+    fail("12: general.tsx lost the section-scoped PluginSettingsSections placement (issue #109 S41)")
+  if (!general.includes('<PluginSettingsSections page="general" />'))
+    fail("12: general.tsx lost the page-level PluginSettingsSections placement (issue #109 S41)")
+
+  // The review plugin's contribution shape (target-verbatim at 3ebcf9a; S14 hosting).
+  const reviewRenderer = await read("vendor/upstream/packages/gui-plugins/src/review/renderer.tsx")
+  for (const anchor of ['id: "mobile-diff"', 'page: "general"', 'section: "general"', 'id: "settings-mobile-diff-wrap"']) {
+    if (!reviewRenderer.includes(anchor)) fail(`12: review/renderer.tsx lost the SettingsPage anchor: ${anchor} (issue #109 S14)`)
+  }
+  const reviewSettings = await read("vendor/upstream/packages/gui-plugins/src/review/settings.tsx")
+  for (const anchor of ['data-component="settings-row"', 'data-action="settings-mobile-diff-wrap"', "ctx.stores.mobileDiff"]) {
+    if (!reviewSettings.includes(anchor)) fail(`12: review/settings.tsx lost the Wrap-lines row anchor: ${anchor} (issue #109 S14)`)
+  }
+
+  // Sources row (M-036 registered deviation — target has no settings row; the knob lives
+  // in the DEV motion-tuning panel) keeps its storedToggle wiring.
+  const experimental = await read(`${APP}src/settings/experimental/experimental.tsx`)
+  for (const anchor of ['storedToggle("sources.enabled", false)', 'setStoredToggle("sources.enabled", checked, false)', 'data-action="settings-sources"', "mobile(M-036)"]) {
+    if (!experimental.includes(anchor)) fail(`12: experimental.tsx lost the Sources row anchor: ${anchor} (issue #109 Sources gate)`)
+  }
+
+  // Label disambiguation (the #109 core): the gui-extensions tab label no longer collides
+  // with settings.tab.extensions ("Extensions"/"扩展").
+  const en = await read(`${APP}src/runtime/i18n/en.ts`)
+  if (!en.includes('"settings.guiExtensions.title": "GUI extensions"'))
+    fail('12: en.ts lost the "GUI extensions" label value (issue #109 label disambiguation)')
+  if (/^\s*"settings\.guiExtensions\.title": "Extensions",?$/m.exec(en))
+    fail('12: en.ts settings.guiExtensions.title regressed to the bare "Extensions" value (label collision with settings.tab.extensions)')
+  const zh = await read(`${APP}src/runtime/i18n/zh.ts`)
+  if (!zh.includes('"settings.guiExtensions.title": "GUI 扩展"'))
+    fail('12: zh.ts lost the "GUI 扩展" label value (issue #109 label disambiguation)')
 }
 
 console.log(
   "verify-settings-framework: PASS (" +
     "1: migrated shell — single RootSettings + keyed server scope + switcher/unavailable, M-008 mount first in the servers tab, M-026 single-face forms (predicate/guard/nav/mount), pin dual-layout negatives; " +
     "2: navigation CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem; " +
-    "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4); " +
+    "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4 — issue #109 resolved the contract as KEEP, notes reworded in place by M-052); " +
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +
-    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/M-050 (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone), target plugins consumer form; " +
+    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/M-050 (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone; route.ts note resolved as KEEP by #109), target plugins consumer form; " +
     "6: command-palette bridge — setting entry type + createSettingsPaletteEntries + select branch + dialog Match/items; " +
     "7: tests — M-044 keyed/search-results/search-plugin forms (capsule + sounds-interface assertions at the issue #103/#107 restored-row shapes) + three new first-party test files; " +
     "8: page glue — headerAction rendered in all five pages + projects accessor swap; " +
     "9: i18n — nine en.ts keys (plan's 8 + server.thisComputer), sshHosts retained; " +
     "10: M-042 dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +
-    "11: manifest registration M-042/M-043/M-044; " +
+    "11: manifest registration M-042/M-043/M-044 + M-052 (issue #109); " +
+    "12: plugin settings-contribution hosting (PluginSettingsPages shell mount + general.tsx section/page placements), review mobile-diff contribution shape, Sources row wiring, and the GUI-extensions label disambiguation en/zh (issue #109 S41/S14/Sources); " +
     "STATIC check — device navigation/search/offline/isolation are smoke items in docs/build-and-verify.md issue #101; tree byte-equivalence is V3 verify-closure)",
 )
