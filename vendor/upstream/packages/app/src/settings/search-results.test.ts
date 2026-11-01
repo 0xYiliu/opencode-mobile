@@ -78,11 +78,13 @@ describe("settings search index", () => {
         .map((item) => item.page),
     ).toEqual(["Desktop notifications", "Sound effects"])
     expect(rankSettings("follow-up behavior", items)[0].page).toBe("Preferences / General")
-    // mobile(M-044): the target's `rankSettings("capsule", ...)` -> settings-background-activity
-    // assertion is deleted with the three dangling-anchor catalog rows; this locks their
-    // absence until the owning page issues restore each row with its page anchor.
-    expect(items.some((item) => item.view.target === "settings-background-activity")).toBe(false)
-    expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(false)
+    expect(rankSettings("capsule", items)[0].view).toMatchObject({
+      tab: "general",
+      target: "settings-background-activity",
+    })
+    expect(items.some((item) => item.view.target === "settings-timeline-width")).toBe(true)
+    // mobile(M-044): `settings-sounds-interface` stays pruned until the notifications page
+    // issue restores it with its page anchor (issue #103 restored the other two rows above).
     expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(false)
     expect(items.some((item) => item.view.target === "settings-project-startup")).toBe(false)
   })

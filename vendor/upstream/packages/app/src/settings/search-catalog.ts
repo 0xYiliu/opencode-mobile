@@ -68,11 +68,22 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     section: "settings.timeline.title",
     keywords: "thinking reasoning tools timeline summary detailed",
   },
-  // mobile(M-044): the three target rows below were pruned because their reveal anchors live
-  // in page content this migration does not carry (S04+ pages, issues #102–#110). Each row
-  // returns together with its page anchor when the owning page issue lands:
-  //   settings-background-activity + settings-timeline-width -> session/screen page issue (#102/#109 scope, plan §2.3)
-  //   settings-sounds-interface -> notifications page issue
+  {
+    tab: "general",
+    label: "settings.timeline.row.backgroundActivity.title",
+    description: "settings.timeline.row.backgroundActivity.description",
+    target: "settings-background-activity",
+    section: "settings.timeline.title",
+    keywords: "capsule panel subagent shell background activity position alignment hidden left center right",
+  },
+  {
+    tab: "general",
+    label: "settings.timeline.row.width.title",
+    description: "settings.timeline.row.width.description",
+    target: "settings-timeline-width",
+    section: "settings.timeline.title",
+    keywords: "column line length measure narrow focused comfortable wide readability",
+  },
   {
     tab: "general",
     label: "settings.timeline.row.turnDiffs.title",
@@ -187,8 +198,10 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     description: "settings.general.sounds.errors.description",
     keywords: "sound audio errors",
   },
-  // mobile(M-044): `settings-sounds-interface` pruned with the other two dangling-anchor
-  // rows above; restored by the notifications page issue together with its page anchor.
+  // mobile(M-044): `settings-sounds-interface` stays pruned — its reveal anchor lives in the
+  // notifications page, which this migration does not carry; the row returns with the
+  // notifications page issue. (settings-background-activity and settings-timeline-width were
+  // restored together with their page anchors by issue #103.)
 ]
 
 // Pages showing the selected server, and rows of its card on the Servers page.

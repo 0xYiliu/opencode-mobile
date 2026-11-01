@@ -681,8 +681,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier M-026/M-027/M-028 measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 3517 || distManifest.totalBytes !== 159599027)
-    // Issue #102 measured: the servers-page target migration (M-045) rebuilt the payload to
+  if (distManifest.fileCount !== 3517 || distManifest.totalBytes !== 159601021)
+    // Issue #103 measured: the general/experimental preferences-page migration (M-046)
+    // rebuilt the payload to 3517/159601021 (+1994 bytes at the same file count; the new
+    // settings rows / i18n keys / timeline-width token block outweigh the removed
+    // terminalPlacement strings). Issue #102 measured: the servers-page target migration (M-045) rebuilt the payload to
     // 3517/159599027 (-7497 bytes at the same file count; the servers.tsx/row.tsx target
     // deletions outweigh the additions). Issue #96 measured: the first-party toggle-semantics
     // fix (extension-manager onChange)
@@ -693,7 +696,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     // measured 3516/159542455; issue #90's amended-M-037 rebuild measured 3516/159542120 +335
     // via the settings search consumer rename; issue #70's btw entry measured 3516/159535257
     // and issue #67's gui-plugins swap measured 3516/159532385 — now historical).
-    fail(`8: current web-dist baseline drifted (expected 3517/159599027, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+    fail(`8: current web-dist baseline drifted (expected 3517/159601021, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps

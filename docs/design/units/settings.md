@@ -1,11 +1,11 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+（General 行面细节/Servers 页内面/Providers/Models/Projects/Workspaces/Notifications/About 页内面）归各所属 Issue（#102 起）；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）与 General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）已交付；Providers/Models/Projects/Workspaces/Notifications/About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
 - **A（本单元，issue #101）**：设置外层壳（`settings/shell.tsx` 单一 RootSettings 布局）、导航（`settings/navigation.tsx`）、路由/视图模型（`settings/route.ts`）、surface 与服务器上下文（`settings/surface.tsx` 的 `surface.server()`/`selectServer`/`openServers`）、搜索（index/catalog/results/UI/focus-reveal）、设置→命令面板桥（`settings/palette.ts` + `shell/commands/palette.ts`）、共享设置 CSS、以及依赖闭包（M-042：sidebar-toggle/sidebar-peek/servers-registry label/ui slash + registry label/hint 块）。
-- **F（issue #102 已完成 Servers 页部分）**：Servers 页内面已随 **M-045**（0045-M-045-servers-page-target-migration.patch，双 manifest 在册第 43 个补丁）迁移至 v2.2.1 目标——`servers.tsx`/`servers/registry/row.tsx` **目标逐字**（SettingsServerGeneral 委托共享 ServerConnectionRow、Shell 段随 `healthy !== false` 健康门显隐、`settings-shell:<key>` 搜索命名线程、死代码 ServerRow 删除）、`redeem.ts` Redemption 去导出；`general/general.tsx` 仅接 `ShellSetting` action 检字（文件其余保持 M-037 态，mobile(M-045) owner 注记标注，General 页内容对齐归 S04 后续 issue）；`settings/general/controllers.ts` **零改动**（两个既有 mobile hunks 保留：behavior 再导出边界 + pin 的 `config.update` 命名——生成客户端 PATCH `/api/experimental/config` 线等价，verify-appearance-settings 在册钉定，矩阵 S37 记录该保留偏离）。其余配置页内容对齐（General/Timeline/Providers 页内面等）仍归后续 issue。
+- **F（issue #102 已完成 Servers 页部分；issue #103 已完成 General/Experimental 偏好页内面）**：Servers 页内面已随 **M-045**（0045-M-045-servers-page-target-migration.patch，双 manifest 在册第 43 个补丁）迁移至 v2.2.1 目标——`servers.tsx`/`servers/registry/row.tsx` **目标逐字**（SettingsServerGeneral 委托共享 ServerConnectionRow、Shell 段随 `healthy !== false` 健康门显隐、`settings-shell:<key>` 搜索命名线程、死代码 ServerRow 删除）、`redeem.ts` Redemption 去导出；General/Experimental 偏好页内面已随 **M-046**（第 44 个补丁）迁移——`general.tsx` 目标逐字（ShellSetting 的 M-045 action 检字与目标形重合保留，mobile(M-045) 注记随目标删除），详见下方「偏好页内面」单元；`settings/general/controllers.ts` **零改动**（两个既有 mobile hunks 保留：behavior 再导出边界 + pin 的 `config.update` 命名——生成客户端 PATCH `/api/experimental/config` 线等价，verify-appearance-settings 在册钉定，矩阵 S37 记录该保留偏离）。其余配置页内容对齐（Notifications/Providers/Models/Projects/Workspaces/About 页内面等）仍归后续 issue。
 - 单一事实来源：**无第二 current-server 状态**。per-server 页显示哪台服务器由 `surface.server()` 独家决定（解析序：视图 `server` → source server → 本地已连接 → 第一台）；#102 经 `selectServer`/`onServerChange` 消费，不得另存状态。
 
 ## 壳/导航契约
@@ -29,7 +29,7 @@
 - 组件：`SearchList`/`SearchHighlight`（ui/search-list）+ `Slash` 分隔（ui/slash，M-042 新依赖）；narrow = `<800px`。
 - 目录：`createSettingsSearchCatalog()`（search.tsx 内，target 形）= platform/servers/selected/plugins 输入；分组/排序/60 条上限/`rankSettings(query, items)` 两参形（origin/proximity 评分已随目标移除）。
 - 聚焦/定位：`surface.search.open(view, id)` 写 `searchActivation`；壳 effect 触发 `revealSettingsSearch(root, view)`——目标 anchor 缺失时**静默 no-op 不崩**（search-reveal.test.ts 锁定该机制；本轮被剪行见下）。
-- **mobile(M-044) 剪除三行**：`settings-background-activity`、`settings-timeline-width`、`settings-sounds-interface` 三个目标目录行的 reveal anchor 只存在于 S04+ 页面内容——连同行一起剪除，search-catalog.ts 内留 `mobile(M-044)` owner 标注；各所属页 Issue 恢复行时必须同时恢复页面 anchor（grep `mobile(M-044)` 可审计）。剪除后每个可选中结果都落到真实行。
+- **mobile(M-044) 剪除三行 → #103 后余一行**：`settings-background-activity`、`settings-timeline-width` 两行已随 **issue #103/M-046** 连同 general.tsx 真实页面 anchor 一并恢复（搜索命中 → 定位真实行）；`settings-sounds-interface` **保持剪除**（reveal anchor 在 notifications 页内容中，归该页所属 issue 恢复），search-catalog.ts 内 `mobile(M-044)` 注记收窄为该行专用（grep `mobile(M-044)` 可审计）。每个可选中结果都落到真实行。
 - 命令面板桥：`createSettingsPaletteEntries()` ≤5 条 `type:"setting"` 行（前缀优先排序、排除 project 实体），select → `surface.search.open(view, id)`；`palette.group.settings` 分类键；`settings.search.focus`（mod+f）隐藏命令保留。
 - **#90 回归不复现**：search.tsx 目标原生读 `plugins: surface.plugins.items()`（M-037 修复吸收）；settings-search-plugin.test.tsx 源断言更新为目标形。
 
@@ -58,3 +58,36 @@
 无 Windows Desktop 参考端（视觉对照 BLOCKED）；真 SSH/直连服务行为、失败反馈、重启恢复归 G 门禁；TalkBack/覆盖面完整走查归 G31；参考 renderer 预检仅组件/响应式级（截图 /tmp，不提交），mobile dev 构建被连接门拦（无活服务不进壳）如实登记。
 
 **issue #102 增补**：服务器页目标逐字迁移后，`SettingsServerGeneral` 单服务器视图在 `healthy === false`（含 401 未授权映射）时**隐藏 Shell 偏好段**（M-037 态为有连接即显示——目标行为变化，矩阵 S37 已记录，避免被误报为回归）；行名改用 `entry.name`；单视图编辑对话框不再经 `onServerChange` 回切。`servers-page.test.tsx`（M-045 随补丁携带）锁定上述形状：源锚在共享预载环境下运行，行为组在无共享预载的独立命令下降级为 skip（settings-search-plugin 先例），行为证据以独立运行记录为准。
+
+# 单元：偏好页内面（General/Experimental）——issue #103（S04–S11、S13、S38）
+
+**状态行：偏好页内面已实现（未验证）**——General 页随 **M-046**（0046-M-046-general-experimental-pages-target-migration.patch，双 manifest 在册第 44 个补丁）迁移至 v2.2.1 目标（`general.tsx` 目标逐字），Experimental 页自有内容经核对已目标形（**零改动复用**；M-036 Sources 行保留归 #109）。运行证据：[build-and-verify.md issue #103 段](../../build-and-verify.md)。Desktop 实机视觉对照 **BLOCKED** 继承（无 Windows 参考端）；W05 Inbox 实态、W15 queue/steer 执行链**不因设置面通过而关闭**（见下）。
+
+## General 页行清单（目标形，含默认值与顺序）
+
+- **General 段**：InterfaceModeSetting（S04 三模式 top/side/inbox，fieldset+radio+预览卡，默认 horizontal；Inbox 选项选择后的实态仍呈 Side rail——**W05 登记**，不称模式体验已对齐）→ Language → Workspace destination（默认 last-used）→ Auto-approve permissions（**默认关 = opt-in**；执行面归属 permission-requests 单元契约——S07 的代答语义、once/always 落盘与批量扩散在该单元，设置行只写 `permissions.autoApprove` 默认值）→ Show custom agents（默认 false）→ Follow-up behavior（queue/steer，默认 steer；行只写 `general.followUpBehavior`——排队/转向的执行链归属 session-workbench 单元契约（**W15 登记**），设置面通过不关闭该差距）→ Pinch zoom 行（`platform==="desktop"` 条件可见）→ PluginSettingsSections(general/general)（M-037 Plugin 命名）→ **mobile() 标题栏行**（`<768px` 才渲染：mobileTitlebarBottom 开关，目标原生）。
+- **Timeline 段**（目标形）：TimelineDetailControl（M-043/M-042 早已落地，包 `border-b-[0.5px] border-v2-border-border-base` 分隔——M-046 引入）→ **Timeline width**（focused/comfortable/wide，默认 comfortable，`data-action="settings-timeline-width"`）→ **Background activity**（off/left/center/right，默认 left，`data-action="settings-background-activity"`；**composer 呈现消费链不接**——目标消费点 `session/composer/composer-lane.tsx`/`activity-chips.tsx` 在 vendored 树不存在（W05 相邻工作台面），字段+行+搜索行落地，呈现归后续）→ Turn diffs（默认 false）。
+- **Terminal placement 行已消失**（目标行为；组件与渲染槽随 M-046 删除）——`terminalPlacement` schema/default/accessor 保留为登记偏离（见下），session dock 行为保持 pin 态。
+- **Experimental 页**：newIcons（默认 false，S38 图标切换）+ foldUserMessages（默认 false，8lh 折叠）两行目标形（M-034 已吸收，本轮零改动）；M-036 Sources 行（插件贡献 gate）原样保留，迁移归 #109（I）。
+
+## settings.v3 持久化边界
+
+- 单一 persisted store `settings.v3`（`Persistence.struct` + per-field `recover()`：未知字面量**仅该字段**回退默认，兄弟字段无损——model.test.ts invalid-decode 边界锁定）。逐项修改 → 切页 → force-stop 重启后保持（设备 QA 项）。
+- **`notifications.agent` 默认 true→false**（M-046 采纳目标形）：**仅影响全新 profile**；已存储 settings.v3 的 decode 保留既有值（Persistence 字段级回退只在键缺失时生效）。
+- `sounds.interfaceEnabled: Schema.optional(Schema.Boolean)`（默认 true）落地为**惰性字段**——vendored 树暂无消费者；设置行与搜索行归 notifications 页所属 issue。
+
+## Timeline width 消费链（S11 实态）
+
+`init` 内 `dataset.timelineWidth` document effect（`document.documentElement.dataset.timelineWidth`）→ ui tailwind `:root[data-timeline-width="focused"|"wide"]` 两块 `--container-session` 覆写（488px/1000px；默认 744px）→ vendored 树**既有** 7 个 `md:max-w-session` 消费点（session/route.tsx、message-timeline.tsx、session-composer-region.tsx、preparing-composer.tsx、dropzone.tsx、btw/panel.tsx、session-timeline-row.tsx）——token 落地即生效（≥768px 断点域内时间线列宽三档实态；设备 QA 记录）。S42 zoom/字体缩放与该 token 的叠加为设备抽查项。
+
+## 保留偏离（登记，全部有活消费者）
+
+- **`terminalPlacement`**：type 导出 + `Literals(["side","bottom"])` + 默认 `"side"` + withFallback + set accessor——消费者 `session/screen-layout.ts:21,22`；目标已删除该设置行（行消失 = 目标行为），schema 保留直至 W04/W05 session 屏/dock 重构所属 issue 退役。
+- **`showFileTree`**：`Schema.Boolean` + 默认 `false` + init accessor + store API + `visibility.fileTree`——消费者 `screen-layout.ts:26`、`use-session-commands.tsx:70,452`（fileTree.toggle 命令注册门）。目标把它移入 retired 块（Persistence.optional）——保留为活偏好直至同上收敛。
+- **S10 不采纳**：`commentary: placementOnlySchema` 槽、`settings.timeline.category.commentary` 键、timeline.description.compact/.quiet 目标新文案——依赖 session-ui `timeline/detail.ts` 的 `timelineCategories` 目标形（compact/quiet 预设 subagents grouped→separate）。vendored 文案如实描述 vendored 预设现行为；目标桌面写出的含 commentary 槽的 settings 文档在本客户端 decode 时该槽被丢弃（Persistence.struct 未知键行为，M-002 先例口径）——随 S10 呈现链后续 issue 收敛，矩阵 S10「类别枚举与实际呈现尚未逐项证明等价」保持。
+- **搜索目录**：`settings-background-activity`/`settings-timeline-width` 两行已随 #103 恢复（catalog 行 + general.tsx 真实 anchor 双正锚）；`settings-sounds-interface` **保持剪除**（M-044 注记收窄为该行专用——notifications 页 issue 恢复）；M-035 zoom 行继续不带 `available:"desktop"`；目标 `@source stories` 改名**不采纳**（vendored 无 stories 目录）。
+- **M-036 Sources**：experimental.tsx 的插件 Sources gate 行零改动，迁移归 #109。
+
+## 历史参考
+
+#63（S04 界面模式三态）、#64（S38 实验开关两项）的原始实现记录见 build-and-verify.md 对应段；本轮为行面/键面/消费 token 的目标收敛，行为面（模式切换实态、图标切换、折叠视觉、宽度三档）证据以 #103 段设备 QA 为准。

@@ -19,6 +19,10 @@ export type TerminalPlacement = Settings["general"]["terminalPlacement"]
 
 export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
 
+export type BackgroundActivity = Settings["general"]["backgroundActivity"]
+
+export type TimelineWidth = Settings["general"]["timelineWidth"]
+
 export type TabLayout = Settings["appearance"]["tabLayout"]
 
 export type ReduceMotion = Settings["appearance"]["reduceMotion"]
@@ -105,7 +109,8 @@ const placementOnlySchema = Persistence.struct({ placement: placementSchema })
 const generalSchema = Persistence.struct({
   // Retired preferences without readers; kept so stored values still decode and round-trip.
   autoSave: Persistence.optional(Schema.Boolean),
-  // Owned by the updater extension, which copies it out once; kept so settings rewrites cannot drop it first.
+  showTurnNavigator: Persistence.optional(Schema.Boolean),
+  // Owned by the updater plugin, which copies it out once; kept so settings rewrites cannot drop it first.
   releaseNotes: Persistence.optional(Schema.Boolean),
   showFileTree: Schema.Boolean,
   showNavigation: Persistence.optional(Schema.Boolean),
@@ -121,12 +126,14 @@ const generalSchema = Persistence.struct({
   }),
   showCustomAgents: Schema.Boolean,
   showTurnDiffs: Schema.Boolean,
+  backgroundActivity: Schema.Literals(["off", "left", "center", "right"]),
+  timelineWidth: Schema.Literals(["focused", "comfortable", "wide"]),
   // The "New icons" design experiment, off until it ships.
   newIcons: Schema.Boolean,
   // The "Fold long messages" experiment, off until it ships.
   foldUserMessages: Schema.Boolean,
   mobileTitlebarPosition: Schema.Literals(["top", "bottom"]),
-  // Owned by the review extension, which copies it out once; kept so settings rewrites cannot drop it first.
+  // Owned by the review plugin, which copies it out once; kept so settings rewrites cannot drop it first.
   mobileDiffWrap: Persistence.optional(Schema.Boolean),
   terminalPlacement: Schema.Literals(["side", "bottom"]),
   followUpBehavior: Schema.Literals(["queue", "steer"]),
@@ -139,8 +146,6 @@ const appearanceSchema = Persistence.struct({
   terminal: Schema.String,
   // "inbox" is experimental: the vertical layout with a server-wide session inbox in place of tabs.
   tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),
-  // mobile(M-043): the collapsed-sidebar toggle reads this (shell/sidebar-toggle.tsx, the
-  // settings-framework dependency closure); the page-level schema rework stays with #102+.
   sidebarOpen: Persistence.optional(Schema.Boolean),
   reduceMotion: Schema.Literals(["system", "on", "off"]),
 })
@@ -174,11 +179,12 @@ const soundsSchema = Persistence.struct({
   permissions: Schema.String,
   errorsEnabled: Schema.Boolean,
   errors: Schema.String,
+  interfaceEnabled: Schema.optional(Schema.Boolean),
 })
 
 export const settingsSchema = Persistence.struct({
   general: generalSchema,
-  // Owned by the details extension, which copies it out once; kept so settings rewrites cannot drop it first.
+  // Owned by the details plugin, which copies it out once; kept so settings rewrites cannot drop it first.
   sessionSummary: Schema.optional(
     Persistence.struct({ projectExpanded: Schema.Boolean, serverExpanded: Schema.Boolean }),
   ),
@@ -293,6 +299,8 @@ export const defaultSettings: Settings = {
     timelineDetail: { ...timelinePresets[2].value },
     showCustomAgents: false,
     showTurnDiffs: false,
+    backgroundActivity: "left",
+    timelineWidth: "comfortable",
     newIcons: false,
     foldUserMessages: false,
     mobileTitlebarPosition: "top",
@@ -303,7 +311,7 @@ export const defaultSettings: Settings = {
   keybinds: {},
   permissions: { autoApprove: false, autoApproveProjects: {} },
   workspaces: { defaultDestination: "last-used", lastUsed: {} },
-  notifications: { agent: true, permissions: true, errors: false },
+  notifications: { agent: false, permissions: true, errors: false },
   sounds: {
     agentEnabled: true,
     agent: "staplebops-01",
@@ -311,6 +319,7 @@ export const defaultSettings: Settings = {
     permissions: "staplebops-02",
     errorsEnabled: true,
     errors: "nope-03",
+    interfaceEnabled: true,
   },
 }
 
@@ -354,6 +363,14 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       document.documentElement.dataset.motion = reduce ? "reduce" : "full"
     })
 
+    const timelineWidth = withFallback(() => store.general?.timelineWidth, defaultSettings.general.timelineWidth)
+
+    // The session column's width token keys off this attribute, so every surface sharing it follows the setting.
+    createEffect(() => {
+      if (typeof document === "undefined") return
+      document.documentElement.dataset.timelineWidth = timelineWidth()
+    })
+
     const autoApproveDefault = withFallback(
       () => store.permissions?.autoApprove,
       defaultSettings.permissions.autoApprove,
@@ -384,6 +401,17 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showTurnDiffs: withFallback(() => store.general?.showTurnDiffs, defaultSettings.general.showTurnDiffs),
         setShowTurnDiffs(value: boolean) {
           setStore("general", "showTurnDiffs", value)
+        },
+        backgroundActivity: withFallback(
+          () => store.general?.backgroundActivity,
+          defaultSettings.general.backgroundActivity,
+        ),
+        setBackgroundActivity(value: BackgroundActivity) {
+          setStore("general", "backgroundActivity", value)
+        },
+        timelineWidth,
+        setTimelineWidth(value: TimelineWidth) {
+          setStore("general", "timelineWidth", value)
         },
         newIcons,
         setNewIcons(value: boolean) {
@@ -554,6 +582,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+        interfaceEnabled: withFallback(
+          () => store.sounds?.interfaceEnabled,
+          defaultSettings.sounds.interfaceEnabled ?? true,
+        ),
+        setInterfaceEnabled(value: boolean) {
+          setStore("sounds", "interfaceEnabled", value)
         },
       },
     }
