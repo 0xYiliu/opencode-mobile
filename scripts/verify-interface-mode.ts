@@ -18,8 +18,11 @@
 //      General section (fieldset, radio semantics, settings-tab-layout anchor,
 //      Experimental badge, three preview modes top/horizontal side/vertical
 //      inbox/inbox); the old TabLayoutSetting select and tabLayoutOptions are
-//      gone; TerminalPlacementSetting and ExtensionSettingsSections are still
-//      present (cherry-pick boundary — no Plugin rename, no terminal removal).
+//      gone. Issue #103 / M-046: the S11 companion rows
+//      (BackgroundActivity/TimelineWidth) land in the same file (positive
+//      anchors) and the pin TerminalPlacementSetting component is removed with
+//      the target migration (negative anchor — the S37 shell-setting domain is
+//      carried by controllers.ts, not this component).
 //   4. Search catalog: the tabs entry became the interfaceMode entry (new label
 //      key, target stays settings-tab-layout, v2.2.1 keywords).
 //   5. i18n: exactly EIGHT new en keys (nine physical lines —
@@ -117,16 +120,17 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (general.includes("TabLayoutSetting"))
     fail("3: general.tsx still references the removed TabLayoutSetting component")
 
-  // Negative boundary (plan risk table + review F3): the v2.2.1 companions that
-  // belong to OTHER matrix rows must NOT have been carried in.
-  if (!general.includes("const TerminalPlacementSetting: Component = () => {"))
-    fail("3: general.tsx lost TerminalPlacementSetting (S37 domain — must stay per pin)")
-  // Issue #67: the Plugin* naming pipeline (§6.B.5) renames the sections import; the S11/S04
-  // negatives keep their scope (BackgroundActivity/TimelineWidth stay out).
+  // Issue #103 / M-046: TerminalPlacementSetting leaves the general page with the target
+  // migration (component + render slot removed; the S37 shell-setting domain is carried by
+  // the controllers.ts retained hunks, not by this component).
+  if (general.includes("TerminalPlacementSetting"))
+    fail("3: general.tsx still carries TerminalPlacementSetting (issue #103 removed it with the target migration)")
+  // Issue #67: the Plugin* naming pipeline (§6.B.5) renames the sections import.
   if (!general.includes('import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"'))
     fail("3: general.tsx lost the PluginSettingsSections import (issue #67 rename)")
-  if (general.includes("BackgroundActivitySetting") || general.includes("TimelineWidthSetting"))
-    fail("3: general.tsx adopted v2.2.1 rows outside S04 (S11 settings)")
+  // Issue #103 / M-046: the S11 setting rows land in the general page (target form).
+  if (!general.includes("BackgroundActivitySetting") || !general.includes("TimelineWidthSetting"))
+    fail("3: general.tsx lost the issue #103 BackgroundActivity/TimelineWidth setting rows (S11)")
 
   // Mount position: h3 → <InterfaceModeSetting /> → <SettingsList> → LanguageSetting.
   const h3 = general.indexOf('settings-section-title">{language.t("settings.general.section.general")}')
@@ -247,8 +251,11 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // Issue #67: M-037 joins the exemption (its consumer-token hunks legitimately carry
   // `interfaceMode` context lines in settings/general surface files — same precedent as
   // the M-033/M-035 exemptions; its diff face touches zero interface-mode files).
+  // Issue #103: M-046 joins the exemption (its general.tsx import hunk carries the
+  // `import { InterfaceModeSetting } from "./interface-mode"` line as CONTEXT — the
+  // migration does not touch that line; its diff face touches zero interface-mode files).
   for (const name of readdirSync(join(repoRoot.pathname, PATCHES))) {
-    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-") || name.startsWith("0037-")) continue
+    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-") || name.startsWith("0037-") || name.startsWith("0046-")) continue
     const content = await read(`${PATCHES}${name}`)
     if (content.includes("interface-mode") || content.includes("interfaceMode"))
       fail(`6: ${name} unexpectedly references interface-mode (only M-033 may)`)
@@ -310,10 +317,10 @@ console.log(
   "verify-interface-mode: PASS (" +
     "1: tabLayout three-value literal + upstream comment, default horizontal, settings.v3 verbatim, withFallback read path + per-field recover() contract; " +
     "2: shell predicate !== \"horizontal\" && !mobile() one-liner, no === \"vertical\" remnant; " +
-    "3: InterfaceModeSetting mounted h3→fieldset→list, modes exactly top/side/inbox, radio+anchor+experimental badge, adaptive grid CSS, TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting + ExtensionSettingsSections kept (no Plugin rename, no S11 rows); " +
+    "3: InterfaceModeSetting mounted h3→fieldset→list, modes exactly top/side/inbox, radio+anchor+experimental badge, adaptive grid CSS, TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting removed with the target migration (issue #103/M-046 — S37 shell-setting lives in controllers.ts) and the BackgroundActivity/TimelineWidth rows in place (issue #103 S11), PluginSettingsSections import (issue #67 rename); " +
     "4: search-catalog interfaceMode entry with settings-tab-layout target and v2.2.1 keywords; " +
     "5: EIGHT en keys (nine lines) one-by-one after the kept legacy tabs block, zero interfaceMode keys in zh/zht/ko/de/fr, language.tsx base-first merge fallback chain; " +
-    "6: M-033 in BOTH manifests, patch face exactly the seven S04 files, no other patch references interface-mode, zero interfaceMode tokens in vendor sources outside the M-033 set (byte equivalence is V3's job); " +
+    "6: M-033 in BOTH manifests, patch face exactly the seven S04 files, no other patch references interface-mode (0035/0037/0046 context-line exemptions registered — M-046 by issue #103), zero interfaceMode tokens in vendor sources outside the M-033 set (byte equivalence is V3's job); " +
     "7: packages/mobile-hosts zero interface-mode/tabLayout references; " +
     "STATIC check - preview rendering, radio interaction, narrow-screen stacking, restart persistence and the inbox-rail (no grouping/aggregation/badge) presentation are device-QA items registered in docs/build-and-verify.md)",
 )

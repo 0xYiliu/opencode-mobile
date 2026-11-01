@@ -345,13 +345,14 @@ let distAssetCount = 0
   // registered by the btw narrow-screen entry; M-039 reserved for the parallel issue #71
   // branch, a hole at apply time tolerated like M-019/0031; M-041 registered by the N08
   // external-open bridge face; M-042..M-044 by the settings-framework migration; M-045 by
-  // the servers-page target migration).
+  // the servers-page target migration). Issue #103: M-046 by the general/experimental
+  // preferences-page target migration -> 44.
   const expectedPatchIds = new Set(
-    Array.from({ length: 45 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
+    Array.from({ length: 46 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
   )
   const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 43 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 43 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
+  if (patchRows.length !== 44 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
+    fail(`6: registered patch rows/IDs must be unique and exactly 44 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
   for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
   for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
   if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))

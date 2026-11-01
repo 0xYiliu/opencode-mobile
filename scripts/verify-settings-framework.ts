@@ -21,8 +21,10 @@
 //      settingsServerReachable exported, settingsProjects gone.
 //   5. Search (settings/search.tsx + search-index.ts + search-catalog.ts +
 //      search-results.ts): SearchList/SearchHighlight/Slash, the 2-arg rankSettings, the
-//      zoom row present WITHOUT the desktop gate (mobile(M-035)), the three dangling-anchor
-//      rows pruned with mobile(M-044) owner markers, and the pin search consumer form gone.
+//      zoom row present WITHOUT the desktop gate (mobile(M-035)), the general-page pair of
+//      dangling-anchor rows restored by issue #103/M-046 (catalog rows + general.tsx
+//      data-action anchors) while settings-sounds-interface stays pruned behind its
+//      narrowed mobile(M-044) owner note, and the pin search consumer form gone.
 //   6. Command-palette bridge (shell/commands/palette.ts + dialog.tsx + settings/palette.ts):
 //      the `setting` entry type, the createSettingsPaletteEntries plumbing, and the
 //      palette.group.settings category key.
@@ -184,11 +186,20 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     fail("5: the zoom catalog row still carries an availability gate (M-035 drop regressed)")
   if (!catalog.includes('target: "settings-zoom"')) fail("5: the zoom catalog row is missing")
   if (!catalog.includes("mobile(M-035)")) fail("5: the zoom row lost the mobile(M-035) marker")
-  for (const pruned of ["settings-background-activity", "settings-timeline-width", "settings-sounds-interface"]) {
-    if (catalog.includes(`target: "${pruned}"`)) fail(`5: the pruned catalog row ${pruned} came back (mobile(M-044) register)`)
-    if (!catalog.includes(pruned)) fail(`5: the pruned row ${pruned} lost its mobile(M-044) owner marker`)
+  // Issue #103 / M-046: the two general-page rows return with their page anchors; the
+  // sounds-interface row stays pruned (the notifications-page issue owns its anchor).
+  for (const restored of ["settings-background-activity", "settings-timeline-width"]) {
+    if (!catalog.includes(`target: "${restored}"`)) fail(`5: the restored catalog row ${restored} is missing (issue #103)`)
   }
-  if (!catalog.includes("mobile(M-044)")) fail("5: search-catalog.ts lost the mobile(M-044) prune register")
+  const generalPage = await read(`${APP}src/settings/general/general.tsx`)
+  for (const anchor of ['data-action="settings-background-activity"', 'data-action="settings-timeline-width"']) {
+    if (!generalPage.includes(anchor)) fail(`5: general.tsx lost the restored page anchor ${anchor} (issue #103)`)
+  }
+  if (catalog.includes('target: "settings-sounds-interface"'))
+    fail("5: the pruned catalog row settings-sounds-interface came back (still owned by the notifications-page issue)")
+  if (!catalog.includes("settings-sounds-interface"))
+    fail("5: search-catalog.ts lost the narrowed mobile(M-044) owner note for settings-sounds-interface")
+  if (!catalog.includes("mobile(M-044)")) fail("5: search-catalog.ts lost the narrowed mobile(M-044) prune register")
 
   const index = await read(`${APP}src/settings/search-index.ts`)
   if (!index.includes("selected?: string") || !index.includes("plugins?: readonly SettingsSearchPlugin[]"))
@@ -225,8 +236,12 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   if (!searchTest.includes('expect(rankSettings("font", items)).toHaveLength(4)')) fail("7: the font length flip is missing (M-044)")
   if (!searchTest.includes('expect(targets({})).toContain("settings-zoom")')) fail("7: the zoom toContain flip is missing (M-044)")
   if (!searchTest.includes("mobile(M-035)")) fail("7: search-results.test.ts lost the mobile(M-035) comment")
-  if (searchTest.includes('expect(rankSettings("capsule"'))
-    fail("7: the target capsule assertion came back (pruned rows)")
+  // Issue #103 / M-046: the target capsule assertion is back with the restored rows, and
+  // the sounds-interface negative assertion stays.
+  if (!searchTest.includes('expect(rankSettings("capsule", items)[0].view).toMatchObject({'))
+    fail("7: search-results.test.ts lost the target capsule assertion (issue #103 restored the rows)")
+  if (!searchTest.includes('item.view.target === "settings-sounds-interface"'))
+    fail("7: search-results.test.ts lost the sounds-interface negative assertion (the row stays pruned)")
 
   const pluginTest = await read(`${APP}src/settings/settings-search-plugin.test.tsx`)
   if (!pluginTest.includes('toContain("plugins: surface.plugins.items()")')) fail("7: the search-plugin test lost the target source assertion")
@@ -334,9 +349,9 @@ console.log(
     "2: navigation CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem; " +
     "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4); " +
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +
-    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), three dangling rows pruned with mobile(M-044) markers, target plugins consumer form; " +
+    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) with settings-sounds-interface still pruned behind the narrowed mobile(M-044) note, target plugins consumer form; " +
     "6: command-palette bridge — setting entry type + createSettingsPaletteEntries + select branch + dialog Match/items; " +
-    "7: tests — M-044 keyed/search-results/search-plugin forms + three new first-party test files; " +
+    "7: tests — M-044 keyed/search-results/search-plugin forms (search-results capsule assertion flipped to the issue #103 restored-row shape) + three new first-party test files; " +
     "8: page glue — headerAction rendered in all five pages + projects accessor swap; " +
     "9: i18n — nine en.ts keys (plan's 8 + server.thisComputer), sshHosts retained; " +
     "10: M-042 dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +

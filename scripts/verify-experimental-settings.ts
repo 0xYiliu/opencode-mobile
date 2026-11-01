@@ -12,19 +12,22 @@
 //      :362 nav-grouping conditional are byte-identical to pin — both read the
 //      constant alone, so flipping the constant IS the upstream wiring;
 //      pages.ts still registers the flask icon and the tab label.
-//   3. Settings model (settings/model.tsx): only the S38 sub-hunks landed —
+//   3. Settings model (settings/model.tsx): the S38 sub-hunks are intact —
 //      the two schema fields with their upstream comments, the false defaults,
 //      the withFallback readers, the module-level setNewIcons effect and the
-//      four accessors. Negative boundary: v2.2.1's S11 companions
-//      (backgroundActivity/timelineWidth/sidebarOpen) are absent — reduceMotion removed
-//      from this list by M-035's rebase round (issue #65): the appearance.reduceMotion
-//      three-state face is a REGISTERED S17 delta (deliberate, NOT a bypass — group 3
-//      keeps the other three S11 tokens and the showFileTree/terminalPlacement anchors),
-//      showFileTree is still Schema.Boolean and terminalPlacement still exists.
+//      four accessors. Issue #103 / M-046: the S11 companions
+//      backgroundActivity/timelineWidth leave the negative list — their schema
+//      face legitimately lands with the General/Experimental preferences-page
+//      target migration (Literals schema + defaults; the sidebarOpen face went
+//      legitimate with M-043, reduceMotion with M-035's rebase round, issue #65).
+//      The showFileTree/terminalPlacement anchors stay — issue #103 RETAINS them
+//      as registered mobile deviations (their session screen/dock consumers are
+//      outside this issue's scope).
 //   4. Test sync (settings/model.test.ts): the defaults full-object assertion
 //      carries the two new lines (without them the upstream subset fails);
-//      negative boundary keeps showFileTree/terminalPlacement lines and the
-//      original test name (no "extensions→plugins" rename adopted).
+//      negative boundary keeps the showFileTree/terminalPlacement lines
+//      (issue #103 retained deviations) and the "plugins copy out once" test
+//      name (the extensions→plugins rename is the issue #103 target form).
 //   5. Fold chain surgery: message-timeline feeds
 //      settings.general.foldUserMessages into the row renderer; the row call
 //      site passes fold + the disclosure-backed expanded/onExpandedChange
@@ -175,19 +178,19 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     if (!model.includes(accessor)) fail("3: model.tsx lost the newIcons/foldUserMessages accessors")
   }
 
-  // Negative boundary: S11 companions must not have been carried in.
-  // mobile(M-035 rebase round, issue #65): "reduceMotion" removed — the S17 face now
-  // legitimately lives in model.tsx (registered delta). Issue #101 / M-043: "sidebarOpen"
-  // removed from this list — it now legitimately lives in model.tsx as the settings
-  // framework's sidebar-toggle dependency (schema field + accessor only, marker-commented);
-  // backgroundActivity/timelineWidth stay out (their page/session faces belong to the
-  // owning issues).
-  for (const token of ["backgroundActivity", "timelineWidth"]) {
-    if (model.includes(token)) fail(`3: model.tsx adopted v2.2.1 content outside S38 (${token})`)
-  }
-  // Pin anchors survive: the retired-preference shape is unchanged.
-  if (!model.includes("  showFileTree: Schema.Boolean,")) fail("3: model.tsx showFileTree is no longer Schema.Boolean (S38 must not adopt the Persistence.optional retirement)")
-  if (!model.includes('  terminalPlacement: Schema.Literals(["side", "bottom"]),')) fail("3: model.tsx lost terminalPlacement (retirement belongs to another matrix row)")
+  // Issue #103 / M-046: the S11 companions backgroundActivity/timelineWidth leave the
+  // negative list — their schema face legitimately lands with the General/Experimental
+  // preferences-page target migration (mobile(M-035 rebase round, issue #65) moved
+  // "reduceMotion" off the list the same way; issue #101 / M-043 did it for "sidebarOpen").
+  if (!model.includes('  backgroundActivity: Schema.Literals(["off", "left", "center", "right"]),\n  timelineWidth: Schema.Literals(["focused", "comfortable", "wide"]),'))
+    fail("3: model.tsx lost the backgroundActivity/timelineWidth schema Literals (issue #103)")
+  if (!model.includes('    backgroundActivity: "left",\n    timelineWidth: "comfortable",'))
+    fail("3: model.tsx lost the backgroundActivity/timelineWidth defaults (issue #103)")
+  // Retained-deviation anchors survive (issue #103): the session screen/dock consumers
+  // (screen-layout.ts, use-session-commands.tsx) keep their preference faces until the
+  // W04/W05 session rework retires them.
+  if (!model.includes("  showFileTree: Schema.Boolean,")) fail("3: model.tsx showFileTree is no longer Schema.Boolean (issue #103 retained deviation — retirement belongs to the session screen rework)")
+  if (!model.includes('  terminalPlacement: Schema.Literals(["side", "bottom"]),')) fail("3: model.tsx lost terminalPlacement (issue #103 retained deviation — retirement belongs to the session dock rework)")
 }
 
 // --- 4. Test sync (settings/model.test.ts) ---
@@ -197,11 +200,11 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!test.includes("        newIcons: false,\n        foldUserMessages: false,"))
     fail("4: model.test.ts defaults assertion does not carry the two new lines (upstream subset would fail)")
 
-  // Negative boundary: the pin-only lines and the original test name stay.
-  if (!test.includes("        showFileTree: false,")) fail("4: model.test.ts lost the pin showFileTree: false line")
-  if (!test.includes('        terminalPlacement: "side",')) fail("4: model.test.ts lost the pin terminalPlacement line")
-  if (!test.includes('test("keeps the values extensions copy out once and discards retired preferences"'))
-    fail("4: model.test.ts test name was renamed (the extensions→plugins rename belongs to another matrix row)")
+  // Negative boundary: the issue-#103 retained-deviation lines and the target test name stay.
+  if (!test.includes("        showFileTree: false,")) fail("4: model.test.ts lost the retained showFileTree: false line")
+  if (!test.includes('        terminalPlacement: "side",')) fail("4: model.test.ts lost the retained terminalPlacement line")
+  if (!test.includes('test("keeps the values plugins copy out once and discards retired preferences"'))
+    fail("4: model.test.ts test name is not the issue #103 target form (extensions→plugins)")
 }
 
 // --- 5. Fold chain surgery (message-timeline → row → current → content) ---
@@ -520,8 +523,8 @@ console.log(
   "verify-experimental-settings: PASS (" +
     "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
-    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; no backgroundActivity/timelineWidth/sidebarOpen (reduceMotion dropped from the negative list by M-035's rebase round, issue #65), showFileTree+terminalPlacement kept; " +
-    "4: model.test.ts defaults +2 lines, showFileTree/terminalPlacement lines and original test name kept; " +
+    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/M-046; sidebarOpen by M-043, reduceMotion by M-035's rebase round), showFileTree+terminalPlacement kept as issue #103 retained deviations; " +
+    "4: model.test.ts defaults +2 lines, retained showFileTree/terminalPlacement lines kept, plugins copy-out test name (issue #103 target form); " +
     "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/linkSegments/quote/spring leak (the useSources/SourcesChip tokens moved to the M-036 boundary, issue #66); " +
     "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right/outline-steer only (issue #66), sidebar-right kept, 14 rejections out, pin trash/copy artwork bodies locked; " +
     "7: fold CSS two selector blocks in, data-run-folded/run-actions/user-message-link out; " +
