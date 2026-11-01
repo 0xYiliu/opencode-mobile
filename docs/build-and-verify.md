@@ -2557,6 +2557,60 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 | #107 Android 权限 allow/deny/revoke 全矩阵（授权后重进状态正确） | API 33+ 模拟器/设备（运行时 POST_NOTIFICATIONS dialog；.145 为 API 31——bridge 对 <33 直答 granted 不弹窗，deny/revoke 路径不可达；本轮环境 seam fail-closed → 行呈 unavailable 文案，granted 保真未在本环境可观察——如实登记）；**零 adb 授权态变更红线保持** | issue #107（验收「权限允许/拒绝/撤销后重新进入状态正确」）；归属 G33 |
 | #107 声音预览人耳可听性确认 | 声学通路（自动化验证无听觉）；播放路径机证已到位（`Audio.prototype.play` promise resolution 双形态 + loads-phase fetch 200 + logcat AudioTrack `createTrack … pkgName ai.opencode.mobile` 归因）——「默认音频资源不可播须修复」条款以「资源在册 + 播放路径执行」满足，可听性如实登记不可验 | issue #107（验收「默认音频资源不可播须修复或登记未完成」） |
 
+## issue #108 段（S20：快捷键配置与恢复对齐 Desktop v2.2.1——M-051）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-108-keybinds`，base `17eeb88`（origin/main，#117 合入后，M-050 交付）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）+ 48 移动补丁；实施提交链 feat(vendor) 迁移（M-051 九 targets）→ chore(verify) 探针修订 + dist 常量回填 → docs 同步，未 push。开工基线复核（17eeb88 同法同态，stash 双跑法见 typecheck 行）：verify:closure PASS（48 补丁）、app 单测（无 seam 口径）646/4/24 fail/24 errors/1986 expect（674 tests/115 files）、seam 口径 791/4/1/2346（唯一 fail = settings-search-plugin notSup 预存）、mobile-hosts 434/0/2920、tsc 双口径 **391（增量）/391（纯净）**（本 worktree 实测对——#107 在册「纯净 398」在本树不复现；双侧同法：先清 tsbuildinfo 跑纯净态再跑增量态，口径以本实测对为准，delta 分析用同对）、dist 3520/159,665,590、探针普查 33 个 fresh worktree 29 rc=0 + 2 预存 rc=1 + 2 产物条件性（post-gradle 口径见 #105/#106 段同判；fresh 时 permission-requests/session-workbench 源树 rc=0）。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| M-051 派生 | scratch `git archive` 累积树（pin+packageSources+M-001..M-050 依 vendor-manifest 序）→ 应用九文件编辑 → `git diff` 生成 patch；`git apply --check` 于第二棵 freshly-built 累积树 + 应用后九文件与工作树逐字节比对 | **PASS**（apply-check rc=0；九文件 cmp 全等——8 目标逐字 + composer/model.ts 最小消费方适配，见 reason/下表；派生时 en.ts unbind 行落 pin 字节锚 :1032/:1033 之间，累积树与工作树插入位一致） |
+| V3 闭包（49 补丁） | `bun run verify:closure` | **PASS**（双 manifest 49=49、DANGLING=0、V3(a) byte-identical replay：vendor 树 == pin + packageSources + M-001..M-051；manifest.json 纯追加 19 行、vendor-manifest.json 纯追加 1 行） |
+| app 全量单测（无 seam，在册口径） | `cd vendor/upstream/packages/app && bun run test:unit`（先摘除 gitignored seam 软链） | **653 pass / 4 skip / 24 fail / 24 errors / 1997 expect()（681 tests/115 files）**；对基线逐项对账：**唯一 delta = +7 pass/+7 tests/+11 expect() = command.test.ts 目标块（commandKeymap 优先级 + skip 让行 test.each ×2 + bracketKey +4 行 + acme.open fixture）**；error 行集（uniq -c sort diff）与基线**逐字节相同**（23× mobile-hosts 模块解析错 + 2× persistence disk-full 冻结失败），零新失败 |
+| app 全量单测（seam 口径对照） | 同上（绝对路径 seam 软链五包在场：app/session-ui/ui/client/plugin-browser → packages/mobile-hosts） | **798 pass / 4 skip / 1 fail / 2357 expect()**（+7 pass/+11 expect 同上；唯一 fail=`settings search plugin catalog > mounts the search over the real surface plugin handle and builds the catalog` 与基线同名同位——seam 在场模块解析形态预存行为） |
+| 定向子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/commands/command.test.ts src/settings/model.test.ts src/settings/search-results.test.ts src/settings/route.test.ts` | **63 pass / 0 fail / 148 expect()**；command.test.ts 新块逐条 PASS（commandKeymap puts a user's binding before a default on the same keys / resolveKeybindOption leaves the key to a skipping command's target: true/false） |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（桥冻结零改动） |
+| vendored tsc 双口径 | `bun run typecheck:tsc`（在 vendor/upstream/packages/app）；纯净态 = 先 `find vendor/upstream/packages -name "*.tsbuildinfo" -delete`（tsbuildinfo 实际落点 `packages/app/node_modules/.ts-dist/app/tsconfig.tsbuildinfo`，深 4 级——首轮清理 maxdepth 2/3 未及，被发现后全深清理重测双侧） | **预注册（先记后测，登记于 manifest verification 字段）**：runtime/plugin/commands.tsx 的 `import { type CommandSource }` 在 base 为非导出类型（live error），M-051 导出后解析，总数可降；**实测（同工作树同法 git-stash 双跑对账）**：基线 17eeb88 纯净 391 / 增量 391；M-051 八文件态（4b 前）纯净 390 / 增量 390——分布 diff = 两条 CommandSource 错误解析 + **composer/model.ts(298,5) TS2322 新增一条**（目标 trigger decline-false 返回类型 vs vendored base 形 clientCommand 回调——计划 8-target 表外经 clean 口径实测浮现的唯一新错）；处置 = 采纳**目标自身对该 hunk 的适配逐字**（async 包装 + 注释）为第 9 target（文件不整体目标化：其余 base→target delta 归后续 plugin/session-search 面）；九文件终态复测：**纯净 389 / 增量 389**，分布 diff（双口径各自对基线）= **恰两条 runtime/plugin/commands.tsx CommandSource 错误解析，零新增**——预注册方向兑现（净 -2 而非预估 -1：import 错误 TS2459 与赋值错误 TS2322 同源俱解）；触及文件零其他新增错误 |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3520 files / 159,672,996 bytes**（**+7,406 bytes，同 3520 文件数**——计划预估「同文件数、字节净增」兑现；unbind i18n 键 + Unbind 按钮 + ghost-danger 样式 + catalog/plugin/follows 字段 + commandKeymap 尽入既有分块，零新 chunk）；web-dist/manifest.json 已刷新（chore verify 提交）；dist 正例检索：`Search shortcuts`/`Unbind` 文案命中 language chunk |
+| dist 哨兵回填 | verify-commands-menus / verify-gui-plugins / verify-notifications 组 8 | 三探针 3520/159665590 → **3520/159672996** + 注释链前插 #108 测量段；五探针（含 vaa/vav）复跑全 rc=0 |
+| 探针普查（build 后 33 个） | `for f in scripts/verify-*.ts; do bun run $f; done` | **31 rc=0 / 2 rc=1**：修订探针 7 个全 rc=0（commands-menus 组 6 锚翻转 + plugin/follows/unbind 三新锚、组 8 计数 49；attachments-artifacts 组 6 length 51/49；about-version 组 6 49=49；gui-plugins/notifications 组 8 dist 哨兵）；debug-bar（matrix W28 陈旧锚）与 inline-ssh-device rc=1 为**预存**（本轮失败面 = WebView assertion 抛错，设备态相关，与 #105/#106 段同判预存非本轮引入） |
+| 探针普查（gradle 后） | 同上（`android/app/build` 中间产物在场） | **29 rc=0 / 4 rc=1**（+permission-requests/session-workbench 走进 gradle intermediates——#101 在册的构建产物条件性，源树 rc=0，按设计） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰 5 条预存** host-credential.test.ts 合成 fixture 行（:22/:44/:51/:59/:78，`synthetic fixture` 私钥形——文件本轮零触碰，mobile-hosts 冻结）+ 低置信 synthetic 测试行（probe/runtime-ssh/ssh-bridge/vault-envelope/service-auth-prompt——既有测试域），非本轮引入 |
+| 凭据持久化审计 | `bun run scripts/audit-secret-persistence.ts` | **PASS**（A–G 全组；G 组 dist markers mobile(M-002)/mobile(vault-v1) 在场——构建后口径） |
+| git diff --check | `git diff --check` | rc=0 clean（零冲突标记/零尾随空白） |
+| APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**（rc=0，41 tasks）；app-debug.apk **SHA-256 = 93d61eda1e1751024b7b9a8a93b86c36cddadc7b29de75662fe577269b31d8aa**（65,348,767 bytes）；`adb install -r` **Success**（.145，数据保留——零 uninstall/零 pm clear） |
+
+**M-051 派生与登记要点**（manifest reason/verification/rebase 为偏离登记文档）：九 targets = keybinds.tsx（512→546 目标逐字）/migration.ts（40→42 目标逐字，keybindRenames 增 `home.sessions.search.focus→sessions.search`）/command.tsx（582→610 目标逐字——catalog plugin/keywords/follows 元数据、commandKeymap 自定义优先导出、skip 让行 + onSelect false 拒键、bind follows 兜底、CommandSource/COMMAND_SEARCH_ID 转导出、KeybindConfig/CommandCatalogItem 去导出零外部消费者、Map/bracketKey/suspendCount）/command.test.ts（110→138 目标逐字）/**composer/model.ts 最小消费方适配（目标 clientCommand hunk 逐字——见 tsc 行；M-037 同文件 hunks 在不相交区段，累积树 apply-check 验证；verify-files 组 7 / verify-commands-menus 组 5 锚点在其他区段不受影响）**/en.ts（+1 键 unbind，en-only target parity——触 en.ts 既有补丁**实测 14 个**（M-009/013/018/024/026/032/033/034/035/036/040/043/046/048；计划初稿「5 个」低估已修正，方法不变））/ui button 三件套（+1 union/+19 css/+12 story 净增——目标逐字节）；not-adopted 登记：palette/dialog/search 本体 + command-search/session-search/safe-triangle 新文件（palette keybind-only 在册实态不变，command.tsx import 闭包已核对不触及）+ desktop-menu 族（Windows 红线，N10 门控不动）+ settings/model.tsx keybinds 面（base→target 零 delta）；桥/Kotlin/mobile-hosts 零改动。
+
+### 负例演练（探针可证伪性；各自还原字节形后复跑 rc=0）
+
+1. keybinds.tsx catalog 消费环 `for (const opt of command.catalog) {` 改名 → verify-commands-menus 组 6 **FAIL**（`6: keybinds.tsx lost the command.catalog consumption loop…`）→ 还原 rc=0（cmp 全等）。
+2. command.tsx `const CommandCatalogItem = Persistence.struct({` 锚改名 → 同组 **FAIL**（`6: command.tsx lost the CommandCatalogItem struct declaration`）→ 还原 rc=0。
+3. en.ts unbind 行删除（finding E 新增正锚）→ 同组 **FAIL**（`6: en.ts lost the settings.shortcuts.unbind key (issue #108 Unbind button i18n)`）→ 还原 rc=0——unbind i18n 键自此机检（组 6 新锁），不只依赖设备可见。
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12/API 31，横屏 CSS 1245×786 DPR 2.25；APK `93d61eda…`；`adb install -r` Success 数据保留；驱动 = adb forward tcp:9222 + CDP `Runtime.evaluate` DOM 核对 + `Input.dispatchMouseEvent` 触点注入 + `Page.captureScreenshot` /tmp 不提交；**CDP 合成按键不作外接键盘证据**——issue 明文，本轮零 `Input.dispatchKeyEvent` 键位注入）
+
+| 步骤 | 操作 | 判定 |
+| --- | --- | --- |
+| QA 始末键盘复查 | `adb shell dumpsys input`（QA 开始时 + 步骤 7 时点） | 全部输入设备 `IsExternal:false`、仅虚拟 `-1 Virtual`（KEYBOARD\|ALPHAKEY\|DPAD\|VIRTUAL）——**无外接键盘**（与计划时点实测一致） |
+| 1 页面目标形 | Settings → Shortcuts；DOM 实测 + 深浅双 sweep 截图（/tmp） | **PASS**：`data-keybind-id` ×50 行、六分组标题（General/Session/Navigation/Model and agent/Terminal/Prompt）、页内搜索框 placeholder=`Search shortcuts`、Reset to defaults 按钮在位；深色 sweep 经 Appearance Color 下拉切 Dark（`colorScheme:dark`、`data-theme:oc-2`、bg rgb(8,8,8)）后同构渲染 |
+| 2 搜索 | 页内搜索输入 `model`/`terminal`/`zzz` 再清除 | **PASS**：model→1 行（Choose model）、terminal→2 行、zzz→0 行 + `SettingsSearchEmpty`（No results for "zzz"）、清除恢复 50 行 |
+| 3 编辑-取消（捕获 toggle） | 点 tab.close 行绑定按钮 → 捕获态 → 再点同按钮 | **PASS**：捕获开 = `data-expanded` 落 tab.close 行 + Press keys 文案 + Unbind 按钮并列（gap-1 包装）、零 toast；再点 = 捕获关、零残留（行显回 Ctrl+W）、零 toast |
+| 4 触摸可完成的编辑：Unbind | 捕获态点 Unbind（ghost-danger） | **PASS**：`data-variant="ghost-danger"` DOM 实测；置 none 后 `settings.v3.keybinds={"tab.close":"none"}` 实测、行显 Unassigned；写后 ≥11s flush → force-stop → 重启**存活**（存储与 UI 双复核） |
+| 5 恢复默认 | 点 Reset to defaults | **PASS**：toast（Shortcuts reset / Keyboard shortcuts have been reset to defaults.）+ `settings.v3.keybinds` 清空 + Ctrl+W 默认回显；force-stop 重启复核保持（全轮共验证三次） |
+| 6 迁移与重启保持（种子数据法，如实标注「localStorage 播种 + 应用真实启动迁移」） | 预置 `settings.v3.keybinds["home.sessions.search.focus"]="mod+alt+f"`（首轮 `mod+ctrl+f` 为 Android 上 mod==ctrl 退化形，改用可分辨值重播）→ 写后 ≥11s → force-stop → 重启 | **PASS（存储迁移核心）**：`migrateKeybinds` 启动迁移把存储改写为 `{"sessions.search":"mod+alt+f"}`、旧 id 条目清零、零崩溃；Shortcuts 列表绑定落 `sessions.search` 行（行显 Ctrl+Alt+F）。**诚实边界（在册）**：该行标题呈裸 id、旧命令行（home.sessions.search.focus，默认 mod+f→Ctrl+F）仍单列——上游跟随塌缩（follower collapse）与人性化标题依赖 session-search 插件面（command-search/session-search 等，**本轮不采纳**，palette/搜索后续 issue 归属）；迁移机制本身（keybindRenames 存储改写）与 settings.v3 持久化边界不受影响 |
+| 7 冲突反馈 + 捕获完成 + 实际命令触发 | **需物理按键**（QA 始末 dumpsys 双查无外接键盘） | **BLOCKED（如实）**：捕获完成、冲突 toast、键触发命令均需真实按键；冲突/优先级/skip 逻辑由定向子集（command.test.ts 目标块 63/0）+ 代码证据覆盖；**不以 CDP `Input.dispatchKeyEvent` 充当外接键盘证据**（issue 明文，本轮零键位注入） |
+| 8 凭据红线 | QA 前后全量 localStorage dump 对照 | **PASS**：pre 18 键/post 19 键——**18 个原键值逐字节相等**（uniq diff 为空），+1 键 = QA 深色 sweep 残留 `opencode-color-scheme=dark`（QA 侧行为，识别后移除，复测 **18/18 全等**）；零凭据形新键、hosts.v1 credentialRef 引用形白名单不变（值域逐字节相同） |
+
+**QA 后恢复**：settings.v3 keybinds 段经 UI Reset 清空（等于 pre-dump 形）+ 残留键移除后全量 dump 与 pre-dump `pre == rest` 全等（Python dict 比对 rc=0）；adb forward 已撤除；截图存 /tmp 不提交。
+
+### 诚实边界与 BLOCKED 登记（本期新增/继承）
+
+- **外接键盘执行链 BLOCKED（BLOCKED 总表 +1）**：冲突反馈（toast 文案 + 拒绝写入）、捕获完成（物理键结束捕获写入）、实际命令触发三项需物理键盘；.145 实测无外接键盘；单测 + 代码证据 + 触摸可达项全覆盖，**不以 CDP 合成按键充当证据**；工作台层差距（G34）不因本页通过自动关闭。
+- Desktop 参考端无 → 视觉对照 BLOCKED 继承（#104/#105/#106/#107 同判）；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记）；TalkBack 走查按适用面登记（捕获态/Unbind 行为语义已 DOM 级实测，读屏描述串未走查）。
+- 命令面板本体移动可达性不变（keybind-only 在册实态）；palette/dialog/search 与 command-search/session-search/safe-triangle 归后续 palette/搜索 issue；G34 域运行期贯通不因本页通过自动关闭。
+
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
 `bun run scripts/license-audit.ts`：1089 packages 审计，STOP 于以下 12 项（9 个独立包，按平台二进制折叠为 6 家族；NOTICE-THIRD-PARTY.md 因此未生成）：

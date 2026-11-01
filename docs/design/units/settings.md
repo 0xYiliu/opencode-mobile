@@ -1,6 +1,6 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）与 **Notifications 页内面（#107/M-050，见下方「通知页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）、**Notifications 页内面（#107/M-050，见下方「通知页内面」单元）**与 **Shortcuts 页内面（#108/M-051，见下方「快捷键页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107/#108 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
@@ -217,3 +217,36 @@ M-050（0050-M-050-notifications-page-target-form.patch，双 manifest 在册第
 ## 诚实边界
 
 三类开关/声音选择/静音/搜索返回/界面行持久化 + 重启恢复：设备 QA PASS（DBY2-AL00，深浅双 sweep，QA 前后 localStorage 逐键相等 18/18）；声音**播放路径**机证（`Audio.prototype.play` promise resolution：emitted `alert-01` + 内联 data-URL `staplebops-01/-02` 双形态；emitted 文件 loads-phase fetch 200）+ logcat AudioTrack 归因（`createTrack … pkgName ai.opencode.mobile`）——**人耳可听性不可验**（无声学通路），如实登记。Android 权限面：行语义设备验证（OFF→ON 触发请求 → 结果落显式状态行，零 dialog，OS 授权态零 adb 变更）；本轮环境 seam fail-closed → 行呈 unavailable 文案，API<33 granted:true 直答保真**未在本环境可观察**（探针钉定代码证据 + 登记保真上限）；同进程页切换行保留上次结果（组件 keep-alive），跨重启回中性文案（session-signal 设计，信号不持久）已验证。真实通知投递/点击路由/失败恢复 **BLOCKED**（无可达服务——G33 不动）；allow/deny/revoke 全矩阵 **BLOCKED**（API 31 无 runtime POST_NOTIFICATIONS dialog，API 33+ 模拟器缺）；Desktop 视觉对照 / `<768px` / TalkBack **BLOCKED** 继承。
+
+# 单元：快捷键页内面（Shortcuts）——issue #108（S20）
+
+**状态行：已实现；触摸可达面设备验证 PASS（搜索/捕获开合/Unbind/恢复默认/迁移+重启保持），外接键盘执行链 BLOCKED（.145 无外接键盘，CDP 合成按键不作证据——issue 明文）。** M-051（0051-M-051-keybinds-command-catalog-target-form.patch，双 manifest 在册第 49 个补丁，48→49）把 Shortcuts 页内面、命令目录/键位执行核心与键位迁移收敛到 v2.2.1 目标（3ebcf9a）。设备 QA（.145，APK `93d61eda…`）详见 [build-and-verify.md issue #108 段](../../build-and-verify.md)；Desktop 视觉对照与 `<768px` 继承 BLOCKED。
+
+## 交付清单（M-051，9 targets）与逐 hunk 处置
+
+- `settings/keybinds/keybinds.tsx`（512→546）：**目标逐字**（该文件 vendored==base 零既有 mobile hunk，整体替换即目标形）——`usePluginHost().definitions()` 插件过滤（`listFor` 第 4 参，已卸载插件命令从列表剔除）、follower 收敛（`opt.follows` 且自身无覆盖的命令不单列）、提取 `unbind(id)` + 捕获态 `gap-1` 包装 div + **Unbind 按钮**（`variant="ghost-danger"`，`onUnbind={controller.capture.unbind}` 置 `"none"`）、`Predicate.isString` ×3、SSR `IS_MAC`/`document` 守卫 `!=="undefined"`、`settings.current.keybinds` 可选 `?? {}`、类型化 `createStore<{active}>`、行边框 `border-v2-border-border-base`。
+- `settings/keybinds/migration.ts`（40→42）：**目标逐字**——`keybindRenames` 新增 `"home.sessions.search.focus": "sessions.search"`（注释 2 行）+ extension→plugin 措辞；`migrateKeybinds` 机制不变（新 id 已有覆盖时旧值让位、旧 id 必清）。
+- `shell/commands/command.tsx`（582→610）：**目标逐字**——`CommandOption`/持久化 `CommandCatalogItem` schema 增 `plugin?`/`keywords?`/`follows?` 元数据字段（`Schema.optional`，旧 v1 目录向后兼容）；catalog 写入带 `plugin:`/`follows:`（Shortcuts 在 owner 未挂载时仍可过滤/列绑定）；**导出 `commandKeymap(options, custom)`：用户自定义绑定排在同键默认之前（配置真正作用于命令的核心语义，上游单测锁定）**；`skip?: (event)=>boolean`（键让行给目标）+ `onSelect` 返回 `false` 拒绝按键；`bind(id, def, follows?)` follows 兜底自定义键；`CommandSource`/`COMMAND_SEARCH_ID` 转导出（前者顺带解析 vendored `runtime/plugin/commands.tsx` 既有 TS2459/TS2322 两条类型错误）、`KeybindConfig`/`CommandCatalogItem` 去导出（vendored 树实测零外部消费者）；keys/named 改 `Map`、`Predicate.isString`、`bracketKey`（⇧[ 布局修正）、`suspendCount` 类型化。
+- `shell/commands/command.test.ts`（110→138，+28）：**目标逐字**——commandKeymap 自定义优先级测试、`skip` 让行 `test.each` ×2 参数、bracketKey `test.each` +4 行（含俄文 х 与 Dvorak 用例）、`acme.open` plugin 字段 catalog fixture。
+- `composer/model.ts`（**最小消费方适配，计划 8-target 表外经 clean tsc 实测浮现**）：目标 `trigger` 获得 decline-false 返回（boolean|undefined）后，vendored base 形 `clientCommand` 回调 `return () => command.trigger(...)` 触发 TS2322（boolean 不可赋 void|Promise）——恰一错（391 基线分布唯一新错）；采纳**目标自身对该 hunk 的适配逐字**（注释 "A command declines only keys, so a slash command's `false` means nothing more." + async 包装 await trigger）。文件**不整体目标化**（其余 base→target delta——plugin/gui imports、session-search、quoteSource、readImage——归后续 plugin/session-search 面；M-037 同文件 hunks 位于不相交区段，累积树 `git apply --check` 验证零冲突；verify-files 组 7 / verify-commands-menus 组 5 锚点均在其他区段不受影响）。
+- `runtime/i18n/en.ts`（+1 行）：`"settings.shortcuts.unbind": "Unbind",` 插在 pressKeys 与 search.placeholder 之间——**en-only = target parity**（target locale 均为 Partial 无此键；15/15 抽查 locale 双侧无 unbind；九 loader typed locale `satisfies Partial<Record<Keys,string>>` 不加键不破坏 typecheck）；锚为 pin 字节，与既有 14 个触 en.ts 补丁（M-009/013/018/024/026/032/033/034/035/036/040/043/046/048——修正普查口径，计划初稿「5 个」为低估；方法不变）的区段零重叠。
+- `packages/ui/src/actions/button/button.tsx`（+1）/ `button.css`（+19）/ `button.stories.tsx`（16 行）：**目标逐字**——`ghost-danger` variant union 行、`[data-component="button-v2"][data-variant="ghost-danger"]` 四规则块（hover/active/disabled）、Ghost danger story——Unbind 按钮硬依赖，ui/button 三件套随目标收敛逐字节。
+
+## S20 口径（验收链逐项，诚实标注）
+
+- **搜索**：页内 `Search shortcuts` 过滤（`model`→1 行 / `terminal`→2 行 / `zzz`→`SettingsSearchEmpty` 空态）+ 清除恢复全列（50 行）——设备实测 PASS。
+- **编辑-取消**：行内绑定按钮 → 捕获态（`data-expanded` + Press keys + Unbind 并列）→ 再点同按钮 toggle 关闭，零残留零 toast——设备实测 PASS。
+- **Unbind/禁用**：捕获态点 Unbind（ghost-danger，`data-variant` DOM 实测）→ 值置 `none`、行显 Unassigned、`settings.v3.keybinds["tab.close"]="none"` 实测 → force-stop（写后 ≥11s）重启存活——设备实测 PASS。
+- **恢复默认**：Reset to defaults → toast（Shortcuts reset / Keyboard shortcuts have been reset…）+ keybinds 清空 + 默认键回显（Ctrl+W）→ 重启复核——设备实测 PASS（三轮）。
+- **冲突反馈/捕获完成/实际命令触发**：**BLOCKED**——需物理按键（`dumpsys input` QA 始末双查：全部 `IsExternal:false`，仅虚拟 ALPHAKEY）；CDP 合成按键**不作证据**（issue 明文）；冲突消解（commandKeymap 自定义优先）、`skip` 让行、decline-false 由 command.test.ts 目标块 + 定向子集（63 pass/0 fail）单测锁定。
+- **已有自定义键位迁移**：种子数据法（如实标注「localStorage 播种 + 应用真实启动迁移」）——预置旧 id `home.sessions.search.focus` 覆盖 → 重启 → `migrateKeybinds` 把存储改写为新 id `sessions.search`（旧 id 条目清零）+ 零崩溃；绑定落新 id 行（行显 Ctrl+Alt+F）——设备实测 PASS。**诚实边界**：新 id 行标题呈裸 id、旧行仍单列——上游的跟随塌缩（follower collapse）与人性化标题依赖 session-search 插件面（`command-search.tsx`/`session-search.tsx` 等，本轮**不采纳**，见下），vendored 树内旧命令（home/sessions/search.ts:95 注册，默认 mod+f）仍带自身默认键位注册在册；该呈现差随 palette/搜索后续 issue 收敛。
+
+## 不采纳登记（owner 明示）
+
+- 命令面板本体（`palette.ts`、`dialog.tsx`/`dialog.css`、`search.ts`）与 target 新文件 `command-search.tsx`/`session-search.tsx`/`safe-triangle.ts`——palette 在移动壳 keybind-only（commands-menus.md 在册实态）；command.tsx 目标形不 import 上述任何文件（import 闭包已核对），catalog 核心独立可迁；owner = 后续 palette/搜索 issue。
+- `desktop-menu.ts`/`desktop-menu.test.ts`/`desktop.tsx`（Windows 菜单 face）——AGENTS.md 红线：不搬 Windows 窗口命令；N10 门控沿用。
+- `settings/model.tsx` keybinds 面：base→target 零 delta，零改动（既有 21 行 first-party 偏离属 #103 登记，不扩大）。
+
+## 诚实边界
+
+Desktop 参考端无 → 视觉对照 BLOCKED 继承；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记）；TalkBack 走查按适用面登记（捕获态/Unbind 行为语义已 DOM 级实测，读屏描述串实态未走查）；命令面板本体移动可达性不变（keybind-only 在册）；设备 QA 前后 localStorage 全量 dump **逐键相等 18/18**（QA 侧深色 sweep 残留键 `opencode-color-scheme` 已识别并移除，恢复全等），hosts.v1 credentialRef 引用形白名单不变。
