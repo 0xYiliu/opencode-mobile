@@ -1,22 +1,26 @@
 # 单元：远程 Provider 与模型配置（providers-models）
 
-覆盖范围：设置 providers/models 双标签页（已连接列表/五分类来源标签/popular+View all/连接对话框/账号管理/模型目录与可见性）、连接对话框全族（方法选择/key 表单/OAuth 双视图/取消/重试）、模型选择器族（select-dialog/tooltip limits/unpaid upsell）、模型作用域与凭据分层。能力**全部由上游闭包承载**（issue #14，零新建界面、零运行时代码改动、零 vendor 补丁）；本文固化契约、状态矩阵与安全语义。「supported providers」的 add 面以 integration catalog 为界——custom provider 保存路径是上游显式 stub（见能力边界专节），本文不虚构该能力。来源边界双域声明见「安全与边界」专节。
+覆盖范围：设置 providers/models 双标签页（已连接列表/五分类来源标签/popular+View all/连接对话框/账号管理/模型目录与可见性）、连接对话框全族（方法选择/key 表单/OAuth 双视图/取消/重试）、模型选择器族（select-dialog/tooltip limits/unpaid upsell）、模型作用域与凭据分层。能力全部由上游闭包承载（issue #14 固化契约）；**issue #105/M-048 起 providers/models 设置页内面已收敛到 v2.2.1 目标形（第 46 补丁，providers.tsx/models.tsx 目标逐字 + 目录同步重试 + en 26 键增补）**；连接对话框全族（controller/dialog）保持 pin 形——其目标重设计**登记为 FU-1（Milestone 1 后续工作，协调者 carve 后续 issue）**，取消/过期/失败恢复在当前形已可达（状态矩阵/OAuth 专节）；模型选择器族保持 pin 形——登记为 FU-2（同上）。「supported providers」的 add 面以 integration catalog 为界——custom provider 保存路径是上游显式 stub（见能力边界专节），本文不虚构该能力。来源边界双域声明见「安全与边界」专节。
 
 ## 能力来源表
 
 | 面 | 能力 | 上游文件锚（vendored，pin `b4525d79bf`） |
 | --- | --- | --- |
 | 设置双 tab 与注册 | providers/models 两个设置 tab（pageIcons/pageLabels 注册、设置搜索索引 `connect api key credentials`/`model picker visibility`）；单服务器布局 RootSettings 直挂 + 多服务器布局 per-server 条目（`server:<key>` → `ServerSettings`，nestedServerTabs 含 serverTabs）双入口；两处挂载都包在 `SettingsServerDataScope`（`ServerProvider conn` + `ModelsProvider directory`）内，页内 `useServerSDK()`/`useData()` 读当前选中服务器 | `app/src/settings/pages.ts`、`app/src/settings/search-catalog.ts`（`{ tab: "providers", … keywords: "connect api key credentials" }` 与 `{ tab: "models", … keywords: "model picker visibility" }`）、`app/src/settings/shell.tsx`（`serverTabs`/`nestedServerTabs = [general, ...serverTabs]`/守卫 `["projects","workspaces","providers","models","extensions"].includes(view.tab)` 弹回 general）、`app/src/settings/server-scope.tsx` |
-| providers 页 | connected 列表（integration.connections 驱动）、来源五分类 `env\|api\|account\|config\|custom`（credential 连接=API key 或 OAuth grant→api/account 标签；env=检测到的环境变量；无连接=integration 在册即 config）、popular 列表 + View all、连接对话框挂载 `DialogConnectProvider`、断开链（`integration.get` → 逐凭据 `credential.remove` → toast；失败 `formatServerError` 回滚 remove 态）、Console 分组展开 | `app/src/settings/providers/providers.tsx`（`source()` 注释逐字「credential connections mean an API key or OAuth grant, env connections mean detected environment variables, and a connectionless integration is config-provided」；`disconnect` 的 remove/回滚对；`formatServerError` 失败 toast） |
+| providers 页（**#105/M-048 起目标逐字**） | connected 列表（integration.connections 驱动）、来源五分类 `env\|api\|account\|config\|custom`、popular 列表 + View all（**设备 QA：View all 打开连接对话框，含搜索 + Other/Custom OpenAI-compatible provider 分组入口**）、连接对话框挂载 `DialogConnectProvider`、断开链（`integration.get` → 逐凭据 `credential.remove` → toast；失败 `formatServerError` 回滚 remove 态）、Console 分组展开（`providerID === CONSOLE_INTEGRATION` 目标判定，`CONSOLE_PROVIDERS` 导出保留服务 FU-1）、header 服务器切换槽（`headerAction`，#102 回归面） | `app/src/settings/providers/providers.tsx`（目标逐字，10 行增量：JSX import/headerAction/min-w-0+插槽/Console 判定目标形） |
 | 账号管理 | AccountMenu（radio 切换 activate/重命名 rename/移除 remove）→ `credential.activate\|update\|remove` + `refresh`（invalidate+sync integration/provider/model 三目录）+ Console 场景 `settle` 轮询（10s 上限、250ms 步进） | `app/src/settings/providers/account-actions.ts`（`sdk.api.credential` 三方法均为**跨行书写**的元数据操作）+ `accounts.ts`/`account-name.tsx`（active-first 凭据序） |
 | 连接对话框 | 方法选择（key/oauth/external；无 methods 时回退 key 表单；单方法自动选择）、key 表单（`integration.connect.key`）、OAuth 双视图（auto 轮询/code 粘贴）、三重回退（copy-link/code 粘贴/确认码对照）、取消（卸载 `oauth.cancel`）、`chatgpt-plan-welcome.v1` 欢迎页一次性标记 | `app/src/providers/connect/controller.ts` + `connect/dialog.tsx`（`copyLink` 走 `platform.writeClipboardText ?? navigator.clipboard.writeText`；`OAuthCodeView`/`OAuthAutoView` 按 `mode === "code"` 分派）+ `connect/remote.tsx`（RemoteAuthNotice） |
-| 模型目录与可见性 | useModels 控制器全集：列表/搜索/按 provider 分组折叠（折叠态持久化）/每模型可见性开关/默认可见规则（hide→不显示、show→显示、每 family 最新→显示、无解析发布日期→显示）/recent 上限 5/variant 偏好 | `app/src/providers/models/models.tsx`（`visible()` 的 default 规则、`RECENT_LIMIT = 5`）+ `app/src/settings/models/models.tsx`（`Persist.serverGlobal(serverSdk.scope, "settings-v2.models.providers")` 折叠记录、`useFilteredList` key `provider.id:model.id`） |
+| 模型目录与可见性 | useModels 控制器全集：列表/搜索/按 provider 分组折叠（折叠态持久化）/每模型可见性开关/默认可见规则（hide→不显示、show→显示、每 family 最新→显示、无解析发布日期→显示）/recent 上限 5/variant 偏好；**#105/M-048：settings 页目标形（headerAction + header-actions 插槽目标原生），与选择器 pin 形共用 `useModels`**（S24 现形一致性由共享控制器承载；选择器族目标形=FU-2） | `app/src/providers/models/models.tsx`（pin 形，FU-2 范围）（`visible()` 的 default 规则、`RECENT_LIMIT = 5`）+ `app/src/settings/models/models.tsx`（**目标逐字**，6 行增量）（`Persist.serverGlobal(serverSdk.scope, "settings-v2.models.providers")` 折叠记录、`useFilteredList` key `provider.id:model.id`） |
 | 模型选择器族 | select-dialog（搜索/分组/选择）、free/paid 分组（opencode 目录免费判定）、tooltip 呈现 limits（上下文窗口 `limit.context.toLocaleString()`）、付费模型未连接 upsell 对话框 | `app/src/providers/models/{select-dialog.tsx,provider-group.tsx,tooltip.tsx,unpaid.tsx,manage.tsx}` 与 `agent/search/variant.ts`（纯逻辑三件各带 test；free 判定锚 `group.category === "opencode" && group.items.every((item) => !item.cost?.input)`） |
 | 作用域装配 | 模型选择 per 服务器+目录持久化（ServerScope 键控）；服务端会话权威（`session.model.selected`/`session.agent.selected` 事件 reconcile；`session.deleted` 清键）；跨路由 handoff 以 `ScopedKey.from(scope, dir, id)` 复合键 | `app/src/providers/models/selection.tsx`（`Persist.serverWorkspace(serverSDK.scope, sdk().directory, "model-selection")`）+ `app/src/runtime/server/scope.ts`（`ServerScope.fromServerKey`/`ScopedKey.from`） |
 
 ## 数据与端点契约
 
 端点全部引用 vendored 生成面（`packages/protocol/src/groups/{integration,credential}.ts` 协议描述 + `packages/schema/src/{integration,connection,credential,model}.ts` 类型），不另行定义契约。location 均为 `{ directory }`（可选）。
+
+**目录同步重试（#105/M-048 新增）**：`providers/catalog/providers.ts` 的 `syncWhileBooting`（目标 10 行）= 12 次重试、1s 起步 5s 封顶、仅 `isServiceUnavailableError` 门——包住 provider+model 目录同步（冷 Location 需等插件激活，可能超过服务端 5s 等待）；`useProviders` 签名不变。风险边界（在册）：慢服务器最多被拖 ~40s——QA 若见病态等待降级为 defer-list（本轮环境未复现：远端服务下线即同步失败）。
+
+**mcp.ts 命名注记**：见上方端点表后注；接收者形态由 verify-agent-capabilities 组 1 钉定（`serverSDK\.api\s*\.\s*mcp` 容忍扫描 + 组 6 `api.mcp.connect` 形态零负）。
 
 **integration 组（九端点，协议描述闭包内逐字）**：
 
@@ -28,6 +32,8 @@
 | `integration.connect.key` | POST `…/connect/key` | 恰 `providers/connect/controller.ts`（`connectKey`） | "Run a key authentication method and store the resulting credential." |
 | `integration.connect.external` | POST `…/connect/external` | 恰 `providers/connect/controller.ts`（external 分支） | "Run an external authentication method and store a reference to its credential source." |
 | `integration.oauth.connect` | POST `…/connect/oauth` | 恰 {`providers/connect/controller.ts`（`select`）, `providers/connect/mcp.ts`、`runtime/server/sync.tsx`、gui-ext `details/server-panel.tsx`（MCP needs_auth 重认证）} | "Start an OAuth attempt and return the authorization details." |
+
+**mcp.connect/disconnect 命名注记（#105/M-048）**：`providers/connect/mcp.ts` 目标增量保留 pin 生成客户端命名 `serverSDK.api.mcp.connect/disconnect`（单一 mobile hunk）——线等价：本 vendored 客户端 mcp 组直接拨 `/api/experimental/mcp/:server/*` 路径，且目标的生成客户端自身保留 deprecated 别名 `client.mcp.connect = client.experimental.mcp.connect`（同函数对象）；`api.mcp.list` 两侧不变。
 | `integration.oauth.status` | GET `…/connect/oauth/:attemptID` | 恰 `providers/connect/controller.ts`（`poll`，每 `pollInterval ?? 1_000` ms） | "Poll the current status of an OAuth attempt." |
 | `integration.oauth.complete` | POST `…/connect/oauth/:attemptID/complete` | 恰 `providers/connect/controller.ts`（`completeCode`） | "Complete a code-based OAuth attempt and store the resulting credential." |
 | `integration.oauth.cancel` | DELETE `…/connect/oauth/:attemptID` | 恰 `providers/connect/controller.ts`（两处：`cancelAttempt` 与换代迟到授权补 cancel） | "Cancel an OAuth attempt and release its resources." |
@@ -110,7 +116,7 @@
 3. **web 平台 `browserFailed` 不可达**（见 OAuth 专节）。
 4. **模型可见性/recent/variant 偏好跨服务器全局**（`Persist.global("model")`）。
 5. **in-flight OAuth attempt 无跨进程恢复**（冷杀后重新发起，旧 attempt 服务端过期）。
-6. **i18n zh 部分覆盖（上游实态）**：`provider.connect.*` en **71 键**；zh 恰 **21 键在册**（含 `oauth.code.*` 与 `auto.confirmationCode`），**其余 50 键缺失、经 base 合并回退 en**（缺 7 族：`console.*` 28 键、`oauth.*` 5 键【含 `oauth.expired`/`openBrowser` 与 auto/code description】、`chatgptWelcome.*` 4、`chatgptUsageLimit.*` 4、`models.*` 4、`opencode.*` 3、`remote.*` 2）；运行期经 `runtime/i18n/language.tsx` 的 base 合并回退 en（`const base = flatten({ ...en, ...dict })` + `{ ...base, ...flatten(...) }`）——中文用户在 Console OAuth 流程/RemoteAuthNotice/过期提示/欢迎与用量提示等处将见英文混排（已知局限；可接受性与恢复路径可发现性归 G25⑤ 观感核对）。
+6. **i18n zh 部分覆盖（上游实态）**：`provider.connect.*` en **71 键**；zh 恰 **21 键在册**（含 `oauth.code.*` 与 `auto.confirmationCode`），**其余 50 键缺失、经 base 合并回退 en**（缺 7 族：`console.*` 28 键、`oauth.*` 5 键【含 `oauth.expired`/`openBrowser` 与 auto/code description】、`chatgptWelcome.*` 4、`chatgptUsageLimit.*` 4、`models.*` 4、`opencode.*` 3、`remote.*` 2）；#105/M-048 后该 zh 缺口族**零变化**（26 个新增键全部 en-only：`dialog.mcp.*` 14 + `settings.plugins.*` 12，zh 缺失经 base 合并回退 en——与 M-033/M-034 en-only 先例同型）；运行期经 `runtime/i18n/language.tsx` 的 base 合并回退 en（`const base = flatten({ ...en, ...dict })` + `{ ...base, ...flatten(...) }`）——中文用户在 Console OAuth 流程/RemoteAuthNotice/过期提示/欢迎与用量提示等处将见英文混排（已知局限；可接受性与恢复路径可发现性归 G25⑤ 观感核对）。
 7. **`integration.command.*` 认证方法**：依赖服务端本地进程执行命令认证，移动场景语义未核对（G25 如实登记，不预设）。
 
 ## 安全与边界专节
@@ -122,12 +128,15 @@
 
 ## 门禁与验证
 
+**issue #105 局部 QA（2026-11-01，.145，APK `57eeba6c…`，CDP 注入 + 截图）**：①Providers/Models 页目标形渲染 + header 切换槽双向切换 PASS；②View all→连接对话框（搜索 + Other/Custom 入口）PASS；③三类 SSH 失败面（超时/认证成功但服务拒转/端口拒绝）如实呈现 PASS——本轮三台远端主机全部不可达/远端服务下线，**API key/OAuth 连接链、账号操作、MCP needs_auth 重认证、目录分组/搜索/可见性切换与持久化 BLOCKED（缺凭据+缺可达服务，忠实登记）**；④localStorage 全量 dump QA 前后 18/18 键、零凭据形新键（hosts.v1 保持 credentialRef 引用形）——凭据红线 PASS。
+
 - **G25**（[../interaction.md](../interaction.md) 新设）：provider/model 面运行期真机清单十项（①移动入口可达双布局；②API key 连接全链（真实兼容服务）；③**OAuth 浏览器打开形态（本门禁首项）**——`window.open("_blank")` 壳内实态+热回跳+三回退；④冷回跳/取消/过期/失败呈现；⑤凭据刷新与 needs_auth 呈现充分性+跨回跳 host/project/session 上下文保持+i18n zh 缺失 50 键（7 族）混排观感；⑥model 选择跨服务器作用域隔离机械核对（含偏好全局例外实态）；⑦断开/账号操作链；⑧limits/可用性呈现；⑨窄屏/读屏/焦点/触摸目标首项核对；⑩SSH/直连双路由+真实第三方 provider 授权+凭据负例）。
 - 探针：`scripts/verify-provider-models.ts` 六组断言 + 零 OS 首扫（凭据单向流穷举集合/持久化键穷举/OAuth 流形态/服务端权威事件锚/model 作用域/no local execution import 形态负断言）——**static STRUCTURE check, no runtime proof**。
 - 上游子集：app 组合 60 文件（#13 的 53 + 本期新增 7：`settings/providers/accounts.test.ts`、`settings/route.test.ts`、`settings/search-results.test.ts`、`providers/credentials/form.test.ts`、`providers/models/{agent,search,variant}.test.ts`——`settings/model.test.ts` 自 #10 起已在册回归，不适用首跑口径）；client 9/session-ui 8/gui-extensions 9 零新增回归；mobile-hosts 307 零新增。
 
 ## 诚实边界
 
+- **FU-1/FU-2 登记为 Milestone 1 后续工作（owner：协调者 carve 后续 issue；本计划不能创建 issue）**：FU-1=连接对话框族目标重设计（controller 143 行增量/dialog 1617→1813/dialog.provider.* 键族/stories/credentials 三件删除）；FU-2=模型选择器族目标形（select-dialog/details/manage/unpaid/provider-group/search/css/models.test）。S21/S22/S24 剩余差异列指向两者（[../windows-desktop/v2.2.1/matrix.md](../windows-desktop/v2.2.1/matrix.md)）——矩阵行是追踪载体， Milestone 卫生依赖后续 issue 被 carve。
 - **G25 全部运行期行为 BLOCKED**（入口双布局可达手感、API key 全链、外跳实态（issue #76 后=外跳面浏览器打开 + 拒绝 Toast）与热回跳、冷回跳/取消/过期/失败呈现、needs_auth 呈现充分性与 i18n 混排观感、跨回跳上下文保持、跨服务器作用域隔离、limits/可用性呈现、对话框族触屏形态、凭据存储负例）；G25 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **真实第三方 provider 服务测试 BLOCKED**（OpenAI/Anthropic/Console/Google 等真实账号授权的连接与模型调用——需真实凭据，不允许 fixture 替代）；连接后的真实模型调用子项另需模型授权，单列。
 - **壳层能力边界（本期不交付、不预设）**：deep-link 回跳（VIEW intent-filter）与外部浏览器拉起（ACTION_VIEW seam）当前不存在；上游协议流不依赖它们；若 G25 判定需要，归后续壳层 issue（候选含 M-022+），交用户决策。

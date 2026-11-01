@@ -2307,6 +2307,69 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 
 `docs/design/units/settings.md`（新增「外观页内面」单元：七行清单/主题机制 target-form 声明 + M-047 裁剪口径/zoom 平台存储边界/reduce-motion 消费链指针/保留偏离四条/诚实边界）；`docs/design/visual.md`（主题机制行目标形收口 + 动效降级行设备证据指针 + Appearance 控件令牌消费事实）；`docs/design/interaction-quality.md`（§四 WebView 手势默认态 #104 复验增补 + §六 appearance 段 colorScheme/theme 自有键与 zoom 平台存储复验 + §八 system 映射实测与 force-stop 时序注记两条）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S12/S15/S16/S17/S42 行升级 + 阶段 3 行 #104 增补）；补丁 manifest M-047 reason/verification/rebase 字段即偏离登记文档（5 targets、trim-not-delete 口径、第三方符号域注记、rebase 派生纪律）。
 
+## issue #105 段（S21–S26：供应商、模型与服务端扩展设置对齐 Desktop v2.2.1——M-048）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-105-providers-models`，base `b150ac0`（origin/main，#104 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 feat vendor 迁移（M-048 九文件）→ chore verify（探针修订 + dist 常量回填）→ docs 提交，未 push。开工基线复核（b150ac0 同法同态）：verify:closure PASS（45 补丁）、app 单测（无 seam 口径）646/4/24/1986（674 tests/115 files；24 errors = mobile-hosts seam 解析错 24，零真实）、mobile-hosts 434/0/2920、typecheck:tsc 391（逐文件分布 48 文件与基线全等——本轮自比口径）、探针普查 33 个 fresh worktree **27 rc=0 + 6 rc=1**（4 产物条件性 + debug-bar W28/inline-ssh-device CDP 预存，与 #104 段同判）。
+
+### 计划对账（实测差异，如实记录）
+
+| 项 | 处置 |
+| --- | --- |
+| verify-pairing 组 5 app/src clipboard-write 事实钉（4 写/3 文件） | M-048 目标 mcp-dialog.tsx 新增 MCP 错误详情 copy 回退（`platform.writeClipboardText ?? navigator.clipboard.writeText`）→ **5 写/4 文件**；探针最小修订（expectedWriters + mcp-dialog.tsx、计数 4→5、注释 issue #105 归因）+ [connection.md §④](design/units/connection.md) 域外事实清单同步增补（复制内容=错误详情文本，非凭据）——计划修订清单未预列该探针，按"新事实即登记"口径处置，非绕过 |
+| i18n 护栏首版对 providers.tsx `?? ""` 误报 | `language.t(…, { provider: name() ?? "" })` 的空串表达式默认值被括号平衡扫描当作 key——护栏加 `key === ""` 跳过规则（键语义不变），修订后全绿 |
+| 计划 §4 transient census 30/3 预判 | 实测 fresh（M-048 后、探针修订前）26 rc=0 / 7 rc=1（4 产物条件性 + debug-bar/inline-ssh-device 预存 + **pairing 新钉**）；探针修订后（build 前）27/6；build+copy 后 **31 rc=0 / 2 rc=1**（=计划终态）；gradle 后 29/4（permission-requests/session-workbench 产物条件性 by design） |
+| seam 软链 gui-extensions 目录杂音 | 首轮 seam 重建按 #104 在册六包清单 mkdir 了不存在的 `vendor/upstream/packages/gui-extensions/`（旧包名，已被 gui-plugins 取代）→ verify:closure V3(a) diff "Only in" 失败一次；删目录复跑 PASS——在册 seam 清单修正为五真实包（app/session-ui/ui/client/plugin-browser），教训记录 |
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（46 补丁字节级重放，DANGLING=0；M-048 注册于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 各 46 条，M-019/M-039 reserved-absent 保持；M-048 派生 = scratch 内 pin+packageSources 重建 pristine 累积树 → 依序应用 M-001..M-047 → **M-048 `git apply --check` 对累积树 PASS** → 应用后全 packages 树 `diff -r` 与工作树**字节同一（rc=0 零输出）** → `git diff --check` clean） |
+| M-048 面 | 9 文件实测 | providers.tsx/providers/extensions.tsx/models.tsx/mcp-dialog.tsx **目标逐字**（与 3ebcf9a 逐字节同；M-043 headerAction/directory 挂接 hunks 被目标吸收）；extension-plugins.tsx（249 行）与 shell/search-list.css（317 行，`:207-211` 含 `@media (prefers-reduced-motion: reduce)` 待机点守卫）**目标逐字 NEW**；mcp.ts 目标 17 行增量 + 单 mobile hunk（pin `api.mcp.connect/disconnect` 命名保留——线等价负例演练见下）；catalog/providers.ts 目标 10 行 syncWhileBooting；en.ts 26 键（14 `dialog.mcp.*` + 12 `settings.plugins.*`，`dialog.mcp.description` 死键保留；族计数 en `dialog.mcp` 3→17 / `settings.plugins` 0→12，zh 3/0 不动） |
+| app 全量单测（在册口径=无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | **646 pass / 4 skip / 24 fail / 24 errors / 1986 expect()（674 tests/115 files）——与基线逐项相同**；24 fail = mobile-hosts seam 解析错，零新失败 |
+| app 全量单测（seam 口径对照） | 同上（seam 软链在场） | **791 pass / 4 skip / 1 fail / 2346 expect()——M-048 前后逐项相同**（唯一 fail=`settings search plugin catalog > mounts the search over the real surface plugin handle and builds the catalog`，对基线 stash 复跑同名同数——seam 在场模块解析形态的预存行为，非本轮引入） |
+| 定向子集 | settings 三文件 `model/search-results/route` | **41 pass / 0 fail / 105 expect()**（与 #104 在册同数） |
+| app 组合 70 文件 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <70 文件>` | **587 pass / 0 fail / 1383 expect()**（与 #104 在册同数；含 `settings/providers/accounts.test.ts`、`providers/credentials/form.test.ts`（deferred 面，文件保留）、`providers/models/{agent,search,variant}.test.ts` provider 域全集） |
+| provider 域五文件组 | accounts + credentials/form + models/{agent,search,variant} | **23 pass / 0 fail / 38 expect()** |
+| mobile-hosts | `bun test --conditions=browser packages/mobile-hosts` | **434 pass / 0 fail / 2920 expect()**（与基线同数） |
+| typecheck | `bun run typecheck:tsc`（清 tsbuildinfo、无 seam 口径） | **391 errors**；逐文件分布 M-048 前后**全等**（48 文件 uniq 计数 diff 为空；`git stash` 前后双跑对账）；触及九文件零新增错误（extension-plugins/mcp-dialog 目标面与 vendored host API 逐成员核验，**零适配 hunk**——计划风险 1 未兑现） |
+| 零修订探针（免修证据） | `verify-provider-models` / `verify-settings-framework` | 均 **rc=0 原样 PASS**（组 2 恰三 Persist 键不变——mcp-dialog/extension-plugins/catalog 零新增；组 5 headerAction/渲染 div 目标形已在册） |
+| 探针修订（45→46 钉 + #105 面） | `verify-agent-capabilities`（5 组）/ `verify-appearance-settings`（WHITELIST）/ `verify-about-version` / `verify-attachments-artifacts` / `verify-commands-menus` / `verify-pairing`（新钉） | agent-capabilities：组 1 mcp.list 面 6→**4 UI+1 数据层**（extensions.tsx 跨行 B1 案例退役，新数据层锚 `sync(data.location.default())`/`location()` overlay 钉定）+ 组 5（rethrow 注释钉收窄至 project-extensions.tsx、extensions 新目标钉 settings-mcp-row/mcp-status-dot/data-status/View error/Sign in(三元形)/statusLabels、mcp-dialog pending 门目标形 `disabled={status()?.status==="pending"||busy()}`、i18n **精确键集钉** dialog.mcp en17/zh3 + settings.plugins en12/zh0 + **五文件 consumed-keys 护栏**）——修订后 rc=0；appearance-settings：组 7 WHITELIST 5→6（`${APP}src/shell/search-list.css`，v2.2.1-native-file 类同 palette-menu.css）+ six-file 文案——rc=0；计数三钉 45→46、ID 上界 47→48、counts 尾行 M-048=46——rc=0（attachments-artifacts 产物条件性，dist 重建后 rc=0）；pairing：剪贴板域外事实 4/3→**5/4**——rc=0 |
+| 负例演练 A（mcp.ts 命名） | mcp.ts 拨 `api.experimental.mcp.*`（revert hunk） | tsc **TS2339 ×2**（:42/:46 `Property 'mcp' does not exist`——vendored 客户端无 experimental.mcp 组的机器证明）→ 还原 byte-form → agent-capabilities rc=0 + closure PASS |
+| 负例演练 B（consumed-keys 护栏） | 删 `dialog.mcp.search.empty` 键 | 护栏 **FAIL：`5: dialog.mcp.search.empty missing in en`** → 还原 → rc=0 + closure PASS（MAJOR-2 静默缺键类别关闭的机器证明） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行；低置信审阅行集合与基线内容全等（仅 verify-agent-capabilities 一条行号随探针增行漂移，内容同） |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，dist 标记命中于新 dist） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 3520 files / 159,663,930 bytes**（**+3 文件 / +64,134 bytes**：净新增 = mcp-dialog css 分块（search-list.css 引入）+ 共享 TruncatedText 分块（css/js/map 净入，抵 panel.css 移除）；ExtensionPlugins 并入改名 shell 分块（shell-DQYJDDvV），零新增文件；web-dist/manifest.json 已刷新并在 chore verify 同提交回填 commands-menus/gui-plugins/notifications 三探针 dist 常量 3517/159599796→3520/159663930）；dist 正例检索：`settings.plugins.parts.note` 文案命中 language chunk、`Sign in to` 命中 language+root chunk（M-048 i18n/组件入包）。**sourcemap 逐构建非字节确定（既有行为）**：实测 10 个 js 跨构建字节同一而 .map sha256 不同（Vite sourcesContent 占位 id 逐构建变化）——字节哈希审计应比对 manifest 文件名/字节数而非 .map 内容哈希 |
+| 探针普查（build 后） | 33 个 | **31 rc=0 / 2 rc=1**：全部修订探针 rc=0；debug-bar（W28 陈旧锚）/inline-ssh-device（CDP）预存 rc=1 同败同文；gradle 后复测 **29 rc=0 / 4 rc=1**（permission-requests/session-workbench 产物条件性 by design，#101 在册口径） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 22s**（41 tasks）；APK SHA-256 `57eeba6c8b10a63f8fda24d321b0aeaeec715eb3bdd553501d8ecf0b83dde42e`；`.145` 设备 `adb install -r` **Success**（数据保留升级；零 uninstall/零 pm clear/零主动断连） |
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12，物理 1840×2800 @DPR 2.25，WebView Chrome/114.0.5735.196，横屏 CSS 1245×786；`adb install -r` Success 数据保留；**零 uninstall/零 pm clear/零主动断连**；QA 前后全量 localStorage dump **逐键相等 18/18**、零凭据形新键、hosts.v1 保持 credentialRef 引用形字段白名单）
+
+驱动方式：debug APK WebView DevTools（adb forward tcp:9222 + CDP）——导航与控件经 CDP `Input.dispatchMouseEvent/KeyEvent` 注入（adb `input tap` 在本机横屏帧坐标映射不达 WebView，改用 CDP 注入并如实记录）；每步截图存档（/tmp，不提交）。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 1. S21 Providers 页目标形 | **PASS**：页头 Providers/Connect and manage model providers + **header 服务器切换槽**（`settings-server-switcher`，`Server authorized-bastion ▾`）；Connected providers 区 + 空态文案；Popular providers 区；`settings-providers-view-all`（Show more providers）点击 → **Connect provider 对话框**（搜索框 + Other 分组 + Custom OpenAI-compatible provider [Custom] 入口）——View all 面与对话框挂载面 PASS |
+| 2. S24 Models 页目标形 | **PASS**：页头 + 切换槽 + `Search models` 字段 + 「No model results」空态；**服务器切换槽端到端**：下拉开（authorized-bastion ✓/bastion-main/bastion-aux/Manage servers…）→ 选 bastion-main → 页头与路由 `?server=` 同步更新 |
+| 3. S25/S26 Extensions 页目标形 | **PASS**：MCPs/Plugins/Skills 三子 tab 行；MCPs 区「Available to all projects」+「Manage in opencode.json」；Plugins 空列表可读（`ExtensionPlugins` fallback 面）；Skills 空列表 + **「How to add skills」外链在位**（M-041 外跳面入口） |
+| 4. 设置搜索 | **PARTIAL（机制 PASS、迁移行环境受限）**：搜索面板开、`Language` 命中「Language — Preferences / General」、`shell` 命中 Background activity 行——rankSettings/搜索面板实态工作；**providers/models/extensions/mcps/plugins/skills 行未命中**——根因=search-index.ts:146 `if (!server.connected || server.key !== input.selected) return`（服务器作用域目录行仅入索引 when 选中服务器 connected），本轮 QA 期间应用的服务器连接全部掉线（见步 5）——该面如实登记为「connected 状态下待复验」，非 M-048 回归（搜索目录行本身 #101 目标形在册） |
+| 5. 服务器不可用面（负路径） | **PASS（三类失败分类逐一呈现）**：authorized-bastion（100.87.216.92）→「The SSH host did not answer in time…」超时类；bastion-main（192.168.3.152:22）→「SSH authentication succeeded, but the remote host refused to forward to the service…」认证成功但服务拒转类；bastion-aux（:2222）→「The SSH port refused the connection…」端口拒绝类——SSH hosts 管理器行内错误文案 + Servers 页红点状态逐主机正确；QA 中段起三主机均不可达/远端 opencode 服务下线（观察记录：本轮未取得远端侧诊断，不下因果结论；受影响验收面全部 BLOCKED）——**本轮 QA 后段在断连环境执行，页面呈空态/不可用面（如实标注）** |
+| 6. 凭据红线 | **PASS**：QA 前后 localStorage 全量 dump 逐键相等 18/18、零新增键、零凭据形值；`opencode-mobile.hosts.v1` 字段白名单 {id,name,target,createdAt,updatedAt,credentialRef,servicePort}、credentialRef 全为 `mobile-credential:*` 引用（值在 vault，不在 localStorage） |
+| 7. 负连接路径（S22 部分） | **BLOCKED（环境）**：Custom provider key 表单假 key 提交需可达服务器——本轮三主机全失败，key-form/`formatServerError` toast/对话框恢复链未能在真服务上执行（结构面=controller/dialog pin 形在册钉定） |
+
+### 阻塞项（如实，不写通过）
+
+- **目录/模型面**：provider 目录分组五分类、popular 行集、模型分组/搜索/可见性切换与重启持久化、collapsed-group 持久化、RECENT ≤5——需可达服务器 + 目录数据（本轮远端服务全部下线）；fixture 替代禁止。
+- **连接链**：API key/OAuth 真实连接（oauth.connect/poll/complete/cancel、过期、stale-attempt cancel、chatgpt welcome）、断开链、账号操作（activate/rename/remove + Console settle）——需真实凭据与可达服务（BLOCKED 继承 G25）。
+- **MCP 行面**：本地 stdio MCP 配置的 connected/pending/disabled/failed 四态呈现、启停 toggle（显式态 mutate）、failed→View error→DialogMcp、failed retry、disabled→connect 覆盖——需远端主机 opencode.json 配置 + 可达服务；needs_auth 真实 OAuth 重认证回推（`mcp.status.changed`）——需真实 OAuth MCP 服务（G26 继承）。
+- **Desktop 视觉对照**（无 Windows 参考端，继承）；`<768px` 两侧联验（DPR 2.25 物理不可达，继承）；TalkBack/外接键盘完整走查。
+- **FU-1/FU-2 登记为 Milestone 1 后续工作**（协调者 carve 后续 issue）：连接对话框族目标重设计 / 模型选择器族目标形——S21/S22/S24 剩余差异列指向，验收面在 #105 之外（当前形取消/过期/失败恢复已可达）。
+
+### 文档同步
+
+`docs/design/units/settings.md`（状态行 + F 边界 + 新增「供应商/模型/服务端扩展页内面——issue #105（S21–S26）」单元：交付清单/MCP 行面矩阵/FU 登记）；`docs/design/units/providers-models.md`（页内面目标形行/目录重试/mcp.ts 命名注记/局部 QA/FU-1·FU-2/zh 缺口族零变化注记）；`docs/design/units/agent-capabilities.md`（extensions 三子 tab 行目标形/plugin.list、mcp.list 调用面更新（B1 退役）/#105 更新块含 S25/S26 QA 与护栏）；`docs/design/units/connection.md`（§④ 剪贴板域外事实 + mcp-dialog copy 面）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S21–S26 行升级 + 阶段 3 行 #105 增补 + 推进回填栏）；补丁 manifest M-048 reason/verification/rebase 字段即偏离登记文档（9 targets、键集 parity 口径 + 死键保留、mcp.ts 命名线等价引文、appearance WHITELIST 注记、FU 登记）。
+
+
 
 ## BLOCKED 总表
 

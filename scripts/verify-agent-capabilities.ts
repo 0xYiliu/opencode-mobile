@@ -211,7 +211,6 @@ let mhFiles = 0
   const expectList = new Set([
     ...expectConnect,
     `${APP}src/new-session/mcp.ts`,
-    `${APP}src/settings/providers/extensions.tsx`,
     `${CLIENT}src/solid/data.ts`,
   ])
   const expectPluginList = new Set([
@@ -252,17 +251,25 @@ let mhFiles = 0
   if (!/api\(\)\s*\.\s*mcp\s*\.\s*list/.test(data))
     fail("1: the data-layer function-call receiver (api().mcp.list — N1) moved")
 
-  // The standing B1 cross-line case: extensions.tsx writes the mcp.list call
-  // across lines — the bare line-shape misses it, the tolerant regex hits.
+  // B1 retirement (M-048, issue #105): extensions.tsx used to be the standing
+  // cross-line mcp.list case; the target migration moved it to the data layer,
+  // so the UI face is exactly the four files above + the data-layer accessor.
+  // The tolerant scan stays (it is what proves the retirement); the page pins
+  // its new data-layer shapes below.
   const extensionsRaw = await read(`${APP}src/settings/providers/extensions.tsx`)
-  if (!/api\s*\.\s*mcp\s*\.\s*list\s*\(/.test(extensionsRaw))
-    fail("1: the tolerant cross-line scan must hit extensions.tsx mcp.list")
-  if (/api\.mcp\.list/.test(extensionsRaw))
-    fail("1: extensions.tsx mcp.list is no longer cross-line — the B1 standing case moved (update the note, keep the scan)")
+  if (/api\s*\.\s*mcp\s*\.\s*list\s*\(/.test(extensionsRaw))
+    fail("1: extensions.tsx regained an api.mcp.list call — M-048 moved it to the data layer (retired B1 case); re-derive the set if intentional")
+  const extensionsSq = squash(extensionsRaw)
+  if (!extensionsSq.includes("voiddata.location.mcp.server.sync(data.location.default()).catch(()=>undefined)"))
+    fail("1: the extensions.tsx default-Location mcp sync anchor moved")
+  if (!extensionsSq.includes("constactive=data.location.mcp.server.list(location())"))
+    fail("1: the extensions.tsx per-directory location() overlay anchor moved")
+  if (!extensionsSq.includes("data.location.mcp.server.list(data.location.default())??[])"))
+    fail("1: the extensions.tsx default-Location list overlay anchor moved")
 
-  // mcp.list UI-face vs data-face: the five UI files call it through
+  // mcp.list UI-face vs data-face: the four UI files call it through
   // server clients; only data.ts is the locationResource accessor (the N1
-  // two-part wording — UI call face five + data-layer accessor one).
+  // two-part wording — UI call face four + data-layer accessor one).
   if (!data.includes('locationResource("mcpServer",(location)=>api().mcp.list({location}))'))
     fail("1: the mcpServer locationResource accessor (data-layer mcp.list) changed")
 }
@@ -477,15 +484,30 @@ let mhFiles = 0
 
 // --- 5. Error and recovery chain ---
 {
-  // catch→[] fallback comments (both variants).
+  // catch→[] fallback comments (both variants). M-048 (issue #105): the target
+  // extensions.tsx DELETES the "Reading `.latest` rethrows…" comment (its
+  // mcpList resource is gone; only the pluginList `.catch(() => [])` shape
+  // remains), so the comment pin narrows to project-extensions.tsx (zero-delta
+  // file) and extensions.tsx keeps the shape pin + gains its target-face pins.
   const extensions = squash(await read(`${APP}src/settings/providers/extensions.tsx`))
-  if (!extensions.includes(squash("Reading `.latest` rethrows a failed fetch, so these lists fall back to empty instead of crashing the page.")))
-    fail("5: the catch→[] fallback comment moved (extensions.tsx, verbatim)")
   if (!extensions.includes(".catch(()=>[])")) fail("5: the catch→[] fallback shape moved (extensions.tsx)")
   const project = squash(await read(`${APP}src/settings/workspaces/project-extensions.tsx`))
   if (!project.includes(squash("rethrows a failed fetch")) || !project.includes(squash("fall back to empty instead of crashing the page")))
     fail("5: the catch→[] fallback comment moved (project-extensions.tsx, variant fragment)")
   if (!project.includes(".catch(()=>[])")) fail("5: the catch→[] fallback shape moved (project-extensions.tsx)")
+  // Target-face pins (issue #105 S25/S26): data-layer MCP row with the status
+  // dot, the failed View-error Button, the needs_auth Sign-in Button and the
+  // extensions-side statusLabels map.
+  if (!extensions.includes("settings-mcp-row")) fail("5: the extensions.tsx MCP row class (settings-mcp-row) moved")
+  if (!extensions.includes("mcp-status-dot")) fail("5: the extensions.tsx status dot (mcp-status-dot) moved")
+  if (!extensions.includes('data-status={item.status.status}')) fail("5: the extensions.tsx row data-status binding moved")
+  if (!extensions.includes('language.t("dialog.mcp.error.view")')) fail("5: the extensions.tsx failed-row View-error Button copy moved")
+  if (!extensions.includes('language.t(busy()?"dialog.mcp.signingIn":"dialog.mcp.signIn")'))
+    fail("5: the extensions.tsx needs_auth Sign-in Button copy moved")
+  if (
+    !extensions.includes('connected:"mcp.status.connected",failed:"mcp.status.failed",needs_auth:"mcp.status.needs_auth",disabled:"mcp.status.disabled"')
+  )
+    fail("5: the extensions.tsx statusLabels four-key map changed")
   // LSP loadFailed + retry recovery pair.
   if (!project.includes('language.t("project.settings.extensions.lsp.loadFailed")'))
     fail("5: the LSP loadFailed copy key moved")
@@ -513,7 +535,7 @@ let mhFiles = 0
   const dialog = squash(await read(`${APP}src/providers/connect/mcp-dialog.tsx`))
   if (!dialog.includes('connected:"mcp.status.connected",failed:"mcp.status.failed",needs_auth:"mcp.status.needs_auth",disabled:"mcp.status.disabled"'))
     fail("5: the mcp-dialog statusLabels four-key literal changed")
-  if (!dialog.includes('disabled={status()==="pending"||')) fail("5: the mcp-dialog pending-disabled Switch gate moved")
+  if (!dialog.includes('disabled={status()?.status==="pending"||busy()}')) fail("5: the mcp-dialog pending-disabled Switch gate moved (target form)")
   // i18n en+zh pairing (honest counts, zh gap included as-is).
   const en = await read(`${APP}src/runtime/i18n/en.ts`)
   const zh = await read(`${APP}src/runtime/i18n/zh.ts`)
@@ -531,11 +553,124 @@ let mhFiles = 0
     for (const key of enKeys) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
     for (const key of zhKeys) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
   }
+  // M-048 (issue #105): dialog.mcp and settings.plugins move from count pins to
+  // EXACT key-set pins, because `language.t` is untyped — tsc and count-only
+  // pairing stay green while a consumed key goes missing (the MAJOR-2
+  // silent-defect class). dialog.mcp en carries the target's 14 added keys PLUS
+  // the retained dead key `description` (target deletes it; our cross-locale
+  // sweep rides FU-1), zh stays at the three pin keys. settings.plugins is
+  // en-only (12 keys; zh has none and base-merge falls back to en).
+  const assertExactSet = (family: string, expectEn: string[], expectZh: string[]) => {
+    const enKeys = keySet(en, family)
+    const zhKeys = keySet(zh, family)
+    for (const key of expectEn) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
+    for (const key of enKeys) if (!expectEn.includes(key)) fail(`5: ${family}.${key} unexpected in en (key-set pin drifted)`)
+    for (const key of expectZh) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
+    for (const key of zhKeys) if (!expectZh.includes(key)) fail(`5: ${family}.${key} unexpected in zh (key-set pin drifted)`)
+  }
+  assertExactSet(
+    "dialog.mcp",
+    [
+      "title",
+      "description",
+      "empty",
+      "search.placeholder",
+      "search.empty",
+      "error.title",
+      "error.copy",
+      "error.copyFailed",
+      "error.open",
+      "error.status",
+      "signingIn",
+      "error.view",
+      "error.viewLabel",
+      "error.disable",
+      "signIn",
+      "signIn.open",
+      "error.details",
+    ],
+    ["title", "description", "empty"],
+  )
+  assertExactSet(
+    "settings.plugins",
+    [
+      "reload",
+      "status.loading",
+      "status.failed",
+      "error.notFound",
+      "error.show",
+      "error.hide",
+      "builtin",
+      "reserved",
+      "unsupported",
+      "part.server",
+      "part.tui",
+      "parts.note",
+    ],
+    [],
+  )
   assertPair("settings.extensions", 7)
   assertPair("mcp.status", 4)
-  assertPair("dialog.mcp", 3)
   assertPair("session.summary.mcp", 4)
   assertPair("project.settings.extensions", 20)
+  // Systemic consumed-keys guard (issue #105 §3-1d): every `language.t("…")`
+  // quoted literal in the five migrated files must exist in en.ts. `language.t`
+  // is untyped, so tsc cannot catch a missing key; this file-wide scan (quoted
+  // literals inside the call parens, ternary-wrapped forms included — NOT a
+  // naive call-site regex) is the machine check that closes the class.
+  const enKeyUniverse = new Set([...en.matchAll(/["']([A-Za-z0-9_.]+)["']\s*:/g)].map((m) => m[1]!))
+  const languageTLiterals = (source: string): string[] => {
+    const out: string[] = []
+    const marker = "language.t("
+    let idx = source.indexOf(marker)
+    while (idx >= 0) {
+      let depth = 1
+      let i = idx + marker.length
+      while (i < source.length && depth > 0) {
+        const ch = source[i]!
+        if (ch === "(") depth++
+        else if (ch === ")") depth--
+        else if (ch === '"' || ch === "'") {
+          const quote = ch
+          let j = i + 1
+          let literal = ""
+          while (j < source.length && source[j] !== quote) {
+            if (source[j] === "\\") {
+              literal += source[j + 1]!
+              j += 2
+              continue
+            }
+            literal += source[j]!
+            j++
+          }
+          out.push(literal)
+          i = j + 1
+          continue
+        }
+        i++
+      }
+      idx = source.indexOf(marker, idx + marker.length)
+    }
+    return out
+  }
+  for (const rel of [
+    `${APP}src/settings/providers/providers.tsx`,
+    `${APP}src/settings/models/models.tsx`,
+    `${APP}src/settings/providers/extensions.tsx`,
+    `${APP}src/providers/connect/mcp-dialog.tsx`,
+    `${APP}src/runtime/plugin/extension-plugins.tsx`,
+  ]) {
+    const source = await read(rel)
+    let checked = 0
+    for (const key of languageTLiterals(source)) {
+      if (key === "") continue // expression defaults inside the args (e.g. `?? ""`), not keys
+      checked++
+      if (!/^[A-Za-z0-9_.]+$/.test(key))
+        fail(`5: non-static language.t key in ${rel}: ${JSON.stringify(key)} — extend the guard deliberately`)
+      if (!enKeyUniverse.has(key)) fail(`5: consumed i18n key missing in en.ts: ${key} (${rel})`)
+    }
+    if (checked === 0) fail(`5: the consumed-keys guard found no language.t literals in ${rel} — scan broke`)
+  }
   // Issue #26 revision (deliberate, NOT a bypass): the en8/zh0 honest gap CLOSED —
   // M-026 added settings.guiExtensions.mobile.description to en (8->9) and the full
   // nine-key block to zh (0->9); both counts now assert 9 with full key-set pairing.
@@ -688,13 +823,13 @@ let mhFiles = 0
 
 console.log(
   "verify-agent-capabilities: PASS (" +
-    "1: MCP start/stop call-face exhaustive sets — connect/disconnect EXACTLY {providers/connect/mcp.ts, runtime/server/sync.tsx, gui-ext details/server-panel.tsx}, mcp.list EXACTLY 6 (= 3 + new-session/mcp.ts + extensions.tsx cross-line B1 case + data.ts `api().mcp.list` N1 data-layer accessor), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
+    "1: MCP start/stop call-face exhaustive sets — connect/disconnect EXACTLY {providers/connect/mcp.ts, runtime/server/sync.tsx, gui-ext details/server-panel.tsx}, mcp.list EXACTLY 5 (= 4 UI files + data.ts `api().mcp.list` N1 data-layer accessor; the extensions.tsx cross-line B1 case is RETIRED by M-048 — the page reads the data layer, its sync/list anchors pinned), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
     fourPkgFiles +
     " four-package src files; " +
     "2: re-auth three-site chain (integration.get → oauth.connect → openExternal + interactiveForm anchors + failed-state terminal re-check verbatim), integration.get exactly 5, oauth.connect exactly 4 (source caliber, N2); " +
     "3: GUI-extension main-process zero-execution — web.ts no extensions field, Bridge/Ipc verbatim, zero electron imports, specifier set exactly {sdk:34, sdk/bridge:8, renderer:2, updater:1} zero main, DEV+desktop double gate + guard, anti-overclaim renderer/os/installed anchors, details drawer chain (order 50 kind drawer + MobileViewTabs), wsl os literal, 6 main: entries desktop-side; " +
     "4: data-face five events (mcp.status.changed verbatim push-back comment) + reconnect resync five directories + locationResource accessors + connection.ts zero capability calls (event.subscribe only); " +
-    "5: error/recovery chain — catch→[] verbatim, LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled, i18n en+zh 7/4/3/4/20/9 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), manageConfig copy; " +
+    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by M-048), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the five migrated files, manageConfig copy; " +
     "6: config write boundary — updateConfig stub verbatim, mcp.add/remove + plugin.check/update + session.skill ZERO (receiver-tolerant), generated client anchors (PluginCheck/PluginUpdate/McpAdd/McpRemove/SessionSkill), Mcp.Server no-echo schema + five statuses, LocalConfig cwd verbatim, mobile-hosts " +
     mhFiles +
     " files capability-face-free, protocol descriptions verbatim; " +

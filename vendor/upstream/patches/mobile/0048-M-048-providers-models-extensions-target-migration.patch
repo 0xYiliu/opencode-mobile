@@ -1,0 +1,1338 @@
+diff --git a/packages/app/src/providers/catalog/providers.ts b/packages/app/src/providers/catalog/providers.ts
+index ae4000b647dc663cbc0db8e15c123a51c699fdd1..45033d6ffaffb705a5e20ed94e5be0b311d06840 100644
+--- a/packages/app/src/providers/catalog/providers.ts
++++ b/packages/app/src/providers/catalog/providers.ts
+@@ -1,6 +1,8 @@
+ import { useData } from "@/runtime/server/current"
+ import { useServerSDK } from "@/runtime/server/client"
+ import { normalizeProviderList } from "@/runtime/server/global-sync/utils"
++import { isServiceUnavailableError } from "@opencode/client/promise"
++import { retry } from "@opencode/util/retry"
+ import { Iterable, pipe } from "effect"
+ import { createEffect, createMemo, type Accessor } from "solid-js"
+ import type { ProviderListResponse } from "@/runtime/server/types"
+@@ -13,6 +15,10 @@ const emptyProviderCatalog: ProviderListResponse = { all: new Map(), connected:
+ 
+ const popularProviderSet = new Set(popularProviders)
+ 
++// A cold Location lists its catalogs once its plugins activate, which can take longer than the server's 5 s wait.
++export const syncWhileBooting = <A>(load: () => Promise<A>) =>
++  retry(load, { attempts: 12, delay: 1000, maxDelay: 5000, retryIf: isServiceUnavailableError })
++
+ export function useProviders(directory: Accessor<string | undefined>) {
+   const data = useData()
+   const sdk = useServerSDK()
+@@ -29,7 +35,9 @@ export function useProviders(directory: Accessor<string | undefined>) {
+     void (async () => {
+       if (!ref) await data.location.syncInfo()
+       const resolved = ref ?? data.location.default()
+-      await Promise.all([data.location.provider.sync(resolved), data.location.model.sync(resolved)])
++      await syncWhileBooting(() =>
++        Promise.all([data.location.provider.sync(resolved), data.location.model.sync(resolved)]),
++      )
+     })().catch(() => undefined)
+   })
+   const integrations = useIntegrations(directory)
+diff --git a/packages/app/src/providers/connect/mcp-dialog.tsx b/packages/app/src/providers/connect/mcp-dialog.tsx
+index 6be62f2fa265650b97dbe33ae9a201cc96f0dcc9..7e0023061f59bf95ba25e41f3a17b24b9cc06e64 100644
+--- a/packages/app/src/providers/connect/mcp-dialog.tsx
++++ b/packages/app/src/providers/connect/mcp-dialog.tsx
+@@ -1,11 +1,21 @@
+-import { Component, createMemo, Show } from "solid-js"
++import { Component, createEffect, createMemo, on, Show } from "solid-js"
++import { createStore } from "solid-js/store"
++import fuzzysort from "fuzzysort"
+ import { useData } from "@/runtime/server/current"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+-import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
+-import { List } from "@opencode/ui/list"
++import { Button } from "@opencode/ui/button"
++import { Dialog, DialogBody, DialogHeader, DialogTitle, DialogTitleGroup } from "@opencode/ui/dialog"
++import { Icon } from "@opencode/ui/icon"
++import { ErrorDetails } from "@opencode/ui/error-details"
++import { SearchList } from "@opencode/ui/search-list"
+ import { Switch } from "@opencode/ui/switch"
++import { TruncatedText } from "@opencode/ui/truncated-text"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { useMcpToggle } from "@/providers/connect/mcp"
++import { usePlatform } from "@/runtime/platform/platform"
++import { showToast } from "@/shell/notifications/toast"
++import "@/shell/commands/dialog.css"
++import "@/shell/search-list.css"
+ 
+ const statusLabels = {
+   connected: "mcp.status.connected",
+@@ -14,96 +24,256 @@ const statusLabels = {
+   disabled: "mcp.status.disabled",
+ } as const
+ 
++/** The MCPs dialog for the current workspace. */
+ export const DialogSelectMcp: Component = () => {
+-  const data = useData()
+   const sdk = useWorkspaceLocation()
++
++  return <DialogMcp directory={sdk().directory} />
++}
++
++/** Lists the MCP servers of `directory`; `server` opens directly on that server's error. */
++export const DialogMcp: Component<{ directory: string; server?: string }> = (props) => {
++  const data = useData()
+   const language = useLanguage()
++  const platform = usePlatform()
++  const directory = () => props.directory
++  const toggle = useMcpToggle(directory)
++
++  const [store, setStore] = createStore<{ detail?: string; copied: boolean; query: string }>({
++    detail: props.server,
++    copied: false,
++    query: "",
++  })
++
++  const loaded = () => data.location.mcp.server.list({ directory: directory() })
++  const servers = createMemo(() => loaded() ?? [])
++
++  createEffect(() => void data.location.mcp.server.sync({ directory: directory() }).catch(() => undefined))
+ 
+   const items = createMemo(() =>
+-    (data.location.mcp.server.list({ directory: sdk().directory }) ?? [])
++    servers()
+       .map((server) => ({ name: server.name, status: server.status.status }))
+       .sort((a, b) => a.name.localeCompare(b.name)),
+   )
+ 
+-  const toggle = useMcpToggle(() => sdk().directory)
++  const results = createMemo(() => {
++    const query = store.query.trim()
++
++    if (!query) return items()
++
++    return fuzzysort
++      .go(query, items(), { keys: ["name", "status"] })
++      .map((result) => result.obj)
++      .sort((a, b) => a.name.localeCompare(b.name))
++  })
++
++  // Like the TUI, a failed server's row opens its error; retrying and disabling happen there.
++  const failure = createMemo(() => {
++    const server = servers().find((item) => item.name === store.detail)
++
++    return server?.status.status === "failed" ? { name: server.name, error: server.status.error } : undefined
++  })
++
++  const toggleServer = (name: string) => {
++    const status = servers().find((server) => server.name === name)?.status.status
++
++    if (!status || status === "pending" || toggle.isPending) return
++    toggle.mutate(name)
++  }
++
++  const select = (name: string) => {
++    if (servers().find((server) => server.name === name)?.status.status !== "failed") return toggleServer(name)
++    setStore({ detail: name, copied: false })
++    requestAnimationFrame(() => backRef?.focus())
++  }
++
++  // The list stays mounted behind the error, so going back keeps the search, the highlight and the scroll.
++  const back = () => {
++    setStore("detail", undefined)
++    requestAnimationFrame(() => listRef?.querySelector<HTMLInputElement>('[role="combobox"]')?.focus())
++  }
+ 
+-  const enabledCount = createMemo(() => items().filter((i) => i.status === "connected").length)
+-  const totalCount = createMemo(() => items().length)
++  const onDetailKeyDown = (event: KeyboardEvent) => {
++    if (event.key !== "Escape") return
++    event.preventDefault()
++    event.stopPropagation()
++    back()
++  }
++
++  // A successful retry or a removed server leaves nothing to show, so return to the list.
++  createEffect(
++    on(failure, (current) => {
++      if (store.detail && loaded() && !current) back()
++    }),
++  )
++
++  const copy = (current: { name: string; error: string }) => {
++    const details = language.t("dialog.mcp.error.details", { name: current.name, error: current.error })
++
++    return (platform.writeClipboardText?.(details) ?? navigator.clipboard.writeText(details))
++      .then(() => setStore("copied", true))
++      .catch((error) =>
++        showToast({
++          variant: "error",
++          title: language.t("dialog.mcp.error.copyFailed"),
++          description: error instanceof Error ? error.message : String(error),
++        }),
++      )
++  }
++
++  let listRef: HTMLDivElement | undefined
++  let backRef: HTMLButtonElement | undefined
+ 
+   return (
+-    <Dialog>
+-      <DialogHeader>
+-        <DialogTitleGroup
+-          title={language.t("dialog.mcp.title")}
+-          description={language.t("dialog.mcp.description", { enabled: enabledCount(), total: totalCount() })}
+-        />
+-      </DialogHeader>
+-      <DialogBody>
+-        <List
+-          class="px-3"
+-          search={{ placeholder: language.t("common.search.placeholder"), autofocus: true }}
+-          emptyMessage={language.t("dialog.mcp.empty")}
+-          key={(x) => x?.name ?? ""}
+-          items={items}
+-          filterKeys={["name", "status"]}
+-          sortBy={(a, b) => a.name.localeCompare(b.name)}
+-          onSelect={(x) => {
+-            if (!x || x.status === "pending" || toggle.isPending) return
+-            toggle.mutate(x.name)
+-          }}
+-        >
+-          {(i) => {
+-            const mcpStatus = () =>
+-              data.location.mcp.server.list({ directory: sdk().directory })?.find((server) => server.name === i.name)
+-                ?.status
+-
+-            const status = () => mcpStatus()?.status
+-
+-            const statusLabel = () => {
+-              const key = status() ? statusLabels[status() as keyof typeof statusLabels] : undefined
+-
+-              if (!key) return
+-
+-              return language.t(key)
+-            }
+-
+-            const error = () => {
+-              const s = mcpStatus()
+-
+-              if (s?.status === "failed") return s.error
+-            }
+-
+-            const enabled = () => status() === "connected"
+-
+-            return (
+-              <div class="w-full flex items-center justify-between gap-x-3">
+-                <div class="flex flex-col gap-0.5 min-w-0">
+-                  <div class="flex items-center gap-2">
+-                    <span class="truncate">{i.name}</span>
+-                    <Show when={statusLabel()}>
+-                      <span class="text-11-regular text-text-weaker">{statusLabel()}</span>
++    // Like the model picker and the TUI, the list has no visible header; the search field leads.
++    <Dialog class="command-palette search-list-dialog mcp-dialog" size="large">
++      <Show
++        when={failure()}
++        fallback={
++          <div class="sr-only">
++            <DialogTitle>{language.t("dialog.mcp.title")}</DialogTitle>
++          </div>
++        }
++      >
++        {(current) => (
++          // Escape steps back to the list, like the TUI, instead of closing the dialog.
++          <div class="contents" data-owns-escape onKeyDown={onDetailKeyDown}>
++            <DialogHeader>
++              <div class="mcp-error-heading">
++                <button
++                  ref={backRef}
++                  type="button"
++                  autofocus
++                  class="flex size-5 shrink-0 items-center justify-center rounded-sm text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
++                  onClick={back}
++                  aria-label={language.t("common.goBack")}
++                >
++                  <Icon name="arrow-left" size="small" />
++                </button>
++                <DialogTitleGroup
++                  title={
++                    <span dir="auto" class="[overflow-wrap:anywhere]">
++                      {current().name}
++                    </span>
++                  }
++                  description={language.t("dialog.mcp.error.status")}
++                />
++              </div>
++            </DialogHeader>
++            <DialogBody class="search-list-body">
++              <ErrorDetails error={current().error}>
++                <Button
++                  class="error-details-copy"
++                  variant="ghost-muted"
++                  icon={store.copied ? "check" : "copy"}
++                  onClick={() => void copy(current())}
++                >
++                  {language.t(store.copied ? "common.copied" : "dialog.mcp.error.copy")}
++                </Button>
++                <Button
++                  variant="ghost"
++                  disabled={toggle.isPending}
++                  onClick={() => toggle.mutate({ name: current().name, enabled: false })}
++                >
++                  {language.t("dialog.mcp.error.disable")}
++                </Button>
++                <Button variant="neutral" disabled={toggle.isPending} onClick={() => toggleServer(current().name)}>
++                  {language.t("common.retry")}
++                </Button>
++              </ErrorDetails>
++            </DialogBody>
++          </div>
++        )}
++      </Show>
++      <div class="contents" ref={listRef} style={{ display: failure() ? "none" : undefined }}>
++        <DialogBody class="command-palette-body">
++          <SearchList
++            query={store.query}
++            onQuery={(query) => setStore("query", query)}
++            placeholder={language.t("dialog.mcp.search.placeholder")}
++            items={results()}
++            key={(item) => item.name}
++            empty={language.t(items().length > 0 ? "dialog.mcp.search.empty" : "dialog.mcp.empty")}
++            onSelect={(item) => select(item.name)}
++          >
++            {(item, row) => {
++              const server = () => servers().find((entry) => entry.name === item().name)
++              const status = () => server()?.status
++              const error = () => {
++                const current = status()
++
++                return current?.status === "failed" ? current.error : undefined
++              }
++              // The switch would start sign-in anyway, so an auth-gated server shows that action instead.
++              const signIn = () => status()?.status === "needs_auth" && !!server()?.integrationID
++
++              const busy = () => {
++                const target = toggle.isPending ? toggle.variables : undefined
++
++                return (typeof target === "string" ? target : target?.name) === item().name
++              }
++
++              // The dot shows the status, as in the session's MCP list; the words stay for assistive technology.
++              const label = () => {
++                const current = status()?.status
++
++                return current && current !== "pending" ? language.t(statusLabels[current]) : undefined
++              }
++
++              return (
++                <div {...row} data-option-key={item().name} data-status={status()?.status}>
++                  <span class="mcp-dialog-lead">
++                    <span class="mcp-status-dot" data-status={status()?.status} aria-hidden="true" />
++                    <TruncatedText text={item().name} class="mcp-dialog-name" />
++                  </span>
++                  <div class="mcp-trailing" onClick={(event) => event.stopPropagation()}>
++                    <Show when={error()}>
++                      <Button
++                        size="small"
++                        variant="ghost-muted"
++                        class="mcp-status-action"
++                        aria-label={language.t("dialog.mcp.error.viewLabel", { name: item().name })}
++                        onClick={() => select(item().name)}
++                      >
++                        {language.t("dialog.mcp.error.view")}
++                      </Button>
++                    </Show>
++                    <Show
++                      when={signIn()}
++                      fallback={
++                        <Switch
++                          checked={!!status() && status()?.status !== "disabled"}
++                          disabled={status()?.status === "pending" || busy()}
++                          description={label()}
++                          class="[&_[data-slot=switch-description]]:sr-only"
++                          onChange={(enabled) => {
++                            if (toggle.isPending) return
++                            toggle.mutate({ name: item().name, enabled })
++                          }}
++                        >
++                          <span class="sr-only">{item().name}</span>
++                        </Switch>
++                      }
++                    >
++                      <Button
++                        size="small"
++                        variant="ghost-muted"
++                        class="mcp-status-action"
++                        disabled={busy()}
++                        aria-busy={busy()}
++                        aria-label={language.t("dialog.mcp.signIn.open", { name: item().name })}
++                        onClick={() => toggleServer(item().name)}
++                      >
++                        {language.t(busy() ? "dialog.mcp.signingIn" : "dialog.mcp.signIn")}
++                      </Button>
+                     </Show>
+                   </div>
+-                  <Show when={error()}>
+-                    <span class="text-11-regular text-text-weaker truncate">{error()}</span>
+-                  </Show>
+-                </div>
+-                <div onClick={(e) => e.stopPropagation()}>
+-                  <Switch
+-                    appearance="standard"
+-                    checked={enabled()}
+-                    disabled={status() === "pending" || (toggle.isPending && toggle.variables === i.name)}
+-                    onChange={() => {
+-                      if (toggle.isPending) return
+-                      toggle.mutate(i.name)
+-                    }}
+-                  />
+                 </div>
+-              </div>
+-            )
+-          }}
+-        </List>
+-      </DialogBody>
++              )
++            }}
++          </SearchList>
++        </DialogBody>
++      </div>
+     </Dialog>
+   )
+ }
+diff --git a/packages/app/src/providers/connect/mcp.ts b/packages/app/src/providers/connect/mcp.ts
+index c578895ed30628f5db0aee6aec1936acf79437ef..53450f15e1e046f07f408923633085ba2f18abbc 100644
+--- a/packages/app/src/providers/connect/mcp.ts
++++ b/packages/app/src/providers/connect/mcp.ts
+@@ -13,7 +13,7 @@ export type McpControls = {
+   change: (name: string, enabled: boolean) => void
+ }
+ 
+-export function useMcpToggle(directory?: Accessor<string | undefined>, onSuccess?: () => unknown) {
++export function useMcpToggle(directory?: Accessor<string | undefined>, onSuccess?: () => void) {
+   const data = useData()
+   const serverSDK = useServerSDK()
+   const platform = usePlatform()
+@@ -27,14 +27,18 @@ export function useMcpToggle(directory?: Accessor<string | undefined>, onSuccess
+ 
+   return useMutation(() => ({
+     mutationFn: async (input: string | { name: string; enabled: boolean; directory?: string }) => {
+-      const name = typeof input === "string" ? input : input.name
+-      const ref = typeof input !== "string" && input.directory ? { directory: input.directory } : location()
++      // A bare name toggles the server; an object sets an explicit state.
++      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- discriminates this function's own input union
++      const request: { name: string; enabled?: boolean; directory?: string } = typeof input === "string" ? { name: input } : input
++      const name = request.name
++      const ref = request.directory ? { directory: request.directory } : location()
+       const server = (await serverSDK.api.mcp.list({ location: ref })).data.find((item) => item.name === name)
+ 
+-      if (!server || (server.status.status === "pending" && typeof input === "string")) return
+-      const enabled = typeof input === "string" ? server.status.status !== "connected" : input.enabled
++      if (!server || (server.status.status === "pending" && request.enabled === undefined)) return
++      const enabled = request.enabled ?? server.status.status !== "connected"
+ 
+       if (!enabled) {
++        // mobile(M-048): pin generated-client namespace; wire-equivalent — target's own generated client keeps deprecated aliases client.mcp.connect = client.experimental.mcp.connect (same /api/experimental/mcp/:server/* paths), and this vendored client's mcp group already dials those paths directly.
+         await serverSDK.api.mcp.disconnect({ server: name, location: ref })
+       }
+ 
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index b885afc0b234af9c2698060caf5bb4a2e8a10126..61f2419b0382c391911efc777ee36dbdf1ad187a 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -330,6 +330,21 @@ export const dict = {
+   "dialog.mcp.title": "MCPs",
+   "dialog.mcp.description": "{{enabled}} of {{total}} enabled",
+   "dialog.mcp.empty": "No MCPs configured",
++  "dialog.mcp.search.placeholder": "Search MCPs",
++  "dialog.mcp.search.empty": "No MCPs found",
++  "dialog.mcp.error.title": "MCP server: {{name}}",
++  "dialog.mcp.error.copy": "Copy details",
++  "dialog.mcp.error.copyFailed": "Couldn't copy error details",
++  "dialog.mcp.error.open": "{{name}} failed, view error",
++  "dialog.mcp.error.status": "Connection failed",
++  "dialog.mcp.signingIn": "Signing in…",
++  "dialog.mcp.error.view": "View error",
++  "dialog.mcp.error.viewLabel": "View error for {{name}}",
++  "dialog.mcp.error.disable": "Disable",
++  "dialog.mcp.signIn": "Sign in",
++  "dialog.mcp.signIn.open": "Sign in to {{name}}",
++  "dialog.mcp.error.details":
++    "MCP server: {{name}}\nStatus: failed\nConfiguration: mcp.servers.{{name}}\nError: {{error}}",
+ 
+   "mcp.status.connected": "connected",
+   "mcp.status.failed": "failed",
+@@ -718,6 +733,19 @@ export const dict = {
+   // mobile(M-026): the first-party manager face on non-desktop builds (issue #26).
+   "settings.guiExtensions.mobile.description":
+     "Built-in GUI extensions of this app. Turn one off to hide its panels here; the remote server keeps working.",
++  "settings.plugins.reload": "Reload",
++  "settings.plugins.status.loading": "Loading",
++  "settings.plugins.status.failed": "Failed",
++  "settings.plugins.error.notFound": "Plugin not found",
++  "settings.plugins.error.show": "Show details",
++  "settings.plugins.error.hide": "Hide details",
++  "settings.plugins.builtin": "Built-in",
++  "settings.plugins.reserved": "Not loaded. A built-in plugin already uses this ID.",
++  "settings.plugins.unsupported": "Not available on this system.",
++  "settings.plugins.part.server": "Server",
++  "settings.plugins.part.tui": "TUI",
++  "settings.plugins.parts.note":
++    'Switches turn off only a plugin\'s desktop UI. Add "-<id>" to plugins in your global opencode.json to turn off its server part, or "-" and its TUI plugin\'s ID to plugins in cli.json to turn off its TUI part.',
+   "settings.tab.about": "About",
+   "settings.about.version": "Version {{version}}",
+   "settings.about.devVersion": "development",
+diff --git a/packages/app/src/runtime/plugin/extension-plugins.tsx b/packages/app/src/runtime/plugin/extension-plugins.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..93250fcc3c2df1cd15ac7f891f523a3fd76495f9
+--- /dev/null
++++ b/packages/app/src/runtime/plugin/extension-plugins.tsx
+@@ -0,0 +1,249 @@
++import type { PluginInfo } from "@opencode/client"
++import { Predicate } from "effect"
++import { createMemo, createSignal, createUniqueId, For, Show } from "solid-js"
++import { Badge } from "@opencode/ui/badge"
++import { Button } from "@opencode/ui/button"
++import { Icon } from "@opencode/ui/icon"
++import { Switch } from "@opencode/ui/switch"
++import { pluginLabel } from "@/providers/catalog/plugin"
++import { useLanguage } from "@/runtime/i18n/language"
++import { usePlatform } from "@/runtime/platform/platform"
++import { SettingsList } from "@/settings/list"
++import { showToast } from "@/shell/notifications/toast"
++import "@/settings/settings.css"
++import { builtins } from "./builtins"
++import { usePluginHost } from "./host"
++import { createInstalled } from "./installed"
++import { useReservedPlugins } from "./root"
++
++/**
++ * The plugins a server lists, for the Plugins tab of Extensions. Only the desktop app's own server (`own`) runs its
++ * plugins' GUIs in this window, so only its rows add the window's controls; other servers and the web list names.
++ */
++export function ExtensionPlugins(props: { plugins: readonly PluginInfo[]; own: boolean }) {
++  const listed = () => props.plugins.filter((plugin) => plugin.source.type !== "builtin")
++
++  return (
++    <Show
++      when={props.own}
++      fallback={
++        <SettingsList variant="catalog">
++          <For each={listed()}>
++            {(plugin) => (
++              <div class="settings-extension-row">
++                <div class="settings-extension-lead">
++                  <Icon name="cube" class="text-v2-icon-icon-muted shrink-0" />
++                  <span class="settings-extension-name truncate">{pluginLabel(plugin)}</span>
++                </div>
++              </div>
++            )}
++          </For>
++        </SettingsList>
++      }
++    >
++      <OwnServerPlugins plugins={listed()} />
++    </Show>
++  )
++}
++
++/**
++ * The plugins of the desktop app's own server, merged by id with what main and this window know of their GUIs: a
++ * switch that turns off only the desktop UI, Reload, status and errors, and rows for plugins main lists that the
++ * server list does not name. Built-ins always run and stay hidden unless they failed, which only this list reports.
++ */
++function OwnServerPlugins(props: { plugins: readonly PluginInfo[] }) {
++  const language = useLanguage()
++  const host = usePluginHost()
++  const bridge = usePlatform().plugins
++  const installed = createInstalled(bridge)
++  const reserved = useReservedPlugins()
++
++  const builtin = (id: string) => builtins.some((definition) => definition.id === id)
++
++  // A server plugin's id can be a built-in's (a reserved id), so each row looks up its own kind of item.
++  const itemOf = (id: string, kind: "builtin" | "config") =>
++    installed.list().find((item) => item.id === id && item.builtin === (kind === "builtin"))
++
++  const defined = (id: string) => !builtin(id) && host.definitions().some((definition) => definition.id === id)
++
++  // What the window knows of a plugin on this server. A plugin without a GUI has nothing besides its name.
++  const kind = (id: string | undefined) => {
++    if (!id) return undefined
++
++    if (reserved().includes(id)) return "reserved"
++    const item = itemOf(id, "config")
++
++    if (item?.unsupported) return "unsupported"
++
++    // A bundle main could not read never reaches the window.
++    if (item?.error !== undefined && !defined(id)) return "unreadable"
++
++    if (item || defined(id)) return "loaded"
++
++    return undefined
++  }
++
++  // Plugins main reports that the server list does not name, for example while that list loads or after it failed.
++  const unnamed = createMemo(() => {
++    const named = new Set(props.plugins.flatMap((plugin) => (plugin.id ? [plugin.id] : [])))
++
++    return [
++      ...new Set([
++        ...host.definitions().flatMap((definition) => (builtin(definition.id) ? [] : [definition.id])),
++        ...installed.list().flatMap((item) => (item.builtin ? [] : [item.id])),
++        ...reserved(),
++      ]),
++    ].filter((id) => !named.has(id))
++  })
++
++  // Why the window entry or main's entry failed; either fails the plugin.
++  const errorOf = (id: string, kind: "builtin" | "config") => host.state.failures[id]?.error ?? itemOf(id, kind)?.error
++
++  const failedBuiltins = createMemo(() =>
++    host
++      .definitions()
++      .flatMap((definition) =>
++        builtin(definition.id) && errorOf(definition.id, "builtin") !== undefined ? [definition.id] : [],
++      ),
++  )
++
++  // The switch already shows whether a plugin runs; only the states it cannot show get a label.
++  const status = (id: string, kind: "builtin" | "config") => {
++    const value = host.state.status[id] ?? "loading"
++
++    if (value === "failed" || (value === "active" && itemOf(id, kind)?.error))
++      return language.t("settings.plugins.status.failed")
++
++    if (value === "active" || value === "disabled") return undefined
++
++    return language.t("settings.plugins.status.loading")
++  }
++
++  const run = (work: Promise<void> | undefined) =>
++    void work?.catch((cause: unknown) =>
++      showToast({
++        variant: "error",
++        title:
++          Predicate.hasProperty(cause, "code") && cause.code === "notFound"
++            ? language.t("settings.plugins.error.notFound")
++            : language.t("common.requestFailed"),
++      }),
++    )
++
++  const toggle = (id: string, next: boolean) => run(next ? bridge?.manager.enable(id) : bridge?.manager.disable(id))
++
++  // Main entries reload through the manager; the renderer entry reloads here.
++  const reload = (id: string) => {
++    host.reload(id)
++    run(bridge?.manager.reload(id))
++  }
++
++  const row = (input: { id: string | undefined; name: string; builtin?: boolean }) => {
++    const state = () => (input.builtin ? "loaded" : kind(input.id))
++    const part = input.builtin ? "builtin" : "config"
++    const live = () => (state() === "loaded" ? input.id : undefined)
++
++    return (
++      <div class="settings-extension-row">
++        <div class="settings-extension-lead">
++          <Icon name="cube" class="text-v2-icon-icon-muted shrink-0" />
++          <div class="flex min-w-0 flex-col gap-0.5">
++            <div class="settings-provider-main">
++              <bdi dir="ltr" class="settings-extension-name truncate">
++                {input.name}
++              </bdi>
++              <Show when={live()}>
++                {(id) => (
++                  <>
++                    <Show when={input.builtin}>
++                      <Badge>{language.t("settings.plugins.builtin")}</Badge>
++                    </Show>
++                    {/* The parts besides the desktop UI that this row's switch leaves running. */}
++                    <Show when={itemOf(id(), part)?.server}>
++                      <Badge>{language.t("settings.plugins.part.server")}</Badge>
++                    </Show>
++                    <Show when={itemOf(id(), part)?.tui}>
++                      <Badge>{language.t("settings.plugins.part.tui")}</Badge>
++                    </Show>
++                    <Show when={status(id(), part)}>
++                      {(label) => <span class="text-11-regular text-v2-text-text-muted">{label()}</span>}
++                    </Show>
++                  </>
++                )}
++              </Show>
++            </div>
++            <Show when={live()}>
++              {(id) => <Show when={errorOf(id(), part)}>{(error) => <PluginError error={error()} />}</Show>}
++            </Show>
++            <Show when={state() === "unsupported"}>
++              <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.plugins.unsupported")}</span>
++            </Show>
++            <Show when={state() === "unreadable" && input.id && itemOf(input.id, part)?.error}>
++              {(error) => <PluginError error={error()} />}
++            </Show>
++            <Show when={state() === "reserved"}>
++              <span class="settings-server-dialog-error">{language.t("settings.plugins.reserved")}</span>
++            </Show>
++          </div>
++        </div>
++        <Show when={live()}>
++          {(id) => (
++            <div class="settings-servers-actions">
++              <Button size="small" variant="ghost" onClick={() => reload(id())}>
++                {language.t("settings.plugins.reload")}
++              </Button>
++              {/* A built-in always runs; it keeps the switch's width, so every Reload lines up. */}
++              <Show when={!input.builtin} fallback={<span class="w-6 shrink-0" aria-hidden="true" />}>
++                <Switch hideLabel checked={itemOf(id(), part)?.enabled ?? true} onChange={(next) => toggle(id(), next)}>
++                  {id()}
++                </Switch>
++              </Show>
++            </div>
++          )}
++        </Show>
++      </div>
++    )
++  }
++
++  return (
++    <>
++      <SettingsList variant="catalog">
++        <For each={props.plugins}>{(plugin) => row({ id: plugin.id, name: pluginLabel(plugin) })}</For>
++        <For each={unnamed()}>{(id) => row({ id, name: id })}</For>
++        <For each={failedBuiltins()}>{(id) => row({ id, name: id, builtin: true })}</For>
++      </SettingsList>
++      <Show when={installed.list().some((item) => !item.builtin)}>
++        <p class="text-11-regular text-v2-text-text-muted">{language.t("settings.plugins.parts.note")}</p>
++      </Show>
++    </>
++  )
++}
++
++/** A plugin's error: its first line, the message, with the rest (such as a stack trace) behind a toggle. */
++function PluginError(props: { error: string }) {
++  const language = useLanguage()
++  const id = createUniqueId()
++  const [open, setOpen] = createSignal(false)
++  const message = () => props.error.split("\n", 1)[0]
++  const more = () => props.error.trimEnd().includes("\n")
++
++  return (
++    <div class="flex min-w-0 flex-col items-start gap-1">
++      <pre id={id} class="settings-server-dialog-error whitespace-pre-wrap">
++        {open() || !more() ? props.error : message()}
++      </pre>
++      <Show when={more()}>
++        <Button
++          size="small"
++          variant="ghost-muted"
++          class="settings-plugin-error-toggle"
++          aria-expanded={open()}
++          aria-controls={id}
++          onClick={() => setOpen((value) => !value)}
++        >
++          {language.t(open() ? "settings.plugins.error.hide" : "settings.plugins.error.show")}
++        </Button>
++      </Show>
++    </div>
++  )
++}
+diff --git a/packages/app/src/settings/models/models.tsx b/packages/app/src/settings/models/models.tsx
+index c96f0b806511cb1b11b672d4660dee25e624c0ef..454db6da3f2dbd3be8160e25be216054ff98eff6 100644
+--- a/packages/app/src/settings/models/models.tsx
++++ b/packages/app/src/settings/models/models.tsx
+@@ -1,6 +1,6 @@
+ import { useFilteredList } from "@opencode/ui/hooks"
+ import { Switch } from "@opencode/ui/switch"
+-import { type Component, type JSX, createEffect, createMemo, For, Show } from "solid-js"
++import { type Component, createEffect, createMemo, For, type JSX, Show } from "solid-js"
+ 
+ import { Schema } from "effect"
+ import { Persistence } from "@/runtime/persistence/schema"
+@@ -143,7 +143,7 @@ export const SettingsModels: Component<{
+     <>
+       <div class="settings-tab-header settings-tab-header--stacked">
+         <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
++          <div class="flex min-w-0 flex-col gap-1">
+             <h2 class="settings-tab-title">{language.t("settings.models.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.models.description")}</span>
+           </div>
+diff --git a/packages/app/src/settings/providers/extensions.tsx b/packages/app/src/settings/providers/extensions.tsx
+index e85854f085215e55a614bfcc151cc26f0e7d5878..cc85893b8e2081f58cb4a7e85c41f129ac349561 100644
+--- a/packages/app/src/settings/providers/extensions.tsx
++++ b/packages/app/src/settings/providers/extensions.tsx
+@@ -1,29 +1,33 @@
+-import { Component, For, createEffect, createMemo, createResource, type JSX } from "solid-js"
++import { Predicate } from "effect"
++import { Component, For, Show, createEffect, createMemo, createResource, type JSX } from "solid-js"
++import { useDialog } from "@opencode/ui/context/dialog"
+ import { Icon } from "@opencode/ui/icon"
++import { Button } from "@opencode/ui/button"
+ import { Switch } from "@opencode/ui/switch"
+ import { Tabs } from "@opencode/ui/tabs"
++import { TruncatedText } from "@opencode/ui/truncated-text"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { useData } from "@/runtime/server/current"
+ import { useServerSDK } from "@/runtime/server/client"
++import { ServerConnection } from "@/runtime/server/registry"
+ import { useMcpToggle } from "@/providers/connect/mcp"
+-import { pluginLabels } from "@/providers/catalog/plugin"
++import { DialogMcp } from "@/providers/connect/mcp-dialog"
++import { ExtensionPlugins } from "@/runtime/plugin/extension-plugins"
+ import { ExternalLink } from "@/runtime/platform/external-link"
++import { usePlatform } from "@/runtime/platform/platform"
+ import { SettingsList } from "@/settings/list"
+ import type { SettingsView } from "@/settings/surface"
+ import "@/settings/settings.css"
++import "@/shell/search-list.css"
+ 
+-interface McpRowItem {
+-  name: string
+-  enabled: boolean
+-}
+-
+-interface PluginRowItem {
+-  name: string
+-}
++const statusLabels = {
++  connected: "mcp.status.connected",
++  failed: "mcp.status.failed",
++  needs_auth: "mcp.status.needs_auth",
++  disabled: "mcp.status.disabled",
++} as const
+ 
+ export const SettingsExtensions: Component<{
+-  // mobile(M-043): accepted for the migrated shell's call shape; the per-directory MCP
+-  // location wiring stays with the owning page issue (the default location is kept).
+   directory?: string
+   subtab?: SettingsView["subtab"]
+   onSubtab: (value: SettingsView["subtab"]) => void
+@@ -32,30 +36,32 @@ export const SettingsExtensions: Component<{
+   const language = useLanguage()
+   const serverSdk = useServerSDK()
+   const data = useData()
++  const dialog = useDialog()
++  const platform = usePlatform()
++  // MCP connections are per Location, so read and toggle them where the active session runs, as the TUI does. The
++  // names come from the default Location so this page lists only the servers available to all projects.
++  const location = () => (props.directory ? { directory: props.directory } : data.location.default())
++  const toggleMcp = useMcpToggle(() => props.directory)
+ 
+-  // Reading `.latest` rethrows a failed fetch, so these lists fall back to empty instead of crashing the page.
+-  const [mcpList, { refetch: refetchMcp }] = createResource(
+-    () => serverSdk.connection.status() === "connected",
+-    () =>
+-      serverSdk.api.mcp
+-        .list()
+-        .then((result) => result.data)
+-        .catch(() => []),
+-    { initialValue: [] },
+-  )
++  // The synced lists follow mcp.status.changed, so a finished sign-in shows up without a refetch.
++  createEffect(() => {
++    if (serverSdk.connection.status() !== "connected") return
++    void data.location.mcp.server.sync(data.location.default()).catch(() => undefined)
+ 
+-  const toggleMcp = useMcpToggle(() => undefined, refetchMcp)
++    if (props.directory) void data.location.mcp.server.sync(location()).catch(() => undefined)
++  })
++
++  const mcps = createMemo(() => {
++    const active = data.location.mcp.server.list(location())
+ 
+-  const mcps = createMemo<McpRowItem[]>(() => {
+-    return (mcpList.latest ?? []).map((server) => ({
+-      name: server.name,
+-      enabled: server.status.status === "connected",
+-    }))
++    return (data.location.mcp.server.list(data.location.default()) ?? [])
++      .map((server) => active?.find((item) => item.name === server.name) ?? server)
++      .toSorted((a, b) => a.name.localeCompare(b.name))
+   })
+ 
+-  const handleMcpToggle = (item: McpRowItem, checked: boolean) => {
+-    if (item.enabled === checked || toggleMcp.isPending) return
+-    toggleMcp.mutate(item.name)
++  const toggle = (name: string) => {
++    if (toggleMcp.isPending) return
++    toggleMcp.mutate(name)
+   }
+ 
+   const [pluginList] = createResource(
+@@ -68,7 +74,8 @@ export const SettingsExtensions: Component<{
+     { initialValue: [] },
+   )
+ 
+-  const plugins = createMemo<PluginRowItem[]>(() => pluginLabels(pluginList.latest ?? []).map((name) => ({ name })))
++  // The desktop window runs the GUIs of its own server's plugins, so only that server's rows control them.
++  const own = () => !!platform.plugins && ServerConnection.builtin(serverSdk.server)
+ 
+   createEffect(() => {
+     if (serverSdk.connection.status() !== "connected") return
+@@ -80,7 +87,7 @@ export const SettingsExtensions: Component<{
+     <>
+       <div class="settings-tab-header">
+         <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
++          <div class="flex min-w-0 flex-col gap-1">
+             <h2 class="settings-tab-title">{language.t("settings.tab.extensions")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.extensions.description")}</span>
+           </div>
+@@ -115,17 +122,72 @@ export const SettingsExtensions: Component<{
+               </div>
+               <SettingsList variant="catalog">
+                 <For each={mcps()}>
+-                  {(item) => (
+-                    <div class="settings-extension-row">
+-                      <div class="settings-extension-lead">
+-                        <Icon name="mcp" class="text-v2-icon-icon-muted shrink-0" />
+-                        <span class="settings-extension-name truncate">{item.name}</span>
++                  {(item) => {
++                    const busy = () => {
++                      const target = toggleMcp.isPending ? toggleMcp.variables : undefined
++
++                      return (Predicate.isString(target) ? target : target?.name) === item.name
++                    }
++
++                    // The dot shows the status, as in the MCPs dialog; the words stay for assistive technology.
++                    const label = () =>
++                      item.status.status === "pending" ? undefined : language.t(statusLabels[item.status.status])
++
++                    return (
++                      <div class="settings-extension-row settings-mcp-row" data-status={item.status.status}>
++                        <div class="settings-extension-lead">
++                          <span class="settings-mcp-status">
++                            <span class="mcp-status-dot" data-status={item.status.status} aria-hidden="true" />
++                          </span>
++                          <TruncatedText text={item.name} class="settings-extension-name" />
++                        </div>
++                        <div class="settings-extension-trailing">
++                          <Show when={item.status.status === "failed"}>
++                            <Button
++                              size="small"
++                              variant="ghost-muted"
++                              class="mcp-status-action"
++                              aria-label={language.t("dialog.mcp.error.viewLabel", { name: item.name })}
++                              onClick={() =>
++                                dialog.show(() => <DialogMcp directory={location().directory} server={item.name} />)
++                              }
++                            >
++                              {language.t("dialog.mcp.error.view")}
++                            </Button>
++                          </Show>
++                          <Show
++                            when={item.status.status === "needs_auth" && item.integrationID}
++                            fallback={
++                              <Switch
++                                checked={item.status.status !== "disabled"}
++                                disabled={item.status.status === "pending" || busy()}
++                                description={label()}
++                                class="[&_[data-slot=switch-description]]:sr-only"
++                                onChange={(enabled) => {
++                                  if (toggleMcp.isPending) return
++                                  toggleMcp.mutate({ name: item.name, enabled })
++                                }}
++                              >
++                                <span class="sr-only">{item.name}</span>
++                              </Switch>
++                            }
++                          >
++                            <Button
++                              size="small"
++                              variant="ghost-muted"
++                              class="mcp-status-action"
++                              disabled={busy()}
++                              aria-busy={busy()}
++                              aria-label={language.t("dialog.mcp.signIn.open", { name: item.name })}
++                              onClick={() => toggle(item.name)}
++                            >
++                              {language.t(busy() ? "dialog.mcp.signingIn" : "dialog.mcp.signIn")}
++                            </Button>
++                          </Show>
++                        </div>
+                       </div>
+-                      <Switch checked={item.enabled} onChange={(checked) => handleMcpToggle(item, checked)} hideLabel>
+-                        {item.name}
+-                      </Switch>
+-                    </div>
+-                  )}
++                    )
++                  }}
+                 </For>
+               </SettingsList>
+             </div>
+@@ -141,18 +203,7 @@ export const SettingsExtensions: Component<{
+                   {language.t("settings.extensions.manageConfig")}
+                 </span>
+               </div>
+-              <SettingsList variant="catalog">
+-                <For each={plugins()}>
+-                  {(plugin) => (
+-                    <div class="settings-extension-row">
+-                      <div class="settings-extension-lead">
+-                        <Icon name="cube" class="text-v2-icon-icon-muted shrink-0" />
+-                        <span class="settings-extension-name truncate">{plugin.name}</span>
+-                      </div>
+-                    </div>
+-                  )}
+-                </For>
+-              </SettingsList>
++              <ExtensionPlugins plugins={pluginList.latest ?? []} own={own()} />
+             </div>
+           </Tabs.Content>
+ 
+diff --git a/packages/app/src/settings/providers/providers.tsx b/packages/app/src/settings/providers/providers.tsx
+index 6d52510bdff9b3f4fbbc6c0eddf8d2eef0cba113..be2b5c91691afd115291390a364def21699aede8 100644
+--- a/packages/app/src/settings/providers/providers.tsx
++++ b/packages/app/src/settings/providers/providers.tsx
+@@ -9,12 +9,12 @@ import { showToast } from "@/shell/notifications/toast"
+ import { popularProviders, useProviders } from "@/providers/catalog/providers"
+ import { consoleProviderGroup } from "@/providers/catalog/console"
+ import { useIntegrations } from "@/providers/catalog/integrations"
+-import { createEffect, createMemo, type Component, type JSX, For, Show } from "solid-js"
++import { createEffect, createMemo, type Component, For, type JSX, Show } from "solid-js"
+ import { createStore, reconcile } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { useServerSDK } from "@/runtime/server/client"
+ import { formatServerError } from "@/runtime/server/errors"
+-import { CONSOLE_INTEGRATION, CONSOLE_PROVIDERS } from "@/providers/connect/controller"
++import { CONSOLE_INTEGRATION } from "@/providers/connect/controller"
+ import { DialogConnectProvider, useProviderConnectController } from "@/providers/connect/dialog"
+ import { ProviderModelIcon } from "@/providers/models/provider-group"
+ import { SettingsList } from "@/settings/list"
+@@ -88,7 +88,7 @@ export const SettingsProviders: Component<{
+           defaultLocation={props.directory === undefined}
+           controller={providerConnect}
+           onConnected={(providerID) => {
+-            if (CONSOLE_PROVIDERS.has(providerID)) {
++            if (providerID === CONSOLE_INTEGRATION) {
+               setState("disconnecting", reconcile({}))
+ 
+               return
+@@ -395,7 +395,7 @@ export const SettingsProviders: Component<{
+     <>
+       <div class="settings-tab-header">
+         <div class="settings-tab-header-row">
+-          <div class="flex flex-col gap-1">
++          <div class="flex min-w-0 flex-col gap-1">
+             <h2 class="settings-tab-title">{language.t("settings.providers.title")}</h2>
+             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.providers.description")}</span>
+           </div>
+diff --git a/packages/app/src/shell/search-list.css b/packages/app/src/shell/search-list.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..b44247fd9b01f643a89a6d32d4c345ac02d2fe64
+--- /dev/null
++++ b/packages/app/src/shell/search-list.css
+@@ -0,0 +1,317 @@
++/* Outranks the deeply nested base dialog header rule. */
++[data-component="dialog-v2"]
++  [data-slot="dialog-container"]
++  .search-list-dialog[data-slot="dialog-content"]
++  [data-slot="dialog-header"] {
++  padding-bottom: 12px;
++}
++
++.search-list-body {
++  display: flex;
++  min-height: 0;
++  flex: 1;
++  flex-direction: column;
++}
++
++.search-list-search {
++  flex-shrink: 0;
++  /* The 1px top keeps the field's outside focus outline from clipping against the body. */
++  padding: 1px 12px 8px;
++}
++
++.search-list-scroll {
++  min-height: 0;
++  flex: 1;
++  overflow-y: auto;
++}
++
++.search-list-results {
++  display: flex;
++  flex-direction: column;
++  gap: 1px;
++  padding: 0 8px 8px;
++}
++
++.search-list-row {
++  display: flex;
++  width: 100%;
++  height: 36px;
++  flex-shrink: 0;
++  align-items: center;
++  gap: 12px;
++  padding-inline: 8px;
++  border: 0;
++  border-radius: 6px;
++  background: transparent;
++  text-align: start;
++  cursor: default;
++  scroll-margin-block: 8px;
++}
++
++.search-list-row[data-active] {
++  background: var(--v2-overlay-simple-overlay-hover);
++}
++
++.search-list-row:focus-visible {
++  background: var(--v2-overlay-simple-overlay-hover);
++  outline: none;
++}
++
++.search-list-row-text {
++  display: flex;
++  min-width: 0;
++  flex: 1;
++  align-items: center;
++  gap: 8px;
++  font-size: 13px;
++  line-height: var(--line-height-compact);
++  letter-spacing: -0.04px;
++}
++
++.search-list-title {
++  min-width: 0;
++  overflow: hidden;
++  color: var(--v2-text-text-base);
++  font-weight: 530;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.search-list-title[data-weight="regular"] {
++  flex: 1;
++  font-weight: 440;
++}
++
++/* A zero basis lays the title out at full width first; the detail only fills what is left. */
++.search-list-detail {
++  min-width: 0;
++  flex: 1 1 0;
++  overflow: hidden;
++  color: var(--v2-text-text-muted);
++  font-weight: 440;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.search-list-trailing {
++  display: flex;
++  flex-shrink: 0;
++  align-items: center;
++  color: var(--v2-text-text-muted);
++  font-size: 13px;
++  font-weight: 440;
++  line-height: var(--line-height-compact);
++  letter-spacing: -0.04px;
++}
++
++.search-list-empty {
++  display: grid;
++  min-height: 120px;
++  place-items: center;
++  color: var(--v2-text-text-muted);
++  font-size: 13px;
++  font-weight: 440;
++  line-height: var(--line-height-compact);
++  letter-spacing: -0.04px;
++}
++
++[data-component="dialog-v2"]:has(.mcp-dialog) [data-slot="dialog-container"] {
++  width: min(calc(100vw - 24px), 480px);
++}
++
++.mcp-dialog [data-slot="search-list-row"] {
++  gap: 16px;
++}
++
++.mcp-dialog-lead {
++  display: flex;
++  min-width: 0;
++  flex: 1;
++  align-items: center;
++  gap: 10px;
++}
++
++.mcp-dialog-name {
++  color: var(--v2-text-text-base);
++  font-size: 13px;
++  font-weight: 530;
++  line-height: var(--line-height-compact);
++  letter-spacing: -0.04px;
++}
++
++.mcp-dialog [data-status="disabled"] .mcp-dialog-name {
++  color: var(--v2-text-text-muted);
++}
++
++/* The session MCP list's status dot: filled while on, a ring when disabled. */
++.mcp-status-dot {
++  width: 6px;
++  height: 6px;
++  flex-shrink: 0;
++  border-radius: 50%;
++  background: currentColor;
++  color: var(--v2-icon-icon-faint);
++}
++
++.mcp-status-dot[data-status="connected"] {
++  color: var(--icon-success-base);
++}
++
++.mcp-status-dot[data-status="failed"] {
++  color: var(--icon-critical-base);
++}
++
++.mcp-status-dot[data-status="needs_auth"] {
++  color: var(--icon-warning-base);
++}
++
++.mcp-status-dot[data-status="disabled"] {
++  background: transparent;
++  box-shadow: inset 0 0 0 1px currentColor;
++}
++
++.mcp-status-dot[data-status="pending"] {
++  animation: mcp-dialog-pulse 1s ease-in-out infinite;
++}
++
++@keyframes mcp-dialog-pulse {
++  50% {
++    opacity: 0.35;
++  }
++}
++
++.mcp-trailing {
++  display: flex;
++  flex-shrink: 0;
++  align-items: center;
++  justify-content: flex-end;
++  gap: 8px;
++  white-space: nowrap;
++}
++
++/* A quiet ghost action in the switch's place, small enough to weigh about as much as a switch. */
++.mcp-status-action[data-component="button-v2"][data-size="small"] {
++  height: 20px;
++  padding-inline: 5px;
++  font-size: 11px;
++  font-weight: 440;
++  line-height: 16px;
++  letter-spacing: 0.05px;
++}
++
++/* At the row's end, the label lines up with the switches above and below it. */
++.mcp-status-action[data-component="button-v2"]:last-child {
++  margin-inline-end: -5px;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .mcp-status-dot[data-status="pending"] {
++    animation: none;
++  }
++}
++
++.mcp-error-heading {
++  display: grid;
++  min-width: 0;
++  flex: 1;
++  grid-template-columns: 20px minmax(0, 1fr);
++  gap: 4px 8px;
++}
++
++[data-component="dialog-v2"]
++  [data-slot="dialog-container"]
++  .mcp-dialog[data-slot="dialog-content"]
++  .mcp-error-heading
++  > [data-slot="dialog-title-group"] {
++  display: contents;
++}
++
++.mcp-error-heading [data-slot="dialog-title"] {
++  grid-column: 2;
++  grid-row: 1;
++}
++
++.mcp-error-heading [data-slot="dialog-description"] {
++  grid-column: 1 / -1;
++  grid-row: 2;
++}
++
++@media (max-width: 639px), (hover: none) {
++  .mcp-dialog [data-slot="search-list-row"] {
++    height: auto;
++    min-height: 44px;
++    padding-block: 8px;
++  }
++}
++
++/* A list dialog with a compact header and a bare search, as in the integration and manage models dialogs. */
++[data-component="dialog-v2"] [data-slot="dialog-container"] [data-slot="dialog-content"].search-dialog {
++  /* Trailing controls sit 10px from both the top and the end edge. */
++  [data-slot="dialog-header"] {
++    padding-block: 10px 6px;
++    padding-inline: 14px 10px;
++
++    [data-slot="dialog-close-button"] {
++      margin-top: 0;
++      margin-inline-end: 0;
++    }
++  }
++
++  [data-slot="dialog-title-group"] {
++    gap: 2px;
++  }
++
++  [data-slot="dialog-header-title"] {
++    flex: none;
++    font-weight: 440;
++    line-height: var(--line-height-base);
++  }
++
++  [data-slot="dialog-title"] {
++    font-size: 13px;
++    font-weight: 440;
++    line-height: var(--line-height-base);
++    letter-spacing: -0.04px;
++  }
++
++  [data-slot="dialog-description"] {
++    font-size: 12px;
++    line-height: var(--line-height-base);
++  }
++}
++
++/* Like the new model picker's search: a bare field with a hairline across the whole dialog under it. */
++.search-dialog-search {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++
++  &::after {
++    height: 1px;
++    margin-inline: -6px;
++    background: var(--v2-border-border-muted);
++    content: "";
++    transform: scaleY(0.5);
++  }
++
++  [data-component="text-input-v2"],
++  [data-component="text-input-v2"]:where(:hover, :focus-within):not([data-disabled], [data-invalid]) {
++    border-radius: 0;
++    outline: 0;
++    background: transparent;
++    box-shadow: none;
++  }
++
++  [data-slot="text-input-v2-value"] {
++    gap: 8px;
++  }
++}
++
++/* The hairline under a search-dialog header that has no search, across the whole dialog. */
++[data-slot="search-dialog-divider"] {
++  flex-shrink: 0;
++  height: 1px;
++  margin: 4px -6px 6px;
++  background: var(--v2-border-border-muted);
++  transform: scaleY(0.5);
++}

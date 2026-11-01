@@ -1,11 +1,11 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）与 General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）已交付；Providers/Models/Projects/Workspaces/Notifications/About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）与 **Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）已交付**；Projects/Workspaces/Notifications/About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
 - **A（本单元，issue #101）**：设置外层壳（`settings/shell.tsx` 单一 RootSettings 布局）、导航（`settings/navigation.tsx`）、路由/视图模型（`settings/route.ts`）、surface 与服务器上下文（`settings/surface.tsx` 的 `surface.server()`/`selectServer`/`openServers`）、搜索（index/catalog/results/UI/focus-reveal）、设置→命令面板桥（`settings/palette.ts` + `shell/commands/palette.ts`）、共享设置 CSS、以及依赖闭包（M-042：sidebar-toggle/sidebar-peek/servers-registry label/ui slash + registry label/hint 块）。
-- **F（issue #102 已完成 Servers 页部分；issue #103 已完成 General/Experimental 偏好页内面）**：Servers 页内面已随 **M-045**（0045-M-045-servers-page-target-migration.patch，双 manifest 在册第 43 个补丁）迁移至 v2.2.1 目标——`servers.tsx`/`servers/registry/row.tsx` **目标逐字**（SettingsServerGeneral 委托共享 ServerConnectionRow、Shell 段随 `healthy !== false` 健康门显隐、`settings-shell:<key>` 搜索命名线程、死代码 ServerRow 删除）、`redeem.ts` Redemption 去导出；General/Experimental 偏好页内面已随 **M-046**（第 44 个补丁）迁移——`general.tsx` 目标逐字（ShellSetting 的 M-045 action 检字与目标形重合保留，mobile(M-045) 注记随目标删除），详见下方「偏好页内面」单元；`settings/general/controllers.ts` **零改动**（两个既有 mobile hunks 保留：behavior 再导出边界 + pin 的 `config.update` 命名——生成客户端 PATCH `/api/experimental/config` 线等价，verify-appearance-settings 在册钉定，矩阵 S37 记录该保留偏离）。其余配置页内容对齐（Notifications/Providers/Models/Projects/Workspaces/About 页内面等）仍归后续 issue。
+- **F（issue #102 已完成 Servers 页部分；issue #103 已完成 General/Experimental 偏好页内面）**：Servers 页内面已随 **M-045**（0045-M-045-servers-page-target-migration.patch，双 manifest 在册第 43 个补丁）迁移至 v2.2.1 目标——`servers.tsx`/`servers/registry/row.tsx` **目标逐字**（SettingsServerGeneral 委托共享 ServerConnectionRow、Shell 段随 `healthy !== false` 健康门显隐、`settings-shell:<key>` 搜索命名线程、死代码 ServerRow 删除）、`redeem.ts` Redemption 去导出；General/Experimental 偏好页内面已随 **M-046**（第 44 个补丁）迁移——`general.tsx` 目标逐字（ShellSetting 的 M-045 action 检字与目标形重合保留，mobile(M-045) 注记随目标删除），详见下方「偏好页内面」单元；`settings/general/controllers.ts` **零改动**（两个既有 mobile hunks 保留：behavior 再导出边界 + pin 的 `config.update` 命名——生成客户端 PATCH `/api/experimental/config` 线等价，verify-appearance-settings 在册钉定，矩阵 S37 记录该保留偏离）。**Providers/Models/Extensions 页内面已随 M-048（第 46 个补丁）迁移至 v2.2.1 目标**——`providers.tsx`/`extensions.tsx`/`models.tsx`/`mcp-dialog.tsx` 目标逐字（M-043 的 headerAction/directory 挂接 hunks 被目标原生吸收）、`mcp.ts` 目标形 + 单一 mobile hunk（pin 生成客户端命名保留，线等价——生成客户端 mcp 组直接拨 `/api/experimental/mcp/…` 路径，目标自身客户端亦保 `client.mcp.*` deprecated 别名）、`runtime/plugin/extension-plugins.tsx` 与 `shell/search-list.css` 为 NEW 目标文件、`catalog/providers.ts` 目标 10 行 syncWhileBooting 重试包装、en 26 键增补（详见下方「供应商/模型/服务端扩展页内面」单元与 [providers-models.md](providers-models.md)/[agent-capabilities.md](agent-capabilities.md)）。其余配置页内容对齐（Notifications/Projects/Workspaces/About 页内面等）仍归后续 issue。
 - 单一事实来源：**无第二 current-server 状态**。per-server 页显示哪台服务器由 `surface.server()` 独家决定（解析序：视图 `server` → source server → 本地已连接 → 第一台）；#102 经 `selectServer`/`onServerChange` 消费，不得另存状态。
 
 ## 壳/导航契约
@@ -134,3 +134,33 @@
 ## 诚实边界
 
 Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED**（无 Windows 环境；源码 byte-form + dist 检索为"与目标控件一致"的构建级证据，不冒充实机对照）；`<768px` 两侧联验 **BLOCKED**（DPR 2.25 物理不可达 + CDP `Emulation.setDeviceMetricsOverride` 在嵌入 WebView 不生效，#103 同判据）；CJK 回退栅格化运行期观察本轮不可采（en-locale 设置页无 CJK 内容）——栅格化差异按文档口径不算布局偏差；TalkBack 完整走查归 G31；设备 QA 后 localStorage 全量 dump 与 QA 前**逐键相等**（18/18，含主题 CSS 缓存键清除），font_scale 还原 1.0。
+
+
+# 单元：供应商/模型/服务端扩展页内面——issue #105（S21–S26）
+
+**状态行：已实现，运行期部分验证。** M-048（0048-M-048-providers-models-extensions-target-migration.patch，双 manifest 第 46 补丁）把三个页内面收敛到 v2.2.1 目标（3ebcf9a）。设备 QA（.145，APK `57eeba6c…`）：三页 + 三子 tab 目标形渲染、header 服务器切换槽双向切换、Connect provider 对话框（View all 面）、Skills 外链、搜索定位（通用行）、三类 SSH 失败面 PASS；**目录分组/搜索/可见性切换与 MCP 行面（本地 stdio）BLOCKED**（三台远端主机全部不可达/服务下线，见 [build-and-verify.md issue #105 段](../../build-and-verify.md)）；Desktop 视觉对照与 <768px 继承 BLOCKED。
+
+## 交付清单（M-048，九文件）
+
+- `settings/providers/providers.tsx` / `settings/models/models.tsx` / `settings/providers/extensions.tsx`：**目标逐字**——M-043 的 mobile hunks（headerAction prop、`settings-tab-header-actions` 插槽、min-w-0 头、extensions `directory` prop）被目标原生吸收；providers.tsx 的 `CONSOLE_PROVIDERS.has(providerID)` → `providerID === CONSOLE_INTEGRATION`（controller 的 `CONSOLE_PROVIDERS` 导出保留服务 FU-1 面）；extensions.tsx MCP 行迁移到数据层（`data.location.mcp.server.sync/list` + per-directory `location()` 叠 default-Location 覆盖 + 名称排序）、`data-status` 状态点 + `statusLabels` 映射、failed→View error 按钮（开 `DialogMcp`）、needs_auth→Sign in 按钮、busy 经 `toggleMcp.variables`、plugins tab → `<ExtensionPlugins>`（`own = !!platform.plugins && ServerConnection.builtin(serverSdk.server)`）。
+- `providers/connect/mcp.ts`：目标 17 行增量（`onSuccess` 收窄 `() => void`、mutationFn request 对象重构、pending 门 `request.enabled === undefined`）+ **单一 mobile hunk**：`api.mcp.connect/disconnect` 保 pin 生成客户端命名——线等价（目标的生成客户端保留 deprecated 别名 `client.mcp.connect = client.experimental.mcp.connect`，同 `/api/experimental/mcp/:server/*` 路径；本 vendored 客户端的 mcp 组已直接拨该路径）；`api.mcp.list` 两侧不变。
+- `providers/connect/mcp-dialog.tsx`：目标逐字（326 行增量）——`DialogSelectMcp` 保零参 wrapper（use-session-commands 懒 import 不受影响）+ 新增 `DialogMcp {directory, server?}`（数据层 list/sync、fuzzysort 搜索、逐服务器错误详情/copy/disable/retry、sign-in、SearchList UI）。
+- `runtime/plugin/extension-plugins.tsx` + `app/src/shell/search-list.css`：NEW 目标文件（对 vendored host/installed/root/builtins/Bridge.manager API 逐成员核验零适配 hunk；css 含上游原生 `@media (prefers-reduced-motion: reduce)` 待机点守卫 → verify-appearance-settings 组 7 WHITELIST 第 6 项）。
+- `providers/catalog/providers.ts`：目标 10 行 `syncWhileBooting` 重试包装（12 次、1s–5s、`isServiceUnavailableError` 门）——provider/model 目录冷启动加载可靠性（#105 验收相关渲染面）。
+- `runtime/i18n/en.ts`：26 键 en-only 增补（14 `dialog.mcp.*` + 12 `settings.plugins.*`）——**target en.ts 键集 parity** 口径（`dialog.mcp.error.title`/`error.open` 为 target 死键，带集等价保位）；`dialog.mcp.description` 死键保留（跨 ~40 locale 清理归 FU-1）；zh 3 键/`settings.plugins` zh 0 不动（base 合并回退 en）。结果族：`dialog.mcp` en 3→17；`settings.plugins` en 0→12。**静默缺键防护**：verify-agent-capabilities 组 5 新增五迁移文件 file-wide `language.t("…")` 引号字面量 ⊆ en.ts 护栏（负例演练在册）。
+
+## MCP 行面矩阵（S25，目标形）
+
+| 行态 | 呈现 | 出口 |
+| --- | --- | --- |
+| connected | 绿点（`mcp-status-dot[data-status]`）+ 无词文案（Switch checked） | Switch off → `mutate({name, enabled:false})` |
+| failed | 红点 + **View error 按钮** | 开 `DialogMcp(directory, server)`（错误详情/copy/disable/retry）；retry 重连既有配置 |
+| needs_auth + integrationID | **Sign in 按钮**（busy→Signing in…） | `toggle.mutate(name)` → 重认证链（integration.get→oauth.connect→外跳） |
+| pending | 点待机动效（reduced-motion 关停）+ Switch disabled | 无（等状态机迁移） |
+| disabled | 灰点 + Switch off | Switch on → 显式启用（覆盖 disabled 配置直至重启） |
+
+## 登记为 Milestone 1 后续工作（owner：协调者 carve 后续 issue）
+
+- **FU-1 连接对话框族目标重设计**：`providers/connect/controller.ts`（143 行增量：command 认证方法、`CONSOLE_PROVIDERS` 移除、`connectMethods` 排序、keyProvider 移除）+ `providers/connect/dialog.tsx`（1617→1813 重设计：Integrations 对话框、command 方法 UI、`dialog.provider.*` 键族）+ stories + `providers/credentials/` 三件目标删除（并入 FU-1 范围注记）。S21/S22 剩余差异列指向 FU-1。取消/过期/失败恢复在当前对话框形**已可达**（pin controller 的 `oauth.cancel` 两处/complete/failed/expired 分支/statusFailed retry/`onCleanup`——verify-provider-models 组 3 钉定，[providers-models.md](providers-models.md) 状态矩阵/OAuth 专节）。
+- **FU-2 模型选择器族目标形**：`providers/models/*`（select-dialog 988、models.tsx 87、selection.tsx 67、details.tsx +175 NEW、manage/unpaid/provider-group/search 小增量、css +203/+108 NEW、models.test.ts +55 NEW）。S24 剩余差异列指向 FU-2；设置页目标形与选择器 pin 形共用 `useModels`（现形一致性由共享控制器承载）。
+- `settings/pages.ts` 的 `gui-extensions` 移除**归 #109**（插件页注册表接管；M-026 登记偏离届时移除）。
