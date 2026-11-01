@@ -2250,6 +2250,63 @@ Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联
 
 `docs/design/units/settings.md`（新增「偏好页内面」单元 + #101 指引更新为 #103 交付态 + M-044 剪除段收窄）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S04–S13/S38 行 + 阶段 3 行 #103 增补）；补丁 manifest M-046 reason/rebase 字段即偏离登记文档（16 targets、保留偏离、不采纳项、typed-locale 延伸）。
 
+## issue #104 段（S12、S15–S17、S42：外观、字体与缩放设置对齐 Desktop v2.2.1——M-047）——2026-11-01 实测记录
+
+**分支与基线**：worktree `issue-104-appearance`，base `262b760`（origin/main，#103 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `cd460d1`（feat vendor 迁移，M-047 五文件）→ `4b1b601`（chore verify dist 常量回填）→ docs 提交，未 push。开工基线复核（262b760 同法同态）：verify:closure PASS（44 补丁）、app 单测（无 seam 口径）646/4/24/1986（674 tests/115 files；24 errors 全部为 `@opencode-mobile/mobile-hosts` seam 解析错：registry.tsx×23 + notification.tsx×1）、mobile-hosts 434/0/2920、typecheck:tsc 391（逐文件分布 51 文件与基线全等）、探针普查 33 个——fresh worktree **27 rc=0 + 6 rc=1**（4 个产物条件性：attachments-artifacts/direct-connection 需 `dist/_assets`、ssh/service-ops 需 `android/app/src/main/assets/web`——build+copy 后转 rc=0；debug-bar（W28 陈旧锚）/inline-ssh-device（CDP :9222 ConnectionRefused）预存 rc=1，对 HEAD 复测同败同文）。
+
+### 计划对账（实测勘正两处，均已如实记录）
+
+| 项 | 处置 |
+| --- | --- |
+| 计划 §4.3 子集基线数字陈旧（settings 三文件 41/0/98、app 70 文件 579/0/1368） | 实跑 **41/0/105** 与 **587/0/1383**——对 262b760 原样树（checkout 262b760 -- theme 后复跑）**逐项相同**（41/0/105、587/0/1383），数字漂移为 #103 M-046 期测试内容自然增长（基线注记未随 #103 更新），M-047 前后零位移成立；session-ui 146/0/411 与 ui toast+segmented 5/0/9 与计划恒同 |
+| 普查 fresh-worktree 27/6 vs 计划图谱 31/2 | 与 #103 同型环境差（4 产物条件性 probe），build 后收敛 31 rc=0 + 2 预存 rc=1、gradle 后 29/4（permission-requests/session-workbench 走进 mergeDebugAssets 中间产物，by design），与计划图谱一致 |
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（45 补丁字节级重放，DANGLING=0；M-047 注册于 `patches/mobile/manifest.json` 与 `vendor-manifest.json#mobilePatches` 各 45 条，M-019/M-039 reserved-absent 保持；M-047 派生 = scratch 内 pin+packageSources 重建 pristine 累积树 → 依序应用 M-001..M-046 → 五文件累积树字节同一性预核（零 mobile hunks）→ `git diff HEAD --full-index`（context=累积树）→ `git apply --check` 对累积树 PASS 硬门禁；`git diff --check` clean） |
+| M-047 面 | 5 文件实测 | `index.ts` 47 difflines（80→35 行 target barrel：去 loader 五函数/37 名 DEFAULT_THEMES（桶常量 + 36 主题名导出）/generateAlphaScale/lighten/darken/resolveTheme 再导出，保留 types/color 基元/v2/context-useTheme）；`color.ts` 36 difflines（**仅删 generateAlphaScale 函数**，其余导出 pin 字节形=target 余部——函数裁剪非文件删除）；`resolve.ts` 9 difflines（**仅删 resolveTheme helper + DesktopTheme import**，resolveThemeVariant/themeToCss 保留服务 gui-plugins terminal）；`loader.ts` −123、`default-themes.ts` −148（37 export const；vendored 树零 importer——grep：theme/loader 唯一引用=index.ts 自身再导出、feedback/loader 为无关组件族、ui package.json `./loader` 指向 feedback/loader）；净删 359 行 |
+| app 全量单测（在册口径=无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | **646 pass / 4 skip / 24 fail / 24 errors / 1986 expect()（674 tests/115 files）——与基线逐项相同**；24 fail = mobile-hosts seam 解析错（逐一同位），零新失败 |
+| 定向子集 | settings 三文件 `model/search-results/route`：**41/0/105**；ui `toast/description`+`segmented-control`：**5/0/9**（另 theme `v2/resolve` 9 用例绿，主题域自带测试文件全绿）；app 组合 70 文件（#8..#24 在册并集，`runtime/extension/ipc` 实路径 `runtime/plugin/ipc`）：**587/0/1383**；session-ui 8 文件：**146/0/411**；mobile-hosts：**434/0/2920** —— settings/app 两组各对 262b760 原样树复跑**逐项相同**（M-047 无行为面自证） |
+| verify-appearance-settings（零修订证据） | `bun run scripts/verify-appearance-settings.ts` | **rc=0 原样 PASS**（13 组全绿；该探针 13 组 pins 无一触 theme 目录——M-047 落地后零修订通过，此"不变"即免修证据） |
+| 探针修订（44→45 钉） | `verify-about-version` / `verify-attachments-artifacts` / `verify-commands-menus` | 三探针同 commit（cd460d1）修订：计数钉 44→45、ID 集上界 46→47（M-001..M-047 减 M-019/M-039）、counts 尾行 M-047=45；修订后 about-version/commands-menus 即刻 rc=0，attachments-artifacts 在 dist 重建后 rc=0（源树期 rc=1 为产物条件性，与基线同因非修订错误） |
+| typecheck | `bun run typecheck:tsc`（清 tsbuildinfo、无 seam 口径） | **391 errors**；逐文件分布与 262b760 基线全等（51 文件 uniq 计数 diff 为空）；注：测试期 seam 软链在场会改变模块解析形态（同总数 391 但分布不同）——在册口径=无 seam，基线与复测同口径（seam 软链仅测试期重建，不入 git） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0（6420 modules）；**dist 3517 files / 159,599,796 bytes**（fileCount 与上轮同、**−1,225 bytes**：theme index barrel 精简 + loader/default-themes 死代码此前仅经 tree-shaking 消失——计划预判"字节微降"兑现；web-dist/manifest.json 已刷新并在 4b1b601 同提交回填 commands-menus/gui-plugins/notifications 三探针 dist 常量） |
+| dist 检索 | 正例 + 负例（回归护栏口径） | 正例：`settings.appearance.row.zoom.title`/`reduceMotion.title` 3 chunk、`settings.general.row.colorScheme/theme/uiFont/font(=Code Font)/terminalFont.title` 63–65 chunk、`settings-zoom`/`settings-reduce-motion`/`settings-ui-font`/`settings-code-font`/`settings-terminal-font` data-action 2 chunk、`opencode-ui-zoom-level` index chunk、`dataset.motion` runtime chunk 全命中。负例（**回归护栏，非删除首证**——loader 未入 dist 在 M-047 前已由 tree-shaking 成立，评审勘误 C）：`loadThemeFromUrl`/`generateAlphaScale`/`getActiveTheme`/`removeTheme` shipped js 零命中、`DEFAULT_THEMES` js 零命中（4 个 sourcemap 命中为第三方 `@pierre/diffs` 包自有同名符号，域无关）；`applyTheme` js 命中=同包 `applyThemeState`，ui context 自有 `setColorScheme` 命中为存活 API（合法） |
+| 探针普查（build 后） | `for f in scripts/verify-*.ts; do bun run $f; done`（33 个） | **31 rc=0 / 2 rc=1**：三修订探针全 rc=0；debug-bar（W28 陈旧锚）/inline-ssh-device（CDP ConnectionRefused）预存 rc=1 同败同文；gradle 后复测 29 rc=0 / 4 rc=1（by design——permission-requests/session-workbench 扫进 `android/app/build/intermediates/assets/debug/mergeDebugAssets` 中间产物，#101 在册产物条件性，源树 rc=0） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行（:22/:44/:51/:59/:78 逐行同位）；零新增 |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，含 dist 标记 mobile(M-002)/mobile(vault-v1) 命中） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 20s**（41 tasks）；APK SHA-256 `a86a204af6f48aed8100666cc02197dc2d1b108397a4cc7a274a17582fc996b7`；`.145` 设备 `adb install -r` **Success**（数据保留升级；零 uninstall/零 pm clear/零主动断连） |
+| 负例演练 | 向 `ui/src/theme/index.ts` 回灌 `export { applyTheme } from "./loader"` | tsc 失败：`../ui/src/theme/index.ts(37,28): error TS2307: Cannot find module './loader'` → 还原 byte-identical（死导出确已删除的机器证明） |
+
+### 设备 QA（§6；DBY2-AL00 @192.168.3.145:5555，Android 12，物理 1840×2800 @DPR 2.25，WebView Chrome/114.0.5735.196，横屏 CSS 1245×786；`adb install -r` Success 数据保留；**零 uninstall/零 pm clear/零主动断连**；QA 后全量 localStorage dump 与 QA 前**逐键相等 18/18**（含主题 CSS 缓存键清除），`font_scale` 还原 1.0）
+
+驱动方式：debug APK WebView DevTools（adb forward + CDP Runtime.evaluate 读 DOM/settings.v3/computed style/localStorage）+ 真实坐标 tap（device = css × DPR × zoom + 状态栏 72px，uiautomator bounds 复核）；下拉经 pointerdown/up+click 驱动、每步以 localStorage 与 DOM 双通道复核。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 1. 外观页换壳走查（post-#101/#103 新壳首次） | **PASS**：Settings→Appearance 行集与序 = target 恰 7 行（color-scheme/theme/ui-font/code-font/terminal-font/zoom/reduce-motion），行标签与描述目标逐字（Color scheme/Theme/UI Font/Code Font/Terminal Font/Zoom/Reduce motion）；搜索 zoom/motion/theme/font/scheme 五词全命中 search-list-row（aria-label "Zoom, Appearance" 等 + data-setting-target），点击后目标行视口内可见 |
+| 2. S15 主题 | **PASS**：Color scheme system→light→dark 逐个即时生效（data-color-scheme + 背景色 #fafafa/#080808 + style color-scheme 三通道一致）+ `opencode-color-scheme` 持久；Dark 跨重启保持；Theme 名下拉选项集 36 名呈现（=themes/*.json 集合）；Dracula 选择即时生效（data-theme=dracula + `opencode-theme-id` 落盘）、跨重启保持；还原默认（清键→oc-2+system）实测 |
+| 3. S16 三类字体 | **PASS**：UI Font 写入即时生效 `--font-family-sans`（"Radical Sans", "Inter", …）、Code Font 即时 `--font-family-mono`（"QA Mono Nine", "IBM Plex Mono", …）+ document.fonts.load（status=loaded）、Terminal Font 写入 `appearance.terminal` 经 accessor 消费（target 形；`--font-family-mono` 不随 terminal 变——消费链如实）；三值跨重启保持；清空回落默认栈（Inter/ui-sans-serif…、IBM Plex Mono/ui-monospace…）；IME 真实 tap 聚焦→input text 端到端入 CSS var+store |
+| 4. S42 缩放六步 | **PASS**：100/110/125/150/175/200% 逐档 `documentElement.style.zoom` 生效（1.1/1.25/1.5/1.75/2；100% 档属性移除）、`opencode-ui-zoom-level` 逐档持久、六档全程零横向溢出（scrollWidth−clientWidth=0）；200% 跨重启保持；恢复 100%（属性移除）实测 |
+| 5. S17 减少动效 | **PASS**：On→`dataset.motion=reduce` 即时+采样 transitionDuration 0s；Off→full；On/Off 各自跨重启保持（写后 ≥10s 再 force-stop——**方法注记**：写后 ~2s 即 force-stop 一次未保持，为 Chromium localStorage 提交窗口丢末次写，QA 时序非应用缺陷，§六/§八在册）；**System 档实测平台映射=full**（WebView 114 无系统映射——环境差异再登记，不加静默回退） |
+| 6. 大字 × 缩放组合 | **PASS**：系统字号放大（font_scale 1.3，1rem 实测 31.2px）× zoom 200% → 设置页可垂直滚动（容器 scrollHeight 898 > clientHeight 644，滚动达底）、Reduce motion 末行完整可见无遮挡（rect 248..272 ∈ vh 786）、零横向溢出；软键盘避让正常（真实 tap 聚焦 UI Font 输入 → mInputShown=true、输入框全程可见）；恢复默认可逆（font_scale 还原 1.0 + zoom 还原 100%） |
+| 7. 偏好恢复扫荡 | **PASS**：scheme/theme/fonts/zoom/reduceMotion 各自改→切页→force-stop 重启→保持；非法 zoom 存储值（"abc"）→ 回落 1（属性移除，原始键值保留不改写）；settings.v3 appearance 字段注入非法值（reduceMotion="bogus-value"、sans=12345）→ **逐字段回落**（system/""），兄弟字段无损（theme=dracula、tabLayout=horizontal 保持） |
+| 8. S12（可执行部分） | **PASS**：新壳 General 页 data-action 全集（11 行）零 pinch/zoom 行（desktop 门控行 mobile 不渲染）；viewport meta 无 user-scalable 负锚复验保持；主页/工作台 zoom=2 交叉场景双击观察：visualViewport.scale 恒 1、零布局破损、零横向溢出（截图 /tmp 不提交）；**双指捏合注入未执行**（adb input 无多点触控）——#74 WebView 默认裁定 + configureWebView 零 zoom 配置/viewport 负锚为准，如实标注 |
+
+### 对照条件与截图
+
+横屏 CSS 视口 1245×786 @ DPR 2.25（zoom 档另计）、WebView Chrome/114.0.5735.196、深色主题（QA 中段 Dracula）、语言 English、系统字体缩放默认（组合项 1.3 显式设置后还原）；APK SHA-256 `a86a204af6f48aed…`；截图（/tmp，不提交）：qa-largefont-zoom200.png（1.3×200% 设置页末段三行无遮挡）、qa-workbench-zoom2.png（工作台 zoom 2 交叉场景布局完好）。**Desktop 参考端无**——视觉对照 BLOCKED 继承；`<768px` 两侧联验 **BLOCKED**（DPR 2.25 物理不可达 + CDP `Emulation.setDeviceMetricsOverride` 在嵌入 WebView 不生效，#103 同判据继承）。
+
+### 阻塞项（如实，不写通过）
+
+Windows Desktop v2.2.1 实机视觉对照（无参考端）；`<768px` 两侧联验；CJK 回退栅格化运行期观察（en-locale 设置页无 CJK 内容）；双指捏合多点触控注入；TalkBack 完整走查（G31）；终端面 terminal 字体呈现实态（终端未开启——归 terminal 单元/G24）；Desktop 对照的源码/构建级证据（byte-form + dist 检索）已足，实机对照保持 BLOCKED 不据此写"与 Desktop 一致"的视觉结论。
+
+### 文档同步
+
+`docs/design/units/settings.md`（新增「外观页内面」单元：七行清单/主题机制 target-form 声明 + M-047 裁剪口径/zoom 平台存储边界/reduce-motion 消费链指针/保留偏离四条/诚实边界）；`docs/design/visual.md`（主题机制行目标形收口 + 动效降级行设备证据指针 + Appearance 控件令牌消费事实）；`docs/design/interaction-quality.md`（§四 WebView 手势默认态 #104 复验增补 + §六 appearance 段 colorScheme/theme 自有键与 zoom 平台存储复验 + §八 system 映射实测与 force-stop 时序注记两条）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S12/S15/S16/S17/S42 行升级 + 阶段 3 行 #104 增补）；补丁 manifest M-047 reason/verification/rebase 字段即偏离登记文档（5 targets、trim-not-delete 口径、第三方符号域注记、rebase 派生纪律）。
+
 
 ## BLOCKED 总表
 

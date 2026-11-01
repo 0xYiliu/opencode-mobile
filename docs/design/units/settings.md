@@ -91,3 +91,46 @@
 ## 历史参考
 
 #63（S04 界面模式三态）、#64（S38 实验开关两项）的原始实现记录见 build-and-verify.md 对应段；本轮为行面/键面/消费 token 的目标收敛，行为面（模式切换实态、图标切换、折叠视觉、宽度三档）证据以 #103 段设备 QA 为准。
+
+# 单元：外观页内面（Appearance）——issue #104（S12、S15–S17、S42）
+
+**状态行：外观页内面已实现（未验证）**——页面与消费链在 #101/#103 壳与 schema 迁移中已随目标形落地（本轮源码**零改动复用**），唯一剩余目标差异（ui theme 组件族死导出）随 **M-047**（0047-M-047-theme-component-target-form.patch，双 manifest 在册第 45 个补丁）收敛至 v2.2.1 目标。运行证据：[build-and-verify.md issue #104 段](../../build-and-verify.md)。Desktop 实机视觉对照 **BLOCKED** 继承（无 Windows 参考端）；`<768px` 两侧联验 **BLOCKED** 继承（DPR 2.25 物理不可达 + CDP 模拟在嵌入 WebView 不生效，#103 同判据）。
+
+## Appearance 页行清单（目标形，含默认值与顺序）
+
+`settings/appearance/appearance.tsx`（vs target **byte-identical**，零 mobile hunks）七行依序：
+
+1. **Color scheme**（`settings-color-scheme`）——system/light/dark 三值 Select，默认 system；选择即时生效（`data-color-scheme` 属性 + `color-scheme:` style + 背景色三通道）。
+2. **Theme**（`settings-theme`）——主题名下拉，默认 `oc-2`（OpenCode）；选项集 = `ui/src/theme/themes/*.json` **36 文件集合**（设备实测下拉呈现 36 名，AMOLED…Zenburn）。
+3. **UI Font**（`settings-ui-font`）——TextInput，默认空（回落 `"Inter", ui-sans-serif…` 栈）；写入即时生效 `--font-family-sans`。
+4. **Code Font**（`settings-code-font`）——TextInput，默认空（回落 `"IBM Plex Mono", ui-monospace…` 栈）；写入即时生效 `--font-family-mono` + `document.fonts.load("440 13px …")` 预载。
+5. **Terminal Font**（`settings-terminal-font`）——TextInput，默认空；写入 `appearance.terminal`，经 model.tsx `accessors.terminalFont` 消费（target 形；终端面呈现归 terminal 单元，不写 `--font-family-mono`）。
+6. **Zoom**（`settings-zoom`）——六档 Select 100/110/125/150/175/200%（`desktopZoomLevels`），默认 100%；平台层消费见下节。
+7. **Reduce motion**（`settings-reduce-motion`）——system/on/off 三值，默认 system；`dataset.motion` 仲裁 effect 消费（system 档接 `prefers-reduced-motion` media query）。
+
+搜索行七条正锚（`search-catalog.ts`）：**七行全部 `tab: "appearance"`**（color-scheme/theme/ui-font/code-font/terminal-font/zoom/reduce-motion）；general/appearance 之分只在**标签键命名空间**——zoom/reduceMotion 五键用 `settings.appearance.row.*`、colorScheme/theme/uiFont/codeFont(=font)/terminalFont 五行用 `settings.general.row.*` 标签键——设备实测搜索 zoom/motion/theme/font/scheme 全命中真实行并点击定位视口内。
+
+## 主题机制（target-form 声明 + M-047 死代码收敛）
+
+- `ui/src/theme/context.tsx` 438 行 vs target **byte-identical**；`themes/*.json`、`theme/v2/*`、`desktop-theme.schema.json`、`types.ts` 文件集合与 target 全等——主题选择/应用机制本轮零改动。
+- 主题状态存储在 theme context **自有 localStorage 键**（不在 settings.v3）：`opencode-theme-id`（默认 oc-2）、`opencode-color-scheme`（默认 system→matchMedia）、`opencode-theme-css-light/dark`（派生 CSS 缓存，非用户偏好）——`oc-theme-preload.js` 首帧前消费，`verify-interaction-quality.ts` 组 6 在册。
+- **M-047（死导出裁剪，非整族删除）**：`index.ts` 落 target 35 行 barrel（types + color 基元 + v2 resolve + context/useTheme 保留；去掉 loader 五函数、37 名 DEFAULT_THEMES 块（桶常量 + 36 主题名导出）与 generateAlphaScale/lighten/darken/resolveTheme 再导出）；`color.ts` **仅删 generateAlphaScale 函数**（其余 13 导出保持 pin 字节形=target 余部）；`resolve.ts` **仅删 resolveTheme(theme) helper + DesktopTheme import**（`resolveThemeVariant`/`themeToCss` 保留，gui-plugins terminal 消费者在册）；`loader.ts`（123 行）与 `default-themes.ts`（148 行、37 export const）**整文件删除**（vendored 树零 importer，仅 index.ts 自我再导出）。净删 359 行；5 文件内零 mobile hunks（纯 pin→target 重整）。负例演练：向 index.ts 回灌 `export { applyTheme } from "./loader"` → tsc `error TS2307: Cannot find module './loader'`（theme/index.ts:37）→ 还原 byte-identical。
+
+## Zoom 平台层存储边界（非凭据）
+
+六档缩放持久化在平台层 `localStorage opencode-ui-zoom-level`（`web.ts` 校验 `desktopZoomLevels` 集合，非法值回退 1=属性移除；与上游桌面 ZOOM_LEVEL_KEY 平台层存储同构，#65 裁定 A）。**存储内容仅 UI 缩放数字，非凭据**（运行真实性红线满足）；dist 检索 `opencode-ui-zoom-level` 命中 shipped chunk。
+
+## Reduce motion 消费链
+
+`model.tsx` `dataset.motion` 仲裁 effect（`document.documentElement.dataset.motion = reduce ? "reduce" : "full"`，system 档经 `createMediaQuery("(prefers-reduced-motion: reduce)")`）→ ui tailwind `motion-reduce` 变体 + 五文件白名单消费——权威表述见 [interaction-quality.md](../interaction-quality.md) §四（motion-reduce 接线）与 §六（偏好恢复）；设备实测 system 档在 WebView 114 退化 full（无系统映射——环境差异再登记，不加静默回退）。
+
+## 保留偏离（登记）
+
+- **M-035 裁定 A2**：catalog zoom 行不带 `available: "desktop"`（web 可用保留，#65）。
+- **desktop-menu 菜单 face**：`desktopZoomLevels` 六档数组 byte-identical，但菜单 face 差异（session.new/project.open/role 形态、`nextDesktopZoomLevel` 不移植）为桌面 shell 域在册偏离——非外观页域，#104 只证六档数组本身。
+- **WebView 114 system 映射**：reduce motion system 档无系统映射退化 full——环境差异（#65 首登记、#104 复验同态），不视为缺失。
+- **pinch desktop 门控**：General 页 Pinch zoom 行 `platform==="desktop"` 条件可见，mobile 不渲染（M-046 保留、#104 设备复验 data-action 全集零 pinch 行）；WebView 手势默认态裁定见 [interaction-quality.md](../interaction-quality.md) §四（#74/E30）。
+
+## 诚实边界
+
+Windows Desktop v2.2.1 参考端逐区域截图对照 **BLOCKED**（无 Windows 环境；源码 byte-form + dist 检索为"与目标控件一致"的构建级证据，不冒充实机对照）；`<768px` 两侧联验 **BLOCKED**（DPR 2.25 物理不可达 + CDP `Emulation.setDeviceMetricsOverride` 在嵌入 WebView 不生效，#103 同判据）；CJK 回退栅格化运行期观察本轮不可采（en-locale 设置页无 CJK 内容）——栅格化差异按文档口径不算布局偏差；TalkBack 完整走查归 G31；设备 QA 后 localStorage 全量 dump 与 QA 前**逐键相等**（18/18，含主题 CSS 缓存键清除），font_scale 还原 1.0。
