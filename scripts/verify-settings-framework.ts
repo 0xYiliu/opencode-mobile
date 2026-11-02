@@ -85,12 +85,10 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     if (shell.includes(gone)) fail(`1: shell.tsx still carries the pin-era shape: ${gone}`)
   }
 
-  // M-008 mount: the host manager is the servers tab's first child.
+  // M-056: Settings exposes only the upstream Server surface; the old manager is not mounted.
   const serversTab = shell.indexOf('<Tabs.Content value="servers" class="settings-panel">')
-  const hostManager = shell.indexOf("<MobileHostManager />")
-  if (serversTab < 0 || hostManager < 0 || hostManager < serversTab)
-    fail("1: shell.tsx lost the M-008 MobileHostManager mount (first child of the servers Tabs.Content)")
-  if (!shell.includes("mobile(M-008)")) fail("1: shell.tsx lost the mobile(M-008) marker comment")
+  if (serversTab < 0 || shell.includes("MobileHostManager"))
+    fail("1: shell.tsx must retain the upstream Server tab without the old mobile host manager")
 
   // M-026 single-face forms (the verify-gui-plugins group 4 / verify-agent-capabilities
   // group 3 common witness — keep the exact strings in sync).
@@ -254,7 +252,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 // --- 7. Tests ---
 {
   const keyed = await read(`${APP}src/settings/keyed-server-entry.test.tsx`)
-  for (const marker of ["<SettingsServerGeneral entry={entry()} onAddServer={addServer} />", "selected={surface.server()?.key}", "<MobileHostManager />", "mobile(M-044)"]) {
+  for (const marker of ["entry={entry()}", "selected={surface.server()?.key}", 'not.toContain("MobileHostManager")', "mobile(M-044)"]) {
     if (!keyed.includes(marker)) fail(`7: keyed-server-entry.test.tsx lost the M-044 marker: ${marker}`)
   }
   if (keyed.includes("<Show when={singleEntry()} keyed>")) fail("7: keyed-server-entry.test.tsx still pins the pin-era keyed form")
@@ -425,7 +423,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 
 console.log(
   "verify-settings-framework: PASS (" +
-    "1: migrated shell — single RootSettings + keyed server scope + switcher/unavailable, M-008 mount first in the servers tab, M-026 single-face forms (predicate/guard/nav/mount), pin dual-layout negatives; " +
+    "1: migrated shell — single RootSettings + keyed server scope + switcher/unavailable, M-056 upstream-only Server tab (no MobileHostManager), M-026 single-face forms (predicate/guard/nav/mount), pin dual-layout negatives; " +
     "2: navigation CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem; " +
     "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4 — issue #109 resolved the contract as KEEP, notes reworded in place by M-052); " +
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +

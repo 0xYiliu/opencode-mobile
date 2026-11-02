@@ -3,7 +3,7 @@ import { Dialog, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "@op
 import { Divider } from "@opencode/ui/divider"
 import { TextInput } from "@opencode/ui/text-input"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js"
+import { batch, createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createKeyed, usePlugin } from "@opencode/plugin/gui"
 import type { SshConfig, SshItem } from "./contract"
@@ -13,7 +13,9 @@ import type { SshController } from "./state"
 export { default as css } from "./ssh.css?inline"
 
 export function DialogSsh(props: {
-  ssh: SshController
+  ssh: Pick<SshController, "item" | "error" | "submitting" | "answered" | "connect" | "respond" | "cancel">
+  /** A non-plugin host may supply only the UI translation boundary. */
+  translate?: (key: string, params?: Record<string, string>) => string
   config?: SshConfig
   connect?: boolean
   promptOnly?: boolean
@@ -22,7 +24,7 @@ export function DialogSsh(props: {
   onConnected?: () => void
 }) {
   const dialog = useDialog()
-  const plugin = usePlugin()
+  const plugin = props.translate ? { t: props.translate } : usePlugin()
   const ssh = props.ssh
   // Entry-point behavior is fixed for the lifetime of this dialog.
   const openProject = props.onOpenProject
@@ -80,8 +82,10 @@ export function DialogSsh(props: {
 
   const start = (replace = false) => {
     if (busy() || !state.target.trim()) return
-    setState({ started: true, starts: state.starts + 1 })
-    ssh.connect({ id, target: state.target, name: state.name }, { dialog: true, replace })
+    batch(() => {
+      setState({ started: true, starts: state.starts + 1 })
+      ssh.connect({ id, target: state.target, name: state.name }, { dialog: true, replace })
+    })
   }
 
   const respond = () => {
@@ -99,7 +103,7 @@ export function DialogSsh(props: {
 
   // Closes the dialog once the server it started is ready.
   createKeyed(
-    () => state.started && item()?.stage === "ready" && !ssh.submitting(id) && !state.complete,
+    () => state.started && item()?.stage === "ready" && !ssh.submitting(id) && !ssh.error(id) && !state.complete,
     () => {
       setState("complete", true)
       dialog.close()
@@ -219,7 +223,7 @@ export function DialogSsh(props: {
               </div>
             )}
           </Show>
-          <Show when={item()?.stage !== "incompatible" && error()}>
+          <Show when={(item()?.stage !== "incompatible" || ssh.error(id)) && error()}>
             {(error) => (
               <span class="settings-server-dialog-error !leading-[var(--line-height-compact)]" role="alert">
                 {error()}

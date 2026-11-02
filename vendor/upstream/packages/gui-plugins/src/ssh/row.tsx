@@ -8,8 +8,14 @@ import { usePlugin, type ServerRow } from "@opencode/plugin/gui"
 import { isSshConnecting, sshName } from "./name"
 import type { SshController } from "./state"
 
-export default function SshRow(props: { row: ServerRow; id: string; ssh: SshController }) {
-  const plugin = usePlugin()
+export default function SshRow(props: {
+  row: ServerRow
+  id: string
+  ssh: Pick<SshController, "item" | "pending" | "connect">
+  translate?: (key: string, params?: Record<string, string>) => string
+  onRemoveError?: (error: unknown) => void
+}) {
+  const plugin = props.translate ? { t: props.translate } : usePlugin()
   const pending = () => props.ssh.pending(props.id)
 
   return (
@@ -83,7 +89,10 @@ export default function SshRow(props: { row: ServerRow; id: string; ssh: SshCont
                       <Menu.GroupLabel>{plugin.t("server.menu.label")}</Menu.GroupLabel>
                       <props.row.Items />
                       <Menu.Separator />
-                      <Menu.Item onSelect={() => void props.row.remove()}>{plugin.t("menu.delete")}</Menu.Item>
+                      <Menu.Item onSelect={() => {
+                        const result = props.row.remove()
+                        if (props.onRemoveError) void result.catch(props.onRemoveError)
+                      }}>{plugin.t("menu.delete")}</Menu.Item>
                     </Menu.Group>
                   </Menu.Content>
                 </Menu.Portal>

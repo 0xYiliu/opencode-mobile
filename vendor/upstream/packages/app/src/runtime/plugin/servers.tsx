@@ -199,13 +199,13 @@ export function useServerRowItems(server: () => string) {
 }
 
 /** MenuItem "server.add" contributions, in order. */
-export function useServerAddItems() {
+export function useServerAddItems(excludePlugin?: () => string | undefined) {
   const host = usePluginHost()
 
   return createMemo(() =>
     host
-      .list(MenuItem)
-      .flatMap((item) => (item.menu === "server.add" ? [item] : []))
+      .items(MenuItem)
+      .flatMap((item) => (item.plugin !== excludePlugin?.() && item.value.menu === "server.add" ? [item.value] : []))
       .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   )
 }

@@ -1,6 +1,6 @@
 # 单元：server-list（服务器列表与项目选择）
 
-状态：**已确认未实现（字段契约已实现；issue #3 扩展已实现（未验证）；issue #4 凭据管理界面已实现（未验证）；issue #6 servicePort 契约与 passphrase 位已实现（未验证））**。作为产品能力（在设备上查看服务器列表、选择远程项目并进入会话）尚未交付，依赖 connection 单元成立与 G1–G3 门禁；已实现部分：随闭包引入的持久化字段契约与上游 UI 代码，issue #3 的 SSH 主机注册表（`packages/mobile-hosts/src/registry.ts` + `storage.ts`）与管理界面（host-manager / host-dialog，M-008 挂载），以及 issue #4 的凭据管理器（credential-manager）与 host-dialog 凭据绑定块重构；issue #55 增加连接屏到设置 servers 的移动入口（M-027，未验证），全部未经设备运行验证（真机归 G13/G15/G36）。
+当前 Settings Server 契约以本页 **issue #124** 段为准；其余早期管理界面/门禁记录是历史能力说明，不再描述 Settings 的当前挂载面。真实连接与设备证据见 [构建与验证](../../build-and-verify.md)，不得把历史未验证概括套用到后续已验证构建，也不得把历史设备结果套用到本次产物。
 
 ## 字段契约（已实现）
 
@@ -48,6 +48,42 @@ password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭
 - 多 host 一窗：SSH 主机经 `props.servers` 注入上游 `ServersProvider`（extension 型；provided 键 `canRemove=false`，删除控制权在我方管理界面）；直连服务走上游原生注册表。注入值必须是 solid store 派生的响应式访问器（`ServersProvider` 在 `createMemo` 内读取；普通数组快照不会触发重渲染——测试锁定变更传播）。
 
 ## 管理界面挂载点（已实现（未验证）：issue #3 + issue #4 扩展）
+
+### Settings Server 完整上游展示（issue #124）
+
+**范围/事实**：已实现 UI 与未接通动作的明确失败；不实现后台。来源为 Desktop v2.2.1 `3ebcf9a32c7b28f658cfee80775448929361727a`（不是上游 HEAD）。Server 页面、HTTP 对话框沿用现有 vendor；SSH 直接复用 gui-plugins 的 `dialog.tsx` / `row.tsx` / `state.ts` / `name.ts` / `contract.ts` / `ssh.css` 与全部 i18n catalog，只增加窄翻译/动作失败接口，不另画移动版表单。唯一界面例外是 WSL 灰显；无额外说明、SSH hosts 标题、凭据/服务面板。旧 MobileHostManager 在 Settings 中卸载，但代码和连接屏既有功能保留。
+
+| 单元/标识 | 布局与控件 | 状态与流转 | 数据/恢复 |
+| --- | --- | --- | --- |
+| Settings Server：`servers` tab | 原上游标题/描述/Add；单服务 Connection/Preferences、多服务分段列表；SSH 用原上游徽标/状态点/版本/更多菜单 | 加载与健康门沿用上游；无记录仅标题；非健康 Shell 隐藏；HTTP Authenticate/Edit/Delete 继续原安全链；SSH 按真实 runtime 状态展示 | HTTP registry + 既有 `mobile-ssh:<uuid>` 连接；唯一 runtime owner 不变、不注册第二个 SSH 插件、无 mock inventory |
+| 添加菜单 | 顺序 Add server / Add SSH server / 灰显 WSL；真实其他插件贡献保留 | 普通 Add→既有 HTTP dialog；SSH→原 DialogSsh；Android 菜单开窗等待 350ms 避开触摸兼容点击，离开 Settings 时取消待开窗；WSL 触摸/键盘不执行；关闭无副作用 | 同步检查固定 shell origin 与唯一 Android meta 标识；标识只作 UI 区分，不授权 native |
+| SSH dialog | 原 target/name、Add/Connect/Update、Cancel；挑战为 masked response 或 Trust | 空 target 禁用；未接通提交立即原错误行 + SSH unavailable toast；保留 draft、允许重试；Cancel/卸载仅清本 dialog attempt；不写 host/vault/known_hosts、不导航 | runtime 真实 config/状态/已存在 host-key prompt；新表单仅内存；关闭后丢弃；旧 ready 快照不能令失败提交成功关闭 |
+| SSH row | 原 SSH row 与 Connect/SSH authentication/Delete 菜单；认证中原行内 Authenticate | 普通 Connect/Auth 未接通立即 toast；已有挑战/不兼容可呈现原 dialog；Delete 明确失败、原行保留；不调用 runtime connect/remove/disconnect | 只读 registry/state/health；不影响现有连接、任务或 SSH 恢复链 |
+
+**六元组**：空表单 / 输入 target / 验证非空 / 可提交 / Add 启用 / 可编辑；可提交或既有配置 / Add、Connect、Update、Continue、Trust / 后端不可用 / 留在原表单 / 错误与可重试按钮 / 重试或 Cancel；原表单 / Cancel / 清局部 attempt / 返回 Server / 关窗 / 再打开新 draft；保存行 / Delete / 不可用 / 原行不变 / 错误 toast / 可重试。fixture 的 connecting/auth/password/trust/incompatible/ready 仅验证上游呈现，不证明真实 SSH 后台成功。
+
+**异步文案契约（P2 修复，已实现）**：`useMobileSshUi` 先检查 catalog resource 的 `state`；仅在 `ready/refreshing` 时读取 `.latest`，结果携带 locale 且必须与当前语言一致。首次加载、加载失败或旧语言结果均使用上游 English fallback，不以 render-time `resource()` 或未就绪的 `.latest` 读取触发 Suspense；语言加载不得隐藏已有菜单/行，切换时不得把旧语言文案错配到新语言。真实 Suspense 边界下的延迟首次加载/语言切换测试及恢复旧实现后失败的反证见验证文档。
+
+**视觉/横切**：继承 [共享基线](../visual.md) 及原上游 token/CSS，无新增色值/字号/图片/装饰动效。原 dialog/menu 焦点语义、label、alert、masked input 保留；Trust 不因 Enter 意外触发，挑战变更清 response。响应式沿用原 w-full/min-w-0/fit 布局，无新增断点；窄屏触摸与键盘路径需实测。CSR 无 JS 内容不可用是现有接受限制；无新角色权限/配额边界。超长输入沿用上游；本阶段不保存也不把上游 SSH 命令语法传给 native target parser。Android HTML 标识构建时注入并重算 Workbox revision/integrity，不在响应时改内容。
+
+**实施前人工冒烟清单**（MatePad；禁止触碰用户记录/凭据或停止远端）：打开 Server 确认无额外 hosts 面；实际触摸 Add 菜单，检查三项顺序及 WSL 禁用；SSH 空 target 禁用，填 `example@example.invalid`，Add 明确失败且保持草稿，重试仍失败，Cancel 返回；普通 Add 表单可开可取消；现存 SSH 行更多菜单符合上游，Connect/Delete 只验证明确不可用且条目不变；单/多服务、密码/Trust/Update 状态若无真实无害环境，仅 fixture 验证并标设备 BLOCKED；TalkBack/窄手机断点未执行则不得声称通过。
+
+**最小双向核对记录**：菜单→`add-menu.tsx`（rendered touch/禁用/顺序测试）；SSH dialog/row→`mobile-ssh.tsx` + 原 gui-plugins JSX（真实适配器 Add/row 失败、局部取消、ready 防误关窗及挑战清空测试）；Settings 唯一面→`shell.tsx`（无 MobileHostManager 回归）；数据恢复→read-only adapter（前后 registry 相等，无写入调用）。实际命令、设备结论和未验证项随本次产物登记在构建与验证文档。
+
+#### issue #124 最终产物核对（2026-11-02）
+
+MatePad 实际安装 APK SHA-256：`db54c703ce2a070aa897e23d29c69c200af8b58f63190c7c5b2043095a1e033b`。下表仅对应这个最终构建，替代本次早期“Server 不可达”的验收状态；完整命令、设备恢复、截图与历史失败见 [构建与验证文档](../../build-and-verify.md) 的“最终复审修复与 MatePad UI 验收”段。**这是 UI-only 验证，不是真实 SSH E2E；独立代码复审仍待进行。**
+
+| 设计条目 | 实现位置 | 验证动作 | 结果/差异 |
+| --- | --- | --- | --- |
+| catalog 加载不隐藏现有内容、不误配语言 | `settings/servers/mobile-ssh.tsx` | 真实 Suspense 边界延迟首次 zh catalog，再切换延迟 fr catalog；检查行/文案持续可见、旧语言不泄漏；恢复不安全读取作反证 | 自动测试 PASS；不安全读取时测试实际 FAIL；设备语言切换未单独验证 |
+| 菜单及 Android 开窗时序 | `servers/registry/add-menu.tsx` | 最终 APK 实际触摸三项菜单、WSL、普通及 SSH Add；自动测试检查待开窗延迟与卸载取消 | PASS；WSL 灰显不执行、无额外说明，两个对话框持续打开；350ms 为 Android 必要交互适配，无新增可见控件 |
+| 普通 Add 与取消 | 既有 `servers/connect/dialog.tsx` | 实际触摸 Add 打开 HTTP pairing dialog，再 Cancel | PASS；不以此证明配对/普通服务器后台新增成功 |
+| SSH 空态、失败、重试、取消 | 原 SSH `dialog.tsx` + `mobile-ssh.tsx` | 空目标 Add 禁用；合成目标提交后 Request failed、保留可编辑 draft；重试仍失败；Cancel 返回 | PASS；没有创建 SSH 记录或连接、没有信任/凭据写入，不宣称真实 SSH 成功 |
+| 唯一 Settings 面及数据保护 | `settings/shell.tsx`、既有 HTTP registry | Server 无额外 SSH Hosts 区块；以唯一回环测试直连临时进入，结束时仅删除该记录并逐键核对 localStorage | PASS；原服务器与全部 localStorage 键/值精确恢复；只清理自建本机服务和该条 adb reverse，无远端停止 |
+| 尚未验证的范围 | 原 SSH row/challenge 展示与共享响应式/无障碍基线 | 真实 SSH Auth/Trust/Update/Delete 行、真实后台 SSH、窄手机断点、TalkBack、外接键盘、Desktop 同屏对照 | 设备未验证；fixture 不替代真实后台或设备结果；全仓 typecheck 非零，不作为 PASS |
+
+以下管理面表格及 M-008/M-018/M-045 说明为 **issue #124 之前的历史挂载**，不表示 Settings 仍展示这些控件；host-dialog/InitialSshSetup 等其他入口不在本次修改范围。
 
 | 组件 | 归属单元文档 | 挂载点 | 职责 |
 | --- | --- | --- | --- |

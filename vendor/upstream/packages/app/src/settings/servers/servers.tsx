@@ -4,7 +4,7 @@ import { createMemo, For, Show, type Component } from "solid-js"
 import { ServerRowMenu } from "@/servers/registry/row-menu"
 import { ServerHealthIndicator } from "@/servers/registry/row"
 import { PluginServerRow } from "@/servers/registry/plugin-row"
-import { AddServerMenu } from "@/servers/registry/add-menu"
+import { SettingsAddServerMenu } from "@/servers/registry/add-menu"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useServerCollectionController } from "@/servers/registry/controller"
@@ -13,17 +13,23 @@ import { SettingsList } from "@/settings/list"
 import { ShellSetting } from "@/settings/general/general"
 import { createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
+import { MobileSshSettingsRow } from "./mobile-ssh"
+import { parseHostKey } from "@opencode-mobile/mobile-hosts"
 import "@/settings/settings.css"
 
 /** The only server's connection and preferences. */
-export const SettingsServerGeneral: Component<{ entry: SettingsServer; onAddServer: () => void }> = (props) => {
+export const SettingsServerGeneral: Component<{
+  entry: SettingsServer
+  onAddServer: () => void
+  unsupportedWsl?: boolean
+}> = (props) => {
   const language = useLanguage()
   const controller = useServerCollectionController()
   const health = createMemo(() => controller.collection.health()[props.entry.key])
 
   return (
     <>
-      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} />
+      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
 
       <div class="settings-tab-body settings-tab-body--sectioned">
         <section class="settings-section settings-server-connection" data-component="settings-server-connection">
@@ -54,6 +60,7 @@ export const SettingsServerList: Component<{
   /** The server whose shell row search results reveal. */
   selected?: string
   onAddServer: () => void
+  unsupportedWsl?: boolean
   onServerChange: (server: ServerConnection.Any) => void
 }> = (props) => {
   const language = useLanguage()
@@ -61,7 +68,7 @@ export const SettingsServerList: Component<{
 
   return (
     <>
-      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} />
+      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
 
       <div class="settings-tab-body settings-tab-body--sectioned">
         <For each={props.servers}>
@@ -97,7 +104,7 @@ export const SettingsServerList: Component<{
   )
 }
 
-function SettingsServersHeader(props: { title: string; onAddServer: () => void }) {
+function SettingsServersHeader(props: { title: string; onAddServer: () => void; unsupportedWsl?: boolean }) {
   const language = useLanguage()
 
   return (
@@ -108,7 +115,7 @@ function SettingsServersHeader(props: { title: string; onAddServer: () => void }
           <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
         </div>
         <div class="settings-tab-header-actions">
-          <AddServerMenu onAddServer={props.onAddServer} />
+          <SettingsAddServerMenu onAddServer={props.onAddServer} checkAndroid={props.unsupportedWsl} />
         </div>
       </div>
     </div>
@@ -129,6 +136,7 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
     server.type === "http" && health()?.unauthorized ? server : undefined
 
   return (
+    <Show when={!parseHostKey(props.entry.key)} fallback={<MobileSshSettingsRow server={props.entry.key} health={health} />}>
     <Show
       when={props.entry.source?.entry.row ? props.entry.key : undefined}
       keyed
@@ -163,6 +171,7 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
       }
     >
       {(key) => <PluginServerRow server={key} controller={controller} />}
+    </Show>
     </Show>
   )
 }

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createComponent, createRoot, Show, type Accessor } from "solid-js"
+import { insert } from "solid-js/web"
 
 // mobile(M-044) rewrite for the migrated (v2.2.1) servers-tab shape (issue #101, plan §3.3):
 // the target `<Show when={multiple() ? undefined : inventory()[0]} fallback={...}>` is NOT
@@ -37,22 +38,18 @@ describe("root Settings Server keyed entry", () => {
         },
       })
 
-      if (tree instanceof Node) host.appendChild(tree)
+      insert(host, tree)
       queueMicrotask(dispose)
     })
 
     expect(host.querySelector("[data-testid=server-name]")?.textContent).toBe("Synthetic server")
   })
 
-  test("the migrated shell renders the target servers-tab shape with the host manager first", async () => {
+  test("the migrated shell renders only the upstream servers-tab shape", async () => {
     const source = await Bun.file(new URL("./shell.tsx", import.meta.url)).text()
 
-    // mobile(M-008): the first-party SSH host manager is the tab's first child.
     expect(source).toContain('<Tabs.Content value="servers" class="settings-panel">')
-    expect(source).toContain("<MobileHostManager />")
-    expect(source.indexOf("<MobileHostManager />")).toBeGreaterThan(
-      source.indexOf('<Tabs.Content value="servers" class="settings-panel">'),
-    )
+    expect(source).not.toContain("MobileHostManager")
 
     // Target form: non-keyed Show with the SettingsServerList fallback wired to the
     // surface's server scope, and the plain value passed to the root server panel.
@@ -60,7 +57,7 @@ describe("root Settings Server keyed entry", () => {
     expect(source).toContain("<SettingsServerList")
     expect(source).toContain("selected={surface.server()?.key}")
     expect(source).toContain("onServerChange={selectServer}")
-    expect(source).toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
+    expect(source).toContain("entry={entry()}")
     expect(source).not.toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
   })
 })

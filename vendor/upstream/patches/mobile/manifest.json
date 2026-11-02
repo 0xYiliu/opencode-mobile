@@ -994,7 +994,7 @@
       "verification": "Pairing tests simulate missing URL static methods; runtime WebView validation remains pending.",
       "rebase": "Layered after M-052; preserve validation rules."
     },
-      {
+    {
       "id": "M-054",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/0054-M-054-password-keyboard.patch",
@@ -1017,6 +1017,33 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "See docs/build-and-verify.md for URL regressions and device verification status.",
       "rebase": "Layered after M-054; retain window imports until supported WebViews provide both APIs. Worker realms require independent evaluation."
+    },
+    {
+      "id": "M-056",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0056-M-056-settings-server-menu.patch",
+      "targets": [
+        "packages/app/src/runtime/plugin/servers.tsx",
+        "packages/app/src/servers/registry/add-menu.tsx",
+        "packages/app/src/servers/registry/add-menu.test.tsx",
+        "packages/app/src/settings/servers/android-host.ts",
+        "packages/app/src/settings/servers/android-host.test.ts",
+        "packages/app/src/settings/servers/servers-page.test.tsx",
+        "packages/app/src/settings/servers/servers.tsx",
+        "packages/app/src/settings/shell.tsx",
+        "packages/app/src/settings/keyed-server-entry.test.tsx",
+        "packages/app/src/settings/servers/mobile-ssh.tsx",
+        "packages/app/src/settings/servers/mobile-ssh.test.tsx",
+        "packages/gui-plugins/src/ssh/dialog.tsx",
+        "packages/gui-plugins/src/ssh/row.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts",
+        "packages/app/src/runtime/i18n/zht.ts"
+      ],
+      "reason": "Issue #124 UI-only parity with Desktop v2.2.1 (3ebcf9a32c7b28f658cfee80775448929361727a): remove Settings MobileHostManager, reuse original SSH dialog/row/state/name/contract/CSS/catalog through a narrow read-only mobile adapter. The original mobile runtime remains sole owner and keeps its keys. Unwired operations fail explicitly; cancel only clears dialog-local state. WSL is visible but disabled, with no extra explanation. Android HTML marker is presentation-only and never authorizes native capabilities.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Rendered Kobalte menu and real mobile adapter fail-closed tests, upstream challenge/state fixtures, Settings regressions, first-party tests, web/Android builds and layered closure. Actual device evidence and remaining blockers are recorded in docs/build-and-verify.md; fixtures do not establish real backend success.",
+      "rebase": "Layered after M-055; preserve pinned original JSX, minimal translation/error boundaries, batched start and no-error completion guard, sole mobile owner and no remote/persistence mutations, Android-only marker/menu adaptation and other plugin actions."
     }
   ]
 }

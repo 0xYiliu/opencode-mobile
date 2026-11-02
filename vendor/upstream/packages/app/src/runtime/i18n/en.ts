@@ -381,6 +381,8 @@ export const dict = {
   "dialog.server.error.credential-url": "The address carries embedded credentials (user:password@host). Remove them from the address and use the password field instead.",
   "dialog.server.add.checking": "Checking…",
   "dialog.server.add.button": "Add server",
+  "dialog.server.add.wsl": "Add WSL server",
+  "dialog.server.add.wslUnavailable": "WSL servers are only available on Windows desktop.",
   "dialog.server.add.name": "Server name (optional)",
   "dialog.server.add.namePlaceholder": "Localhost",
   "dialog.server.add.password": "Password",
