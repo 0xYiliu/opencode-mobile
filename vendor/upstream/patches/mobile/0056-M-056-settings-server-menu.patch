@@ -1,0 +1,1001 @@
+diff --git a/packages/app/src/runtime/plugin/servers.tsx b/packages/app/src/runtime/plugin/servers.tsx
+--- a/packages/app/src/runtime/plugin/servers.tsx
++++ b/packages/app/src/runtime/plugin/servers.tsx
+@@ -199,13 +199,13 @@
+ }
+ 
+ /** MenuItem "server.add" contributions, in order. */
+-export function useServerAddItems() {
++export function useServerAddItems(excludePlugin?: () => string | undefined) {
+   const host = usePluginHost()
+ 
+   return createMemo(() =>
+     host
+-      .list(MenuItem)
+-      .flatMap((item) => (item.menu === "server.add" ? [item] : []))
++      .items(MenuItem)
++      .flatMap((item) => (item.plugin !== excludePlugin?.() && item.value.menu === "server.add" ? [item.value] : []))
+       .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+   )
+ }
+diff --git a/packages/app/src/servers/registry/add-menu.tsx b/packages/app/src/servers/registry/add-menu.tsx
+--- a/packages/app/src/servers/registry/add-menu.tsx
++++ b/packages/app/src/servers/registry/add-menu.tsx
+@@ -2,18 +2,28 @@
+ import { Icon } from "@opencode/ui/icon"
+ import { IconButton } from "@opencode/ui/icon-button"
+ import { Menu } from "@opencode/ui/menu"
+-import { For, Show } from "solid-js"
++import { For, onCleanup, Show } from "solid-js"
+ import { useServerAddItems } from "@/runtime/plugin/servers"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { isAndroidMobileHost } from "@/settings/servers/android-host"
++import { useMobileSshUi } from "@/settings/servers/mobile-ssh"
++
++/** The native shell marks its HTML before the app's first render. */
++export function SettingsAddServerMenu(props: { onAddServer: () => void; checkAndroid?: boolean }) {
++  return <AddServerMenu onAddServer={props.onAddServer} unsupportedWsl={!!props.checkAndroid && isAndroidMobileHost()} />
++}
+ 
+ /** The add-server button; plugins that add their own kinds of server turn it into a menu. */
+-export function AddServerMenu(props: { onAddServer: () => void; compact?: boolean }) {
++export function AddServerMenu(props: { onAddServer: () => void; compact?: boolean; unsupportedWsl?: boolean }) {
+   const language = useLanguage()
+-  const items = useServerAddItems()
++  const ssh = useMobileSshUi()
++  const items = useServerAddItems(() => (props.unsupportedWsl ? "wsl" : undefined))
++  let pendingAdd: ReturnType<typeof setTimeout> | undefined
++  onCleanup(() => clearTimeout(pendingAdd))
+ 
+   return (
+     <Show
+-      when={items().length > 0}
++      when={props.unsupportedWsl || items().length > 0}
+       fallback={
+         <Show
+           when={props.compact}
+@@ -52,8 +62,27 @@
+         </Show>
+         <Menu.Portal>
+           <Menu.Content>
+-            <Menu.Item onSelect={props.onAddServer}>{language.t("dialog.server.add.button")}</Menu.Item>
++            <Menu.Item onSelect={() => {
++              // Android WebView 114 can deliver a compatibility click after touch selection.
++              // Opening immediately lets that trailing click dismiss the new dialog's backdrop.
++              // Wait past the 300ms compatibility-click window; cleanup cancels a stale open.
++              if (props.unsupportedWsl) {
++                clearTimeout(pendingAdd)
++                pendingAdd = setTimeout(props.onAddServer, 350)
++                return
++              }
++              props.onAddServer()
++            }}>{language.t("dialog.server.add.button")}</Menu.Item>
+             <For each={items()}>{(item) => <Menu.Item onSelect={() => item.run()}>{item.title}</Menu.Item>}</For>
++            <Show when={props.unsupportedWsl}>
++              <Menu.Item onSelect={() => {
++                clearTimeout(pendingAdd)
++                pendingAdd = setTimeout(() => void ssh.open(), 350)
++              }}>{ssh.translate("add")}</Menu.Item>
++              <Menu.Item disabled>
++                {language.t("dialog.server.add.wsl")}
++              </Menu.Item>
++            </Show>
+           </Menu.Content>
+         </Menu.Portal>
+       </Menu>
+diff --git a/packages/app/src/servers/registry/add-menu.test.tsx b/packages/app/src/servers/registry/add-menu.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/servers/registry/add-menu.test.tsx
+@@ -0,0 +1,176 @@
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test } from "bun:test"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++import { createRequire } from "node:module"
++import type { Window as HappyDOMWindow } from "happy-dom"
++
++function isHappyDOMWindow(value: unknown): value is { happyDOM: Pick<HappyDOMWindow["happyDOM"], "setURL"> } {
++  if (typeof value !== "object" || value === null || !("happyDOM" in value)) return false
++  const api = value.happyDOM
++  return typeof api === "object" && api !== null && "setURL" in api && typeof api.setURL === "function"
++}
++if (!isHappyDOMWindow(window)) throw new Error("This rendered test requires the Happy DOM preload")
++const browser = window.happyDOM
++
++// Standalone rendered test: bun test --conditions=browser --isolate --preload ./happydom.ts src/servers/registry/add-menu.test.tsx
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core") as {
++  transformSync: (source: string, options: object) => { code: string | null } | null
++}
++plugin({
++  name: "add-server-menu-rendered",
++  setup(build) {
++    build.onLoad({ filter: /packages\/(app|ui)\/src\/.*\.tsx$/ }, async (args) => ({
++      contents: babel.transformSync(await Bun.file(args.path).text(), {
++        filename: args.path,
++        presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")],
++        configFile: false,
++        babelrc: false,
++      })!.code!,
++      loader: "js",
++    }))
++  },
++})
++
++let contributions: Array<{ plugin: string; value: { menu: "server.add"; id: string; title: string; run: () => void } }> = []
++mock.module("@/runtime/plugin/host", () => ({ usePluginHost: () => ({ items: () => contributions }) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++let sshOpened = 0
++mock.module("@/settings/servers/mobile-ssh", () => ({ useMobileSshUi: () => ({ translate: (key: string) => key === "add" ? "Add SSH server" : key, open: () => { sshOpened++ } }) }))
++const { AddServerMenu, SettingsAddServerMenu } = await import("./add-menu")
++
++let dispose: (() => void) | undefined
++afterEach(() => { dispose?.(); document.body.replaceChildren(); contributions = []; sshOpened = 0 })
++
++function mount(unsupportedWsl: boolean, onAddServer: () => void) {
++  const host = document.createElement("div")
++  document.body.append(host)
++  createRoot((stop) => {
++    dispose = stop
++    insert(host, createComponent(AddServerMenu, { onAddServer, unsupportedWsl }))
++  })
++  return host
++}
++
++function open(host: HTMLElement) {
++  host.querySelector("button")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }))
++}
++
++describe("settings add server menu", () => {
++  test("first render distinguishes same-origin browser from native shell", async () => {
++    const initial = window.location.href
++    let added = 0
++    try {
++      browser.setURL("http://127.0.0.1:18090/")
++      const host = document.createElement("div")
++      document.body.append(host)
++      createRoot((stop) => {
++        dispose = stop
++        insert(host, createComponent(SettingsAddServerMenu, { checkAndroid: true, onAddServer: () => added++ }))
++      })
++      host.querySelector("button")!.click()
++      expect(added).toBe(1)
++      expect(document.querySelector('[role="menuitem"]')).toBeNull()
++      dispose?.()
++      host.remove()
++      const marker = document.createElement("meta")
++      marker.name = "opencode-mobile-host"
++      marker.content = "android-v1"
++      document.head.append(marker)
++      const android = document.createElement("div")
++      document.body.append(android)
++      createRoot((stop) => {
++        dispose = stop
++        insert(android, createComponent(SettingsAddServerMenu, { checkAndroid: true, onAddServer: () => added++ }))
++      })
++      open(android)
++      await Promise.resolve()
++      const wsl = [...document.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent?.includes("dialog.server.add.wsl"))!
++      expect(wsl.getAttribute("aria-disabled")).toBe("true")
++      expect(added).toBe(1)
++      marker.remove()
++    } finally {
++      browser.setURL(initial)
++    }
++  })
++
++  test("mobile exposes exactly Add, SSH and disabled WSL, without extra explanation", async () => {
++    let added = 0
++    const host = mount(true, () => added++)
++    open(host)
++    await Promise.resolve()
++    const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent?.includes("dialog.server.add.wsl"))!
++    expect(item).toBeDefined()
++    expect(item.getAttribute("aria-disabled")).toBe("true")
++    expect([...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent)).toEqual(["dialog.server.add.button", "Add SSH server", "dialog.server.add.wsl"])
++    expect(document.querySelector('[role="note"]')).toBeNull()
++    item.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    item.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }))
++    expect(added).toBe(0)
++    const add = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "dialog.server.add.button")!
++    add.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(added).toBe(0)
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(added).toBe(1)
++  })
++
++  test("mobile SSH touch action opens the upstream dialog after menu dismissal", async () => {
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    const ssh = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Add SSH server")!
++    ssh.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(sshOpened).toBe(0)
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(sshOpened).toBe(1)
++  })
++
++  test("leaving Settings cancels a pending Android touch open", async () => {
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    const ssh = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Add SSH server")!
++    ssh.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    dispose?.()
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(sshOpened).toBe(0)
++  })
++
++  test("preserves other contributions but never runs the WSL contribution", async () => {
++    let wsl = 0
++    let other = 0
++    contributions = [
++      { plugin: "wsl", value: { menu: "server.add", id: "add", title: "real WSL", run: () => wsl++ } },
++      { plugin: "other", value: { menu: "server.add", id: "add", title: "other server", run: () => other++ } },
++    ]
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    expect(document.body.textContent).not.toContain("real WSL")
++    const otherItem = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "other server")!
++    otherItem.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(other).toBe(1)
++    expect(wsl).toBe(0)
++  })
++
++  test("non-mobile with no contributions retains the direct Add action", () => {
++    let added = 0
++    const host = mount(false, () => added++)
++    host.querySelector("button")!.click()
++    expect(added).toBe(1)
++    expect(document.querySelector('[role="menuitem"]')).toBeNull()
++  })
++
++  test("non-mobile retains a real WSL contribution", async () => {
++    let wsl = 0
++    contributions = [{ plugin: "wsl", value: { menu: "server.add", id: "add", title: "real WSL", run: () => wsl++ } }]
++    const host = mount(false, () => {})
++    open(host)
++    await Promise.resolve()
++    const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "real WSL")!
++    item.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }))
++    expect(wsl).toBe(1)
++    expect(document.body.textContent).not.toContain("dialog.server.add.wslUnavailable")
++  })
++})
+diff --git a/packages/app/src/settings/servers/android-host.ts b/packages/app/src/settings/servers/android-host.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/settings/servers/android-host.ts
+@@ -0,0 +1,6 @@
++/** UI-only identity; native bridges must continue enforcing their own origin and capability gates. */
++export function isAndroidMobileHost() {
++  if (typeof window === "undefined" || window.location.origin !== "http://127.0.0.1:18090") return false
++  const markers = document.head.querySelectorAll('meta[name="opencode-mobile-host"]')
++  return markers.length === 1 && markers[0]?.getAttribute("content") === "android-v1"
++}
+diff --git a/packages/app/src/settings/servers/android-host.test.ts b/packages/app/src/settings/servers/android-host.test.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/settings/servers/android-host.test.ts
+@@ -0,0 +1,49 @@
++import { describe, expect, test } from "bun:test"
++import { isAndroidMobileHost } from "./android-host"
++import { dict as zh } from "@/runtime/i18n/zh"
++import { dict as zht } from "@/runtime/i18n/zht"
++import wslZh from "../../../../gui-plugins/src/wsl/i18n/zh"
++import wslZht from "../../../../gui-plugins/src/wsl/i18n/zht"
++import type { Window as HappyDOMWindow } from "happy-dom"
++
++function isHappyDOMWindow(value: unknown): value is { happyDOM: Pick<HappyDOMWindow["happyDOM"], "setURL"> } {
++  if (typeof value !== "object" || value === null || !("happyDOM" in value)) return false
++  const api = value.happyDOM
++  return typeof api === "object" && api !== null && "setURL" in api && typeof api.setURL === "function"
++}
++if (!isHappyDOMWindow(window)) throw new Error("This host test requires the Happy DOM preload")
++const browser = window.happyDOM
++
++describe("Android server host", () => {
++  test("only exact origin and one exact synchronous marker identify Android", () => {
++    const initial = window.location.href
++    const marker = document.createElement("meta")
++    marker.name = "opencode-mobile-host"
++    marker.content = "android-v1"
++    try {
++      browser.setURL("http://127.0.0.1:18090/")
++      expect(isAndroidMobileHost()).toBe(false)
++      document.head.append(marker)
++      expect(isAndroidMobileHost()).toBe(true)
++      marker.content = "wrong"
++      expect(isAndroidMobileHost()).toBe(false)
++      marker.content = "android-v1"
++      const duplicate = marker.cloneNode() as HTMLElement
++      document.head.append(duplicate)
++      expect(isAndroidMobileHost()).toBe(false)
++      duplicate.remove()
++      browser.setURL("https://example.org/")
++      expect(isAndroidMobileHost()).toBe(false)
++    } finally {
++      marker.remove()
++      browser.setURL(initial)
++    }
++  })
++
++  test("uses upstream WSL labels in both Chinese locales", () => {
++    expect(zh["dialog.server.add.wsl"]).toBe(wslZh["server.add"])
++    expect(zht["dialog.server.add.wsl"]).toBe(wslZht["server.add"])
++    expect(zh["dialog.server.add.wslUnavailable"]).toBeTruthy()
++    expect(zht["dialog.server.add.wslUnavailable"]).toBeTruthy()
++  })
++})
+diff --git a/packages/app/src/settings/servers/servers-page.test.tsx b/packages/app/src/settings/servers/servers-page.test.tsx
+--- a/packages/app/src/settings/servers/servers-page.test.tsx
++++ b/packages/app/src/settings/servers/servers-page.test.tsx
+@@ -87,6 +87,7 @@
+   | undefined
+ 
+ try {
++  mock.module("./mobile-ssh", () => ({ MobileSshSettingsRow: () => null, useMobileSshUi: () => ({ translate: (key: string) => key }) }))
+   const language = await import("@/runtime/i18n/language")
+   mock.module("@/runtime/i18n/language", () => ({
+     ...language,
+@@ -148,6 +149,16 @@
+     usePluginServers: () => ({ entries: () => [], entry: () => undefined, ready: () => true }),
+     useServerAddItems: () => () => [],
+     useServerRowItems: () => () => [],
++  }))
++
++  // Observe the page-to-menu option on both real page layouts without replacing the pages.
++  mock.module("@/servers/registry/add-menu", () => ({
++    SettingsAddServerMenu: (props: { checkAndroid?: boolean }) => {
++      const button = document.createElement("button")
++      button.textContent = "dialog.server.add.button"
++      button.dataset.unsupportedWsl = String(!!props.checkAndroid)
++      return button
++    },
+   }))
+ 
+   // Probe: the row menu normally opens a dropdown whose Edit item fires
+@@ -247,6 +258,19 @@
+ const shellRowCount = (host: HTMLElement) => (host.textContent.match(/settings\.general\.row\.shell\.title/g) ?? []).length
+ 
+ describe("servers page (target-verbatim, issue #102)", () => {
++  test.skipIf(!behavior)("both server layouts pass the Android menu option", () => {
++    const { SettingsServerGeneral, SettingsServerList } = behavior!
++    const entry = { key: serverKey("srv-one"), name: "One", connection: httpServer("http://one.local:4096") }
++    const single = mount(() => createComponent(SettingsServerGeneral as never, {
++      entry, onAddServer: () => {}, unsupportedWsl: true,
++    }))
++    const multiple = mount(() => createComponent(SettingsServerList as never, {
++      servers: [entry, { ...entry, key: serverKey("srv-two") }], onAddServer: () => {},
++      onServerChange: () => {}, unsupportedWsl: true,
++    }))
++    expect(single.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
++    expect(multiple.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
++  })
+   test("source: target rows, health gate, header reuse and the shell action thread", async () => {
+     const source = await Bun.file(new URL("./servers.tsx", import.meta.url)).text()
+ 
+diff --git a/packages/app/src/settings/servers/servers.tsx b/packages/app/src/settings/servers/servers.tsx
+--- a/packages/app/src/settings/servers/servers.tsx
++++ b/packages/app/src/settings/servers/servers.tsx
+@@ -4,7 +4,7 @@
+ import { ServerRowMenu } from "@/servers/registry/row-menu"
+ import { ServerHealthIndicator } from "@/servers/registry/row"
+ import { PluginServerRow } from "@/servers/registry/plugin-row"
+-import { AddServerMenu } from "@/servers/registry/add-menu"
++import { SettingsAddServerMenu } from "@/servers/registry/add-menu"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import { useServerCollectionController } from "@/servers/registry/controller"
+@@ -13,17 +13,23 @@
+ import { ShellSetting } from "@/settings/general/general"
+ import { createServerShellController } from "@/settings/general/controllers"
+ import type { SettingsServer } from "./inventory"
++import { MobileSshSettingsRow } from "./mobile-ssh"
++import { parseHostKey } from "@opencode-mobile/mobile-hosts"
+ import "@/settings/settings.css"
+ 
+ /** The only server's connection and preferences. */
+-export const SettingsServerGeneral: Component<{ entry: SettingsServer; onAddServer: () => void }> = (props) => {
++export const SettingsServerGeneral: Component<{
++  entry: SettingsServer
++  onAddServer: () => void
++  unsupportedWsl?: boolean
++}> = (props) => {
+   const language = useLanguage()
+   const controller = useServerCollectionController()
+   const health = createMemo(() => controller.collection.health()[props.entry.key])
+ 
+   return (
+     <>
+-      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} />
++      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
+ 
+       <div class="settings-tab-body settings-tab-body--sectioned">
+         <section class="settings-section settings-server-connection" data-component="settings-server-connection">
+@@ -54,6 +60,7 @@
+   /** The server whose shell row search results reveal. */
+   selected?: string
+   onAddServer: () => void
++  unsupportedWsl?: boolean
+   onServerChange: (server: ServerConnection.Any) => void
+ }> = (props) => {
+   const language = useLanguage()
+@@ -61,7 +68,7 @@
+ 
+   return (
+     <>
+-      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} />
++      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
+ 
+       <div class="settings-tab-body settings-tab-body--sectioned">
+         <For each={props.servers}>
+@@ -97,7 +104,7 @@
+   )
+ }
+ 
+-function SettingsServersHeader(props: { title: string; onAddServer: () => void }) {
++function SettingsServersHeader(props: { title: string; onAddServer: () => void; unsupportedWsl?: boolean }) {
+   const language = useLanguage()
+ 
+   return (
+@@ -108,7 +115,7 @@
+           <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
+         </div>
+         <div class="settings-tab-header-actions">
+-          <AddServerMenu onAddServer={props.onAddServer} />
++          <SettingsAddServerMenu onAddServer={props.onAddServer} checkAndroid={props.unsupportedWsl} />
+         </div>
+       </div>
+     </div>
+@@ -129,6 +136,7 @@
+     server.type === "http" && health()?.unauthorized ? server : undefined
+ 
+   return (
++    <Show when={!parseHostKey(props.entry.key)} fallback={<MobileSshSettingsRow server={props.entry.key} health={health} />}>
+     <Show
+       when={props.entry.source?.entry.row ? props.entry.key : undefined}
+       keyed
+@@ -164,6 +172,7 @@
+     >
+       {(key) => <PluginServerRow server={key} controller={controller} />}
+     </Show>
++    </Show>
+   )
+ }
+ 
+diff --git a/packages/app/src/settings/shell.tsx b/packages/app/src/settings/shell.tsx
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -43,9 +43,6 @@
+ import "@/settings/settings.css"
+ 
+ // mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
+-const MobileHostManager = lazy(() =>
+-  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
+-)
+ 
+ // mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
+ // "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
+@@ -462,10 +459,6 @@
+         )}
+       </Show>
+       <Tabs.Content value="servers" class="settings-panel">
+-        {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
+-            upstream server panel; it renders even with an empty upstream list so the first
+-            SSH host can be created. */}
+-        <MobileHostManager />
+         <Show
+           when={multiple() ? undefined : inventory()[0]}
+           fallback={
+@@ -473,11 +466,18 @@
+               servers={inventory()}
+               selected={surface.server()?.key}
+               onAddServer={addServer}
++              unsupportedWsl={platform.platform === "web"}
+               onServerChange={selectServer}
+             />
+           }
+         >
+-          {(entry) => <SettingsServerGeneral entry={entry()} onAddServer={addServer} />}
++          {(entry) => (
++            <SettingsServerGeneral
++              entry={entry()}
++              onAddServer={addServer}
++              unsupportedWsl={platform.platform === "web"}
++            />
++          )}
+         </Show>
+       </Tabs.Content>
+     </SettingsNavigation>
+diff --git a/packages/app/src/settings/keyed-server-entry.test.tsx b/packages/app/src/settings/keyed-server-entry.test.tsx
+--- a/packages/app/src/settings/keyed-server-entry.test.tsx
++++ b/packages/app/src/settings/keyed-server-entry.test.tsx
+@@ -1,5 +1,6 @@
+ import { describe, expect, test } from "bun:test"
+ import { createComponent, createRoot, Show, type Accessor } from "solid-js"
++import { insert } from "solid-js/web"
+ 
+ // mobile(M-044) rewrite for the migrated (v2.2.1) servers-tab shape (issue #101, plan §3.3):
+ // the target `<Show when={multiple() ? undefined : inventory()[0]} fallback={...}>` is NOT
+@@ -37,22 +38,18 @@
+         },
+       })
+ 
+-      if (tree instanceof Node) host.appendChild(tree)
++      insert(host, tree)
+       queueMicrotask(dispose)
+     })
+ 
+     expect(host.querySelector("[data-testid=server-name]")?.textContent).toBe("Synthetic server")
+   })
+ 
+-  test("the migrated shell renders the target servers-tab shape with the host manager first", async () => {
++  test("the migrated shell renders only the upstream servers-tab shape", async () => {
+     const source = await Bun.file(new URL("./shell.tsx", import.meta.url)).text()
+ 
+-    // mobile(M-008): the first-party SSH host manager is the tab's first child.
+     expect(source).toContain('<Tabs.Content value="servers" class="settings-panel">')
+-    expect(source).toContain("<MobileHostManager />")
+-    expect(source.indexOf("<MobileHostManager />")).toBeGreaterThan(
+-      source.indexOf('<Tabs.Content value="servers" class="settings-panel">'),
+-    )
++    expect(source).not.toContain("MobileHostManager")
+ 
+     // Target form: non-keyed Show with the SettingsServerList fallback wired to the
+     // surface's server scope, and the plain value passed to the root server panel.
+@@ -60,7 +57,7 @@
+     expect(source).toContain("<SettingsServerList")
+     expect(source).toContain("selected={surface.server()?.key}")
+     expect(source).toContain("onServerChange={selectServer}")
+-    expect(source).toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
++    expect(source).toContain("entry={entry()}")
+     expect(source).not.toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
+   })
+ })
+diff --git a/packages/app/src/settings/servers/mobile-ssh.tsx b/packages/app/src/settings/servers/mobile-ssh.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/settings/servers/mobile-ssh.tsx
+@@ -0,0 +1,101 @@
++/** Settings-only presentation adapter. The existing mobile runtime remains the sole owner.
++ * No desktop renderer, IPC, restore, resolve or remote bootstrap is installed here.
++ * This UI-parity phase intentionally fails mutations before reaching any runtime port.
++ */
++import { getMobileHosts, parseHostKey, type MobileHosts } from "@opencode-mobile/mobile-hosts"
++import { Menu } from "@opencode/ui/menu"
++import { showToast } from "@opencode/ui/toast"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { createResource, Show } from "solid-js"
++import type { BuiltinCatalog } from "@opencode/plugin/gui/builtin"
++import type { ServerRow } from "@opencode/plugin/gui"
++import { useLanguage } from "@/runtime/i18n/language"
++import { ServerHealthIndicator } from "@/servers/registry/row"
++import type { ServerHealth } from "@/runtime/server/health"
++import { DialogSsh } from "../../../../gui-plugins/src/ssh/dialog"
++import SshRow from "../../../../gui-plugins/src/ssh/row"
++import { createSshController } from "../../../../gui-plugins/src/ssh/state"
++import type { SshConfig, SshItem } from "../../../../gui-plugins/src/ssh/contract"
++import en from "../../../../gui-plugins/src/ssh/i18n/en"
++import definition from "../../../../gui-plugins/src/ssh/index"
++import "../../../../gui-plugins/src/ssh/ssh.css"
++
++export function mobileSshItems(runtime: MobileHosts): SshItem[] {
++  return runtime.registry.list().map((host) => {
++    const state = runtime.stateOf(host.id)
++    const stage: SshItem["stage"] = state === "ready" ? "ready"
++      : state === "incompatible" ? "incompatible"
++      : state === "authRequired" || state === "hostKeyUnverified" ? "authentication"
++      : state === "failed" ? "failed"
++      : state === "connecting" || state === "reconnecting" ? "connecting"
++      : "disconnected"
++    const fingerprint = state === "hostKeyUnverified" ? runtime.fingerprintOf(host.id) : undefined
++    return {
++      config: { id: host.id, target: host.target, name: host.name }, saved: true, stage, detail: "",
++      ...(fingerprint ? { prompt: { id: `host-key:${host.id}`, text: `${host.target}\n${fingerprint}`, confirm: true } } : {}),
++    }
++  })
++}
++
++export function useMobileSshUi() {
++  const language = useLanguage()
++  const dialog = useDialog()
++  const [messages] = createResource(language.locale, async (locale) => {
++    const catalog = definition.i18n as BuiltinCatalog
++    const entry = catalog[locale]
++    const messages = typeof entry === "function" ? (await entry()).default : entry ?? en
++    return { locale, messages }
++  })
++  const translate = (key: string, params?: Record<string, string>) => {
++    // Neither resource() nor .latest is safe before the first value. Keep the
++    // existing UI mounted while loading, and never display a previous locale's catalog.
++    const loaded = messages.state === "ready" || messages.state === "refreshing"
++    const latest = loaded ? messages.latest : undefined
++    const dict: Record<string, string> = latest?.locale === language.locale() ? latest.messages : en
++    const text = dict[key] ?? language.t(key as Parameters<typeof language.t>[0])
++    return text.replace(/{{\s*(\w+)\s*}}/g, (_, name) => params?.[name] ?? "")
++  }
++  const unavailable = () => showToast({ variant: "error", title: translate("error.unavailable") })
++  const open = (config?: SshConfig) => dialog.push(() => {
++    const runtime = getMobileHosts()
++    const ssh = createSshController({
++      // A ready runtime snapshot predates this UI attempt and cannot make it succeed.
++      items: () => mobileSshItems(runtime).map((item) => item.stage === "ready" ? { ...item, stage: "disconnected" as const } : item),
++      api: () => undefined,
++      refresh: async () => {},
++      error: unavailable,
++    })
++    return <DialogSsh ssh={ssh} translate={translate} config={config} />
++  })
++  return { translate, unavailable, open }
++}
++
++export function MobileSshSettingsRow(props: { server: string; health: () => ServerHealth | undefined }) {
++  const runtime = getMobileHosts()
++  const ui = useMobileSshUi()
++  const id = () => parseHostKey(props.server)!
++  const item = () => mobileSshItems(runtime).find((entry) => entry.config.id === id())
++  const connect = (config: SshConfig) => {
++    // Only an existing challenge/incompatibility has a dialog to present. Ordinary
++    // row Connect follows upstream's immediate attempt (and immediate unavailable error).
++    if (item()?.prompt || item()?.stage === "incompatible") { void ui.open(config); return }
++    ui.unavailable()
++  }
++  const row: ServerRow = {
++    get key() { return props.server },
++    health: props.health,
++    Indicator: (indicator) => <ServerHealthIndicator health={indicator.health} connecting={indicator.connecting} authenticationRequired={indicator.auth} />,
++    // Delete is intentionally not wired in this phase. Do not hide a saved host or touch credentials.
++    remove: async () => { throw new Error(ui.translate("error.unavailable")) },
++    Items: () => <Show when={item()?.stage !== "ready"}>
++      <Menu.Item disabled={item()?.stage === "connecting"} onSelect={() => { const config = item()?.config; if (config) connect(config) }}>
++        {ui.translate(item()?.stage === "authentication" ? "authenticate" : "connect")}
++      </Menu.Item>
++    </Show>,
++  }
++  return <SshRow id={id()} row={row} translate={ui.translate} onRemoveError={ui.unavailable} ssh={{
++    item: () => item(),
++    pending: () => item()?.stage === "connecting",
++    connect,
++  }} />
++}
+diff --git a/packages/app/src/settings/servers/mobile-ssh.test.tsx b/packages/app/src/settings/servers/mobile-ssh.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/settings/servers/mobile-ssh.test.tsx
+@@ -0,0 +1,202 @@
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test } from "bun:test"
++import { createComponent, createRoot, createSignal, Suspense } from "solid-js"
++import { insert } from "solid-js/web"
++import { createRequire } from "node:module"
++import type { SshItem } from "../../../../gui-plugins/src/ssh/contract"
++import en from "../../../../gui-plugins/src/ssh/i18n/en"
++
++// Standalone browser-condition rendered tests. Fixtures below are not production backend successes.
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core")
++plugin({ name: "ssh-ui-rendered", setup(build) {
++  build.onLoad({ filter: /packages\/.*\.tsx$/ }, async (args) => ({
++    contents: babel.transformSync(await Bun.file(args.path).text(), {
++      filename: args.path, presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")], configFile: false, babelrc: false,
++    }).code, loader: "js",
++  }))
++} })
++
++let pushed: (() => unknown)[] = []
++let closed = 0
++let toasts = 0
++let locale = () => "en"
++const catalogRequests: Record<string, Array<(value: { default: Record<string, string> }) => void>> = {}
++const delayedCatalog = (key: string) => () => new Promise<{ default: Record<string, string> }>((resolve) => {
++  ;(catalogRequests[key] ??= []).push(resolve)
++})
++mock.module("../../../../gui-plugins/src/ssh/index", () => ({ default: { i18n: { en, zh: delayedCatalog("zh"), fr: delayedCatalog("fr") } } }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ locale: () => locale(), t: (key: string) => key }) }))
++mock.module("@opencode/ui/context/dialog", () => ({ useDialog: () => ({ push: (render: () => unknown) => { pushed.push(render) }, close: () => closed++ }) }))
++mock.module("@opencode/ui/toast", () => ({ showToast: () => { toasts++ } }))
++// Keep original DialogSsh JSX, replace only its outer dialog/focus-management host.
++mock.module("@opencode/ui/dialog", () => {
++  const box = (props: { children: unknown }) => props.children
++  return { Dialog: box, DialogBody: box, DialogFooter: box, DialogHeader: box, DialogTitle: box }
++})
++const { createMobileHosts, createMemoryStorage } = await import("@opencode-mobile/mobile-hosts")
++const { useMobileSshUi, mobileSshItems, MobileSshSettingsRow } = await import("./mobile-ssh")
++const { DialogSsh } = await import("../../../../gui-plugins/src/ssh/dialog")
++const { createSshController } = await import("../../../../gui-plugins/src/ssh/state")
++
++let dispose: (() => void) | undefined
++afterEach(() => { dispose?.(); document.body.replaceChildren(); pushed = []; closed = 0; toasts = 0; locale = () => "en"; for (const key of Object.keys(catalogRequests)) delete catalogRequests[key] })
++function mount(render: () => unknown) {
++  const host = document.createElement("div")
++  document.body.append(host)
++  createRoot((stop) => { dispose = stop; insert(host, render() as never) })
++  return host
++}
++const button = (host: HTMLElement, text: string) => [...host.querySelectorAll("button")].find((el) => el.textContent === text)!
++const input = (host: HTMLElement, id: string, value: string) => {
++  const el = host.querySelector<HTMLInputElement>(`#${id}`)!
++  el.value = value
++  el.dispatchEvent(new InputEvent("input", { bubbles: true }))
++}
++
++describe("production Settings SSH boundary", () => {
++  test("delayed initial and switched catalogs never suspend rows or reuse the previous language", async () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const saved = runtime.registry.add({ name: "Catalog fixture", target: "example@example.invalid", servicePort: 4096 })
++    let select!: (next: string) => void
++    const host = mount(() => {
++      const [current, setCurrent] = createSignal("zh")
++      locale = current
++      select = setCurrent
++      return createComponent(Suspense, {
++        fallback: "SUSPENDED SETTINGS",
++        get children() {
++          const ui = useMobileSshUi()
++          const label = document.createElement("span")
++          insert(label, () => ui.translate("add"))
++          return [label, createComponent(MobileSshSettingsRow, { server: `mobile-ssh:${saved.id}`, health: () => undefined })]
++        },
++      })
++    })
++    await Promise.resolve()
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++    expect(host.textContent).toContain("Catalog fixture")
++    expect(host.textContent).toContain("Add SSH server")
++    for (const resolve of catalogRequests.zh!) resolve({ default: { ...en, add: "ZH fixture add", label: "ZH fixture label" } })
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(host.textContent).toContain("ZH fixture add")
++    select("fr")
++    await Promise.resolve()
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++    expect(host.textContent).toContain("Catalog fixture")
++    expect(host.textContent).toContain("Add SSH server")
++    expect(host.textContent).not.toContain("ZH fixture")
++    for (const resolve of catalogRequests.fr!) resolve({ default: { ...en, add: "FR fixture add", label: "FR fixture label" } })
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(host.textContent).toContain("FR fixture add")
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++  })
++
++  test("Add fails immediately, retains editable draft and retries; Cancel has no runtime or persistence effect", async () => {
++    const storage = createMemoryStorage()
++    const runtime = createMobileHosts({ storage })
++    const before = JSON.stringify(runtime.registry.list())
++    const host = mount(() => {
++      const ui = useMobileSshUi()
++      void ui.open()
++      return pushed.pop()!()
++    })
++    await Promise.resolve()
++    expect(button(host, "Add server").disabled).toBe(true)
++    input(host, "ssh-target", "ssh example@example.invalid")
++    input(host, "ssh-name", "Draft only")
++    button(host, "Add server").click()
++    await Promise.resolve()
++    expect(host.querySelector('[role="alert"]')?.textContent).toBe("common.requestFailed")
++    expect(closed).toBe(0)
++    expect(host.querySelector<HTMLInputElement>("#ssh-target")!.disabled).toBe(false)
++    button(host, "Add server").click()
++    expect(toasts).toBe(2)
++    expect(JSON.stringify(runtime.registry.list())).toBe(before)
++    button(host, "common.cancel").click()
++    dispose?.()
++    await Promise.resolve()
++    expect(JSON.stringify(runtime.registry.list())).toBe(before)
++  })
++
++  test("saved host config and identity are read without mutation", () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const host = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const item = mobileSshItems(runtime)[0]!
++    expect(item.config.id).toBe(host.id)
++    expect(item.config.target).toBe(host.target)
++    expect(item.stage).toBe("disconnected")
++  })
++
++  test("real mobile row exposes upstream Connect/Delete; both fail without changing its owner", async () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const before = JSON.stringify(runtime.registry.list())
++    const host = mount(() => createComponent(MobileSshSettingsRow, { server: `mobile-ssh:${saved.id}`, health: () => undefined }))
++    const menu = () => host.querySelector("button")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }))
++    menu()
++    await Promise.resolve()
++    const select = (text: string) => [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === text)!.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    select("Connect")
++    await Promise.resolve()
++    expect(toasts).toBe(1)
++    expect(pushed.length).toBe(0)
++    menu()
++    await Promise.resolve()
++    select("Delete")
++    await Promise.resolve()
++    expect(toasts).toBe(2)
++    expect(JSON.stringify(runtime.registry.list())).toBe(before)
++    expect(runtime.stateOf(saved.id)).toBe("idle")
++  })
++
++  test("a reused row follows a changed mobile host key without retaining the previous host", async () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const first = runtime.registry.add({ name: "First fixture", target: "first@example.invalid", servicePort: 4096 })
++    const second = runtime.registry.add({ name: "Second fixture", target: "second@example.invalid", servicePort: 4096 })
++    let select!: (key: string) => void
++    const host = mount(() => {
++      const [key, setKey] = createSignal(`mobile-ssh:${first.id}`)
++      select = setKey
++      return createComponent(MobileSshSettingsRow, { get server() { return key() }, health: () => undefined })
++    })
++    expect(host.querySelector(".settings-servers-name")!.textContent).toBe(first.name)
++    select(`mobile-ssh:${second.id}`)
++    await Promise.resolve()
++    expect(host.querySelector(".settings-servers-name")!.textContent).toBe(second.name)
++  })
++})
++
++describe("upstream SSH state fixtures (no real backend)", () => {
++  for (const stage of ["ready", "incompatible", "authentication"] as const) {
++    test(`${stage}: unavailable connect/respond never completes or closes`, async () => {
++      const item: SshItem = { config: { id: "fixture", target: "example.invalid", name: "Fixture" }, saved: true, stage, detail: "",
++        ...(stage === "authentication" ? { prompt: { id: "challenge", text: "Synthetic identity challenge", confirm: true } } : {}) }
++      const host = mount(() => {
++        const ssh = createSshController({ items: () => [item], api: () => undefined, refresh: async () => {}, error: () => { toasts++ } })
++        return createComponent(DialogSsh, { ssh, config: item.config, translate: (key) => key })
++      })
++      button(host, stage === "authentication" ? "trust" : stage === "incompatible" ? "update" : "connect").click()
++      await Promise.resolve()
++      expect(host.querySelector('[role="alert"]')?.textContent).toBe("common.requestFailed")
++      expect(closed).toBe(0)
++      expect(toasts).toBe(1)
++    })
++  }
++
++  test("new password challenge clears the prior draft and remains masked", async () => {
++    let change!: (item: SshItem) => void
++    const config = { id: "fixture", target: "example.invalid", name: "Fixture" }
++    const host = mount(() => {
++      const [item, setItem] = createSignal<SshItem>({ config, saved: true, stage: "authentication", detail: "", prompt: { id: "one", text: "Synthetic password", confirm: false } })
++      change = setItem
++      const ssh = createSshController({ items: () => [item()], api: () => undefined, refresh: async () => {}, error: () => {} })
++      return createComponent(DialogSsh, { ssh, config, promptOnly: true, translate: (key) => key })
++    })
++    input(host, "ssh-response", "synthetic-not-a-secret")
++    expect(host.querySelector<HTMLInputElement>("#ssh-response")!.type).toBe("password")
++    change({ config, saved: true, stage: "authentication", detail: "", prompt: { id: "two", text: "Next synthetic password", confirm: false } })
++    await Promise.resolve()
++    expect(host.querySelector<HTMLInputElement>("#ssh-response")!.value).toBe("")
++  })
++})
+diff --git a/packages/gui-plugins/src/ssh/dialog.tsx b/packages/gui-plugins/src/ssh/dialog.tsx
+--- a/packages/gui-plugins/src/ssh/dialog.tsx
++++ b/packages/gui-plugins/src/ssh/dialog.tsx
+@@ -3,7 +3,7 @@
+ import { Divider } from "@opencode/ui/divider"
+ import { TextInput } from "@opencode/ui/text-input"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import { createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js"
++import { batch, createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { createKeyed, usePlugin } from "@opencode/plugin/gui"
+ import type { SshConfig, SshItem } from "./contract"
+@@ -13,7 +13,9 @@
+ export { default as css } from "./ssh.css?inline"
+ 
+ export function DialogSsh(props: {
+-  ssh: SshController
++  ssh: Pick<SshController, "item" | "error" | "submitting" | "answered" | "connect" | "respond" | "cancel">
++  /** A non-plugin host may supply only the UI translation boundary. */
++  translate?: (key: string, params?: Record<string, string>) => string
+   config?: SshConfig
+   connect?: boolean
+   promptOnly?: boolean
+@@ -22,7 +24,7 @@
+   onConnected?: () => void
+ }) {
+   const dialog = useDialog()
+-  const plugin = usePlugin()
++  const plugin = props.translate ? { t: props.translate } : usePlugin()
+   const ssh = props.ssh
+   // Entry-point behavior is fixed for the lifetime of this dialog.
+   const openProject = props.onOpenProject
+@@ -80,8 +82,10 @@
+ 
+   const start = (replace = false) => {
+     if (busy() || !state.target.trim()) return
+-    setState({ started: true, starts: state.starts + 1 })
+-    ssh.connect({ id, target: state.target, name: state.name }, { dialog: true, replace })
++    batch(() => {
++      setState({ started: true, starts: state.starts + 1 })
++      ssh.connect({ id, target: state.target, name: state.name }, { dialog: true, replace })
++    })
+   }
+ 
+   const respond = () => {
+@@ -99,7 +103,7 @@
+ 
+   // Closes the dialog once the server it started is ready.
+   createKeyed(
+-    () => state.started && item()?.stage === "ready" && !ssh.submitting(id) && !state.complete,
++    () => state.started && item()?.stage === "ready" && !ssh.submitting(id) && !ssh.error(id) && !state.complete,
+     () => {
+       setState("complete", true)
+       dialog.close()
+@@ -219,7 +223,7 @@
+               </div>
+             )}
+           </Show>
+-          <Show when={item()?.stage !== "incompatible" && error()}>
++          <Show when={(item()?.stage !== "incompatible" || ssh.error(id)) && error()}>
+             {(error) => (
+               <span class="settings-server-dialog-error !leading-[var(--line-height-compact)]" role="alert">
+                 {error()}
+diff --git a/packages/gui-plugins/src/ssh/row.tsx b/packages/gui-plugins/src/ssh/row.tsx
+--- a/packages/gui-plugins/src/ssh/row.tsx
++++ b/packages/gui-plugins/src/ssh/row.tsx
+@@ -8,8 +8,14 @@
+ import { isSshConnecting, sshName } from "./name"
+ import type { SshController } from "./state"
+ 
+-export default function SshRow(props: { row: ServerRow; id: string; ssh: SshController }) {
+-  const plugin = usePlugin()
++export default function SshRow(props: {
++  row: ServerRow
++  id: string
++  ssh: Pick<SshController, "item" | "pending" | "connect">
++  translate?: (key: string, params?: Record<string, string>) => string
++  onRemoveError?: (error: unknown) => void
++}) {
++  const plugin = props.translate ? { t: props.translate } : usePlugin()
+   const pending = () => props.ssh.pending(props.id)
+ 
+   return (
+@@ -83,7 +89,10 @@
+                       <Menu.GroupLabel>{plugin.t("server.menu.label")}</Menu.GroupLabel>
+                       <props.row.Items />
+                       <Menu.Separator />
+-                      <Menu.Item onSelect={() => void props.row.remove()}>{plugin.t("menu.delete")}</Menu.Item>
++                      <Menu.Item onSelect={() => {
++                        const result = props.row.remove()
++                        if (props.onRemoveError) void result.catch(props.onRemoveError)
++                      }}>{plugin.t("menu.delete")}</Menu.Item>
+                     </Menu.Group>
+                   </Menu.Content>
+                 </Menu.Portal>
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -381,6 +381,8 @@
+   "dialog.server.error.credential-url": "The address carries embedded credentials (user:password@host). Remove them from the address and use the password field instead.",
+   "dialog.server.add.checking": "Checking…",
+   "dialog.server.add.button": "Add server",
++  "dialog.server.add.wsl": "Add WSL server",
++  "dialog.server.add.wslUnavailable": "WSL servers are only available on Windows desktop.",
+   "dialog.server.add.name": "Server name (optional)",
+   "dialog.server.add.namePlaceholder": "Localhost",
+   "dialog.server.add.password": "Password",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -326,6 +326,8 @@
+   "dialog.directory.readError": "无法读取此文件夹",
+ 
+   "dialog.server.add.title": "添加服务器",
++  "dialog.server.add.wsl": "添加 WSL 服务器",
++  "dialog.server.add.wslUnavailable": "WSL 服务器仅适用于 Windows 桌面版。",
+   "dialog.server.add.url": "服务器 URL",
+   "dialog.server.add.placeholder": "http://localhost:4096",
+   "dialog.server.add.error": "无法连接到服务器",
+diff --git a/packages/app/src/runtime/i18n/zht.ts b/packages/app/src/runtime/i18n/zht.ts
+--- a/packages/app/src/runtime/i18n/zht.ts
++++ b/packages/app/src/runtime/i18n/zht.ts
+@@ -310,6 +310,8 @@
+   "dialog.directory.readError": "無法讀取此資料夾",
+ 
+   "dialog.server.add.title": "新增伺服器",
++  "dialog.server.add.wsl": "新增 WSL 伺服器",
++  "dialog.server.add.wslUnavailable": "WSL 伺服器僅適用於 Windows 桌面版。",
+   "dialog.server.add.url": "伺服器 URL",
+   "dialog.server.add.placeholder": "http://localhost:4096",
+   "dialog.server.add.error": "無法連線到伺服器",

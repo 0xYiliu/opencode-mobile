@@ -2856,3 +2856,164 @@ sweep 域 = scripts/verify-*.ts 全量（陈旧见证串形态：`49=49`/`39=39`
 - issue #16 后重跑（2026-10-26）：`attachments-artifacts` 单元文档新增并进入清单/索引（architecture.md 单元清单新增 attachments-artifacts 行（已实现（未验证））、设置行脚注增补 issue #16、结构图增第五桥 FilesBridge 与 ShareFileProvider、补丁表增 M-020/M-021、流转矩阵增三行，README 索引加行）；docs/** 与 README.md 全部仓库内相对链接引用逐一解析 `missing=0`（**287 引用**，24 个 markdown 文件，同口径终态复测值）；design/interaction.md 门禁表标题更新为 G1–G27（G27 新设，**第十三处落字**；G11 增补附件面错误形态条目、失败路径协议节新增附件/文件交互面失败路径条目）；**存量「M-020+」占位订正（M3）**：interaction.md 13 处 + build-and-verify.md 9 处（:438/:468/:508/:586/:669/:672/:675/:677/:685 段位）统一改写「M-022+」（两文件合计 22 处，评审实测口径），随提交 1/提交 6 分两处落实；dist 数字核对：`bun run build:web` rc=0（6180 modules，6177→6180）+ `copy-web-dist` 执行，`web-dist/manifest.json` 刷新为 **3480 文件 / 153,367,425 bytes**（字节数必变、文件数不变），project-scope.md 当前事实行同步。
 - issue #17 后重跑（2026-10-26）：`browser` 单元文档新增并进入清单/索引（architecture.md 单元清单新增 browser 行（已实现（未验证））、设置行脚注增补 issue #17、流转矩阵增两行（模型→browser 工具调用→桌面宿主→时间线呈现；browser.preview→files 回退），README 索引加行与关键事实句增补，project-scope.md 当前事实行与工作界面行增补）；docs/** 与 README.md 全部仓库内相对链接引用逐一解析 `missing=0`（**301 引用**，25 个 markdown 文件，同口径终态复测值——中间时点曾记 295，build-and-verify 本段落盘前旧树测值）；design/interaction.md 门禁表标题更新为 G1–G28（G28 新设，**第十四处落字**；G11 增补 browser 工具错误形态条目、失败路径协议节新增 browser 面失败路径条目）；**四 units 文档「M-020+」残留占位订正（D5）**：files/permission-requests/providers-models×2/diff 五处统一改写「M-022+」（#16 M3 只订正了 interaction/build-and-verify 两文件、units 四文档残留——勘察实测恰 4 文件 5 处，随提交 1 落实）；dist 数字核对：`bun run build:web` rc=0（**6180 modules 同数**）后 tracked 文件零变化（按计划免执行 copy-web-dist），dist 实测 3480 文件 / 153,367,425 bytes 与 manifest 注册值逐字节同数、`mobile(` 标记形态零新增——零源码变更的构建级反证。
 - issue #18 后重跑（2026-10-26）：`artifact-viewers` 单元文档新增并进入清单/索引（architecture.md 单元清单新增 artifact-viewers 行（已实现（未验证））、流转矩阵新增 files→artifact-viewers 行，README 索引加行与关键事实句增补，project-scope.md 当前事实行与工作界面行增补）；**G8 行 wasm 归属订正**：interaction.md G8「dist 内 4 个 `.wasm` 资产（ghostty-web 相关）」的错误标注改「`@betteroffice` Office 引擎四枚：docx_edit_bg/docx_parse_bg/pptx_wasm_bg/xlsx_wasm_bg；ghostty-web 为 JS chunk」（manifest 实证），并显式标注 G8 为 issue #18 验收 4 的「#2 WebView WASM/assets runtime gate」承接项；**attachments-artifacts.md 两处 office 表述订正**：「三 kind 占位呈现，渲染归 #18」改「三 kind 经 microsoft-office 扩展查看器呈现（FileViewer 注册链）」（D4-④，纯事实订正不改门槛语义）；docs/** 与 README.md 全部仓库内相对链接引用逐一解析 `missing=0`（**318 引用**，26 个 markdown 文件，同口径终态复测值——中间时点曾记 308，build-and-verify 本段落盘前旧树测值）；design/interaction.md 门禁表标题更新为 G1–G29（G29 新设，**第十五处落字**；G11 增补工件/Office 错误形态条目、失败路径协议节新增 artifact-viewers 失败路径条目）；dist 数字核对：`bun run build:web` rc=0（**6180 modules 同数**）后 tracked 文件零变化（按计划免执行 copy-web-dist），`web-dist/manifest.json` 维持 3480 文件 / 153,367,425 bytes、`mobile(` 标记形态零新增——零源码变更的构建级反证。
+
+### issue #124 — Settings Server 添加菜单（M-056，早期迭代历史）
+
+以下迭代记录保留原始事实；**当前实现、产物及设备结论以本节末尾“UI-only 完整上游移植”记录为准**。早期 disabled 原因说明、MobileHostManager 保留等方案已被用户收窄范围取代。
+
+- 基线 `c50dbba`；目标 `3ebcf9a32c7b28f658cfee80775448929361727a` 以 `git show` 对照，缓存工作树实际检出为其他提交。目标 `settings/servers/{servers.tsx,inventory.ts,switcher.tsx,unavailable.tsx}`、`servers/registry/{add-menu.tsx,row-menu.tsx,row.tsx,controller.ts}` 与改动前本地文件相同；`settings/shell.tsx` 差异为已登记的第一方 SSH/GUI 管理面，`servers/connect/dialog.tsx` 差异为既有凭据 vault 与连接安全策略（M-006/M-009/M-013），本期保留。WSL 为 Windows 专属内置插件，菜单条目为插件贡献；本期不注册插件、不造 inventory。
+- M-056 给 Settings 非桌面单/多服务器页面的菜单增加 disabled WSL 项和常显原因；按贡献的 plugin id 过滤真实 WSL，其余贡献照常。其余入口未启用该选项，桌面保留上游行为。详见 [design/units/server-list.md](design/units/server-list.md) 的步骤、异常与设备清单。
+- `bun install --frozen-lockfile` PASS；`bun run build:web` PASS；`bun run verify:closure` PASS（M-056 注册后逐层重放，DANGLING=0）。Android 本地构建：将本次 `dist` 复制到原本不存在的 ignored `android/app/src/main/assets/web`，以 `ANDROID_HOME=$HOME/.android-sdk ~/.gradle/wrapper/dists/gradle-9.6.1-bin/4ticwg1pgcbps2hj28r8so764/gradle-9.6.1/bin/gradle :app:assembleDebug` 在 `android/` 下执行，BUILD SUCCESSFUL；未执行 `copy:web-dist`，未更新受版本控制的 `web-dist/manifest.json`，因此该旧 manifest 不描述本次 APK。APK 未安装或运行。
+- `cd vendor/upstream/packages/app && bun test --conditions=browser --isolate --preload ./happydom.ts src/servers/registry/add-menu.test.tsx`：4 pass，真实 Solid 编译及 Kobalte + happy-dom；覆盖无贡献下菜单、disabled/原因、触摸和 Enter 不能执行、普通 Add、排除 WSL 同时保留其他插件、桌面直接添加和真实 WSL 动作。不是设备或真实读屏验证。
+- 同目录单跑 `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/servers-page.test.tsx`：6 pass（先创建文档既有的 ignored `node_modules/@opencode-mobile/mobile-hosts` 测试期软链）；`bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/servers/inventory.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts`：19 pass；仓库根 `bun test --conditions=browser packages/mobile-hosts`：434 pass。首轮未创建测试期软链时 inventory 和 pairing 文件导入失败；补齐后如上通过。
+- `bun scripts/verify-settings-framework.ts`、`bun scripts/verify-projects-sessions.ts` PASS（静态检查，不代表运行时）。`bun scripts/verify-gui-plugins.ts` 与 `bun scripts/verify-commands-menus.ts` FAIL：检查预设 web-dist 3520/159675985，但现有未改动 `web-dist/manifest.json` 为 3520/159683681；未为通过而篡改基线，其他断言未由这两次失败证明。
+- 设计核对：菜单项/插件分流 → `add-menu.tsx` + `runtime/plugin/servers.tsx` → 渲染测试通过；单/多页挂载与原健康错误路径 → `settings/servers/servers.tsx`、`settings/shell.tsx` → 页面与 inventory 测试通过；真实窄屏、TalkBack、触摸、真实连接失败和恢复 → **未验证**。设备 `192.168.3.145:5555` 前台为既有 `ai.opencode.mobile/.MainActivity`，存在用户安装和数据；未覆盖安装或更改设备状态，真机全部 BLOCKED。
+
+**issue #124 评审修订（替代上方未更新产物及非桌面范围的初稿记录）**：Settings 分支改为 `platform === web` 且 `isAndroidMobileHost()`；后者同时要求固定 origin 和 AndroidX vault listener 的 `postMessage` 能力。普通浏览器、错误 origin、无 listener 或畸形 listener 均回退；listener 不可用的 Android 也回退，不能声称其显示菜单。禁用项局部恢复 pointer-events，原因独立可见且通过 `aria-describedby` 关联。简体/繁体标题取上游 WSL 插件原文；原因两语言已补充。
+
+- `bun run build:web` 与官方 `bun run copy:web-dist` PASS，生成 `web-dist/manifest.json`：3520 文件 / 159688093 字节；`ANDROID_HOME=$HOME/.android-sdk <gradle-9.6.1>/bin/gradle :app:assembleDebug` PASS。逐一校验 APK 中 3520 个 `assets/web/` 文件与 manifest 的 SHA-256：0 差异、0 多余文件；未安装。
+- 浏览器补证：在 `/tmp/opencode/issue124-browser` 使用 Vite + 实际 AddServerMenu/Kobalte、Chromium headless、390×844 touch viewport（插件和语言 provider 为隔离 stub），Playwright 实际 `tap`：禁用项 `aria-disabled=true`、computed `pointer-events=auto`，点击后菜单仍开且原因可见；普通 Add 实际 tap 后回调执行。该临时夹具不覆盖完整 Settings shell，不代表 Android WebView 或 TalkBack。
+- `android-host.test.ts` + `add-menu.test.tsx`：6 pass；`servers-page.test.tsx`：7 pass（含真实单/多页面向菜单传参，菜单子组件为 probe）。Android host 的 origin/bridge 测试是合成环境，**完整 RootSettings 到真实 Android 宿主的接线仍未运行验证**。
+- 原来的探针在基线 `c50dbba` 预期旧 manifest 159675985 而实际为 159683681，且 `verify-commands-menus` 的补丁计数仍停在 52（基线已有 53）；本轮以真实新产物和 54 条实际注册更新，不抹去上述历史差异。`verify-gui-plugins.ts`、`verify-commands-menus.ts`、`verify-notifications.ts`、`verify-artifacts.ts`、`verify-settings-framework.ts` 重跑 PASS。
+- MatePad 当前运行用户已有应用，未覆盖安装或更改其数据；真实单/多布局、触屏命中和 TalkBack 均 **BLOCKED**，不能据 Chromium 或源码推断通过。
+
+**issue #124 后续复审核正**：上面的 AndroidX listener 宿主判定被移除。`WebAssetServer` 的 `/mobile-keyboard-config.json` 增加非秘密 `host: opencode-mobile-android-v1`；Settings 在确认 `http://127.0.0.1:18090` 后以 `no-store` 读取并严格比对该值，不存在、非 2xx、格式错误或网络失败均回退。此标识可能被同源服务伪造，只决定展示不可操作的 UI，绝不授权 vault/SSH/任何原生操作；既有 bridge 的 origin/能力检查不变。异步读取完成前暂为原菜单。合成测试覆盖没有 vault listener 时标识匹配仍为 true、错误 origin、空/错误响应及异常。
+
+本轮 `bun run build:web`、`bun run copy:web-dist`、Gradle `:app:assembleDebug :app:testDebugUnitTest` PASS；新 manifest 3520 文件 / 159688874 字节，逐文件比对 debug APK 0 差异、0 额外文件。菜单/宿主/单多页面 13 pass；`verify-password-keyboard.test.ts` 4 pass；三个 GUI/菜单/通知探针和 `verify:closure` PASS。旧轮次数据保留为历史，不描述当前产物。
+
+隔离设备调研：`adb -s 192.168.3.145:5555` 当前前台为正式包，`dumpsys package` 的 UID 10419 与 `/proc/net/tcp6` 的 `127.0.0.1:18090` 监听 UID 相同；测试包仅换 applicationId 虽能分离 app 数据和 provider authority，但 Android 共享 loopback 端口，不能同时绑定 18090。独立端口需同时改变测试包的原生 BuildConfig、WebView 资源 origin 和 JS 固定源检查并重新审计所有桥接，现有正式构建不能直接使用；未停止正式进程、未覆盖安装、未读取其配置。可另行制作并审核独立包名+独立端口的测试变体，但这会测试变体而非原始产物；本轮未完成该变体及设备交互，MatePad / TalkBack 仍 BLOCKED。
+
+**issue #124 宿主异步状态复审修订**：候选资源 origin 的 Settings Add 初始为 checking（添加按钮真实 disabled，状态文本可读）；身份请求失败/无效/超时进入 error（继续禁用并显示 Retry），用户可重试，只有有效响应才进入 Android 菜单。非候选 origin 普通浏览器及桌面不发身份请求并保留原行为；普通浏览器若恰好使用该固定 loopback origin，则按候选处理并在无有效标识时显示可重试错误，这是无法单靠该 origin 区分的安全保守边界。请求限制 5 秒、拒绝重定向、要求成功状态及 JSON content-type，并验证精确 host 与 boolean passwordKeyboard；标识仍不授权任何原生能力。
+
+在真实 Solid + Kobalte 的 happy-dom 渲染测试中，延迟请求期间按 Add 不触发回调；失败后显示重试，重试期间继续禁用，延迟成功后打开 WSL 禁用菜单且普通 Add 可执行；另一用例验证普通 HTTPS 浏览器无请求并直接 Add。`bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/android-host.test.ts src/settings/servers/servers-page.test.tsx src/servers/registry/add-menu.test.tsx` 本轮 15 pass；测试不替代设备验证。`bun run build:web`、`bun run copy:web-dist`、`:app:assembleDebug :app:testDebugUnitTest` 通过，新 manifest 为 3520 文件 / 159694364 字节；`verify:closure` 与 GUI/菜单/通知探针通过。MatePad 和 TalkBack 未运行，仍 BLOCKED。
+
+最终 MIME 校验收紧为分号前媒体类型精确等于 `application/json`（拒绝 `application/jsonp`）；最终重建 manifest 为 3520 文件 / 159694463 字节，上述 159694364 为收紧前的历史值。
+
+**issue #124 同步宿主标识复审核正**：移除候选 origin 的异步读取、进度、失败和重试分支。Android `WebAssetServer` 在提供 `/`、`/index.html` 和 SPA fallback 的入口 HTML 时，在 `<head>` 同步插入非脚本 `<meta name="opencode-mobile-host" content="android-v1">`，不修改 CSP、不提供新 bridge 权限；入口读取失败或无法安全插入返回 500。Settings 首帧同步核对固定 origin 和唯一准确 meta；其他 origin、无标识、错误或重复标识不启用 Android 菜单。标识非秘密、可被同源页面伪造，绝不作为原生能力授权凭据。标识没有写进共享 Web 构建的静态 HTML，因此同地址普通浏览器无标识时原 Add 行为不变。vault listener 不参与。
+
+本地验证：真实 Solid/Kobalte happy-dom 测试 14 pass；`ShellHtmlMarkerTest` 覆盖先于应用脚本插入、其余 HTML 不变、缺 head 和重复标识拒绝。额外使用临时 Vite + Chromium Playwright 夹具在浏览器看到的 `http://127.0.0.1:18090` 路径分别测试无标识和有标识 HTML：无标识首帧直接 Add；有标识首帧菜单中 WSL disabled、触摸不执行、普通 Add 可执行。夹具路由到本地 Vite 服务器，插件和语言 provider 为 stub，不是 Android 原生完整接线或设备 QA。
+
+限制：既有 Service Worker 可能在升级后的首次导航仍返回旧缓存 HTML（没有新 meta），直到现有等待 worker 激活/重载流程完成；该缓存迁移及实际原生服务器返回的 HTML 首帧尚未在设备验证，不能声称所有升级场景满足首帧要求。MatePad 未安装或调试，真实 WebView、触摸、读屏和 QA 均 BLOCKED。最终构建 manifest 3520 文件 / 159688768 字节；上文异步重试方案、159694463 数值均为历史而非当前契约。
+
+**issue #124 Workbox integrity 复审核正（替代上一段响应时注入）**：评审确认 `sw.js` 为 `index.html` 的预缓存请求设置 SHA-256 `Request.integrity`；运行时更改 HTML 会令安装失败，上一方案不可交付。现在 `scripts/copy-web-dist.sh` 仅在 Android 复制品中注入同步 meta，并核对原 Workbox index SRI 与原始文件一致后，重新计算已标记 index 的 revision 和 SHA-256 SRI；缺失、重复或不匹配即中止。原生 `WebAssetServer` 不再改写响应，共享 browser dist 不被修改；其余 Workbox entries 和完整性校验未移除。`web-dist/manifest.json` 改为记录实际复制后的 Android assets。
+
+真实 Chromium Workbox 集成：`bun scripts/test-android-workbox.ts /home/peterhan/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell` PASS：(1) 新装 Android 资产 worker 成功安装并控制 SPA fallback，标识可见；(2) 从无标识旧 Web worker 出发，更新后新 worker 到 waiting，再以现有 Android worker 生命周期同样的 SKIP_WAITING 消息激活，受控 SPA fallback 返回标识；(3) 服务端人为篡改 index 后 worker 进入 redundant，证明 SRI 仍拒绝损坏内容。旧 worker 的模拟是当前未标记浏览器构建，并非从设备提取的真实历史 APK；WebView worker 升级时序和旧缓存仍需设备验证。
+
+`bun run copy:web-dist`、Gradle `:app:assembleDebug :app:testDebugUnitTest`、vendor closure、GUI/菜单/通知探针通过；最终 Android assets manifest 3520 文件 / 159688823 字节，APK 内 3520 项 SHA-256 全一致且无额外 Web 文件。先前 159688768 和运行时 HTML 注入为历史失效方案，不描述当前实现。独立 QA 尚未完成，MatePad 未安装、未触碰真实连接和数据；设备 Workbox 升级、首帧、TalkBack 均 BLOCKED。
+
+**issue #124 资产发布/Gradle 守卫复审核正**：`bun run copy:web-dist` 现在调用 `scripts/android_web_assets.py stage`：先将共享 dist 复制到 assets 同一文件系统的临时目录，验证原始 Workbox revision/SRI、注入 Android meta、更新 revision/SRI、生成并完整校验 SHA-256 manifest；现有 web 目录如存在，必须是普通目录、无链接/空目录/额外文件，且与原 manifest 的文件集合、哈希、大小一致，否则拒绝替换。仅校验后的资产被重命名发布，manifest 通过同目录临时文件原子替换；异常时尝试回滚，如回滚本身失败则保留临时备份路径并报告。两个独立路径的切换并非断电原子事务：崩溃中断可能留下不一致或备份，Gradle 的独立校验会拒绝打包，需人工恢复；不能承诺断电时自动恢复。
+
+`android/app/build.gradle.kts` 的 `verifyAndroidWebAssets` 为各 `merge*Assets` 的依赖，每次构建检查文件集合、manifest 全量 SHA-256/数量/大小、唯一 head 标识以及 index 与 Workbox revision/SRI 的一致性；校验失败阻断打包。`python3 scripts/test_android_web_assets.py` 6 pass：成功暂存、源 worker 失效保持旧文件、未知用户文件拒绝、源符号链接不得指向外部写入、发布异常回滚、回滚异常保留备份，以及伪造新 manifest 不能掩盖损坏 marker/SRI。`ANDROID_HOME=... GRADLE=... python3 scripts/test_android_gradle_assets.py` 在独立临时工程实跑：有效资产 merge 成功；修改标识后 `verifyAndroidWebAssets FAILED`，merge 被阻断。正式 worktree 的 `bun run copy:web-dist` 和 Gradle `:app:assembleDebug :app:testDebugUnitTest` PASS，Gradle 输出显示 verifier 确实执行；最终 APK 3520 项 Web 资产与 manifest 哈希一致。Chromium Workbox 新装、旧 worker 升级及篡改反证复跑 PASS。无设备操作、无 QA，真机状态仍 BLOCKED。
+
+**issue #124 旧资产迁移复审核正（替代上段旧目录必须匹配 manifest 的限制）**：检出更新后，ignored 旧 `assets/web` 可与新的 tracked manifest 不同，不能用新 manifest 判断旧目录归属。发布器现在不扫描或删除已有真实目录，也不要求旧记录存在；新资产仍在同文件系统的暂存目录完成全部验证后，旧目录整体原样重命名保留在 `android/app/src/main/.web-stage-*/old`，旧 manifest 如存在也在同一备份目录留存，终端输出准确路径。未知用户文件、链接和空目录随旧树保留而不被遍历或删除；若 `web` 本身为符号链接或非目录则拒绝。每次覆盖都会保留一份旧树，可能占用较多磁盘，**不会自动清理**；用户应检查后自行决定处理。备份放在 Android assets 源树之外且仅使用同文件系统 rename。失败回滚与 Gradle fail-closed 守卫保持不变；跨目录的 manifest/资产两步发布仍非断电原子事务，异常时检查输出和备份。
+
+真实旧基线迁移：在 `/tmp/opencode/issue124-baseline.ogsf2q` 由 `git archive c50dbba`、`bun install --frozen-lockfile`、`bun run build:web`、基线 `bun run copy:web-dist` 重建旧资产，3520 文件 / 159683681 字节。与 c50dbba 已记录 manifest 比较有 26 个 sourcemap 哈希不同（其他文件相同），因此此处以该次实际重建 manifest 校验旧文件，而非声称逐字节等于基线记录。将该 scratch 的 tracked manifest 替换为当前新 manifest、附加合成用户文件后，用当前 `android_web_assets.py stage` 迁移：新资产 3520 / 159688823；新 Gradle `:app:mergeDebugAssets` verifier 通过；保留备份中旧构建 3520 文件全部哈希一致、附加用户文件原样存在。无旧记录或 tracked manifest 无关的模拟、源无效、未知文件保留、符号链接、失败回滚与备份恢复由 `scripts/test_android_web_assets.py` 覆盖（7 pass）。每次本地正式 copy 的备份位置由命令输出；此次为 `android/app/src/main/.web-stage-savg560q`，另有前轮保留的 `.web-stage-707jfde6`，均未删除。设备未操作，QA 状态不变。
+可复跑的真实基线迁移检查为 `python3 scripts/test_android_baseline_migration.py <built-c50dbba-directory>`；参数目录需含基线构建的 `android/app/src/main/assets/web` 与该次生成的 `baseline-generated-manifest.json`。脚本验证基线与 c50dbba 记录（只允许 sourcemap 的路径相关差异），在 `/tmp/opencode` 隔离复制中模拟新 manifest 和用户文件，核对迁移前后的所有旧文件及新资产。此次使用 `/tmp/opencode/issue124-baseline-clean`；scratch 与备份均不是设备数据。
+
+#### issue #124 — UI-only 完整上游移植（2026-11-02，IMPLEMENTER，首轮产物历史）
+
+本段的 `6185f20e…` APK、44 项测试及 Server 不可达结论是首轮真实记录，保留用于追溯；**最终构建、P2 修复与后续授权真机 UI 验收以文末“最终复审修复与 MatePad UI 验收”段为准**，不将首轮 BLOCKED 继续当作最终主流程结论。
+
+范围依据：issue #124 最新用户评论；T3 计划 v2.1 已由协调员交接为 PASS。专用工作树 `fix/settings-server-parity`，基线 `c50dbba`。保留交接时已存在的 WSL/Android 构建资产/触摸延时修改，无 commit/push/merge。
+
+- 直接使用 pinned Desktop v2.2.1 `3ebcf9a32c7b28f658cfee80775448929361727a` 的既有 vendor Server 页面与 gui-plugins SSH `dialog,row,state,name,contract,css,i18n`，不是从 cache HEAD 取代码。Settings 中删除 MobileHostManager lazy/mount，仅保留上游 Server 页面；数据仍为原 registry/`mobile-ssh:<uuid>`，不注册第二个 owner。菜单为 Add server / Add SSH server / 灰显 WSL，无额外可见说明。旧管理器代码与首次连接功能未删。
+- `settings/servers/mobile-ssh.tsx` 仅只读映射真实 registry/state/host-key prompt/health，未挂 desktop SSH renderer 的 resolve/restore/bootstrap。Add/响应/Trust/Update 的生产 controller 无 API，立即错误且可重试；普通行 Connect/Auth 立即 SSH unavailable；既有挑战/不兼容可展示原 dialog；Delete 返回明确失败并 toast、不隐藏条目。Cancel 只清 dialog controller attempt，不调用 mobile runtime connect/remove/disconnect/confirm，也不写 registry/vault/known_hosts 或导航。
+- 原 DialogSsh 只加入窄翻译接口、`batch(start + connect)`、`!ssh.error(id)` 完成门和 incompatible 下请求失败错误行。回归最初实际捕获旧 ready snapshot 在错误设置前关窗；最终测试验证不关窗。原 Row 只加入窄 controller/翻译接口及删除错误回调；原 JSX/CSS/文案与挑战状态保留。fixture 不作为真实后台成功证据。
+
+| 验证 | 实际命令/结果 |
+| --- | --- |
+| Settings/菜单/SSH/数据与路由 | app 目录：`bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/mobile-ssh.test.tsx src/settings/keyed-server-entry.test.tsx src/servers/registry/add-menu.test.tsx src/settings/servers/servers-page.test.tsx src/settings/servers/android-host.test.ts src/settings/servers/inventory.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts` → **44 pass / 0 fail / 161 assertions**（8 文件）。含真实 adapter Add 失败+重试+取消、真实 mobile row Connect/Delete 失败且 registry 不变、上游 ready/incompatible/Trust/password challenge fixtures、菜单三项顺序/触摸/WSL 禁用 |
+| 第一方回归 | 根目录 `bun test --conditions=browser packages/mobile-hosts` → **434 pass / 0 fail** |
+| 资产发布与旧基线迁移 | `python3 scripts/test_android_web_assets.py` → **7 pass**；`ANDROID_HOME=$HOME/.android-sdk GRADLE=/home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle python3 scripts/test_android_gradle_assets.py` → 有效 merge PASS、损坏 marker/SRI 被阻断；`python3 scripts/test_android_baseline_migration.py /tmp/opencode/issue124-baseline-clean` → 3520 旧文件完整保留，26 个仅路径相关 sourcemap 差异（与前述口径相同） |
+| Workbox 真实 Chromium | `bun scripts/test-android-workbox.ts /home/peterhan/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell` → 新装控制 SPA、无标识旧 worker→waiting→激活、SRI 篡改拒绝 **PASS**；非 Android WebView 实态 |
+| 补丁与静态核对 | `bash scripts/verify-closure.sh` → byte-identical + DANGLING=0；`bun run scripts/verify-settings-framework.ts`、`verify-gui-plugins.ts`、`verify-commands-menus.ts`、`verify-notifications.ts` → **PASS**；`git diff --check` PASS。M-056 与两个 manifest 同步；旧“必须挂 MobileHostManager”的静态锁按批准范围改为禁止挂载 |
+| Web/Android 构建 | `bun run build:web`、`bash scripts/copy-web-dist.sh` → **3520 files / 159557493 bytes**（当前 Android manifest）；`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` → **BUILD SUCCESSFUL**（42 tasks，4 executed，38 up-to-date，资产 verifier 实跑） |
+| typecheck 限制 | app `bun run typecheck:tsc` 非零：现有大量跨包 composite/file-list 与其他类型错误，不能声称全仓类型检查通过；未将此结果当验收 PASS。此命令生成的第一方 `.d.ts` 临时副产物已精确移除，无原文件被删除 |
+| 首轮命令纠正 | `python3 -m unittest discover ... test_android_*.py` 不适用（两个脚本分别要求基线参数与 GRADLE 环境），随后按上列正式调用通过；`bun test scripts/test-android-workbox.ts` 不匹配测试命名，随后按上列脚本用法实跑通过。不掩盖首次失败 |
+
+**实际设备结论：部分验证，Server UI 验收 BLOCKED**。
+
+- 用户授权 `adb -s 192.168.3.145:5555 install -r android/app/build/outputs/apk/debug/app-debug.apk` → Success，未卸载/clear data/主动停止远端。`am start -n ai.opencode.mobile/.MainActivity` 正常启动；拉取安装 APK 仅在内存比对，SHA-256 与构建相同：`6185f20e32a5f214542b079af5bb0581a6ebdfbebaefd49740da03287b4deccf`。
+- CDP 只读观测当前 root 页面已加载新 `index-DoTJngqV.js`、同步 Android meta 存在，显示首次连接屏（`Connect to a server`），hosts 存储键当前不存在。此观察在覆盖安装后取得，**没有安装前存储快照，不能据此证明/推断历史记录的存在或丢失**。
+- 仅用 history→popstate 导航 `/settings?tab=servers` 后，既有 `AppShell` 无连接门禁仍呈现首次连接屏，Server header/rows 均不可达。为遵守不得新建/修改用户记录、不得假连接或干扰 runtime 的约束，没有注入成功连接、绕开门禁、输入凭据、创建服务记录、调用连接或远端操作；不能将单测/fixture 宣称为实际 Server 菜单触摸结果。
+- 导航前后 hosts 存储值严格相等（均为空，布尔核对）；最终 history 还原 `/`，临时只读 QA 比较变量移除。没有执行 Server 菜单点击或真实 Connect/Delete，因为目标页面不可达；真实 Add/SSH 表单触摸、WSL 禁用、单/多服务器布局、真实挑战/Update、窄手机与 TalkBack 均 **BLOCKED**。需协调员提供可安全进入 Server 的现有状态/明确授权的验证路径后再做实机验收；不得据当前结果宣称 issue 已完成。
+
+**双向核对**：`server-list.md` 当前段 ↔ `shell.tsx`（唯一上游面）、`add-menu.tsx`（三项、无附加 UI）、`mobile-ssh.tsx` 与原 gui-plugins JSX（只读/失败/局部取消/真实健康数据）、资产脚本 ↔ marker + Workbox + Gradle 守卫；机械与 rendered 检查通过，真实设备交互尚未通过。独立代码评审尚由协调员安排，本 IMPLEMENTER 不自评 PASS。
+
+#### issue #124 — 最终复审修复与 MatePad UI 验收（2026-11-02）
+
+来源：实施者临时交接 `/tmp/opencode/issue124-final-handoff-r3.md` 及其中实跑日志/截图。用户随后授权将结果同步到 canonical 文档；本次同步仅修改本文与 `design/units/server-list.md`，不修改其他代码、不 commit。原独立 CODE_REVIEWER 判定为 **FAIL P2**；以下修复需针对最终 diff **重新独立评审**，不是实施者自评 PASS，也不宣称 issue 已完成。
+
+**修复与契约对应**：
+
+- P2：`useMobileSshUi` 不再在渲染中直接读取 `resource()`。先检查 `ready/refreshing` 再读取 `.latest`；返回结果携带 locale，只有与当前语言匹配时才使用，pending/errored/旧语言结果使用上游 English fallback，不隐藏已有菜单/行。真实 Solid Suspense 边界、真实 mobile row 与翻译入口测试延迟首次 zh catalog 及切换 fr catalog，验证内容不进入 fallback、语言正确更新、加载新语言时不残留旧语言。恢复不安全读取时，该测试确实失败（`SUSPENDED SETTINGS`）：`/tmp/opencode/qa124-suspense-mutation.log` 为 **8 pass / 1 fail**；修复还原后通过。
+- 实机触摸时序：早一轮实际 touch 选择后，新对话框出现又在约 148ms 后关闭（MutationObserver 仅记录数量/时间，不采集页面内容），普通 Add 和 SSH Add 均受影响。Android 专用菜单开窗等待改为 350ms，避开兼容点击收尾；Settings 卸载时既有 cleanup 取消待开窗。无新增可见控件、样式或桌面行为变更。自动测试覆盖延迟与取消，最终 APK 上两个对话框实际触摸后均持续打开。
+
+| 最终构建/验证 | 实际命令与结果 |
+| --- | --- |
+| 产物身份 | Android assets **3520 files / 159558361 bytes**；最终 APK SHA-256 **`db54c703ce2a070aa897e23d29c69c200af8b58f63190c7c5b2043095a1e033b`**；`adb install -r` Success，安装 APK 与本地构建逐字节一致（仅内存比对） |
+| Web / Android | `bun run build:web`、`bash scripts/copy-web-dist.sh` PASS；`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` PASS |
+| 定向回归 | app 目录 `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/mobile-ssh.test.tsx src/settings/keyed-server-entry.test.tsx src/servers/registry/add-menu.test.tsx src/settings/servers/servers-page.test.tsx src/settings/servers/android-host.test.ts src/settings/servers/inventory.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts` → **46 pass / 0 fail / 174 assertions / 8 files** |
+| 第一方回归 | 根目录 `bun test --conditions=browser packages/mobile-hosts` → **434 pass / 0 fail / 2920 assertions / 39 files** |
+| 补丁链与机械检查 | M-056 重新生成、两个 manifest 的既有登记保留；`bash scripts/verify-closure.sh` → byte-identical / DANGLING=0 PASS；`bun run scripts/verify-gui-plugins.ts`、`verify-commands-menus.ts`、`verify-notifications.ts`、`verify-settings-framework.ts` PASS（使用实际最终资产数字）；`git diff --check` PASS |
+| Workbox | `bun scripts/test-android-workbox.ts /home/peterhan/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell` → 真实 Chromium 新装、旧 worker 升级、篡改拒绝 PASS；不将 Chromium 结果冒称为 WebView worker 升级实测 |
+| typecheck 首轮命令纠正 | app `bunx tsc --noEmit --composite false --incremental false -p tsconfig.json` 的实际结果仅为 **TS5069**：配置仍有 `emitDeclarationOnly: true`，不能与关闭 composite/declaration 的选项组合。该次在检查源码前就已失败；撤回此前据此作出的“存在仓库范围源码错误、未见 mobile-ssh/SSH dialog/row 诊断”结论。有效参数与基线比对见下方类型复审修订，不能以该无效命令证明源码无新增错误 |
+
+最终实跑日志位于 `/tmp/opencode/settings124-{build-web,android,closure,targeted,mobile,gui,commands,notifications,framework,workbox,noemit}-r3.log`（临时证据，非仓库内长期存档）；本节记录实际数字和命令，不依赖临时文件持续存在来表达验收边界。
+
+**MatePad 最终 APK 实测：适用 UI 主流程 PASS，不是真实 SSH E2E。** 设备 `192.168.3.145:5555`，实际安装应用/Android WebView；驱动是 CDP `Input.dispatchTouchEvent` 的 touchStart/touchEnd，不是直接调用 DOM click 回调。
+
+验证路径与隔离：独立 applicationId 会竞争固定 18090 资产端口、需要停止用户应用，因此本轮使用用户明确授权的可识别临时直连。宿主已安装的 opencode v2.1.1 仅绑定 `127.0.0.1:46324`，HOME/XDG config/data/cache/state 全部隔离在 `/tmp/opencode/qa124-service`；仅加入 `adb reverse tcp:46324 tcp:46324`，此前 reverse 清单为空。使用 fixture-only 合成认证，不读取或更改真实密码/凭据。添加前，所有 localStorage 键/值仅在页面内存中留快照，并核对精确测试 URL 不存在。通过真实首次 Connect 密码表单录入精确测试 URL 和合成输入、校验后 Connect；该入口不写 credential vault。只新增一条临时服务，原服务器对象逐项不变，随后经实际 Settings → Servers 进入验证。
+
+| 实际触摸步骤 | 最终结果 |
+| --- | --- |
+| Settings → Servers | 原 Server 页面可达，无额外 MobileHostManager / SSH Hosts 区块 |
+| 打开 Add 菜单 | 恰为 Add server / Add SSH server / Add WSL server；WSL `aria-disabled=true`，无附加解释 UI |
+| 触摸灰显 WSL | 菜单保持打开，没有新对话框或服务记录，不执行 WSL |
+| 普通 Add → Cancel | HTTP pairing dialog 打开且持续可见；Cancel 返回 Server；不据此宣称真实配对或普通后台新增成功 |
+| SSH Add 空表单 | 原 SSH dialog 打开且持续可见，空 target 的 Add 禁用 |
+| SSH 合成目标提交、重试 | 仅输入 `ssh example@example.invalid` / `QA124 draft only`；Add 显示 Request failed，保留可编辑 draft 和对话框；重试仍失败、没有创建 SSH/服务器记录 |
+| SSH Cancel | 返回 Server，不残留 SSH dialog，不写入 host/vault/known_hosts |
+
+QA helper 最初将“空 Add 禁用”读成 false，原因是选择了背景页面的 Add 而非 dialog 内按钮；只读检查确认 SSH target/对话框实际存在，dialog 内 Add 确为 disabled。将 helper 选择范围限定到实际 dialog 后从该检查继续，剩余断言与精确清理全部通过；未改产品代码来适应这个 helper 错误。原始分段日志保留为 `/tmp/opencode/qa124-final-device.log`、`/tmp/opencode/qa124-final-device-resumed.log`。
+
+实际 WebView 截图均裁到 header/menu/dialog，避免捕获用户会话名称或真实服务器地址；截图未提交仓库：
+
+- `/tmp/opencode/qa124-final-server-header.png`
+- `/tmp/opencode/qa124-final-menu.png`
+- `/tmp/opencode/qa124-final-http-dialog.png`
+- `/tmp/opencode/qa124-final-ssh-empty.png`
+- `/tmp/opencode/qa124-final-ssh-unavailable.png`
+
+**清理与数据保护**：只定位 URL 精确为 `127.0.0.1:46324` 的测试行，实际触摸其 More → Remove。结束后**全部 localStorage 键和值与操作前快照完全相等**，包括原服务器列表及附属字段；测试记录消失、hosts 存储不变。路由还原 `/`，页面内存快照移除；只移除 `tcp:46324` reverse（最终清单为空），只终止命令参数包含 serve/46324 且 XDG_DATA_HOME 精确为本轮隔离目录的自建本机 PID。没有停止远端服务/任务，没有编辑/删除/断开原服务器，没有真实 SSH/Trust/认证/凭据操作，没有 uninstall 或 clear app data。早轮同样精确清理的记录位于 `/tmp/opencode/issue124-device-qa-round1.md`；设备无测试服务记录残留。
+
+##### 类型复审修订：Happy DOM 边界与有效基线对比（2026-11-02）
+
+独立复审另行发现两个新测试文件共 5 条新增 TS2339。原因是普通 DOM 的 `Window & typeof globalThis` 不声明 Happy DOM 专有 `happyDOM` 属性，之前无效的 no-emit 命令未检查源码，漏报了这些诊断。修复限于 `add-menu.test.tsx` 与 `android-host.test.ts`：以 `import type { Window as HappyDOMWindow } from "happy-dom"` 引用真实 API 类型，用运行时类型守卫验证 preload 提供了对象形 `happyDOM` 和函数形 `setURL`，窄化为 `Pick<HappyDOMWindow["happyDOM"], "setURL">` 后通过局部 API 引用调用。没有排除文件、增加错误压制指令、伪造全局 DOM 声明或修改生产实现。
+
+**有效源码检查命令**（三份源码均在各自 app 目录运行）：
+
+```sh
+bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly false -p tsconfig.json
+```
+
+基线方法：以 `git archive c50dbba` 在 `/tmp/opencode/typecheck124-baseline` 提取源码；另一份相同基线在 `/tmp/opencode/typecheck124-pre-fix` 应用修复前完整 diff，得到修复前源码。两份 scratch 复用相同已安装的第三方依赖，并将直接 workspace 包软链重映射到各自源码目录，避免把工作树的新源码当基线。最终检查运行于当前专用工作树。比较时只归一化源码根路径，按 **文件路径 + 错误码 + 消息** 比较并保留重复次数，忽略源码行列因编辑产生的偏移；不按错误类别笼统过滤、不删除诊断。
+
+| 源码 | 有效命令退出码 | 源码诊断总数 | 相对 `c50dbba` 新增 / 消失 | TS2339 总数 |
+| --- | --- | --- | --- | --- |
+| `c50dbba` 基线 | 2 | 382 | 基线 | 38 |
+| 本次类型修复前 | 2 | 387 | **5 / 0** | 43 |
+| 本次类型修复后 | 2 | 382 | **0 / 0** | 38 |
+
+修复前新增诊断清单（消息均为 `Property 'happyDOM' does not exist on type 'Window & typeof globalThis'.`）：
+
+| 文件 | 修复前行:列 | 错误码 | 修复后 |
+| --- | --- | --- | --- |
+| `src/servers/registry/add-menu.test.tsx` | 56:14、85:14 | TS2339（2 条） | 已消除 |
+| `src/settings/servers/android-host.test.ts` | 15:14、26:14、30:14 | TS2339（3 条） | 已消除 |
+
+三份有效检查均实际产生源码诊断；最终新增为 0 只表示上述同环境、同参数、同基线比较没有新增诊断，**全仓 typecheck 仍失败，不宣称通过**。原始完整日志：`/tmp/opencode/settings124-typecheck-valid-baseline.log`、`settings124-typecheck-valid-pre-fix.log`、`settings124-typecheck-valid-final.log`；含每条原始行列和比较规则的机器记录：`/tmp/opencode/settings124-typecheck-comparison.json`。
+
+本轮同前述完整 8 文件命令重跑定向测试，结果 **46 pass / 0 fail / 174 assertions**（`/tmp/opencode/settings124-tests-typefix.log`）；M-056 重新生成，既有两个 manifest 登记及 16 个 targets 不变；`bash scripts/verify-closure.sh` **PASS，byte-identical / DANGLING=0**（`/tmp/opencode/settings124-closure-typefix.log`），`git diff --check` PASS。此修订只改测试宿主类型边界和验证记录，无 UI/数据/恢复契约变化，不重建 APK、不触碰任何设备记录；前述最终 APK 的实际 UI 证据仍对应原生产实现，不能扩展为真实 SSH E2E。独立复审仍需重新进行。
+
+**仍未验证/不宣称通过**：真实 SSH Auth/Trust/Update/Delete 行、真实后台 SSH 成功及 SSH E2E；真实窄手机断点、TalkBack、外接键盘、Desktop 侧截图对照；设备语言切换和 WebView 旧 worker 升级未单独验证。fixture 仅覆盖相应状态展示/失败边界，不替代真实后台或设备结果；全仓 typecheck 非零。以上已同步到 `design/units/server-list.md` 最终核对表；独立复审仍需重新执行。

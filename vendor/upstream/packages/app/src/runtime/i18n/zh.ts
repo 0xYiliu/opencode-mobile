@@ -326,6 +326,8 @@ export const dict = {
   "dialog.directory.readError": "无法读取此文件夹",
 
   "dialog.server.add.title": "添加服务器",
+  "dialog.server.add.wsl": "添加 WSL 服务器",
+  "dialog.server.add.wslUnavailable": "WSL 服务器仅适用于 Windows 桌面版。",
   "dialog.server.add.url": "服务器 URL",
   "dialog.server.add.placeholder": "http://localhost:4096",
   "dialog.server.add.error": "无法连接到服务器",

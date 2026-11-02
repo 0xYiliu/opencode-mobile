@@ -43,9 +43,6 @@ import { usePluginHost } from "@/runtime/plugin/host"
 import "@/settings/settings.css"
 
 // mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
-const MobileHostManager = lazy(() =>
-  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
-)
 
 // mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
 // "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
@@ -462,10 +459,6 @@ function RootSettings() {
         )}
       </Show>
       <Tabs.Content value="servers" class="settings-panel">
-        {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
-            upstream server panel; it renders even with an empty upstream list so the first
-            SSH host can be created. */}
-        <MobileHostManager />
         <Show
           when={multiple() ? undefined : inventory()[0]}
           fallback={
@@ -473,11 +466,18 @@ function RootSettings() {
               servers={inventory()}
               selected={surface.server()?.key}
               onAddServer={addServer}
+              unsupportedWsl={platform.platform === "web"}
               onServerChange={selectServer}
             />
           }
         >
-          {(entry) => <SettingsServerGeneral entry={entry()} onAddServer={addServer} />}
+          {(entry) => (
+            <SettingsServerGeneral
+              entry={entry()}
+              onAddServer={addServer}
+              unsupportedWsl={platform.platform === "web"}
+            />
+          )}
         </Show>
       </Tabs.Content>
     </SettingsNavigation>

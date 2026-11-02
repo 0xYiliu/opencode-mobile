@@ -55,6 +55,15 @@ android {
     }
 }
 
+// Never package stale, unmarked or partially published WebView assets.
+val verifyAndroidWebAssets by tasks.registering(Exec::class) {
+    val repo = rootProject.projectDir.parentFile
+    commandLine("python3", repo.resolve("scripts/android_web_assets.py"), "verify")
+}
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(verifyAndroidWebAssets)
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

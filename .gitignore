@@ -16,6 +16,8 @@ Pods/
 # Web build payload copied into the WebView assets by scripts/copy-web-dist.sh
 # (the committed record of what was copied is web-dist/manifest.json)
 android/app/src/main/assets/web/
+# Previous Web assets retained by copy:web-dist; never auto-deleted.
+android/app/src/main/.web-stage-*/
 
 # Machine-local configuration
 .DS_Store

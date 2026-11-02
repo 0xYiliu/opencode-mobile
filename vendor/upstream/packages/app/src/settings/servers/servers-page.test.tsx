@@ -87,6 +87,7 @@ let behavior:
   | undefined
 
 try {
+  mock.module("./mobile-ssh", () => ({ MobileSshSettingsRow: () => null, useMobileSshUi: () => ({ translate: (key: string) => key }) }))
   const language = await import("@/runtime/i18n/language")
   mock.module("@/runtime/i18n/language", () => ({
     ...language,
@@ -148,6 +149,16 @@ try {
     usePluginServers: () => ({ entries: () => [], entry: () => undefined, ready: () => true }),
     useServerAddItems: () => () => [],
     useServerRowItems: () => () => [],
+  }))
+
+  // Observe the page-to-menu option on both real page layouts without replacing the pages.
+  mock.module("@/servers/registry/add-menu", () => ({
+    SettingsAddServerMenu: (props: { checkAndroid?: boolean }) => {
+      const button = document.createElement("button")
+      button.textContent = "dialog.server.add.button"
+      button.dataset.unsupportedWsl = String(!!props.checkAndroid)
+      return button
+    },
   }))
 
   // Probe: the row menu normally opens a dropdown whose Edit item fires
@@ -247,6 +258,19 @@ const preferencesCount = (host: HTMLElement) => (host.textContent.match(/setting
 const shellRowCount = (host: HTMLElement) => (host.textContent.match(/settings\.general\.row\.shell\.title/g) ?? []).length
 
 describe("servers page (target-verbatim, issue #102)", () => {
+  test.skipIf(!behavior)("both server layouts pass the Android menu option", () => {
+    const { SettingsServerGeneral, SettingsServerList } = behavior!
+    const entry = { key: serverKey("srv-one"), name: "One", connection: httpServer("http://one.local:4096") }
+    const single = mount(() => createComponent(SettingsServerGeneral as never, {
+      entry, onAddServer: () => {}, unsupportedWsl: true,
+    }))
+    const multiple = mount(() => createComponent(SettingsServerList as never, {
+      servers: [entry, { ...entry, key: serverKey("srv-two") }], onAddServer: () => {},
+      onServerChange: () => {}, unsupportedWsl: true,
+    }))
+    expect(single.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
+    expect(multiple.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
+  })
   test("source: target rows, health gate, header reuse and the shell action thread", async () => {
     const source = await Bun.file(new URL("./servers.tsx", import.meta.url)).text()
 
