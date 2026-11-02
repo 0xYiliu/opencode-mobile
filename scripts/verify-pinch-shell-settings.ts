@@ -1,10 +1,12 @@
 // verify-pinch-shell-settings.ts — static probe for issue #74 (S12 pinch-zoom
 // disposition + S37 per-server shell selection equivalence check; a ZERO-code
 // round — verification + registration + ruling only, no vendor/first-party/
-// shell change, patch chain stays 38=38).
+// shell change; the patch chain was 38=38 at the #74 era, 50=50 since issue
+// #109's M-052 — issue #110 errata, narration-only).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + packageSources
-// + M-001..M-040, first-party android/, and this round's registration docs),
+// + M-001..M-052, M-019/M-039 reserved-absent; first-party android/, and this
+// round's registration docs),
 // the structural facts the S12 ruling ("keep the WebView default, register —
 // option (a)") and the S37 equivalence conclusion (implementation.md E30)
 // rely on:

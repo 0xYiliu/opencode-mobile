@@ -1,6 +1,6 @@
 # 单元：设置框架（外层壳/导航/搜索/服务器上下文）——issue #101（S01–S03）
 
-**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）、**Notifications 页内面（#107/M-050，见下方「通知页内面」单元）**与 **Shortcuts 页内面（#108/M-051，见下方「快捷键页内面」单元）已交付**；About 页内面仍归后续 Issue；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107/#108 段](../../build-and-verify.md)。
+**状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/M-045）、General/Experimental 偏好页内面（#103/M-046，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/M-048，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/M-049）、**Notifications 页内面（#107/M-050，见下方「通知页内面」单元）**与 **Shortcuts 页内面（#108/M-051，见下方「快捷键页内面」单元）已交付**；**About 页内面已交付（#110 复验 + 链接/暂缓态验收补齐，见下方「About 页内面」单元）**；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107/#108/#110 段](../../build-and-verify.md)。
 
 ## 单元边界（A/F 分界）
 
@@ -251,3 +251,38 @@ M-050（0050-M-050-notifications-page-target-form.patch，双 manifest 在册第
 ## 诚实边界
 
 Desktop 参考端无 → 视觉对照 BLOCKED 继承；`<768px` 两侧联验 BLOCKED 继承（#107 工具链注记）；TalkBack 走查按适用面登记（捕获态/Unbind 行为语义已 DOM 级实测，读屏描述串实态未走查）；命令面板本体移动可达性不变（keybind-only 在册）；设备 QA 前后 localStorage 全量 dump **逐键相等 18/18**（QA 侧深色 sweep 残留键 `opencode-color-scheme` 已识别并移除，恢复全等），hosts.v1 credentialRef 引用形白名单不变。
+
+# 单元：About 页内面（About、许可与发行说明）——issue #110（S39–S40）
+
+**状态行：已实现（新基线复验 + 探针勘误 + 链接/暂缓态验收补齐，零新补丁）。** about 域源码级剩余 delta = 0（M-040 已批准区域级例外保留）：`animated-wordmark.tsx`/`notices/dialog.tsx` vendored blob 与 v2.2.1 目标逐字节相同（分别随 M-035/M-040 轨 1 带入）、about.tsx 为 M-040 轨 2 在册移动例外（`c71e0d9`，pin==target `01ce931`）、`contributors.ts`/`contributors.test.ts`/`legal.svg`/`anomaly-brush.svg` 与 notices 六数据文件 pin==target==vendored 零触碰；`settings.css` vendored==目标 blob（`.settings-notices-scroll{overflow-y:auto}` 使能行在位，M-040「恰 +1/−0」R6 守卫不变）；updater 整目录 79 文件（16 非 i18n + 63 i18n，`contract.ts` 正确缺席）与目标逐字节相同。设备 QA（.145，APK `24a4a290…`）详见 [build-and-verify.md issue #110 段](../../build-and-verify.md)；Desktop 视觉对照 BLOCKED 继承。
+
+## 版本身份契约（M-040 例外保留，三行展示）
+
+- 三行实显（设备 DOM 实测）：`Version 0.1.0`（壳 `MOBILE_APP_VERSION`，不冒充 Desktop）、`Upstream OpenCode 2.1.4`（vendored `package.json` 基座行）、服务行（`useServerCollectionController` 健康链）。`settings-about-versions` data-component 锚持有基座+服务两行，壳版本行相邻渲染（探针组 2 全锚钉定）。
+- 服务行诚实降级：无可达服务稳态实显 `Checking server version…`（explicit checking 键，health undefined；12s 稳态观察六次采样恒同——与 #72 所见同形，M-043 框架迁移未改变本环境下该行时序）。判定锚「显式降级串、非空白、无伪版本」PASS；checking→version→unavailable 全转换链与真服务展示 **BLOCKED**（无可达服务，继承 #105/#106/#109 总边界）。
+- 设置搜索 `version license credits` 命中 About 行（search-catalog.ts :23 目标逐字行，设备实测揭示 About 页）。
+
+## notices 目标形与滚动契约
+
+`notices/dialog.tsx` 目标形（`div.settings-notices-scroll[data-scrollable]` + `overflow-y: auto`，ScrollView 包装与导入清零）设备复验：容器 clientH 404 / scrollH 5327，scrollTop 0→2929（55%，BetterOffice/Apache 段）→4923（=max，License texts/crates 段），长文行可读（截图在册）；动态 import 失败 Toast 面由代码 + verify-open-external 探针组 1 承载（本机不做故障注入）。
+
+## ExternalLink 外跳链（S39 链接验收，设备实测形态更正）
+
+- about.tsx/notices 弹窗的全部外联（website `www.opencode.ai`、contributors（如 `github.com/thdxr`）、notices entry.url（如 `github.com/openooxml/betteroffice`）为 **ExternalLink 组件目标形 plain `<a target="_blank" rel="noopener noreferrer">`**（external-link.tsx vendored==目标 `133e752e`）；**不是 M-041 `platform.openExternal` 消费者**——M-041 face（web.ts `activeFilesPort().openExternal`，targets 恰 [web.ts]）服务于在册显式消费者（connect/mcp/usage-limit/error page/host-apis），#76 设备/JVM 证据归属不变。
+- 设备实测（.145，真触 tap rect×dpr+72 标定 + CDP 双证）：三链接真触点击均**在本 WebView 内原位打开目标页**（CDP page target 实测 `https://opencode.ai/`、`https://github.com/thdxr`、`https://github.com/openooxml/betteroffice`；dumpsys topResumedActivity 恒为本 app——无浏览器切换）；系统返回键回退 WebView 历史后 About 态完整复原。合成 JS click 不触发该导航（trusted-event 行为差，如实登记）。
+- **形态更正（诚实登记，非回归）**：计划「About 页全部 ExternalLink 经 M-041 原生外跳」与实态不符——移动 WebView（无 `setSupportMultipleWindows`/`onCreateWindow`）下目标 `_blank` 语义为同窗回退。链接「可打开」半边成立（目标内容打开 + 返回复原）；「明确失败」半边不可从 About 链接触发（全部为合法 https，无 refused 域）——继承 #76 JVM 31/0 + AVD Toast 显式失败证据（M-3 登记）。`{opened:false}` Toast / mailto delta 面不改（N08 外跳边界不在本期扩大）。
+
+## S40 暂缓呈现契约（ADR 0005，呈现不误导已验）
+
+- **更新操作三负例全部成立**（设备实测）：①gui-extensions updater 行 = desktop-host 禁用行（15 行中 browser/pairing/updater/ssh 四行 `data-capability="desktop-host"`，Switch `aria-disabled=true` + `disabled` + "Desktop only" 能力列）；②设置导航/搜索零 Updates/What's New 页（13 个 tab 集合实测无 update/whats-new/beta 面——上游 Updates 页在 `ctx.desktop` 门后不注册）；③About 页零更新操作控件。
+- **whatsNew 邻外面保留**（ADR 0005 §6 R1 裁定 (c) 维持）：冷启动无发行说明弹窗自发弹出（seen==current 早退）；seen 水位实测 `opencode.global.dat:plugin.updater.seen = {"version":"0.1.0"}`（=MOBILE_APP_VERSION，`ctx.app.version = platform.version ?? ""` 仅作水位输入，E27 在册）；启动期零 changelog 拉取失败可见错误。**真实版本跃迁触发弹窗路径 BLOCKED**（激活条件 = 下一次真实 versionName 升版轮，不用合成 localStorage 伪造 previous）。
+
+## i18n
+
+en.ts 上游 `settings.about.*` 键集与目标全等 + M-040 四键恰 4（:783–786，zh/zht 零键 = 组 4 负锚）；zh 回退抽查：既有行中文（版本0.1.0/根据麻省理工学院许可证发布）、M-040 两行英文（en-base-first 合并链在册形态，非缺陷），English 已复原。
+
+## 诚实边界
+
+- 服务行真服务版本展示 **BLOCKED**（需可达服务，激活条件 = 可达服务器环境）；Desktop 视觉对照 **BLOCKED** 继承（无 Windows 参考端）；whatsNew 真实跃迁触发 **BLOCKED**（激活条件如上）。
+- 结构锁（三行同步、M-040 五 targets、目标形、负边界）由 verify-about-version 12 组静态探针承担；about 域无 about 页面单测——`contributors.test.ts`（2 例）为该目录唯一 vendored 单测且保持全绿（683 tests/115 files 全量口径内）。
+- 许可审计 V4 12 项待用户决策保持未决引用；`docs/decisions/0005-apk-update.md` 零改动（引用不改变）。

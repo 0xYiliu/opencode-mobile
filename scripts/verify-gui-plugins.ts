@@ -732,7 +732,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     // measured 3516/159542455; issue #90's amended-M-037 rebuild measured 3516/159542120 +335
     // via the settings search consumer rename; issue #70's btw entry measured 3516/159535257
     // and issue #67's gui-plugins swap measured 3516/159532385 — now historical).
-    fail(`8: current web-dist baseline drifted (expected 3520/159672996, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`)
+    fail(`8: current web-dist baseline drifted (expected 3520/159673641, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #110 errata: the fail message carried the stale issue #108 value (159672996) while the assert above already checks the current issue #109 measured baseline 159673641 — message-only correction, assertion unchanged
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps

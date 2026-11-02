@@ -38,8 +38,9 @@
 //      probe only witnesses that the OUTBOUND face added no manifest surface.
 //   3. Registration face: M-041 is dual-registered (patches/mobile/manifest.json
 //      row with targets exactly [web.ts] + non-empty upstreamBaseline;
-//      vendor-manifest.json mobilePatches carries the path). The exact 39=39
-//      chain count is the MASTER lock of verify-about-version group 6 +
+//      vendor-manifest.json mobilePatches carries the path). The exact 50=50
+//      chain count (39=39 was the issue #76-era total; 50 since issue #109's
+//      M-052, re-verified by issue #110) is the MASTER lock of verify-about-version group 6 +
 //      verify-attachments-artifacts group 6 + verify-commands-menus group 8 —
 //      witnessed here, not re-locked.
 //
@@ -257,9 +258,10 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
   if (!paths.includes("patches/mobile/0041-M-041-open-external-platform-face.patch"))
     fail("3: vendor-manifest mobilePatches lost the M-041 path")
 
-  // WITNESS: the exact 39=39 chain count + path-for-path agreement is the
+  // WITNESS: the exact 50=50 chain count + path-for-path agreement is the
   // MASTER lock of verify-about-version group 6 / verify-attachments-artifacts
-  // group 6 / verify-commands-menus group 8 (same-commit backfill). This probe
+  // group 6 / verify-commands-menus group 8 (same-commit backfill; 39=39 was
+  // the issue #76-era total). This probe
   // deliberately does not re-count the chain.
   if (!JSON.stringify(entry).includes("issue #76"))
     fail("3: M-041 registration lost the issue #76 attribution")
@@ -269,6 +271,6 @@ console.log(
   "verify-open-external: PASS (" +
     "1: JS face — upstream canParse + protocol gates verbatim, M-041 bridge-call shape + marker, web.ts zero window.open negative, FilesPort exactly four members + stub false + client never-throw fail-closed shapes + op union + timeout anchor untouched; " +
     "2: native face — ExternalOpenPolicy JVM purity + six gates (strict parse, http/https-only mailto delta, userinfo, host, port range, 2048) + Decision enum, FilesBridge exactly-four-op set + dispatch + ACTION_VIEW-from-accepted-string + no-handler capture + {opened} body + LENGTH_SHORT fixed-string Toast + zero-value-log negative, en-only fixed copy + no values-zh negative, MainActivity zero wiring negative, manifest witness zero VIEW/scheme/QUERY_ALL_PACKAGES (first locks verify-pairing groups 3/4/6 NOT re-locked); " +
-    "3: registration — M-041 dual registration with targets exactly [web.ts] + baseline + issue #76 attribution (39=39 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
+    "3: registration — M-041 dual registration with targets exactly [web.ts] + baseline + issue #76 attribution (50=50 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
     "STATIC check — allowed-domain hand-off, refused-domain Toast, mailto delta Toast and no-handler path on a device are QA-1/QA-2/QA-3/QA-4 registered in docs/build-and-verify.md issue #76; the JVM decision matrix (ExternalOpenPolicyTest) is the policy behavioral lower bound)",
 )
