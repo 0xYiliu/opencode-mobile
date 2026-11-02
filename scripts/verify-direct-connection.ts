@@ -5,8 +5,7 @@
 //      error-accepting SSL handler anywhere under android/ — no X509TrustManager, no
 //      checkServerTrusted/checkClientTrusted, no HostnameVerifier, no custom SSL socket
 //      factory, no SslErrorHandler.proceed, no trust-all posture.
-//   2. Network security config not relaxed: base config still forbids cleartext and trusts
-//      the system CA store only; the loopback exception remains exactly 127.0.0.1/localhost.
+//   2. Network security config permits HTTP while still trusting the system CA store only.
 //   3. Probe taxonomy consistency: every JS DirectErrorCode string is spoken by the Kotlin
 //      bridge (codeName mapping), and the first-party i18n carries one non-empty EN+ZH line
 //      per code (F5 key set 1).
@@ -67,25 +66,21 @@ const path = (...segments: string[]) => `${ROOT}${segments.join("/")}`
 }
 
 // ---------------------------------------------------------------------------
-// 2. network_security_config.xml not relaxed
+// 2. HTTP allowed; TLS trust remains system-CA-only
 // ---------------------------------------------------------------------------
 {
   const xml = await Bun.file(path("android/app/src/main/res/xml/network_security_config.xml")).text()
   const baseConfig = /<base-config[^>]*>([\s\S]*?)<\/base-config>/.exec(xml)
   if (!baseConfig) fail("network_security_config: base-config block missing")
-  if (!/<base-config[^>]*cleartextTrafficPermitted\s*=\s*"false"/.test(baseConfig![0]!)) {
-    fail("network_security_config: base-config does not forbid cleartext")
+  if (!/<base-config[^>]*cleartextTrafficPermitted\s*=\s*"true"/.test(baseConfig![0]!)) {
+    fail("network_security_config: base-config does not permit cleartext")
   }
   const anchors = baseConfig![1]!
   if (!/<certificates\s+src="system"\s*\/?>/.test(anchors)) fail("network_security_config: system CA anchor missing")
   if (/<certificates\s+src="user"/.test(xml)) fail("network_security_config: user CA anchor present (must stay absent)")
-  const cleartextDomains = [...xml.matchAll(/<domain[^>]*>([^<]+)<\/domain>/g)].map((m) => m[1]!.trim())
-  const allowed = new Set(["127.0.0.1", "localhost"])
-  for (const domain of cleartextDomains) {
-    if (!allowed.has(domain)) fail(`network_security_config: unexpected cleartext-permitted domain: ${domain}`)
-  }
-  if (cleartextDomains.length !== 2) fail(`network_security_config: expected exactly the two loopback domains, found ${cleartextDomains.length}`)
-  console.log("2 OK: netsec unchanged — base forbids cleartext, system-CA-only anchors, loopback exception exactly 127.0.0.1/localhost")
+  const manifest = await Bun.file(path("android/app/src/main/AndroidManifest.xml")).text()
+  if (!/android:usesCleartextTraffic\s*=\s*"true"/.test(manifest)) fail("AndroidManifest: cleartext traffic not permitted")
+  console.log("2 OK: HTTP permitted; HTTPS uses system-CA-only anchors")
 }
 
 // ---------------------------------------------------------------------------

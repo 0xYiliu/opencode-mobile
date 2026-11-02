@@ -1,19 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
 
-    <!-- Remote endpoints are HTTPS-only; TLS validation is never disabled to work around
-         certificate errors. User-added CAs are not trusted. -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- HTTP endpoints are permitted, but send credentials and data without transport
+         encryption. HTTPS continues to trust system CAs only. -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-
-    <!-- Loopback exception for the local WebView asset server only. LAN HTTP gateways are
-         out of scope here and need their own explicit user decision (project scope doc). -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">localhost</domain>
-    </domain-config>
 
 </network-security-config>

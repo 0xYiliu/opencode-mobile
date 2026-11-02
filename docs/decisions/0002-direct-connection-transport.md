@@ -42,7 +42,7 @@ PTY 通道（vendored `packages/client/src/solid/pty.ts`）先认证铸一次性
 
 裁定：
 
-- **system CA store 是唯一信任锚**：`network_security_config.xml` base-config 维持 `cleartextTrafficPermitted="false"` + 仅 `<certificates src="system"/>`，本轮零改动。不引入 user anchors、不做 per-connection 放行、不引入自定义 `X509TrustManager`/`HostnameVerifier`（静态负断言入 `scripts/verify-direct-connection.ts`），**绝不 trust-all**（红线，永不）。
+- **system CA store 是唯一信任锚**：原裁定中 `network_security_config.xml` base-config 禁止明文并仅使用 `<certificates src="system"/>`；后续允许 HTTP 的变更不改变 system CA 信任锚。不引入 user anchors、不做 per-connection 放行、不引入自定义 `X509TrustManager`/`HostnameVerifier`（静态负断言入 `scripts/verify-direct-connection.ts`），**绝不 trust-all**（红线，永不）。
 - WebView fetch 由 Chromium 校验证书；平台 `HttpURLConnection`（probe 用）与 Chromium 同受 netsec 约束——probe 与 WebView 判定天然同源一致。
 - 新增原生 `DirectEndpointProbe`（Kotlin `HttpURLConnection`，严格默认、连接/读取超时、有界 body 侦嗅、无 URL/头日志）+ `ProbeBridge`（见下节）。
 - 分类码全集（`DirectErrorCode`）：`cert-expired` / `cert-hostname` / `cert-untrusted` / `cleartext-blocked` / `refused` / `timeout` / `dns` / `unauthorized` / `forbidden` / `not-found` / `html-response` / `ok`。自签与私有 CA 在客户端不可分辨，同为 `cert-untrusted`，文案如实说明。
@@ -61,14 +61,13 @@ probe 是**分类器不是权威**：`/api/info`（与上游健康检查同路�
 4. **probe 桥自身的信任边界**：①`postWebMessage` 的 targetOrigin 由平台执行，非目标 origin 收不到 transferred port；②port 引用限制在对应 JS transport 闭包；③ack 前 native 不受理 probe 操作。probe 与旧 vault WebMessageChannel 协议曾通过独立握手串隔离；issue #58 vault 已改为 AndroidX origin/frame-bound listener v2，两者不再共享握手或生命周期。以上描述只适用于 probe 自身，不代表 vault v2 的安全机制。
 5. **probe 时序**：`onPageFinished` 开新握手轮；未收 ack 的重试**重建通道**（已转移的 port2 不可重投）；有界重试 5×500ms；耗尽后 probe 显式 `unavailable`（见 D4）。
 
-## D3 明文 HTTP：本期不支持
+## D3 明文 HTTP：裁定变更
 
-裁定：**本期不支持明文 HTTP 直连**（issue #5 验收第 3 条的条件式解）。
+历史裁定：issue #5 原本不支持远端明文 HTTP，netsec 仅对回环放行；逐连接知情授权曾列为前瞻方案。
 
-- netsec base 禁明文是架构红线（`usesCleartextTraffic=false` + base-config 禁明文）；loopback 例外仅为资产服务与（未来的）SSH 隧道回环口。
-- `normalizeServerUrl` 裸地址默认补 `http://` 是上游行为，不改（改上游语义成本高且影响 link 流）；`http://192.168.x.x` 直连请求会被平台阻断，probe 分类 `cleartext-blocked`，文案：「不支持明文 HTTP 直连（凭据将明文过网）；请使用 HTTPS 或 SSH 隧道」。
-- **逐连接知情授权（per-connection informed authorization）为前瞻方案，留用户决策**：若未来支持，需按连接弹显式警示（明文风险告知 + 仅本次/记住该主机选择），并逐连接记录授权状态；未获决策前不实现任何放行路径。
-- 明文语义同时收缩了 unsafe-redirect 面（https→http 降级校验在 D1 承接）。
+已批准的变更：**Android 将允许远端 HTTP 直连**，包括局域网地址；不再把远端明文一律阻断作为目标。`normalizeServerUrl` 裸地址默认补 `http://` 的上游行为不变。HTTP 不加密，Basic 认证凭据及其他通信内容可能被网络上的第三方读取或篡改；建议使用 HTTPS 或 SSH 隧道。此处不预设逐连接授权界面已实现。
+
+TLS 证书与主机名校验、system CA 信任锚不变；D1 的 HTTPS→HTTP 降级拒绝仍适用。Android HTTP 直连及相关路径**待真机验证**，不声称已验证可用。
 
 ## D4 错误分类层落点
 
@@ -115,7 +114,7 @@ out-of-scope 理由：跨源重定向子请求被浏览器剥头是规范强制�
 | 壳内 TLS 反代 | 否（推迟） | 体量不成比例 |
 | trust-all / 自定义 TrustManager | **永不** | AGENTS.md 红线 |
 | 自签/私有 CA 直连 | 本期不支持 | 三条出路见 D2；per-connection pin 为后续候选 |
-| 明文 HTTP 直连 | 本期不支持 | 逐连接知情授权为前瞻，留用户决策 |
+| 明文 HTTP 直连 | 原不支持；已批准变更为 Android 将允许 | 明文凭据风险见 D3；真机待验证 |
 | WS 弃用 ticket 改头 | 否 | 需同时 patch client+server；浏览器 WS 无法带头 |
 
 ## 状态
@@ -123,5 +122,5 @@ out-of-scope 理由：跨源重定向子请求被浏览器剥头是规范强制�
 | 条目 | 状态 |
 | --- | --- |
 | D1/D-URL/D5/D2/D3/D4 代码承载 | `packages/mobile-hosts/src/transport|probe.ts` + M-011/M-012/M-013/M-014 补丁（implemented，未经真机验证） |
-| 设备级验证（G3 预检实测/G4 坏证书分类/G5 明文阻断/G11 错误矩阵/G16 桥 bring-up/live E2E） | **BLOCKED** |
+| 设备级验证（G3 预检实测/G4 坏证书分类/G5 明文行为（原阻断口径已由 D3 变更）/G11 错误矩阵/G16 桥 bring-up/live E2E） | **BLOCKED** |
 | 敏感信息 | 本文不含凭据、令牌或真实连接配置 |

@@ -24,7 +24,7 @@
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.OpenCodeMobile"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="true">
 
         <!-- Launcher activity only; deep links are not implemented (TODO in MainActivity). -->
         <activity

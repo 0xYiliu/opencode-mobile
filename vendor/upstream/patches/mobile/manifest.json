@@ -980,6 +980,19 @@
       "verification": "Derived in a git-archive scratch cumulative tree (pin + packageSources gui-plugins 3ebcf9a + M-001..M-051 in vendor-manifest order), diffed, then git apply --check + apply on a second freshly built cumulative tree (replaying M-001..M-051 only - the 50-entry registered list includes M-052 itself and must be excluded from the derivation replay), all 6 result files byte-compared (cmp) against the worktree - zero diff both sides; the worktree application itself was done with GNU patch -p1 after git apply 2.53 in this environment reported 'Skipped patch' no-op inside the issue worktree (git add/commit verified working; only git apply is affected - recorded as an environment note, the patch bytes are git-apply-compatible as proven by the cumulative-tree apply). verify:closure PASS at registration (both manifests 50=50, DANGLING=0, V3(a) byte-exact replay over M-001..M-052; the initial 4-target registration left the plan §5 test additions outside the patch and failed V3(a) on route.test.ts/settings-search-plugin.test.tsx - corrected by extending M-052 to 6 targets with a full re-derivation, M-044 precedent of test edits riding the patch). App unit no-seam baseline re-confirmed pre-change at cc78698 (653 pass / 4 skip / 24 fail / 24 errors / 1997 expect, 681 tests/115 files; error set = 23x runtime/server/registry.tsx + 1x shell/notifications/notification.tsx module resolution + 2x persistence disk-full); mobile-hosts 434/0/2920; tsc dual-caliber 389/389; dist 3520/159672996 re-confirmed. Post-change gates recorded in docs/build-and-verify.md issue #109 section.",
       "rebase": "New patch (issue #109); LAYERED patch generated against pristine pin + packageSources + M-001..M-051 (accumulated tree). The en.ts hunk anchors on the guiExtensions block (M-026's eight-key addition, present since #26/#96 work); the zh.ts hunk anchors the same block; the route.ts/pages.ts hunks anchor on the M-044 notes themselves - all disjoint from other patches' hunks in these files (17 prior patches touch en.ts in unrelated sections; verified by the accumulated-tree apply on a second freshly built tree). Rebase: re-derive the four hunks against the new target; the comment notes describe a mobile-only tab absent in the target so they re-anchor on the same union/entry lines; if the target renames settings.guiExtensions.* keys, follow the target and re-pin the probes' key anchors; the en/zh label values must stay distinct from settings.tab.extensions in both locales.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+    },
+    {
+      "id": "M-053",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0053-M-053-pairing-url-compat.patch",
+      "targets": [
+        "packages/app/src/servers/connect/pairing.ts",
+        "packages/app/src/servers/connect/pairing.test.ts"
+      ],
+      "reason": "Avoid URL.parse and URL.canParse on older WebViews while retaining address and pairing validation.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Pairing tests simulate missing URL static methods; runtime WebView validation remains pending.",
+      "rebase": "Layered after M-052; preserve validation rules."
     }
   ]
 }

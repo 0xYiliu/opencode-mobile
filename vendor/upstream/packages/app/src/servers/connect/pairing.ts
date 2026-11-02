@@ -3,14 +3,22 @@ import { Option, Schema } from "effect"
 import { checkServerHealth } from "@/runtime/server/health"
 import { normalizeServerUrl } from "@/runtime/server/registry"
 
+function parseUrl(value: string) {
+  try {
+    return new URL(value)
+  } catch {
+    return undefined
+  }
+}
+
 export function serverAddress(value: string) {
   if (value.includes("://") && !/^https?:\/\//.test(value.trim())) return
   const normalized = normalizeServerUrl(value)
 
-  if (!normalized || !URL.canParse(normalized)) return
-  const url = new URL(normalized)
+  if (!normalized) return
+  const url = parseUrl(normalized)
 
-  if (url.protocol !== "http:" && url.protocol !== "https:") return
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
 
   if (url.username || url.password || url.search || url.hash) return
 
@@ -39,7 +47,7 @@ export function pairingLink(value: string) {
     return { urls: urls.filter((url) => url !== undefined), code: payload.code }
   }
 
-  const url = URL.parse(trimmed)
+  const url = parseUrl(trimmed)
 
   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
   const code = /^\/auth\/connect\/([^/]+)$/.exec(url.pathname)?.[1]
@@ -67,7 +75,7 @@ export function bareServerAddress(value: string) {
 
 // Servers before one-time links paired with `/connect#<credentials>` or `/connect?data=<credentials>`.
 export function legacyPairingLink(value: string) {
-  const url = URL.parse(value.trim())
+  const url = parseUrl(value.trim())
 
   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return false
 
