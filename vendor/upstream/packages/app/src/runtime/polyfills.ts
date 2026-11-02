@@ -2,3 +2,5 @@
 import "core-js/es/map/group-by"
 import "core-js/es/promise/with-resolvers"
 import "core-js/es/promise/try"
+import "core-js/modules/web.url.can-parse.js"
+import "core-js/modules/web.url.parse.js"

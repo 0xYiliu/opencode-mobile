@@ -97,7 +97,8 @@
     "patches/mobile/0051-M-051-keybinds-command-catalog-target-form.patch",
     "patches/mobile/0052-M-052-guiext-tab-decision-and-label.patch",
     "patches/mobile/0053-M-053-pairing-url-compat.patch",
-    "patches/mobile/0054-M-054-password-keyboard.patch"
+    "patches/mobile/0054-M-054-password-keyboard.patch",
+    "patches/mobile/0055-M-055-webview-url-compat.patch"
   ],
   "excluded": {
     "packages": [

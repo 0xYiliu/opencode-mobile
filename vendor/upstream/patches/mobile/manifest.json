@@ -1005,6 +1005,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-password-keyboard.test.ts; Android WebView keyboard and masking require device verification.",
       "rebase": "Layered after M-053; preserve the first connection password field and shell-only configuration fallback."
+    },
+    {
+      "id": "M-055",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0055-M-055-webview-url-compat.patch",
+      "targets": [
+        "packages/app/src/runtime/polyfills.ts"
+      ],
+      "reason": "Provide URL.canParse and URL.parse in the application window on older WebViews using the app's existing core-js dependency; workers are outside scope.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "See docs/build-and-verify.md for URL regressions and device verification status.",
+      "rebase": "Layered after M-054; retain window imports until supported WebViews provide both APIs. Worker realms require independent evaluation."
     }
   ]
 }

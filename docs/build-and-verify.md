@@ -1,5 +1,13 @@
 # 构建与验证证据（V8）
 
+### M-055 旧 WebView 主页面 URL 静态方法（原会话真机验证）
+
+- 按用户收窄范围，仅应用 window 入口加载既有 core-js 3.50.0 的 `web.url.can-parse` 和 `web.url.parse`；不修改 Word worker、gui-plugins 依赖或 lockfile。M-055 双清单登记且 `bash scripts/verify-closure.sh` PASS（DANGLING=0）。
+- `bun test scripts/verify-webview-url-compat.test.ts vendor/upstream/packages/gui-plugins/src/browser/policy.test.ts`：9 pass、0 fail；隔离进程覆盖原生保留、缺一/缺二、base、无效输入、转换异常，以及浏览器 URL 策略、凭据、文件路径边界和 markdown 本地图片安全负例。配对测试使用本文既有 node_modules seam，`bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/servers/connect/pairing.test.ts`：7 pass；`bun run scripts/verify-open-external.ts` 静态安全探针 PASS。
+- `bun run build:web` 和 `bash scripts/copy-web-dist.sh` PASS：3520 文件、159683681 bytes。`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` PASS；最终收窄 debug APK SHA-256 `119027597d4e8c42526ccf482de530c89e072709bd49d9c24b7c59ad7eb09cd7`。
+- 2026-11-02：最终收窄 APK 在 MatePad（Android 12，华为 WebView 114.0.5.302）覆盖安装，设备 APK SHA-256 与上列一致；保留应用数据，重新连接原服务并打开用户报告报错的原 session，Markdown 内容正常显示。之前包含 worker 修复的构建也曾在同一 session 滚动成功；最终收窄 APK 的其他安全调用链和 worker 未作实机验证。
+- 独立 worker realm 不共享 window polyfill；已知 Word document worker 仍调用 `URL.parse`，旧 WebView 缺失时可能失败。依用户决定暂不处理，不声明 Word 或其他 worker 兼容。
+
 本文按 issue #2 验收第 6 条记录真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore，见下方 issue #4 段）、[issue #3](https://github.com/0xYiliu/opencode-mobile/issues/3)（主机注册表，见下方 issue #3 段）。
 
 ### 首次连接密码键盘（M-054，迁移验证）
