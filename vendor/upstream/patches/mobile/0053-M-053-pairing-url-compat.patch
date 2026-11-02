@@ -1,0 +1,87 @@
+diff --git a/packages/app/src/servers/connect/pairing.test.ts b/packages/app/src/servers/connect/pairing.test.ts
+index f431864..f0a2d11 100644
+--- a/packages/app/src/servers/connect/pairing.test.ts
++++ b/packages/app/src/servers/connect/pairing.test.ts
+@@ -1,7 +1,33 @@
+ import { describe, expect, test } from "bun:test"
+-import { bareServerAddress, legacyPairingLink, pairingLink } from "./pairing"
++import { bareServerAddress, legacyPairingLink, pairingLink, serverAddress } from "./pairing"
+ 
+ describe("pairing link", () => {
++  test("validates addresses and links without URL static parsing methods", () => {
++    const parse = Object.getOwnPropertyDescriptor(URL, "parse")
++    const canParse = Object.getOwnPropertyDescriptor(URL, "canParse")
++    try {
++      Object.defineProperty(URL, "parse", { configurable: true, value: undefined })
++      Object.defineProperty(URL, "canParse", { configurable: true, value: undefined })
++      expect(serverAddress("example.com:4096")).toBe("http://example.com:4096")
++      for (const value of ["http://[", "ftp://example.com", "http://user:pass@example.com", "http://example.com/?q=1", "http://example.com/#hash"]) {
++        expect(serverAddress(value)).toBeUndefined()
++      }
++      expect(bareServerAddress("localhost:4096")).toBe("http://localhost:4096")
++      expect(bareServerAddress("http://example.com/path")).toBeUndefined()
++      expect(pairingLink("https://example.com/auth/connect/abc_DEF-123")).toEqual({ urls: ["https://example.com"], code: "abc_DEF-123" })
++      expect(pairingLink(JSON.stringify({ code: "abc", urls: ["example.com:4096"] }))).toEqual({ urls: ["http://example.com:4096"], code: "abc" })
++      expect(pairingLink("http://[")).toBeUndefined()
++      expect(pairingLink("https://example.com/auth/connect/a%2Fb")).toBeUndefined()
++      expect(legacyPairingLink("https://example.com/connect?data=abc")).toBe(true)
++      expect(legacyPairingLink("http://[")).toBe(false)
++    } finally {
++      if (parse) Object.defineProperty(URL, "parse", parse)
++      else Reflect.deleteProperty(URL, "parse")
++      if (canParse) Object.defineProperty(URL, "canParse", canParse)
++      else Reflect.deleteProperty(URL, "canParse")
++    }
++  })
++
+   test("reads the server address and code from opencode pair links", () => {
+     expect(pairingLink(" http://192.168.1.2:49374/auth/connect/abc_DEF-123 ")).toEqual({
+       urls: ["http://192.168.1.2:49374"],
+diff --git a/packages/app/src/servers/connect/pairing.ts b/packages/app/src/servers/connect/pairing.ts
+index 6db2ec0..bb0205d 100644
+--- a/packages/app/src/servers/connect/pairing.ts
++++ b/packages/app/src/servers/connect/pairing.ts
+@@ -3,14 +3,22 @@ import { Option, Schema } from "effect"
+ import { checkServerHealth } from "@/runtime/server/health"
+ import { normalizeServerUrl } from "@/runtime/server/registry"
+ 
++function parseUrl(value: string) {
++  try {
++    return new URL(value)
++  } catch {
++    return undefined
++  }
++}
++
+ export function serverAddress(value: string) {
+   if (value.includes("://") && !/^https?:\/\//.test(value.trim())) return
+   const normalized = normalizeServerUrl(value)
+ 
+-  if (!normalized || !URL.canParse(normalized)) return
+-  const url = new URL(normalized)
++  if (!normalized) return
++  const url = parseUrl(normalized)
+ 
+-  if (url.protocol !== "http:" && url.protocol !== "https:") return
++  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
+ 
+   if (url.username || url.password || url.search || url.hash) return
+ 
+@@ -39,7 +47,7 @@ export function pairingLink(value: string) {
+     return { urls: urls.filter((url) => url !== undefined), code: payload.code }
+   }
+ 
+-  const url = URL.parse(trimmed)
++  const url = parseUrl(trimmed)
+ 
+   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
+   const code = /^\/auth\/connect\/([^/]+)$/.exec(url.pathname)?.[1]
+@@ -67,7 +75,7 @@ export function bareServerAddress(value: string) {
+ 
+ // Servers before one-time links paired with `/connect#<credentials>` or `/connect?data=<credentials>`.
+ export function legacyPairingLink(value: string) {
+-  const url = URL.parse(value.trim())
++  const url = parseUrl(value.trim())
+ 
+   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return false
+ 

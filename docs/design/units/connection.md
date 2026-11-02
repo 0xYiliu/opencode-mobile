@@ -162,6 +162,8 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 
 ## 直连传输（已实现（未验证）：issue #5，裁定见[决策记录 0002](../../decisions/0002-direct-connection-transport.md)）
 
+已批准变更：Android 将允许远端 HTTP 直连；HTTP 不加密，Basic 凭据及通信内容可能被窃听或篡改，建议使用 HTTPS 或 SSH 隧道。TLS 证书及主机名校验不变；HTTP 直连与配对路径待真机验证。
+
 直连服务沿用上游原生注册表与连接对话框（M-005/M-006/M-009/M-010 已承载），issue #5 补齐传输卫生与错误分类：secure-fetch（M-011）、上传 XHR 校验（M-012）、probe 先行分类反馈（M-013）、probe 桥接线（M-014）。实现位置 `packages/mobile-hosts/src/transport/`、`src/probe.ts` 与 `android/app/src/main/java/ai/opencode/mobile/probe/`。
 
 **issue #102 增补（M-045）**：连接对话框的新增/编辑条目现渲染目标形态行——servers 列表行委托共享 `ServerConnectionRow`（行内 Authenticate 入口、`entry.name` 行名），对话框本体（M-005 credentialRef 保留、M-009 记住分支、M-013 probe 分类错误、`onSave` 回传选中）全部保留不变；`servers/connect/redeem.ts` 的 `Redemption` 类型随目标**取消导出**（树内零消费者，纯收紧）。指纹/凭据契约本轮零改动（交叉引用见上）。
@@ -195,7 +197,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 | `cert-expired` | probe TLS（证书过期） | `dialog.server.error.cert-expired`（续期证书/Let's Encrypt 或 SSH 隧道） | 换正规 CA 证书；SSH 隧道（#6） |
 | `cert-hostname` | probe TLS（主机名不符） | `dialog.server.error.cert-hostname` | 核对地址；为本主机签发证书 |
 | `cert-untrusted` | probe TLS（自签/私有 CA 不可分辨） | `dialog.server.error.cert-untrusted`（裁定：本期不支持，三条出路见 0002 D2） | 正规 CA；SSH 隧道；per-connection pin（后续候选） |
-| `cleartext-blocked` | netsec 阻断明文（probe 与 WebView 同源判定） | `dialog.server.error.cleartext-blocked`（D3：本期不支持明文） | 改用 HTTPS；SSH 隧道 |
+| `cleartext-blocked` | 平台阻断明文时的既有 probe 分类；远端 HTTP 放行后不再作为预期常态 | 既有 `dialog.server.error.cleartext-blocked`；实际呈现待验证 | 检查平台配置；优先使用 HTTPS 或 SSH 隧道 |
 | `refused` | probe 连接拒绝 | `dialog.server.error.refused` | 确认服务运行与端口 |
 | `timeout` | probe 超时（8s+8s 有界）/ 健康检查 30s 超时 | `dialog.server.error.timeout` | 检查地址/端口/网络路径 |
 | `dns` | probe DNS 解析失败 | `dialog.server.error.dns` | 检查主机名 |
@@ -242,11 +244,11 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 | --- | --- | --- |
 | 无效串 | `pairingLink` undefined 且非 legacy | `server.connect.link.invalid`（行内错误，零网络动作） |
 | 过期/已用（replayed） | 兑换 401 → `{type:"expired"}` | `server.connect.link.expired`（"expired or was already used" 一词双关覆盖两态） |
-| 不可达 | 全地址无应答（`AbortSignal.timeout(5_000)` 亦有界） | `server.connect.link.unreachable`（附 URL 列表）；**本壳 LAN 明文配对失败恒落此形态**（netsec 阻断见⑦） |
+| 不可达 | 全地址无应答（`AbortSignal.timeout(5_000)` 亦有界） | `server.connect.link.unreachable`（附 URL 列表）；历史上 LAN 明文受 netsec 阻断时可能落此形态；放行后的实际表现待真机验证 |
 | 遗留链接 | `legacyPairingLink` 命中 | `server.connect.link.legacy`（识别不执行） |
 | 扫描无效码 | scanner 解码后 redeem 返回 error | `server.connect.scan.invalid`；解码失败 `server.connect.scan.failed`（三秒抑制防每帧重兑：`rejected` Map + `Date.now() + 3000`） |
 | 相机错误 | `scanner.start()` 失败 | `server.connect.camera.error`；上游降级提示 `cameraHint()`（secure context 下 `server.connect.camera.unavailable`——"Enter your connection details manually"） |
-| 混合内容 | `isMixedContent`（`redeem.ts`/`dialog.tsx`/`screen.tsx` web 全地址明文时） | **本壳结构性不可达注记**：`browser.ts` 的 `isMixedContent` 要求页面 origin 为 `https:` 才可能 true，本壳页面 origin 恒 `http://127.0.0.1:18090`（回环）→ 分支不可达，仅 https 页面上游场景可达——LAN 明文配对失败恒呈现 unreachable，不算本壳可达形态 |
+| 混合内容 | `isMixedContent`（`redeem.ts`/`dialog.tsx`/`screen.tsx` web 全地址明文时） | **本壳结构性不可达注记**：`browser.ts` 的 `isMixedContent` 要求页面 origin 为 `https:` 才可能 true，本壳页面 origin 恒 `http://127.0.0.1:18090`（回环）→ 分支不可达，仅 https 页面上游场景可达——该分支不因允许远端 HTTP 而变为可达；LAN 配对实际结果待真机验证 |
 
 ### ④ token 秘密纪律（红线：秘密不经日志/剪贴板/历史）
 
@@ -254,7 +256,11 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 - **prior `credentialRef` 语义分面（add 面两挂载面实态不同——上游实态例外句）**：**dialog 连接对话框面=passthrough 保 ref**（`credentialRef: decision.action === "passthrough" ? decision.ref : undefined`，M-006/M-009 prior 语义）；**screen 独立连接屏面=重配对丢弃 prior `http.credentialRef`**——机制=`servers.add(existing ? { ...existing, http } : { type: "http", http })` 的 shorthand `http`（`HttpBase {url, password}` 恒不含 ref）整体覆盖 `existing.http`，且注册表 `add()` 命中既有项时 `setStore("list", existing, conn)` 整体替换、不与旧条目合并 ref（顶层 displayName 经展开保留）；后果=该服务记录与 vault 条目的 ref 绑定静默丢失 → vault 条目转孤儿（凭据管理器孤儿区呈现）→ 重启后 unauthorized → 重配对自愈。**无安全泄漏**（ref 非机密、丢绑定只降级为重认证，不入日志不入剪贴板）；实态可接受性归 G32⑤ 双面核对，不预设行为变更补丁。
 - **剪贴板分域口径**：**配对/导入面零剪贴板写**——`servers/connect/` 全目录 + `packages/mobile-hosts/src` 域内 `navigator.clipboard.write|writeText` 零命中（探针组 5 锁定；mobile-hosts 的剪贴板接触是 issue #16 `clipboardImage` **读取**面）。**域外事实（上游 app 自有剪贴板写，均不在配对流，如实声明不进断言域；issue #105/M-048 起恰五写四文件）**：`providers/connect/dialog.tsx`（provider OAuth copy-link 回退）、`providers/connect/mcp-dialog.tsx`（MCP 错误详情 copy 回退，`platform.writeClipboardText ?? navigator.clipboard.writeText`，issue #105/M-048 新增——复制内容为错误详情文本，非凭据）、`runtime/extension/host-apis.tsx`（宿主 copy API）、`session/commands/use-session-commands.tsx`×2（sessionID/projectID 复制）。桌面 gui-ext 的「copy link」是发送端桌面自身剪贴板，不属本客户端面。TextInput 链接值仅存组件 store（`reset()` 即清），零持久化零草稿存储。
 - **日志零值**：pairing/redeem/scanner/camera 四文件零 `console.`/`Log.` 类调用（探针负断言）；壳层 `onReceivedSslError` 仅记错误类、console 仅 message+行号、`setSavePassword(false)`（MainActivity）既有锚在册。
-- **历史零渗漏**：兑换经 `fetch()` 非导航 → 零 WebView 历史/前进后退列表条目；链接输入 `spellcheck={false} autocapitalize="off"`；密码输入 `type="password"` + 壳 `setSavePassword(false)`。
+- **历史零渗漏**：兑换经 `fetch()` 非导航 → 零 WebView 历史/前进后退列表条目；链接输入 `spellcheck={false} autocapitalize="off"`；密码字段掩码 + 壳 `setSavePassword(false)`。首次连接密码栏的键盘例外见下文。
+
+**首次直连密码键盘（代码已实现，集成设备验证未执行）**：Android Gradle 属性 `passwordKeyboard` 默认 `false`（请求普通键盘），设置 `-PpasswordKeyboard=true` 选择密码输入法；其他值使配置失败。壳的回环资产服务通过不缓存的 `/mobile-keyboard-config.json` 仅提供该非秘密布尔值；读取失败或非 Android 响应时退回 `type=password`。普通键盘模式使用 `type=text` 和 `-webkit-text-security: disc` 保持视觉掩码，关闭自动填充提示（`autocomplete=off`）、拼写检查、自动纠正和首字母大写；密码输入法模式保留 `autocomplete=current-password`。不改变应用内密码的内存和持久化纪律。设备实验曾观察到普通键盘但 `dumpsys` inputType 为 `0x8c0a1`，WebView/输入法的实际识别和学习行为不能保证。仅首次直连屏受影响，其他密码框不变。
+
+设备冒烟（Android WebView，两个构建配置各一次；本次未执行）：打开首次连接，切换地址/密码，输入含大小写、符号和非 ASCII 的测试密码，确认字符掩码、键盘类型、提交及失败后重试；断网或配置读取失败时确认退回密码输入法且仍掩码。不得使用真实凭据或记录输入值。
 - **direct/SSH 二分**：配对只产 **http 身份**（上游 URL 键）；SSH 主机（`mobile-ssh:<uuid>`）有独立凭据流——`servers/connect/` 全域零 known_hosts/HostKeyVerifier/hostKey 命中（探针负断言，SSH 域零交）。
 
 ### ⑤ 路由与信任保持（红线：TLS/host-key 校验不绕过）
@@ -262,7 +268,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 - **host 路由**：兑换成功 → `target()`（screen）/`paired()`（dialog）——重签入保持既有地址（注释逐字 "A pairing token works on every address of its server. Signing in again to the server that signed out keeps its address"）；签出态 `shell/routes/routes.tsx` 以 `signedOut()?.http.url` 回连**同一服务器**。
 - **project/session 路由**：导入只建 http 服务器记录；项目/会话选择走既有 `ServerScope` 机制（权威见 [projects-sessions.md](projects-sessions.md)，同名项目/会话不混淆），本期引用不重裁定。
 - **`servers.add` 前置健康检查**：screen/dialog 四调用位均先 `check`/`checkServerHealth` 后 add——健康检查失败零注册表写入。
-- **TLS 校验不绕过**：导入路径**零新增传输面**——兑换/健康检查后的一切请求走既有通道（API/SSE=platform.fetch+M-011 secure-fetch、上传=M-012）；TLS=WebView system CA（netsec trust-anchors，`onReceivedSslError` 恒 CANCEL 在册）；明文=netsec 阻断（G5）；`servers/connect/` 域内零 `rejectUnauthorized|disableCert|insecure` 命中（探针负断言）。**host-key 校验属 SSH 域**（三态流，[决策 0003](../../decisions/0003-ssh-transport.md)），配对流零触碰；配对流不引入任何「跳过校验」选项。
+- **TLS 校验不绕过**：导入路径**零新增传输面**——兑换/健康检查后的一切请求走既有通道（API/SSE=platform.fetch+M-011 secure-fetch、上传=M-012）；TLS=WebView system CA（netsec trust-anchors，`onReceivedSslError` 恒 CANCEL 在册）；远端 HTTP 将允许（明文风险与真机验证见 D3）；`servers/connect/` 域内零 `rejectUnauthorized|disableCert|insecure` 命中（探针负断言）。**host-key 校验属 SSH 域**（三态流，[决策 0003](../../decisions/0003-ssh-transport.md)），配对流零触碰；配对流不引入任何「跳过校验」选项。
 - 残余面引用（#5 F2 两处 raw fetch，见上「残余 fetch 面」节）：引用其 out-of-scope 在册结论，不重裁定；真机负例核对归 G32⑦。
 
 ### ⑥ 取消与冷热启动
@@ -273,11 +279,11 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 | 冷启动（配对中杀 App） | 表单态组件内存、零持久化 | 重启无半成品记录；单次码或已耗（他端/已兑）→ 重跑 `opencode pair`；已导入服务 unauthorized → 重配对自愈 |
 | 热启动（旋转/后台） | 旋转=Activity 重建（[interaction-quality.md](../interaction-quality.md) §一）→ 表单态丢失；后台返回不重复兑换（`last` 缓存：同 code 复用 token，用户后改地址优先） | 旋转后需重新粘贴（表单态非持久化=上游实态，如实记录） |
 
-### ⑦ 不支持流清单（验收 4 本体——如实登记，零 parity 声称）
+### ⑦ 能力边界与历史不支持流清单（验收 4 本体——如实登记，零 parity 声称）
 
 以下诸项为本壳配对流的能力边界，每项带机制原因与替代路径；运行期呈现归 G32 判定，不得静默声称对等。第 2 项（相机扫描）的「壳层能力缺席」边界已随 issue #71 解除（原 M-022+ 候选的落地，issue #71 验收 1 即其用户决策载体），其余项保持不支持：
 
-1. **LAN 明文配对链接不可达**：`opencode pair` 默认输出形如 `http://192.168.1.2:49374/auth/connect/…` 的局域网明文地址——netsec base-config `cleartextTrafficPermitted="false"`（仅 127.0.0.1/localhost 例外）在 WebView 平台层阻断 → 兑换失败呈现 unreachable。这是[决策 0002](../../decisions/0002-direct-connection-transport.md) D3「明文直连不支持」的既有立场对配对流的自然延伸。**支持路径=桌面 remote access 的 HTTPS OpenTunnel 隧道链接（或既有 SSH 隧道经 #6 凭据流的直连记录）**。
+1. **LAN 明文配对链接**：历史上 netsec 禁止远端明文，局域网 HTTP 链接因此无法兑换。现已批准 Android 允许远端 HTTP（[决策 0002 D3](../../decisions/0002-direct-connection-transport.md)）；配对实际可用性仍待真机验证。明文可能暴露配对材料和后续凭据，优先使用 HTTPS OpenTunnel 或 SSH 隧道。
 2. **相机扫描——原「壳层能力缺席」不支持项，已随 issue #71 实现（设备 QA 子态回填见 build-and-verify #71 段）**：壳层接入 = manifest CAMERA 运行时权限（应用内 `onPermissionRequest` 授予，非安装即得）+ `WebChromeClient.onPermissionRequest`/`onPermissionRequestCanceled` 接线；授权策略由纯 JVM 类 `CameraGrantPolicy` 承载——origin 以 `java.net.URI` 解析后 scheme/host/port 三元组严格等于壳回环 origin（`http`/`127.0.0.1`/`WebAssetServer.DEFAULT_PORT`；解析失败、localhost 别名、127.0.0.2、端口漂移一律拒）、资源白名单恰 `RESOURCE_VIDEO_CAPTURE` 一元（audio 永不授，RECORD_AUDIO 不声明）；请求码 41004，单 pending 槽替换语义（旧请求先 deny），`onPermissionRequestCanceled` 清槽不应答（取消的请求对象不得再触达），destroy 兜底 deny——exactly-once 八路径（grant / deny×2 / 授权应答 / 拒绝应答 / supersede / canceled / destroy / 系统对话框丢失）。WebView 授权生效前提是 App 自身已持有 OS 级 CAMERA 运行时权限（Chromium 实现行为；先 OS 授权后 grant 的顺序设计，QA-1 实证背书）；WebView 不持久化站点级授权——每次 getUserMedia 重新触发 onPermissionRequest，OS 权限状态为唯一真源（已授权→静默 grant 零重复弹窗）。**相机帧不出页面**：零桥接、零采集、零值日志（logcat 固定 tag 零相机值）；相机使用指示灯=平台披露层。三态呈现全部复用共享前端既有 i18n（零新 shell 文案）：临时拒绝→`server.connect.camera.error` + Cancel（重开扫码可重试）；永久拒绝→deny 后页面 getUserMedia reject 走 error 文本，后续 `permissions.query` 报 denied 时门控早退走 `cameraHint()` hint 分支（`server.connect.camera.unavailable`）——两分支都诚实，实测归档生效形态；无相机/枚举不可信→hint（或点按后 `camera.error` 诚实报错）。**枚举门控实态（QA-0 已判定，2026-10-30，MatePad DBY2-AL00 / WebView 114.0.5735.196）**：Android WebView 预授权枚举受在册 Chromium 缺陷 [41288617](https://issues.chromium.org/41288617) 影响的风险（条目 kind/label 空白、甚至零条目）**在本机未成立**——CDP 探针实测 `enumerateDevices()` 返回 4 条目且 kind 完好（audioinput / **videoinput×2** / audiooutput；label 空=未授权前的 Chromium 标准行为，非缺陷信号），`isSecureContext=true`、`getUserMedia`/`enumerateDevices` 接口在位、`location.origin` 恰为壳回环形态（与 `CameraGrantPolicy` 解析路径匹配）。**上游门控 `devices.some(kind === "videoinput")` 原样成立 → 扫码入口原生可达，零 vendor 补丁**（条件补丁 M-039 留预留位不落地；若未来设备/WebView 版本呈现 blank-kind/零条目缺陷形态，按预起草规格另开登记面）。附带实态：本 WebView 无 `navigator.permissions` API——上游 `permissions?.query` 链按可选链语义短路为 undefined（不早退），永久拒绝的实际呈现走 OS deny→getUserMedia reject→`camera.error` 诚实报错路径。上游降级提示 `cameraHint()` 与 `scanner.start()` 失败分支原样保留。
 3. **经隧道端点手工兑换不支持**：把 SSH 隧道回环端口当配对地址手工兑换属误用形态（隧道端口动态、身份键错配）——不支持，如实登记。
 4. **外部链接拉起 App 不支持**：零 VIEW intent-filter（manifest 唯一 LAUNCHER）——外部打开配对链接不会进入 App。**出/入站边界（issue #76 注记）**：本节三哨兵（零 VIEW intent-filter/零 scheme/恰三权限）锁的是**入站** deep-link 面（外部 VIEW intent → 本 App，决策 0007 已确认不实施、哨兵不变）；issue #76 的外跳面是**出站**（本 App ACTION_VIEW → 系统默认处理器，FilesBridge 第四 op openExternal + ExternalOpenPolicy 强制策略）——零 intent-filter/零 scheme/零新权限，出站改动不触碰本节哨兵，verify-pairing 组 3/4/6 原地保持为 0007 的回归守卫；需求与 #14 OAuth 回跳同族合并 M-022+ 候选，不新增独立候选。**评估完成（2026-10-30，issue #71 验收 2）；已确认不实施（决策 0007，2026-10-31）**：HTTPS App Links 对用户自管服务器域结构性不可适用、自定义 scheme 不实施（vendor 通道 + 壳 VIEW + 三哨兵反向 + 新门禁的成本与隐式唤起信任面评估在册）——三案对比、信任模型与激活条件见[决策记录 0007](../../decisions/0007-pairing-deep-link.md)。替代路径=App 内粘贴导入（扫码见第 2 项）。

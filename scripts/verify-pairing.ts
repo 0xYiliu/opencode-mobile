@@ -18,7 +18,7 @@
 //      originals live elsewhere): the M-002 encode-strip marker (first lock:
 //      audit-secret-persistence.ts), the truth-table rows 6/11 passthrough
 //      decision core (first lock: verify-credential-vault.ts), the netsec
-//      cleartextTrafficPermitted="false" anchor (first lock:
+//      cleartextTrafficPermitted="true" anchor (first lock:
 //      verify-direct-connection.ts). The shell anchors setSavePassword(false)
 //      and onReceivedSslError handler.cancel() are NOT carried by any existing
 //      probe (grep checked) — first-locked HERE.
@@ -200,7 +200,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
     fail("1: pairing.ts lost the serverAddress scheme whitelist (a relaxed scheme accept would also break the negative control)")
   if (!pairing.includes("if (url.username || url.password || url.search || url.hash) return"))
     fail("1: pairing.ts lost the userinfo/search/hash rejection line (credential URLs must be refused at parse time)")
-  if (!pairing.includes('if (url.protocol !== "http:" && url.protocol !== "https:") return'))
+  if (!pairing.includes('if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return'))
     fail("1: pairing.ts lost the http/https protocol restriction")
   // Layer 2 — pairingLink: CODE regex + path whitelist.
   if (!pairing.includes("const CODE = /^[A-Za-z0-9_-]+$/"))
@@ -526,8 +526,8 @@ const DIST_MANIFEST = "web-dist/manifest.json"
 
   // CROSS-REFERENCE anchors (netsec first lock: verify-direct-connection.ts).
   const netsec = await read(NETSEC)
-  if (!/<base-config[^>]*cleartextTrafficPermitted\s*=\s*"false"/.test(netsec))
-    fail("7: network_security_config.xml lost the cleartextTrafficPermitted=\"false\" base config (cross-reference with verify-direct-connection.ts; the LAN-cleartext unsupported flow rests on it)")
+  if (!/<base-config[^>]*cleartextTrafficPermitted\s*=\s*"true"/.test(netsec))
+    fail("7: network_security_config.xml does not permit HTTP (cross-reference with verify-direct-connection.ts)")
 }
 
 // --- 8. Docs closure anchors (anti doc↔code drift) ---
@@ -542,14 +542,14 @@ const DIST_MANIFEST = "web-dist/manifest.json"
     "### ④ token 秘密纪律",
     "### ⑤ 路由与信任保持",
     "### ⑥ 取消与冷热启动",
-    "### ⑦ 不支持流清单",
+    "### ⑦ 能力边界与历史不支持流清单",
     "### ⑧ 残余面与验证面",
   ]) {
     if (!connection.includes(heading)) fail(`8: connection.md lost the pairing subsection ${heading}`)
   }
   for (const sentence of [
     "零被动导入三锚",
-    "LAN 明文配对链接不可达",
+    "LAN 明文配对链接",
     "已随 issue #71 实现",
     "dialog 连接对话框面=passthrough 保 ref",
     "screen 独立连接屏面=重配对丢弃",
