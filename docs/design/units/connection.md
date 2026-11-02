@@ -231,7 +231,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 | 层 | 机制 | 拒绝结果 |
 | --- | --- | --- |
-| 地址层 `serverAddress` | 含 `://` 但非 `^https?://` → undefined（**scheme 白名单，`opencode-ios://` 类即拒**）；`URL.canParse` 失败 → undefined；非 http/https 协议 → undefined；**userinfo/search/hash 任一存在 → undefined**（凭据 URL 在解析层即拒） | 该地址不可用 |
+| 地址层 `serverAddress` | 含 `://` 但非 `^https?://` → undefined（**scheme 白名单，`opencode-ios://` 类即拒**）；`new URL` 解析抛错 → undefined（M-053，不依赖 URL 静态方法）；非 http/https 协议 → undefined；**userinfo/search/hash 任一存在 → undefined**（凭据 URL 在解析层即拒） | 该地址不可用 |
 | 链接层 `pairingLink` | JSON 形 → `Schema.Struct({code, urls})` 解码 + `CODE = /^[A-Za-z0-9_-]+$/` 逐码校验 + urls 全过 serverAddress + 去重，任一非法整体 undefined；URL 形 → 仅 `/^\/auth\/connect\/([^/]+)$/` 路径命中取码（**路径即动作白名单**） | 非 legacy → `server.connect.link.invalid` 行内错误，零网络动作 |
 | 遗留流 `legacyPairingLink` | 识别旧 `/connect#<credentials>` 与 `/connect?data=<credentials>` 凭据链接 | **识别、报错（`server.connect.link.legacy`）、零兑换动作**——旧链接 fragment 内嵌凭据绝不执行 |
 | 误入判定 `bareServerAddress` | 无路径的裸服务器地址才转交密码表单（"a bare code or a cut-off link is not mistaken for a server"） | — |
