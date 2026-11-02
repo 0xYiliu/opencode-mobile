@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Only affects the first direct-connection password field's keyboard hint.
+val passwordKeyboard = providers.gradleProperty("passwordKeyboard").orElse("false").map {
+    require(it == "true" || it == "false") { "passwordKeyboard must be true or false" }
+    it.toBoolean()
+}
+
 android {
     namespace = "ai.opencode.mobile"
     compileSdk = 36
@@ -14,6 +20,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("int", "WEB_ASSET_PORT", "18090")
+        buildConfigField("boolean", "PASSWORD_KEYBOARD", passwordKeyboard.get().toString())
     }
 
     buildFeatures { buildConfig = true }

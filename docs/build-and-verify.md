@@ -2,6 +2,12 @@
 
 本文按 issue #2 验收第 6 条记录真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore，见下方 issue #4 段）、[issue #3](https://github.com/0xYiliu/opencode-mobile/issues/3)（主机注册表，见下方 issue #3 段）。
 
+### 首次连接密码键盘（M-054，迁移验证）
+
+- 验收：默认 `-PpasswordKeyboard=false` 请求普通键盘并保持视觉掩码；`-PpasswordKeyboard=true` 使用密码输入法；配置无效构建失败，配置获取失败回退密码输入。仅首次连接屏生效；不能保证第三方输入法的学习行为。具体设备冒烟及恢复路径见 [connection.md](design/units/connection.md)。
+- 本次执行：`bun test scripts/verify-password-keyboard.test.ts` 4/4 通过；`bash scripts/verify-closure.sh` 通过；`bun run build:web` 和 `bash scripts/copy-web-dist.sh` 通过，目标工作区自行生成 3520 文件 / 159675985 bytes；Android `:app:testDebugUnitTest :app:assembleDebug` 默认构建通过；`-PpasswordKeyboard=true :app:assembleDebug` 构建通过，`-PpasswordKeyboard=invalid help` 按预期失败。
+- 双向核对：连接单元的构建属性、回环配置和掩码对应 Gradle、`WebAssetServer.kt`、`screen.tsx`，静态检查通过；Android 真机/模拟器的键盘、掩码、失败回退及输入法行为未验证，不能以构建或静态测试代替。
+
 记录日期：2026-10-24。issue #3 段（mobile-hosts 包、M-004…M-008 补丁）的验证于同日在分支 `issue-3-host-registry` 工作树执行，全部为本机构建/静态/单测级验证；设备级验证全部 BLOCKED。
 
 记录日期：2026-10-24。issue #4 段（凭据保险库、M-009/M-010/M-007 修订、审计脚本）的验证于同日在分支 `issue-4-credential-vault` 工作树执行（基线 dev @ 815bde5，计划 v3），全部为本机构建/静态/单测级验证；桥 bring-up 与设备门禁 C1–C5 全部 BLOCKED。

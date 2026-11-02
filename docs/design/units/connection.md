@@ -258,7 +258,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 - **日志零值**：pairing/redeem/scanner/camera 四文件零 `console.`/`Log.` 类调用（探针负断言）；壳层 `onReceivedSslError` 仅记错误类、console 仅 message+行号、`setSavePassword(false)`（MainActivity）既有锚在册。
 - **历史零渗漏**：兑换经 `fetch()` 非导航 → 零 WebView 历史/前进后退列表条目；链接输入 `spellcheck={false} autocapitalize="off"`；密码字段掩码 + 壳 `setSavePassword(false)`。首次连接密码栏的键盘例外见下文。
 
-**首次直连密码键盘（代码已实现，集成设备验证未执行）**：Android Gradle 属性 `passwordKeyboard` 默认 `false`（请求普通键盘），设置 `-PpasswordKeyboard=true` 选择密码输入法；其他值使配置失败。壳的回环资产服务通过不缓存的 `/mobile-keyboard-config.json` 仅提供该非秘密布尔值；读取失败或非 Android 响应时退回 `type=password`。普通键盘模式使用 `type=text` 和 `-webkit-text-security: disc` 保持视觉掩码，关闭自动填充提示（`autocomplete=off`）、拼写检查、自动纠正和首字母大写；密码输入法模式保留 `autocomplete=current-password`。不改变应用内密码的内存和持久化纪律。设备实验曾观察到普通键盘但 `dumpsys` inputType 为 `0x8c0a1`，WebView/输入法的实际识别和学习行为不能保证。仅首次直连屏受影响，其他密码框不变。
+**首次直连密码键盘（M-054 代码已实现，集成设备验证未执行）**：Android Gradle 属性 `passwordKeyboard` 默认 `false`（请求普通键盘），设置 `-PpasswordKeyboard=true` 选择密码输入法；其他值使配置失败。壳的回环资产服务通过不缓存的 `/mobile-keyboard-config.json` 仅提供该非秘密布尔值；读取失败或非 Android 响应时退回 `type=password`。普通键盘模式使用 `type=text` 和 `-webkit-text-security: disc` 保持视觉掩码，关闭自动填充提示（`autocomplete=off`）、拼写检查、自动纠正和首字母大写；密码输入法模式保留 `autocomplete=current-password`。不改变应用内密码的内存和持久化纪律。设备实验曾观察到普通键盘但 `dumpsys` inputType 为 `0x8c0a1`，WebView/输入法的实际识别和学习行为不能保证。仅首次直连屏受影响，其他密码框不变。
 
 设备冒烟（Android WebView，两个构建配置各一次；本次未执行）：打开首次连接，切换地址/密码，输入含大小写、符号和非 ASCII 的测试密码，确认字符掩码、键盘类型、提交及失败后重试；断网或配置读取失败时确认退回密码输入法且仍掩码。不得使用真实凭据或记录输入值。
 - **direct/SSH 二分**：配对只产 **http 身份**（上游 URL 键）；SSH 主机（`mobile-ssh:<uuid>`）有独立凭据流——`servers/connect/` 全域零 known_hosts/HostKeyVerifier/hostKey 命中（探针负断言，SSH 域零交）。

@@ -993,6 +993,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Pairing tests simulate missing URL static methods; runtime WebView validation remains pending.",
       "rebase": "Layered after M-052; preserve validation rules."
+    },
+      {
+      "id": "M-054",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0054-M-054-password-keyboard.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Select the first connection password keyboard from the Android shell build flag while retaining visual masking and a password-input fallback.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "scripts/verify-password-keyboard.test.ts; Android WebView keyboard and masking require device verification.",
+      "rebase": "Layered after M-053; preserve the first connection password field and shell-only configuration fallback."
     }
   ]
 }

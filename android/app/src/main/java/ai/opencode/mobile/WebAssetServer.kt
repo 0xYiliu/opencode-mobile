@@ -22,6 +22,12 @@ class WebAssetServer(
     override fun serve(session: IHTTPSession): Response {
         // NanoHTTPD 2.3.1 strips the query string before decodeHeader populates session.uri;
         // substringBefore stays as defense in depth so a '?' can never select asset files.
+        if (session.uri == "/mobile-keyboard-config.json") {
+            val payload = "{\"passwordKeyboard\":${BuildConfig.PASSWORD_KEYBOARD}}".toByteArray(Charsets.UTF_8)
+            return newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", ByteArrayInputStream(payload), payload.size.toLong()).apply {
+                addHeader("Cache-Control", "no-store")
+            }
+        }
         val path = resolveAssetPath((session.uri ?: "/").substringBefore('?'))
             ?: return plain(Response.Status.FORBIDDEN, "forbidden\n")
         return serveAsset(path)
