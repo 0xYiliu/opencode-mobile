@@ -8,7 +8,7 @@
 - 2026-11-02：最终收窄 APK 在 MatePad（Android 12，华为 WebView 114.0.5.302）覆盖安装，设备 APK SHA-256 与上列一致；保留应用数据，重新连接原服务并打开用户报告报错的原 session，Markdown 内容正常显示。之前包含 worker 修复的构建也曾在同一 session 滚动成功；最终收窄 APK 的其他安全调用链和 worker 未作实机验证。
 - 独立 worker realm 不共享 window polyfill；已知 Word document worker 仍调用 `URL.parse`，旧 WebView 缺失时可能失败。依用户决定暂不处理，不声明 Word 或其他 worker 兼容。
 
-本文按 issue #2 验收第 6 条记录真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore，见下方 issue #4 段）、[issue #3](https://github.com/0xYiliu/opencode-mobile/issues/3)（主机注册表，见下方 issue #3 段）。
+本文记录固定上游 Windows Desktop v2.2.1（`3ebcf9a32c7b28f658cfee80775448929361727a`）复制工作的真实工具链、命令与结果，并区分四态（implemented / built-local-test / device-tested / real-remote-tested）。缺失设备/服务/模型的一律标 BLOCKED，不得写成通过。Android APK 的主要验证是 Gradle、APK 构建、adb 安装和模拟器/真机 UI 流程；Playwright 仅作 Web 组件辅助证据，不是 APK 交付硬门禁。关联：[issue #2](https://github.com/0xYiliu/opencode-mobile/issues/2)、[issue #27](https://github.com/0xYiliu/opencode-mobile/issues/27)（上游更新演练）、[issue #4](https://github.com/0xYiliu/opencode-mobile/issues/4)（Keystore，见下方 issue #4 段）、[issue #3](https://github.com/0xYiliu/opencode-mobile/issues/3)（主机注册表，见下方 issue #3 段）。
 
 ### 首次连接密码键盘（M-054，迁移验证）
 
