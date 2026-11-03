@@ -151,6 +151,14 @@
       "summary": "gui-extensions -> gui-plugins@v2.2.1 package replacement + plugin/src/gui host library + app runtime/plugin + util/abort + consumer token surgery + ui motion-tuning/search-list/typeahead/cascade",
       "reason": "Issue #67 S41+N11 (see patches/mobile/manifest.json M-037 entry for the full statement).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins = 3ebcf9a32c7b28f658cfee80775448929361727a"
+    },
+    {
+      "id": "M-061",
+      "file": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "targets": 1,
+      "summary": "Initial connection saves the authenticated server credential through the Android vault so subsequent launches reuse the stored connection",
+      "reason": "Android connection persistence: preserve Desktop-style sign-in reuse without putting the password in WebView persistence; vault-unavailable environments retain the explicit memory-only fallback.",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70"
     }
   ],
   "upstreamPatches": {
