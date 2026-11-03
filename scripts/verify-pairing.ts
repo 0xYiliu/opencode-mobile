@@ -108,8 +108,9 @@
 //      evidence, and the dist manifest scanner chunk prefixes (hash-tolerant).
 //   7. Routing and trust preservation: keep-address comments (screen +
 //      dialog) and the signed-out fallback url prop, the health-check-before-
-//      add ordering (four call sites), the screen ref-drop reality pair
-//      ({ ...existing, http } + registry whole replacement — new locks), the
+//      add ordering (four call sites), the screen credential/ref persistence
+//      reality pair (legacy `{ ...existing, http }` or M-061 vault-backed
+//      `{ ...existing, http: saved }` + registry whole replacement), the
 //      SSH-domain zero-contact negative (servers/connect/ zero known_hosts/
 //      HostKeyVerifier/hostKey), the zero-bypass negative (zero
 //      rejectUnauthorized/disableCert/insecure), and cross-reference netsec +
@@ -500,14 +501,22 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   if (!dialog.includes("const result = await checkServerHealth(connection.http)"))
     fail("7: dialog.tsx lost the save-path health check call face")
   const checkAt = screen.indexOf("const result = await check(http)")
-  const addAt = screen.indexOf("servers.add(existing ? { ...existing, http }")
+  const addAt = screen.indexOf("servers.add(existing ? { ...existing, http")
   if (checkAt < 0 || addAt < 0 || checkAt > addAt)
     fail("7: screen.tsx ordering changed (the health check must precede servers.add — a failed check must leave no registry write)")
 
-  // The screen ref-drop REALITY pair (plan v2/C2): the shorthand http object
-  // overwrites existing.http, and the registry add() replaces the whole entry.
-  if (!screen.includes('servers.add(existing ? { ...existing, http } : { type: "http", http })'))
-    fail("7: screen.tsx lost the whole-overwrite add anchor (the screen-face ref-drop reality connection.md §④ documents)")
+  // The screen credential/ref REALITY pair: before M-061 the shorthand http
+  // object intentionally dropped an existing ref; M-061 now persists the
+  // authenticated credential through the vault and writes the saved ref.
+  const refDropAdd = screen.includes('servers.add(existing ? { ...existing, http } : { type: "http", http })')
+  const credentialPersistence =
+    screen.includes("mobile(M-010)") &&
+    screen.includes("mobileHosts.credentials.put") &&
+    screen.includes("existingRef: existing?.http.credentialRef") &&
+    screen.includes("saved = { ...http, credentialRef }") &&
+    screen.includes('servers.add(existing ? { ...existing, http: saved } : { type: "http", http: saved })')
+  if (!refDropAdd && !credentialPersistence)
+    fail("7: screen.tsx lost the credential/ref persistence anchor (expected the legacy ref-drop or M-061 vault-backed add shape)")
   const registry = await read(REGISTRY)
   if (!registry.includes('setStore("list", existing, conn)'))
     fail("7: registry.tsx lost the whole-replacement add() anchor (no merge with the stored entry's ref — new first lock, zero conflict with verify-credential-ref.ts)")
@@ -602,7 +611,7 @@ console.log(
     "4: NEGATIVE opencode:// zero hits across six upstream src domains + pairing.test.ts rejection anchors (opencode-ios://, /connect#abc); " +
     "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + M-002 and rows-6/11 cross-references; " +
     "6: ENABLED (issue #71) CAMERA line + grant-discipline comment (paired anchor) + exactly-3 uses-permission {INTERNET, POST_NOTIFICATIONS, CAMERA} (any fourth still fails) + onPermissionRequest only with the CameraGrantPolicy whitelist anchors (foreign-origin/audio-resource grants deny) + video-only policy constants + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
-    "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen ref-drop reality pair ({ ...existing, http } + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
+    "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen credential/ref persistence reality pair (legacy ref-drop or M-061 vault-backed add + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
     "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G35 enumeration (issue #26 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
-    "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref passthrough vs drop on re-pairing, cancel/cold/hot-start behavior and dual-route pass are G32)",
+    "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref persistence semantics, cancel/cold/hot-start behavior and dual-route pass are G32)",
 )
