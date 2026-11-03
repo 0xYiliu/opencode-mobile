@@ -182,6 +182,24 @@ describe("vault client over the in-process bridge", () => {
     await expect(UnavailableVault.list()).rejects.toMatchObject({ code: "unavailable" })
     await expect(UnavailableVault.remove("mobile-credential:x")).rejects.toMatchObject({ code: "unavailable" })
   })
+
+  // mobile(M-062, issue #128): the bounded readiness wait on the fail-closed default.
+  test("UnavailableVault.ready resolves unavailable immediately (no wait, no reject)", async () => {
+    const started = Date.now()
+    await expect(UnavailableVault.ready!(10_000)).resolves.toBe("unavailable")
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  // mobile(M-062, issue #128): a client whose transport already completed the native
+  // readiness roundtrip takes the fast path — ready() resolves without any subscription
+  // or timer (the wait is only for crossing the roundtrip, never a fixed delay).
+  test("ready() fast-path: already-available resolves in the same microtask chain", async () => {
+    const { vault } = await connectedVault()
+    expect(vault.status()).toBe("available")
+    const started = Date.now()
+    await expect(vault.ready!()).resolves.toBe("available")
+    expect(Date.now() - started).toBeLessThan(1_000)
+  })
 })
 
 describe("vault-backed resolver", () => {

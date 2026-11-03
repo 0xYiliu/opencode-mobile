@@ -159,6 +159,14 @@
       "summary": "Initial connection saves the authenticated server credential through the Android vault so subsequent launches reuse the stored connection",
       "reason": "Android connection persistence: preserve Desktop-style sign-in reuse without putting the password in WebView persistence; vault-unavailable environments retain the explicit memory-only fallback.",
       "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70"
+    },
+    {
+      "id": "M-062",
+      "file": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "targets": 2,
+      "summary": "Registry hydration awaits a feature-detected bounded vault.ready() before restoring credentials into memory (issue #128 cold-start restore half of M-061); carries the new registry-hydration.test.tsx regression",
+      "reason": "The M-010 hydration raced the AndroidX vault transport's async native ready roundtrip and restored nothing on cold start, sending the app back to the Connect screen; the bounded wait keeps the restore deterministic while a timeout preserves today's explicit re-entry path.",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288"
     }
   ],
   "upstreamPatches": {

@@ -47,6 +47,59 @@ describe("AndroidX vault protocol v2", () => {
     await expect(transport.request("list", {})).rejects.toMatchObject({ code: "unavailable" })
   })
 
+  // mobile(M-062, issue #128): cold-start restore seam — the client's bounded readiness
+  // wait must cross the async native ready roundtrip instead of racing get() into
+  // "unavailable" one microtask early.
+  test("delayed native ready reply: ready() crosses the roundtrip and get() pre-ready still fails closed", async () => {
+    let listener!: VaultNativeListener
+    let deliverReady: (() => void) | undefined
+    listener = {
+      onmessage: null,
+      postMessage(raw) {
+        const request = JSON.parse(raw)
+        if (request.op !== "ready") return
+        deliverReady = () => listener.onmessage?.({ data: JSON.stringify({ id: request.id, ok: true, result: "vault-v2" }) })
+      },
+    }
+    const transport = createAndroidXVaultTransport(listener)
+    const vault = createVaultClient(transport)
+    expect(vault.status()).toBe("unavailable")
+    // get() before readiness keeps its explicit-unavailability semantics: immediate throw.
+    await expect(vault.get("mobile-credential:pre-ready")).rejects.toMatchObject({ code: "unavailable" })
+    const whenReady = vault.ready!()
+    // The wait is bounded by the deadline, not by the subscription's synchronous false
+    // replay — still pending after a macrotask while the native reply has not landed.
+    const early = await Promise.race([whenReady.then(() => "resolved"), new Promise((resolve) => setTimeout(() => resolve("pending"), 10))])
+    expect(early).toBe("pending")
+    deliverReady!()
+    await expect(whenReady).resolves.toBe("available")
+    expect(vault.status()).toBe("available")
+    // Once available, a fresh ready() takes the fast path (no subscription, no delay).
+    expect(await vault.ready!()).toBe("available")
+    transport.dispose()
+  })
+
+  test("never-ready transport: ready(timeout) resolves unavailable at the deadline and posts exactly one ready probe", async () => {
+    const posted: Array<Record<string, any>> = []
+    const listener: VaultNativeListener = {
+      onmessage: null,
+      postMessage(raw) {
+        posted.push(JSON.parse(raw))
+      },
+    }
+    const transport = createAndroidXVaultTransport(listener)
+    const vault = createVaultClient(transport)
+    const started = Date.now()
+    await expect(vault.ready!(30)).resolves.toBe("unavailable")
+    expect(Date.now() - started).toBeGreaterThanOrEqual(25)
+    // Exactly the construction-time readiness probe; the wait itself posts nothing.
+    expect(posted).toHaveLength(1)
+    expect(posted[0]).toMatchObject({ op: "ready" })
+    // A second wait after dispose also resolves (never rejects) — failAll must not break it.
+    transport.dispose()
+    await expect(vault.ready!(5)).resolves.toBe("unavailable")
+  })
+
   test("mutation timeout reports unknown and never retries", async () => {
     let calls = 0
     const listener: VaultNativeListener = { onmessage: null, postMessage() { calls++ } }

@@ -258,6 +258,14 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
     if (vault) {
       void Promise.resolve(hydrated.promise ?? undefined)
         .then(async () => {
+          // mobile(M-062): this hydration runs once, microtask-early, while the AndroidX
+          // vault transport only becomes available after its async native ready roundtrip
+          // (issue #128: every get() threw unavailable, the swallow left no password, the
+          // first /api call 401'd and the cold start landed back on the Connect screen).
+          // Feature-detected bounded wait for the bridge to report readiness; on timeout
+          // the loop below proceeds exactly as before — the entry keeps no password and
+          // the server's own authentication flow takes over (failure matrix, no fallback).
+          if (typeof vault.ready === "function") await vault.ready()
           for (let index = 0; index < store.list.length; index++) {
             const conn = store.list[index]
             if (!conn || conn.type !== "http" || conn.http.password || !conn.http.credentialRef) continue

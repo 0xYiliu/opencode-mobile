@@ -1,0 +1,245 @@
+diff --git a/packages/app/src/runtime/server/registry-hydration.test.tsx b/packages/app/src/runtime/server/registry-hydration.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/packages/app/src/runtime/server/registry-hydration.test.tsx
+@@ -0,0 +1,222 @@
++// mobile(M-062) cold-start credential restore regression (issue #128).
++//
++// Root cause under test: registry hydration runs once, microtask-early, while the
++// AndroidX vault transport only becomes available after its async native ready
++// roundtrip; without the bounded readiness wait every get() threw "unavailable",
++// the per-entry swallow left no password, the first /api call 401'd and the cold
++// start landed back on the Connect screen.
++//
++// Harness (precedent: settings/servers/mobile-ssh.test.tsx): the file registers the
++// real Solid babel transform for .tsx sources, stubs the environment providers at
++// their seams with mock.module (platform/i18n/mobile-hosts), and mounts the real
++// ServersProvider with createRoot + createComponent. The persisted server list is
++// seeded through real localStorage at the real Persist.global("server") key, so the
++// whole persisted -> hydrate -> vault.ready -> get -> setStore chain is the
++// production one; only the vault bridge is synthetic. Fixtures are synthetic values,
++// never real credentials.
++//
++// Solid condition note: the unit suite runs with --conditions=solid, which resolves
++// solid-js to its SSR dist — provider init then dies in createResource ("cannot be
++// used under non-hydrating context"). The mock.module seam below pins solid-js and
++// solid-js/store to the CLIENT dist (both subpaths are exported) so the real mount
++// runs identically under --conditions=solid (suite) and --conditions=browser
++// (standalone). The mock is registered before any source import below.
++
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test } from "bun:test"
++import { createRequire } from "node:module"
++
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core")
++plugin({
++  name: "registry-hydration-solid",
++  setup(build) {
++    build.onLoad({ filter: /packages\/.*\.tsx$/ }, async (args) => ({
++      contents: babel.transformSync(await Bun.file(args.path).text(), {
++        filename: args.path,
++        presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")],
++        configFile: false,
++        babelrc: false,
++      }).code,
++      loader: "js",
++    }))
++  },
++})
++
++// The vault seam registry.tsx reads at provider init (getMobileHosts().credentials).
++let currentVault: {
++  status(): "unavailable" | "available"
++  ready?(timeoutMs?: number): Promise<"unavailable" | "available">
++  get(ref: string): Promise<string | undefined>
++}
++let readyWaits = 0
++let getCalls: string[] = []
++
++// Client-distro solid runtime (see the condition note above).
++const solidClient = require("solid-js/dist/solid.cjs") as typeof import("solid-js")
++const solidStoreClient = require("solid-js/store/dist/store.cjs") as typeof import("solid-js/store")
++mock.module("solid-js", () => solidClient)
++mock.module("solid-js/store", () => solidStoreClient)
++
++mock.module("@opencode-mobile/mobile-hosts", () => ({
++  getMobileHosts: () => ({ credentials: currentVault }),
++}))
++mock.module("@/runtime/i18n/language", () => ({
++  useLanguage: () => ({ locale: () => "en", t: (key: string) => key }),
++}))
++// Web platform: persisted() then backs Persist.global("server") with real localStorage.
++mock.module("@/runtime/platform/platform", () => ({ usePlatform: () => ({ platform: "web" }) }))
++
++// JSX-free createSimpleContext: under the suite conditions the shared preload's
++// transform compiles the real helper's provider JSX into a non-executable classic
++// form ("React is not defined"). The provider wrapper is environment plumbing around
++// registry's init — the code under test — so this minimal client-side equivalent
++// keeps the same init-and-provide semantics (the readiness gate is dropped; with the
++// synchronous localStorage backend used here the gated first render and the ungated
++// one coincide, and the hydration under test starts from the provider init itself).
++const uiContext = await import("@opencode/ui/context")
++mock.module("@opencode/ui/context", () => ({
++  ...uiContext,
++  createSimpleContext: (input: { name: string; init: (props: never) => unknown }) => {
++    const ctx = solidClient.createContext<unknown>()
++    return {
++      provider: (props: { children?: unknown }) =>
++        solidClient.createComponent(ctx.Provider, {
++          value: input.init(props as never),
++          get children() {
++            return props.children
++          },
++        }),
++      use: () => {
++        const value = solidClient.useContext(ctx)
++        if (!value) throw new Error(`${input.name} context must be used within a context provider`)
++        return value
++      },
++    }
++  },
++}))
++
++const { ServersProvider, useServers } = await import("./registry")
++const { flushPersisted } = await import("../persistence/persist")
++
++const STORE_KEY = "opencode.global.dat:server"
++const CREDENTIAL_REF = "mobile-credential:hydration-probe"
++
++function seedPersistedServer() {
++  localStorage.setItem(
++    STORE_KEY,
++    JSON.stringify({
++      list: [{ type: "http", http: { url: "http://synthetic.restore.invalid:4096", credentialRef: CREDENTIAL_REF } }],
++      hidden: {},
++      projects: {},
++      lastProject: {},
++      recentlyClosed: {},
++    }),
++  )
++}
++
++type HttpEntry = { type: "http"; http: { url: string; password?: string; credentialRef?: string } }
++
++let dispose: (() => void) | undefined
++
++/** Readiness that lands one macrotask after the hydration microtask has already run. */
++const lateReady = () => {
++  readyWaits++
++  return new Promise<"available">((resolve) => setTimeout(() => resolve("available"), 0))
++}
++
++/** Readiness that never lands; the deadline resolves "unavailable" (short test default). */
++const neverReady = (timeoutMs?: number) => {
++  readyWaits++
++  return new Promise<"unavailable">((resolve) => setTimeout(() => resolve("unavailable"), timeoutMs ?? 15))
++}
++
++function mountServers(): () => HttpEntry[] {
++  let read!: () => HttpEntry[]
++  solidClient.createRoot((stop) => {
++    dispose = stop
++    return solidClient.createComponent(ServersProvider, {
++      get children() {
++        const servers = useServers()
++        read = () => servers.list as unknown as HttpEntry[]
++        return ""
++      },
++    })
++  })
++  return read
++}
++
++afterEach(() => {
++  dispose?.()
++  dispose = undefined
++  flushPersisted()
++  localStorage.clear()
++  readyWaits = 0
++  getCalls = []
++})
++
++describe("registry hydration awaits vault readiness (M-062)", () => {
++  test("delayed-ready vault: the restore waits for the bridge, then injects the password in memory", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      // Readiness lands one macrotask later — after the hydration microtask has run.
++      ready: lateReady,
++      get: async (ref) => {
++        getCalls.push(ref)
++        return "synthetic-restored-password"
++      },
++    }
++    const list = mountServers()
++    expect(list()).toHaveLength(1)
++    // Pre-restore: the seeded entry carries the reference but no password yet.
++    expect(list()[0]!.http.password).toBeUndefined()
++    await new Promise((resolve) => setTimeout(resolve, 20))
++    expect(readyWaits).toBe(1)
++    expect(getCalls).toEqual([CREDENTIAL_REF])
++    expect(list()[0]!.http.password).toBe("synthetic-restored-password")
++    expect(list()[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++  })
++
++  test("the injected password never reaches the persisted payload (M-002 memory-only)", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      ready: lateReady,
++      get: async () => "synthetic-restored-password",
++    }
++    const list = mountServers()
++    await new Promise((resolve) => setTimeout(resolve, 20))
++    expect(list()[0]!.http.password).toBe("synthetic-restored-password")
++    // Force the persist write window now; the encode path (M-002) must strip the value.
++    flushPersisted()
++    const persisted = JSON.parse(localStorage.getItem(STORE_KEY)!) as {
++      list: Array<{ http: { password?: string; credentialRef?: string } }>
++    }
++    expect(persisted.list).toHaveLength(1)
++    expect(persisted.list[0]!.http.password).toBeUndefined()
++    expect("password" in persisted.list[0]!.http).toBe(false)
++    expect(persisted.list[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++  })
++
++  test("never-ready vault: the bounded timeout keeps today's behavior — no injection, no unhandled rejection, reference retained", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      ready: neverReady,
++      get: async (ref) => {
++        getCalls.push(ref)
++        throw Object.assign(new Error("credential vault: unavailable"), { code: "unavailable" })
++      },
++    }
++    const list = mountServers()
++    // The short deadline (not the 15s default) bounds the wait; the loop then proceeds
++    // exactly as before the fix: the per-entry get() failure is swallowed per entry.
++    await new Promise((resolve) => setTimeout(resolve, 60))
++    expect(readyWaits).toBe(1)
++    expect(getCalls).toEqual([CREDENTIAL_REF])
++    expect(list()[0]!.http.password).toBeUndefined()
++    expect(list()[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++    expect(list()).toHaveLength(1)
++  })
++})
+diff --git a/packages/app/src/runtime/server/registry.tsx b/packages/app/src/runtime/server/registry.tsx
+--- a/packages/app/src/runtime/server/registry.tsx
++++ b/packages/app/src/runtime/server/registry.tsx
+@@ -258,6 +258,14 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+     if (vault) {
+       void Promise.resolve(hydrated.promise ?? undefined)
+         .then(async () => {
++          // mobile(M-062): this hydration runs once, microtask-early, while the AndroidX
++          // vault transport only becomes available after its async native ready roundtrip
++          // (issue #128: every get() threw unavailable, the swallow left no password, the
++          // first /api call 401'd and the cold start landed back on the Connect screen).
++          // Feature-detected bounded wait for the bridge to report readiness; on timeout
++          // the loop below proceeds exactly as before — the entry keeps no password and
++          // the server's own authentication flow takes over (failure matrix, no fallback).
++          if (typeof vault.ready === "function") await vault.ready()
+           for (let index = 0; index < store.list.length; index++) {
+             const conn = store.list[index]
+             if (!conn || conn.type !== "http" || conn.http.password || !conn.http.credentialRef) continue

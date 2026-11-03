@@ -1,5 +1,27 @@
 # 构建与验证证据（V8）
 
+### issue #128 恢复半（M-062：冷启动凭据恢复的有界 vault ready 等待）——2026-11-04 记录
+
+**根因（设备定位，与 issue #128 报告一致）**：M-010 registry hydration 在 microtask 时机一次性运行，早于 AndroidX vault transport 的原生 ready 往返完成；`vault.get` 经 `assertAvailable` 抛 `VaultError("unavailable")`，被逐条目 try/catch 吞掉且永不重试 → 无密码 → 首个 `/api` 调用 401 → `health.unauthorized` → `signedOut()`（lone http server）回落初始 Connect 屏，用户须重输密码。
+
+**修复（Design A，hydration 接缝处的有界等待）**：第一方 `packages/mobile-hosts/src/vault/` 增可选 `CredentialVault.ready?(timeoutMs?)`（`types.ts` 接口 + `UnavailableVault` 立即解析 unavailable；`vault.ts` 客户端实现：已 available 即 fast-path；否则单次 `onReady` 订阅对单期限竞速——**仅** available===true 报告提前解析，订阅时传输的同步 false 重放忽略（transport.ts onReady 行为）；默认 15000ms 与传输超时同界；永不 reject、不重试、不发额外探测，settle 即退订+清定时器，`dispose()` 后 failAll 亦不破坏）。vendor 侧 `registry.tsx`（补丁 `0062-M-062-registry-hydration-vault-ready-wait.patch`）：hydration promise 解析后、条目循环前特征检测 `if (typeof vault.ready === "function") await vault.ready()`（外层 .catch 链内）；超时后循环行为与原状逐字一致。M-010 全部锚点（marker/守卫/get/setStore/四空格闭形）逐字保留。写半 M-061（初始连接 put，PR #128 前段）与本补丁构成完整写读闭环（architecture.md M-061/M-062 行已补记）。
+
+**测试与探针（实跑命令+计数）**：
+- 基线（F6，改动前 @3136d33，工作树 seam 软链按在册口径重建）：`bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/runtime/server/registry.test.ts src/runtime/server/persistence.test.ts`（vendor/upstream/packages/app 下）→ **9 pass / 0 fail / 43 expect**。
+- 同命令 + 新 `src/runtime/server/registry-hydration.test.tsx`（改动后）→ **12 pass / 0 fail / 59 expect**（基线 9 零回归 + 新 3：delayed-ready 注入内存；M-002 注入后持久化载荷无 password（flushPersisted 后读回，credentialRef 保留）；never-ready 短超时不注入、无未处理拒绝、ref 保留）。新文件双环境独立实跑：`--conditions=browser --isolate --preload ./happydom.ts` → 3 pass / 0 fail（套件条件经文件内 solid-js/solid-js/store client-dist mock.module seam 与 JSX-free createSimpleContext 替身保持同绿——套件 preload 的 classic JSX 转换不能执行共享源 JSX，precedent servers-page.test.tsx 注记）。
+- 第一方 vault 定向：`bun test --conditions=browser packages/mobile-hosts/test/vault.test.ts packages/mobile-hosts/test/vault-androidx-transport.test.ts` → **39 pass / 0 fail**（新增 4 例：delayed-ready 穿越往返且 get() 预就绪仍立即拒；never-ready 期限解析 unavailable 且 ready 探测恰发 1 次、dispose 后二次等待仍解析不 reject；UnavailableVault.ready 立即；已 available fast-path）。
+- 第一方全量：`bun test --conditions=browser packages/mobile-hosts` → **438 pass / 0 fail / 2937 expect / 39 文件**（423+ 口径满足；基线 433 + 新 5）。
+- 探针扫掠（全部实跑 rc 记录）：`verify-credential-vault.ts` 先 inject-FAIL（临时移除 registry 等待行 → `FAIL: M-062 ...` rc=1）→ 恢复 + 新增 M-062 锚点后 **PASS rc=0**；`verify-recovery.ts` **rc=0**；`verify-pairing.ts` **rc=0**；`verify-settings-framework.ts` **rc=0**；`audit-secret-persistence.ts` 构建前因 dist 缺失 rc=1（环境性），`bun run build:web` 后 **rc=0**（F 段 dist 标记齐）；`leak-scan.sh` **rc=1 与基线 3136d33 完全一致**（预存 `host-credential.test.ts` 5 处合成 PEM fixture 命中，与本改动零交集；本改动新增/修改文件零命中——如实记录，非本补丁引入）。
+- 闭包：`bash scripts/vendor-sync.sh`（56 补丁链全应用）+ `bash scripts/verify-closure.sh` → **PASS**（tree == pin + 56 patches，DANGLING=0，零其他 diff）；provenance sha256 `630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288`。
+
+**构建与设备验证（DBY2-AL00 @192.168.3.145:5555，全程 `install -r` 保留数据，未 clear/uninstall）**：
+- `bun install --frozen-lockfile` + `bun run build:web` + `bash scripts/copy-web-dist.sh`（3520 files / 159,564,015 bytes verified）+ `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` PASS；Gradle 单测 **31 tests / 0 fail**；**debug APK SHA-256 `c678461b722987847d3fdeb386fc945ca78f81305703be509fcd4857cc2dcebd`**（dist 内 health chunk 含 minified `typeof s.ready=="function"&&await s.ready()` 核对在案）。
+- QA 服务（F1，全合成）：本机 `opencode v2.1.1 serve --hostname 0.0.0.0 --port 4199 --cors http://127.0.0.1:18090`，`OPENCODE_PASSWORD` 经 /tmp env 文件注入（一次性 throwaway 值，从不入仓，事后已删）；curl 双证 `no-auth=401 / Basic(opencode:<pw>)=200`（LAN IP 直达设备可达性 401 实测）。QA 后服务已显式停止、env/pw/token 文件已删。
+- 应用内（合成服务器 `http://192.168.3.152:4199`）：设置 → Servers → Add server（password 模式）→ 认证成功进入 Shell。CDP 只读核对：持久化条目 `credentialRef=true / password=false`（M-002 保持）；用户既有真实条目同核对在案（布尔仅）。
+- 冷启动 ×2（am force-stop → 2s → 重启，CDP Network 域 + DOM 100ms 轮询）：两轮均 **0 个 "Connect to a server" 样本、0 个密码提示样本**；合成服务器 `/api` 每轮 **2×401（启动控制器先于恢复的瞬态）→ 9×200 + 7×204 全授权**，无重输、无 Connect 屏；Shell 首样本 366ms / 1ms（r1/r2，attach 525/780ms）。真机（真实 lone 条目，恢复态）复测 1 轮同 PASS（0 Connect 样本、0 密码提示、401 瞬态 4 次后全授权 200/204）。
+- F5（首帧闪现观察）：ready-wait 在位时——冷启动 3 轮（r1/r2/final）Connect 屏在 100ms 轮询分辨率下 **0 次出现**；warm reload 引导下网络层未授权窗口 **401@482ms → 200@557ms（~75ms）** 且 Connect 屏 0 样本。诚实注记：`install -r` 后**首次**冷启动（未仪表化的第 0 轮）单次采样命中 Connect 屏（启动后约 8-12s 间一次观察），随后未重输即恢复 Shell——疑似安装后首启 vault/Keystore 初始化偏慢的有界瞬态，未复现于后续 3 轮，如实记录。
+- 清理：合成服务器条目经应用自身 UI（Servers → ⋮ → Remove）删除，注册表回到 QA 前状态（1 条真实条目，credentialRef 布尔不变）；设备 vault 中残留一条合成凭据信封（throwaway 值、服务已停、无引用指向——凭据管理器可删，处置归协调员）。设备数据全程未 clear/uninstall。
+
 ### M-055 旧 WebView 主页面 URL 静态方法（原会话真机验证）
 
 - 按用户收窄范围，仅应用 window 入口加载既有 core-js 3.50.0 的 `web.url.can-parse` 和 `web.url.parse`；不修改 Word worker、gui-plugins 依赖或 lockfile。M-055 双清单登记且 `bash scripts/verify-closure.sh` PASS（DANGLING=0）。
