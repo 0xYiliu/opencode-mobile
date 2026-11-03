@@ -4,8 +4,8 @@
 
 - 本仓库是移动客户端，Android 优先；不添加手机本地 OpenCode 服务。
 - SSH 与服务地址直连均为核心目标，不以外部 SSH App 作为默认使用前提。
-- 当前产品范围见 `docs/project-scope.md`。区分已实现功能、已确认目标和待验证方案；没有实际构建或运行验证时不得声称 APK 已可用。
-- 目前没有已确定的构建与测试命令；引入工具链时同步记录真实命令。
+- 当前产品范围和唯一对齐口径见 `docs/project-scope.md` 与 `docs/alignment/workflow.md`：固定上游 Windows Desktop 版本，copy 优先，仅做 Android 必要适配；不要另行设计移动版流程。
+- Android 交付主要使用 Gradle 测试、APK 构建、adb 安装和模拟器/真机 UI 验证。没有实际构建或运行验证时不得声称 APK 已可用；Playwright 不是 Android APK 硬门禁。
 
 ## 架构与安全
 
