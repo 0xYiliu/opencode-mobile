@@ -1044,6 +1044,18 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Rendered Kobalte menu and real mobile adapter fail-closed tests, upstream challenge/state fixtures, Settings regressions, first-party tests, web/Android builds and layered closure. Actual device evidence and remaining blockers are recorded in docs/build-and-verify.md; fixtures do not establish real backend success.",
       "rebase": "Layered after M-055; preserve pinned original JSX, minimal translation/error boundaries, batched start and no-error completion guard, sole mobile owner and no remote/persistence mutations, Android-only marker/menu adaptation and other plugin actions."
+    },
+    {
+      "id": "M-061",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
+      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence."
     }
   ]
 }
