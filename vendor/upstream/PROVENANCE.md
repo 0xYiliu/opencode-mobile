@@ -117,8 +117,10 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
   No main-app/device data was cleared; real SSH E2E remains BLOCKED.
 
-The active vendor tree invariant: **tree == pin tree + the 56 active baseline mobile patches**, byte-identical,
-zero other diff (checked by `scripts/verify-closure.sh`). Source-only deferred candidates are registered separately and are never applied by the active closure replay.
+The active vendor tree invariant: **tree == pin tree + the active mobile patches listed in
+`vendor-manifest.json#mobilePatches`**, byte-identical, zero other diff (checked by
+`scripts/verify-closure.sh`). Deferred source candidates are registered separately and are not
+applied by active closure replay.
 
 ## Upstream update exercise (issue #27 lifecycle, S3)
 
@@ -230,26 +232,26 @@ P126 U/C/S/A, then M-061/M-062, then agent-selector and session-ownership-whites
 authorize applying these patches in this block. Active replay and tree checks consume only
 `vendor-manifest.json#mobilePatches` (56 base entries).
 
-## P126 runtime candidate continuation (2026-11-05)
+## P126 session runtime source cleanup (2026-11-05)
 
-The isolated runtime candidate is based on `afef1b948c59a901da710bb5793ea73d53948fbb` and replays
-65 active patches plus the single deferred source-only record M-063 (66 unique registry records).
-M-065 remains the separate `projects.open` compatibility patch. M-066 is test-only and targets only
-`packages/app/src/composer/submit.test.ts`; its final patch-envelope context/count repair was byte-checked
-to preserve the applied test file. M-067 is limited to the mock-server and app Vite optimizer test targets;
-M-068 is limited to the Composer test seed and exact fixed-target app-direction fixture. M-063 remains deferred.
+The current source overlay targets upstream `v2.2.1` commit
+`3ebcf9a32c7b28f658cfee80775448929361727a`; active replay order is the `mobilePatches` array in
+`vendor-manifest.json`. M-063 remains source-only deferred. M-065 retains only the production
+`projects.add` → `projects.open(directory)` host API adaptation. The `patchmark` workspace is added
+by the client-compat source patch and is registered as patch-created, not extracted as a package at
+the older pin.
 
 | ID | Source patch | SHA-256 | Status |
 | --- | --- | --- | --- |
-| `M-066` | `patches/mobile/P126-C-composer-restore-test-compat.patch` | `67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6` | `active` |
-| `M-067` | `patches/mobile/P126-B-e2e-runtime-compat.patch` | `134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a` | `active` |
-| `M-068` | `patches/mobile/P126-C-composer-test-fixture-compat.patch` | `7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6` | `active` |
+| `M-065` | `patches/mobile/P126-C-project-open-compat.patch` | `afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db` | `active` |
+| `M-067` | `patches/mobile/P126-B-e2e-runtime-compat.patch` | `aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc` | `active` |
+| `M-068` | `patches/mobile/P126-C-composer-test-fixture-compat.patch` | `666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe` | `active` |
 
-M-067's `mockPluginsActivating` helper is copied verbatim from fixed upstream target `3ebcf9a32c7b28f658cfee80775448929361727a`; the only Vite change is the optimizer's classic JSX transform, retaining the nested-worker plugin. M-068 is a test setup adaptation only: each relevant Composer workspace seed retains its existing tabs/storage/settings and adds the default mock server, while `app-direction.fixture.tsx` is a complete byte copy of the fixed target. Neither patch changes production JSX, connection gates, SSH behavior, or session ownership.
-
-Source basis: Sol independently reproduced the base submit suite (15/0) and target candidate
-(22/0 after the full-shape matcher correction) in `/tmp/opencode/p126-sol-review-2t8anlxj/`. The
-original partial `toMatchObject` checks failed against the actual Solid store proxy values; the accepted
-correction uses `toEqual` with all business fields, including explicit `undefined` properties and text
-ranges. `toStrictEqual`/unwrapping is not used because it exposes Solid proxy metadata. No restore,
-retry, session ownership, or other production behavior is changed.
+M-067 carries only the exact target `mockPluginsActivating` helper; M-068 carries only the exact target
+`app-direction.fixture.tsx` copy. Both copies were byte-compared with the fixed release tree. The
+Composer E2E suite is restored byte-for-byte to that target, without local server-seed edits. The M-066
+matcher patch, standalone host API test, three client-compat tests absent from the fixed target,
+optimizer-only Vite override, and whitespace-only M-064 patch were removed; the whitespace line is
+kept in the owning M-059 source patch rather than as a separate registry entry.
+`verify-closure.sh` is restored to the generic implementation from
+`d37260c002b4390060f7d6cd78ffe6a11e9e1012`.

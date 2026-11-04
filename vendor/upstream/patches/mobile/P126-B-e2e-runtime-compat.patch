@@ -31,19 +31,3 @@ index 4f557aa79a07654e4400cf4a0e96266c8e2f03cf..1b5d5e577a7ba4b5aef5a53bf1ffcf18
  // Mocks several servers on one page. Each origin gets its own handler and its own SSE transport for events.
  export async function mockServers(page: Page, servers: Record<string, Omit<MockServerConfig, "server" | "events">>) {
    return Object.fromEntries(
-diff --git a/packages/app/vite.js b/packages/app/vite.js
-index 5041baaa3aacde9c2588b4dc81d9df457f12c7f1..a51cef6b56ab73006bedded94f81db2b66a69c3e 100644
---- a/packages/app/vite.js
-+++ b/packages/app/vite.js
-@@ -116,7 +116,10 @@ export default [
-         optimizeDeps: {
-           exclude: [...workerDeps, ...officeDeps],
-           include: ["@opencode/session-ui > mermaid", "@opencode/session-ui > mermaid > katex"],
--          rolldownOptions: { plugins: [bundleNestedWorkerDeps] },
-+          rolldownOptions: {
-+            plugins: [bundleNestedWorkerDeps],
-+            transform: { jsx: { runtime: "classic" } },
-+          },
-         },
-       }
-     },

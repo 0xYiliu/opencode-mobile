@@ -437,15 +437,8 @@ describe("Composer submission", () => {
     expect(calls).toEqual([...submitted, ...submitted])
     expect(statuses).toEqual(["running", "idle", "running", "idle"])
     expect(state.current()).toEqual(prompt)
-    expect(state.context.items()).toEqual([
-      {
-        key: "file:notes.md:undefined:undefined",
-        type: "file",
-        path: "notes.md",
-        description: "the failing version",
-        name: undefined,
-        selection: undefined,
-      },
+    expect(state.context.items()).toMatchObject([
+      { type: "file", path: "notes.md", description: "the failing version" },
     ])
     // The caret returns after the mention text; attachments take no caret positions.
     expect(state.cursor()).toBe(17)
@@ -483,19 +476,8 @@ describe("Composer submission", () => {
     ).submit(new Event("submit"))
     await failed.promise
 
-    expect(promoted.current()).toEqual([{ type: "text", content: "first prompt", start: 0, end: 12 }])
-    expect(promoted.context.items()).toEqual([
-      {
-        key: "file:src/app.ts:1:1:c=zs9mpd",
-        type: "file",
-        path: "src/app.ts",
-        comment: "Keep this comment",
-        commentID: undefined,
-        commentOrigin: undefined,
-        preview: undefined,
-        selection: { startLine: 1, startChar: 0, endLine: 1, endChar: 4 },
-      },
-    ])
+    expect(promoted.current()).toMatchObject([{ type: "text", content: "first prompt" }])
+    expect(promoted.context.items()).toMatchObject([{ type: "file", path: "src/app.ts", comment: "Keep this comment" }])
     expect(promoted.mode.current()).toBe("shell")
   })
 

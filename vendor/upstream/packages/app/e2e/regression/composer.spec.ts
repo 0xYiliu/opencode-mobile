@@ -16,7 +16,7 @@ test("mention a session by title, send its stable token, and open its own tab", 
       { id: "ses_mentions_source", title: "Review the plan" },
       { id: target, title: "Auth middleware" },
     ],
-    seed: { servers: [{ url: SERVER }], tabs: ["ses_mentions_source"] },
+    seed: { tabs: ["ses_mentions_source"] },
     onPrompt: (input) => void prompts.push(input.body),
   })
 
@@ -50,7 +50,7 @@ test("a bare @ lists sessions, and a multi-word title matches while file search 
       { id: "ses_0123456789homesessionabcde", title: "HOME" },
       { id: target, title: "OPENCODE CONSOLE" },
     ],
-    seed: { servers: [{ url: SERVER }], tabs: ["ses_mention_search_source"] },
+    seed: { tabs: ["ses_mention_search_source"] },
     onPrompt: (input) => void prompts.push(input.body),
   })
 
@@ -99,7 +99,6 @@ test("the free usage limit opens the Go dialog once, leaves a readable notice, a
 
   const view = await openSession(page, {
     name: "FreeLimit",
-    seed: { servers: [{ url: SERVER }] },
     sessions: [{ id: sessionID, agent: "build", model }],
     onFileWrite: () => undefined,
     provider: () => ({
@@ -279,10 +278,7 @@ test("a catalog refresh cannot replace an existing session's model", async ({ pa
     sessions: [{ id: sessionID, agent: "build", model: { id: "alpha", providerID: "opencode", variant: "high" } }],
     provider: () => catalog.current,
     onPrompt: (input) => void prompts.push(input.body),
-    seed: {
-      servers: [{ url: SERVER }],
-      storage: { "opencode.global.dat:model": { recent: [{ providerID: "opencode", modelID: "beta" }] } },
-    },
+    seed: { storage: { "opencode.global.dat:model": { recent: [{ providerID: "opencode", modelID: "beta" }] } } },
   })
 
   const control = page.locator('[data-action="composer-model"]')
@@ -352,10 +348,7 @@ test("an existing session's model never shows a fallback while its agent loads",
     name: "AgentPending",
     sessions: [{ id: sessionID, agent: "build", model: { id: "alpha", providerID: "opencode" } }],
     provider: provider({ id: "alpha", name: "Alpha" }, { id: "beta", name: "Beta" }),
-    seed: {
-      servers: [{ url: SERVER }],
-      storage: { "opencode.global.dat:model": { recent: [{ providerID: "opencode", modelID: "beta" }] } },
-    },
+    seed: { storage: { "opencode.global.dat:model": { recent: [{ providerID: "opencode", modelID: "beta" }] } } },
   })
   const agents = Promise.withResolvers<void>()
   await page.route(/\/api\/agent(\?|$)/, async (route) => {
@@ -405,7 +398,6 @@ test("a send pressed while the Location's plugins activate waits, Esc cancels it
   const prompts: Parameters<NonNullable<MockServerConfig["onPrompt"]>>[0]["body"][] = []
   await mockWorkspace(page, {
     name: "PluginsBooting",
-    seed: { servers: [{ url: SERVER }] },
     sessions: [{ id: sessionID, agent: "build", model: { id: "alpha", providerID: "opencode" } }],
     provider: provider({ id: "alpha", name: "Alpha" }),
     onPrompt: (input) => void prompts.push(input.body),
@@ -462,7 +454,7 @@ test("an opened session in another Location names its model from a loaded catalo
       },
     ],
     provider: provider({ id: "alpha", name: "Alpha" }, { id: "beta", name: "Beta (latest)", variants: { high: {} } }),
-    seed: { servers: [{ url: SERVER }], settings: { appearance: { tabLayout: "vertical" } } },
+    seed: { settings: { appearance: { tabLayout: "vertical" } } },
   })
 
   const control = page.locator('[data-action="composer-model"]')
@@ -554,7 +546,6 @@ test("a managed composer label follows direct connections, not picker filtering 
     }),
     onPrompt: (input) => void prompts.push(input.body),
     seed: {
-      servers: [{ url: SERVER }],
       storage: {
         "opencode.global.dat:model": {
           user: [
@@ -627,11 +618,7 @@ test("a managed composer label follows direct connections, not picker filtering 
 })
 
 async function draft(page: Page) {
-  const { editor } = await openDraft(page, {
-    name: "ComposerDraft",
-    provider: NO_PROVIDER,
-    seed: { servers: [{ url: SERVER }] },
-  })
+  const { editor } = await openDraft(page, { name: "ComposerDraft", provider: NO_PROVIDER })
   await editor.click()
 
   return editor
@@ -679,7 +666,7 @@ test("keeps a 25000-line crash report editable in a new session", async ({ page 
 })
 
 test("keeps a line added at the end of a scrolling prompt clear of the bottom fade", async ({ page }) => {
-  const { editor } = await openSession(page, { name: "ComposerFade", seed: { servers: [{ url: SERVER }] } })
+  const { editor } = await openSession(page, { name: "ComposerFade" })
   await editor.click()
 
   for (const line of Array.from({ length: 12 }, (_, index) => `Line ${index + 1}`)) {
@@ -809,7 +796,6 @@ test("shows the dropzone and attaches a dropped file", async ({ page }) => {
   await openDraft(page, {
     name: "ComposerDraft",
     provider: NO_PROVIDER,
-    seed: { servers: [{ url: SERVER }] },
     onFileWrite: (write) => void writes.push(write),
   })
   const surface = page.locator('[data-component="new-session"]')
@@ -846,11 +832,7 @@ test("shows the dropzone and attaches a dropped file", async ({ page }) => {
 
 test("keeps a narrow session composer contained when invoking a built-in", async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 })
-  const { editor } = await openSession(page, {
-    name: "ComposerCommand",
-    provider: NO_PROVIDER,
-    seed: { servers: [{ url: SERVER }] },
-  })
+  const { editor } = await openSession(page, { name: "ComposerCommand", provider: NO_PROVIDER })
   const composer = page.locator('[data-component="composer"]')
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 
@@ -878,7 +860,6 @@ test("keeps focus in a dialog that replaces the model dialog and returns it to t
 }) => {
   const { editor } = await openSession(page, {
     name: "ComposerDialogFocus",
-    seed: { servers: [{ url: SERVER }] },
     provider: provider({ id: "paid", name: "Paid", cost: { input: 1, output: 1 } }),
   })
 
@@ -913,7 +894,6 @@ test("lists OpenCode's free models in the model picker however old they are", as
   const year = { released: T0 - 365 * 24 * 60 * 60 * 1000 }
   await openSession(page, {
     name: "ComposerFreeModels",
-    seed: { servers: [{ url: SERVER }] },
     provider: provider(
       { id: "new-paid", name: "New Paid", cost: { input: 1, output: 1 }, time: { released: T0 } },
       { id: "old-paid", name: "Old Paid", cost: { input: 1, output: 1 }, time: year },
@@ -932,7 +912,6 @@ test("lists slash commands in their built-in order", async ({ page }) => {
   const { editor } = await openSession(page, {
     name: "ComposerSlash",
     provider: NO_PROVIDER,
-    seed: { servers: [{ url: SERVER }] },
     commands: [
       { name: "init", description: "Create AGENTS.md" },
       { name: "review", description: "Review changes" },
@@ -961,11 +940,7 @@ test("lists slash commands in their built-in order", async ({ page }) => {
 })
 
 test("/reload reloads the server's configuration once and reports it", async ({ page }) => {
-  const { editor } = await openSession(page, {
-    name: "ComposerReload",
-    provider: NO_PROVIDER,
-    seed: { servers: [{ url: SERVER }] },
-  })
+  const { editor } = await openSession(page, { name: "ComposerReload", provider: NO_PROVIDER })
   const reloaded = Promise.withResolvers<void>()
   let reloads = 0
   await page.route(/\/api\/location\/reload$/, async (route) => {
@@ -1008,7 +983,6 @@ for (const row of [
   test(`shows the placeholder for ${row.state} session and the shell example in shell mode`, async ({ page }) => {
     const { editor } = await openSession(page, {
       name: "ComposerPlaceholder",
-      seed: { servers: [{ url: SERVER }] },
       sessions: [{ id: "ses_placeholder", title: "Placeholder" }],
       sessionStatus: row.sessionStatus,
       inbox: row.inbox,
@@ -1045,7 +1019,6 @@ test("marks a Console provider with its workspace only when it is also connected
       default: { providerID: "opencode", modelID: "console-model" },
     },
     seed: {
-      servers: [{ url: SERVER }],
       storage: {
         "opencode.global.dat:model": {
           user: [
@@ -1077,7 +1050,6 @@ test("marks a Console provider with its workspace only when it is also connected
 test("shows thinking on hover or a non-default selection while preserving keyboard access", async ({ page }) => {
   const { editor: input } = await openSession(page, {
     name: "ComposerThinking",
-    seed: { servers: [{ url: SERVER }] },
     provider: provider({ id: "thinking-model", name: "Thinking Model", variants: { high: {} } }),
   })
 
@@ -1132,11 +1104,7 @@ test("shows thinking on hover or a non-default selection while preserving keyboa
 
 test("pastes into the composer from the session view but not into other inputs", async ({ page }) => {
   const prompts: unknown[] = []
-  const { editor } = await openSession(page, {
-    name: "PasteFocus",
-    seed: { servers: [{ url: SERVER }] },
-    onPrompt: (input) => void prompts.push(input.body),
-  })
+  const { editor } = await openSession(page, { name: "PasteFocus", onPrompt: (input) => void prompts.push(input.body) })
   await editor.fill("hello")
   await editor.press("Enter")
   await expect.poll(() => prompts.length).toBe(1)

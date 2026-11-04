@@ -22,8 +22,6 @@
 
 凭据边界：secrets 永不进入上表除「凭据」行以外的任何恢复通道——持久化编码路径恒剥 password（M-002）、vault 是唯一设备侧持久形态且仅经 #4 契约存取；本文对凭据只做索引，零新增口径。
 
-P126 runtime candidate 注记：M-066 为 test-only patch，锁定未获 durable admission 时恢复后的 composer prompt/context 完整对象形状；它不修改持久化介质、恢复时机、重试/准入或 session ownership。该单测不构成 durable inbox 或进程重启恢复的运行期证据，后者仍按本表和 G30/G20 门禁记录。
-
 ## 二、六场景处置表
 
 | 场景 | 触发 → 机制链 | 用户可见形态 | 门禁归属 |

@@ -1521,7 +1521,7 @@
       "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
       "status": "active",
       "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Layered after the original active M-001…M-056 chain with M-061/M-062 temporarily placed after P126 S/A per p126-replay-order.json; fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a."
+      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a."
     },
     {
       "id": "M-058",
@@ -1566,19 +1566,16 @@
         "packages/ui/src/motion-tuning.test.ts",
         "packages/ui/src/motion-tuning.ts",
         "packages/ui/test/solid-jsx.ts",
-        "packages/app/src/home/sessions/command-palette.test.tsx",
-        "packages/app/src/providers/models/select-dialog.test.tsx",
         "packages/app/src/runtime/server/media-api.ts",
         "packages/app/src/runtime/server/media-contract.ts",
-        "packages/app/src/runtime/server/runtime.test.tsx",
         "packages/app/src/runtime/server/media-generated/.httpapi-codegen.json",
         "packages/app/src/runtime/server/media-generated/client-error.ts",
         "packages/app/src/runtime/server/media-generated/client.ts",
         "packages/app/src/runtime/server/media-generated/index.ts",
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
-      "reason": "Fixed client/protocol compatibility layer for the target session runtime, including the media API contract; no schema/tool.ts change is introduced because the fixed target already contains that contract.",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
+      "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded.",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
       "status": "active",
       "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
       "rebase": "Layered directly after M-057 U and before M-065 host project compatibility."
@@ -1588,14 +1585,13 @@
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/P126-C-project-open-compat.patch",
       "targets": [
-        "packages/app/src/runtime/plugin/host-apis.test.tsx",
         "packages/app/src/runtime/plugin/host-apis.tsx"
       ],
-      "reason": "P126 client/runtime compatibility: the real session runtime exposes createServerProjects(...).open(directory), while the session-workbench host API source calls projects.add. After M-057 U and M-058 C, route selected directories to the owning server context through projects.open, then create the draft with the same ServerConnection.key and directory. The regression drives the public HostApi project request through the real createHostApis / createPluginAttachment entry and checks pending server, picker ownership, cancellation and same-path two-server isolation; it does not add a production test seam or Extensions behavior.",
+      "reason": "The session-workbench host API called projects.add, but the runtime exposes projects.open(directory). Adapt the production host API and retain the draft's existing ServerConnection.key and directory.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding M-061/M-062 + M-057 + M-058",
-      "verification": "packages/app/src/runtime/plugin/host-apis.test.tsx: before-fix negative observed TypeError projects.add is not a function; after-fix 1 pass / 0 fail / 18 expect() with the real host entry and server-scoped context fixture. Full closure/type/build verification is tracked in docs/build-and-verify.md.",
-      "rebase": "New patch, layered after M-057 U and M-058 C, before M-059 S. Targets only packages/app/src/runtime/plugin/host-apis.tsx and host-apis.test.tsx. Regenerate against the accumulated runtime tree if the host API or createServerProjects interface changes.",
-      "sha256": "d2a3f07ae5a31d2bdb650e07dd5943010edf05549fe6434fc093846a2c0ef42d",
+      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
+      "rebase": "Layered after M-057 U and M-058 C, before M-059 S. The only target is packages/app/src/runtime/plugin/host-apis.tsx.",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
       "status": "active"
     },
     {
@@ -1623,7 +1619,7 @@
         "packages/app/src/session/session-ownership.test.ts"
       ],
       "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
       "status": "active",
       "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
       "rebase": "Layered after M-057 U, M-058 C and M-065 compatibility; before M-060 Android adaptation."
@@ -1674,45 +1670,17 @@
       "status": "active"
     },
     {
-      "id": "M-064",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "targets": [
-        "packages/app/src/session/session-ownership.test.ts"
-      ],
-      "reason": "Whitespace-only session-ownership follow-up; the one whitespace hunk is retained as a separate stable ID so the source chain and reverse replay remain byte-reproducible. It carries no semantic expansion.",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "active",
-      "verification": "Replay and exact source-hash verification are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Final active P126 source hunk after M-061 and M-062."
-    },
-    {
-      "id": "M-066",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/P126-C-composer-restore-test-compat.patch",
-      "targets": [
-        "packages/app/src/composer/submit.test.ts"
-      ],
-      "reason": "Independent P126 test-only compatibility patch for the composer restore regressions. Sol reproduced the original base submit suite at 15/0 and the target candidate at 22/0 in /tmp/opencode/p126-sol-review-2t8anlxj/: Solid store proxy values expose complete key/range and explicit-undefined fields that the former toMatchObject expectations omit. The accepted target uses toEqual against the complete restored prompt/context shapes; projection, objectContaining, filtering, JSON normalization, and toStrictEqual/unwrap proxy workarounds are intentionally excluded. This patch changes only submit.test.ts and does not alter restore, retry, ownership, or production behavior.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-064; M-065 project.open compatibility remains an independent earlier patch.",
-      "verification": "The patch is applied last in the P126 runtime replay and is constrained to packages/app/src/composer/submit.test.ts. Owning composer submit tests, full P126 owning test set, exact closure replay/reverse, historical negative profile, closure checker positives/negatives, and final artifact checks are recorded in docs/build-and-verify.md.",
-      "rebase": "Independent final active patch after M-064. It updates only complete-shape expectations in packages/app/src/composer/submit.test.ts; regenerate against the cumulative P126 runtime tree if that test fixture changes.",
-      "sha256": "67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6",
-      "status": "active"
-    },
-    {
       "id": "M-067",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/P126-B-e2e-runtime-compat.patch",
       "targets": [
-        "packages/app/e2e/utils/mock-server.ts",
-        "packages/app/vite.js"
+        "packages/app/e2e/utils/mock-server.ts"
       ],
-      "reason": "P126 test/runtime compatibility only: restore the fixed-target mockPluginsActivating route helper (first model request returns the plugin ServiceUnavailableError 503 with CORS, later requests fall through) and configure only optimizeDeps.rolldownOptions.transform.jsx.runtime as classic while retaining bundleNestedWorkerDeps. No production JSX strategy, worker, Vite version, or dependency is changed.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-066; the mockPluginsActivating helper is copied verbatim from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
-      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets. Real Vite dev-module, optimizer, Solid/lazy-icon and Composer E2E evidence is recorded in docs/build-and-verify.md.",
-      "rebase": "Layered after M-066. Keep the mock helper exact to fixed upstream and add only the classic JSX transform under optimizeDeps.rolldownOptions; preserve the existing nested-worker plugin.",
-      "sha256": "134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a",
+      "reason": "Carries the mockPluginsActivating helper byte-identical to fixed upstream v2.2.1; this is an upstream E2E utility, not a mobile runtime adaptation.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "The copied helper remains available to the upstream Composer E2E cases; optimizer and production build configuration are unchanged.",
+      "rebase": "The target is an exact source copy from the fixed upstream release tree.",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
       "status": "active"
     },
     {
@@ -1720,14 +1688,13 @@
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
       "targets": [
-        "packages/app/e2e/regression/composer.spec.ts",
         "packages/app/e2e/utils/app-direction.fixture.tsx"
       ],
-      "reason": "P126 E2E setup compatibility only: seed the already-existing WorkspaceInput/SeedInput with servers: [{ url: SERVER }] in every Composer workspace setup while preserving existing tabs, storage, and settings. The second target is an exact fixed-upstream app-direction fixture copy, updating the public GUI plugin host contract to Command/usePluginHost/item.plugin/windowEntry without changing its startup hold/reload/Finish behavior. No shared helper, production gate, SSH simulation, or ownership behavior changes.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-067; app-direction.fixture.tsx is an exact byte copy from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
-      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets and checks the fixture copy against the fixed target. Composer/TSX fixture, ownership, and full closure evidence is recorded in docs/build-and-verify.md.",
-      "rebase": "Layered after M-067. Keep all server-list adaptation local to composer.spec.ts SeedInput call sites; retain all existing seed fields. The fixture target remains the complete fixed-target file, not a partial renderer-only migration.",
-      "sha256": "7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6",
+      "reason": "Carries the fixed upstream v2.2.1 app-direction fixture source copy for the GUI plugin host contract; no Composer seed adaptation is added.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Byte-identical to packages/app/e2e/utils/app-direction.fixture.tsx at the fixed upstream target.",
+      "rebase": "The target is an exact source copy from the fixed upstream release tree.",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
       "status": "active"
     },
     {
@@ -1742,22 +1709,8 @@
       "reason": "Agent-selector source override remains deferred-source-only by explicit scope. No agent product behavior is activated in this runtime closure.",
       "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
       "status": "deferred-source-only",
-      "verification": "Hash/path/status are independently asserted by the finite P126 runtime verifier; the patch is not in active replay.",
+      "verification": "Deferred source only; the patch is not in the active vendor replay.",
       "rebase": "Not applied; requires a separate authorized scope decision."
     }
-  ],
-  "runtimePatchPolicy": {
-    "version": 1,
-    "profile": "p126-runtime",
-    "base": "afef1b948c59a901da710bb5793ea73d53948fbb",
-    "targetUpstream": "3ebcf9a32c7b28f658cfee80775448929361727a",
-    "activePatchCount": 65,
-    "deferredSourceOnlyPatchCount": 1,
-    "deferredPatchesApplied": false,
-    "activeClosureUsesExactOrder": true,
-    "replayOrderContract": "p126-replay-order.json",
-    "deferredPatchIDs": [
-      "M-063"
-    ]
-  }
+  ]
 }

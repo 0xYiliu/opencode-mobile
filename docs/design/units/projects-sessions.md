@@ -22,8 +22,6 @@
 
 上游会话生命周期 API 面全部在生成客户端中现存；`archiveHomeSession`（注入式 helper）的「失败不 remove、成功清理 tabs」语义由上游 `home/sessions/archive.test.ts` 锁定——**该测试不经过 M-017 的改写点**（controller 调用位），M-017 接线本身的覆盖=探针（结构）+ V2（构建）+ G19（真机）三层，如实标注。
 
-P126 runtime candidate（2026-11-05）中，**M-065** 独立适配 `projects.open(directory)` 并保留同一 server-scoped 项目选择/草稿身份；**M-066** 不修改项目/会话生产路径，只针对 `composer/submit.test.ts` 的恢复断言做 Solid proxy matcher 兼容。两者为不同 patch、不同 target 与不同验收面；M-066 不扩大本单元的运行期或项目生命周期结论。来源及重放计数见 [PROVENANCE.md](../../../vendor/upstream/PROVENANCE.md) 与 [build-and-verify.md](../../build-and-verify.md#p126-session-runtime-continuation-m066-test-only)。
-
 ## 第二处上游归档 TODO（N-3 边界补记）
 
 `session/timeline/message-timeline.tsx` 存在第二处上游 TODO（`{/* TODO: Need a session archive API. */}`）：会话内菜单只有 rename/export/delete，**无归档项**。M-017 后归档仅 home 会话行可达；会话内菜单归档属上游能力边界，本期不改、不新增入口。

@@ -24,6 +24,9 @@
       "plugin",
       "ai"
     ],
+    "patchCreatedPackages": [
+      "patchmark"
+    ],
     "fileCount": 4473,
     "fileCountBasis": "git ls-files count under packages/ at the pin (review correction N1: 4460 was an intermediate-state residue)",
     "packagesTreeSizeMB": 45,
@@ -180,24 +183,23 @@
     {
       "id": "M-058",
       "file": "patches/mobile/P126-C-client-compat.patch",
-      "targets": 48,
+      "targets": 45,
       "summary": "Target client/runtime compatibility and media API contract.",
-      "reason": "Fixed client/protocol compatibility layer for the target session runtime, including the media API contract; no schema/tool.ts change is introduced because the fixed target already contains that contract.",
+      "reason": "Client/runtime compatibility source and media API contract. Test files not present in the fixed target were excluded from this patch; generated media client files remain required by the runtime.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359"
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330"
     },
     {
       "id": "M-065",
       "file": "patches/mobile/P126-C-project-open-compat.patch",
       "targets": [
-        "packages/app/src/runtime/plugin/host-apis.test.tsx",
         "packages/app/src/runtime/plugin/host-apis.tsx"
       ],
       "summary": "Adapt the host project picker to the real projects.open API.",
-      "reason": "P126 client/runtime compatibility: the real session runtime exposes createServerProjects(...).open(directory), while the session-workbench host API source calls projects.add. After M-057 U and M-058 C, route selected directories to the owning server context through projects.open, then create the draft with the same ServerConnection.key and directory. The regression drives the public HostApi project request through the real createHostApis / createPluginAttachment entry and checks pending server, picker ownership, cancellation and same-path two-server isolation; it does not add a production test seam or Extensions behavior.",
+      "reason": "The session-workbench host API called projects.add, while the runtime exposes projects.open(directory); the production adapter preserves the selected server key and draft directory.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding M-061/M-062 + M-057 + M-058",
-      "verification": "packages/app/src/runtime/plugin/host-apis.test.tsx: before-fix negative observed TypeError projects.add is not a function; after-fix 1 pass / 0 fail / 18 expect() with the real host entry and server-scoped context fixture. Full closure/type/build verification is tracked in docs/build-and-verify.md.",
-      "sha256": "d2a3f07ae5a31d2bdb650e07dd5943010edf05549fe6434fc093846a2c0ef42d"
+      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db"
     },
     {
       "id": "M-059",
@@ -206,7 +208,7 @@
       "summary": "Session media-source safety, queue/fork/revert and ownership.",
       "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2"
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323"
     },
     {
       "id": "M-060",
@@ -228,45 +230,28 @@
       "status": "deferred-source-only"
     },
     {
-      "id": "M-064",
-      "file": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "targets": 1,
-      "summary": "Whitespace-only session ownership closure hunk.",
-      "reason": "Whitespace-only session-ownership follow-up; the one whitespace hunk is retained as a separate stable ID so the source chain and reverse replay remain byte-reproducible. It carries no semantic expansion.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c"
-    },
-    {
-      "id": "M-066",
-      "file": "patches/mobile/P126-C-composer-restore-test-compat.patch",
-      "targets": [
-        "packages/app/src/composer/submit.test.ts"
-      ],
-      "summary": "Test-only full-shape matcher compatibility for composer prompt/context restoration.",
-      "reason": "Independent P126 test-only compatibility patch for the composer restore regressions. Sol reproduced the original base submit suite at 15/0 and the target candidate at 22/0 in /tmp/opencode/p126-sol-review-2t8anlxj/: Solid store proxy values expose complete key/range and explicit-undefined fields that the former toMatchObject expectations omit. The accepted target uses toEqual against the complete restored prompt/context shapes; projection, objectContaining, filtering, JSON normalization, and toStrictEqual/unwrap proxy workarounds are intentionally excluded. This patch changes only submit.test.ts and does not alter restore, retry, ownership, or production behavior.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-064; M-065 project.open compatibility remains an independent earlier patch.",
-      "verification": "The patch is applied last in the P126 runtime replay and is constrained to packages/app/src/composer/submit.test.ts. Owning composer submit tests, full P126 owning test set, exact closure replay/reverse, historical negative profile, closure checker positives/negatives, and final artifact checks are recorded in docs/build-and-verify.md.",
-      "sha256": "67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6"
-    },
-    {
       "id": "M-067",
       "file": "patches/mobile/P126-B-e2e-runtime-compat.patch",
-      "targets": 2,
-      "summary": "P126 test-only compatibility for Composer E2E: exact fixed-target mockPluginsActivating helper and optimizer-only classic JSX prebundle transform.",
-      "reason": "P126 test/runtime compatibility only: restore the fixed-target mockPluginsActivating route helper (first model request returns the plugin ServiceUnavailableError 503 with CORS, later requests fall through) and configure only optimizeDeps.rolldownOptions.transform.jsx.runtime as classic while retaining bundleNestedWorkerDeps. No production JSX strategy, worker, Vite version, or dependency is changed.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-066; the mockPluginsActivating helper is copied verbatim from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
-      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets. Real Vite dev-module, optimizer, Solid/lazy-icon and Composer E2E evidence is recorded in docs/build-and-verify.md.",
-      "sha256": "134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a"
+      "targets": [
+        "packages/app/e2e/utils/mock-server.ts"
+      ],
+      "summary": "Fixed upstream mockPluginsActivating E2E helper source copy.",
+      "reason": "Copy the helper byte-identical to the fixed v2.2.1 source; no Vite optimizer or runtime configuration is changed.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "The helper remains available to upstream Composer E2E cases.",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc"
     },
     {
       "id": "M-068",
       "file": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
-      "targets": 2,
-      "summary": "P126 test-only Composer seed and app-direction GUI plugin fixture compatibility.",
-      "reason": "P126 E2E setup compatibility only: seed the already-existing WorkspaceInput/SeedInput with servers: [{ url: SERVER }] in every Composer workspace setup while preserving existing tabs, storage, and settings. The second target is an exact fixed-upstream app-direction fixture copy, updating the public GUI plugin host contract to Command/usePluginHost/item.plugin/windowEntry without changing its startup hold/reload/Finish behavior. No shared helper, production gate, SSH simulation, or ownership behavior changes.",
-      "upstreamBaseline": "P126 cumulative runtime tree after M-067; app-direction.fixture.tsx is an exact byte copy from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
-      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets and checks the fixture copy against the fixed target. Composer/TSX fixture, ownership, and full closure evidence is recorded in docs/build-and-verify.md.",
-      "sha256": "7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6"
+      "targets": [
+        "packages/app/e2e/utils/app-direction.fixture.tsx"
+      ],
+      "summary": "Fixed upstream app-direction fixture source copy.",
+      "reason": "Copy the v2.2.1 GUI plugin host fixture byte-identically; no Composer seed adaptation is included.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Byte-identical to the file at the fixed upstream target.",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe"
     }
   ],
   "upstreamPatches": {
@@ -726,19 +711,19 @@
     {
       "id": "M-058",
       "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
       "status": "active"
     },
     {
       "id": "M-065",
       "path": "patches/mobile/P126-C-project-open-compat.patch",
-      "sha256": "d2a3f07ae5a31d2bdb650e07dd5943010edf05549fe6434fc093846a2c0ef42d",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
       "status": "active"
     },
     {
       "id": "M-059",
       "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
       "status": "active"
     },
     {
@@ -760,27 +745,15 @@
       "status": "active"
     },
     {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "active"
-    },
-    {
-      "id": "M-066",
-      "path": "patches/mobile/P126-C-composer-restore-test-compat.patch",
-      "sha256": "67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6",
-      "status": "active"
-    },
-    {
       "id": "M-067",
       "path": "patches/mobile/P126-B-e2e-runtime-compat.patch",
-      "sha256": "134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
       "status": "active"
     },
     {
       "id": "M-068",
       "path": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
-      "sha256": "7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
       "status": "active"
     },
     {
@@ -798,20 +771,6 @@
       "status": "deferred-source-only"
     }
   ],
-  "runtimePatchPolicy": {
-    "version": 1,
-    "profile": "p126-runtime",
-    "base": "afef1b948c59a901da710bb5793ea73d53948fbb",
-    "targetUpstream": "3ebcf9a32c7b28f658cfee80775448929361727a",
-    "activePatchCount": 65,
-    "deferredSourceOnlyPatchCount": 1,
-    "deferredPatchesApplied": false,
-    "activeClosureUsesExactOrder": true,
-    "replayOrderContract": "p126-replay-order.json",
-    "deferredPatchIDs": [
-      "M-063"
-    ]
-  },
   "p126RuntimePatchSources": [
     {
       "id": "M-057",
@@ -3076,7 +3035,7 @@
     {
       "id": "M-058",
       "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
       "status": "active",
       "applied": true,
       "files": [
@@ -3309,20 +3268,6 @@
           "blobRange": "4dd5861..a5160d0"
         },
         {
-          "path": "packages/app/src/home/sessions/command-palette.test.tsx",
-          "hunks": 1,
-          "change": "add",
-          "from": "/dev/null",
-          "blobRange": "0000000..074aadb"
-        },
-        {
-          "path": "packages/app/src/providers/models/select-dialog.test.tsx",
-          "hunks": 1,
-          "change": "add",
-          "from": "/dev/null",
-          "blobRange": "0000000..d2b83e7"
-        },
-        {
           "path": "packages/app/src/runtime/server/media-api.ts",
           "hunks": 1,
           "change": "add",
@@ -3335,13 +3280,6 @@
           "change": "add",
           "from": "/dev/null",
           "blobRange": "0000000..69fdca6"
-        },
-        {
-          "path": "packages/app/src/runtime/server/runtime.test.tsx",
-          "hunks": 1,
-          "change": "add",
-          "from": "/dev/null",
-          "blobRange": "0000000..9ace8fd"
         },
         {
           "path": "packages/app/src/runtime/server/media-generated/.httpapi-codegen.json",
@@ -3384,17 +3322,10 @@
     {
       "id": "M-065",
       "path": "patches/mobile/P126-C-project-open-compat.patch",
-      "sha256": "d2a3f07ae5a31d2bdb650e07dd5943010edf05549fe6434fc093846a2c0ef42d",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
       "status": "active",
       "applied": true,
       "files": [
-        {
-          "path": "packages/app/src/runtime/plugin/host-apis.test.tsx",
-          "hunks": 1,
-          "change": "add",
-          "from": "/dev/null",
-          "blobRange": "0000000..b2ed22e"
-        },
         {
           "path": "packages/app/src/runtime/plugin/host-apis.tsx",
           "hunks": 1,
@@ -3402,12 +3333,12 @@
           "blobRange": "3b180b1..55d71e8"
         }
       ],
-      "note": "projects.add to projects.open compatibility adaptation with test-driven real host entry."
+      "note": "Production projects.add to projects.open compatibility adaptation."
     },
     {
       "id": "M-059",
       "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
       "status": "active",
       "applied": true,
       "files": [
@@ -3517,7 +3448,7 @@
           "path": "packages/app/src/session/session-ownership.test.ts",
           "hunks": 1,
           "change": "modify",
-          "blobRange": "102e52b..cee9e24"
+          "blobRange": "102e52b..63c3f38"
         }
       ],
       "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
@@ -3592,41 +3523,9 @@
       "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
     },
     {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "active",
-      "applied": true,
-      "files": [
-        {
-          "path": "packages/app/src/session/session-ownership.test.ts",
-          "hunks": 1,
-          "change": "modify",
-          "blobRange": "cee9e24c90ce5eda3676fb960b65f8812e128f69..63c3f38299d262447e156a23ce9dfae66ecaf6b2"
-        }
-      ],
-      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
-    },
-    {
-      "id": "M-066",
-      "path": "patches/mobile/P126-C-composer-restore-test-compat.patch",
-      "sha256": "67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6",
-      "status": "active",
-      "applied": true,
-      "files": [
-        {
-          "path": "packages/app/src/composer/submit.test.ts",
-          "hunks": 2,
-          "change": "modify",
-          "blobRange": "78d992ea37e7ebab6b0e3784803f8dcfab8013c9..d9d36b7497124a523300968e5b80f89bf384ba4d"
-        }
-      ],
-      "note": "Test-only Solid proxy matcher compatibility. Derived from Sol independent base/target reproductions; full object shapes use toEqual without unwrapping or normalizing proxies. No production restore/retry/ownership behavior changes."
-    },
-    {
       "id": "M-067",
       "path": "patches/mobile/P126-B-e2e-runtime-compat.patch",
-      "sha256": "134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
       "status": "active",
       "applied": true,
       "files": [
@@ -3635,29 +3534,17 @@
           "hunks": 1,
           "change": "modify",
           "blobRange": "4f557aa79a07654e4400cf4a0e96266c8e2f03cf..1b5d5e577a7ba4b5aef5a53bf1ffcf18c9f88b6d"
-        },
-        {
-          "path": "packages/app/vite.js",
-          "hunks": 1,
-          "change": "modify",
-          "blobRange": "5041baaa3aacde9c2588b4dc81d9df457f12c7f1..a51cef6b56ab73006bedded94f81db2b66a69c3e"
         }
       ],
-      "note": "Test-only optimizer/mock route compatibility; no production JSX or dependency strategy changes."
+      "note": "Exact upstream mockPluginsActivating helper source copy."
     },
     {
       "id": "M-068",
       "path": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
-      "sha256": "7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
       "status": "active",
       "applied": true,
       "files": [
-        {
-          "path": "packages/app/e2e/regression/composer.spec.ts",
-          "hunks": 20,
-          "change": "modify",
-          "blobRange": "806fb3aa1c1148a024dd79a7649332d91ec0ec0b..a43892b26818ab634cf6121db117ae6cd562c142"
-        },
         {
           "path": "packages/app/e2e/utils/app-direction.fixture.tsx",
           "hunks": 3,
@@ -3665,7 +3552,7 @@
           "blobRange": "3226c4657f71b1ba16aa05afcca1b8b784de737a..dbf298be3630755c1226078b1952a38caf323b17"
         }
       ],
-      "note": "Test-only Composer server seed adaptation plus exact fixed-target app-direction plugin fixture copy."
+      "note": "Exact fixed-target app-direction fixture source copy."
     },
     {
       "id": "M-063",
