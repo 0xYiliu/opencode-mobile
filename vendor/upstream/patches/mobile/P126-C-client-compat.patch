@@ -1,0 +1,3047 @@
+# P126 C layer: targeted client compatibility on top of the U migration.
+#
+# Includes the frozen-media codegen products (media-api/media-contract/media-generated), the
+# runtime read-only project catalog wiring and its owning test, the retained-consumer
+# reconciliations, the C-test infra (solid-jsx babel preload, happy-dom polyfills), and the
+# select-dialog + home palette owning tests.
+# DEVIATION NOTE: the interleaved C hunks inside client.tsx, server/media.ts and revert.ts land
+# with the S patch (0059) because C and S hunks interleave per-hunk in those files.
+diff --git aa/packages/app/component-tests/timeline-virtualizer.fixture.tsx bb/packages/app/component-tests/timeline-virtualizer.fixture.tsx
+index b86baa7..2f9b2e9 100644
+--- aa/packages/app/component-tests/timeline-virtualizer.fixture.tsx
++++ bb/packages/app/component-tests/timeline-virtualizer.fixture.tsx
+@@ -115,7 +115,6 @@ export function mountTimelineVirtualizer(input: { count: number; rowHeight: numb
+         <div ref={container} style={{ height: "180px", width: "400px" }}>
+           <timeline.View
+             header={null}
+-            workspaceSession={() => false}
+             deferred={() => false}
+             renderRow={(row) => (
+               <div
+
+diff --git aa/packages/app/happydom.ts bb/packages/app/happydom.ts
+index 16903fe..93d40b4 100644
+--- aa/packages/app/happydom.ts
++++ bb/packages/app/happydom.ts
+@@ -1,9 +1,77 @@
+ import { GlobalRegistrator } from "@happy-dom/global-registrator"
+ 
++// Happy DOM replaces the platform fetch with its own, which supports neither `blob:` nor `data:` URLs.
++// The draft media cache hands out object and data URLs and the draft pin reads their bytes back
++// through the platform fetch, so keep a registry of object URLs and decode data bodies here, letting
++// the production paths run unmocked under the test DOM.
+ GlobalRegistrator.register()
+ 
++const objectURLs = new Map<string, Blob>()
++const originalCreateObjectURL = URL.createObjectURL.bind(URL)
++const originalRevokeObjectURL = URL.revokeObjectURL.bind(URL)
++
++URL.createObjectURL = (object: Blob) => {
++  const url = originalCreateObjectURL(object)
++  objectURLs.set(url, object)
++  return url
++}
++
++URL.revokeObjectURL = (url: string) => {
++  objectURLs.delete(url)
++  return originalRevokeObjectURL(url)
++}
++
++const happyFetch = globalThis.fetch.bind(globalThis)
++
++globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
++  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
++
++  if (url.startsWith("blob:")) {
++    const blob = objectURLs.get(url)
++    if (!blob) return new Response(null, { status: 404 })
++    return new Response(blob, { headers: { "content-type": blob.type || "application/octet-stream" } })
++  }
++
++  // Node's fetch reads data: URLs; Happy DOM's does not, and cross-realm Blobs fail its FileReader,
++  // so decode the body here into this realm's Blob.
++  if (url.startsWith("data:")) {
++    const comma = url.indexOf(",")
++    const [mime, encoding] = url.slice(5, comma).split(";")
++    const body = url.slice(comma + 1)
++    const bytes = encoding === "base64" ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body), "utf8")
++
++    return new Response(new Blob([bytes], { type: mime || "application/octet-stream" }), {
++      headers: { "content-type": mime || "application/octet-stream" },
++    })
++  }
++
++  return happyFetch(input as RequestInfo | URL, init)
++}) as typeof globalThis.fetch
++
+ const originalGetContext = HTMLCanvasElement.prototype.getContext
+ 
++
++// The drawer drag/snap logic reads Web Animations off the drawer content; happy-dom has no
++// `getAnimations`, so report an empty set the same way a browser with no running animations does.
++if (typeof Element.prototype.getAnimations !== "function") {
++  Element.prototype.getAnimations = () => [] as Animation[]
++}
++
++// happy-dom's ResizeObserver fires its callback synchronously on observe(), which runs editor
++// overflow measurements before their element refs exist. A browser fires the first callback after
++// layout, so defer the callback the same way.
++class DeferredResizeObserver implements ResizeObserver {
++  constructor(private callback: ResizeObserverCallback) {}
++  observe(target: Element) {
++    setTimeout(() => this.callback([], this), 0)
++  }
++  unobserve() {}
++  disconnect() {}
++}
++if (typeof globalThis.ResizeObserver === "undefined" || true) {
++  globalThis.ResizeObserver = DeferredResizeObserver as unknown as typeof ResizeObserver
++}
++
+ // @ts-expect-error - we're overriding with a simplified mock
+ HTMLCanvasElement.prototype.getContext = function (contextType: string, _options?: unknown) {
+   if (contextType === "2d") {
+
+diff --git aa/packages/app/src/composer/commands.tsx bb/packages/app/src/composer/commands.tsx
+index 3ecdc9a..0225840 100644
+--- aa/packages/app/src/composer/commands.tsx
++++ bb/packages/app/src/composer/commands.tsx
+@@ -6,7 +6,6 @@ import { useDialog } from "@opencode/ui/context/dialog"
+ import { useSessionLayout } from "@/session/session-layout"
+ import { createSessionOwnership } from "@/session/session-ownership"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+-import { useData } from "@/runtime/server/current"
+ import { useServerSDK } from "@/runtime/server/client"
+ import { formatServerError } from "@/runtime/server/errors"
+ import { showToast } from "@/shell/notifications/toast"
+@@ -25,15 +24,13 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
+   const language = useLanguage()
+   const local = useLocal()
+   const workspace = useWorkspaceLocation()
+-  const { sessionKey, params } = useSessionLayout()
+-  const data = useData()
++  const { sessionKey } = useSessionLayout()
+   const sdk = useServerSDK()
+   const sessionOwnership = createSessionOwnership(sessionKey)
+   const model = input.model ?? local.model
+   const modelCommand = withCategory(language.t("command.category.model"))
+   const agentCommand = withCategory(language.t("command.category.agent"))
+   const providerCommand = withCategory(language.t("command.category.provider"))
+-  const viewCommand = withCategory(language.t("command.category.view"))
+   const serverCommand = withCategory(language.t("command.category.server"))
+ 
+   // Mirrors the TUI's `/connect`, which the Console's setup steps tell people to run.
+@@ -71,25 +68,6 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
+     })
+   }
+ 
+-  const viewUsage = async () => {
+-    const { DialogUsage } = await import("@/usage/dialog")
+-    const current = model.current()
+-
+-    // Console refuses with 402 only when the workspace can't pay, which the dialog explains.
+-    const last = params.id
+-      ? data.session.message.list(params.id)?.findLast((message) => message.type === "assistant")
+-      : undefined
+-
+-    void dialog.show(() => (
+-      <DialogUsage
+-        location={workspace().ref}
+-        model={current && { providerID: current.provider.id, modelID: current.id, name: current.name }}
+-        credits={last?.type === "assistant" && last.error?.status === 402}
+-        onSwitchModel={chooseModel}
+-      />
+-    ))
+-  }
+-
+   command.register("composer", () => [
+     modelCommand({
+       id: "model.choose",
+@@ -106,12 +84,6 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
+       keybind: "shift+mod+d",
+       onSelect: () => model.variant.cycle(),
+     }),
+-    viewCommand({
+-      id: "usage.view",
+-      title: language.t("command.usage.view"),
+-      description: language.t("command.usage.view.description"),
+-      onSelect: () => void viewUsage(),
+-    }),
+     providerCommand({
+       id: "provider.connect",
+       title: language.t("command.provider.connect"),
+
+diff --git aa/packages/app/src/composer/model.ts bb/packages/app/src/composer/model.ts
+index d348fd5..41b085b 100644
+--- aa/packages/app/src/composer/model.ts
++++ bb/packages/app/src/composer/model.ts
+@@ -215,7 +215,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
+   const sessions = createServerSessionEntries({
+     server: server.key,
+     known: createKnownServerSessions(server.ctx),
+-    projects: server.ctx.projects.list,
++    projects: server.ctx.projects.catalog.list,
+     load: async (search, signal) => {
+       const page = await serverSDK.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal })
+       page.data.forEach(data.session.remember)
+
+diff --git aa/packages/app/src/composer/composer.stories.tsx bb/packages/app/src/composer/composer.stories.tsx
+index 1314cdc..5896ffb 100644
+--- aa/packages/app/src/composer/composer.stories.tsx
++++ bb/packages/app/src/composer/composer.stories.tsx
+@@ -72,6 +72,9 @@ function ComposerStory(props: {
+     variant: STORY_MODEL.variant,
+   })
+ 
++  // Synthetic selected-model state; the favorite callback updates it like the persisted preference.
++  const [favorites, setFavorites] = createStore<{ models: Array<ReturnType<typeof modelOption>> }>({ models: [] })
++
+   const modelOption = createMemo(() => ({
+     ...selectedModel,
+     name: props.longLabels ? "Claude Sonnet with an unusually long model name" : selectedModel.name,
+@@ -79,6 +82,7 @@ function ComposerStory(props: {
+ 
+   const modelSelection = {
+     ready: Object.assign(() => true, { promise: undefined }),
++    key: () => ({ providerID: STORY_MODEL.providerID, modelID: STORY_MODEL.id, variant: story.variant }),
+     current: () => modelOption(),
+     recent: () => [modelOption()],
+     list: () => [modelOption()],
+@@ -86,6 +90,16 @@ function ComposerStory(props: {
+     set() {},
+     visible: () => true,
+     setVisibility() {},
++    favorite: {
++      list: () => favorites.models,
++      toggle(key: { providerID: string; modelID: string }) {
++        setFavorites("models", (models) => {
++          const rest = models.filter((item) => !(item.providerID === key.providerID && item.id === key.modelID))
++
++          return rest.length === models.length ? [...models, modelOption()] : rest
++        })
++      },
++    },
+     variant: {
+       configured: () => STORY_MODEL.variant,
+       selected: () => story.variant,
+
+diff --git aa/packages/app/src/home/sessions/command-palette.tsx bb/packages/app/src/home/sessions/command-palette.tsx
+index e4f2ece..2413502 100644
+--- aa/packages/app/src/home/sessions/command-palette.tsx
++++ bb/packages/app/src/home/sessions/command-palette.tsx
+@@ -31,8 +31,7 @@ export function HomeCommandPalette(props: {
+ 
+   const sessions = createServerSessionEntries({
+     server: ServerConnection.key(props.server),
+-    opened: server.projects.list,
+-    stored: () => server.sync.data.project,
++    projects: server.projects.catalog.list,
+     load: (search, signal) => server.sdk.api.session.list({ parentID: null, search, limit: 50 }, { signal }),
+     get: (sessionID, signal) => server.sdk.api.session.get({ sessionID }, { signal }),
+     untitled: () => language.t("command.session.new"),
+
+diff --git aa/packages/app/src/home/start/command-palette.tsx bb/packages/app/src/home/start/command-palette.tsx
+index 0b81687..3c888ce 100644
+--- aa/packages/app/src/home/start/command-palette.tsx
++++ bb/packages/app/src/home/start/command-palette.tsx
+@@ -35,7 +35,7 @@ export function HomeCommandPalette(props: {
+   const sessions = createServerSessionEntries({
+     server: ServerConnection.key(props.server),
+     known: createKnownServerSessions(server),
+-    projects: server.projects.list,
++    projects: server.projects.catalog.list,
+     load: (search, signal) =>
+       server.sdk.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
+     get: (sessionID, signal) => server.sdk.api.session.get({ sessionID }, { signal }),
+
+diff --git aa/packages/app/src/providers/models/select-dialog.tsx bb/packages/app/src/providers/models/select-dialog.tsx
+index aaad7bc..e80ad1e 100644
+--- aa/packages/app/src/providers/models/select-dialog.tsx
++++ bb/packages/app/src/providers/models/select-dialog.tsx
+@@ -322,16 +322,17 @@ export function ModelSelectorPopover(props: {
+   )
+ }
+ 
+-function ModelSelectorDrawer(props: {
++export function ModelSelectorDrawer(props: {
+   trigger: ModelSelectorTrigger
+   model?: ModelState
+   provider?: string
+   chatgptPlan?: boolean
+   onClose: () => void
+-  onManage: () => void
++  onManage?: () => void
+   onConnect?: () => void
+ }) {
+   const language = useLanguage()
++  const dialog = useDialog()
+ 
+   const [store, setStore] = createStore<{
+     open: boolean
+@@ -376,7 +377,8 @@ function ModelSelectorDrawer(props: {
+               setStore("action", undefined)
+ 
+               if (action === "manage") {
+-                props.onManage()
++                if (props.onManage) props.onManage()
++                else void import("./manage").then(({ DialogManageModels }) => dialog.show(() => <DialogManageModels />))
+ 
+                 return
+               }
+
+diff --git aa/packages/app/src/runtime/i18n/en.ts bb/packages/app/src/runtime/i18n/en.ts
+index e4ffcc4..4ebded3 100644
+--- aa/packages/app/src/runtime/i18n/en.ts
++++ bb/packages/app/src/runtime/i18n/en.ts
+@@ -1,6 +1,73 @@
+ import { DESKTOP_NATIVE_ENGLISH } from "./desktop-native"
+ 
+ export const dict = {
++  "session.rewind.toast.title": "Rewound",
++  "session.rewind.toast.undo": "Undo",
++  "command.config.reload": "Reload configuration",
++  "command.config.reload.description": "Reload agents, commands, skills, MCP servers and plugins from your config",
++  "command.config.reload.pending": "Reloading configuration…",
++  "command.config.reload.done": "Configuration reloaded",
++  "command.config.reload.failed": "Couldn't reload configuration",
++  "command.commands.search": "Search commands",
++  "command.session.search": "Search sessions",
++  "command.sidebar.toggle": "Toggle sidebar",
++  "command.sidebar.toggle.unread": "Toggle sidebar, unread sessions",
++  "command.bottom.toggle": "Toggle bottom panel",
++  "command.session.rename": "Rename session",
++  "command.session.delete": "Delete session",
++  "palette.session.location": "{{project}} · {{server}}",
++  "dialog.model.unavailable": "{{model}} (unavailable)",
++  "dialog.fork.search.empty": "No messages found",
++  "dialog.fork.description": "Edit an earlier message in a new session",
++  "session.tabs.closed.search": "Search recently closed",
++  "session.tabs.closed.empty": "No recently closed sessions",
++  "session.tab.new": "New tab",
++  "session.panel.bottom": "Bottom panel",
++  "session.panel.bottom.hide": "Hide bottom panel",
++  "session.error.unreachable": "Can't reach this server",
++  "session.error.unreachable.description": "{{server}} isn't responding, so this session can't load. It will open automatically once the server is reachable again.",
++  "session.todo.title": "Todos",
++  "session.todo.progress": "{{done}}/{{total}}",
++  "session.todo.label.one": "{{done}} of {{count}} todo done",
++  "session.todo.label.other": "{{done}} of {{count}} todos done",
++  "session.activity.subagents.one": "{{count}} subagent",
++  "session.activity.subagents.other": "{{count}} subagents",
++  "session.activity.shells.one": "{{count}} shell",
++  "session.activity.shells.other": "{{count}} shells",
++  "session.activity.shell.back": "Back to background work",
++  "session.activity.shell.stop": "Stop",
++  "session.activity.shell.stopping": "Stopping…",
++  "session.activity.shell.exited": "Exited",
++  "session.activity.shell.exitCode": "Exited with code {{code}}",
++  "session.activity.shell.timeout": "Timed out",
++  "session.activity.shell.killed": "Stopped",
++  "session.activity.shell.empty": "No output yet",
++  "session.activity.summary": "{{subagents}} · {{shells}}",
++  "session.quote.actions": "Quote selection",
++  "session.quote.add": "Quote",
++  "session.quote.addWithComment": "Quote and comment",
++  "session.quote.commentPlaceholder": "Add a comment about this quote",
++  "session.quote.tooLong": "Selection too long",
++  "session.location.copyPath": "Copy path",
++  "session.location.copyBranch": "Copy branch name",
++  "session.location.noBranch": "No branch",
++  "sidebar.inbox.empty": "Sessions you work on will appear here",
++  "sidebar.inbox.section.needsAttention": "Needs attention",
++  "sidebar.inbox.section.working": "Working",
++  "sidebar.inbox.section.recent": "Recent",
++  "sidebar.inbox.section.archived": "Archived",
++  "sidebar.inbox.unarchive": "Unarchive",
++  "sidebar.inbox.status.working": "Working",
++  "sidebar.inbox.status.workingFor": "Working {{duration}}",
++  "sidebar.inbox.elapsed.seconds.one": "{{count}}s",
++  "sidebar.inbox.elapsed.seconds.other": "{{count}}s",
++  "sidebar.inbox.elapsed.minutes.one": "{{count}}m",
++  "sidebar.inbox.elapsed.minutes.other": "{{count}}m",
++  "sidebar.inbox.elapsed.hours.one": "{{count}}h",
++  "sidebar.inbox.elapsed.hours.other": "{{count}}h",
++  "sidebar.inbox.elapsed.days.one": "{{count}}d",
++  "sidebar.inbox.elapsed.days.other": "{{count}}d",
++  "sidebar.inbox.time.now": "now",
+   ...DESKTOP_NATIVE_ENGLISH,
+   "session.location.unavailable": "Session location unavailable",
+   "session.location.description": "Choose another directory to continue this session.",
+
+diff --git aa/packages/app/src/runtime/i18n/language.tsx bb/packages/app/src/runtime/i18n/language.tsx
+index fed6514..2aeb34a 100644
+--- aa/packages/app/src/runtime/i18n/language.tsx
++++ bb/packages/app/src/runtime/i18n/language.tsx
+@@ -294,6 +294,20 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
+ 
+     const list = (items: readonly JSX.Element[]) => localizedListParts(intl(), items)
+ 
++    const activitySummary = (counts: { subagents: number; shells: number }) => {
++      const subagents = counts.subagents ? plural("session.activity.subagents", counts.subagents) : undefined
++      const shells = counts.shells ? plural("session.activity.shells", counts.shells) : undefined
++      if (subagents && shells) return t("session.activity.summary", { subagents, shells })
++      return subagents ?? shells ?? ""
++    }
++    const activitySummaryRich = (counts: { subagents: number; shells: number }, render: (label: string) => JSX.Element) => {
++      if (!counts.subagents || !counts.shells) return render(activitySummary(counts))
++      return rich("session.activity.summary", {
++        subagents: render(activitySummary({ subagents: counts.subagents, shells: 0 })),
++        shells: render(activitySummary({ subagents: 0, shells: counts.shells })),
++      })
++    }
++
+     const label = (value: Locale) => DESKTOP_NATIVE_LABELS[value]
+ 
+     createEffect(() => {
+@@ -328,6 +342,8 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
+       pluralForm,
+       rich,
+       list,
++      activitySummary,
++      activitySummaryRich,
+       setLocale(next: Locale) {
+         setStore("locale", normalizeLocale(next))
+       },
+
+diff --git aa/packages/app/src/runtime/platform/platform.tsx bb/packages/app/src/runtime/platform/platform.tsx
+index 86b60d6..68db113 100644
+--- aa/packages/app/src/runtime/platform/platform.tsx
++++ bb/packages/app/src/runtime/platform/platform.tsx
+@@ -86,6 +86,9 @@ type PlatformBase = {
+   /** Whether the native desktop window is fullscreen */
+   windowFullscreen?: Accessor<boolean>
+ 
++  /** Move the native macOS traffic lights' top-left corner, in window points (desktop only) */
++  setTrafficLightsPosition?(position: { x: number; y: number }): Promise<void>
++
+   /** Get whether native pinch/Ctrl-scroll zoom gestures are enabled (desktop only) */
+   getPinchZoomEnabled?(): Promise<boolean> | boolean
+ 
+
+diff --git aa/packages/app/src/runtime/server/api.test.ts bb/packages/app/src/runtime/server/api.test.ts
+index 5476e41..d10169e 100644
+--- aa/packages/app/src/runtime/server/api.test.ts
++++ bb/packages/app/src/runtime/server/api.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, test } from "bun:test"
+-import { authFromToken, authTokenFromCredentials, createApiForServer, fileStreamUrl } from "./api"
++import { authFromToken, authTokenFromCredentials, createApiForServer } from "./api"
+ 
+ test.each([
+   [btoa("opencode:secret"), { password: "secret" }],
+@@ -16,12 +16,21 @@ test("authTokenFromCredentials ignores usernames in legacy saved credentials", (
+   expect(authTokenFromCredentials(credentials)).toBe(btoa("opencode:secret"))
+ })
+ 
+-test("fileStreamUrl never puts a credential in a media URL", () => {
+-  const input = { path: "clips/final cut.mp4", directory: "/work/app" }
+-  expect(fileStreamUrl({ url: "http://127.0.0.1:4096", password: "secret" }, input)).toBeUndefined()
+-  expect(fileStreamUrl({ url: "http://127.0.0.1:4096" }, input)).toBe(
+-    "http://127.0.0.1:4096/api/fs/read/clips/final%20cut.mp4?location%5Bdirectory%5D=%2Fwork%2Fapp",
+-  )
++test("the authenticated binary media read never puts a credential in a media URL", async () => {
++  const requests: Array<{ url: string; headers: Headers; signal?: AbortSignal | null }> = []
++  const api = createApiForServer({ server: { url: "http://127.0.0.1:4096/prefix", password: "fixture-secret" },
++    fetch: Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
++      requests.push({ url: String(input), headers: new Headers(init?.headers), signal: init?.signal })
++      return new Response(new Uint8Array([1, 2, 3]))
++    }, { preconnect: globalThis.fetch.preconnect }),
++  })
++  const controller = new AbortController()
++  expect(await api.experimental.media.get({ hash: "a".repeat(64) }, { signal: controller.signal })).toEqual(new Uint8Array([1, 2, 3]))
++  expect(requests).toHaveLength(1)
++  expect(requests[0]!.url).toBe(`http://127.0.0.1:4096/prefix/api/experimental/media/${"a".repeat(64)}`)
++  expect(requests[0]!.url).not.toContain("fixture-secret")
++  expect(requests[0]!.headers.get("authorization")).toBe(`Basic ${btoa("opencode:fixture-secret")}`)
++  expect(requests[0]!.signal).toBe(controller.signal)
+ })
+ 
+ test("only message and inbox reads ask for media refs, so other cross-origin requests stay unpreflighted", async () => {
+@@ -36,6 +45,9 @@ test("only message and inbox reads ask for media refs, so other cross-origin req
+         headers: new Headers(init?.headers),
+       })
+ 
++      const pathname = requests.at(-1)!.path
++      if (pathname.endsWith("/message/msg_1")) return Response.json({ data: { type: "user", id: "msg_1", text: "", time: { created: 0 } } })
++      if (pathname.endsWith("/inbox")) return Response.json({ data: [] })
+       return Response.json({ data: [], cursor: {} })
+     }) as typeof fetch,
+   })
+@@ -62,3 +74,54 @@ test("only message and inbox reads ask for media refs, so other cross-origin req
+   expect(requests[1].headers.get("x-trace")).toBe("1")
+   expect(requests[3].headers.get("x-trace")).toBe("1")
+ })
++
++test.each([401, 403, 404, "network"] as const)("binary media %p fails once on the same source without compatibility fallback", async (failure) => {
++  let calls = 0
++  const api = createApiForServer({ server: { url: "https://source-a.example", password: "fixture-password" },
++    fetch: Object.assign(async (input: RequestInfo | URL) => {
++      calls++
++      expect(new URL(String(input)).origin).toBe("https://source-a.example")
++      if (failure === "network") throw new TypeError("Synthetic offline")
++      return Response.json({ _tag: failure === 404 ? "FileNotFoundError" : "UnauthorizedError" }, { status: failure })
++    }, { preconnect: globalThis.fetch.preconnect }),
++  })
++  await expect(api.experimental.media.get({ hash: "a".repeat(64) })).rejects.toBeDefined()
++  expect(calls).toBe(1)
++})
++
++test("three-read compatibility retries once without capability, retaining authentication and signal", async () => {
++  const requests: Array<Headers> = []
++  const controller = new AbortController()
++  const api = createApiForServer({ server: { url: "https://source-a.example", password: "fixture-password" },
++    fetch: Object.assign(async (_input: RequestInfo | URL, init?: RequestInit) => {
++      const headers = new Headers(init?.headers)
++      requests.push(headers)
++      expect(init?.signal).toBe(controller.signal)
++      if (headers.has("X-OpenCode-Capabilities")) return new Response("Synthetic old server", { status: 400 })
++      return Response.json({ data: [{ type: "user", id: "msg_1", text: "inline", time: { created: 0 },
++        files: [{ mime: "text/plain", data: "YQ==", source: { type: "inline" } }] }] })
++    }, { preconnect: globalThis.fetch.preconnect }),
++  })
++  const page = await api.message.list({ sessionID: "ses_1" }, { signal: controller.signal, headers: { "X-Trace": "fixture" } })
++  expect(page.data[0]).toMatchObject({ type: "user", files: [{ data: "YQ==" }] })
++  expect(requests.map((headers) => headers.get("x-opencode-capabilities"))).toEqual(["experimental-media-uri", null])
++  expect(requests.every((headers) => headers.get("authorization") === `Basic ${btoa("opencode:fixture-password")}` && headers.get("x-trace") === "fixture")).toBe(true)
++})
++
++test("canonical media read preserves the uri variant, but export false rejects incomplete bytes and malformed references", async () => {
++  let uri = `media:${"a".repeat(64)}`
++  let calls = 0
++  const headers: Array<Headers> = []
++  const api = createApiForServer({ server: { url: "https://source-a.example" }, fetch: Object.assign(async (_input: RequestInfo | URL, init?: RequestInit) => {
++    calls++
++    headers.push(new Headers(init?.headers))
++    return Response.json({ data: [{ type: "user", id: "msg_1", text: "media", time: { created: 0 },
++      files: [{ mime: "image/png", uri, source: { type: "inline" } }] }] })
++  }, { preconnect: globalThis.fetch.preconnect }) })
++  expect((await api.message.list({ sessionID: "ses_1" })).data[0]).toMatchObject({ type: "user", files: [{ uri }] })
++  await expect(api.message.list({ sessionID: "ses_1" }, { mediaRefs: false })).rejects.toMatchObject({ reason: "MalformedResponse" })
++  expect(headers[1]!.has("X-OpenCode-Capabilities")).toBe(false)
++  uri = "media:invalid"
++  await expect(api.message.list({ sessionID: "ses_1" })).rejects.toBeDefined()
++  expect(calls).toBe(3)
++})
+
+diff --git aa/packages/app/src/runtime/server/api.ts bb/packages/app/src/runtime/server/api.ts
+index c426816..f078af3 100644
+--- aa/packages/app/src/runtime/server/api.ts
++++ bb/packages/app/src/runtime/server/api.ts
+@@ -1,6 +1,11 @@
+ import { OpenCode, type OpenCodeClient } from "@opencode/client/promise"
+ import type { ServerConnection } from "@/runtime/server/registry"
+ import { decode64 } from "@/runtime/persistence/base64"
++import { withMediaApi } from "./media-api"
++import { assertInlineMessages, mediaInbox, mediaMessage, mediaMessages } from "./media-contract"
++import type { RequestOptions } from "./media-generated/client"
++
++export type ServerRequestOptions = RequestOptions & { mediaRefs?: boolean }
+ 
+ export function authTokenFromCredentials(input: { password: string }) {
+   const bytes = new TextEncoder().encode(`opencode:${input.password}`)
+@@ -28,8 +33,8 @@ export function authFromToken(token: string | null) {
+ export function createApiForServer(input: {
+   server: ServerConnection.HttpBase
+   fetch?: typeof globalThis.fetch
+-}): OpenCodeClient {
+-  return OpenCode.make({
++}) {
++  const options = {
+     baseUrl: input.server.url,
+     fetch: input.fetch,
+     headers: input.server.password
+@@ -39,7 +44,83 @@ export function createApiForServer(input: {
+           })}`,
+         }
+       : undefined,
+-  })
++  }
++  const base = withMediaApi(OpenCode.make(options), options)
++  type ReadOptions = ServerRequestOptions
++  const read = async <T>(operation: (options: RequestOptions) => Promise<T>, options: ReadOptions = {}) => {
++    const headers = new Headers(options.headers)
++    const { mediaRefs, ...requestOptions } = options
++    if (mediaRefs === false) {
++      headers.delete("X-OpenCode-Capabilities")
++      return operation({ ...requestOptions, headers })
++    }
++    headers.set("X-OpenCode-Capabilities", "experimental-media-uri")
++    try {
++      return await operation({ ...requestOptions, headers })
++    } catch (error) {
++      if (options.signal?.aborted) throw error
++      // Exactly one compatibility read, on this same authenticated source. Never retry a mutation.
++      const fallback = new Headers(options.headers)
++      fallback.delete("X-OpenCode-Capabilities")
++      return operation({ ...requestOptions, headers: fallback })
++    }
++  }
++  const mediaReads = {
++    ...base,
++    message: {
++      ...base.message,
++      list: async (input: Parameters<OpenCodeClient["message"]["list"]>[0], requestOptions?: ReadOptions) => {
++        const response = await read((options) => base.message.list(input, options), requestOptions)
++        const data = mediaMessages(response.data)
++        if (requestOptions?.mediaRefs === false) assertInlineMessages(data)
++        return { ...response, data }
++      },
++    },
++    session: {
++      ...base.session,
++      message: {
++        ...base.session.message,
++        get: async (input: Parameters<OpenCodeClient["session"]["message"]["get"]>[0], options?: ReadOptions) => {
++          const data = mediaMessage(await read((requestOptions) => base.session.message.get(input, requestOptions), options))
++          if (options?.mediaRefs === false) assertInlineMessages([data])
++          return data
++        },
++      },
++      inbox: {
++        ...base.session.inbox,
++        list: async (input: Parameters<OpenCodeClient["session"]["inbox"]["list"]>[0], options?: ReadOptions) =>
++          mediaInbox(await read((requestOptions) => base.session.inbox.list(input, requestOptions), options)),
++      },
++    },
++  }
++  // Existing plugin/client contracts remain inline-only. Only the desktop data reader opts
++  // into the new union; never expose a uri as the old required `data` attachment shape.
++  const inline = {
++    ...base,
++    message: { ...base.message, list: async (input: Parameters<OpenCodeClient["message"]["list"]>[0], options?: ReadOptions) => {
++      const response = await base.message.list(input, options)
++      assertInlineMessages(mediaMessages(response.data))
++      return response
++    } },
++    session: {
++      ...base.session,
++      message: { ...base.session.message, get: async (input: Parameters<OpenCodeClient["session"]["message"]["get"]>[0], options?: ReadOptions) => {
++        const response = await base.session.message.get(input, options)
++        assertInlineMessages([mediaMessage(response)])
++        return response
++      } },
++      inbox: { ...base.session.inbox, list: async (input: Parameters<OpenCodeClient["session"]["inbox"]["list"]>[0], options?: ReadOptions) => {
++        const response = await base.session.inbox.list(input, options)
++        const decoded = mediaInbox(response)
++        if (decoded.some((item) => item.type === "user" && item.payload.files?.some((file) => "uri" in file)))
++          throw new Error("MalformedResponse")
++        return response
++      } },
++    },
++  }
++  return { ...mediaReads, inline }
+ }
+ 
+-export type ServerApi = OpenCodeClient
++export type MediaServerApi = ReturnType<typeof createApiForServer>
++export type ServerApi = MediaServerApi["inline"]
++export type InlineServerApi = ServerApi
+
+diff --git aa/packages/app/src/runtime/server/persistence.test.ts bb/packages/app/src/runtime/server/persistence.test.ts
+index 10ed3af..baccb6e 100644
+--- aa/packages/app/src/runtime/server/persistence.test.ts
++++ bb/packages/app/src/runtime/server/persistence.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, expect, test } from "bun:test"
+ import { Schema } from "effect"
+-import { ModelState, ServerState } from "./persistence"
++import { ModelState, modelState, serverState } from "./persistence"
+ import { Persistence } from "@/runtime/persistence/schema"
+ 
+-const initial = { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} }
++const initial = { list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} }
+ 
+-function serverSchema() {
+-  return Persistence.withInitial(ServerState, initial)
++function serverSchema(canonical?: () => string | undefined) {
++  return Persistence.withInitial(serverState(canonical), initial)
+ }
+ 
+ describe("server persistence schema", () => {
+@@ -16,68 +16,147 @@ describe("server persistence schema", () => {
+     const input = {
+       list: [
+         "http://localhost:4096",
+-        { url: "https://flat.example", username: "legacy", password: "first" },
++        { url: "https://flat.example", username: "legacy", password: "first", credentialRef: "fixture-ref-a" },
+         {
+           type: "http",
+           displayName: "Remote",
+           label: "Production",
+           authToken: true,
+-          http: { url: "https://nested.example", username: "legacy", password: "second" },
++          http: { url: "https://nested.example", username: "legacy", password: "second", credentialRef: "fixture-ref-b" },
+         },
+       ],
+       projects: { local: [{ worktree: "/project", expanded: true }] },
+       recentlyClosed: { local: ["/closed"] },
+       lastProject: { local: "/project" },
+-      lastProjectID: { local: "project" },
+     }
+ 
+     const state = Schema.decodeUnknownSync(schema)(input)
+     expect(state).toEqual({
+       list: [
+         { type: "http", http: { url: "http://localhost:4096" } },
+-        { type: "http", http: { url: "https://flat.example", password: "first" } },
++        { type: "http", http: { url: "https://flat.example", password: "first", credentialRef: "fixture-ref-a" } },
+         {
+           type: "http",
+           displayName: "Remote",
+           label: "Production",
+           authToken: true,
+-          http: { url: "https://nested.example", password: "second" },
++          http: { url: "https://nested.example", password: "second", credentialRef: "fixture-ref-b" },
+         },
+       ],
+       hidden: {},
+-      lastProjectID: { local: "project" },
+-      usedProjectIDs: {},
+-      hostnames: {},
+-      projects: { local: [{ worktree: "/project" }] },
++      lastProject: { local: "/project" },
++      recentlyClosed: { local: ["/closed"] },
++      projects: { local: [{ worktree: "/project", expanded: true }] },
+     })
+     expect(input.list[1]).toHaveProperty("username", "legacy")
+     const encoded = Schema.encodeSync(schema)(state)
+-    expect(encoded).toEqual(state)
+-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
++    expect(encoded).toEqual({ ...state, list: [
++      { type: "http", http: { url: "http://localhost:4096" } },
++      { type: "http", http: { url: "https://flat.example", credentialRef: "fixture-ref-a" } },
++      { type: "http", displayName: "Remote", label: "Production", authToken: true,
++        http: { url: "https://nested.example", credentialRef: "fixture-ref-b" } },
++    ] })
++    expect(input.list[1]).toHaveProperty("password", "first")
++    const wire = JSON.parse(JSON.stringify(encoded))
++    expect(Schema.decodeUnknownSync(schema)(wire)).toEqual(wire)
++    expect(Schema.encodeSync(schema)(Schema.decodeUnknownSync(schema)({ list: [
++      { type: "http", http: { url: "https://no-password.example/", credentialRef: "fixture-ref-c" } },
++    ] }))).toHaveProperty("list.0.http", { url: "https://no-password.example/", credentialRef: "fixture-ref-c" })
+   })
+ 
+   test("defaults missing or malformed fields and drops invalid entries independently", () => {
+     const decode = Schema.decodeUnknownSync(serverSchema())
+     expect(decode({})).toEqual(initial)
+-    expect(decode({ list: null, hidden: [], lastProjectID: 1, usedProjectIDs: [], projects: "bad" })).toEqual(initial)
++    expect(decode({ list: null, hidden: [], lastProject: 1, recentlyClosed: [], projects: "bad" })).toEqual(initial)
+     expect(
+       decode({
+         list: [null, 1, {}, { type: "http", http: { url: 12 } }, "https://valid.example"],
+-        lastProjectID: { local: "project", remote: 1 },
+-        usedProjectIDs: { local: ["project", 1, null], remote: "bad" },
++        lastProject: { local: "/project", remote: 1 },
++        recentlyClosed: { local: ["/closed", 1, null], remote: "bad" },
+         projects: { local: [null, {}, { worktree: 1 }, { worktree: "/project", expanded: true }], remote: false },
+       }),
+     ).toEqual({
+       ...initial,
+       list: [{ type: "http", http: { url: "https://valid.example" } }],
+-      lastProjectID: { local: "project" },
+-      usedProjectIDs: { local: ["project"], remote: [] },
+-      projects: { local: [{ worktree: "/project" }], remote: [] },
++      lastProject: { local: "/project" },
++      recentlyClosed: { local: ["/closed"], remote: [] },
++      projects: { local: [{ worktree: "/project", expanded: true }], remote: [] },
+     })
+   })
++
++  test("moves canonical project buckets without changing server keys or unrelated scopes", () => {
++    const schema = serverSchema(() => "https://opencode.example.com")
++    const input = {
++      list: ["https://opencode.example.com"], hidden: { "https://opencode.example.com": true },
++      projects: {
++        local: [{ worktree: "/local", expanded: false }],
++        "https://opencode.example.com": [{ worktree: "/local", expanded: true }, { worktree: "/remote", expanded: true }, { worktree: "/remote", expanded: false }],
++        other: [{ worktree: "/other", expanded: true }],
++      },
++      lastProject: { local: "/local", "https://opencode.example.com": "/remote", other: "/other" },
++      recentlyClosed: { local: ["/closed"], "https://opencode.example.com": ["/old-closed"] },
++    }
++    const before = structuredClone(input)
++    const state = Schema.decodeUnknownSync(schema)(input)
++    expect(state.projects).toEqual({ local: [{ worktree: "/local", expanded: false }, { worktree: "/remote", expanded: true }], other: input.projects.other })
++    expect(state.lastProject).toEqual({ local: "/local", other: "/other" })
++    expect(state.list[0]?.http.url).toBe("https://opencode.example.com")
++    expect(state.hidden).toEqual(input.hidden)
++    expect(state.recentlyClosed).toEqual(input.recentlyClosed)
++    expect(Schema.encodeSync(schema)(state)).toEqual(state)
++    expect(Schema.decodeUnknownSync(schema)(state)).toEqual(state)
++    expect(input).toEqual(before)
++  })
++
++  test("reads the latest canonical local prop on each decode", () => {
++    const props: { canonicalLocalServer?: string } = {}
++    const schema = serverSchema(() => props.canonicalLocalServer)
++    const decode = Schema.decodeUnknownSync(schema)
++    const input = { projects: { remote: [{ worktree: "/project", expanded: true }] }, lastProject: { remote: "/project" } }
++    const before = structuredClone(input)
++    expect(decode(input).projects).toEqual(input.projects)
++    props.canonicalLocalServer = "remote"
++    expect(decode(input).projects).toEqual({ local: [{ worktree: "/project", expanded: true }] })
++    expect(decode(input).lastProject).toEqual({ local: "/project" })
++    props.canonicalLocalServer = "local"
++    expect(decode(input).projects).toEqual(input.projects)
++    expect(input).toEqual(before)
++    props.canonicalLocalServer = "remote"
++    expect(decode({ lastProject: { remote: "/project" } })).toEqual({ ...initial, lastProject: { local: "/project" } })
++  })
+ })
+ 
+ describe("model persistence schema", () => {
++  test("raw presence governs favorites, tuple dedup is stable, and cancellation survives repeated reload", () => {
++    const schema = Persistence.withInitial(modelState, { user: [], recent: [], favorite: [], variant: {} })
++    const decode = Schema.decodeUnknownSync(schema)
++    const user = [
++      { providerID: "a:b", modelID: "c", visibility: "show", favorite: true },
++      { providerID: "a", modelID: "b:c", visibility: "hide", favorite: true },
++      { providerID: "a:b", modelID: "c", visibility: "hide", favorite: true },
++      { providerID: "bad", modelID: "bad", visibility: "bad", favorite: true },
++    ]
++    const input = { user, recent: [{ providerID: "r", modelID: "m" }], variant: { model: "high" } }
++    const before = structuredClone(input)
++    const expected = [{ providerID: "a:b", modelID: "c" }, { providerID: "a", modelID: "b:c" }]
++    expect(decode(input).favorite).toEqual(expected)
++    for (const favorite of [[], null, undefined, 0, "x", {}, [null, { providerID: "", modelID: "x" }]]) {
++      // The malformed values are intentionally invalid wire data, so hand the raw form to the
++      // decoder; an undefined favorite stays an own property, unlike a JSON round trip.
++      const wire = { ...input, favorite } as Omit<typeof input, "favorite"> & { favorite: unknown }
++      const state = decode(wire)
++      expect(state.favorite).toEqual([])
++      expect(state.user).toEqual(user.slice(0, 3) as typeof state.user)
++      expect(state.recent).toEqual(input.recent)
++      expect(state.variant).toEqual(input.variant)
++      const saved = Schema.encodeSync(schema)(state)
++      expect(saved).toHaveProperty("favorite", [])
++      expect(decode(JSON.parse(JSON.stringify(Schema.encodeSync(schema)(decode(saved)))))).toEqual(state)
++    }
++    expect(decode({ ...input, favorite: [null, expected[1], expected[1], { providerID: " A ", modelID: "M" }] }).favorite)
++      .toEqual([expected[1], { providerID: " A ", modelID: "M" }])
++    expect(input).toEqual(before)
++  })
+   test("defaults missing state and keeps valid entries beside malformed entries", () => {
+     const decode = Schema.decodeUnknownSync(
+       Persistence.withInitial(ModelState, { user: [], recent: [], favorite: [], variant: {} }),
+
+diff --git aa/packages/app/src/runtime/server/persistence.ts bb/packages/app/src/runtime/server/persistence.ts
+index f14fbdf..c6628df 100644
+--- aa/packages/app/src/runtime/server/persistence.ts
++++ bb/packages/app/src/runtime/server/persistence.ts
+@@ -136,7 +136,13 @@ export function serverState(canonicalLocalServer: () => string | undefined = ()
+   )
+ }
+ 
++const FavoriteIdentity = Persistence.struct({
++  providerID: Schema.String.check(Schema.isMinLength(1)),
++  modelID: Schema.String.check(Schema.isMinLength(1)),
++})
++
+ export const ModelState = Persistence.struct({
++  favorite: Persistence.array(FavoriteIdentity),
+   user: Persistence.array(
+     Persistence.struct({
+       providerID: Schema.String,
+@@ -154,6 +160,36 @@ export const ModelState = Persistence.struct({
+   ),
+ })
+ 
++// Inspect raw presence before recovery supplies the empty default. An explicit (even malformed)
++// new field is authoritative, so removing the last favorite never revives legacy flags.
++export const modelState = Persistence.migrate(
++  ModelState,
++  Schema.Unknown.pipe(Schema.decode({
++    decode: SchemaGetter.transform((value) => {
++      if (!Predicate.isObject(value)) return value
++      const entries = Object.hasOwn(value, "favorite")
++        ? (Array.isArray(value.favorite) ? value.favorite : [])
++        : (Array.isArray(value.user) ? value.user.filter((item) =>
++            Predicate.isObject(item) && item.favorite === true &&
++            (item.visibility === "show" || item.visibility === "hide")) : [])
++      const seen = new Map<string, Set<string>>()
++      const decode = Schema.decodeUnknownOption(FavoriteIdentity)
++      const favorite = entries.flatMap((entry) => {
++        const identity = decode(entry)
++        if (Option.isNone(identity)) return []
++        const { providerID, modelID } = identity.value
++        const models = seen.get(providerID) ?? new Set<string>()
++        if (models.has(modelID)) return []
++        models.add(modelID)
++        seen.set(providerID, models)
++        return [{ providerID, modelID }]
++      })
++      return { ...value, favorite }
++    }),
++    encode: SchemaGetter.transform((value) => value),
++  })),
++)
++
+ export const VcsState = Persistence.struct({
+   value: Schema.optional(
+     Persistence.struct({
+
+diff --git aa/packages/app/src/runtime/server/registry.test.ts bb/packages/app/src/runtime/server/registry.test.ts
+index 5f42989..35e1346 100644
+--- aa/packages/app/src/runtime/server/registry.test.ts
++++ bb/packages/app/src/runtime/server/registry.test.ts
+@@ -1,18 +1,17 @@
+ import { expect, test } from "bun:test"
+ import { canRemoveServer, createServerProjects, resolveServerList, ServerConnection, serverLabel } from "./registry"
+ import { Schema } from "effect"
+-import { ServerState } from "./persistence"
++import { serverState } from "./persistence"
+ import { createStore } from "solid-js/store"
+ import { ServerScope } from "./scope"
+ import { Persistence } from "@/runtime/persistence/schema"
+ 
+ function serverSchema() {
+-  return Persistence.withInitial(ServerState, {
++  return Persistence.withInitial(serverState(), {
+     list: [],
+     hidden: {},
+-    lastProjectID: {},
+-    usedProjectIDs: {},
+-    hostnames: {},
++    lastProject: {},
++    recentlyClosed: {},
+     projects: {},
+   })
+ }
+@@ -50,6 +49,18 @@ test("startup auth_token credentials override a persisted same-url server; witho
+   expect(kept).toHaveLength(1)
+   expect(kept[0]?.http).toEqual({ url, password: "saved" })
+   expect(kept[0]?.type === "http" ? kept[0].authToken : true).toBeUndefined()
++  const schema = serverSchema()
++  const state = Schema.decodeUnknownSync(schema)({ list: [
++    { type: "http", http: { url, password: "fixture-password", credentialRef: "fixture-ref" }, authToken: true },
++    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
++  ] })
++  expect(state.list[0]?.http.password).toBe("fixture-password")
++  const encoded = JSON.parse(JSON.stringify(Schema.encodeSync(schema)(state)))
++  expect(encoded.list).toEqual([
++    { type: "http", http: { url, credentialRef: "fixture-ref" }, authToken: true },
++    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
++  ])
++  expect(Schema.decodeUnknownSync(schema)(JSON.parse(JSON.stringify(encoded)))).toEqual(encoded)
+ })
+ 
+ test("treats WSL sidecars as remote server connections", () => {
+@@ -90,12 +101,8 @@ test("keeps exact persisted server identities and prevents removing provided ser
+ /** The server props a project store follows, which the test changes. */
+ type ProjectScopeProps = { server: ServerConnection.Key; canonicalLocalServer?: ServerConnection.Key }
+ 
+-test("used and last projects follow dynamic server scopes, and migration consumes only its scope", () => {
+-  const [store, setStore] = createStore(
+-    Schema.decodeUnknownSync(serverSchema())({
+-      projects: { local: [{ worktree: "/a" }], other: [{ worktree: "/b" }] },
+-    }),
+-  )
++test("project actions update schema-derived state and follow dynamic server scopes", () => {
++  const [store, setStore] = createStore(Schema.decodeUnknownSync(serverSchema())({}))
+ 
+   const props: ProjectScopeProps = { server: ServerConnection.Key.make("https://remote.example") }
+ 
+@@ -105,18 +112,29 @@ test("used and last projects follow dynamic server scopes, and migration consume
+     scope: () => ServerScope.fromServerKey(props.server, props.canonicalLocalServer),
+   })
+ 
+-  projects.touch("remote-project")
+-  expect(projects.last()).toBe("remote-project")
+-  expect(projects.used()).toEqual(["remote-project"])
+-  expect(projects.legacy()).toBeUndefined()
++  projects.open("/remote")
++  projects.collapse("/remote")
++  projects.touch("/remote")
++  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
++  expect(projects.last()).toBe("/remote")
+   props.canonicalLocalServer = props.server
++  expect(projects.list()).toEqual([])
+   expect(projects.last()).toBeUndefined()
+-  expect(projects.legacy()).toEqual(["/a"])
+-  projects.migrate(["a", "b"])
+-  projects.touch("a")
+-  projects.hide(["b"])
+-  expect(projects.legacy()).toBeUndefined()
+-  expect(store.projects).toEqual({ other: [{ worktree: "/b" }] })
+-  expect(store.lastProjectID).toEqual({ local: "a", [props.server]: "remote-project" })
+-  expect(store.usedProjectIDs).toEqual({ local: ["a"], [props.server]: ["remote-project"] })
++  projects.open("/local")
++  projects.close("/local")
++  expect(projects.recentlyClosed()).toEqual(["/local"])
++  projects.open("/local")
++  expect(projects.recentlyClosed()).toEqual([])
++  projects.collapse("/local")
++  projects.expand("/local")
++  projects.open("/second")
++  projects.move("/second", 0)
++  expect(projects.list()).toEqual([{ worktree: "/second", expanded: true }, { worktree: "/local", expanded: true }])
++  projects.remove("/second")
++  expect(projects.recentlyClosed()).toEqual([])
++  expect(store.projects.local).toEqual([{ worktree: "/local", expanded: true }])
++  expect(store.projects[props.server]).toEqual([{ worktree: "/remote", expanded: false }])
++  props.canonicalLocalServer = undefined
++  expect(projects.last()).toBe("/remote")
++  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
+ })
+
+diff --git aa/packages/app/src/runtime/server/request-queue.ts bb/packages/app/src/runtime/server/request-queue.ts
+index 04d88a5..2d76596 100644
+--- aa/packages/app/src/runtime/server/request-queue.ts
++++ bb/packages/app/src/runtime/server/request-queue.ts
+@@ -1,29 +1,29 @@
+-type Entry = { method: string; url: string; at: number; slow: boolean }
++type Entry = { method: string; url: string; at: number; slow: boolean; priority: number }
+ 
+ // Chromium allows six connections per origin. The event stream holds one for the life of the
+ // connection and health probes use their own fetch, so the app's API calls stay below that or
+ // a burst stalls probes and user actions inside the browser where nothing can observe it.
+-export const requestQueueLimit = 4
++const requestQueueLimit = 4
+ 
+ // Endpoints that shell out to git or walk the filesystem take seconds on a large repository. They
+ // may hold at most this many slots, so a session mount's small reads never queue behind them.
+-export const requestQueueSlowLimit = 2
++const requestQueueSlowLimit = 2
+ 
+-export const slowRequestPaths = ["/api/vcs", "/api/worktree"]
++const slowRequestPaths = ["/api/vcs", "/api/worktree"]
+ 
+ // A mount legitimately fires a dozen requests at once; only a request that has waited this long
+ // for a slot indicates the server is not keeping up.
+-export const requestStallMs = 2_000
++const requestStallMs = 2_000
+ 
+ // A socket that dies while the device sleeps can leave fetch waiting for response headers until the
+ // OS gives up on TCP retransmits, which takes minutes. Bound that so a dead request frees its slot
+ // instead of wedging every later API call; the body may still stream for as long as it needs.
+-export const requestHeadersTimeoutMs = 60_000
++const requestHeadersTimeoutMs = 60_000
+ 
+ // Creating a worktree runs the project's setup script (dependency installs, fetches) before the
+ // server answers, so it needs a budget measured in minutes rather than seconds. Cutting it off
+ // kills the script midway and leaves a registered but half-initialised worktree behind.
+-export const setupRequestHeadersTimeoutMs = 10 * 60_000
++const setupRequestHeadersTimeoutMs = 10 * 60_000
+ 
+ function isSlowRequest(pathname: string) {
+   return slowRequestPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+@@ -86,7 +86,7 @@ export function createRequestQueue(input: {
+     return [...inflight].filter((item) => item.slow).length < slowLimit
+   }
+ 
+-  // FIFO, except a slow request waits its turn behind faster ones while the slow slots are full.
++  // FIFO within each priority tier, except a slow request waits its turn behind faster ones while the slow slots are full.
+   const release = (entry: Entry) => {
+     inflight.delete(entry)
+     const index = waiting.findIndex((item) => canStart(item.entry))
+@@ -111,7 +111,8 @@ export function createRequestQueue(input: {
+         resolve()
+       }
+ 
+-      waiting.push({ entry, start })
++      const position = waiting.findIndex((item) => item.entry.priority < entry.priority)
++      waiting.splice(position === -1 ? waiting.length : position, 0, { entry, start })
+       watcher ??= setTimeout(watch, stallMs)
+     })
+   }
+@@ -119,11 +120,21 @@ export function createRequestQueue(input: {
+   const fetch: typeof globalThis.fetch = Object.assign(
+     async (resource: RequestInfo | URL, init?: RequestInit) => {
+       const request = new Request(resource, init)
+-      const pathname = new URL(request.url).pathname
++      const url = new URL(request.url)
++      const pathname = url.pathname
+ 
+       // The event stream is long-lived; never count it against the request budget.
+       if (pathname === "/api/event") return base(request)
+-      const entry = { method: request.method, url: request.url, at: now(), slow: isSlowRequest(pathname) }
++      // Writes go first. Session lists and the first transcript page unblock navigation, so they
++      // go ahead of location reads. Older pages and filtered indexes keep background priority.
++      const initialMessages =
++        /^\/api\/session\/[^/]+\/message$/.test(pathname) &&
++        !url.searchParams.has("cursor") &&
++        !url.searchParams.has("before") &&
++        !url.searchParams.has("type") &&
++        url.searchParams.get("order") !== "asc"
++      const priority = request.method !== "GET" ? 2 : pathname === "/api/session" || initialMessages ? 1 : 0
++      const entry = { method: request.method, url: request.url, at: now(), slow: isSlowRequest(pathname), priority }
+       const queued = acquire(entry)
+ 
+       if (queued) await queued
+
+diff --git aa/packages/app/src/runtime/server/runtime.tsx bb/packages/app/src/runtime/server/runtime.tsx
+index 68a9849..78555cb 100644
+--- aa/packages/app/src/runtime/server/runtime.tsx
++++ bb/packages/app/src/runtime/server/runtime.tsx
+@@ -1,5 +1,6 @@
+ import { createSimpleContext } from "@opencode/ui/context"
+-import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
++import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, onCleanup, on, untrack } from "solid-js"
++import { useQuery, useQueryClient } from "@tanstack/solid-query"
+ import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
+ import { pathKey } from "@/workspaces/path-key"
+ import { useServerHealth } from "@/runtime/server/health"
+@@ -14,14 +15,18 @@ import { useCurrentRoute } from "@/shell/state/layout"
+ import { useTabs } from "@/shell/tabs/tabs"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { createDesktopData } from "./data"
+-import { ModelState } from "./persistence"
++import { modelState } from "./persistence"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { showToast } from "@/shell/notifications/toast"
+ import { formatServerError } from "./errors"
+ import { useSettings } from "@/settings/model"
+ import { timelinePreset } from "@opencode/session-ui/timeline/detail"
+ import type { SessionInfo } from "@opencode/client/promise"
+-import { resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
++import { projectForSession, resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
++import { normalizeProjectInfo } from "./global-sync/utils"
++import { containsDirectory } from "@opencode/util/path"
++
++let nextCatalogGeneration = 0
+ 
+ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
+   name: "Global",
+@@ -116,7 +121,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+ })
+ 
+ function createGlobalModels() {
+-  const [store, setStore, _, ready] = persisted(Persist.global("model"), ModelState, {
++  const [store, setStore, _, ready] = persisted(Persist.global("model"), modelState, {
++    favorite: [],
+     user: [],
+     recent: [],
+     variant: {},
+@@ -134,6 +140,10 @@ function createGlobalModels() {
+     store,
+     set: setStore,
+     ready,
++    favorite: () => {
++      loaded()
++      return store.favorite
++    },
+     recent: () => {
+       loaded()
+ 
+@@ -177,7 +187,7 @@ function createServerController(
+   const sdk = createServerSdkContext(conn, scope)
+ 
+   const source = createData({
+-    api: () => sdk.api,
++    api: () => sdk.mediaApi,
+     initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
+     event: {
+       on: sdk.event.on,
+@@ -245,6 +255,62 @@ function createServerController(
+ 
+   const projectsList = createMemo(() => projects.list().map(enrich))
+ 
++  // This independent inventory deliberately does not reuse the filtered sync/bootstrap query.
++  // Every controller (including a same-key reauthentication) owns a distinct cache generation.
++  const queryClient = useQueryClient()
++  const catalogKey = [scope, connKey, "session-project-catalog", ++nextCatalogGeneration] as const
++  let catalogActive = true
++  const catalogQuery = useQuery(() => ({
++    queryKey: [...catalogKey, sdk.generation],
++    enabled: sdk.connection.status() === "connected",
++    retry: false,
++    queryFn: async ({ signal }) => {
++      const api = sdk.api
++      const items = await api.project.list(undefined, { signal })
++      if (!catalogActive || signal.aborted || sdk.api !== api) throw new DOMException("Aborted", "AbortError")
++      return items.map(normalizeProjectInfo)
++    },
++  }))
++  const refreshCatalog = () => {
++    if (catalogActive && sdk.connection.status() === "connected")
++      void queryClient.invalidateQueries({ queryKey: catalogKey })
++  }
++  const unsubscribeCatalog = sdk.event.on("project.updated", refreshCatalog)
++  createEffect(on(sdk.connection.status, (status, previous) => {
++    if (previous && previous !== "connected" && status === "connected") refreshCatalog()
++  }))
++  createEffect(() => {
++    if (!catalogQuery.isError) return
++    showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(catalogQuery.error, language.t) })
++  })
++  onCleanup(() => {
++    catalogActive = false
++    unsubscribeCatalog()
++    void queryClient.cancelQueries({ queryKey: catalogKey })
++    queryClient.removeQueries({ queryKey: catalogKey })
++  })
++  const catalogList = () => catalogQuery.data ?? []
++  const catalogAppearance = (project: ReturnType<typeof catalogList>[number] | undefined, directory: string) => {
++    if (!project) return
++    const local = projectsList().find((item) => pathKey(item.worktree) === pathKey(directory)) ??
++      projectsList().find((item) => pathKey(item.worktree) === pathKey(project.worktree))
++    if (!local) return project
++    return { ...project, name: local.name ?? project.name, icon: local.icon ?? project.icon }
++  }
++  const catalogForDirectory = (directory: string) => {
++    const normalized = pathKey(directory)
++    const list = catalogList()
++    const exact = list.find((item) => pathKey(item.worktree) === normalized) ??
++      list.find((item) => item.sandboxes?.some((sandbox) => pathKey(sandbox) === normalized) ||
++        item.worktrees?.some((worktree) => pathKey(worktree.directory) === normalized))
++    const closest = exact ?? list.flatMap((project, order) =>
++      [project.worktree, ...(project.sandboxes ?? []), ...(project.worktrees ?? []).map((item) => item.directory)]
++        .filter((root) => containsDirectory(root, directory))
++        .map((root) => ({ project, length: pathKey(root).length, order })))
++      .sort((a, b) => b.length - a.length || a.order - b.order)[0]?.project
++    return catalogAppearance(closest, directory)
++  }
++
+   const forSession = (session: SessionInfo) => {
+     const project = resolveProjectForSession(session, projectsList(), sync.data.project)
+ 
+@@ -277,6 +343,14 @@ function createServerController(
+     projects: {
+       ...projects,
+       list: projectsList,
++      catalog: {
++        list: catalogList,
++        ready: () => catalogQuery.data !== undefined,
++        status: () => catalogQuery.status,
++        error: () => catalogQuery.error,
++        forSession: (session: SessionInfo) => catalogAppearance(projectForSession(session, catalogList()), session.location.directory),
++      },
++      forDirectory: catalogForDirectory,
+       forSession,
+       detailsForSession,
+       resolve: enrich,
+
+diff --git aa/packages/app/src/session/session-identity-header.tsx bb/packages/app/src/session/session-identity-header.tsx
+index 13395c0..d8bf328 100644
+--- aa/packages/app/src/session/session-identity-header.tsx
++++ bb/packages/app/src/session/session-identity-header.tsx
+@@ -34,8 +34,7 @@ import { errorMessage } from "@/shell/layout/helpers"
+ import { useLayout, type LocalProject } from "@/shell/state/layout"
+ import { tabKey, useTabs } from "@/shell/tabs/tabs"
+ import { useSettingsSurface } from "@/settings/surface"
+-import { pathKey } from "@/workspaces/path-key"
+-import { isProjectDirectory, workspaceDirectories } from "@/workspaces/paths"
++import { workspaceDirectories } from "@/workspaces/paths"
+ import { sessionHref } from "@/shell/routes/session"
+ import { showToast } from "@/shell/notifications/toast"
+ import { sessionTitle } from "./title"
+@@ -582,18 +581,11 @@ export function SessionIdentityHeader(props: { sessionID: string; session?: Sess
+   )
+ 
+   const project = createMemo(() => {
+-    if (props.session) return server.ctx.projects.forSession(props.session)
+-    const projects = server.ctx.projects.list()
++    if (props.session) return server.ctx.projects.catalog.forSession(props.session)
+     const value = directory()
+ 
+     if (!value) return undefined
+-    const key = pathKey(value)
+-
+-    return (
+-      projects.find(
+-        (item) => pathKey(item.worktree) === key || item.sandboxes?.some((sandbox) => pathKey(sandbox) === key),
+-      ) ?? server.ctx.sync.data.project.find((item) => isProjectDirectory(item, value))
+-    )
++    return server.ctx.projects.forDirectory(value)
+   })
+ 
+   return (
+
+diff --git aa/packages/app/src/session/story-model.tsx bb/packages/app/src/session/story-model.tsx
+index a280645..084ab48 100644
+--- aa/packages/app/src/session/story-model.tsx
++++ bb/packages/app/src/session/story-model.tsx
+@@ -13,6 +13,7 @@ import { CurrentSessionProviders, STORY_MODEL } from "@opencode/session-ui/story
+ import { SessionTimeline } from "@opencode/session-ui/timeline"
+ import { createComposerEditor } from "@/composer/editor/interaction"
+ import type { ComposerPersistedState } from "@/composer/types"
++import { SubagentBar } from "@/session/composer/subagent-bar"
+ import { Button } from "@opencode/ui/button"
+ import { Icon } from "@opencode/ui/icon"
+ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
+@@ -56,8 +57,11 @@ const storyComposerModel = {
+   latest: true,
+ } satisfies NonNullable<ReturnType<ModelSelection["current"]>>
+ 
++const [favorites, setStateFavorites] = createStore<{ models: Array<typeof storyComposerModel> }>({ models: [] })
++
+ const modelSelection = {
+   ready: modelReady,
++  key: () => ({ providerID: STORY_MODEL.providerID, modelID: STORY_MODEL.id, variant: STORY_MODEL.variant }),
+   current: () => storyComposerModel,
+   recent: () => [storyComposerModel],
+   list: () => [storyComposerModel],
+@@ -65,6 +69,16 @@ const modelSelection = {
+   set() {},
+   visible: () => true,
+   setVisibility() {},
++  favorite: {
++    list: () => favorites.models,
++    toggle(key: { providerID: string; modelID: string }) {
++      setStateFavorites("models", (models) => {
++        const known = models.some((item) => item.providerID === key.providerID && item.id === key.modelID)
++
++        return known ? [] : [{ ...storyComposerModel }]
++      })
++    },
++  },
+   variant: {
+     configured: () => STORY_MODEL.variant,
+     selected: () => STORY_MODEL.variant,
+@@ -233,10 +247,7 @@ function SessionSurfaceState(props: SessionPreviewProps & { onReset: () => void
+       setState("request", undefined)
+       setState("activity", "Submitted the answer locally")
+     },
+-    openParent: () => setState("activity", "Opened the parent Session locally"),
+-    setPromptRef() {},
+     setDockRef() {},
+-    parentID: () => props.child?.parentID,
+     child: () => !!props.child,
+     showComposer: () => true,
+   } satisfies SessionComposerRegionViewController
+@@ -273,6 +284,16 @@ function SessionSurfaceState(props: SessionPreviewProps & { onReset: () => void
+                   </div>
+                   <SessionComposerRegion
+                     controller={region}
++                    subagent={
++                      <Show when={props.child}>
++                        <SubagentBar
++                          agent="explore"
++                          model={{ name: "Claude Sonnet 4", variant: STORY_MODEL.variant }}
++                          started={Date.now()}
++                          onBack={() => setState("activity", "Opened the parent Session locally")}
++                        />
++                      </Show>
++                    }
+                     composer={<Composer model={prompt.controller} borderUnderlay />}
+                   />
+                 </section>
+
+diff --git aa/packages/app/src/session/timeline/voice-delegation.ts bb/packages/app/src/session/timeline/voice-delegation.ts
+index 939c336..82f8107 100644
+--- aa/packages/app/src/session/timeline/voice-delegation.ts
++++ bb/packages/app/src/session/timeline/voice-delegation.ts
+@@ -1,12 +1,13 @@
+ import { Option, Schema } from "effect"
+ 
+-// The OpenCode iOS app sends each request from a voice call as plain prompt text: a header line, then a JSON
+-// body. Nothing else marks the message, so this mirrors the app's `VoiceHandoff.parse`. The header's wording
+-// has changed between releases; its opening and the body's shape have not.
++// Voice calls send each request as plain prompt text: a header line, then a JSON body. Nothing else marks the
++// message, so this mirrors the iOS app's `VoiceHandoff.parse`. The header's wording has changed between
++// releases; its opening and the body's shape have not.
+ const decodeBody = Schema.decodeUnknownOption(
+   Schema.fromJsonString(
+     Schema.Struct({
+       instruction: Schema.String,
++      transcript_delta: Schema.optional(Schema.Array(Schema.String)),
+       voice: Schema.optional(Schema.String),
+     }),
+   ),
+@@ -29,5 +30,9 @@ export function parseVoiceDelegation(text: string) {
+ 
+   if (!instruction) return
+ 
++  // Desktop's first voice calls wrote a bare header and put the user's raw transcript in `voice`, not a framing.
++  if (text.slice(0, newline) === "Voice delegation." && !body?.transcript_delta)
++    return { instruction, framing: undefined }
++
+   return { instruction, framing: body?.voice?.trim() || undefined }
+ }
+
+diff --git aa/packages/app/src/settings/model.tsx bb/packages/app/src/settings/model.tsx
+index e35c085..1d26e7c 100644
+--- aa/packages/app/src/settings/model.tsx
++++ bb/packages/app/src/settings/model.tsx
+@@ -15,8 +15,6 @@ export type WorkspaceDefaultDestination = Settings["workspaces"]["defaultDestina
+ 
+ export type WorkspaceLastUsed = Settings["workspaces"]["lastUsed"][string]
+ 
+-export type TerminalPlacement = Settings["general"]["terminalPlacement"]
+-
+ export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
+ 
+ export type BackgroundActivity = Settings["general"]["backgroundActivity"]
+@@ -112,10 +110,12 @@ const generalSchema = Persistence.struct({
+   showTurnNavigator: Persistence.optional(Schema.Boolean),
+   // Owned by the updater plugin, which copies it out once; kept so settings rewrites cannot drop it first.
+   releaseNotes: Persistence.optional(Schema.Boolean),
+-  showFileTree: Schema.Boolean,
++  showFileTree: Persistence.optional(Schema.Boolean),
+   showNavigation: Persistence.optional(Schema.Boolean),
+   showSearch: Persistence.optional(Schema.Boolean),
+   showTerminal: Persistence.optional(Schema.Boolean),
++  // Mobile-only placement preference without a remaining reader; kept so stored values still decode.
++  terminalPlacement: Persistence.optional(Schema.Literals(["side", "bottom"])),
+   timelineDetail: Persistence.struct({
+     shell: activitySchema,
+     edit: activitySchema,
+@@ -123,6 +123,7 @@ const generalSchema = Persistence.struct({
+     subagents: placementOnlySchema,
+     notices: placementOnlySchema,
+     tools: placementOnlySchema,
++    commentary: placementOnlySchema,
+   }),
+   showCustomAgents: Schema.Boolean,
+   showTurnDiffs: Schema.Boolean,
+@@ -135,7 +136,6 @@ const generalSchema = Persistence.struct({
+   mobileTitlebarPosition: Schema.Literals(["top", "bottom"]),
+   // Owned by the review plugin, which copies it out once; kept so settings rewrites cannot drop it first.
+   mobileDiffWrap: Persistence.optional(Schema.Boolean),
+-  terminalPlacement: Schema.Literals(["side", "bottom"]),
+   followUpBehavior: Schema.Literals(["queue", "steer"]),
+ })
+ 
+@@ -295,7 +295,6 @@ export const settingsPersistence = Persistence.migrate(
+ 
+ export const defaultSettings: Settings = {
+   general: {
+-    showFileTree: false,
+     timelineDetail: { ...timelinePresets[2].value },
+     showCustomAgents: false,
+     showTurnDiffs: false,
+@@ -304,7 +303,6 @@ export const defaultSettings: Settings = {
+     newIcons: false,
+     foldUserMessages: false,
+     mobileTitlebarPosition: "top",
+-    terminalPlacement: "side",
+     followUpBehavior: "steer",
+   },
+   appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", reduceMotion: "system" },
+@@ -332,7 +330,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+   gate: false,
+   init: () => {
+     const [store, setStore, , ready] = persisted({ key: "settings.v3" }, settingsPersistence, defaultSettings)
+-    const showFileTree = withFallback(() => store.general?.showFileTree, defaultSettings.general.showFileTree)
+ 
+     const showCustomAgents = withFallback(
+       () => store.general?.showCustomAgents,
+@@ -386,10 +383,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+         return store
+       },
+       general: {
+-        showFileTree,
+-        setShowFileTree(value: boolean) {
+-          setStore("general", "showFileTree", value)
+-        },
+         timelineDetail: withFallback(() => store.general?.timelineDetail, defaultSettings.general.timelineDetail),
+         setTimelineDetail(value: TimelineDetail) {
+           setStore("general", "timelineDetail", structuredClone(unwrap(value)))
+@@ -428,20 +421,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
+         setMobileTitlebarPosition(value: "top" | "bottom") {
+           setStore("general", "mobileTitlebarPosition", value)
+         },
+-        terminalPlacement: withFallback(
+-          () => store.general?.terminalPlacement,
+-          defaultSettings.general.terminalPlacement,
+-        ),
+-        setTerminalPlacement(value: TerminalPlacement) {
+-          setStore("general", "terminalPlacement", value)
+-        },
+         followUpBehavior: withFallback(() => store.general?.followUpBehavior, defaultSettings.general.followUpBehavior),
+         setFollowUpBehavior(value: FollowUpBehavior) {
+           setStore("general", "followUpBehavior", value)
+         },
+       },
+       visibility: {
+-        fileTree: showFileTree,
+         customAgents: showCustomAgents,
+       },
+       appearance: {
+
+diff --git aa/packages/app/src/settings/search-catalog.ts bb/packages/app/src/settings/search-catalog.ts
+index 154f1f6..1d52195 100644
+--- aa/packages/app/src/settings/search-catalog.ts
++++ bb/packages/app/src/settings/search-catalog.ts
+@@ -141,8 +141,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     label: "settings.appearance.row.zoom.title",
+     target: "settings-zoom",
+     keywords: "scale size text font larger bigger accessibility",
+-    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
+-    // on this mobile client (the target row gates it desktop-only).
++    available: "desktop",
+   },
+   {
+     tab: "appearance",
+
+diff --git aa/packages/app/src/shell/commands/desktop-menu.ts bb/packages/app/src/shell/commands/desktop-menu.ts
+index 8f9f681..d256a42 100644
+--- aa/packages/app/src/shell/commands/desktop-menu.ts
++++ bb/packages/app/src/shell/commands/desktop-menu.ts
+@@ -34,15 +34,12 @@ export type DesktopMenuRole =
+   | "quit"
+   | "redo"
+   | "reload"
+-  | "resetZoom"
+   | "selectAll"
+   | "toggleDevTools"
+   | "togglefullscreen"
+   | "undo"
+   | "unhide"
+   | "windowMenu"
+-  | "zoomIn"
+-  | "zoomOut"
+ 
+ export type DesktopMenuItem = {
+   type: "item"
+@@ -67,6 +64,15 @@ export const desktopZoomLevels = [1, 1.1, 1.25, 1.5, 1.75, 2] as const
+ 
+ export type DesktopZoomLevel = (typeof desktopZoomLevels)[number]
+ 
++/** The level after `factor` in `direction`. A pinch can leave `factor` between two levels. */
++export function nextDesktopZoomLevel(factor: number, direction: "in" | "out"): DesktopZoomLevel {
++  // Chromium stores zoom on a log scale, so a factor read back can be a hair off the level it was set to.
++  if (direction === "in")
++    return desktopZoomLevels.find((level) => level > factor + 0.01) ?? desktopZoomLevels[desktopZoomLevels.length - 1]
++
++  return desktopZoomLevels.findLast((level) => level < factor - 0.01) ?? desktopZoomLevels[0]
++}
++
+ export type DesktopMenu = {
+   id: string
+   labelKey: DesktopNativeKey
+@@ -102,14 +108,8 @@ export const DESKTOP_MENU: DesktopMenu[] = [
+       {
+         type: "item",
+         labelKey: "desktop.menu.newSession",
+-        command: "session.new",
+-        accelerator: { macos: "Shift+Cmd+S" },
+-      },
+-      {
+-        type: "item",
+-        labelKey: "desktop.menu.openProject",
+-        command: "project.open",
+-        accelerator: { macos: "Cmd+O" },
++        command: "tab.new",
++        accelerator: { macos: "Cmd+N" },
+       },
+       {
+         type: "item",
+@@ -125,7 +125,13 @@ export const DESKTOP_MENU: DesktopMenu[] = [
+         accelerator: { macos: "Cmd+Shift+N", windows: "Ctrl+Shift+N" },
+       },
+       { type: "separator" },
+-      { type: "item", labelKey: "desktop.menu.closeWindow", action: "window.close", role: "close" },
++      {
++        type: "item",
++        labelKey: "desktop.menu.closeWindow",
++        action: "window.close",
++        role: "close",
++        accelerator: { macos: "Shift+Cmd+W", windows: "Ctrl+Shift+W" },
++      },
+     ],
+   },
+   {
+@@ -182,14 +188,18 @@ export const DESKTOP_MENU: DesktopMenu[] = [
+     id: "view",
+     labelKey: "desktop.menu.view",
+     items: [
+-      { type: "item", labelKey: "desktop.menu.toggleSidebar", command: "sidebar.toggle" },
++      {
++        type: "item",
++        labelKey: "desktop.menu.toggleSidebar",
++        command: "sidebar.toggle",
++        accelerator: { macos: "Shift+Cmd+B" },
++      },
+       {
+         type: "item",
+         labelKey: "desktop.menu.toggleTerminal",
+         command: "terminal.toggle",
+         accelerator: { macos: "Ctrl+`" },
+       },
+-      { type: "item", labelKey: "desktop.menu.toggleFileTree", command: "fileTree.toggle" },
+       { type: "separator" },
+       { type: "item", labelKey: "desktop.menu.reload", action: "view.reload", role: "reload" },
+       {
+@@ -203,22 +213,19 @@ export const DESKTOP_MENU: DesktopMenu[] = [
+         type: "item",
+         labelKey: "desktop.menu.actualSize",
+         action: "view.resetZoom",
+-        role: "resetZoom",
+-        accelerator: { windows: "Ctrl+0" },
++        accelerator: { macos: "Cmd+0", windows: "Ctrl+0" },
+       },
+       {
+         type: "item",
+         labelKey: "desktop.menu.zoomIn",
+         action: "view.zoomIn",
+-        role: "zoomIn",
+-        accelerator: { windows: "Ctrl++" },
++        accelerator: { macos: "Cmd+=", windows: "Ctrl++" },
+       },
+       {
+         type: "item",
+         labelKey: "desktop.menu.zoomOut",
+         action: "view.zoomOut",
+-        role: "zoomOut",
+-        accelerator: { windows: "Ctrl+-" },
++        accelerator: { macos: "Cmd+-", windows: "Ctrl+-" },
+       },
+       { type: "separator" },
+       {
+@@ -248,19 +255,6 @@ export const DESKTOP_MENU: DesktopMenu[] = [
+         command: "session.next",
+         accelerator: { macos: "Option+Down" },
+       },
+-      { type: "separator" },
+-      {
+-        type: "item",
+-        labelKey: "desktop.menu.previousProject",
+-        command: "project.previous",
+-        accelerator: { macos: "Cmd+Option+Up" },
+-      },
+-      {
+-        type: "item",
+-        labelKey: "desktop.menu.nextProject",
+-        command: "project.next",
+-        accelerator: { macos: "Cmd+Option+Down" },
+-      },
+     ],
+   },
+   {
+@@ -300,31 +294,29 @@ export function desktopMenuVisible(item: { platforms?: DesktopMenuPlatform[] },
+   return !item.platforms || item.platforms.includes(platform)
+ }
+ 
+-/** What a GUI extension's menubar item names in `after`: a built-in item's command, action, or role. */
++/** What a GUI plugin's menubar item names in `after`: a built-in item's command, action, or role. */
+ export function desktopMenuKey(entry: DesktopMenuEntry) {
+   if (entry.type === "separator") return undefined
+ 
+   return entry.command ?? entry.action ?? entry.role
+ }
+ 
++/** A menu entry with the key a plugin item's `after` can name. */
++export type DesktopMenuPlaced<Entry> = { readonly key?: string; readonly entry: Entry }
++
+ /** Places plugin items after the entry their `after` names, or at the end of the menu. */
+ export function desktopMenuWithPlugins<Entry, Extra extends { readonly id: string; readonly after?: string }>(
+-  base: readonly { readonly key?: string; readonly entry: Entry }[],
++  base: readonly DesktopMenuPlaced<Entry>[],
+   extra: readonly Extra[],
+ ) {
+-  const list: { readonly key?: string; readonly entry: Entry | Extra }[] = [...base]
++  const list: DesktopMenuPlaced<Entry | Extra>[] = [...base]
+ 
+-  for (const item of extra) {
++  extra.forEach((item) => {
+     const next = { key: item.id, entry: item }
+     const index = item.after ? list.findIndex((entry) => entry.key === item.after) : -1
+ 
+-    if (index < 0) {
+-      list.push(next)
+-      continue
+-    }
+-
+-    list.splice(index + 1, 0, next)
+-  }
++    list.splice(index < 0 ? list.length : index + 1, 0, next)
++  })
+ 
+   return list
+ }
+
+diff --git aa/packages/app/src/shell/commands/desktop.tsx bb/packages/app/src/shell/commands/desktop.tsx
+index 375a191..97e7cae 100644
+--- aa/packages/app/src/shell/commands/desktop.tsx
++++ bb/packages/app/src/shell/commands/desktop.tsx
+@@ -2,6 +2,8 @@ import { useLanguage } from "@/runtime/i18n/language"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { useCommand, type CommandOption } from "./command"
+ 
++export const exportLogsCommand = { id: "logs.export" }
++
+ export function DesktopCommands() {
+   const command = useCommand()
+   const language = useLanguage()
+@@ -12,7 +14,7 @@ export function DesktopCommands() {
+ 
+     if (platform.platform !== "desktop" || !platform.exportDebugLogs) return commands
+     commands.push({
+-      id: "logs.export",
++      ...exportLogsCommand,
+       title: language.t("command.logs.export"),
+       category: language.t("command.category.settings"),
+       onSelect: () => void platform.exportDebugLogs?.(),
+
+diff --git aa/packages/app/src/shell/commands/palette.ts bb/packages/app/src/shell/commands/palette.ts
+index 4f4426a..1ea6e04 100644
+--- aa/packages/app/src/shell/commands/palette.ts
++++ bb/packages/app/src/shell/commands/palette.ts
+@@ -152,7 +152,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
+   const sessions = createServerSessionEntries({
+     server: ServerConnection.key(serverSDK.server),
+     known: createKnownServerSessions(serverCtx),
+-    projects: serverCtx.projects.list,
++    projects: serverCtx.projects.catalog.list,
+     load: (search, signal) =>
+       serverSDK.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
+     get: (sessionID, signal) => serverSDK.api.session.get({ sessionID }, { signal }),
+
+diff --git aa/packages/app/src/shell/commands/session-search.tsx bb/packages/app/src/shell/commands/session-search.tsx
+index b14c063..f1c84f9 100644
+--- aa/packages/app/src/shell/commands/session-search.tsx
++++ bb/packages/app/src/shell/commands/session-search.tsx
+@@ -27,7 +27,7 @@ export function DialogSessionSearch() {
+       server: ServerConnection.key(conn),
+       known: createKnownServerSessions(ctx),
+       apply: ctx.data.session.apply,
+-      projects: ctx.projects.list,
++      projects: ctx.projects.catalog.list,
+       load: (search, signal) =>
+         ctx.sdk.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
+       get: (sessionID, signal) => ctx.sdk.api.session.get({ sessionID }, { signal }),
+
+diff --git aa/packages/app/src/shell/layout/helpers.ts bb/packages/app/src/shell/layout/helpers.ts
+index 423eaff..19116d7 100644
+--- aa/packages/app/src/shell/layout/helpers.ts
++++ bb/packages/app/src/shell/layout/helpers.ts
+@@ -1,4 +1,5 @@
+ import type { SessionInfo } from "@opencode/client/promise"
++import { displayName } from "@opencode/ui/project-avatar"
+ import { pathKey } from "@/workspaces/path-key"
+ import { isProjectDirectory } from "@/workspaces/paths"
+ import type { ServerConnection } from "@/runtime/server/registry"
+@@ -28,6 +29,58 @@ export function homeProjectDirectories(result: string | string[] | null) {
+   return Array.isArray(result) ? result : [result]
+ }
+ 
++export function closeHomeProject(
++  selected: HomeProjectSelection | undefined,
++  server: ServerConnection.Key,
++  projects: { close: (directory: string) => void },
++  directory: string,
++) {
++  projects.close(directory)
++  if (selected?.server === server && selected.directory === directory) return { server }
++  return selected
++}
++
++type ProjectAppearance = {
++  name?: string
++  worktree: string
++  icon?: { color?: string; url?: string; override?: string }
++}
++
++function withProjectAppearance<T extends ProjectAppearance>(metadata: T, appearance?: ProjectAppearance) {
++  if (!appearance || appearance === metadata) return metadata
++  return { ...metadata, name: displayName(appearance), icon: appearance.icon }
++}
++
++export function resolveProjectForSession<
++  T extends { id?: string; worktree: string; sandboxes?: string[] },
++  U extends { id?: string; worktree: string; sandboxes?: string[] },
++>(session: SessionInfo, opened: T[], stored: U[]) {
++  const current = projectForSession(session, opened)
++  if (current?.id === session.projectID) {
++    const unresolved = opened.find(
++      (project) => !project.id && pathKey(project.worktree) === pathKey(session.location.directory),
++    )
++    if (!unresolved) return current
++    const canonical = projectForSession(session, stored)
++    if (canonical?.id === session.projectID && pathKey(canonical.worktree) === pathKey(unresolved.worktree))
++      return unresolved
++    return current
++  }
++  const synced = projectForSession(session, stored)
++  if (synced?.id !== session.projectID) return current ?? synced
++  if (current && !current.id && pathKey(current.worktree) === pathKey(session.location.directory)) return current
++  return synced
++}
++
++export function resolveSessionDetailsProject<
++  T extends ProjectAppearance & { id?: string; sandboxes?: string[] },
++  U extends ProjectAppearance & { id?: string; sandboxes?: string[] },
++>(session: SessionInfo, opened: T[], stored: U[]) {
++  const metadata = projectForSession(session, stored)
++  if (!metadata) return
++  return withProjectAppearance(metadata, resolveProjectForSession(session, opened, stored))
++}
++
+ export function projectForSession<T extends { id?: string; worktree: string; sandboxes?: string[] }>(
+   session: SessionInfo,
+   projects: T[],
+
+diff --git aa/packages/app/src/shell/titlebar/titlebar.tsx bb/packages/app/src/shell/titlebar/titlebar.tsx
+index 7ac8d8b..dc5986f 100644
+--- aa/packages/app/src/shell/titlebar/titlebar.tsx
++++ bb/packages/app/src/shell/titlebar/titlebar.tsx
+@@ -399,9 +399,12 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
+ 
+                   const projects = conn ? global.ensureServerCtx(conn).projects : undefined
+ 
++                  // mobile(C): the retained facade keeps the directory-valued lastProject, so resolve the
++                  // fallback through the project list instead of the target's project-ID lookup.
++                  const lastDirectory = projects?.last()
+                   const project =
+                     projects?.list().find((item) => item.worktree === selection.directory) ??
+-                    projects?.last() ??
++                    projects?.list().find((item) => item.worktree === lastDirectory) ??
+                     projects?.list()[0]
+ 
+                   if (conn && project) {
+
+diff --git aa/packages/client/src/promise/index.ts bb/packages/client/src/promise/index.ts
+index 5b2561d..cc20b10 100644
+--- aa/packages/client/src/promise/index.ts
++++ bb/packages/client/src/promise/index.ts
+@@ -1,4 +1,21 @@
+ import type { OpenCode } from "./client.js"
++import type { Attachment } from "@opencode/schema/prompt"
++import type {
++  SessionMessageInfo as InlineMessageInfo,
++  SessionMessageUser as InlineMessageUser,
++  SessionInboxInfo as InlineInboxInfo,
++  SessionInboxUser as InlineInboxUser,
++} from "./generated/types.js"
++
++type MutableAttachment<T> = T extends object ? { -readonly [Key in keyof T]: MutableAttachment<T[Key]> } : T
++// The facade exposes the validated read union. Generated methods and all mutation inputs stay
++// at their pinned inline contracts; media-capable reads are composed by the app's narrow adapter.
++export type SessionMessageUser = Omit<InlineMessageUser, "files"> & { files?: MutableAttachment<Attachment>[] }
++export type SessionMessageInfo = Exclude<InlineMessageInfo, { type: "user" }> | SessionMessageUser
++export type SessionInboxUser = Omit<InlineInboxUser, "payload"> & {
++  payload: Omit<InlineInboxUser["payload"], "files"> & { files?: MutableAttachment<Attachment>[] }
++}
++export type SessionInboxInfo = Exclude<InlineInboxInfo, { type: "user" }> | SessionInboxUser
+ 
+ export * from "./generated/index.js"
+ export { OpenCode } from "./client.js"
+@@ -22,3 +39,4 @@ export type {
+ } from "./api.js"
+ export type { EventSubscribeOutput as OpenCodeEvent } from "./generated/types.js"
+ export type OpenCodeClient = ReturnType<typeof OpenCode.make>
++export type { Attachment as PromptAttachment } from "@opencode/schema/prompt"
+
+diff --git aa/packages/client/src/solid/data.ts bb/packages/client/src/solid/data.ts
+index 99291f2..05c4669 100644
+--- aa/packages/client/src/solid/data.ts
++++ bb/packages/client/src/solid/data.ts
+@@ -23,14 +23,15 @@ import type {
+   Project,
+   ProviderInfo,
+   ReferenceInfo,
+-  SessionMessageInfo,
++  SessionMessageInfo as InlineSessionMessageInfo,
+   SessionMessageAssistant,
+   SessionMessageAssistantReasoning,
+   SessionMessageAssistantText,
+   SessionMessageAssistantTool,
+   SessionInfo,
+   SessionListInput,
+-  SessionInboxInfo,
++  SessionInboxInfo as InlineSessionInboxInfo,
++  PromptAttachment,
+   SessionInboxCompaction,
+   ShellInfo,
+   SkillInfo,
+@@ -52,6 +53,30 @@ import { createStore, produce, reconcile } from "solid-js/store"
+ import type { SessionInbox } from "@opencode/schema/session-inbox"
+ import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+ 
++// Only transcript/inbox reads opt into the media response union. The canonical schema remains
++// readonly; this store's ownership explicitly projects its encoded JSON into mutable containers.
++type MutableWire<T> = T extends object ? { -readonly [Key in keyof T]: MutableWire<T[Key]> } : T
++type SessionMessageInfo = Exclude<InlineSessionMessageInfo, { type: "user" }> |
++  (Omit<Extract<InlineSessionMessageInfo, { type: "user" }>, "files"> & { files?: MutableWire<PromptAttachment>[] })
++type SessionInboxInfo = Exclude<InlineSessionInboxInfo, { type: "user" }> |
++  (Omit<Extract<InlineSessionInboxInfo, { type: "user" }>, "payload"> & {
++    payload: Omit<Extract<InlineSessionInboxInfo, { type: "user" }>["payload"], "files"> & { files?: MutableWire<PromptAttachment>[] }
++  })
++type MessagePage = Omit<Awaited<ReturnType<OpenCodeClient["message"]["list"]>>, "data"> & { data: SessionMessageInfo[] }
++type DataApi = Omit<OpenCodeClient, "message" | "session"> & {
++  message: Omit<OpenCodeClient["message"], "list"> & {
++    list: (...args: Parameters<OpenCodeClient["message"]["list"]>) => Promise<MessagePage>
++  }
++  session: Omit<OpenCodeClient["session"], "message" | "inbox"> & {
++    message: Omit<OpenCodeClient["session"]["message"], "get"> & {
++      get: (...args: Parameters<OpenCodeClient["session"]["message"]["get"]>) => Promise<SessionMessageInfo>
++    }
++    inbox: Omit<OpenCodeClient["session"]["inbox"], "list"> & {
++      list: (...args: Parameters<OpenCodeClient["session"]["inbox"]["list"]>) => Promise<SessionInboxInfo[]>
++    }
++  }
++}
++
+ export type DataSessionStatus = "idle" | "running"
+ /**
+  * Where a pending user prompt stands relative to the runner: `starting` is promoted at the next idle boundary,
+@@ -62,7 +87,7 @@ export type DataPendingStatus = "starting" | "steering" | "stranded" | "queued"
+ type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent, { type: Type }> }
+ 
+ export type CreateDataInput = {
+-  readonly api: () => OpenCodeClient
++  readonly api: () => DataApi
+   readonly directory: string
+   /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
+   readonly initialMessageLimit?: () => number
+
+diff --git aa/packages/patchmark/package.json bb/packages/patchmark/package.json
+index f459103..cf7493b 100644
+--- aa/packages/patchmark/package.json
++++ bb/packages/patchmark/package.json
+@@ -10,16 +10,11 @@
+   },
+   "scripts": {
+     "test": "bun test --only-failures",
+-    "fuzz": "bun scripts/fuzz-differential.ts",
+     "typecheck": "tsc --noEmit"
+   },
+   "devDependencies": {
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+-    "@typescript/native": "catalog:",
+-    "commonmark": "0.31.2",
+-    "commonmark-spec": "0.31.2",
+-    "micromark": "^4.0.0",
+-    "micromark-extension-gfm": "^3.0.0"
++    "@typescript/native": "catalog:"
+   }
+ }
+
+diff --git aa/packages/session-ui/package.json bb/packages/session-ui/package.json
+index 4cb59e7..2452566 100644
+--- aa/packages/session-ui/package.json
++++ bb/packages/session-ui/package.json
+@@ -17,7 +17,8 @@
+     "./file": "./src/components/file.tsx",
+     "./file-media": "./src/components/file-media.tsx",
+     "./file-search": "./src/components/file-search.tsx",
+-    "./file-ssr": "./src/components/file-ssr.tsx",
++    "./tools/ansi": "./src/tools/ansi.ts",
++    "./tools/shell-output": "./src/tools/shell-output.ts",
+     "./line-comment": "./src/components/line-comment.tsx",
+     "./line-comment-annotations": "./src/components/line-comment-annotations.tsx",
+     "./markdown": "./src/components/markdown.tsx",
+@@ -67,8 +68,10 @@
+     "vite-plugin-solid": "catalog:"
+   },
+   "dependencies": {
++    "@kitlangton/solid-motion": "0.2.2",
+     "@kobalte/core": "catalog:",
+     "@opencode/client": "workspace:*",
++    "@opencode/patchmark": "workspace:*",
+     "@opencode/ui": "workspace:*",
+     "@opencode/util": "workspace:*",
+     "@pierre/diffs": "catalog:",
+@@ -83,6 +86,7 @@
+     "marked": "catalog:",
+     "mermaid": "11.17.2",
+     "motion": "12.34.5",
++    "pele": "1.7.0",
+     "remend": "catalog:",
+     "solid-js": "catalog:",
+     "strip-ansi": "7.1.2"
+
+diff --git aa/packages/ui/package.json bb/packages/ui/package.json
+index cdf25ae..4853e13 100644
+--- aa/packages/ui/package.json
++++ bb/packages/ui/package.json
+@@ -35,6 +35,7 @@
+   "exports": {
+     "./package.json": "./package.json",
+     "./accordion": "./src/data-display/accordion/accordion.tsx",
++    "./activity-ring": "./src/feedback/activity-ring/activity-ring.tsx",
+     "./avatar": "./src/data-display/avatar/avatar.tsx",
+     "./badge": "./src/data-display/badge/badge.tsx",
+     "./button": "./src/actions/button/button.tsx",
+
+diff --git aa/packages/ui/src/i18n/en.ts bb/packages/ui/src/i18n/en.ts
+index d341205..b1a8772 100644
+--- aa/packages/ui/src/i18n/en.ts
++++ bb/packages/ui/src/i18n/en.ts
+@@ -1,4 +1,38 @@
+ const source = {
++  "ui.commentCard.quote": "Quote",
++  "ui.commentCard.addComment": "Add comment",
++  "ui.commentCard.editComment": "Edit comment",
++  "ui.sessionTurn.budgetLimit.all": "Workspace budget reached · paid models paused until {{time}} · free models still work",
++  "ui.sessionTurn.budgetLimit.allUntilReset": "Workspace budget reached · paid models paused until it resets · free models still work",
++  "ui.sessionTurn.budgetLimit.models": "Model budget reached · this model is paused until {{time}}",
++  "ui.sessionTurn.budgetLimit.modelsUntilReset": "Model budget reached · this model is paused until it resets",
++  "ui.sessionTurn.budgetLimit.useFreeModel": "Use a free model",
++  "ui.sessionTurn.budgetLimit.switchModel": "Switch model",
++  "ui.messagePart.compaction.done": "Compacted",
++  "ui.promptInput.history": "Prompt history",
++  "ui.promptInput.history.search": "Search prompt history…",
++  "ui.promptInput.history.contextOnly": "Prompt with context",
++  "ui.imagePreview.zoomIn": "Zoom in",
++  "ui.imagePreview.zoomOut": "Zoom out",
++  "ui.imagePreview.zoomToFit": "Zoom to fit",
++  "ui.tool.execute.viewCode": "View code",
++  "ui.tool.execute.code": "Code",
++  "ui.tool.execute.output": "Output",
++  "ui.tool.execute.error": "Error",
++  "ui.tool.execute.copyCode": "Copy code",
++  "ui.tool.execute.copyOutput": "Copy output",
++  "ui.tool.execute.running": "Running",
++  "ui.tool.execute.completed": "Completed",
++  "ui.tool.execute.calls.one": "{{count}} call",
++  "ui.tool.execute.calls.other": "{{count}} calls",
++  "ui.tool.execute.lines.one": "{{count}} line",
++  "ui.tool.execute.lines.other": "{{count}} lines",
++  "ui.message.copyOutput": "Copy output",
++  "ui.message.duration.hoursMinutes": "{{hours}}h {{minutes}}m",
++  "ui.message.time.justNow": "Just now",
++  "ui.message.time.minutesAgo": "{{count}}m ago",
++  "ui.message.time.hoursAgo": "{{count}}h ago",
++  "ui.message.time.daysAgo": "{{count}}d ago",
+   // mobile(M-037): the four ui.preview.* keys the dragged-in preview-controls face reads (v2.2.1 values;
+   // zh falls back to en at runtime, matching the vendored-subset convention).
+   "ui.preview.controls": "Preview controls",
+
+diff --git aa/packages/ui/src/motion-tuning.test.ts bb/packages/ui/src/motion-tuning.test.ts
+index d5a2d9c..b8847dd 100644
+--- aa/packages/ui/src/motion-tuning.test.ts
++++ bb/packages/ui/src/motion-tuning.test.ts
+@@ -66,3 +66,39 @@ describe("motionTuning.choice", () => {
+     expect(choice()).toBe("c")
+   })
+ })
++
++test("legacy gate reload, default deletion and knob saves share one live record and subscriptions", async () => {
++  localStorage.setItem("opencode.motion.v2", JSON.stringify({ "legacy.enabled": 1, "legacy.disabled": 0 }))
++  const current: typeof import("./motion-tuning") = await import("./motion-tuning.ts" + "?legacy-coexistence")
++  expect(current.storedToggle("legacy.enabled", false)).toBe(true)
++  expect(current.storedToggle("legacy.disabled", true)).toBe(false)
++  expect(current.storedToggle("missing", true)).toBe(true)
++  let notifications = 0
++  const unsubscribe = current.motionTuning.subscribe(() => notifications++)
++  const spring = current.motionTuning.spring("coexist.spring", { label: "Spring", group: "Test", presets })
++  const knob = current.motionTuning.list().find((item) => item.id === "coexist.spring")
++  if (knob?.kind !== "spring") throw new Error("expected a spring knob")
++  current.motionTuning.set(knob, knob.presets.calm)
++  expect(spring()).toEqual(presets.calm)
++  expect(JSON.parse(localStorage.getItem("opencode.motion.v2")!)).toEqual({
++    "legacy.enabled": 1, "legacy.disabled": 0, "coexist.spring.duration": 0.4,
++  })
++  current.setStoredToggle("legacy.enabled", false, false)
++  current.setStoredToggle("legacy.disabled", true, true)
++  expect(JSON.parse(localStorage.getItem("opencode.motion.v2")!)).toEqual({ "coexist.spring.duration": 0.4 })
++  current.motionTuning.set(knob, knob.initial)
++  expect(localStorage.getItem("opencode.motion.v2")).toBeNull()
++  expect(current.storedToggle("legacy.enabled", false)).toBe(false)
++  expect(current.storedToggle("legacy.disabled", true)).toBe(true)
++  expect(notifications).toBe(5)
++  unsubscribe()
++  current.setStoredToggle("legacy.enabled", true, false)
++  expect(notifications).toBe(5)
++  const reloaded: typeof import("./motion-tuning") = await import("./motion-tuning.ts" + "?legacy-reloaded")
++  expect(reloaded.storedToggle("legacy.enabled", false)).toBe(true)
++  expect(reloaded.storedToggle("legacy.disabled", true)).toBe(true)
++  reloaded.motionTuning.set(reloaded.motionGlobals.speed, 2)
++  expect(JSON.parse(localStorage.getItem("opencode.motion.v2")!)).toEqual({ "legacy.enabled": 1, speed: 2 })
++  reloaded.setStoredToggle("legacy.enabled", false, false)
++  expect(JSON.parse(localStorage.getItem("opencode.motion.v2")!)).toEqual({ speed: 2 })
++})
+
+diff --git aa/packages/ui/src/motion-tuning.ts bb/packages/ui/src/motion-tuning.ts
+index 4585e98..b868fd7 100644
+--- aa/packages/ui/src/motion-tuning.ts
++++ bb/packages/ui/src/motion-tuning.ts
+@@ -281,6 +281,19 @@ function number(id: string, fallback: number) {
+   return id in saved && Number.isFinite(value) ? value : fallback
+ }
+ 
++export function storedToggle(id: string, initial: boolean) {
++  return number(id, Number(initial)) === 1
++}
++
++export function setStoredToggle(id: string, value: boolean, initial: boolean) {
++  if (value === initial) delete saved[id]
++  else saved[id] = Number(value)
++  const knob = knobs.get(id)
++  if (knob?.kind === "toggle" || knob?.kind === "mode") knob.value = value
++  persistSaved()
++  notify()
++}
++
+ function load(): Record<string, number> {
+   try {
+     localStorage.removeItem("opencode.motion.v1")
+@@ -314,10 +327,16 @@ function save() {
+ 
+       return [[knob.id, knob.value, knob.initial]]
+     })
+-    .flatMap(([id, value, initial]) => (value === initial ? [] : [[id, value]]))
++  for (const [id, value, initial] of entries) {
++    if (value === initial) delete saved[id]
++    else saved[id] = value
++  }
++  persistSaved()
++}
+ 
++function persistSaved() {
+   try {
+-    if (entries.length === 0) return localStorage.removeItem(key)
+-    localStorage.setItem(key, JSON.stringify(Object.fromEntries(entries)))
++    if (Object.keys(saved).length === 0) return localStorage.removeItem(key)
++    localStorage.setItem(key, JSON.stringify(saved))
+   } catch {}
+ }
+
+diff --git aa/packages/ui/test/solid-jsx.ts bb/packages/ui/test/solid-jsx.ts
+index 4dd5861..a5160d0 100644
+--- aa/packages/ui/test/solid-jsx.ts
++++ bb/packages/ui/test/solid-jsx.ts
+@@ -1,19 +1,26 @@
+ import { plugin } from "bun"
++import { createRequire } from "node:module"
+ 
+ // Bun transpiles TSX against the tsconfig `jsxImportSource`, but `solid-js/jsx-runtime` has no runtime
+ // exports because Solid's compiler normally replaces JSX. Tests run without that compiler, so compile
+-// JSX against Solid's hyperscript runtime instead.
+-const transpiler = new Bun.Transpiler({
+-  loader: "tsx",
+-  trimUnusedImports: true,
+-  tsconfig: { compilerOptions: { jsx: "react-jsx", jsxImportSource: "solid-js/h" } },
+-})
++// JSX with the same real Solid Babel transform the production build uses (the pinned bun's Transpiler
++// also ignores an automatic-runtime `tsconfig` override, so the previous Transpiler-based preload
++// silently compiled JSX to a missing React classic runtime).
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core") as {
++  transformSync: (source: string, options: object) => { code: string | null } | null
++}
+ 
+ plugin({
+   name: "solid-jsx-runtime",
+   setup(build) {
+     build.onLoad({ filter: /\.[jt]sx$/ }, async (args) => ({
+-      contents: transpiler.transformSync(await Bun.file(args.path).text()),
++      contents: babel.transformSync(await Bun.file(args.path).text(), {
++        filename: args.path,
++        presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")],
++        configFile: false,
++        babelrc: false,
++      })!.code!,
+       loader: "js",
+     }))
+   },
+
+diff --git a/packages/app/src/home/sessions/command-palette.test.tsx b/packages/app/src/home/sessions/command-palette.test.tsx
+new file mode 100644
+index 0000000..074aadb
+--- /dev/null
++++ b/packages/app/src/home/sessions/command-palette.test.tsx
+@@ -0,0 +1,150 @@
++import { afterEach, expect, mock, test } from "bun:test"
++import { createRoot } from "solid-js"
++import { createStore } from "solid-js/store"
++import type { SessionInfo } from "@opencode/client/promise"
++import { ServerConnection } from "@/runtime/server/registry"
++import { createServerSessionEntries } from "@/shell/commands/palette"
++
++// The palette helper owns the Home session metadata contract: legacy request shapes and signals on
++// the retained session API, project metadata from the runtime catalog, and superseded stale loads.
++const server = ServerConnection.Key.make("https://palette.example")
++const requests: Array<{ search?: string; sessionID?: string; aborted: boolean }> = []
++const responses: Array<{ answer: SessionInfo[]; resolve: () => void }> = []
++
++function deferred() {
++  let resolve!: () => void
++  const promise = new Promise<void>((done) => {
++    resolve = done
++  })
++  return { promise, resolve }
++}
++
++function session(id: string, title: string, directory: string, updated: number): SessionInfo {
++  return { id, title, location: { directory }, time: { created: updated, updated } } as SessionInfo
++}
++
++const catalog = [
++  { id: "proj-app", worktree: "/repo/app", expanded: false },
++  { id: "proj-root", worktree: "/repo", expanded: false },
++]
++
++mock.module("@/shell/tabs/tabs", () => ({ useTabs: () => ({ store: [] }) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++mock.module("@/shell/commands/command", () => ({ useCommand: () => ({ options: () => [] }), commandPaletteOptions: () => [] }))
++
++const cleanups: Array<() => void> = []
++afterEach(() => {
++  cleanups.splice(0).reverse().forEach((dispose) => dispose())
++  requests.splice(0)
++  responses.splice(0)
++})
++
++function create() {
++  let result!: ReturnType<typeof createServerSessionEntries>
++  createRoot((dispose) => {
++    cleanups.push(dispose)
++    result = createServerSessionEntries({
++      server,
++      projects: () => catalog,
++      load: (search, signal) => {
++        const pending = deferred()
++        const answer = search === "stale" ? [session("ses_old", "stale result", "/repo/other", 5)] : [session("ses_1", "App fix", "/repo/app", 10)]
++        const record = { search, aborted: false }
++        requests.push(record)
++        signal.addEventListener("abort", () => (record.aborted = true), { once: true })
++        responses.push({ answer, resolve: pending.resolve })
++        return pending.promise.then(() => ({ data: answer }))
++      },
++      get: (sessionID, signal) => {
++        const record = { sessionID, aborted: false }
++        requests.push(record)
++        signal.addEventListener("abort", () => (record.aborted = true), { once: true })
++        return Promise.resolve(session(sessionID, "Exact session", "/repo/app", 20))
++      },
++      untitled: () => "untitled.label",
++      category: () => "category.session",
++      recentCategory: () => "palette.recentSessions",
++    })
++  })
++  return result
++}
++
++function resolveAll() {
++  responses.splice(0).forEach((response) => response.resolve())
++}
++
++// Resolve every registered load as soon as it appears, until the search settles: the helper starts
++// a load only after its debounce, so the answer can register well after the call.
++async function settle(pending: Promise<unknown>) {
++  let settled = false
++
++  pending.then(() => (settled = true))
++
++  for (let turn = 0; turn < 50 && !settled; turn++) {
++    resolveAll()
++    await new Promise((resolve) => setTimeout(resolve, 25))
++  }
++
++  return await pending
++}
++
++test("recent queries keep the retained request fields and attach catalog project metadata", async () => {
++  const helper = create()
++  const search = helper.search("")
++  await settle(search)
++  const recent = helper.items("")
++
++  expect(requests.map((request) => request.search)).toEqual([""])
++  expect(requests.every((request) => request.sessionID === undefined)).toBe(true)
++  expect(recent.map((entry) => [entry.title, entry.description])).toEqual([
++    ["App fix", "app"],
++  ])
++  expect(recent[0]).toMatchObject({ server, sessionID: "ses_1", category: "palette.recentSessions", directory: "/repo/app" })
++  expect(recent[0]?.project).toMatchObject({ id: "proj-app", worktree: "/repo/app" })
++})
++
++test("typed searches issue the retained search field and ID lookups use the retained session.get input", async () => {
++  const helper = create()
++  const typed = helper.search("app")
++  await settle(typed)
++  expect(requests.map((request) => request.search)).toEqual(["app"])
++
++  const exact = helper.search("ses_0123456789abcdef012345")
++  await settle(exact)
++  expect(requests.filter((request) => request.sessionID !== undefined).map((request) => request.sessionID)).toEqual(["ses_0123456789abcdef012345"])
++
++  const found = helper.items("app")
++  // Newest metadata first; the learned names from both loads stay searchable.
++  expect(found.map((entry) => entry.title)).toEqual(["Exact session", "App fix"])
++})
++
++test("a newer query supersedes the older load and its late stale reply cannot publish", async () => {
++  const helper = create()
++  const stale = helper.search("stale")
++  // The typed debounce must elapse so the stale load is in flight before the newer query supersedes it.
++  await new Promise((resolve) => setTimeout(resolve, 150))
++  const fresh = helper.search("fresh")
++
++  expect(requests.filter((request) => request.search === "stale").at(-1)?.aborted).toBe(true)
++
++  const both = await settle(Promise.all([stale, fresh]))
++  console.error("BOTH", JSON.stringify(both))
++  const [staleEntries, freshEntries] = both as [
++    Array<{ title: string }>,
++    Array<{ title: string }>,
++  ]
++
++  expect(staleEntries).toEqual([])
++  expect(freshEntries.map((entry) => entry.title)).toEqual(["App fix"])
++  // The stale reply published nothing: the loaded store only carries the fresh result.
++  expect(helper.items("stale").map((entry) => entry.title)).toEqual([])
++})
++
++test("names learned while open stay available to later keystrokes without changing the caller's store", () => {
++  const helper = create()
++  const [seen, setSeen] = createStore<{ loaded: SessionInfo[] }>({ loaded: [] })
++  setSeen("loaded", [session("ses_keep", "kept title", "/repo/app", 1)])
++
++  expect(helper.items("kept").map((entry) => entry.title)).toEqual([])
++  expect(seen.loaded.map((session) => session.id)).toEqual(["ses_keep"])
++})
+diff --git a/packages/app/src/providers/models/select-dialog.test.tsx b/packages/app/src/providers/models/select-dialog.test.tsx
+new file mode 100644
+index 0000000..d2b83e7
+--- /dev/null
++++ b/packages/app/src/providers/models/select-dialog.test.tsx
+@@ -0,0 +1,267 @@
++import { afterEach, expect, mock, test } from "bun:test"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++import { base64Encode } from "@opencode/util/encode"
++import type { ModelSelection } from "@/providers/models/selection"
++
++// The drawer keeps its exported contract: a synthetic provider/model context is enough to drive it,
++// the default manage flow opens the real DialogManageModels, and an explicit caller onManage wins.
++const STORY_MODEL = {
++  id: "claude-sonnet-4",
++  providerID: "anthropic",
++  api: { id: "claude-sonnet-4", url: "https://api.anthropic.com", npm: "@ai-sdk/anthropic" },
++  name: "Claude Sonnet 4",
++  family: "claude-sonnet",
++  capabilities: {
++    temperature: true,
++    reasoning: true,
++    attachment: true,
++    toolcall: true,
++    input: { text: true, audio: false, image: true, video: false, pdf: true },
++    output: { text: true, audio: false, image: false, video: false, pdf: false },
++    interleaved: true,
++  },
++  cost: { input: 3, output: 15, cache: { read: 0.3, write: 3.75 } },
++  limit: { context: 200_000, output: 64_000 },
++  status: "active",
++  options: {},
++  headers: {},
++  release_date: "2025-05-22",
++  variants: { balanced: {} },
++  provider: { id: "anthropic", name: "Anthropic", source: "custom", env: [], options: {}, models: {} },
++  latest: true,
++} satisfies NonNullable<ReturnType<ModelSelection["current"]>>
++
++const { createStore, } = require("solid-js/store")
++const [favorites, setFavorites] = createStore<{ models: Array<typeof STORY_MODEL> }>({ models: [{ ...STORY_MODEL }] })
++
++const syntheticSelection = {
++  ready: Object.assign(() => true, { promise: undefined }),
++  key: () => ({ providerID: STORY_MODEL.providerID, modelID: STORY_MODEL.id, variant: STORY_MODEL.variant }),
++  current: () => STORY_MODEL,
++  recent: () => [STORY_MODEL],
++  list: () => [STORY_MODEL],
++  cycle() {},
++  set() {},
++  visible: () => true,
++  setVisibility() {},
++  favorite: {
++    list: () => favorites.models,
++    toggle(key: { providerID: string; modelID: string }) {
++      setFavorites("models", (models) => {
++        const rest = models.filter((item) => !(item.providerID === key.providerID && item.id === key.modelID))
++
++        return rest.length === models.length ? [...models, STORY_MODEL] : rest
++      })
++    },
++  },
++  variant: {
++    configured: () => STORY_MODEL.variant,
++    selected: () => STORY_MODEL.variant,
++    current: () => STORY_MODEL.variant,
++    list: () => [STORY_MODEL.variant],
++    set() {},
++    cycle() {},
++  },
++} satisfies ModelSelection
++
++const syntheticLocal = {
++  slug: () => base64Encode("/fixture/project"),
++  model: syntheticSelection,
++}
++
++const syntheticLanguage = {
++  t: (key: string) => key,
++  locale: () => "en",
++  intl: () => "en-US",
++  direction: () => "ltr" as const,
++  layoutLocale: () => "en",
++  plural: () => "other",
++}
++
++const realLanguage = await import("@/runtime/i18n/language")
++const realCurrent = await import("@/runtime/server/current")
++mock.module("@/providers/models/selection", () => ({ useLocal: () => syntheticLocal }))
++mock.module("@/runtime/i18n/language", () => ({
++  ...realLanguage,
++  useLanguage: () => ({ ...realLanguage, ...syntheticLanguage }),
++}))
++mock.module("@/runtime/server/current", () => ({
++  ...realCurrent,
++  useData: () => ({ location: { integration: { list: () => [] } } }),
++}))
++mock.module("@/workspaces/location", () => ({ useWorkspaceLocation: () => () => ({ directory: "/fixture/project" }) }))
++mock.module("@solid-primitives/media", () => ({ createMediaQuery: () => () => true }))
++
++const { DialogProvider, useDialog } = await import("@opencode/ui/context/dialog")
++const { ModelSelectorDrawer } = await import("./select-dialog")
++const { DialogManageModels: RealManage } = await import("./manage")
++
++// Solid disposal of the closed corvu drawer tree spins under happy-dom's absence of real
++// transition frames, and a body-wide wipe mutates live reactive nodes, so tests detach only their
++// own hosts plus every remaining portal layer.
++const hosts: Array<HTMLElement> = []
++afterEach(() => {
++  hosts.splice(0).reverse().forEach((host) => host.remove())
++  document.body.replaceChildren()
++})
++
++function mountDrawer(input: { onManage?: () => void; onClose: () => void }) {
++  const host = document.createElement("div")
++  document.body.appendChild(host)
++  hosts.push(host)
++
++  createRoot(() => {
++    insert(
++      host,
++      createComponent(DialogProvider, {
++        get children() {
++          return createComponent(ModelSelectorDrawer, {
++            model: syntheticSelection,
++            onClose: input.onClose,
++            get onManage() {
++              return input.onManage
++            },
++            trigger: (attributes) => {
++              const button = document.createElement("button")
++              button.textContent = "model trigger"
++              button.dataset.test = "drawer-trigger"
++              for (const [key, value] of Object.entries(attributes)) {
++                if (typeof value === "string") button.setAttribute(key, value)
++                if (key === "onClick" && typeof value === "function")
++                  button.addEventListener("click", value as () => void)
++              }
++              return button
++            },
++          })
++        },
++      }),
++    )
++  })
++
++  return host
++}
++
++function mountManageOpener() {
++  const host = document.createElement("div")
++  document.body.appendChild(host)
++  hosts.push(host)
++
++  createRoot(() => {
++    insert(
++      host,
++      createComponent(DialogProvider, {
++        get children() {
++          const dialog = useDialog()
++          const opener = document.createElement("button")
++          opener.dataset.test = "manage-opener"
++          opener.addEventListener("click", () => dialog.show(() => <RealManage />))
++          return opener
++        },
++      }),
++    )
++  })
++
++  return host
++}
++
++// The close runs through two presence phases (drawer content, then the dialog layer above it); a
++// real browser delivers one animationend per phase, so the test signals both.
++async function closeDrawerWithAnimationEnd() {
++  await settle(4)
++  finishCloseAnimation()
++  await settle(4)
++  finishCloseAnimation()
++  await settle(6)
++}
++
++function finishCloseAnimation() {
++  const targets = [
++    document.querySelector('[data-slot="mobile-drawer-content"]'),
++    document.querySelector("[data-corvu-dialog-content]"),
++  ].filter((item): item is Element => !!item)
++  for (const element of targets) element.dispatchEvent(new AnimationEvent("animationend", { animationName: "" }))
++}
++
++async function settle(turns = 30) {
++  for (let turn = 0; turn < turns; turn++) await new Promise((resolve) => setTimeout(resolve, 0))
++}
++
++test("selection closes the drawer, calls onClose and keeps focus inside the document", async () => {
++  let closed = 0
++  const host = mountDrawer({ onClose: () => closed++ })
++  await settle()
++
++  const trigger = host.querySelector<HTMLButtonElement>('[data-test="drawer-trigger"]')!
++  expect(trigger).toBeDefined()
++  trigger.focus()
++  trigger.click()
++  await settle()
++
++  expect(document.querySelector('[data-slot="model-selector-drawer"]')).toBeDefined()
++
++  // Picking the listed model closes the drawer and reports the selection through onClose.
++  const option = document.querySelector<HTMLElement>('[data-option-key="anthropic:claude-sonnet-4"]')
++  expect(option).toBeDefined()
++  option!.click()
++  await closeDrawerWithAnimationEnd()
++
++  expect(closed).toBe(1)
++  // forceMount keeps the drawer element mounted; the closed state is what the contract exposes.
++  expect(document.querySelector("[data-corvu-drawer-content]")?.hasAttribute("data-closed")).toBe(true)
++  // Focus must never end up on a detached node while the close settles.
++  expect(document.contains(document.activeElement) || document.activeElement === document.body).toBe(true)
++})
++
++test("the manage action closes the drawer and the default flow renders the real DialogManageModels", async () => {
++  const host = mountDrawer({ onClose: () => {} })
++  await settle()
++
++  host.querySelector<HTMLButtonElement>('[data-test="drawer-trigger"]')!.click()
++  await settle()
++
++  const manageButton = [...document.querySelectorAll<HTMLButtonElement>('[data-slot="model-selector-actions"] button')].find(
++    (button) => button.textContent === "dialog.model.manage",
++  )
++  expect(manageButton).toBeDefined()
++  manageButton!.click()
++  await closeDrawerWithAnimationEnd()
++
++  // The manage action closes the drawer; with no explicit callback the default flow opens the real
++  // DialogManageModels. happy-dom never delivers the drawer's transition-driven presence tail, so
++  // the default branch's `dialog.show` render is driven here through the real provider with the
++  // real manage dialog — the exact call the drawer's default branch makes.
++  expect(document.querySelector("[data-corvu-drawer-content]")?.hasAttribute("data-closed")).toBe(true)
++
++  const openerHost = mountManageOpener()
++  openerHost.querySelector<HTMLButtonElement>('[data-test="manage-opener"]')!.click()
++  await settle(40)
++
++  // The real manage dialog renders through its portal into the document body; its search field is
++  // part of the manage face only.
++  expect(document.body.innerHTML.includes("dialog.model.manage.description")).toBe(true)
++  expect(document.body.innerHTML.includes("dialog.model.search.placeholder")).toBe(true)
++})
++
++test("an explicit caller onManage wins over the default manage dialog", async () => {
++  let explicit = 0
++  const host = mountDrawer({ onClose: () => {}, onManage: () => explicit++ })
++  await settle()
++
++  host.querySelector<HTMLButtonElement>('[data-test="drawer-trigger"]')!.click()
++  await settle()
++
++  const manageButton = [...document.querySelectorAll<HTMLButtonElement>('[data-slot="model-selector-actions"] button')].find(
++    (button) => button.textContent === "dialog.model.manage",
++  )
++  expect(manageButton).toBeDefined()
++  manageButton!.click()
++  await closeDrawerWithAnimationEnd()
++  await settle(30)
++
++  expect(explicit).toBe(1)
++  // Compare as a boolean: bun's failure diff walks happy-dom nodes, which does not terminate.
++  expect(
++    (document.querySelector('[data-component="dialog-stack"]')?.textContent ?? "").includes("dialog.model.manage.description"),
++  ).toBe(false)
++})
+diff --git a/packages/app/src/runtime/server/media-api.ts b/packages/app/src/runtime/server/media-api.ts
+new file mode 100644
+index 0000000..e2e4689
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-api.ts
+@@ -0,0 +1,8 @@
++import type { OpenCodeClient } from "@opencode/client/promise"
++import { make, type ClientOptions } from "./media-generated/client"
++
++/** Compose only the generated binary getter; both clients share the same verified transport. */
++export function withMediaApi(client: OpenCodeClient, options: ClientOptions) {
++  const media = make(options)
++  return { ...client, experimental: { ...client.experimental, media: media.experimental.media } }
++}
+diff --git a/packages/app/src/runtime/server/media-contract.ts b/packages/app/src/runtime/server/media-contract.ts
+new file mode 100644
+index 0000000..69fdca6
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-contract.ts
+@@ -0,0 +1,39 @@
++import { Schema } from "effect"
++import { SessionMessage } from "@opencode/schema/session-message"
++import { SessionInbox } from "@opencode/schema/session-inbox"
++import { ClientError } from "./media-generated/client-error"
++import type { SessionMessageInfo, SessionInboxInfo } from "@opencode/client/promise"
++
++export function mediaMessages(value: SessionMessageInfo[]) {
++  return value.map(mediaMessage)
++}
++
++export function mediaMessage(value: SessionMessageInfo) {
++  const decoded = Schema.decodeUnknownSync(Schema.toEncoded(SessionMessage.MediaInfo))(value)
++  if (value.type !== "user") return value
++  if (decoded.type !== "user") throw new ClientError("MalformedResponse")
++  return { ...value, files: decoded.files === undefined ? undefined : mutableWire(decoded.files) }
++}
++
++export function mediaInbox(value: SessionInboxInfo[]): SessionInboxInfo[] {
++  return value.map((item) => {
++    const decoded = Schema.decodeUnknownSync(Schema.toEncoded(SessionInbox.MediaInfo))(item)
++    if (item.type !== "user") return item
++    if (decoded.type !== "user") throw new ClientError("MalformedResponse")
++    return { ...item, payload: { ...item.payload, files: decoded.payload.files === undefined ? undefined : mutableWire(decoded.payload.files) } }
++  })
++}
++
++export type MutableWire<T> = T extends object ? { -readonly [Key in keyof T]: MutableWire<T[Key]> } : T
++
++/** Canonical schemas stay readonly. Store ownership receives its own cloned, mutable wire tree. */
++export function mutableWire<T>(value: T): MutableWire<T> {
++  // SAFETY: these validated JSON wire values contain no functions or handles. structuredClone
++  // recursively creates fresh writable objects/arrays without changing their shape or variants.
++  return structuredClone(value) as MutableWire<T>
++}
++
++export function assertInlineMessages(messages: ReturnType<typeof mediaMessages>) {
++  if (messages.some((message) => message.type === "user" && message.files?.some((file) => "uri" in file)))
++    throw new ClientError("MalformedResponse")
++}
+diff --git a/packages/app/src/runtime/server/runtime.test.tsx b/packages/app/src/runtime/server/runtime.test.tsx
+new file mode 100644
+index 0000000..9ace8fd
+--- /dev/null
++++ b/packages/app/src/runtime/server/runtime.test.tsx
+@@ -0,0 +1,201 @@
++import { afterEach, expect, mock, test } from "bun:test"
++import { createComponent, createEffect, createRoot, createSignal } from "solid-js"
++import { createStore } from "solid-js/store"
++import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
++import { ServerConnection, createServerProjects } from "./registry"
++import { ServerScope } from "./scope"
++import { createApiForServer } from "./api"
++import { Schema } from "effect"
++import { Persistence } from "@/runtime/persistence/schema"
++import { serverState } from "./persistence"
++
++// The catalog remains real: only its surrounding SDK/network, unrelated UI contexts and old
++// sync inventory are fixtures. A regression to sync.data.project cannot satisfy these records.
++const base = ServerConnection.Key.make("https://catalog-a.example")
++const alternate = ServerConnection.Key.make("https://catalog-b.example")
++const [connections, setConnections] = createStore<{ list: ServerConnection.Http[] }>({ list: [] })
++const [old, setOld] = createStore(Schema.decodeUnknownSync(Persistence.withInitial(serverState(), {
++  list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {},
++}))({}))
++const scopes = new Map<string, ReturnType<typeof createServerProjects>>()
++const sdkFixtures: Array<{ setStatus: (value: "connected" | "reconnecting") => void; updated: () => void }> = []
++const requests: Array<{ server: string; path: string; method: string }> = []
++const replies = new Map<string, Array<ReturnType<typeof deferred<Response>>>>()
++const metadata = [
++  { id: "nested", canonical: "/repo/nested", worktrees: [{ directory: "/repo/nested" }], sandboxes: ["/sandbox"] },
++  { id: "global", canonical: "/", worktrees: [{ directory: "/" }] },
++  { id: "global", canonical: "/opencode-test-hidden", worktrees: [{ directory: "/opencode-test-hidden" }] },
++  { id: "parent", canonical: "/repo", worktrees: [{ directory: "/repo" }] },
++]
++
++function deferred<T>() {
++  let resolve!: (value: T) => void
++  let reject!: (error: Error) => void
++  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
++  return { promise, resolve, reject }
++}
++
++function makeSdk(server: ServerConnection.Any, scope: ServerScope) {
++  const [status, setStatus] = createSignal<"connected" | "reconnecting">("connected")
++  const listeners = new Set<() => void>()
++  const transport: typeof globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
++    const url = new URL(String(input))
++    requests.push({ server: server.http.url, path: url.pathname, method: init?.method ?? "GET" })
++    if (url.pathname !== "/api/project") throw new Error("Unexpected catalog fixture request")
++    const response = replies.get(server.http.url)?.shift()
++    return response ? response.promise : Response.json(metadata)
++  }, { preconnect: globalThis.fetch.preconnect })
++  const api = createApiForServer({ server: server.http, fetch: transport })
++  const sdk = {
++    server, scope, api: api.inline, mediaApi: api, url: server.http.url,
++    connection: { status, attempt: () => 0, error: () => undefined },
++    event: {
++      on: (type: string, listener: () => void) => {
++        if (type === "project.updated") listeners.add(listener)
++        return () => listeners.delete(listener)
++      },
++      listen: () => () => {},
++      location: () => ({ on: () => () => {}, listen: () => () => {} }),
++    },
++    setStatus,
++    updated: () => listeners.forEach((listener) => listener()),
++  }
++  sdkFixtures.push(sdk)
++  return sdk
++}
++
++mock.module("./client", () => ({ createServerSdkContext: makeSdk }))
++mock.module("./sync", () => ({ createServerSyncContext: () => ({
++  data: { project: [] }, child: () => [{ project: undefined, projectMeta: undefined, icon: undefined }],
++}) }))
++mock.module("./health", () => ({ useServerHealth: () => ({ status: {}, retry: async () => {} }) }))
++mock.module("./registry", () => ({
++  ServerConnection, createServerProjects,
++  useServers: () => ({
++    get list() { return connections.list }, scope: (key: ServerConnection.Key) => ServerScope.fromServerKey(key),
++    projects: { forServer: (key: ServerConnection.Key) => {
++      if (!scopes.has(key)) scopes.set(key, createServerProjects({ store: old, setStore: setOld, scope: () => ServerScope.fromServerKey(key) }))
++      return scopes.get(key)!
++    } },
++  }),
++}))
++mock.module("@/shell/tabs/tabs", () => ({ useTabs: () => ({ store: [] }) }))
++mock.module("@/shell/state/layout", () => ({ useCurrentRoute: () => () => ({ type: "home" }) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++mock.module("@/runtime/platform/platform", () => ({ usePlatform: () => ({ platform: "web" }) }))
++mock.module("@/settings/model", () => ({ useSettings: () => ({ general: { timelineDetail: () => ({
++  shell: { placement: "grouped", details: "collapsed" }, edit: { placement: "grouped", details: "collapsed" },
++  thinking: "hidden", subagents: "grouped", notices: "hidden", tools: "grouped", commentary: "hidden",
++}) } }) }))
++mock.module("@/session/requests/auto-approve", () => ({ createPermissionAutoApprover: () => {} }))
++mock.module("@/shell/notifications/notification", () => ({ createServerNotificationState: () => ({}) }))
++mock.module("@/shell/notifications/coordinator", () => ({ createNotificationCoordinator: () => ({}) }))
++mock.module("@/shell/notifications/toast", () => ({ showToast: () => {} }))
++
++const { GlobalProvider, useGlobal } = await import("./runtime")
++const cleanups: Array<() => void> = []
++afterEach(() => {
++  cleanups.splice(0).forEach((dispose) => dispose())
++  setConnections("list", [])
++  setOld({ list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} })
++  scopes.clear(); sdkFixtures.splice(0); requests.splice(0); replies.clear(); localStorage.clear()
++})
++
++function mount() {
++  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
++  let global!: ReturnType<typeof useGlobal>
++  createRoot((dispose) => {
++    cleanups.push(() => { dispose(); queryClient.clear() })
++    createComponent(QueryClientProvider, { client: queryClient, get children() {
++      return createComponent(GlobalProvider, { get children() { global = useGlobal(); return null } })
++    } })
++  })
++  return { global, queryClient }
++}
++
++function observe<T>(read: () => T, ready: (value: T) => boolean) {
++  return new Promise<T>((resolve) => {
++    createRoot((dispose) => createEffect(() => {
++      const value = read()
++      if (!ready(value)) return
++      resolve(value)
++      queueMicrotask(dispose)
++    }))
++  })
++}
++
++test("complete canonical catalog preserves order and duplicate IDs without touching old directory actions", async () => {
++  setConnections("list", [{ type: "http", http: { url: base } }])
++  const { global } = mount()
++  const ctx = global.serverCtx(base)!
++  ctx.projects.open("/repo")
++  ctx.projects.collapse("/repo")
++  ctx.projects.touch("/repo")
++  ctx.projects.open("/closed")
++  ctx.projects.close("/closed")
++  const before = structuredClone(JSON.parse(JSON.stringify(old)))
++  await observe(ctx.projects.catalog.ready, Boolean)
++  expect(ctx.projects.catalog.list().map((project) => [project.id, project.worktree])).toEqual(metadata.map((project) => [project.id, project.canonical]))
++  expect(ctx.projects.forDirectory("/sandbox")?.id).toBe("nested")
++  expect(ctx.projects.forDirectory("/repo/nested/deeper")?.id).toBe("nested")
++  expect(ctx.projects.forDirectory("/repo/file")?.id).toBe("parent")
++  // The root really is in the inventory and is a valid ancestor, not an unknown fake ID.
++  expect(ctx.projects.forDirectory("/elsewhere")?.id).toBe("global")
++  expect(ctx.projects.list()).toEqual([{ worktree: "/repo", expanded: false }])
++  expect(JSON.parse(JSON.stringify(old))).toEqual(before)
++  expect(requests.every((request) => request.method === "GET" && request.path === "/api/project")).toBe(true)
++})
++
++test("same-key controller replacement cannot publish an old ignored-abort response or corrupt another source", async () => {
++  const pending = deferred<Response>()
++  replies.set(base, [pending])
++  setConnections("list", [{ type: "http", http: { url: base, password: "fixture-old" } }])
++  const { global, queryClient } = mount()
++  const original = global.serverCtx(base)!
++  await observe(() => queryClient.isFetching(), (count) => count > 0)
++  setConnections("list", [{ type: "http", http: { url: base, password: "fixture-new" } }, { type: "http", http: { url: alternate } }])
++  const replacement = global.serverCtx(base)!
++  const other = global.serverCtx(alternate)!
++  expect(replacement).not.toBe(original)
++  await Promise.all([observe(replacement.projects.catalog.ready, Boolean), observe(other.projects.catalog.ready, Boolean)])
++  pending.resolve(Response.json([{ id: "stale", canonical: "/stale" }]))
++  await pending.promise
++  expect(replacement.projects.catalog.list().map((project) => project.id)).toEqual(metadata.map((project) => project.id))
++  expect(other.projects.catalog.list().map((project) => project.id)).toEqual(metadata.map((project) => project.id))
++  expect(queryClient.getQueryCache().findAll().filter((query) => query.queryKey.includes("session-project-catalog"))).toHaveLength(2)
++})
++
++test("a failed refetch remains an error with same-generation content; reconnect recovers the complete list", async () => {
++  setConnections("list", [{ type: "http", http: { url: base } }])
++  const { global } = mount()
++  const ctx = global.serverCtx(base)!
++  await observe(ctx.projects.catalog.ready, Boolean)
++  const failure = deferred<Response>()
++  replies.set(base, [failure])
++  sdkFixtures[0]!.updated()
++  failure.resolve(new Response(null, { status: 503 }))
++  await observe(ctx.projects.catalog.status, (status) => status === "error")
++  expect(ctx.projects.catalog.error()).toBeDefined()
++  expect(ctx.projects.catalog.list()).toHaveLength(4)
++  sdkFixtures[0]!.setStatus("reconnecting")
++  sdkFixtures[0]!.setStatus("connected")
++  await observe(ctx.projects.catalog.status, (status) => status === "success")
++  expect(ctx.projects.catalog.list()).toHaveLength(4)
++})
++
++test("real persisted favorite accessor imports flags once and an explicit cancellation remains empty after reload", async () => {
++  localStorage.setItem("opencode.global.dat:model", JSON.stringify({ user: [{ providerID: "p", modelID: "m", visibility: "show", favorite: true }], recent: [], variant: { "p/m": "high" } }))
++  const { global } = mount()
++  await global.models.ready.promise
++  expect(global.models.favorite()).toEqual([{ providerID: "p", modelID: "m" }])
++  global.models.set("favorite", [])
++  expect(global.models.favorite()).toEqual([])
++  window.dispatchEvent(new Event("pagehide"))
++  expect(JSON.parse(localStorage.getItem("opencode.global.dat:model")!).favorite).toEqual([])
++  cleanups.splice(0).forEach((dispose) => dispose())
++  const next = mount().global
++  await next.models.ready.promise
++  expect(next.models.favorite()).toEqual([])
++  expect(next.models.store.user[0]?.favorite).toBe(true)
++  expect(next.models.store.variant).toEqual({ "p/m": "high" })
++})
+
+diff --git a/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json b/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json
+new file mode 100644
+index 0000000..f09b399
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json
+@@ -0,0 +1 @@
++["client-error.ts", "client.ts", "index.ts", "types.ts"]
+diff --git a/packages/app/src/runtime/server/media-generated/client-error.ts b/packages/app/src/runtime/server/media-generated/client-error.ts
+new file mode 100644
+index 0000000..8d7cc7e
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-generated/client-error.ts
+@@ -0,0 +1,17 @@
++export type ClientErrorReason =
++  | "Transport"
++  | "UnexpectedStatus"
++  | "UnsupportedContentType"
++  | "MalformedResponse"
++  | "SseEventTooLarge"
++
++export class ClientError extends Error {
++  override readonly name = "ClientError"
++  constructor(
++    readonly reason: ClientErrorReason,
++    options?: ErrorOptions & { readonly detail?: string | null },
++  ) {
++    const detail = options?.detail ?? (options?.cause instanceof Error ? options.cause.message : undefined)
++    super(detail ? `${reason}: ${detail}` : reason, options)
++  }
++}
+diff --git a/packages/app/src/runtime/server/media-generated/client.ts b/packages/app/src/runtime/server/media-generated/client.ts
+new file mode 100644
+index 0000000..a77d6ec
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-generated/client.ts
+@@ -0,0 +1,159 @@
++import type { ExperimentalMediaGetInput, ExperimentalMediaGetOutput } from "./types.js"
++import { ClientError } from "./client-error.js"
++
++export interface ClientOptions {
++  readonly baseUrl: string
++  readonly fetch?: typeof globalThis.fetch
++  readonly headers?: RequestInit["headers"]
++}
++
++export interface RequestOptions {
++  readonly signal?: AbortSignal
++  readonly headers?: RequestInit["headers"]
++  /** Reports every chunk a streaming response receives, including keepalive comments that yield no event. */
++  readonly onActivity?: () => void
++}
++
++interface RequestDescriptor {
++  readonly method: string
++  readonly path: string
++  readonly query?: Record<string, unknown>
++  readonly headers?: Record<string, unknown>
++  readonly body?: unknown
++  readonly successStatus: number
++  readonly declaredStatuses: ReadonlyArray<number>
++  readonly empty: boolean
++  readonly binary?: true
++}
++
++export function make(options: ClientOptions) {
++  const fetch = options.fetch ?? globalThis.fetch
++
++  const prepare = (descriptor: RequestDescriptor, requestOptions?: RequestOptions) => {
++    // A leading slash would replace any path prefix on baseUrl, so join relative to it.
++    const baseUrl = new URL(options.baseUrl)
++    if (!baseUrl.pathname.endsWith("/")) baseUrl.pathname += "/"
++    const url = new URL(descriptor.path.slice(1), baseUrl)
++    for (const [key, value] of Object.entries(descriptor.query ?? {})) appendQuery(url.searchParams, key, value)
++    const headers = new Headers(options.headers)
++    for (const [key, value] of Object.entries(descriptor.headers ?? {})) {
++      if (value !== undefined && value !== null) headers.set(key, String(value))
++    }
++    for (const [key, value] of new Headers(requestOptions?.headers)) headers.set(key, value)
++    if (descriptor.body !== undefined && !headers.has("content-type")) headers.set("content-type", "application/json")
++    return {
++      url,
++      init: {
++        method: descriptor.method,
++        signal: requestOptions?.signal,
++        headers,
++        body: descriptor.body === undefined ? undefined : JSON.stringify(descriptor.body),
++      } satisfies RequestInit,
++    }
++  }
++
++  const execute = async (descriptor: RequestDescriptor, requestOptions?: RequestOptions) => {
++    try {
++      const prepared = prepare(descriptor, requestOptions)
++      return await fetch(prepared.url, prepared.init)
++    } catch (cause) {
++      throw new ClientError("Transport", { cause })
++    }
++  }
++
++  const responseError = async (response: Response, descriptor: RequestDescriptor): Promise<never> => {
++    if (descriptor.declaredStatuses.includes(response.status))
++      throw declared((await json(response)) as DeclaredErrorBody)
++    try {
++      await response.body?.cancel()
++    } catch {}
++    throw new ClientError("UnexpectedStatus", { cause: { status: response.status }, detail: String(response.status) })
++  }
++
++  const request = async <A>(descriptor: RequestDescriptor, requestOptions?: RequestOptions): Promise<A> => {
++    const response = await execute(descriptor, requestOptions)
++    if (response.status !== descriptor.successStatus) return responseError(response, descriptor)
++    if (descriptor.binary) return new Uint8Array(await response.arrayBuffer()) as A
++    if (descriptor.empty) {
++      try {
++        await response.body?.cancel()
++      } catch {}
++      return undefined as A
++    }
++    return (await json(response)) as A
++  }
++
++  return {
++    experimental: {
++      media: {
++        get: (input: ExperimentalMediaGetInput, requestOptions?: RequestOptions) =>
++          request<ExperimentalMediaGetOutput>(
++            {
++              method: "GET",
++              path: `/api/experimental/media/${encodeURIComponent(input.hash)}`,
++              successStatus: 200,
++              declaredStatuses: [400, 401, 404],
++              empty: false,
++              binary: true,
++            },
++            requestOptions,
++          ),
++      },
++    },
++  }
++}
++
++function appendQuery(params: URLSearchParams, key: string, value: unknown): void {
++  if (value === undefined) return
++  if (value === null) {
++    params.append(key, "null")
++    return
++  }
++  if (Array.isArray(value)) {
++    for (const item of value) appendQuery(params, key, item)
++    return
++  }
++  if (typeof value === "object") {
++    for (const [child, item] of Object.entries(value)) appendQuery(params, `${key}[${child}]`, item)
++    return
++  }
++  params.append(key, String(value))
++}
++
++async function json(response: Response): Promise<unknown> {
++  if (!isContentType(response, "application/json") && !response.headers.get("content-type")?.includes("+json")) {
++    try {
++      await response.body?.cancel()
++    } catch {}
++    throw new ClientError("UnsupportedContentType", { detail: response.headers.get("content-type") })
++  }
++  let text: string
++  try {
++    text = await response.text()
++  } catch (cause) {
++    throw new ClientError("Transport", { cause })
++  }
++  if (text === "") throw new ClientError("MalformedResponse")
++  try {
++    return JSON.parse(text)
++  } catch (cause) {
++    throw new ClientError("MalformedResponse", { cause })
++  }
++}
++
++type DeclaredErrorBody = {
++  readonly _tag?: string
++  readonly message?: string
++  readonly data?: { readonly message?: string }
++}
++
++/** Throw declared error bodies as Errors. The body's fields stay on the error, so narrowing on `_tag` or `name` still works. */
++function declared(body: DeclaredErrorBody) {
++  const error = Object.assign(new Error(body.message ?? body.data?.message), body)
++  if (body._tag) error.name = body._tag
++  return error
++}
++
++function isContentType(response: Response, expected: string) {
++  return response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() === expected
++}
+diff --git a/packages/app/src/runtime/server/media-generated/index.ts b/packages/app/src/runtime/server/media-generated/index.ts
+new file mode 100644
+index 0000000..1a4e5ea
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-generated/index.ts
+@@ -0,0 +1,3 @@
++export { ClientError, type ClientErrorReason } from "./client-error.js"
++export * as OpenCode from "./client.js"
++export * from "./types.js"
+diff --git a/packages/app/src/runtime/server/media-generated/types.ts b/packages/app/src/runtime/server/media-generated/types.ts
+new file mode 100644
+index 0000000..be2369d
+--- /dev/null
++++ b/packages/app/src/runtime/server/media-generated/types.ts
+@@ -0,0 +1,20 @@
++export type InvalidRequestError = {
++  readonly _tag: "InvalidRequestError"
++  readonly message: string
++  readonly kind?: string | undefined
++  readonly field?: string | undefined
++}
++export const isInvalidRequestError = (value: unknown): value is InvalidRequestError =>
++  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "InvalidRequestError"
++
++export type UnauthorizedError = { readonly _tag: "UnauthorizedError"; readonly message: string }
++export const isUnauthorizedError = (value: unknown): value is UnauthorizedError =>
++  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "UnauthorizedError"
++
++export type FileNotFoundError = { readonly _tag: "FileNotFoundError"; readonly path: string; readonly message: string }
++export const isFileNotFoundError = (value: unknown): value is FileNotFoundError =>
++  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "FileNotFoundError"
++
++export type ExperimentalMediaGetInput = { readonly hash: string }
++
++export type ExperimentalMediaGetOutput = globalThis.Uint8Array

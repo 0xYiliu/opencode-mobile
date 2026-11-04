@@ -52,7 +52,7 @@ tree `3ebcf9a32c7b28f658cfee80775448929361727a`; every other closure package sti
 - File-level exclusion: `packages/ai/test/fixtures/recordings/` (274 files, ~13.7 MiB,
   HTTP recorder test fixtures) — dropped during extraction and registered in the manifest.
 
-## Mobile patches (pre-applied, registered in `patches/mobile/manifest.json`)
+## Mobile patch inventory (active baseline plus source-only deferred P126 candidates)
 
 | ID | Target | Change | Why |
 | --- | --- | --- | --- |
@@ -117,8 +117,8 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
   No main-app/device data was cleared; real SSH E2E remains BLOCKED.
 
-The vendor tree invariant: **tree == pin tree + registered mobile patches**, byte-identical,
-zero other diff (checked by `scripts/verify-closure.sh` V3(a)).
+The active vendor tree invariant: **tree == pin tree + the 56 active baseline mobile patches**, byte-identical,
+zero other diff (checked by `scripts/verify-closure.sh`). Source-only deferred candidates are registered separately and are never applied by the active closure replay.
 
 ## Upstream update exercise (issue #27 lifecycle, S3)
 
@@ -208,3 +208,24 @@ Not carried, with reasons (explicit deviation protocol — no silent dead entrie
   `vendor-sync.sh` re-run (correction loop).
 - Pin updates are a maintainer decision (issue #27); this file and `provenance.json` must
   record the selection rationale whenever the pin moves.
+
+## P126 Block 1 candidate inventory (2026-11-04)
+
+This isolated Block 1 candidate is based on repository commit `d37260c002b4390060f7d6cd78ffe6a11e9e1012`.
+The current closure remains the exact 56-entry active mobile-patch set and order from that base.
+Six P126 source files are registered as `deferred-source-only`; none is applied to vendor runtime.
+`p126-replay-order.json` is a future-order contract only, not a successful replay record.
+
+| ID | Source patch | SHA-256 | Status |
+| --- | --- | --- | --- |
+| `M-057` | `patches/mobile/P126-U-session-workbench.patch` | `999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1` | `deferred-source-only` |
+| `M-058` | `patches/mobile/P126-C-client-compat.patch` | `f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359` | `deferred-source-only` |
+| `M-059` | `patches/mobile/P126-S-media-source-safety.patch` | `384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2` | `deferred-source-only` |
+| `M-060` | `patches/mobile/P126-A-android-adaptation.patch` | `1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73` | `deferred-source-only` |
+| `M-063` | `patches/mobile/P126-A-agent-selector.patch` | `9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9` | `deferred-source-only` |
+| `M-064` | `patches/mobile/P126-S-session-ownership-whitespace.patch` | `8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c` | `deferred-source-only` |
+
+The future ordering contract is base M-001…M-056 excluding the later-positioned M-061/M-062, then
+P126 U/C/S/A, then M-061/M-062, then agent-selector and session-ownership-whitespace. It does not
+authorize applying these patches in this block. Active replay and tree checks consume only
+`vendor-manifest.json#mobilePatches` (56 base entries).

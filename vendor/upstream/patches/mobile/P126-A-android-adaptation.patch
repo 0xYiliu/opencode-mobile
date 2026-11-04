@@ -1,0 +1,168 @@
+# P126 A layer: re-landed mobile hunks over the U/C/S tree (routes mobile-hosts gating and
+# the deferred-voice composer fallback).
+diff --git aa/packages/app/src/session/composer/region.tsx bb/packages/app/src/session/composer/region.tsx
+index d46c3e3..b36a697 100644
+--- aa/packages/app/src/session/composer/region.tsx
++++ bb/packages/app/src/session/composer/region.tsx
+@@ -7,7 +7,6 @@ import { makeEventListener } from "@solid-primitives/event-listener"
+ import { useNavigate } from "@solidjs/router"
+ import { createEffect, createMemo, on, onCleanup, onMount, Show, type Accessor } from "solid-js"
+ import { Composer } from "@/composer/composer"
+-import { VoiceComposer } from "@/voice/composer"
+ import { useComposerState } from "@/composer/persistence"
+ import { createComposerControls } from "@/composer/selection"
+ import { setCursorPosition } from "@/composer/editor/dom"
+@@ -581,17 +580,15 @@ export function ActiveSessionComposerRegion(props: {
+           when={missing()}
+           keyed
+           fallback={
+-            // The container for the composer's `cqw` caps: only the composer re-evaluates as a panel beside it
+-            // animates the chat's width.
++            // mobile(A): voice stays deferred on this client, so the target's VoiceComposer wrapper is
++            // not mounted and the composer keeps the pre-migration fallback layout.
+             <div class="@container">
+-              <VoiceComposer session={props.session.data.info()}>
+-                <Composer
+-                  model={props.model.composer}
+-                  borderUnderlay
+-                  readOnly={props.model.queue.undoing()}
+-                  suggestionBoundary={props.suggestionBoundary}
+-                />
+-              </VoiceComposer>
++              <Composer
++                model={props.model.composer}
++                borderUnderlay
++                readOnly={props.model.queue.undoing()}
++                suggestionBoundary={props.suggestionBoundary}
++              />
+             </div>
+           }
+         >
+
+diff --git aa/packages/app/src/shell/routes/routes.tsx bb/packages/app/src/shell/routes/routes.tsx
+index 2aa62fb..3b31c3f 100644
+--- aa/packages/app/src/shell/routes/routes.tsx
++++ bb/packages/app/src/shell/routes/routes.tsx
+@@ -1,4 +1,5 @@
+ import { Route, useParams } from "@solidjs/router"
++import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
+ import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
+ import { Home } from "@/home/route"
+ import { ServerProvider } from "@/runtime/server/current"
+@@ -23,12 +24,8 @@ const ConnectServerScreen = lazy(() =>
+   import("@/servers/connect/screen").then((module) => ({ default: module.ConnectServerScreen })),
+ )
+ 
+-// The dev server and Beta only. Both are fixed at build time, so other builds, prod included, drop the import and never
+-// contain the lab, its stories or knobs. Beta loads it as its own chunk, only when /components opens.
+-const ComponentsLab =
+-  import.meta.env.DEV || import.meta.env.VITE_OPENCODE_CHANNEL === "beta"
+-    ? lazy(() => import("@/components-lab/lab"))
+-    : undefined
++// mobile(A): the dev/Beta components lab stays out of this client (components-lab is retained absent),
++// so the target's lazy /components route is not registered here.
+ 
+ const TargetSessionRouteContent = lazy(() =>
+   loadSessionRoute().then((module) => ({ default: module.TargetSessionRouteContent })),
+@@ -71,7 +68,6 @@ export function AppRoutes() {
+         )}
+       />
+       <Route path="/new-session" component={DraftRoute} />
+-      {ComponentsLab && <Route path="/components" component={ComponentsLab} />}
+     </Route>
+   )
+ }
+@@ -105,7 +101,10 @@ function AppLayout(props: ParentProps) {
+   }
+ 
+   return (
+-    <Show when={servers.list.length > 0 && !signedOut()} fallback={<ConnectServerScreen url={signedOut()?.http.url} />}>
++    <Show
++      when={!getMobileHosts().initialScreenOwned() && servers.list.length > 0 && !signedOut()}
++      fallback={<ConnectServerScreen url={signedOut()?.http.url} />}
++    >
+       <LayoutProvider>
+         <SettingsSurfaceProvider>
+           <PluginAttachment>
+diff --git aa/packages/app/src/shell/panel-motion.ts bb/packages/app/src/shell/panel-motion.ts
+index 12514f1..97b63ea 100644
+--- aa/packages/app/src/shell/panel-motion.ts
++++ bb/packages/app/src/shell/panel-motion.ts
+@@ -2,6 +2,11 @@ import { createEffect, createSignal, on, onCleanup, type Accessor } from "solid-
+ import { ease, frameLoop, prefersReducedMotion, Spring, type DurationOptions } from "@opencode/ui/motion"
+ import { motionTimeScale } from "@opencode/ui/motion-tuning"
+ 
++// mobile(A, issue #126): the target's `anchorX` probes direction with `matches(":dir(rtl)")`, which
++// older Android WebViews (Huawei Chromium 114 on the MatePad) reject with a SyntaxError that takes
++// the whole shell to the error screen. `isRTL` wraps that probe in a capability guard falling back
++// to the LTR branch; desktop/modern-browser behavior is unchanged (the query still matches there).
++
+ // Panels in flight, across the app. Native views, which no DOM box clips, stay hidden while any panel moves.
+ const [flights, setFlights] = createSignal(0)
+ 
+@@ -416,10 +421,20 @@ export function guardClosingFocus(input: {
+   })
+ }
+ 
++/** Whether the document lays out right-to-left. Older WebViews (Chromium < 120) reject the `:dir()`
++ * pseudo-class, so a rejected query falls back to the LTR reading instead of throwing mid-flight. */
++export function isRTL(element: HTMLElement) {
++  try {
++    return element.matches(":dir(rtl)")
++  } catch {
++    return false
++  }
++}
++
+ function anchorX(element: HTMLElement, anchor: Anchor) {
+   const box = element.getBoundingClientRect()
+ 
+   if (anchor === "center") return box.left + box.width / 2
+ 
+-  return element.matches(":dir(rtl)") ? box.right : box.left
++  return isRTL(element) ? box.right : box.left
+ }
+--- aa/packages/app/src/shell/panel-motion.test.ts
++++ bb/packages/app/src/shell/panel-motion.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, it } from "bun:test"
+-import { panelOpacity, panelSpring } from "./panel-motion"
++import { isRTL, panelOpacity, panelSpring } from "./panel-motion"
+ 
+ it("scales the shared spring's time by the square root of the distance against a 480px panel", () => {
+   expect(panelSpring(480)).toEqual({ duration: 0.3, bounce: 0 })
+@@ -24,3 +24,34 @@
+   expect(Number(panelOpacity(0.925))).toBeCloseTo(0.5, 5)
+   expect(panelOpacity(1)).toBe("0")
+ })
++
++// mobile(A, issue #126): the direction probe must survive WebViews that reject the `:dir()`
++// pseudo-class (Huawei Chromium 114), falling back to the LTR reading without throwing.
++it("isRTL falls back to LTR when the environment rejects the :dir() selector", () => {
++  const element = document.createElement("div")
++  document.body.appendChild(element)
++
++  const original = element.matches.bind(element)
++  element.matches = (selector: string) => {
++    if (selector.includes(":dir")) throw new DOMException(":dir is not a valid selector", "SyntaxError")
++    return original(selector)
++  }
++
++  expect(isRTL(element)).toBe(false)
++  element.matches = original
++})
++
++it("isRTL still reports RTL when the environment supports the :dir() selector", () => {
++  const element = document.createElement("div")
++  element.dir = "rtl"
++  document.body.appendChild(element)
++
++  const original = element.matches.bind(element)
++  element.matches = (selector: string) => {
++    if (selector.includes(":dir")) return true
++    return original(selector)
++  }
++
++  expect(isRTL(element)).toBe(true)
++  element.matches = original
++})
