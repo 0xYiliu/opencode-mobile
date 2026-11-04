@@ -29,7 +29,7 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 - 直连：M-005 在持久化 schema 增字段（encode 剥 password 的行为不变）；M-006 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
 - SSH：主机记录原生持有 `credentialRef` 与 `servicePort`（载荷白名单字段，见 [server-list.md](server-list.md)）；credentialRef 编辑语义为「undefined=保留、空串=清空」，servicePort 为「undefined=保留、合法整数=设置」。target/身份变更裁定（issue #4，已定）：**保留 ref + 显式移除**——target 变更不清 ref，由用户在编辑表单取消勾选或经凭据管理器删除（见失效矩阵）。
 - 引用解析（已实现（未验证）：issue #4）：resolver 默认 fail-closed——未注入 vault 时为 NullResolver（恒 undefined），注入 vault 时默认经 `createVaultResolver` 走 vault（vault 级 unavailable 抛错 → 主机显式 failed；条目级 corrupt/missing → undefined → 服务端认证路径）；Android 桥握手 ack 后由 vault 支撑的 resolver 解析（见下节 vault 契约）。解析结果只注入内存连接对象，永不回写持久化。
-- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据经 M-010 hydration 自动恢复（内存）；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接已实现（未验证）：issue #6）；引用本身随记录保留。
+- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据冷启动免重输——**M-061（写半）**在初始连接认证成功时经 vault put 持久化并写 `credentialRef`，**M-010 + M-062（读半）**在 hydration 中先有界等待 vault ready（默认 15s，超时按原行为显式重输）再注入内存；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接已实现（未验证）：issue #6）；引用本身随记录保留。
 
 ## 凭据保险库契约（已实现（未验证）：issue #4）
 
@@ -40,6 +40,7 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 | 成员 | 签名/语义 | 状态 |
 | --- | --- | --- |
 | `CredentialVault.status()` | `() => "unavailable" \| "available"`；握手捕获并回发 ack 前恒 `unavailable`（响应式读取，UI 据此禁用/呈现横幅） | 已实现（未验证） |
+| `CredentialVault.ready?(timeoutMs?)` | 可选**有界排序等待**（issue #128，M-062）：供 hydration 型读取者建立顺序——其自身微任务可能早于原生 ready 往返。已 available 即 fast-path 立返（零订阅零定时器）；否则单次 `onReady` 订阅对单期限（默认 15000ms，与传输超时同界）竞速，**仅** available===true 报告提前解析（订阅时传输同步重放的 false 是当前态而非翻转，忽略），期限到解析 `"unavailable"`；永不 reject、不重试、不发额外探测（ready 探测始终只有传输构造时那一次），settle 即退订+清定时器（含 `dispose()` 后 failAll 场景）。**不改 `get()/put()` 的显式不可用语义**（不可用仍立即抛错）；`UnavailableVault.ready` 立即解析 `"unavailable"` | 已实现（真机验证 2026-11-04，M-062 冷启动恢复链） |
 | `put({ kind, value, label?, existingRef? })` | 加密写入并返回 `mobile-credential:<id>` 引用；`kind`: `password \| privateKey`；`existingRef` 提供时 **in-place**（保持原 id，ref 稳定）；空值/超 64KiB/私钥缺 BEGIN 头在客户端拒绝 | 已实现（未验证） |
 | `remove(ref)` | 删除条目（密文文件+索引行）；未知 id 静默成功（幂等，删除竞态无害） | 已实现（未验证） |
 | `get(ref)` | 解密取值（仅内存，供 resolver）；corrupt/unsupported/缺失条目返回 undefined（按条目惰性），vault 级 unavailable 抛 `VaultError("unavailable")` | 已实现（未验证） |
@@ -61,7 +62,7 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 
 trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/host/port + `isMainFrame` 重校验。它不是对恶意同源脚本的隔离，也不证明已加载 JS 的字节来源。
 
-协议 v2 使用 request/response JSON 与 request id，`ready` 只做非变更往返；JS 仅在收到 `vault-v2` readiness 回复后报告 available，并订阅时重放当前 ready 状态以覆盖响应先于 subscriber 的竞态。native 在回调线程做 envelope 上界/UTF-8 payload bound 预检，超限不入队；进程级单线程、8-entry 有界队列串行访问 `VaultStore`。navigation start/destroy 代际门使排队的陈旧请求跳过，运行中操作完成但不向旧页面回帖；每个闭包捕获原请求的 `JavaScriptReplyProxy`。put 在派发前生成并传输非秘密 candidate id；不支持自动重试。UNKNOWN response 可携带对应 credential ref，但不提供自动恢复/存储 journal。Same-origin script trust and lack of power-loss durability remain explicit limitations.
+协议 v2 使用 request/response JSON 与 request id，`ready` 只做非变更往返；JS 仅在收到 `vault-v2` readiness 回复后报告 available，并订阅时重放当前 ready 状态以覆盖响应先于 subscriber 的竞态。M-062（issue #128）后客户端在该订阅重放之上提供**有界排序等待** `ready(timeoutMs?)`：因为重放的 `false` 只是当前态，等待**仅**在收到 available===true 报告或期限（默认 15000ms）到时 settle——冷启动 hydration 在条目循环前特征检测等待它，消解「hydration 微任务早于原生 ready 往返 → get() 全部 unavailable」的竞态；超时路径与原行为一致。native 在回调线程做 envelope 上界/UTF-8 payload bound 预检，超限不入队；进程级单线程、8-entry 有界队列串行访问 `VaultStore`。navigation start/destroy 代际门使排队的陈旧请求跳过，运行中操作完成但不向旧页面回帖；每个闭包捕获原请求的 `JavaScriptReplyProxy`。put 在派发前生成并传输非秘密 candidate id；不支持自动重试。UNKNOWN response 可携带对应 credential ref，但不提供自动恢复/存储 journal。Same-origin script trust and lack of power-loss durability remain explicit limitations.
 
 ### 可选记住真值表 v3（M-009，连接对话框）
 
@@ -92,7 +93,7 @@ trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/ho
 
 | 状态 | 触发 | 用户可见行为 | 恢复路径 |
 | --- | --- | --- | --- |
-| unavailable | 握手未 ack / 重试耗尽 / 非 Android | remember 禁用+说明；横幅；显式状态非降级 | 重载页面重握手；**不存在明文回退代码** |
+| unavailable | 握手未 ack / 重试耗尽 / 非 Android | remember 禁用+说明；横幅；显式状态非降级。hydration 侧（M-062）：冷启动恢复先有界等待 vault ready（15s），等待期内正常启动其余界面；超时后条目保持无密码 | 重载页面重握手；**不存在明文回退代码**；hydration 超时 → 该次会话显式重输（ref 保留，下次启动再试恢复） |
 | corrupt | 密文损坏 / GCM 认证失败 / AAD 不匹配 / 换绑 | resolver 对该条目返回 undefined → 直连 unauthorized 重输 / SSH authRequired；凭据管理器标红 | 重输后重存（in-place，ref 稳定）或删除条目 |
 | unsupported | 信封版本不识别（未来版本） | 同 corrupt（按条目惰性） | 同 corrupt |
 | recovery-needed | TEE 重置等 Keystore 失效（不含锁屏凭据变更——设计免除） | 横幅提示 + 重输或一键清除 | 重存 in-place，ref 稳定 |

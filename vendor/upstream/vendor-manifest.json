@@ -100,7 +100,8 @@
     "patches/mobile/0054-M-054-password-keyboard.patch",
     "patches/mobile/0055-M-055-webview-url-compat.patch",
     "patches/mobile/0056-M-056-settings-server-menu.patch",
-    "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch"
+    "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+    "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch"
   ],
   "excluded": {
     "packages": [

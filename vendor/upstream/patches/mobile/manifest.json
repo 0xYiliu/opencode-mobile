@@ -1056,6 +1056,19 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
       "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence."
+    },
+    {
+      "id": "M-062",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "targets": [
+        "packages/app/src/runtime/server/registry.tsx",
+        "packages/app/src/runtime/server/registry-hydration.test.tsx"
+      ],
+      "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
+      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts."
     }
   ]
 }

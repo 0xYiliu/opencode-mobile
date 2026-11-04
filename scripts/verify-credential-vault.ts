@@ -197,6 +197,12 @@ async function softwareVaultNative() {
   if (!/setStore\("list", index, "http", "password", value\)/.test(block)) {
     fail("M-010: the resolved password is not injected through setStore")
   }
+  // M-062 (issue #128): the hydration awaits the feature-detected, bounded vault readiness
+  // BEFORE the per-entry loop — the cold-start restore must not race the async native
+  // ready roundtrip (get() one microtask early threw unavailable and restored nothing).
+  if (!/if \(typeof vault\.ready === "function"\) await vault\.ready\(\)/.test(block)) {
+    fail("M-062: hydration does not await vault.ready() before the credential loop (issue #128)")
+  }
   // Memory-only: the injection block itself must not touch any storage backend directly.
   if (/localStorage|sessionStorage|\.setItem\(/.test(block)) {
     fail("M-010: the injection block writes to a storage backend directly (must be setStore-only)")

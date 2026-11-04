@@ -7,6 +7,10 @@
 // - Values never persist anywhere except the vault's own encrypted envelope (AGENTS.md).
 // - No extra unlock: no user-authentication binding anywhere in the contract.
 // - Unavailable is an explicit state, never a silent downgrade to plaintext.
+// - ready() is an OPT-IN bounded ordering wait (issue #128, M-062): a hydration-style
+//   reader that runs before the async native readiness roundtrip completes may await it
+//   instead of racing get() into "unavailable". It never changes the explicit-unavailability
+//   semantics of get()/put(): those still throw immediately when the vault is not available.
 
 import { isValidCredentialRef } from "../credential-ref"
 
@@ -61,6 +65,14 @@ export interface VaultPutInput {
 export interface CredentialVault {
   /** Reactive-friendly status read (backed by a solid signal in the bridge client). */
   status(): VaultStatus
+  /**
+   * Optional bounded ordering wait (issue #128, M-062): resolves "available" once the
+   * transport reports readiness, or "unavailable" when the deadline (implementation
+   * default 15000ms) passes first. NEVER rejects, never retries, never posts an extra
+   * probe. Callers that need ordering (e.g. the cold-start credential restore) feature-
+   * detect it; get()/put() semantics are unchanged and still fail closed when unavailable.
+   */
+  ready?(timeoutMs?: number): Promise<VaultStatus>
   /** Encrypt and store; resolves with the `mobile-credential:<id>` reference. */
   put(input: VaultPutInput): Promise<string>
   /** Delete an entry. Unknown ids resolve silently (idempotent; delete races are harmless). */
@@ -94,6 +106,7 @@ export function formatVaultRef(id: string): string {
  */
 export const UnavailableVault: CredentialVault = {
   status: () => "unavailable",
+  ready: async () => "unavailable",
   put: async () => {
     throw new VaultError("unavailable")
   },

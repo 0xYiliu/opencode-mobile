@@ -19,6 +19,13 @@ import type { VaultResponse, VaultTransport } from "./transport"
 
 const PEM_HEADER_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/
 
+/**
+ * Bounded readiness wait for hydration-style readers (issue #128 / M-062): same default
+ * deadline as the transport's per-request timeout — a hung native roundtrip must fail
+ * closed into "unavailable", never hang the caller.
+ */
+const DEFAULT_READY_TIMEOUT_MS = 15000
+
 function newEntryId(): string {
   const crypto = globalThis.crypto
   if (!crypto) throw new VaultError("unavailable", "secure random source unavailable")
@@ -116,8 +123,45 @@ export function createVaultClient(transport: VaultTransport): CredentialVault {
     throw new VaultError(response.code, response.message, response.recoveryRef)
   }
 
+  /**
+   * Bounded ordering wait (issue #128 / M-062). Contract, locked by tests:
+   * - Fast path: already-available resolves immediately, zero subscriptions.
+   * - Otherwise ONE transport.onReady subscription raced against ONE deadline; resolves
+   *   ONLY on an available===true report (the transport's synchronous false replay at
+   *   subscription is current-state, not a flip, and must be ignored) or "unavailable"
+   *   at the deadline. Never rejects — including after transport.dispose().
+   * - Exactly one ready probe exists (the transport's own construction-time roundtrip);
+   *   this method posts nothing and never retries. No listener leak: the subscription is
+   *   removed and the timer cleared on the first settle.
+   */
+  const ready = (timeoutMs?: number): Promise<VaultStatus> =>
+    new Promise<VaultStatus>((resolve) => {
+      if (status() === "available") {
+        resolve("available")
+        return
+      }
+      let settled = false
+      let unsubscribe: (() => void) | undefined
+      const finish = (value: VaultStatus) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        unsubscribe?.()
+        resolve(value)
+      }
+      const timer = setTimeout(() => finish("unavailable"), timeoutMs ?? DEFAULT_READY_TIMEOUT_MS)
+      unsubscribe = transport.onReady((available) => {
+        if (available) finish("available")
+      })
+      // Defensive: if the subscription's synchronous replay already settled the wait, the
+      // registration itself must not linger (belt and braces — the fast path above normally
+      // makes a true replay impossible here).
+      if (settled) unsubscribe()
+    })
+
   return {
     status,
+    ready,
     async put(input: VaultPutInput): Promise<string> {
       if (input.kind !== "password" && input.kind !== "privateKey") throw new VaultError("io", `unknown credential kind: ${String(input.kind)}`)
       validateValue(input.kind, input.value)
