@@ -17,7 +17,8 @@
     "./file": "./src/components/file.tsx",
     "./file-media": "./src/components/file-media.tsx",
     "./file-search": "./src/components/file-search.tsx",
-    "./file-ssr": "./src/components/file-ssr.tsx",
+    "./tools/ansi": "./src/tools/ansi.ts",
+    "./tools/shell-output": "./src/tools/shell-output.ts",
     "./line-comment": "./src/components/line-comment.tsx",
     "./line-comment-annotations": "./src/components/line-comment-annotations.tsx",
     "./markdown": "./src/components/markdown.tsx",
@@ -67,8 +68,10 @@
     "vite-plugin-solid": "catalog:"
   },
   "dependencies": {
+    "@kitlangton/solid-motion": "0.2.2",
     "@kobalte/core": "catalog:",
     "@opencode/client": "workspace:*",
+    "@opencode/patchmark": "workspace:*",
     "@opencode/ui": "workspace:*",
     "@opencode/util": "workspace:*",
     "@pierre/diffs": "catalog:",
@@ -83,6 +86,7 @@
     "marked": "catalog:",
     "mermaid": "11.17.2",
     "motion": "12.34.5",
+    "pele": "1.7.0",
     "remend": "catalog:",
     "solid-js": "catalog:",
     "strip-ansi": "7.1.2"

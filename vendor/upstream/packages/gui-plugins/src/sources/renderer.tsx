@@ -47,17 +47,6 @@ const setup: Plugin.Setup<typeof Sources> = (ctx) => {
     id: "turn",
     region: "side",
     transient: true,
-    // mobile(M-036): the narrow-screen More-drawer entry, before goal (order 70). The render
-    // receives the panel's id as the tab id on this path; the tab shows the most recent turn
-    // with sources, or an honest empty state while the experiment is off (registered delta;
-    // see units/gui-plugins.md).
-    mobile: {
-      get title() {
-        return ctx.t("panel.title")
-      },
-      order: 60,
-      kind: "menu",
-    },
     list: (input) => {
       if (!sourcesExperiment.enabled) {
         tabs.delete(input.session.key)
@@ -91,10 +80,7 @@ const setup: Plugin.Setup<typeof Sources> = (ctx) => {
       })
     },
     render: (props) => (
-      // mobile(M-036): the gate-off fallback renders an honest empty state instead of the upstream
-      // blank face — the fallback is only reachable on the narrow-screen mobile view, whose More
-      // drawer entry always exists (registered delta; see units/gui-plugins.md).
-      <Show when={sourcesExperiment.enabled} fallback={<div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("panel.disabled")}</div>}>
+      <Show when={sourcesExperiment.enabled}>
         <Suspense>
           <SourcesTab session={props.session} from={props.tab.id} />
         </Suspense>

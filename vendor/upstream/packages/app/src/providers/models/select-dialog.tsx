@@ -322,16 +322,17 @@ export function ModelSelectorPopover(props: {
   )
 }
 
-function ModelSelectorDrawer(props: {
+export function ModelSelectorDrawer(props: {
   trigger: ModelSelectorTrigger
   model?: ModelState
   provider?: string
   chatgptPlan?: boolean
   onClose: () => void
-  onManage: () => void
+  onManage?: () => void
   onConnect?: () => void
 }) {
   const language = useLanguage()
+  const dialog = useDialog()
 
   const [store, setStore] = createStore<{
     open: boolean
@@ -376,7 +377,8 @@ function ModelSelectorDrawer(props: {
               setStore("action", undefined)
 
               if (action === "manage") {
-                props.onManage()
+                if (props.onManage) props.onManage()
+                else void import("./manage").then(({ DialogManageModels }) => dialog.show(() => <DialogManageModels />))
 
                 return
               }

@@ -1,4 +1,5 @@
 import { Route, useParams } from "@solidjs/router"
+import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
 import { createMemo, lazy, Show, Suspense, type ParentProps } from "solid-js"
 import { Home } from "@/home/route"
 import { ServerProvider } from "@/runtime/server/current"
@@ -10,7 +11,6 @@ import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
 import { PluginAttachment } from "@/runtime/plugin/root"
-import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -23,6 +23,9 @@ const SettingsScreen = lazy(() => import("@/settings/shell").then((module) => ({
 const ConnectServerScreen = lazy(() =>
   import("@/servers/connect/screen").then((module) => ({ default: module.ConnectServerScreen })),
 )
+
+// mobile(A): the dev/Beta components lab stays out of this client (components-lab is retained absent),
+// so the target's lazy /components route is not registered here.
 
 const TargetSessionRouteContent = lazy(() =>
   loadSessionRoute().then((module) => ({ default: module.TargetSessionRouteContent })),
@@ -43,7 +46,7 @@ export function preloadRoute(url: string) {
 
 export function AppRoutes() {
   return (
-    <Route component={AppShell}>
+    <Route component={AppLayout}>
       <Route path="/" component={Home} />
       <Route path="/settings" component={SettingsScreen} />
       <Route
@@ -84,7 +87,7 @@ function TargetServerRoute(props: ParentProps) {
   )
 }
 
-function AppShell(props: ParentProps) {
+function AppLayout(props: ParentProps) {
   const servers = useServers()
   const global = useGlobal()
 

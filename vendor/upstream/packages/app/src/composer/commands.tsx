@@ -6,6 +6,10 @@ import { useDialog } from "@opencode/ui/context/dialog"
 import { useSessionLayout } from "@/session/session-layout"
 import { createSessionOwnership } from "@/session/session-ownership"
 import { useWorkspaceLocation } from "@/workspaces/location"
+import { useServerSDK } from "@/runtime/server/client"
+import { formatServerError } from "@/runtime/server/errors"
+import { showToast } from "@/shell/notifications/toast"
+import { toaster } from "@opencode/ui/toast"
 
 const withCategory = (category: string) => {
   return (option: Omit<CommandOption, "category">): CommandOption => ({
@@ -21,16 +25,41 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
   const local = useLocal()
   const workspace = useWorkspaceLocation()
   const { sessionKey } = useSessionLayout()
+  const sdk = useServerSDK()
   const sessionOwnership = createSessionOwnership(sessionKey)
   const model = input.model ?? local.model
   const modelCommand = withCategory(language.t("command.category.model"))
   const agentCommand = withCategory(language.t("command.category.agent"))
   const providerCommand = withCategory(language.t("command.category.provider"))
+  const serverCommand = withCategory(language.t("command.category.server"))
 
   // Mirrors the TUI's `/connect`, which the Console's setup steps tell people to run.
   const connectProvider = async () => {
     const { DialogConnectProvider } = await import("@/providers/connect/dialog")
-    void dialog.show(() => <DialogConnectProvider directory={workspace().directory} />)
+    // Like the TUI, the model chosen after connecting applies to this composer.
+    void dialog.show(() => <DialogConnectProvider directory={workspace().directory} selection={model} />)
+  }
+
+  // Mirrors the TUI's `/reload`. The server rebuilds every loaded location and announces the changed agents,
+  // commands, models and skills, so the data layer refreshes them without restarting the app.
+  const reloadConfig = () => {
+    const pending = showToast({
+      variant: "loading",
+      title: language.t("command.config.reload.pending"),
+      persistent: true,
+    })
+
+    void sdk.api.location
+      .reload()
+      .then(() => showToast({ variant: "success", title: language.t("command.config.reload.done") }))
+      .catch((error) =>
+        showToast({
+          variant: "error",
+          title: language.t("command.config.reload.failed"),
+          description: formatServerError(error, language.t),
+        }),
+      )
+      .finally(() => toaster.dismiss(pending))
   }
 
   const chooseModel = () => {
@@ -61,6 +90,13 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
       description: language.t("command.provider.connect.description"),
       slash: "connect",
       onSelect: connectProvider,
+    }),
+    serverCommand({
+      id: "config.reload",
+      title: language.t("command.config.reload"),
+      description: language.t("command.config.reload.description"),
+      slash: "reload",
+      onSelect: reloadConfig,
     }),
     agentCommand({
       id: "agent.cycle",

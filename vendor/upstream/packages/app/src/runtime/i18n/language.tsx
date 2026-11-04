@@ -294,6 +294,20 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
 
     const list = (items: readonly JSX.Element[]) => localizedListParts(intl(), items)
 
+    const activitySummary = (counts: { subagents: number; shells: number }) => {
+      const subagents = counts.subagents ? plural("session.activity.subagents", counts.subagents) : undefined
+      const shells = counts.shells ? plural("session.activity.shells", counts.shells) : undefined
+      if (subagents && shells) return t("session.activity.summary", { subagents, shells })
+      return subagents ?? shells ?? ""
+    }
+    const activitySummaryRich = (counts: { subagents: number; shells: number }, render: (label: string) => JSX.Element) => {
+      if (!counts.subagents || !counts.shells) return render(activitySummary(counts))
+      return rich("session.activity.summary", {
+        subagents: render(activitySummary({ subagents: counts.subagents, shells: 0 })),
+        shells: render(activitySummary({ subagents: 0, shells: counts.shells })),
+      })
+    }
+
     const label = (value: Locale) => DESKTOP_NATIVE_LABELS[value]
 
     createEffect(() => {
@@ -328,6 +342,8 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       pluralForm,
       rich,
       list,
+      activitySummary,
+      activitySummaryRich,
       setLocale(next: Locale) {
         setStore("locale", normalizeLocale(next))
       },

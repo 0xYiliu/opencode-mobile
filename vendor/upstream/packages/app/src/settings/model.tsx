@@ -15,8 +15,6 @@ export type WorkspaceDefaultDestination = Settings["workspaces"]["defaultDestina
 
 export type WorkspaceLastUsed = Settings["workspaces"]["lastUsed"][string]
 
-export type TerminalPlacement = Settings["general"]["terminalPlacement"]
-
 export type FollowUpBehavior = Settings["general"]["followUpBehavior"]
 
 export type BackgroundActivity = Settings["general"]["backgroundActivity"]
@@ -112,10 +110,12 @@ const generalSchema = Persistence.struct({
   showTurnNavigator: Persistence.optional(Schema.Boolean),
   // Owned by the updater plugin, which copies it out once; kept so settings rewrites cannot drop it first.
   releaseNotes: Persistence.optional(Schema.Boolean),
-  showFileTree: Schema.Boolean,
+  showFileTree: Persistence.optional(Schema.Boolean),
   showNavigation: Persistence.optional(Schema.Boolean),
   showSearch: Persistence.optional(Schema.Boolean),
   showTerminal: Persistence.optional(Schema.Boolean),
+  // Mobile-only placement preference without a remaining reader; kept so stored values still decode.
+  terminalPlacement: Persistence.optional(Schema.Literals(["side", "bottom"])),
   timelineDetail: Persistence.struct({
     shell: activitySchema,
     edit: activitySchema,
@@ -123,6 +123,7 @@ const generalSchema = Persistence.struct({
     subagents: placementOnlySchema,
     notices: placementOnlySchema,
     tools: placementOnlySchema,
+    commentary: placementOnlySchema,
   }),
   showCustomAgents: Schema.Boolean,
   showTurnDiffs: Schema.Boolean,
@@ -135,7 +136,6 @@ const generalSchema = Persistence.struct({
   mobileTitlebarPosition: Schema.Literals(["top", "bottom"]),
   // Owned by the review plugin, which copies it out once; kept so settings rewrites cannot drop it first.
   mobileDiffWrap: Persistence.optional(Schema.Boolean),
-  terminalPlacement: Schema.Literals(["side", "bottom"]),
   followUpBehavior: Schema.Literals(["queue", "steer"]),
 })
 
@@ -295,7 +295,6 @@ export const settingsPersistence = Persistence.migrate(
 
 export const defaultSettings: Settings = {
   general: {
-    showFileTree: false,
     timelineDetail: { ...timelinePresets[2].value },
     showCustomAgents: false,
     showTurnDiffs: false,
@@ -304,7 +303,6 @@ export const defaultSettings: Settings = {
     newIcons: false,
     foldUserMessages: false,
     mobileTitlebarPosition: "top",
-    terminalPlacement: "side",
     followUpBehavior: "steer",
   },
   appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", reduceMotion: "system" },
@@ -332,7 +330,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
   gate: false,
   init: () => {
     const [store, setStore, , ready] = persisted({ key: "settings.v3" }, settingsPersistence, defaultSettings)
-    const showFileTree = withFallback(() => store.general?.showFileTree, defaultSettings.general.showFileTree)
 
     const showCustomAgents = withFallback(
       () => store.general?.showCustomAgents,
@@ -386,10 +383,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         return store
       },
       general: {
-        showFileTree,
-        setShowFileTree(value: boolean) {
-          setStore("general", "showFileTree", value)
-        },
         timelineDetail: withFallback(() => store.general?.timelineDetail, defaultSettings.general.timelineDetail),
         setTimelineDetail(value: TimelineDetail) {
           setStore("general", "timelineDetail", structuredClone(unwrap(value)))
@@ -428,20 +421,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setMobileTitlebarPosition(value: "top" | "bottom") {
           setStore("general", "mobileTitlebarPosition", value)
         },
-        terminalPlacement: withFallback(
-          () => store.general?.terminalPlacement,
-          defaultSettings.general.terminalPlacement,
-        ),
-        setTerminalPlacement(value: TerminalPlacement) {
-          setStore("general", "terminalPlacement", value)
-        },
         followUpBehavior: withFallback(() => store.general?.followUpBehavior, defaultSettings.general.followUpBehavior),
         setFollowUpBehavior(value: FollowUpBehavior) {
           setStore("general", "followUpBehavior", value)
         },
       },
       visibility: {
-        fileTree: showFileTree,
         customAgents: showCustomAgents,
       },
       appearance: {

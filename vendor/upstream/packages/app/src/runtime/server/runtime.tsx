@@ -1,5 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
-import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
+import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, onCleanup, on, untrack } from "solid-js"
+import { useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
 import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
@@ -14,14 +15,18 @@ import { useCurrentRoute } from "@/shell/state/layout"
 import { useTabs } from "@/shell/tabs/tabs"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createDesktopData } from "./data"
-import { ModelState } from "./persistence"
+import { modelState } from "./persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "./errors"
 import { useSettings } from "@/settings/model"
 import { timelinePreset } from "@opencode/session-ui/timeline/detail"
 import type { SessionInfo } from "@opencode/client/promise"
-import { resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
+import { projectForSession, resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
+import { normalizeProjectInfo } from "./global-sync/utils"
+import { containsDirectory } from "@opencode/util/path"
+
+let nextCatalogGeneration = 0
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -116,7 +121,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
 })
 
 function createGlobalModels() {
-  const [store, setStore, _, ready] = persisted(Persist.global("model"), ModelState, {
+  const [store, setStore, _, ready] = persisted(Persist.global("model"), modelState, {
+    favorite: [],
     user: [],
     recent: [],
     variant: {},
@@ -134,6 +140,10 @@ function createGlobalModels() {
     store,
     set: setStore,
     ready,
+    favorite: () => {
+      loaded()
+      return store.favorite
+    },
     recent: () => {
       loaded()
 
@@ -177,7 +187,7 @@ function createServerController(
   const sdk = createServerSdkContext(conn, scope)
 
   const source = createData({
-    api: () => sdk.api,
+    api: () => sdk.mediaApi,
     initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
     event: {
       on: sdk.event.on,
@@ -245,6 +255,62 @@ function createServerController(
 
   const projectsList = createMemo(() => projects.list().map(enrich))
 
+  // This independent inventory deliberately does not reuse the filtered sync/bootstrap query.
+  // Every controller (including a same-key reauthentication) owns a distinct cache generation.
+  const queryClient = useQueryClient()
+  const catalogKey = [scope, connKey, "session-project-catalog", ++nextCatalogGeneration] as const
+  let catalogActive = true
+  const catalogQuery = useQuery(() => ({
+    queryKey: [...catalogKey, sdk.generation],
+    enabled: sdk.connection.status() === "connected",
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const api = sdk.api
+      const items = await api.project.list(undefined, { signal })
+      if (!catalogActive || signal.aborted || sdk.api !== api) throw new DOMException("Aborted", "AbortError")
+      return items.map(normalizeProjectInfo)
+    },
+  }))
+  const refreshCatalog = () => {
+    if (catalogActive && sdk.connection.status() === "connected")
+      void queryClient.invalidateQueries({ queryKey: catalogKey })
+  }
+  const unsubscribeCatalog = sdk.event.on("project.updated", refreshCatalog)
+  createEffect(on(sdk.connection.status, (status, previous) => {
+    if (previous && previous !== "connected" && status === "connected") refreshCatalog()
+  }))
+  createEffect(() => {
+    if (!catalogQuery.isError) return
+    showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(catalogQuery.error, language.t) })
+  })
+  onCleanup(() => {
+    catalogActive = false
+    unsubscribeCatalog()
+    void queryClient.cancelQueries({ queryKey: catalogKey })
+    queryClient.removeQueries({ queryKey: catalogKey })
+  })
+  const catalogList = () => catalogQuery.data ?? []
+  const catalogAppearance = (project: ReturnType<typeof catalogList>[number] | undefined, directory: string) => {
+    if (!project) return
+    const local = projectsList().find((item) => pathKey(item.worktree) === pathKey(directory)) ??
+      projectsList().find((item) => pathKey(item.worktree) === pathKey(project.worktree))
+    if (!local) return project
+    return { ...project, name: local.name ?? project.name, icon: local.icon ?? project.icon }
+  }
+  const catalogForDirectory = (directory: string) => {
+    const normalized = pathKey(directory)
+    const list = catalogList()
+    const exact = list.find((item) => pathKey(item.worktree) === normalized) ??
+      list.find((item) => item.sandboxes?.some((sandbox) => pathKey(sandbox) === normalized) ||
+        item.worktrees?.some((worktree) => pathKey(worktree.directory) === normalized))
+    const closest = exact ?? list.flatMap((project, order) =>
+      [project.worktree, ...(project.sandboxes ?? []), ...(project.worktrees ?? []).map((item) => item.directory)]
+        .filter((root) => containsDirectory(root, directory))
+        .map((root) => ({ project, length: pathKey(root).length, order })))
+      .sort((a, b) => b.length - a.length || a.order - b.order)[0]?.project
+    return catalogAppearance(closest, directory)
+  }
+
   const forSession = (session: SessionInfo) => {
     const project = resolveProjectForSession(session, projectsList(), sync.data.project)
 
@@ -277,6 +343,14 @@ function createServerController(
     projects: {
       ...projects,
       list: projectsList,
+      catalog: {
+        list: catalogList,
+        ready: () => catalogQuery.data !== undefined,
+        status: () => catalogQuery.status,
+        error: () => catalogQuery.error,
+        forSession: (session: SessionInfo) => catalogAppearance(projectForSession(session, catalogList()), session.location.directory),
+      },
+      forDirectory: catalogForDirectory,
       forSession,
       detailsForSession,
       resolve: enrich,

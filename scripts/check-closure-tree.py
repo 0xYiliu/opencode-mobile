@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import stat
 import sys
 
@@ -49,18 +50,35 @@ def file_record(path: Path) -> tuple[str, int, int, str, str]:
     return f"special:{stat.filemode(st.st_mode)}", mode, st.st_size, "", ""
 
 
-def excluded(relative: str, names: set[str]) -> bool:
-    return bool(relative) and bool(names.intersection(Path(relative).parts))
+def canonical_relative_path(value: str) -> str:
+    parsed = PurePosixPath(value)
+    if (
+        not value
+        or "\\" in value
+        or parsed.is_absolute()
+        or parsed.as_posix() != value
+        or any(part in ("", ".", "..") for part in value.split("/"))
+    ):
+        raise argparse.ArgumentTypeError(f"exclude path must be canonical relative POSIX text: {value!r}")
+    return value
 
 
-def snapshot(root: Path, excluded_names: set[str]) -> dict[str, tuple[str, int, int, str, str]]:
+def excluded(relative: str, names: set[str], paths: set[str]) -> bool:
+    if not relative:
+        return False
+    if names.intersection(Path(relative).parts):
+        return True
+    return any(relative == path or relative.startswith(f"{path}/") for path in paths)
+
+
+def snapshot(root: Path, excluded_names: set[str], excluded_paths: set[str]) -> dict[str, tuple[str, int, int, str, str]]:
     result: dict[str, tuple[str, int, int, str, str]] = {}
 
     if not root.exists() and not root.is_symlink():
         return result
 
     def visit(path: Path, relative: str) -> None:
-        if excluded(relative, excluded_names):
+        if excluded(relative, excluded_names, excluded_paths):
             return
         result[relative] = file_record(path)
         if result[relative][0] != "dir":
@@ -91,6 +109,7 @@ def main() -> int:
     parser.add_argument("--expected", required=True, type=Path)
     parser.add_argument("--actual", required=True, type=Path)
     parser.add_argument("--exclude-name", action="append", default=list(ARTIFACT_DEFAULTS))
+    parser.add_argument("--exclude-path", action="append", default=[], type=canonical_relative_path)
     parser.add_argument("--strict-mode", action="store_true")
     parser.add_argument("--label", default="closure")
     args = parser.parse_args()
@@ -103,8 +122,8 @@ def main() -> int:
         )
         return 1
 
-    expected = snapshot(args.expected, set(args.exclude_name))
-    actual = snapshot(args.actual, set(args.exclude_name))
+    expected = snapshot(args.expected, set(args.exclude_name), set(args.exclude_path))
+    actual = snapshot(args.actual, set(args.exclude_name), set(args.exclude_path))
     mismatches: list[str] = []
 
     for relative in sorted(set(expected) | set(actual)):

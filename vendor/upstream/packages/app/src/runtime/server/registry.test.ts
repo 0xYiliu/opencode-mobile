@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { canRemoveServer, createServerProjects, resolveServerList, ServerConnection } from "./registry"
+import { canRemoveServer, createServerProjects, resolveServerList, ServerConnection, serverLabel } from "./registry"
 import { Schema } from "effect"
 import { serverState } from "./persistence"
 import { createStore } from "solid-js/store"
@@ -10,11 +10,24 @@ function serverSchema() {
   return Persistence.withInitial(serverState(), {
     list: [],
     hidden: {},
-    projects: {},
     lastProject: {},
     recentlyClosed: {},
+    projects: {},
   })
 }
+
+test("the current server is named by its hostname, a custom name wins, and other servers show their address", () => {
+  const sidecar: ServerConnection.Sidecar = { type: "sidecar", variant: "base", http: { url: "http://127.0.0.1:4096" } }
+  const remote: ServerConnection.Http = { type: "http", http: { url: "https://apollo.example.test:4096/" } }
+  const current = { hostname: "hailmary", fallback: "This computer" }
+
+  expect(serverLabel(sidecar, current)).toBe("hailmary")
+  expect(serverLabel(sidecar, { fallback: "This computer" })).toBe("This computer")
+  expect(serverLabel(sidecar, { hostname: "", fallback: "This computer" })).toBe("This computer")
+  expect(serverLabel({ ...sidecar, displayName: "Studio" }, current)).toBe("Studio")
+  expect(serverLabel(remote)).toBe("apollo.example.test:4096")
+  expect(serverLabel({ ...remote, displayName: "apollo" })).toBe("apollo")
+})
 
 test("startup auth_token credentials override a persisted same-url server; without one the persisted password stays", () => {
   const url = "https://server.example.test"
@@ -36,6 +49,18 @@ test("startup auth_token credentials override a persisted same-url server; witho
   expect(kept).toHaveLength(1)
   expect(kept[0]?.http).toEqual({ url, password: "saved" })
   expect(kept[0]?.type === "http" ? kept[0].authToken : true).toBeUndefined()
+  const schema = serverSchema()
+  const state = Schema.decodeUnknownSync(schema)({ list: [
+    { type: "http", http: { url, password: "fixture-password", credentialRef: "fixture-ref" }, authToken: true },
+    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
+  ] })
+  expect(state.list[0]?.http.password).toBe("fixture-password")
+  const encoded = JSON.parse(JSON.stringify(Schema.encodeSync(schema)(state)))
+  expect(encoded.list).toEqual([
+    { type: "http", http: { url, credentialRef: "fixture-ref" }, authToken: true },
+    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
+  ])
+  expect(Schema.decodeUnknownSync(schema)(JSON.parse(JSON.stringify(encoded)))).toEqual(encoded)
 })
 
 test("treats WSL sidecars as remote server connections", () => {
@@ -73,12 +98,13 @@ test("keeps exact persisted server identities and prevents removing provided ser
   expect(canRemoveServer({ key, stored, provided: [{ type: "http", http: { url: key } }] })).toBe(false)
 })
 
+/** The server props a project store follows, which the test changes. */
+type ProjectScopeProps = { server: ServerConnection.Key; canonicalLocalServer?: ServerConnection.Key }
+
 test("project actions update schema-derived state and follow dynamic server scopes", () => {
   const [store, setStore] = createStore(Schema.decodeUnknownSync(serverSchema())({}))
 
-  const props: { server: ServerConnection.Key; canonicalLocalServer?: ServerConnection.Key } = {
-    server: ServerConnection.Key.make("https://remote.example"),
-  }
+  const props: ProjectScopeProps = { server: ServerConnection.Key.make("https://remote.example") }
 
   const projects = createServerProjects({
     store,
@@ -93,11 +119,22 @@ test("project actions update schema-derived state and follow dynamic server scop
   expect(projects.last()).toBe("/remote")
   props.canonicalLocalServer = props.server
   expect(projects.list()).toEqual([])
+  expect(projects.last()).toBeUndefined()
   projects.open("/local")
   projects.close("/local")
   expect(projects.recentlyClosed()).toEqual(["/local"])
   projects.open("/local")
   expect(projects.recentlyClosed()).toEqual([])
+  projects.collapse("/local")
+  projects.expand("/local")
+  projects.open("/second")
+  projects.move("/second", 0)
+  expect(projects.list()).toEqual([{ worktree: "/second", expanded: true }, { worktree: "/local", expanded: true }])
+  projects.remove("/second")
+  expect(projects.recentlyClosed()).toEqual([])
   expect(store.projects.local).toEqual([{ worktree: "/local", expanded: true }])
   expect(store.projects[props.server]).toEqual([{ worktree: "/remote", expanded: false }])
+  props.canonicalLocalServer = undefined
+  expect(projects.last()).toBe("/remote")
+  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
 })

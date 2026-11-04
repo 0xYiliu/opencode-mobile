@@ -116,7 +116,10 @@ export default [
         optimizeDeps: {
           exclude: [...workerDeps, ...officeDeps],
           include: ["@opencode/session-ui > mermaid", "@opencode/session-ui > mermaid > katex"],
-          rolldownOptions: { plugins: [bundleNestedWorkerDeps] },
+          rolldownOptions: {
+            plugins: [bundleNestedWorkerDeps],
+            transform: { jsx: { runtime: "classic" } },
+          },
         },
       }
     },

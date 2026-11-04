@@ -1154,35 +1154,6 @@
       "status": "active"
     },
     {
-      "id": "M-061",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
-      "targets": [
-        "packages/app/src/servers/connect/screen.tsx"
-      ],
-      "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
-      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence.",
-      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
-      "status": "active"
-    },
-    {
-      "id": "M-062",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
-      "targets": [
-        "packages/app/src/runtime/server/registry.tsx",
-        "packages/app/src/runtime/server/registry-hydration.test.tsx"
-      ],
-      "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
-      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts.",
-      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
-      "status": "active"
-    },
-    {
       "id": "M-057",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/P126-U-session-workbench.patch",
@@ -1546,9 +1517,11 @@
         "packages/util/src/session-mention.test.ts",
         "packages/util/src/session-mention.ts"
       ],
-      "reason": "P126 session-workbench source candidate; deferred and not applied in Block 1.",
+      "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
       "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after the original active M-001…M-056 chain with M-061/M-062 temporarily placed after P126 S/A per p126-replay-order.json; fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a."
     },
     {
       "id": "M-058",
@@ -1604,9 +1577,26 @@
         "packages/app/src/runtime/server/media-generated/index.ts",
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
-      "reason": "P126 client-compatibility source candidate layered after U; deferred and not applied in Block 1.",
+      "reason": "Fixed client/protocol compatibility layer for the target session runtime, including the media API contract; no schema/tool.ts change is introduced because the fixed target already contains that contract.",
       "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered directly after M-057 U and before M-065 host project compatibility."
+    },
+    {
+      "id": "M-065",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-project-open-compat.patch",
+      "targets": [
+        "packages/app/src/runtime/plugin/host-apis.test.tsx",
+        "packages/app/src/runtime/plugin/host-apis.tsx"
+      ],
+      "reason": "P126 client/runtime compatibility: the real session runtime exposes createServerProjects(...).open(directory), while the session-workbench host API source calls projects.add. After M-057 U and M-058 C, route selected directories to the owning server context through projects.open, then create the draft with the same ServerConnection.key and directory. The regression drives the public HostApi project request through the real createHostApis / createPluginAttachment entry and checks pending server, picker ownership, cancellation and same-path two-server isolation; it does not add a production test seam or Extensions behavior.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding M-061/M-062 + M-057 + M-058",
+      "verification": "packages/app/src/runtime/plugin/host-apis.test.tsx: before-fix negative observed TypeError projects.add is not a function; after-fix 1 pass / 0 fail / 18 expect() with the real host entry and server-scoped context fixture. Full closure/type/build verification is tracked in docs/build-and-verify.md.",
+      "rebase": "New patch, layered after M-057 U and M-058 C, before M-059 S. Targets only packages/app/src/runtime/plugin/host-apis.tsx and host-apis.test.tsx. Regenerate against the accumulated runtime tree if the host API or createServerProjects interface changes.",
+      "sha256": "d2a3f07ae5a31d2bdb650e07dd5943010edf05549fe6434fc093846a2c0ef42d",
+      "status": "active"
     },
     {
       "id": "M-059",
@@ -1632,9 +1622,11 @@
         "packages/app/src/session/revert.ts",
         "packages/app/src/session/session-ownership.test.ts"
       ],
-      "reason": "P126 media-source safety and ownership source candidate; deferred and not applied in Block 1.",
+      "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
       "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after M-057 U, M-058 C and M-065 compatibility; before M-060 Android adaptation."
     },
     {
       "id": "M-060",
@@ -1643,11 +1635,100 @@
       "targets": [
         "packages/app/src/session/composer/region.tsx",
         "packages/app/src/shell/routes/routes.tsx",
-        "packages/app/src/shell/panel-motion.ts"
+        "packages/app/src/shell/panel-motion.ts",
+        "packages/app/src/shell/panel-motion.test.ts"
       ],
-      "reason": "P126 Android adaptation source candidate after U/C/S; deferred and not applied in Block 1.",
+      "reason": "Minimal Android adaptation layer: retain mobile-hosts initialScreenOwned gating, keep the dev/Beta components lab out of this client, and guard the older WebView :dir() selector. Its composer hunk removes the target VoiceComposer wrapper and preserves the non-voice Composer fallback in accordance with ADR 0006; it does not enable voice calls.",
       "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay and panel-motion/route/composer tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after M-057 U, M-058 C, M-065 and M-059 S. The VoiceComposer hunk is explicitly traceable to ADR 0006 (deferred), not a voice feature port."
+    },
+    {
+      "id": "M-061",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
+      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence.",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
+      "status": "active"
+    },
+    {
+      "id": "M-062",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "targets": [
+        "packages/app/src/runtime/server/registry.tsx",
+        "packages/app/src/runtime/server/registry-hydration.test.tsx"
+      ],
+      "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
+      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts.",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
+      "status": "active"
+    },
+    {
+      "id": "M-064",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-S-session-ownership-whitespace.patch",
+      "targets": [
+        "packages/app/src/session/session-ownership.test.ts"
+      ],
+      "reason": "Whitespace-only session-ownership follow-up; the one whitespace hunk is retained as a separate stable ID so the source chain and reverse replay remain byte-reproducible. It carries no semantic expansion.",
+      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
+      "status": "active",
+      "verification": "Replay and exact source-hash verification are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Final active P126 source hunk after M-061 and M-062."
+    },
+    {
+      "id": "M-066",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-composer-restore-test-compat.patch",
+      "targets": [
+        "packages/app/src/composer/submit.test.ts"
+      ],
+      "reason": "Independent P126 test-only compatibility patch for the composer restore regressions. Sol reproduced the original base submit suite at 15/0 and the target candidate at 22/0 in /tmp/opencode/p126-sol-review-2t8anlxj/: Solid store proxy values expose complete key/range and explicit-undefined fields that the former toMatchObject expectations omit. The accepted target uses toEqual against the complete restored prompt/context shapes; projection, objectContaining, filtering, JSON normalization, and toStrictEqual/unwrap proxy workarounds are intentionally excluded. This patch changes only submit.test.ts and does not alter restore, retry, ownership, or production behavior.",
+      "upstreamBaseline": "P126 cumulative runtime tree after M-064; M-065 project.open compatibility remains an independent earlier patch.",
+      "verification": "The patch is applied last in the P126 runtime replay and is constrained to packages/app/src/composer/submit.test.ts. Owning composer submit tests, full P126 owning test set, exact closure replay/reverse, historical negative profile, closure checker positives/negatives, and final artifact checks are recorded in docs/build-and-verify.md.",
+      "rebase": "Independent final active patch after M-064. It updates only complete-shape expectations in packages/app/src/composer/submit.test.ts; regenerate against the cumulative P126 runtime tree if that test fixture changes.",
+      "sha256": "67c88b685a385bfc34722baa2a957ad05d37760e671bc23dac5dbdb7e8bc68a6",
+      "status": "active"
+    },
+    {
+      "id": "M-067",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "targets": [
+        "packages/app/e2e/utils/mock-server.ts",
+        "packages/app/vite.js"
+      ],
+      "reason": "P126 test/runtime compatibility only: restore the fixed-target mockPluginsActivating route helper (first model request returns the plugin ServiceUnavailableError 503 with CORS, later requests fall through) and configure only optimizeDeps.rolldownOptions.transform.jsx.runtime as classic while retaining bundleNestedWorkerDeps. No production JSX strategy, worker, Vite version, or dependency is changed.",
+      "upstreamBaseline": "P126 cumulative runtime tree after M-066; the mockPluginsActivating helper is copied verbatim from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
+      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets. Real Vite dev-module, optimizer, Solid/lazy-icon and Composer E2E evidence is recorded in docs/build-and-verify.md.",
+      "rebase": "Layered after M-066. Keep the mock helper exact to fixed upstream and add only the classic JSX transform under optimizeDeps.rolldownOptions; preserve the existing nested-worker plugin.",
+      "sha256": "134572bb64882a2bd0dfa350c8f6afbe5a736e1000c587ad34b435a93a09436a",
+      "status": "active"
+    },
+    {
+      "id": "M-068",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "targets": [
+        "packages/app/e2e/regression/composer.spec.ts",
+        "packages/app/e2e/utils/app-direction.fixture.tsx"
+      ],
+      "reason": "P126 E2E setup compatibility only: seed the already-existing WorkspaceInput/SeedInput with servers: [{ url: SERVER }] in every Composer workspace setup while preserving existing tabs, storage, and settings. The second target is an exact fixed-upstream app-direction fixture copy, updating the public GUI plugin host contract to Command/usePluginHost/item.plugin/windowEntry without changing its startup hold/reload/Finish behavior. No shared helper, production gate, SSH simulation, or ownership behavior changes.",
+      "upstreamBaseline": "P126 cumulative runtime tree after M-067; app-direction.fixture.tsx is an exact byte copy from fixed upstream target 3ebcf9a32c7b28f658cfee80775448929361727a.",
+      "verification": "The finite P126 verifier locks the patch bytes and exactly these two targets and checks the fixture copy against the fixed target. Composer/TSX fixture, ownership, and full closure evidence is recorded in docs/build-and-verify.md.",
+      "rebase": "Layered after M-067. Keep all server-list adaptation local to composer.spec.ts SeedInput call sites; retain all existing seed fields. The fixture target remains the complete fixed-target file, not a partial renderer-only migration.",
+      "sha256": "7ea239fc1c2c87270b0f6f6128b056e094343295ef174fa43caee120528fcea6",
+      "status": "active"
     },
     {
       "id": "M-063",
@@ -1658,28 +1739,25 @@
         "packages/app/src/providers/models/agent.test.ts",
         "packages/app/src/providers/models/selection.tsx"
       ],
-      "reason": "P126 agent-selector source candidate; deferred and not applied in Block 1.",
+      "reason": "Agent-selector source override remains deferred-source-only by explicit scope. No agent product behavior is activated in this runtime closure.",
       "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-064",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "targets": [
-        "packages/app/src/session/session-ownership.test.ts"
-      ],
-      "reason": "P126 session-ownership whitespace source candidate; deferred and not applied in Block 1.",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
+      "status": "deferred-source-only",
+      "verification": "Hash/path/status are independently asserted by the finite P126 runtime verifier; the patch is not in active replay.",
+      "rebase": "Not applied; requires a separate authorized scope decision."
     }
   ],
-  "block1PatchPolicy": {
-    "base": "d37260c002b4390060f7d6cd78ffe6a11e9e1012",
-    "activePatchCount": 56,
-    "deferredSourceOnlyPatchCount": 6,
+  "runtimePatchPolicy": {
+    "version": 1,
+    "profile": "p126-runtime",
+    "base": "afef1b948c59a901da710bb5793ea73d53948fbb",
+    "targetUpstream": "3ebcf9a32c7b28f658cfee80775448929361727a",
+    "activePatchCount": 65,
+    "deferredSourceOnlyPatchCount": 1,
     "deferredPatchesApplied": false,
-    "activeClosureUsesOnlyBaseOrder": true,
-    "futureOrderContract": "p126-replay-order.json"
+    "activeClosureUsesExactOrder": true,
+    "replayOrderContract": "p126-replay-order.json",
+    "deferredPatchIDs": [
+      "M-063"
+    ]
   }
 }

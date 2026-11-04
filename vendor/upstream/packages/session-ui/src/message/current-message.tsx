@@ -9,9 +9,7 @@ import {
   ToolDisplay,
 } from "../tools/tool-renderer"
 import { currentToolError, currentToolInput, currentToolMetadata, currentToolOutput } from "./current-tool-state"
-// mobile(M-036): only the TurnSources type crosses here. The v2.2.1 diff also carries a
-// timeline-rewrite type import that this slice deliberately does not take (that boundary is
-// machine-checked by verify-goal-sources group 6).
+import type { UserRun } from "../timeline/user-runs"
 import type { TurnSources } from "../sources/sources"
 
 export type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
@@ -30,6 +28,7 @@ export function SessionUserMessage(props: {
   historicalAgent: string
   historicalModel: SessionMessageAssistant["model"]
   actions?: SessionUserActions
+  run?: UserRun
   fold?: boolean
   expanded?: boolean
   onExpandedChange?: (expanded: boolean) => void
@@ -45,6 +44,7 @@ export function SessionUserMessage(props: {
       agent={props.historicalAgent}
       model={props.historicalModel}
       actions={props.actions}
+      run={props.run}
       fold={props.fold}
       expanded={props.expanded}
       onExpandedChange={props.onExpandedChange}

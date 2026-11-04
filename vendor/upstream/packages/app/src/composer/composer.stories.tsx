@@ -72,6 +72,9 @@ function ComposerStory(props: {
     variant: STORY_MODEL.variant,
   })
 
+  // Synthetic selected-model state; the favorite callback updates it like the persisted preference.
+  const [favorites, setFavorites] = createStore<{ models: Array<ReturnType<typeof modelOption>> }>({ models: [] })
+
   const modelOption = createMemo(() => ({
     ...selectedModel,
     name: props.longLabels ? "Claude Sonnet with an unusually long model name" : selectedModel.name,
@@ -79,6 +82,7 @@ function ComposerStory(props: {
 
   const modelSelection = {
     ready: Object.assign(() => true, { promise: undefined }),
+    key: () => ({ providerID: STORY_MODEL.providerID, modelID: STORY_MODEL.id, variant: story.variant }),
     current: () => modelOption(),
     recent: () => [modelOption()],
     list: () => [modelOption()],
@@ -86,6 +90,16 @@ function ComposerStory(props: {
     set() {},
     visible: () => true,
     setVisibility() {},
+    favorite: {
+      list: () => favorites.models,
+      toggle(key: { providerID: string; modelID: string }) {
+        setFavorites("models", (models) => {
+          const rest = models.filter((item) => !(item.providerID === key.providerID && item.id === key.modelID))
+
+          return rest.length === models.length ? [...models, modelOption()] : rest
+        })
+      },
+    },
     variant: {
       configured: () => STORY_MODEL.variant,
       selected: () => story.variant,

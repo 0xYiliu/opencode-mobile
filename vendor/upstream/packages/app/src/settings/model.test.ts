@@ -90,7 +90,6 @@ describe("settings schema", () => {
   test("supplies the existing defaults for an empty document", () => {
     expect(decode({})).toEqual({
       general: {
-        showFileTree: false,
         timelineDetail: timelinePresets[2].value,
         showCustomAgents: false,
         showTurnDiffs: false,
@@ -99,7 +98,6 @@ describe("settings schema", () => {
         newIcons: false,
         foldUserMessages: false,
         mobileTitlebarPosition: "top",
-        terminalPlacement: "side",
         followUpBehavior: "steer",
       },
       appearance: {
