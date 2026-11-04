@@ -1,0 +1,1668 @@
+# P126 S layer: media sourceServerKey provenance, fail-closed loaders, generation leases,
+# and the SF/SR ownership test suite.
+#
+# Carries the interleaved C-media-composition hunks of client.tsx, server/media.ts and
+# revert.ts (see the C patch header).
+diff --git aa/packages/app/src/composer/history/entry.ts bb/packages/app/src/composer/history/entry.ts
+index 17a76ab..aca14b3 100644
+--- aa/packages/app/src/composer/history/entry.ts
++++ bb/packages/app/src/composer/history/entry.ts
+@@ -97,6 +97,7 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
+     if (partA.type === "session" && (partB.type !== "session" || partA.id !== partB.id)) return false
+ 
+     if (partA.type === "file") {
++      if (partB.type !== "file" || partA.sourceServerKey !== partB.sourceServerKey || partA.url !== partB.url) return false
+       if (partA.path !== (partB.type === "file" ? partB.path : "")) return false
+       const a = partA.selection
+       const b = partB.type === "file" ? partB.selection : undefined
+@@ -120,6 +121,7 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
+     }
+ 
+     if (isAttachment(partA) && partA.id !== (isAttachment(partB) ? partB.id : "")) return false
++    if (partA.type === "image" && (partB.type !== "image" || partA.blob.id !== partB.blob.id || partA.blob.sourceServerKey !== partB.blob.sourceServerKey)) return false
+   }
+ 
+   if (entryA.comments.length !== entryB.comments.length) return false
+
+diff --git aa/packages/app/src/composer/media.ts bb/packages/app/src/composer/media.ts
+index 1b9adef..3c8dff5 100644
+--- aa/packages/app/src/composer/media.ts
++++ bb/packages/app/src/composer/media.ts
+@@ -3,14 +3,14 @@ import { mediaHashFromUri } from "@/runtime/server/media"
+ import type { Prompt } from "./state"
+ 
+ /** {@link pinMediaBlob} for every `media:<hash>` image and file in a prompt, before its server copy can be swept. */
+-export async function pinPromptMedia(prompt: Prompt): Promise<Prompt> {
++export async function pinPromptMedia(prompt: Prompt, current?: () => boolean): Promise<Prompt> {
+   return Promise.all(
+     prompt.map(async (part) => {
+-      if (part.type === "image") return { ...part, blob: await pinMediaBlob(part.blob) }
++      if (part.type === "image") return { ...part, blob: await pinMediaBlob(part.blob, current) }
+       const url = part.type === "file" ? part.url : undefined
+ 
+       if (part.type !== "file" || !url || !mediaHashFromUri(url)) return part
+-      const pinned = await pinMediaBlob({ id: url, url })
++      const pinned = await pinMediaBlob({ id: url, url, sourceServerKey: part.sourceServerKey }, current)
+ 
+       return { ...part, url: await blobDataUrl(pinned, part.mime ?? "application/octet-stream") }
+     }),
+
+diff --git aa/packages/app/src/composer/persistence.tsx bb/packages/app/src/composer/persistence.tsx
+index ae53eda..f075836 100644
+--- aa/packages/app/src/composer/persistence.tsx
++++ bb/packages/app/src/composer/persistence.tsx
+@@ -62,13 +62,14 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+     const serverSDK = useServerSDK()
+     const tabs = useTabs()
+     const cache = new Map<string, ComposerCacheEntry>()
++    let active = true
+ 
+     const disposeAll = () => {
+       for (const entry of cache.values()) entry.dispose()
+       cache.clear()
+     }
+ 
+-    onCleanup(disposeAll)
++    onCleanup(() => { active = false; disposeAll() })
+ 
+     const prune = () => {
+       while (cache.size > MAX_PROMPT_SESSIONS) {
+@@ -119,6 +120,7 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+     }
+ 
+     const session = createMemo(() => load(scope()))
++    const ownership = createMemo(() => ({ scope: scopeKey(scope()), server: serverKey(), state: session() }))
+ 
+     const pick = (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
+       scope ? load(scope, target) : session()
+@@ -139,6 +141,11 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+ 
+     return {
+       ready,
++      captureOwner() {
++        const owner = ownership()
++        const source = serverSDK.capture()
++        return () => active && source() && ownership() === owner
++      },
+       capture: (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
+         pick(scope, target).capture(),
+       current: withSuspense(() => session().current()),
+
+diff --git aa/packages/app/src/composer/prompt-parts.ts bb/packages/app/src/composer/prompt-parts.ts
+index e64fdee..7fa2b8c 100644
+--- aa/packages/app/src/composer/prompt-parts.ts
++++ bb/packages/app/src/composer/prompt-parts.ts
+@@ -30,7 +30,8 @@ export function isAttachment(part: ContentPart): part is ImageAttachmentPart | P
+ 
+ export function clonePrompt(prompt: Prompt): Prompt {
+   return prompt.map((part) =>
+-    part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
++    part.type === "image" ? { ...part, blob: { ...part.blob } } :
++      part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
+   )
+ }
+ 
+
+diff --git aa/packages/app/src/composer/prompt.ts bb/packages/app/src/composer/prompt.ts
+index 7843401..4d139d7 100644
+--- aa/packages/app/src/composer/prompt.ts
++++ bb/packages/app/src/composer/prompt.ts
+@@ -24,6 +24,7 @@ type Inline =
+         endChar: number
+       }
+       url?: string
++      sourceServerKey?: string
+       mime?: string
+       filename?: string
+       description?: string
+@@ -75,7 +76,7 @@ export type PromptSource = Omit<
+ // return as trailing mentions, and inline files as attachments.
+ export function extractPromptFromMessage(
+   message: PromptSource,
+-  opts?: { directory?: string; attachmentName?: string; sessionTitle?: (id: string) => string | undefined },
++  opts?: { directory?: string; sourceServerKey?: string; attachmentName?: string; sessionTitle?: (id: string) => string | undefined },
+ ): Prompt {
+   const presentation = readPromptPresentation(message.metadata)
+   const text = presentation?.displayText ?? message.text
+@@ -129,6 +130,7 @@ export function extractPromptFromMessage(
+         path: toRelative(mention.text.startsWith("@") ? mention.text.slice(1) : mention.text),
+         selection: selectionFromFileUrl(uri),
+         url: uri,
++        sourceServerKey: opts?.sourceServerKey,
+         mime: file.mime,
+         filename: file.name,
+         description: file.description,
+@@ -154,7 +156,7 @@ export function extractPromptFromMessage(
+       id: `${message.id}:file:${attachments.length}`,
+       filename: file.name ?? attachmentName,
+       mime: file.mime,
+-      blob: createLegacyBlobReference(dataUrl),
++      blob: createLegacyBlobReference(dataUrl, opts?.sourceServerKey),
+     })
+   }
+ 
+@@ -291,6 +293,7 @@ function buildPrompt(
+       path: item.path,
+       selection: item.selection,
+       url: item.url,
++      sourceServerKey: item.sourceServerKey,
+       mime: item.mime,
+       filename: item.filename,
+       description: item.description,
+
+diff --git aa/packages/app/src/composer/request.ts bb/packages/app/src/composer/request.ts
+index c8f1f4e..bc7fc1c 100644
+--- aa/packages/app/src/composer/request.ts
++++ bb/packages/app/src/composer/request.ts
+@@ -1,5 +1,6 @@
+ import { encodeFilePath, getFilename } from "@opencode/util/path"
+ import { parseSessionMention } from "@opencode/util/session-mention"
++import { ClientError } from "@opencode/client/promise"
+ import { serializePrompt } from "./prompt-parts"
+ import type { FileSelection } from "@/workspaces/files/model"
+ import type {
+@@ -113,6 +114,10 @@ export function quoteComment(item: QuoteContextItem) {
+ }
+ 
+ export function buildPromptRequest(input: BuildPromptRequestInput): PromptRequest {
++  // A remote reference is not attachment bytes. Queue/fork/recall must pin it on its captured
++  // source before this synchronous wire boundary; unresolved old history stays editable.
++  if (input.prompt.some((part) => part.type === "file" && part.url?.startsWith("media:")) ||
++    input.images.some((part) => part.dataUrl.startsWith("media:"))) throw new ClientError("MalformedResponse")
+   const prompt = serializePrompt(input.prompt)
+ 
+   const text = input.prompt.some((part) => part.type === "session")
+
+diff --git aa/packages/app/src/composer/schema.ts bb/packages/app/src/composer/schema.ts
+index 9e2512d..0aab15f 100644
+--- aa/packages/app/src/composer/schema.ts
++++ bb/packages/app/src/composer/schema.ts
+@@ -42,6 +42,7 @@ export const FileAttachmentPart = Persistence.struct({
+   filename: Persistence.optional(Schema.String),
+   description: Persistence.optional(Schema.String),
+   url: Persistence.optional(Schema.String),
++  sourceServerKey: Persistence.optional(Schema.String),
+   source: Persistence.optional(FilePartSource),
+ })
+ 
+@@ -79,7 +80,7 @@ const ImageFields = {
+ const Image = Persistence.struct({
+   ...ImageFields,
+   // An empty URL is an image whose bytes are still in the draft store; see `resolveBlobUrl`.
+-  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)) }),
++  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)), sourceServerKey: Schema.optional(Schema.String) }),
+ })
+ 
+ // Draft storage keeps content-addressed blobs in the store until an image is shown or sent; a
+@@ -87,7 +88,7 @@ const Image = Persistence.struct({
+ export const ImageAttachmentPart = Schema.Struct({
+   ...ImageFields,
+   blob: Persistence.optional(
+-    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String) }),
++    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String), sourceServerKey: Persistence.optional(Schema.String) }),
+   ),
+   dataUrl: Persistence.optional(Schema.String),
+ }).pipe(
+@@ -104,6 +105,7 @@ export const ImageAttachmentPart = Schema.Struct({
+         mime: value.mime,
+         blob: {
+           id,
++          sourceServerKey: value.blob?.sourceServerKey,
+           url: url?.startsWith("blob:") || url?.startsWith("data:") ? url : id.startsWith("data:") ? id : "",
+         },
+       }
+
+diff --git aa/packages/app/src/composer/state.ts bb/packages/app/src/composer/state.ts
+index 7aad582..c872368 100644
+--- aa/packages/app/src/composer/state.ts
++++ bb/packages/app/src/composer/state.ts
+@@ -1,5 +1,7 @@
+ import { batch, createSignal, untrack, type Accessor } from "solid-js"
+ import { createStore, type SetStoreFunction } from "solid-js/store"
++import { Predicate, Schema, SchemaGetter } from "effect"
++import { Persistence } from "@/runtime/persistence/schema"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { ServerScope } from "@/runtime/server/scope"
+ import type { Platform } from "@/runtime/platform/platform"
+@@ -239,8 +241,25 @@ function createPersistedComposer(
+   target: ReturnType<typeof composerTarget>,
+   initial?: InitialPrompt,
+   platform?: Platform,
++  legacySourceServerKey?: string,
+ ) {
+-  const [store, setStore, _, ready] = persisted(target, ComposerStore, initialComposerStore(initial), platform)
++  // Only a uniquely scoped persisted container may attribute an old remote reference. Draft tabs,
++  // global history and the movable canonical-local namespace deliberately remain unresolved.
++  const attribute = (value: unknown): unknown => {
++    if (Array.isArray(value)) return value.map(attribute)
++    if (!Predicate.isObject(value)) return value
++    if (legacySourceServerKey && value.type === "image" && Predicate.isObject(value.blob) &&
++      typeof value.blob.id === "string" && value.blob.id.startsWith("media:") && !Object.hasOwn(value.blob, "sourceServerKey"))
++      return { ...value, blob: { ...value.blob, sourceServerKey: legacySourceServerKey } }
++    if (legacySourceServerKey && value.type === "file" && typeof value.url === "string" &&
++      value.url.startsWith("media:") && !Object.hasOwn(value, "sourceServerKey"))
++      return { ...value, sourceServerKey: legacySourceServerKey }
++    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, attribute(entry)]))
++  }
++  const definition = Persistence.migrate(ComposerStore, Schema.Unknown.pipe(Schema.decode({
++    decode: SchemaGetter.transform(attribute), encode: SchemaGetter.transform((value) => value),
++  })))
++  const [store, setStore, _, ready] = persisted(target, definition, initialComposerStore(initial), platform)
+ 
+   return { ready, ...createComposerStateValue(store, setStore) }
+ }
+@@ -251,7 +270,8 @@ export function createComposerState(
+   initial?: InitialPrompt,
+   platform?: Platform,
+ ) {
+-  return createPersistedComposer(composerTarget(serverScope, scope), initial, platform)
++  return createPersistedComposer(composerTarget(serverScope, scope), initial, platform,
++    !("draftID" in scope) && serverScope !== ServerScope.local ? String(serverScope) : undefined)
+ }
+ 
+ export function createDraftComposerState(draftID: string, initial?: InitialPrompt) {
+
+diff --git aa/packages/app/src/runtime/persistence/drafts.test.ts bb/packages/app/src/runtime/persistence/drafts.test.ts
+index 8556dbe..3e87956 100644
+--- aa/packages/app/src/runtime/persistence/drafts.test.ts
++++ bb/packages/app/src/runtime/persistence/drafts.test.ts
+@@ -6,6 +6,7 @@ import {
+   draftTextThreshold,
+   resolveBlobUrl,
+   setMediaBlobLoader,
++  pinMediaBlob,
+ } from "./drafts"
+ 
+ function memoryDriver() {
+@@ -354,13 +355,13 @@ describe("draft store media refs", () => {
+   // A server's media blobs, served through the authenticated loader the way the media cache does.
+   const serveMedia = (key: string, blobs: Map<string, string>) => {
+     const loads: string[] = []
+-    setMediaBlobLoader(key, async (uri) => {
++    const close = setMediaBlobLoader(key, async (uri) => {
+       loads.push(uri)
+ 
+       return blobs.get(uri.slice("media:".length))
+     })
+ 
+-    return { loads, close: () => setMediaBlobLoader(key, undefined) }
++    return { loads, close }
+   }
+ 
+   test("a media:<hash> ref is saved with its bytes, restored, and submitted as bytes after the server sweeps it", async () => {
+@@ -373,7 +374,7 @@ describe("draft store media refs", () => {
+       const memory = memoryDriver()
+       const store = createDraftStore(memory.driver)
+       // The composer holds the URL-neutral ref a restored message carries; `media:` is never fetched directly.
+-      const live = { id: ref, url: ref }
++      const live = { id: ref, url: ref, sourceServerKey: "srv-draft-media" }
+       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }] })
+ 
+       const stored = JSON.parse(memory.documents.get("doc")!).prompt[0].blob
+@@ -399,7 +400,7 @@ describe("draft store media refs", () => {
+     }
+   })
+ 
+-  test("a media ref no server can serve saves without failing and submits as the ref", async () => {
++  test("an unresolved media ref preserves the draft but cannot be submitted as attachment bytes", async () => {
+     const ref = `media:${"b".repeat(64)}`
+     const media = serveMedia("srv-draft-media-gone", new Map())
+     const error = console.error
+@@ -409,12 +410,70 @@ describe("draft store media refs", () => {
+       const memory = memoryDriver()
+       const store = createDraftStore(memory.driver)
+       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: { id: ref, url: ref } }] })
+-      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ id: ref })
++      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ mediaURI: ref })
+       expect(await resolveBlobUrl({ id: ref, url: ref })).toBeUndefined()
+-      expect(await blobDataUrl({ id: ref, url: ref }, "image/png")).toBe(ref)
++      await expect(blobDataUrl({ id: ref, url: ref }, "image/png")).rejects.toBeDefined()
++      expect(media.loads).toEqual([])
++      const restored = JSON.parse((await store.getItem("doc"))!).prompt[0].blob
++      expect(restored.id).toBe(ref)
+     } finally {
+       console.error = error
+       media.close()
+     }
+   })
++
++  test.each(["missing", "403", "404", "offline", "unknown"] as const)("source %s fails closed with zero calls to another server", async (failure) => {
++    const ref = `media:${"c".repeat(64)}`
++    let a = 0
++    let b = 0
++    const closeA = failure === "missing" ? () => {} : setMediaBlobLoader("failclosed-a", async () => {
++      a++
++      throw new Error(failure)
++    })
++    const closeB = setMediaBlobLoader("failclosed-b", async () => { b++; return pngDataUrl })
++    try {
++      const reference = { id: ref, url: "", sourceServerKey: failure === "unknown" ? undefined : "failclosed-a" }
++      await expect(pinMediaBlob(reference)).rejects.toBeDefined()
++      expect(await resolveBlobUrl(reference)).toBeUndefined()
++      expect(b).toBe(0)
++      expect(a).toBe(failure === "missing" || failure === "unknown" ? 0 : 2)
++    } finally { closeA(); closeB() }
++  })
++
++  test("equal remote hashes use source-scoped aliases and local copies remain usable offline", async () => {
++    const ref = `media:${"d".repeat(64)}`
++    let a = 0
++    let b = 0
++    const closeA = setMediaBlobLoader("alias-a", async () => { a++; return "data:text/plain;base64,QQ==" })
++    const closeB = setMediaBlobLoader("alias-b", async () => { b++; return "data:text/plain;base64,Qg==" })
++    const first = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-a" })
++    expect(a).toBe(1)
++    expect(b).toBe(0)
++    const second = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-b" })
++    expect(second.id).not.toBe(first.id)
++    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
++    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
++    closeA(); closeB()
++    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
++    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
++    expect(await resolveBlobUrl({ id: ref, sourceServerKey: "alias-unknown" })).toBeUndefined()
++  })
++
++  test("late same-key completion and old cleanup cannot publish aliases or unregister a successor", async () => {
++    const ref = `media:${"e".repeat(64)}`
++    let finish!: (value: string) => void
++    const pending = new Promise<string>((resolve) => { finish = resolve })
++    const closeOld = setMediaBlobLoader("generation", () => pending)
++    const old = pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
++    const rejected = old.then(() => false, () => true)
++    let successor = 0
++    const closeNew = setMediaBlobLoader("generation", async () => { successor++; return "data:text/plain;base64,TkVX" })
++    closeOld()
++    finish("data:text/plain;base64,T0xE")
++    expect(await rejected).toBe(true)
++    const current = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
++    expect(successor).toBe(1)
++    expect(await blobDataUrl(current, "text/plain")).toBe("data:text/plain;base64,TkVX")
++    closeNew()
++  })
+ })
+
+diff --git aa/packages/app/src/runtime/persistence/drafts.ts bb/packages/app/src/runtime/persistence/drafts.ts
+index 00d5bd6..4afb2ec 100644
+--- aa/packages/app/src/runtime/persistence/drafts.ts
++++ bb/packages/app/src/runtime/persistence/drafts.ts
+@@ -4,7 +4,7 @@ import { mediaHashFromUri } from "@/runtime/server/media"
+ 
+ /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-known-value-widening -- the store walks opaque persisted JSON in every shape earlier releases wrote, and IndexedDB hands back untyped values */
+ 
+-export type BlobReference = { id: string; url: string }
++export type BlobReference = { id: string; url: string; sourceServerKey?: string }
+ 
+ type Driver = {
+   get(key: string): Promise<string | null>
+@@ -58,33 +58,32 @@ type MediaBlobLoader = (uri: string) => Promise<string | undefined>
+ 
+ let loader: ((id: string) => Promise<string | undefined>) | undefined
+ 
+-const mediaLoaders = new Map<string, MediaBlobLoader>()
++const mediaLoaders = new Map<string, { load: MediaBlobLoader }>()
+ 
+ export function setMediaBlobLoader(key: string, next: MediaBlobLoader | undefined) {
+-  mediaLoaders.delete(key)
+-
+-  if (next) mediaLoaders.set(key, next)
++  if (!next) { mediaLoaders.delete(key); return () => {} }
++  const registration = { load: next }
++  mediaLoaders.set(key, registration)
++  return () => { if (mediaLoaders.get(key) === registration) mediaLoaders.delete(key) }
+ }
+ 
+-async function loadMediaBlobUrl(uri: string, serverKey?: string) {
+-  if (serverKey) {
+-    const keyed = mediaLoaders.get(serverKey)
+-
+-    if (keyed) {
+-      const url = await keyed(uri).catch(() => undefined)
+-
+-      if (url) return url
+-    }
+-  }
+-
+-  for (const [key, candidate] of [...mediaLoaders.entries()].reverse()) {
+-    if (key === serverKey) continue
+-    const url = await candidate(uri).catch(() => undefined)
++/** Runtime-only source lease. A same-key replacement invalidates old completions and cleanup. */
++export function captureMediaSource(sourceServerKey: string | undefined) {
++  const registration = sourceServerKey ? mediaLoaders.get(sourceServerKey) : undefined
++  return () => !!sourceServerKey && !!registration && mediaLoaders.get(sourceServerKey) === registration
++}
+ 
+-    if (url) return url
+-  }
++function referenceID(blob: { id: string; sourceServerKey?: unknown }) {
++  return mediaHashFromUri(blob.id) ? `${typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : ""}\0${blob.id}` : blob.id
++}
+ 
+-  return undefined
++async function loadMediaBlobUrl(uri: string, serverKey?: string) {
++  if (!serverKey) return undefined
++  const registration = mediaLoaders.get(serverKey)
++  if (!registration) return undefined
++  const url = await registration.load(uri).catch(() => undefined)
++  if (mediaLoaders.get(serverKey) !== registration) return undefined
++  return url?.startsWith("blob:") || url?.startsWith("data:") ? url : undefined
+ }
+ 
+ // The bytes behind a `media:<hash>` ref, through the authenticated media loader; `media:` is not
+@@ -101,13 +100,13 @@ async function loadMediaBlob(uri: string, serverKey?: string) {
+ }
+ 
+ /** The object URL for an image reference, loading its bytes from the draft store on first use. */
+-export function resolveBlobUrl(blob: { id: string; url?: string; server?: string }) {
++export function resolveBlobUrl(blob: { id: string; url?: string; sourceServerKey?: string }) {
+   if (blob.url && !mediaHashFromUri(blob.url)) return Promise.resolve(blob.url)
+-  const existing = retained.get(aliases.get(blob.id) ?? blob.id)
++  const existing = retained.get(aliases.get(referenceID(blob)) ?? blob.id)
+ 
+   if (existing) return Promise.resolve(existing.url)
+ 
+-  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.server)
++  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.sourceServerKey)
+ 
+   if (blob.url) return Promise.resolve(blob.url)
+ 
+@@ -174,7 +173,7 @@ function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
+   if (blob && typeof blob === "object" && !("kind" in blob)) {
+     const id = (blob as Record<string, unknown>).id
+ 
+-    if (typeof id === "string") into.add(id)
++    if (typeof id === "string" && !mediaHashFromUri(id)) into.add(id)
+ 
+     return into
+   }
+@@ -320,29 +319,33 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+ 
+       // Drafts own their bytes: the server sweeps a media blob once no message or inbox item references
+       // it, so the first save copies the bytes into the draft store and later saves reuse that copy.
+-      if (typeof blob.id === "string" && mediaHashFromUri(blob.id) && !retained.has(aliases.get(blob.id) ?? "")) {
+-        const data = await loadMediaBlob(blob.id, typeof blob.server === "string" ? blob.server : undefined)
+-
+-        // Nothing serves the bytes anymore; the reference is dropped on read like any blob with no bytes.
+-        if (!data) return { ...item, blob: { id: blob.id } }
++      if (typeof blob.id === "string" && mediaHashFromUri(blob.id) && !retained.has(aliases.get(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) ?? "")) {
++        const sourceServerKey = typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : undefined
++        const current = captureMediaSource(sourceServerKey)
++        const data = await loadMediaBlob(blob.id, sourceServerKey)
++
++        // An unresolved remote reference is not a missing local blob. Preserve it in the document
++        // without claiming local ownership, so strict writes can still save the rest of the draft.
++        if (!data || !current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+         const id = await driver.putBlob(data)
++        if (!current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+         blobUrl(id, data, grace)
+-        aliases.set(blob.id, id)
++        aliases.set(referenceID({ id: blob.id, sourceServerKey }), id)
+         sources.set(id, { blob: async () => data })
+ 
+-        return { ...item, blob: { id } }
++        return { ...item, blob: { id, sourceServerKey } }
+       }
+ 
+       if (typeof blob.id === "string") {
+         // A live reference keeps the id it was created with; publish the id its bytes now live under.
+-        const id = aliases.get(blob.id) ?? blob.id
++        const id = aliases.get(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) ?? blob.id
+         const kept = retained.get(id)?.blob
+         const url = typeof blob.url === "string" && !mediaHashFromUri(blob.url) ? blob.url : retained.get(id)?.url
+ 
+         if (kept) sources.set(id, { blob: async () => kept })
+         else if (url) sources.set(id, { blob: () => fetch(url).then((response) => response.blob()) })
+ 
+-        return { ...item, blob: { id } }
++        return { ...item, blob: { id, sourceServerKey: blob.sourceServerKey } }
+       }
+ 
+       return { ...item, blob: { id: blob.id } }
+@@ -361,6 +364,8 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+ 
+     if (item.blob && typeof item.blob === "object") {
+       const ref = item.blob as Record<string, unknown>
++      if (typeof ref.mediaURI === "string" && mediaHashFromUri(ref.mediaURI))
++        return { ...item, blob: { id: ref.mediaURI, url: "", sourceServerKey: ref.sourceServerKey } }
+ 
+       if (ref.kind === "text" && Array.isArray(ref.ids)) {
+         return (await Promise.all(ref.ids.map((id) => loadChunk(String(id))))).join("")
+@@ -369,9 +374,9 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+       // Bytes stay in the store until something renders or sends the image (see resolveBlobUrl);
+       // only an image already pinned in this page gets its URL back immediately.
+       if (typeof ref.id === "string") {
+-        const url = retained.get(aliases.get(ref.id) ?? ref.id)?.url
++        const url = retained.get(aliases.get(referenceID({ id: ref.id, sourceServerKey: ref.sourceServerKey })) ?? ref.id)?.url
+ 
+-        return { ...item, blob: url ? { id: ref.id, url } : { id: ref.id } }
++        return { ...item, blob: url ? { id: ref.id, url, sourceServerKey: ref.sourceServerKey } : { id: ref.id, sourceServerKey: ref.sourceServerKey } }
+       }
+     }
+ 
+@@ -619,13 +624,13 @@ function referenced(json: string) {
+ // Submits always carry the bytes, so a send never depends on a server blob that may have been swept.
+ // A `media:` ref goes out only when no bytes are reachable here; the server still resolves it if it can.
+ export async function blobDataUrl(blob: BlobReference, mime: string) {
+-  const kept = retained.get(aliases.get(blob.id) ?? blob.id)
++  const current = mediaHashFromUri(blob.id) ? captureMediaSource(blob.sourceServerKey) : undefined
++  const kept = retained.get(aliases.get(referenceID(blob)) ?? blob.id)
+   const url = kept ? undefined : await resolveBlobUrl(blob)
+ 
+-  if (!kept && !url && mediaHashFromUri(blob.id)) return blob.id
+-
+   if (!kept && !url) throw new Error(`Attachment ${blob.id} has no stored bytes`)
+   const data = kept ? kept.blob : await fetch(url!).then((response) => response.blob())
++  if (!kept && current && !current()) throw new Error(`Attachment ${blob.id} has no stored bytes`)
+ 
+   return new Promise<string>((resolve, reject) => {
+     const reader = new FileReader()
+@@ -643,19 +648,25 @@ export async function blobDataUrl(blob: BlobReference, mime: string) {
+  * outlive the server's copy: cancelling an inbox item sweeps blobs nothing else references. Other references return
+  * unchanged; a ref nothing serves anymore throws, so the caller can stop before dropping the last server copy.
+  */
+-export async function pinMediaBlob(blob: BlobReference): Promise<BlobReference> {
++export async function pinMediaBlob(blob: BlobReference, operationCurrent: () => boolean = () => true): Promise<BlobReference> {
++  if (!operationCurrent()) throw new DOMException("", "AbortError")
+   const ref = [blob.id, blob.url].find((uri) => mediaHashFromUri(uri))
+ 
+   if (!ref) return blob
+-  const data = await loadMediaBlob(ref)
+-
+-  if (!data) throw new Error(`Attachment ${ref} is no longer available`)
+-
+-  return createBlobReference(data)
++  const cached = retained.get(aliases.get(referenceID({ ...blob, id: ref })) ?? "")
++  if (cached) return { ...await createBlobReference(cached.blob), sourceServerKey: blob.sourceServerKey }
++  const current = captureMediaSource(blob.sourceServerKey)
++  const data = await loadMediaBlob(ref, blob.sourceServerKey)
++
++  if (!data || !current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
++  const local = await createBlobReference(data)
++  if (!current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
++  aliases.set(referenceID({ ...blob, id: ref }), local.id)
++  return { ...local, sourceServerKey: blob.sourceServerKey }
+ }
+ 
+ // A `media:<hash>` ref is no URL a renderer can load, so it keeps the empty URL a draft-store id has and resolves
+ // through `resolveBlobUrl`; drafts saved this way stay readable by versions that predate media refs.
+-export function createLegacyBlobReference(dataUrl: string): BlobReference {
+-  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl }
++export function createLegacyBlobReference(dataUrl: string, sourceServerKey?: string): BlobReference {
++  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl, sourceServerKey }
+ }
+
+diff --git aa/packages/app/src/runtime/server/client.tsx bb/packages/app/src/runtime/server/client.tsx
+index a54a947..59b0b60 100644
+--- aa/packages/app/src/runtime/server/client.tsx
++++ bb/packages/app/src/runtime/server/client.tsx
+@@ -1,10 +1,11 @@
+ import type { OpenCodeEvent } from "@opencode/client/promise"
+ import { createClientConnection, createPtyClient, type ClientConnectionStatus } from "@opencode/client/solid"
+ import { createGlobalEmitter } from "@solid-primitives/event-bus"
+-import { type Accessor, createEffect, on, onCleanup } from "solid-js"
+-import { createApiForServer, type ServerApi } from "@/runtime/server/api"
++import { type Accessor, createEffect, createMemo, on, onCleanup } from "solid-js"
++import { createStore } from "solid-js/store"
++import { createApiForServer, type MediaServerApi, type InlineServerApi } from "@/runtime/server/api"
+ import { createMediaCache, type MediaCache } from "@/runtime/server/media"
+-import { setMediaBlobLoader } from "@/runtime/persistence/drafts"
++import { captureMediaSource, setMediaBlobLoader } from "@/runtime/persistence/drafts"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { ServerConnection } from "./registry"
+ import { createRefCountMap } from "@/runtime/server/refcount"
+@@ -66,8 +67,11 @@ type ServerSDKBase = {
+   url: string
+   /** The connection the API currently uses, which a managed server's reconnect may replace. */
+   http: ServerConnection.HttpBase
+-  api: ServerApi
++  api: InlineServerApi
++  mediaApi: MediaServerApi
+   media: MediaCache
++  generation: number
++  capture(): () => boolean
+   pty: ReturnType<typeof createPtyClient>
+   connection: {
+     status: Accessor<ServerConnectionStatus>
+@@ -80,12 +84,15 @@ type ServerSDKBase = {
+ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope): ServerSDKBase {
+   const platform = usePlatform()
+   const transport = createServerTransport({ http: server.http, fetch: platform.fetch })
+-  const media = createMediaCache(() => transport.api)
+   const serverKey = ServerConnection.key(server)
+-  setMediaBlobLoader(serverKey, (uri) => media.load(uri))
+-  onCleanup(() => {
+-    setMediaBlobLoader(serverKey, undefined)
+-    media.dispose()
++  let active = true
++  onCleanup(() => { active = false })
++  const media = createMemo(() => {
++    transport.generation
++    const cache = createMediaCache(() => transport.api)
++    const unregister = setMediaBlobLoader(serverKey, (uri) => cache.load(uri))
++    onCleanup(() => { unregister(); cache.dispose() })
++    return cache
+   })
+ 
+   const events = createOpenCodeEventSource()
+@@ -135,7 +142,16 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
+     get api() {
+       return transport.api
+     },
+-    media,
++    get mediaApi() {
++      return transport.mediaApi
++    },
++    get media() { return media() },
++    get generation() { return transport.generation },
++    capture() {
++      const generation = transport.generation
++      const current = captureMediaSource(serverKey)
++      return () => active && generation === transport.generation && current()
++    },
+     get pty() {
+       return transport.pty
+     },
+@@ -166,13 +182,15 @@ function sameEndpoint(a: ServerConnection.HttpBase, b: ServerConnection.HttpBase
+ /** A server's HTTP and PTY clients, rebuilt when its endpoint changes. */
+ export interface ServerTransport {
+   /** Rebuilds the clients for a new endpoint and returns the new API client. */
+-  update(http: ServerConnection.HttpBase): ServerApi
++  update(http: ServerConnection.HttpBase): InlineServerApi
+   /** The current base URL. */
+   readonly url: string
+   /** The current endpoint. */
+   readonly http: ServerConnection.HttpBase
+   /** The current API client. */
+-  readonly api: ServerApi
++  readonly api: InlineServerApi
++  readonly mediaApi: MediaServerApi
++  readonly generation: number
+   /** The current PTY client. */
+   readonly pty: ReturnType<typeof createPtyClient>
+ }
+@@ -187,17 +205,20 @@ export function createServerTransport(input: {
+   // and the clients built here keep the one they started with.
+   const build = (input: ServerConnection.HttpBase) => {
+     const http = { url: input.url, password: input.password }
+-    const api = createApiForServer({ server: http, fetch: queue.fetch })
++    const mediaApi = createApiForServer({ server: http, fetch: queue.fetch })
++    const api = mediaApi.inline
+ 
+-    return { http, api, pty: createPtyClient(api, { url: http.url }) }
++    return { http, api, mediaApi, pty: createPtyClient(api, { url: http.url }) }
+   }
+ 
+   const state = { current: build(input.http) }
++  const [revision, setRevision] = createStore({ value: 0 })
+ 
+   return {
+     update(http: ServerConnection.HttpBase) {
+       if (sameEndpoint(http, state.current.http)) return state.current.api
+       state.current = build(http)
++      setRevision("value", (value) => value + 1)
+ 
+       return state.current.api
+     },
+@@ -208,8 +229,14 @@ export function createServerTransport(input: {
+       return state.current.http
+     },
+     get api() {
++      revision.value
+       return state.current.api
+     },
++    get mediaApi() {
++      revision.value
++      return state.current.mediaApi
++    },
++    get generation() { return revision.value },
+     get pty() {
+       return state.current.pty
+     },
+
+diff --git aa/packages/app/src/runtime/server/image.test.ts bb/packages/app/src/runtime/server/image.test.ts
+index 70daa1c..9a57886 100644
+--- aa/packages/app/src/runtime/server/image.test.ts
++++ bb/packages/app/src/runtime/server/image.test.ts
+@@ -204,10 +204,11 @@ describe("readLocalImage", () => {
+     // Per-server draft loader keying and cleanup
+     setMediaBlobLoader("srv-1", async (uri) => `blob:srv1:${uri}`)
+     setMediaBlobLoader("srv-2", async (uri) => `blob:srv2:${uri}`)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
+     setMediaBlobLoader("srv-2", undefined)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBe(`blob:srv1:media:${hashA}`)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBeUndefined()
++    expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBeUndefined()
+     setMediaBlobLoader("srv-1", undefined)
+     expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBeUndefined()
+   })
+
+diff --git aa/packages/app/src/runtime/server/media.ts bb/packages/app/src/runtime/server/media.ts
+index 7dddc1d..ffa5c6d 100644
+--- aa/packages/app/src/runtime/server/media.ts
++++ bb/packages/app/src/runtime/server/media.ts
+@@ -1,4 +1,4 @@
+-import type { OpenCodeClient } from "@opencode/client/promise"
++import type { ServerApi } from "./api"
+ 
+ const MEDIA_REF = /^media:([0-9a-f]{64})$/
+ 
+@@ -17,7 +17,7 @@ export type MediaCache = {
+ 
+ // Object URLs stay valid until dispose. Rendered attachments, image previews and composer drafts keep the URL they
+ // were given without releasing it, so revoking one earlier would break an image that is still on screen.
+-export function createMediaCache(getApi: () => Pick<OpenCodeClient, "experimental">): MediaCache {
++export function createMediaCache(getApi: () => Pick<ServerApi, "experimental">): MediaCache {
+   const urls = new Map<string, string>()
+   const inflight = new Map<string, Promise<string | undefined>>()
+   let disposed = false
+
+diff --git aa/packages/app/src/session/composer/queue.test.ts bb/packages/app/src/session/composer/queue.test.ts
+index 42dcbdd..9e1d100 100644
+--- aa/packages/app/src/session/composer/queue.test.ts
++++ bb/packages/app/src/session/composer/queue.test.ts
+@@ -142,21 +142,24 @@ describe("queuedPromptAttachments", () => {
+     const blobs = new Map<string, Uint8Array>([[hash, pngBytes]])
+     const events: string[] = []
+ 
+-    const extracted = extractPromptFromMessage({
+-      id: "msg_queued_media",
+-      text: "queued with image",
+-      files: [
+-        {
+-          uri: mediaUri,
+-          mime: "image/png",
+-          source: { type: "inline" },
+-          width: 1,
+-          height: 1,
+-          bytes: pngBytes.byteLength,
+-          name: "shot.png",
+-        },
+-      ],
+-    })
++    const extracted = extractPromptFromMessage(
++      {
++        id: "msg_queued_media",
++        text: "queued with image",
++        files: [
++          {
++            uri: mediaUri,
++            mime: "image/png",
++            source: { type: "inline" },
++            width: 1,
++            height: 1,
++            bytes: pngBytes.byteLength,
++            name: "shot.png",
++          },
++        ],
++      },
++      { sourceServerKey: "queue-test" },
++    )
+ 
+     expect(extracted.find((part) => part.type === "image")).toMatchObject({
+       blob: { id: `media:${hash}`, url: "" },
+@@ -191,18 +194,28 @@ describe("queuedPromptAttachments", () => {
+       expect(imagePart.blob.id).not.toStartWith("media:")
+       expect(await blobDataUrl(imagePart.blob, imagePart.mime)).toBe(`data:image/png;base64,${pngBase64}`)
+ 
+-      // Media nothing serves anymore fails the pin, so the item is never cancelled.
++      // Media nothing serves anymore fails the pin, so the item is never cancelled. The first
++      // item's bytes are already local, so a ref nothing serves anymore needs its own hash.
++      const unservedUri = `media:${"f".repeat(64)}`
++      const unserved = extractPromptFromMessage(
++        {
++          id: "msg_queued_media_unserved",
++          text: "queued with image",
++          files: [{ uri: unservedUri, mime: "image/png", source: { type: "inline" }, name: "shot.png" }],
++        },
++        { sourceServerKey: "queue-test" },
++      )
+       const cancels = events.length
+ 
+       await expect(
+         undoQueuedPrompt({
+-          prompt: extracted,
++          prompt: unserved,
+           cancelInboxItem: async () => {
+             events.push("cancelInboxItem")
+           },
+         }),
+       ).rejects.toBeInstanceOf(Error)
+-      expect(events.slice(cancels)).toEqual([`load:${mediaUri}`])
++      expect(events.slice(cancels)).toEqual([`load:${unservedUri}`])
+     } finally {
+       setMediaBlobLoader("queue-test", undefined)
+     }
+
+diff --git aa/packages/app/src/session/composer/queue.ts bb/packages/app/src/session/composer/queue.ts
+index 52b603c..43ce00e 100644
+--- aa/packages/app/src/session/composer/queue.ts
++++ bb/packages/app/src/session/composer/queue.ts
+@@ -18,6 +18,8 @@ import { useServerSDK } from "@/runtime/server/client"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { showToast } from "@/shell/notifications/toast"
++import { useComposerState } from "@/composer/persistence"
++import { ServerConnection } from "@/runtime/server/registry"
+ 
+ type QueuedPromptFile = PromptAttachment
+ 
+@@ -56,6 +58,19 @@ export function createSessionQueue(input: {
+   const server = useServerSDK()
+   const location = useWorkspaceLocation()
+   const language = useLanguage()
++  const composer = useComposerState()
++  const sourceServerKey = ServerConnection.key(server.server)
++  let active = true
++  onCleanup(() => { active = false })
++  const capture = () => {
++    const current = composer.captureOwner()
++    const sdkCurrent = server.capture()
++    const sessionID = input.sessionID
++    return { api: server.api, reads: server.mediaApi, sessionID, directory: location().directory, draft: input.draft,
++      current: () => active && current() && sdkCurrent() && input.sessionID === sessionID }
++  }
++  type QueueOwner = ReturnType<typeof capture>
++  const requireCurrent = (owner: QueueOwner) => { if (!owner.current()) throw new DOMException("", "AbortError") }
+ 
+   const [state, setState] = createStore<{
+     editing?: { id: string; stash: EditStash }
+@@ -90,9 +105,9 @@ export function createSessionQueue(input: {
+   const mutation = useMutation(() => ({
+     // Changes run one at a time in the order they were made, so an edit confirmed while another is
+     // in flight waits for it instead of being dropped.
+-    scope: { id: `session-queue:${input.sessionID}` },
++    scope: { id: `session-queue:${sourceServerKey}\0${input.sessionID}` },
+     mutationFn: async (
+-      change:
++      change: (
+         | { type: "reorder"; inboxIDs: string[] }
+         | { type: "undo"; item: QueuedPrompt; prompt: Prompt; context: ContextItem[] }
+         | {
+@@ -103,65 +118,78 @@ export function createSessionQueue(input: {
+             prompt: Prompt
+             text: string
+             delivery: ComposerDelivery
+-          },
++           }) & { owner: QueueOwner },
+     ) => {
+-      if (change.type === "reorder") return rewrite(change.inboxIDs)
++      const owner = change.owner
++      requireCurrent(owner)
++      if (change.type === "reorder") return rewrite(owner, change.inboxIDs)
+ 
+       if (change.type === "undo") {
+         const rehydrated = await undoQueuedPrompt({
+           prompt: change.prompt,
+-          cancelInboxItem: () =>
+-            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: change.item.id }),
++          current: owner.current,
++          cancelInboxItem: () => {
++            requireCurrent(owner)
++            return owner.api.session.inbox.cancel({ sessionID: owner.sessionID, inboxID: change.item.id })
++          },
+         })
+-
++        requireCurrent(owner)
+         hide([change.item.id])
+-        const prompt = mergePrompt(input.draft.current(), rehydrated)
++        const prompt = mergePrompt(owner.draft.current(), rehydrated)
+ 
+-        input.draft.set(prompt, promptLength(prompt))
+-        change.context.forEach((item) => input.draft.context.add(item))
++        owner.draft.set(prompt, promptLength(prompt))
++        change.context.forEach((item) => owner.draft.context.add(item))
+         input.restoreFocus(promptLength(prompt))
+ 
+         return
+       }
+ 
+       const replacement = await editedPromptInput(
+-        input.sessionID,
+-        location().directory,
++        owner.sessionID,
++        owner.directory,
+         change.item,
+         change.prompt,
+         change.text,
+       )
++      requireCurrent(owner)
+ 
+       // Admit before cancelling so a failed replacement never discards the original. A queued edit
+       // rebuilds its position in one rewrite, which leaves the queue unchanged if any admission fails.
+       const admission = { ...replacement, id: change.moved[change.original], delivery: change.delivery }
+ 
+       if (change.delivery === "queue")
+-        return rewrite(undefined, {
++        return rewrite(owner, undefined, {
+           original: change.original,
+           admission: { ...admission, resume: false },
+           moved: change.moved,
+         })
+ 
+       // Like a queued edit, an original the server delivered meanwhile keeps the edit draft instead of sending twice.
+-      const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
++      const pending = await owner.reads.session.inbox.list({ sessionID: owner.sessionID })
++      requireCurrent(owner)
+ 
+       if (!pending.some((item) => item.id === change.original && item.type === "user" && item.delivery === "queue"))
+         throw new Error("Queued prompt was delivered before the edit")
+       const background = input.background()
+-      await data.session.prompt(admission)
++      await data.session.prompt({ ...admission, prepare: async () => requireCurrent(owner) })
++      requireCurrent(owner)
+       void background?.move()
+       setState("sent", (edit) => edit.original === change.original, "admitted", true)
+       // Cancelling is a no-op once the original is gone, so one retry is safe.
+-      const cancel = () => server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: change.original })
++      const cancel = () => {
++        requireCurrent(owner)
++        return owner.api.session.inbox.cancel({ sessionID: owner.sessionID, inboxID: change.original })
++      }
+       await cancel().catch(cancel)
+     },
+     onSuccess: (_data, change) => {
++      if (!change.owner.current()) return
+       if (change.type !== "edit") return
+       hide(Object.keys(state.sent.find((edit) => edit.original === change.original)?.moved ?? change.moved))
+       settle(change.original)
+     },
+     onError: (_error, change) => {
++      if (!change.owner.current()) return
+       notify()
+ 
+       if (change.type !== "edit") return
+@@ -172,8 +200,10 @@ export function createSessionQueue(input: {
+       restoreEdit(change.prompt)
+     },
+     onSettled: async (_data, _error, change) => {
+-      if (change.type === "reorder") data.session.pending.invalidate(input.sessionID)
+-      await data.session.pending.sync(input.sessionID).catch(() => undefined)
++      if (!change.owner.current()) return
++      if (change.type === "reorder") data.session.pending.invalidate(change.owner.sessionID)
++      await data.session.pending.sync(change.owner.sessionID).catch(() => undefined)
++      if (!change.owner.current()) return
+ 
+       if (change.type === "reorder") setState("reordering", undefined)
+     },
+@@ -229,10 +259,13 @@ export function createSessionQueue(input: {
+   // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
+   // Without `inboxIDs` the server's current order is kept.
+   const rewrite = async (
++    owner: QueueOwner,
+     inboxIDs: string[] | undefined,
+     replace?: { original: string; admission: Parameters<typeof data.session.prompt>[0]; moved: Record<string, string> },
+   ) => {
+-    const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
++    requireCurrent(owner)
++    const pending = await owner.reads.session.inbox.list({ sessionID: owner.sessionID })
++    requireCurrent(owner)
+ 
+     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
+       throw new Error("Queued control items block reordering")
+@@ -261,6 +294,7 @@ export function createSessionQueue(input: {
+     if (!replace) setState("reordering", "moved", moved)
+ 
+     for (const item of ordered.slice(changed)) {
++      requireCurrent(owner)
+       const admission =
+         item.id === replace?.original
+           ? replace.admission
+@@ -284,12 +318,13 @@ export function createSessionQueue(input: {
+       const id = admission.id ?? SessionMessage.ID.create()
+ 
+       replacements.push(id)
+-      await data.session.prompt({ ...admission, id }).catch(async (error) => {
++      await data.session.prompt({ ...admission, id, prepare: async () => requireCurrent(owner) }).catch(async (error) => {
++        if (!owner.current()) throw error
+         await Promise.all(
+           replacements.map((inboxID) =>
+-            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).then(
++            owner.api.session.inbox.cancel({ sessionID: owner.sessionID, inboxID }).then(
+               () => {
+-                if (!replace) hide([inboxID])
++                if (owner.current() && !replace) hide([inboxID])
+               },
+               () => undefined,
+             ),
+@@ -297,6 +332,7 @@ export function createSessionQueue(input: {
+         )
+         throw error
+       })
++      requireCurrent(owner)
+     }
+ 
+     if (replace) setState("sent", (edit) => edit.original === replace.original, "admitted", true)
+@@ -306,31 +342,36 @@ export function createSessionQueue(input: {
+     const replaced = current.slice(changed)
+ 
+     for (const item of replace ? replaced.reverse() : replaced) {
+-      await server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: item.id })
++      requireCurrent(owner)
++      await owner.api.session.inbox.cancel({ sessionID: owner.sessionID, inboxID: item.id })
++      requireCurrent(owner)
+ 
+       if (!replace) hide([item.id])
+     }
+   }
+ 
+   const steer = (id: string) => {
++    const owner = capture()
+     if (state.editing?.id === id) cancelEdit()
+     const background = input.background()
+ 
+-    return server.api.session.inbox.update({ sessionID: input.sessionID, inboxID: id, delivery: "steer" }).then(
++    return owner.api.session.inbox.update({ sessionID: owner.sessionID, inboxID: id, delivery: "steer" }).then(
+       () => {
++        if (!owner.current()) return
+         void background?.move()
+         hide([id])
+       },
+-      () => notify(),
++      () => { if (owner.current()) notify() },
+     )
+   }
+ 
+   const remove = (id: string) => {
++    const owner = capture()
+     if (state.editing?.id === id) cancelEdit()
+ 
+-    return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: id }).then(
+-      () => hide([id]),
+-      () => notify(),
++    return owner.api.session.inbox.cancel({ sessionID: owner.sessionID, inboxID: id }).then(
++      () => { if (owner.current()) hide([id]) },
++      () => { if (owner.current()) notify() },
+     )
+   }
+ 
+@@ -351,9 +392,11 @@ export function createSessionQueue(input: {
+ 
+     mutation.mutate({
+       type: "undo",
++      owner: capture(),
+       item,
+       prompt: extractPromptFromMessage(source, {
+         directory: location().directory,
++        sourceServerKey,
+         attachmentName: language.t("common.attachment"),
+         sessionTitle: (id) => data.session.get(id)?.title,
+       }),
+@@ -374,7 +417,7 @@ export function createSessionQueue(input: {
+     const current = rows()
+     setState("reordering", { rows: inboxIDs.flatMap((id) => current.filter((row) => row.id === id)), moved: {} })
+ 
+-    return mutation.mutateAsync({ type: "reorder", inboxIDs }).catch(() => undefined)
++    return mutation.mutateAsync({ type: "reorder", inboxIDs, owner: capture() }).catch(() => undefined)
+   }
+ 
+   const sending = (id: string) =>
+@@ -403,15 +446,16 @@ export function createSessionQueue(input: {
+       },
+     })
+     const text = queuedPromptText(item)
+-    const attachments = queuedPromptAttachments(item)
++    const attachments = queuedPromptAttachments(item, sourceServerKey)
++    const owner = capture()
+     input.draft.mode.set("normal")
+     input.draft.set([{ type: "text", content: text, start: 0, end: text.length }, ...attachments], text.length)
+     input.restoreFocus(text.length)
+     // The edit cancels the original once its replacement is admitted, so the draft takes local copies of the
+     // queued media as soon as they load; images the user removed meanwhile stay removed.
+-    void pinPromptMedia(attachments).then(
++    void pinPromptMedia(attachments, owner.current).then(
+       (pinned) => {
+-        if (state.editing?.id !== id) return
++        if (!owner.current() || state.editing?.id !== id) return
+         const blobs = new Map<string, BlobReference>()
+ 
+         for (const part of pinned) if (part.type === "image") blobs.set(part.id, part.blob)
+@@ -455,7 +499,7 @@ export function createSessionQueue(input: {
+ 
+     if (!text.trim() && !attachments.length) return cancelEdit()
+     const item = queued().find((entry) => entry.id === editing.id)
+-    const original = item ? queuedPromptAttachments(item) : []
++    const original = item ? queuedPromptAttachments(item, sourceServerKey) : []
+ 
+     const pristine =
+       item &&
+@@ -481,7 +525,7 @@ export function createSessionQueue(input: {
+       { original: editing.id, delivery, text: text.trim(), attachments: attachments.length, moved, admitted: false },
+     ])
+     cancelEdit()
+-    mutation.mutate({ type: "edit", original: editing.id, moved, item, prompt, text, delivery })
++    mutation.mutate({ type: "edit", original: editing.id, moved, item, prompt, text, delivery, owner: capture() })
+   }
+ 
+   const editFirst = () => {
+@@ -579,7 +623,7 @@ export function queuedPromptText(item: QueuedPrompt) {
+ // to it as image parts that an edit can remove or extend, and path references
+ // return as path parts. Mentions and `file://` context stay in the payload; see
+ // editedPromptInput.
+-export function queuedPromptAttachments(item: QueuedPrompt): (ImageAttachmentPart | PathAttachmentPart)[] {
++export function queuedPromptAttachments(item: QueuedPrompt, sourceServerKey?: string): (ImageAttachmentPart | PathAttachmentPart)[] {
+   // Opted-in reads leave stored files as `media:` refs, which the generated inbox type does not describe.
+   const files: readonly QueuedPromptFile[] = item.payload.files ?? []
+   const inline = files.filter((file) => isComposerAttachment(file))
+@@ -591,7 +635,7 @@ export function queuedPromptAttachments(item: QueuedPrompt): (ImageAttachmentPar
+         id: `${item.id}:file:${index}`,
+         filename: file.name ?? "attachment",
+         mime: file.mime,
+-        blob: createLegacyBlobReference("uri" in file ? file.uri : `data:${file.mime};base64,${file.data}`),
++        blob: createLegacyBlobReference("uri" in file ? file.uri : `data:${file.mime};base64,${file.data}`, sourceServerKey),
+       }),
+     ),
+     ...(readPromptPresentation(item.payload.metadata)?.attachments ?? []).map(
+@@ -611,8 +655,10 @@ export function queuedPromptAttachments(item: QueuedPrompt): (ImageAttachmentPar
+ export async function undoQueuedPrompt<A>(input: {
+   prompt: Prompt
+   cancelInboxItem: () => Promise<A>
++  current?: () => boolean
+ }): Promise<Prompt> {
+-  const pinned = await pinPromptMedia(input.prompt)
++  const pinned = await pinPromptMedia(input.prompt, input.current)
++  if (input.current && !input.current()) throw new DOMException("", "AbortError")
+   await input.cancelInboxItem()
+ 
+   return pinned
+
+diff --git aa/packages/app/src/session/fork.ts bb/packages/app/src/session/fork.ts
+index ebdd72a..e4d3e8a 100644
+--- aa/packages/app/src/session/fork.ts
++++ bb/packages/app/src/session/fork.ts
+@@ -8,6 +8,7 @@ import { useData, useServer } from "@/runtime/server/current"
+ import { showToast } from "@/shell/notifications/toast"
+ import { sessionHref } from "@/shell/routes/session"
+ import { useWorkspaceLocation } from "@/workspaces/location"
++import { pinPromptMedia } from "@/composer/media"
+ 
+ /**
+  * Forks a session before one of its prompts: the new session keeps the history above the prompt, opens, and has the
+@@ -23,31 +24,40 @@ export function useSessionFork() {
+   const server = useServer()
+ 
+   return async (input: { sessionID: string; messageID: string }) => {
++    const current = prompt.captureOwner()
++    const sourceServerKey = server.key
++    const sourceScope = serverSDK.scope
++    const api = serverSDK.api
++    const directory = location().directory
+     const message = data.session.message.get(input.sessionID, input.messageID)
+ 
+     if (message?.type !== "user") return false
+ 
+-    const restored = extractPromptFromMessage(message, {
+-      directory: location().directory,
++    const extracted = extractPromptFromMessage(message, {
++      directory,
++      sourceServerKey,
+       attachmentName: language.t("common.attachment"),
+       sessionTitle: (id) => data.session.get(id)?.title,
+     })
+ 
+-    const context = extractPromptContext(message, { directory: location().directory })
+-    const dir = base64Encode(location().directory)
++    const context = extractPromptContext(message, { directory })
++    const dir = base64Encode(directory)
+ 
+-    return serverSDK.api.session
+-      .fork({ sessionID: input.sessionID, before: input.messageID })
+-      .then((forked) => {
++    return pinPromptMedia(extracted, current)
++      .then(async (restored) => {
++        if (!current()) return false
++        const forked = await api.session.fork({ sessionID: input.sessionID, before: input.messageID })
++        if (!current()) return false
+         data.session.remember(forked)
+-        const target = prompt.capture({ dir, id: forked.id })
++        const target = prompt.capture({ dir, id: forked.id }, { server: sourceServerKey, scope: sourceScope })
+         target.set(restored)
+         target.context.replace([...context.comments, ...context.files])
+-        navigate(sessionHref(server.key, forked.id))
++        navigate(sessionHref(sourceServerKey, forked.id))
+ 
+         return true
+       })
+       .catch((cause: unknown) => {
++        if (!current()) return false
+         const message = cause instanceof Error ? cause.message : String(cause)
+         showToast({ title: language.t("common.requestFailed"), description: message })
+ 
+
+diff --git aa/packages/app/src/session/revert.ts bb/packages/app/src/session/revert.ts
+index d0d4896..85d21e3 100644
+--- aa/packages/app/src/session/revert.ts
++++ bb/packages/app/src/session/revert.ts
+@@ -10,6 +10,7 @@ import { pinPromptMedia } from "@/composer/media"
+ import { clonePrompt, promptLength } from "@/composer/prompt-parts"
+ import { showToast } from "@/shell/notifications/toast"
+ import type { SessionModel } from "./model"
++import { ServerConnection } from "@/runtime/server/registry"
+ 
+ export function createSessionRevert(input: {
+   session: SessionModel
+@@ -28,18 +29,20 @@ export function createSessionRevert(input: {
+       description: error instanceof Error ? error.message : String(error),
+     })
+ 
+-  const request = async <A>(action: () => Promise<A>) =>
+-    action()
+-      .then(() => true)
++  const request = async <A>(action: () => Promise<A>, current: () => boolean) => {
++    if (!current()) return false
++    return action()
++      .then(() => current())
+       .catch((error) => {
+-        fail(error)
++        if (current()) fail(error)
+ 
+         return false
+       })
++  }
+ 
+-  const messageDraft = (message: SessionMessageUser) =>
++  const messageDraft = (message: SessionMessageUser, origin: { directory: string; sourceServerKey: string }) =>
+     extractPromptFromMessage(message, {
+-      directory: location().directory,
++      ...origin,
+       attachmentName: language.t("common.attachment"),
+       sessionTitle: (id) => data.session.get(id)?.title,
+     })
+@@ -47,9 +50,10 @@ export function createSessionRevert(input: {
+   const restore = (
+     target: ReturnType<typeof prompt.capture>,
+     message: SessionMessageUser,
+-    restored = messageDraft(message),
++    restored: ReturnType<typeof messageDraft>,
++    directory: string,
+   ) => {
+-    const context = extractPromptContext(message, { directory: location().directory })
++    const context = extractPromptContext(message, { directory })
+ 
+     target.set(restored, promptLength(restored))
+     // The restored prompt replaces the draft, so chips from an earlier restore do not ride along.
+@@ -61,23 +65,25 @@ export function createSessionRevert(input: {
+ 
+     if (!sessionID) return
+     const owner = input.session.ownership.capture()
++    const composerOwner = prompt.captureOwner()
++    const sdkOwner = server.capture()
++    const current = () => owner.current() && composerOwner() && sdkOwner()
++    const api = server.api
++    const origin = { directory: location().directory, sourceServerKey: ServerConnection.key(server.server) }
+     const target = prompt.capture()
++    const restored = await pinPromptMedia(messageDraft(message, origin), current).catch((error) => {
++      if (current()) fail(error)
++      return undefined
++    })
++    if (!restored || !current()) return
+ 
+     // An undelivered prompt has no history to rewind. Withdraw it like the TUI
+     // instead of interrupting the work it is waiting behind.
+     if (data.session.input.has(sessionID, message.id)) {
+       // The cancel releases the prompt's blob refs and sweeps blobs nothing else references, so the draft takes
+       // local copies of its media first; if they cannot load, the prompt stays queued.
+-      const restored = await pinPromptMedia(messageDraft(message)).catch((error) => {
+-        fail(error)
+-
+-        return undefined
+-      })
+-
+-      if (!restored) return
+-
+-      if (!(await request(() => server.api.session.inbox.cancel({ sessionID, inboxID: message.id })))) return
+-      restore(target, message, restored)
++      if (!(await request(() => api.session.inbox.cancel({ sessionID, inboxID: message.id }), current))) return
++      restore(target, message, restored, origin.directory)
+       owner.run(() => input.setActiveMessage(previous))
+ 
+       return
+@@ -86,14 +92,14 @@ export function createSessionRevert(input: {
+     // Interrupt acknowledges before the execution settles, and staging a busy Session fails. The
+     // local status can lag the server either way, so always settle first; both are idle no-ops.
+     // Like the TUI, stop at the first failure instead of waiting on work that was never interrupted.
+-    if (!(await request(() => server.api.session.interrupt({ sessionID })))) return
++    if (!(await request(() => api.session.interrupt({ sessionID }), current))) return
+ 
+-    if (!(await request(() => server.api.experimental.session.wait({ sessionID })))) return
++    if (!(await request(() => api.session.wait({ sessionID }), current))) return
+ 
+     // Read before staging: the staged event can land before the request resolves.
+     const prior = input.session.data.revertMessageID()
+ 
+-    if (!(await request(() => server.api.session.revert.stage({ sessionID, messageID: message.id })))) return
++    if (!(await request(() => api.session.revert.stage({ sessionID, messageID: message.id }), current))) return
+ 
+     const draft = {
+       prompt: clonePrompt(target.current()),
+@@ -103,15 +109,15 @@ export function createSessionRevert(input: {
+ 
+     // Like the TUI, pending inputs are left alone: the revert hides them, committing it drops them,
+     // and redo delivers them.
+-    restore(target, message)
++    restore(target, message, restored, origin.directory)
+     owner.run(() => input.setActiveMessage(previous))
+ 
+     // Rewinding also puts the files back, so offer the way out right where it happened. Undo is bound to
+     // this Session and its earlier revert, not to whatever the route and the event stream show when clicked.
+     const undoRewind = async () => {
+       const undone = prior
+-        ? request(() => server.api.session.revert.stage({ sessionID, messageID: prior }))
+-        : request(() => server.api.session.revert.clear({ sessionID }))
++        ? request(() => api.session.revert.stage({ sessionID, messageID: prior }), current)
++        : request(() => api.session.revert.clear({ sessionID }), current)
+ 
+       if (!(await undone)) return
+       target.set(draft.prompt, draft.cursor ?? promptLength(draft.prompt))
+@@ -160,9 +166,13 @@ export function createSessionRevert(input: {
+ 
+     if (!sessionID || !reverted) return
+     const owner = input.session.ownership.capture()
++    const composerOwner = prompt.captureOwner()
++    const sdkOwner = server.capture()
++    const current = () => owner.current() && composerOwner() && sdkOwner()
++    const api = server.api
+ 
+     // Like the TUI, redo restores every reverted message at once and leaves the composer alone.
+-    if (!(await request(() => server.api.session.revert.clear({ sessionID })))) return
++    if (!(await request(() => api.session.revert.clear({ sessionID }), current))) return
+     owner.run(() =>
+       input.setActiveMessage(
+         input.session.history
+@@ -174,7 +184,18 @@ export function createSessionRevert(input: {
+   }
+ 
+   /** Puts a sent prompt back in the composer without rewinding the Session. */
+-  const recall = (message: SessionMessageUser) => restore(prompt.capture(), message)
++  const recall = async (message: SessionMessageUser) => {
++    const owner = input.session.ownership.capture()
++    const composerOwner = prompt.captureOwner()
++    const sdkOwner = server.capture()
++    const current = () => owner.current() && composerOwner() && sdkOwner()
++    const origin = { directory: location().directory, sourceServerKey: ServerConnection.key(server.server) }
++    const target = prompt.capture()
++    try {
++      const restored = await pinPromptMedia(messageDraft(message, origin), current)
++      if (current()) restore(target, message, restored, origin.directory)
++    } catch (error) { if (current()) fail(error) }
++  }
+ 
+   return { to, undo, redo, recall }
+ }
+
+diff --git aa/packages/app/src/session/session-ownership.test.ts bb/packages/app/src/session/session-ownership.test.ts
+index 102e52b..cee9e24 100644
+--- aa/packages/app/src/session/session-ownership.test.ts
++++ bb/packages/app/src/session/session-ownership.test.ts
+@@ -1,6 +1,267 @@
+-import { expect, test } from "bun:test"
+-import { createRoot, createSignal } from "solid-js"
++import { afterEach, expect, mock, test } from "bun:test"
++import { createComponent, createRoot, createSignal } from "solid-js"
++import { createStore } from "solid-js/store"
+ import { createSessionOwnership } from "./session-ownership"
++import type { SessionMessageUser } from "@opencode/client/promise"
++import { ServerConnection } from "@/runtime/server/registry"
++import { ServerScope } from "@/runtime/server/scope"
++import type { ComposerState } from "@/composer/state"
++import { blobDataUrl, resolveBlobUrl } from "@/runtime/persistence/drafts"
++import { base64Encode } from "@opencode/util/encode"
++
++// These cases own asynchronous source/session handoff, not timeline rendering. They keep the
++// production composer, SDK registration, media cache, fork and revert algorithms intact.
++const [route, setRoute] = createStore({ id: "ses_a", serverKey: "", directory: "/fixture/a" })
++const states = new Map<string, ComposerState>()
++const navigations: string[] = []
++const remembered: string[] = []
++const activeMessages: Array<string | undefined> = []
++const toasts: Array<{ actions?: Array<{ onClick: () => void }> }> = []
++const requests: Array<{ source: string; path: string }> = []
++const holds = new Map<string, ReturnType<typeof deferred<Response>>>()
++const messages: SessionMessageUser[] = []
++// The real sync store publishes new state through signals, so consumers' memos re-read it. The
++// fixture is mutable arrays, so a version signal stands in for that publication.
++const [fixtureDataVersion, setFixtureDataVersion] = createSignal(0)
++let queued = false
++let boundary: string | undefined
++let currentSdk: ReturnType<typeof import("@/runtime/server/client").createServerSdkContext>
++function deferred<T>() {
++  let resolve!: (value: T) => void
++  const promise = new Promise<T>((done) => { resolve = done })
++  return { promise, resolve }
++}
++const transport = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
++  const url = new URL(typeof input === "object" && "url" in input ? input.url : String(input))
++  const source = url.origin
++  const path = url.pathname
++  requests.push({ source, path })
++  if (path.includes("/event")) return new Response(new ReadableStream({ start(controller) {
++    init?.signal?.addEventListener("abort", () => controller.close(), { once: true })
++  } }), { headers: { "content-type": "text/event-stream" } })
++  const hold = holds.get(path)
++  if (hold) { holds.delete(path); return hold.promise }
++  if (path.includes("/media/")) return new Response(new Uint8Array([65]))
++  if (path.endsWith("/fork")) return Response.json({ data: { id: "ses_forked" } })
++  if (path.endsWith("/wait") || path.endsWith("/cancel")) return new Response(null, { status: 204 })
++  return Response.json({ data: {} })
++}, { preconnect: globalThis.fetch.preconnect })
++const data = { session: {
++  get: () => { fixtureDataVersion(); return { revert: boundary ? { messageID: boundary } : undefined, location: { directory: route.directory } } },
++  status: () => { fixtureDataVersion(); return "idle" },
++  message: { list: () => { fixtureDataVersion(); return [...messages] }, get: (_sessionID: string, id: string) => {
++    fixtureDataVersion()
++    return messages.find((message) => message.id === id)
++  } },
++  input: { has: () => { fixtureDataVersion(); return queued } },
++  remember: (session: { id: string }) => remembered.push(session.id),
++}, project: { get: () => undefined, list: () => [] } }
++mock.module("@/runtime/server/current", () => ({
++  useServer: () => ({ get key() { return ServerConnection.key(currentSdk.server) }, ctx: { get sdk() { return currentSdk }, sync: { data: { project: [] } } } }),
++  useData: () => data,
++}))
++mock.module("@/runtime/platform/platform", () => ({ usePlatform: () => ({ platform: "web", fetch: transport }) }))
++mock.module("@solidjs/router", () => ({
++  useParams: () => route, useSearchParams: () => [{}, () => {}],
++  useNavigate: () => (path: string) => navigations.push(path),
++}))
++mock.module("@/workspaces/location", () => ({ useWorkspaceLocation: () => () => ({ directory: route.directory }) }))
++mock.module("@/shell/tabs/tabs", () => ({ useTabs: () => ({
++  store: [], state: (tab: { server?: string; sessionId?: string }, _key: string, factory: () => ComposerState) => {
++    const key = `${tab.server}:${tab.sessionId}`
++    if (!states.has(key)) states.set(key, factory())
++    return states.get(key)!
++  },
++}) }))
++mock.module("./session-layout", () => ({ useSessionLayout: () => ({
++  params: route, sessionKey: () => `${route.serverKey}:${route.id}`,
++  workspaceKey: () => route.directory, tabs: {}, view: {}, tabKey: () => route.id,
++}) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++mock.module("@/shell/notifications/toast", () => ({ showToast: (toast: typeof toasts[number]) => { toasts.push(toast) } }))
++const { createServerSdkContext } = await import("@/runtime/server/client")
++const { ComposerPersistenceProvider, useComposerState } = await import("@/composer/persistence")
++const { useSessionModel } = await import("./model")
++const { useSessionFork } = await import("./fork")
++const { createSessionRevert } = await import("./revert")
++const disposers: Array<() => void> = []
++afterEach(() => {
++  disposers.splice(0).reverse().forEach((dispose) => dispose())
++  states.clear(); messages.splice(0); requests.splice(0); navigations.splice(0)
++  remembered.splice(0); activeMessages.splice(0); toasts.splice(0); holds.clear()
++  queued = false; boundary = undefined; localStorage.clear()
++})
++// Each fixture message uses its own media hash: the draft store's media aliases and retained blobs
++// are process-global, so a reused hash would let a later test resolve bytes from an earlier one.
++let mediaSerial = 0
++let hash = "7".repeat(64)
++function mount(source = "a") {
++  let result!: { prompt: ReturnType<typeof useComposerState>; fork: ReturnType<typeof useSessionFork>; revert: ReturnType<typeof createSessionRevert> }
++  createRoot((dispose) => {
++    disposers.push(dispose)
++    const server: ServerConnection.Http = { type: "http", http: { url: `https://${source}.fixture.example` } }
++    currentSdk = createServerSdkContext(server, ServerScope.fromServerKey(ServerConnection.key(server)))
++    setRoute({ id: `ses_${source}`, serverKey: base64Encode(ServerConnection.key(server)), directory: `/fixture/${source}` })
++    createComponent(ComposerPersistenceProvider, { get children() {
++      const prompt = useComposerState()
++      const session = useSessionModel()
++      result = { prompt, fork: useSessionFork(), revert: createSessionRevert({ session,
++        setActiveMessage: (message) => activeMessages.push(message?.id),
++      }) }
++      return null
++    } })
++  })
++  result.prompt.capture().set([{ type: "text", content: `draft-${source}`, start: 0, end: 7 }])
++  return result
++}
++function mediaMessage() {
++  hash = "7".repeat(62) + (mediaSerial++).toString(16).padStart(2, "0")
++  const message: SessionMessageUser = { type: "user", id: "msg_media", text: "fixture", time: { created: 0 }, files: [
++    { uri: `media:${hash}`, mime: "image/png", source: { type: "inline" } },
++    { uri: "file:///fixture/context.ts", mime: "text/plain", source: { type: "uri", uri: "file:///fixture/context.ts" } },
++  ] }
++  messages.push(message)
++  setFixtureDataVersion((version) => version + 1)
++  return message
++}
++function hold(path: string) {
++  const value = deferred<Response>()
++  holds.set(path, value)
++  return value
++}
++async function started(path: string) {
++  for (let turn = 0; turn < 100; turn++) {
++    if (requests.some((request) => request.path === path)) return
++    await new Promise((resolve) => setTimeout(resolve, 0))
++  }
++  throw new Error(`Synthetic request never started: ${path}`)
++}
++function snapshot(value: ReturnType<typeof mount>) {
++  return JSON.stringify({ prompt: value.prompt.capture().current(), context: value.prompt.capture().context.items(),
++    history: messages, navigations, remembered, activeMessages })
++}
++
++test.each(["pin", "fork"] as const)("SF-1: switch source while awaiting %s does not publish a stale fork", async (phase) => {
++  const a = mount()
++  mediaMessage()
++  const path = phase === "pin" ? `/api/experimental/media/${hash}` : "/api/session/ses_a/fork"
++  const pending = hold(path)
++  const operation = a.fork({ sessionID: "ses_a", messageID: "msg_media" })
++  await started(path)
++  const b = mount("b")
++  const before = snapshot(b)
++  pending.resolve(phase === "pin" ? new Response(new Uint8Array([65])) : Response.json({ data: { id: "ses_old" } }))
++  expect(await operation).toBe(false)
++  expect(snapshot(b)).toBe(before)
++  expect(requests.filter((request) => !request.path.includes("/event")).every((request) => request.source === "https://a.fixture.example")).toBe(true)
++  expect(requests.some((request) => /delete|stop|cancel/.test(request.path))).toBe(false)
++})
++
++test("SF-2: same-key replacement invalidates old fork without unregistering successor", async () => {
++  const a = mount(); mediaMessage()
++  const pending = hold("/api/session/ses_a/fork")
++  const operation = a.fork({ sessionID: "ses_a", messageID: "msg_media" })
++  await started("/api/session/ses_a/fork")
++  const next = mount()
++  const before = snapshot(next)
++  pending.resolve(Response.json({ data: { id: "ses_old" } }))
++  expect(await operation).toBe(false)
++  expect(snapshot(next)).toBe(before)
++  disposers.shift()!()
++  expect(await resolveBlobUrl({ id: `media:${"8".repeat(64)}`, sourceServerKey: "https://a.fixture.example" })).toStartWith("blob:")
++})
++
++test("SF-3/SR-4: pin rejection keeps queue and draft intact and never probes B", async () => {
++  const a = mount(); const message = mediaMessage(); queued = true
++  const pending = hold(`/api/experimental/media/${hash}`)
++  const before = snapshot(a)
++  const operation = a.fork({ sessionID: "ses_a", messageID: message.id })
++  await started(`/api/experimental/media/${hash}`)
++  pending.resolve(new Response(null, { status: 403 }))
++  expect(await operation).toBe(false)
++  const retry = hold(`/api/experimental/media/${hash}`)
++  const recall = a.revert.to(message.id)
++  await new Promise((resolve) => setTimeout(resolve, 0))
++  retry.resolve(new Response(null, { status: 404 }))
++  await recall
++  expect(snapshot(a)).toBe(before)
++  expect(queued).toBe(true)
++  expect(requests.filter((request) => !request.path.includes("/event")).every((request) => request.path.includes("/media/") && request.source === "https://a.fixture.example")).toBe(true)
++})
++
++test("SR-1: queued revert waiting for pin cannot cancel or restore after source switch", async () => {
++  const a = mount(); const message = mediaMessage(); queued = true
++  const pending = hold(`/api/experimental/media/${hash}`)
++  const operation = a.revert.to(message.id)
++  await started(`/api/experimental/media/${hash}`)
++  const b = mount("b"); const before = snapshot(b)
++  pending.resolve(new Response(new Uint8Array([65])))
++  await operation
++  expect(snapshot(b)).toBe(before)
++  expect(requests.some((request) => request.path.includes("/cancel"))).toBe(false)
++})
++
++test.each(["cancel", "stage", "clear"] as const)("SR-2: already dispatched %s stays on A and late response cannot restore B", async (phase) => {
++  const a = mount(); const message = mediaMessage()
++  queued = phase === "cancel"
++  boundary = phase === "clear" ? message.id : undefined
++  setFixtureDataVersion((version) => version + 1)
++  // The generated client stages POST /revert/stage, clears DELETE /revert and cancels DELETE /inbox/{id}.
++  const path = phase === "cancel"
++    ? `/api/session/ses_a/inbox/${message.id}`
++    : `/api/session/ses_a/revert${phase === "clear" ? "" : "/stage"}`
++  
++  const pending = hold(path)
++  const operation = phase === "clear" ? a.revert.redo() : a.revert.to(message.id)
++  await started(path)
++  const b = mount("b"); const before = snapshot(b)
++  pending.resolve(phase === "cancel" ? new Response(null, { status: 204 }) : Response.json({ data: {} }))
++  await operation
++  toasts.flatMap((toast) => toast.actions ?? []).forEach((action) => action.onClick())
++  expect(snapshot(b)).toBe(before)
++  expect(requests.filter((request) => request.path === path).map((request) => request.source)).toEqual(["https://a.fixture.example"])
++})
++
++test.each(["pin", "cancel"] as const)("SR-3: same-key new generation during %s suppresses old continuation", async (phase) => {
++  const a = mount(); const message = mediaMessage(); queued = true
++  const path = phase === "pin" ? `/api/experimental/media/${hash}` : `/api/session/ses_a/inbox/${message.id}`
++  const pending = hold(path)
++  const operation = a.revert.to(message.id)
++  await started(path)
++  const next = mount(); const before = snapshot(next)
++  pending.resolve(phase === "pin" ? new Response(new Uint8Array([65])) : new Response(null, { status: 204 }))
++  await operation
++  expect(snapshot(next)).toBe(before)
++  expect(requests.filter((request) => request.path === `/api/session/ses_a/inbox/${message.id}`)).toHaveLength(phase === "pin" ? 0 : 1)
++})
++
++test("SF-4/SR-5: fork and recall/revert/undo/redo retain local media and source; stale toast cannot mutate", async () => {
++  const a = mount(); const message = mediaMessage()
++  expect(await a.fork({ sessionID: "ses_a", messageID: message.id })).toBe(true)
++  const forked = states.get("https://a.fixture.example:ses_forked")!
++  expect(forked).toBeDefined()
++  const image = forked.current().find((part) => part.type === "image")!
++  expect(image.blob.sourceServerKey).toBe("https://a.fixture.example")
++  expect(await blobDataUrl(image.blob, image.mime)).toBe("data:image/png;base64,QQ==")
++  await a.revert.recall(message)
++  expect(a.prompt.capture().context.items()).toHaveLength(1)
++  const before = JSON.stringify(a.prompt.capture().current())
++  await a.revert.undo()
++  const undo = toasts.at(-1)!.actions![0]!
++  undo.onClick()
++  await new Promise((resolve) => setTimeout(resolve, 0))
++  expect(JSON.stringify(a.prompt.capture().current())).toBe(before)
++  boundary = message.id
++  setFixtureDataVersion((version) => version + 1)
++  await a.revert.redo()
++  const b = mount("b"); const unchanged = snapshot(b)
++  const count = requests.length
++  undo.onClick()
++  await new Promise((resolve) => setTimeout(resolve, 0))
++  expect(snapshot(b)).toBe(unchanged)
++  expect(requests).toHaveLength(count)
++  expect(await resolveBlobUrl({ id: `media:${hash}` })).toBeUndefined()
++})
+ 
+ test("rejects work captured by a previous session", () => {
+   createRoot((dispose) => {

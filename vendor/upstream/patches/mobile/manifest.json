@@ -11,7 +11,9 @@
       "reason": "Remove Electron-only dev tooling (electron, @lydell/node-pty, devtools-protocol) from devDependencies. They are used only by gui-plugins' own tests/typecheck, and electron's postinstall pulls ~110MB of binaries that the web build never needs. (M-001' issue #67: retargeted from gui-extensions, which the gui-plugins package replaces; the three removals are identical and the devDependencies block shape matches the old gui-extensions one.)",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 (bun run build:web) succeeds without the removed devDependencies.",
-      "rebase": "Issue #67: regenerated against pristine pin extraction + packageSources (packages/gui-plugins from 3ebcf9a). The v2.2.1 gui-plugins package.json devDependencies block carries the same three Electron-only deps; hunk re-derived, no semantic change. Filename keeps the historical gui-extensions name for chain continuity."
+      "rebase": "Issue #67: regenerated against pristine pin extraction + packageSources (packages/gui-plugins from 3ebcf9a). The v2.2.1 gui-plugins package.json devDependencies block carries the same three Electron-only deps; hunk re-derived, no semantic change. Filename keeps the historical gui-extensions name for chain continuity.",
+      "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058",
+      "status": "active"
     },
     {
       "id": "M-002",
@@ -22,7 +24,9 @@
       "reason": "Memory-only credentials: the encode (write) path of the server persistence schema drops `password`, so no persistent backend (web localStorage, desktop storage, drafts) ever receives one. Decoding still tolerates stored passwords from legacy files; a missing password reaches the existing authentication-failure path. Keystore persistence is owned by mobile issue #4. The embedded marker string 'mobile(M-002): password stripped at encode (memory-only)' survives minification and anchors V-cred dist verification.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V-cred: (a) encode-path strip present in source with marker; (b) marker string found in built dist assets; semantic probe of the codec against effect@4.0.1 confirmed strip on encode, tolerance on decode.",
-      "rebase": "S3 exercise: no rebase needed - packages/app/src/runtime/server/persistence.ts is unchanged at b4525d79bf; the patch applies verbatim."
+      "rebase": "S3 exercise: no rebase needed - packages/app/src/runtime/server/persistence.ts is unchanged at b4525d79bf; the patch applies verbatim.",
+      "sha256": "27ad5b0789df3aec50c3ad968f114608f2815d838b2940bfb537aa2549eee913",
+      "status": "active"
     },
     {
       "id": "M-003",
@@ -35,7 +39,9 @@
       "reason": "Strip the three workspace references that dangle after closure acquisition (their targets are excluded packages): client devDependency @opencode/httpapi-codegen (generated code is committed), plugin devDependency+peerDependency+peerDependenciesMeta @opencode/theme (not in the runtime closure), ai devDependency @opencode/http-recorder (test recording tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V1 (bun install) succeeds and V3(b) workspace-reference scan reports zero dangling refs.",
-      "rebase": "S3 exercise: regenerated at b4525d79bf (the three target package.json files shifted line numbers upstream; all three dangling refs still present with identical semantics; hunks re-derived, no semantic change)."
+      "rebase": "S3 exercise: regenerated at b4525d79bf (the three target package.json files shifted line numbers upstream; all three dangling refs still present with identical semantics; hunks re-derived, no semantic change).",
+      "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565",
+      "status": "active"
     },
     {
       "id": "M-004",
@@ -47,7 +53,9 @@
       "reason": "Build-time seam so the vendored app can import the first-party host registry (@opencode-mobile/mobile-hosts, issue #3). The alias value is expressed as fileURLToPath(new URL(\"../../../../packages/mobile-hosts/src/index.ts\", import.meta.url)) - importer-relative like the existing fonts-cjk stub, so the four .. segments land on the repository root's packages/; a bare relative string would resolve against the importer and miss. Dependency direction stays one-way: the vendored packages themselves do not depend on the first-party package; only this alias resolves the specifier at build time.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 (verify-closure) tree equivalence with the patch registered; V2 build smoke after applying: `bun run build:web` succeeds and the built entry chunk resolves the mobile-hosts modules (no unresolved import errors).",
-      "rebase": "New patch (issue #3); rebase target is the resolve.alias block in packages/app/vite.js."
+      "rebase": "New patch (issue #3); rebase target is the resolve.alias block in packages/app/vite.js.",
+      "sha256": "b2e8784451619821666605647ab97a68e147f52835a3893c14d234edfde8dfd3",
+      "status": "active"
     },
     {
       "id": "M-005",
@@ -59,7 +67,9 @@
       "reason": "Adds an optional non-secret credential REFERENCE (http.credentialRef, inside ServerHttpBase) so a stored direct server can point at a keystore entry without storing any credential. The M-002 encode path still strips password; the reference is a pointer (mobile-credential:<id>), safe for every persistent backend, and resolves per session into memory only. Keystore-backed resolution is mobile issue #4; decoding tolerates absence for already-stored servers.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; targeted probe scripts/verify-credential-ref.ts (schema round-trip keeps the reference, still strips password) plus the upstream persistence.test.ts file as regression.",
-      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field. Review note (issue #3, round 2): clearing semantics are 'undefined keeps, empty string clears' in the first-party registry (packages/mobile-hosts/src/registry.ts); whether a changed host target/identity invalidates or re-confirms its credentialRef is an issue #4 boundary decision, deliberately out of scope here. Issue #4 ruling recorded: whether a changed host target/identity invalidates its credentialRef is resolved as KEEP + explicit removal (the user unchecks remember or deletes the entry in the credential manager); see docs/design/units/connection.md 失效矩阵."
+      "rebase": "New patch (issue #3); rebase target is the ServerHttpBase struct in packages/app/src/runtime/server/persistence.ts, directly below the M-002 MemoryOnlyPassword field. Review note (issue #3, round 2): clearing semantics are 'undefined keeps, empty string clears' in the first-party registry (packages/mobile-hosts/src/registry.ts); whether a changed host target/identity invalidates or re-confirms its credentialRef is an issue #4 boundary decision, deliberately out of scope here. Issue #4 ruling recorded: whether a changed host target/identity invalidates its credentialRef is resolved as KEEP + explicit removal (the user unchecks remember or deletes the entry in the credential manager); see docs/design/units/connection.md 失效矩阵.",
+      "sha256": "f237c0874c80b4cb1a2ec19e4a1113c930b57381dc397519b36c5af126d5e6d4",
+      "status": "active"
     },
     {
       "id": "M-006",
@@ -71,7 +81,9 @@
       "reason": "The connect dialog constructs a fresh connection object on save; without this patch the M-005 credential reference would be dropped on the first edit of a server (both the same-url add path and the key-changing replace path). The original's reference is forwarded into the new connection; the form never edits it (it is a non-secret pointer, there is no reference input in the dialog). The 'nothing changed' early-exit comparison deliberately stays without the reference: it is never user-editable here, so it cannot be the only change, and adding it would keep the dialog open pointlessly.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-credential-ref.ts (schema round-trip keeps credentialRef + password still stripped + dialog forwards original.http.credentialRef and keeps it out of the early-exit comparison); upstream persistence.test.ts targeted run unchanged vs the M-002 baseline (same 4 pass / 1 pre-existing M-002 round-trip expectation).",
-      "rebase": "New patch (issue #3); rebase target is the request.mutationFn connection construction block in packages/app/src/servers/connect/dialog.tsx. Issue #4 amendment note: M-009 extends the reference passthrough to the ADD flow (prior found by normalized URL from server.list, not method-gated) and the reference now comes from the remember decision; the early-exit comparison still never consults it."
+      "rebase": "New patch (issue #3); rebase target is the request.mutationFn connection construction block in packages/app/src/servers/connect/dialog.tsx. Issue #4 amendment note: M-009 extends the reference passthrough to the ADD flow (prior found by normalized URL from server.list, not method-gated) and the reference now comes from the remember decision; the early-exit comparison still never consults it.",
+      "sha256": "4650985fe6e608544070f5b57ca227ee494d0dfca2ae302d30f1b9281193b273",
+      "status": "active"
     },
     {
       "id": "M-007",
@@ -83,7 +95,9 @@
       "reason": "Shell bootstrap (issue #3). (1) Removes the assembly of location.origin into a ServerConnection: in this Android WebView shell the asset origin http://127.0.0.1:18090 is a static asset server, not an OpenCode service, so that connection could only fail its health check. The ?auth_token URL passthrough is inapplicable for the same reason (no assembled server to authenticate) and is removed with its cleanup helper. (2) Bootstraps the first-party host registry via createMobileHosts (fail-closed host-key stub + Null credential resolver; real counterparts are issues #6/#4) and injects hosts.upstreamConnections() - a solid-store-derived reactive value - as the app's servers prop; direct servers are added through the app's own dialog into the upstream persisted list. Not implemented via the VITE_OPENCODE_SERVER_MODE=none build-time variable on purpose: that would hide the behavior behind build configuration and complicate rebasing; this patch keeps the change visible and rebaseable in one place. M-007 amendment (issue #4): the entry now also creates the device credential vault client (createVaultClient over createWebMessageChannelTransport) with the handshake listener registered before first render - shape-validated only (event.origin is never consulted: embedder-posted messages carry an empty origin by platform construction), port captured inside the transport closure, acked immediately, later handshakes ignored - and passes the vault plus a vault-backed resolver into createMobileHosts. Before the ack the vault is unavailable (explicit state, no plaintext fallback).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke after applying: bun run build:web succeeds and the built entry chunk contains the mobile-hosts bootstrap (dist marker mobile-ssh / opencode-mobile.hosts.v1). Runtime behavior on device is BLOCKED (G1/G13). Amendment verified by V2 build smoke after M-009/M-010 registration and scripts/verify-credential-vault.ts (M-007 listener + wiring probe).",
-      "rebase": "New patch (issue #3); rebase target is the render block of packages/app/src/entry.tsx. Amendment (issue #4): the vault wiring block inside the loadInitialLocale callback of packages/app/src/entry.tsx."
+      "rebase": "New patch (issue #3); rebase target is the render block of packages/app/src/entry.tsx. Amendment (issue #4): the vault wiring block inside the loadInitialLocale callback of packages/app/src/entry.tsx.",
+      "sha256": "c8bc3466e179cf062ad2cb9eb893c3186d2cb5045f225e3266041560284deede",
+      "status": "active"
     },
     {
       "id": "M-008",
@@ -95,7 +109,9 @@
       "reason": "Mounts the first-party SSH host manager (lazy import) in the settings 'servers' tab, above the upstream single-server panel and also when the upstream list is empty, so the first SSH host can be created. The manager reads the runtime bootstrapped by M-007 through getMobileHosts(). Known gap, documented in docs/design/interaction.md: in the multiple-servers layout the upstream nav replaces the 'servers' tab with per-server entries, so the manager is not reachable there; the injected extension rows themselves render through the upstream home/settings inventory (device verification: G13/G15).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web) with the lazy chunk resolving through the M-004 alias; manager rendering and interactions on device are BLOCKED (G13).",
-      "rebase": "New patch (issue #3); rebase targets are the lazy-import block after GuiExtensionsSettings and the 'servers' Tabs.Content block in packages/app/src/settings/shell.tsx."
+      "rebase": "New patch (issue #3); rebase targets are the lazy-import block after GuiExtensionsSettings and the 'servers' Tabs.Content block in packages/app/src/settings/shell.tsx.",
+      "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb",
+      "status": "active"
     },
     {
       "id": "M-009",
@@ -109,7 +125,9 @@
       "reason": "Optional 'remember credential' for the connect dialog's password method (issue #4). The checkbox participates only when rendered AND the shell vault is available; the decision itself (truth table v3, 12 rows) lives in the first-party package (packages/mobile-hosts src/vault/remember.ts) so it is unit-tested and probe-able, and this patch only translates it into vault put/remove calls and the constructed connection. Add flow resolves the ref-bearing prior by normalized URL from server.list regardless of the connect method (password AND link/redeem) - otherwise the M-006 original is undefined on add and re-adding a remembered server would orphan its reference. Rows 2/12 abort the save with an inline needs-password message (never cast an empty value); the early-exit is forced off when the checkbox state differs from the prior's remembered flag; a failed put/remove keeps the dialog open with an inline error. Vault unavailable renders the checkbox disabled plus an explicit-state note - no plaintext fallback anywhere.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun test truth-table suite (packages/mobile-hosts); scripts/verify-credential-vault.ts probes rows 1-12 + early-exit forcing + initial value through the in-process vault engine; V2 build smoke after registration.",
-      "rebase": "New patch (issue #4); rebase targets are the request.mutationFn block, the form controller state exports, the password-method JSX block, and the dialog.server i18n sections in packages/app/src/servers/connect/dialog.tsx."
+      "rebase": "New patch (issue #4); rebase targets are the request.mutationFn block, the form controller state exports, the password-method JSX block, and the dialog.server i18n sections in packages/app/src/servers/connect/dialog.tsx.",
+      "sha256": "7ac107c76535efa7985cd868431944f1e4d04fa55fcbc9277151eeb74e6ed41d",
+      "status": "active"
     },
     {
       "id": "M-010",
@@ -121,7 +139,9 @@
       "reason": "Hydration credential resolution (issue #4). After the persisted server list hydrates, stored http entries that carry a credential reference but no password get the password resolved from the shell vault and injected into the in-memory solid store ONLY - the M-002 encode path runs on every persist write, so the value can never reach a persistent backend; it merely spares re-typing within the session. Vault-level unavailability and per-entry corrupt/unsupported resolve to nothing and the server's own authentication flow takes over (docs/design/units/connection.md failure matrix; no plaintext fallback).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts asserts the injection is setStore-only (no direct storage writes) and that the M-002 encode still strips (memory-only); runtime behavior on device is BLOCKED (C1).",
-      "rebase": "New patch (issue #4); rebase target is the ServersProvider init block in packages/app/src/runtime/server/registry.tsx, directly after the persisted() call."
+      "rebase": "New patch (issue #4); rebase target is the ServersProvider init block in packages/app/src/runtime/server/registry.tsx, directly after the persisted() call.",
+      "sha256": "b281f43bcd01125e61b1bf8a8a7d28bca0e66aa6bc140869bd70303113aae61c",
+      "status": "active"
     },
     {
       "id": "M-011",
@@ -133,7 +153,9 @@
       "reason": "Platform fetch injection with the validated-follow policy (issue #5, decision 0002 D1). createSecureFetch from the first-party package keeps redirect:\"follow\" (legitimate same-origin reverse proxies keep working) and validates the FINAL response before body delivery: a cross-host final URL is refused with the body cancelled, an https-to-http downgrade is refused, and a request URL carrying userinfo credentials is refused before anything is sent. Coverage: platform.fetch feeds createServerTransport (API/SSE/binary reads) and the health checks; the upload XHR is validated separately by M-012 with the same rules, and the pairing-flow residual fetch surface (OpenCode.make + checkServerHealth(globalThis.fetch) in pairing.ts) is registered out-of-scope in docs/design/units/connection.md. Auth-header semantics are untouched (the Basic header is built upstream exactly as before); cross-origin redirect sub-requests already lose the Authorization header by browser spec, so the wrapper is the shell's own fail-closed layer, not a leak fix. The embedded marker 'mobile(M-011): platform fetch validated-follow (origin + downgrade checked before body delivery)' survives minification and anchors V-conn dist verification.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun unit tests for the wrapper (packages/mobile-hosts/test/secure-fetch.test.ts: cross-host refuse, downgrade refuse, credential-URL refuse, direct pass, same-origin redirect pass); V2 build smoke + dist marker mobile(M-011) + scripts/verify-direct-connection.ts (full mode); device behavior BLOCKED (G3/G4/G5/G11).",
-      "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal)."
+      "rebase": "New patch (issue #5); rebase target is the createWebPlatform platform object literal in packages/app/src/runtime/platform/web.ts (the fetch field sits directly after the platform literal).",
+      "sha256": "30fd327f10d70a1dff8f95ad3823c5085fa9d4ee65a5cc35b9075de0f6bd6e2b",
+      "status": "active"
     },
     {
       "id": "M-012",
@@ -145,7 +167,9 @@
       "reason": "Validated-follow for the upload face (issue #5, decision 0002 D1). The attachment upload is the one request that bypasses the platform fetch seam (M-011) - it goes through XMLHttpRequest for progress and streaming - so the same URL policy from the first-party package is enforced here: userinfo credential URLs are refused before anything is sent (D-URL), and on load the FINAL xhr.responseURL must still be same-origin with the request and must not have downgraded https-to-http, else the body is rejected (SecureFetchError) instead of being read as the server's upload receipt. Cross-origin redirect sub-requests already lose the Authorization header by browser spec (the floor); this patch is the shell's own fail-closed layer on top.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
-      "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts."
+      "rebase": "New patch (issue #5); rebase targets are the import block and the write() function of packages/app/src/composer/attachments/destination.ts.",
+      "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9",
+      "status": "active"
     },
     {
       "id": "M-013",
@@ -159,7 +183,9 @@
       "reason": "Probe-classified connect errors on the save path (issue #5, decision 0002 D4). The endpoint probe is dispatched BEFORE the authoritative health check (so its classification is usually already resolved when the verdict arrives) but only chooses the error WORDING after the check failed - the health check stays the sole authority for whether a save proceeds, and a probe verdict can never pass a save it refused. Error-message precedence: the upstream mixed-content structural signal, then the check's own unauthorized flag (authoritative 401), then the probe's transport classification (dialog.server.error.<code>), then the generic upstream message as the EXPLICIT degrade when the probe is unavailable, answered ok, or conflicts with the real fetch - a classification is never fabricated. A userinfo credential URL is refused up front with the precise credential-url message (D-URL). App-i18n keys only (en base merged with the locale table; missing key falls back to en, then to the key itself) - the first-party mobile-hosts direct.error.* keys are a separate set for first-party UI surfaces (F5).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; probe classification precedence and degrade are unit-tested in packages/mobile-hosts/test/probe.test.ts (port level); V2 build smoke + dialog.server.error keys in dist language chunks; device behavior BLOCKED (G4/G5/G11).",
-      "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts."
+      "rebase": "New patch (issue #5); rebase targets are the mobile(M-009) import block, the form-controller vault/probe accessor block, the request.mutationFn URL pre-check + probe dispatch + failure branch, and the dialog.server.add.error i18n region in en.ts/zh.ts.",
+      "sha256": "cbc5360a21026e8724dec8fefafd67d66091c8f4353f1068bf755b1a150c2dc1",
+      "status": "active"
     },
     {
       "id": "M-014",
@@ -171,7 +197,9 @@
       "reason": "Probe bridge wiring (issue #5). The entry creates the endpoint probe client over the protocol-isolated probe transport (independent opencode-mobile-probe-handshake string, shape-validated capture with exactly one port, port confined to the transport closure, acked immediately, later handshakes ignored, event.origin never consulted - embedder-posted messages carry an empty origin by platform construction) and passes it into createMobileHosts alongside the vault. The two bridges sit on the same window message events but each captures only its own handshake string, so neither can capture the other's port and the vault gates C1-C5 are not perturbed. Before the native ack the probe stays unavailable (fail-closed); a never-acked bridge degrades the dialog to the generic error message.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-credential-vault.ts M-007 assertions (listener-before-render, markers, no origin consultation) still pass; probe transport isolation and handshake shape are unit-tested in packages/mobile-hosts/test/probe.test.ts; dist markers opencode-mobile-probe-handshake and mobile(probe-v1) + scripts/verify-direct-connection.ts full mode; device behavior BLOCKED (G16).",
-      "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field)."
+      "rebase": "New patch (issue #5); rebase target is the mobile(M-007) bootstrap block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the vault transport block, extended with the probe transport and the createMobileHosts probe field).",
+      "sha256": "383dd43f86958f349887d0576fba2d111d8e55c57a8436127c99d7d89890b9b5",
+      "status": "active"
     },
     {
       "id": "M-015",
@@ -183,7 +211,9 @@
       "reason": "SSH tunnel bridge wiring (issue #6). The entry creates the ssh transport synchronously during module evaluation, before asynchronous locale loading, so its window-message listener cannot miss native startup. It signals readiness through an AndroidX WebMessageListener bootstrap; native restricts that bootstrap to the exact configured loopback origin and main frame before posting the existing protocol-isolated channel (`opencode-mobile-ssh-handshake`). The transferred port stays closure-confined, is ack-gated, and retains the existing JSON/requestId operation API. createMobileHosts receives the bridge-backed hostKey verifier, tunnel transport and sshBridge handle; fail-closed stubs remain the package's no-injection default.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-ssh.ts checks the AndroidX origin/frame bootstrap and that the listener subscribes before locale loading; SSH transport tests cover handshake request ordering/readiness replay and request/event behavior; synthetic isolated-device loopback test reached native SSH and returned connection refused (no external host). Real SSH/host-key confirmation remains unverified.",
-      "rebase": "New patch (issue #6); bridge transport bootstrap lives at entry module initialization before loadInitialLocale; createMobileHosts receives the bridge-backed hostKey/transport and sshBridge handle inside the existing startup callback."
+      "rebase": "New patch (issue #6); bridge transport bootstrap lives at entry module initialization before loadInitialLocale; createMobileHosts receives the bridge-backed hostKey/transport and sshBridge handle inside the existing startup callback.",
+      "sha256": "1ba2ebce5ab35e5546e5b20f780381f7054d036ede0990a6a7803e9b17dbb946",
+      "status": "active"
     },
     {
       "id": "M-016",
@@ -195,7 +225,9 @@
       "reason": "Service ops bridge wiring (issue #7). The entry creates the fourth protocol-isolated sibling transport over the svcops handshake (opencode-mobile-svcops-handshake) and registers the bridge-backed client through the module-level service ops seam (setActiveServiceOpsPort) - the createMobileHosts option contract stays unchanged (plan zero-change list: runtime.ts untouched). Before the native ack the service ops panel stays degraded-hidden (fail-closed stub): a client-only build implies no service-operation surface. The bridge protocol carries {templateId, params, os} ONLY, never a command string - the command face is the native-side whitelist (ServiceCommandValidator) assembled behind the single gated setCommand call site; the credential is resolved per command by the panel and crosses one way, exactly once, never logged or echoed (N7).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; scripts/verify-service-ops.ts full mode (dist markers opencode-mobile-svcops-handshake + mobile(svcops-v1), entry wiring assertions); V2 build smoke; device behavior BLOCKED (G18).",
-      "rebase": "New patch (issue #7); LAYERED patch - generated against pin b4525d79bf + M-001..M-015 (entry.tsx already rewritten by M-007/M-014/M-015), round-trip verified on that base; rebase target is the mobile(M-015) ssh transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new svcops block sits directly above the createMobileHosts call)."
+      "rebase": "New patch (issue #7); LAYERED patch - generated against pin b4525d79bf + M-001..M-015 (entry.tsx already rewritten by M-007/M-014/M-015), round-trip verified on that base; rebase target is the mobile(M-015) ssh transport block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new svcops block sits directly above the createMobileHosts call).",
+      "sha256": "c077d6d331d1d5a5dc86ba16b472eae4f74fe74b32c7bebe051f6eb40b781cbb",
+      "status": "active"
     },
     {
       "id": "M-017",
@@ -207,7 +239,9 @@
       "reason": "Wires the Home session row archive action to the real API (issue #8). The generated client has exposed session.update with an archived flag all along (PATCH /api/session/:id, body archived; the server stamps time.archived); the upstream UI kept a stub that always rejected ('Session archiving is unavailable' next to a TODO). The stub becomes a real call and the success path drops the row from the 'home-sessions' query cache and invalidates/re-syncs the canonical session record (so the locally known copy carries the archived stamp and is filtered by the home index merge, home/sessions/index.ts parseHomeSessionIndex); the tabs cleanup and the onError toast are the existing archiveHomeSession helper semantics (archive.test.ts), which this patch does not touch. Archiving is a reversible metadata operation, not a deletion: no danger confirmation (the zero-delete red line does not apply), and there is still no unarchive UI - the same gap exists upstream and is recorded as an accepted limitation in docs/design/units/projects-sessions.md.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web rc=0 after applying); upstream targeted regression src/home/sessions/{archive,index,records}.test.ts 16 pass / 0 fail (note: archive.test.ts exercises the INJECTED archiveHomeSession helper, not the M-017 rewrite point - helper semantics regression only); scripts/verify-projects-sessions.ts static probe (stub text gone, archived:true call shape, helper wiring kept). Runtime archive semantics on a real server (time.archived stamp, list filtering) are BLOCKED - G19 / live lifecycle E2E.",
-      "rebase": "New patch (issue #8); rebase target is the archive: async block inside the returned session controller of packages/app/src/home/sessions/controller.tsx (anchored by the archiveHomeSession call; single hunk)."
+      "rebase": "New patch (issue #8); rebase target is the archive: async block inside the returned session controller of packages/app/src/home/sessions/controller.tsx (anchored by the archiveHomeSession call; single hunk).",
+      "sha256": "896177b54870763a19386a373e8e920674f0c7f0ece78a16bcf867ccc645f8bc",
+      "status": "active"
     },
     {
       "id": "M-018",
@@ -221,7 +255,9 @@
       "reason": "Restores the SSH hosts entry in the multi-server settings layout and revises the redirect guard (issue #8; this closes the gap M-008 pre-registered in docs/design/units/server-list.md - it is deliberately NOT an issue #8 acceptance item itself). Two same-file changes in shell.tsx: (i) the root-tab redirect guard's includes list drops \"servers\" (the other five entries keep their upstream redirect semantics - those panels are per-server and carried by the per-server nav entries); without this revision ANY navigation setting view.tab='servers' is bounced to general by the guard createEffect, so an entry alone would not be reachable; (ii) the multiple() nav group gains a fixed 'SSH hosts' entry that opens the existing 'servers' tab (surface.select('servers')), where the M-008 host-manager panel renders unconditionally. i18n key settings.tab.sshHosts added to en/zh (M-009/M-013 three-file precedent). Semantic spillover assessed low and recorded: if upstream ever mounts something else on the 'servers' tab relying on its multi-server unreachability, behavior changes; rollback is re-adding the list entry (one line) and dropping the entry item.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V2 build smoke (bun run build:web rc=0 after applying); dist i18n key hit: settings.tab.sshHosts / 'SSH hosts' in language-Cwk-VMvM.js + shell chunk, 'SSH 主机' in zh-49VEr5mD.js; scripts/verify-projects-sessions.ts asserts BOTH the guard revision (includes list without \"servers\") and the entry item. HONEST BOUNDARY: build/dist/probe layers cannot prove runtime navigation reachability (the guard is a Solid createEffect) - 'entry reachable in multiple() layout and not bounced' is a G19 device check (docs/design/interaction.md).",
-      "rebase": "New patch (issue #8); rebase targets are the guard createEffect's includes list and the multiple() nav-group construction block in packages/app/src/settings/shell.tsx, plus the settings i18n region near settings.tab.servers in en.ts/zh.ts; the guard revision is the PREREQUISITE of the entry's reachability - keep both or neither."
+      "rebase": "New patch (issue #8); rebase targets are the guard createEffect's includes list and the multiple() nav-group construction block in packages/app/src/settings/shell.tsx, plus the settings i18n region near settings.tab.servers in en.ts/zh.ts; the guard revision is the PREREQUISITE of the entry's reachability - keep both or neither.",
+      "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
+      "status": "active"
     },
     {
       "id": "M-020",
@@ -234,7 +270,9 @@
       "reason": "Files bridge wiring + platform file capabilities (issue #16). The entry creates the FIFTH protocol-isolated sibling transport over the files handshake (opencode-mobile-files-handshake) and registers the bridge-backed client through the module-level files seam (setActiveFilesPort) - the createMobileHosts option contract stays unchanged (the M-016 registration shape). web.ts completes the two Platform fields that were desktop-only declarations on web: readClipboardImage (comment anchor 'Read image from clipboard (desktop only)' - the desktop implementation is not in this closure) and saveFile (session export + GUI-extension system.save routes). Both read the port through the seam PER CALL; before the bridge acks the fail-closed stub answers (clipboardImage null / saveFile false / shareDataUrl false). Platform TYPES are untouched - both fields are pre-existing optional members, so the diff carries zero type-level change. The saveFile stub false vs the absent-field anchor fallback is an intentional behavior change (silent cancel instead of a fake-success toast for a download that is a dead point inside the WebView shell), registered in docs/design/units/attachments-artifacts.md and gated by G27 item 8.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0 (6180 modules); dist markers mobile(M-020) (function .marker properties, secure-fetch precedent), mobile(files-v1) and opencode-mobile-files-handshake (FILES_BRIDGE constants) found in the built assets; scripts/verify-attachments-artifacts.ts (stub shape, seam registration, three-field Platform completion); mobile-hosts test/files-client.test.ts locks the per-field stub semantics; device behavior BLOCKED (G27).",
-      "rebase": "New patch (issue #16); LAYERED patch - generated against pin b4525d79bf + M-001..M-018 (entry.tsx already rewritten by M-007/M-014/M-015/M-016), round-trip verified on that base; rebase targets are the mobile(M-016) svcops registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new files block sits directly above the createMobileHosts call) and the platform object literal / module tail of packages/app/src/runtime/platform/web.ts (the M-011 fetch field block, extended with the two capability fields and the two seam-reading factories)."
+      "rebase": "New patch (issue #16); LAYERED patch - generated against pin b4525d79bf + M-001..M-018 (entry.tsx already rewritten by M-007/M-014/M-015/M-016), round-trip verified on that base; rebase targets are the mobile(M-016) svcops registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new files block sits directly above the createMobileHosts call) and the platform object literal / module tail of packages/app/src/runtime/platform/web.ts (the M-011 fetch field block, extended with the two capability fields and the two seam-reading factories).",
+      "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
+      "status": "active"
     },
     {
       "id": "M-021",
@@ -246,7 +284,9 @@
       "reason": "Timeline attachment share face (issue #16). openAttachment's data: branch - the only branch where the DEVICE holds the bytes (the base64 rides the message part) - prefers the bridge share before the anchor download; the passed name is the SAME source as the anchor.download (getFilename(file.name) || 'attachment') and is sanitized again inside the first-party client (JS sanitizeFilename + Kotlin FILENAME native re-check). Success resolves true (done); cancel (false), a throw, or a bridge-less environment all fall back to the upstream anchor.download verbatim - behavior is never worse than upstream (plan L6 fixed reading: false falls back). The file:// URI branch is REMOTELY-held identity: its bytes never entered the device (schema.ts PathAttachmentPart anchor 'its bytes never enter the draft store'), so the branch is byte-for-byte untouched - no device-side share or path resolution for remote artifacts.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist marker mobile(M-021) (marker property inside the patched branch) found in the built assets; scripts/verify-attachments-artifacts.ts (data:-only branch guard + getFilename same-source name anchor + file:// branch zero-diff adjacent anchors); device share-sheet behavior BLOCKED (G27 item 5).",
-      "rebase": "New patch (issue #16); rebase target is the openAttachment function of packages/app/src/session/composer/region.tsx (single hunk: the data: branch inserted between the download() closure and the absolute-path reveal logic; the import block gains the first-party seam import)."
+      "rebase": "New patch (issue #16); rebase target is the openAttachment function of packages/app/src/session/composer/region.tsx (single hunk: the data: branch inserted between the download() closure and the absolute-path reveal logic; the import block gains the first-party seam import).",
+      "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
+      "status": "active"
     },
     {
       "id": "M-022",
@@ -258,7 +298,9 @@
       "reason": "Notifications bridge wiring (issue #23). The entry creates the SIXTH protocol-isolated sibling transport over the notifications handshake (opencode-mobile-notifications-handshake) and registers the bridge-backed client through the module-level notifications seam (setActiveNotificationsPort) - the createMobileHosts option contract stays unchanged (the M-016/M-020 registration shape). Before the native ack the notifications port stays a fail-closed stub: notify answers {posted:false, code:'unavailable'} - the exact pre-issue state, because the Web Notification API behind platform.notify is a structural dead point in the Android WebView. The bridge is notification-ONLY (op whitelist {notify, requestPermission}, no reply/cancel/interrupt face), so a notification can never approve a permission or stop a task.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist markers mobile(M-022)/mobile(notifications-v1)/opencode-mobile-notifications-handshake (marker constants) found in the built assets; scripts/verify-notifications.ts (entry seam registration + six-handshake pairwise isolation); mobile-hosts test/notifications-client.test.ts locks the stub semantics; device behavior BLOCKED (G33).",
-      "rebase": "New patch (issue #23); LAYERED patch - generated against pin b4525d79bf + M-001..M-021 (entry.tsx already rewritten by M-007/M-014/M-015/M-016/M-020), round-trip verified on that base; rebase target is the mobile(M-020) files registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new notifications block sits directly above the createMobileHosts call)."
+      "rebase": "New patch (issue #23); LAYERED patch - generated against pin b4525d79bf + M-001..M-021 (entry.tsx already rewritten by M-007/M-014/M-015/M-016/M-020), round-trip verified on that base; rebase target is the mobile(M-020) files registration block inside the loadInitialLocale callback of packages/app/src/entry.tsx (the new notifications block sits directly above the createMobileHosts call).",
+      "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e",
+      "status": "active"
     },
     {
       "id": "M-023",
@@ -270,7 +312,9 @@
       "reason": "Notification delivery reroute + the permission notification face (issue #23). (1) The two system-notification call faces in handleSessionIdle/handleSessionError move from platform.notify (whose Web Notification API implementation is a structural dead point in the Android WebView; its title/description/onClick signature also cannot carry the category and tap route) to activeNotificationsPort().notify({category, title, body, route: sessionHref(input.key, sessionID)}) - the coordinator.system wrapper is UNCHANGED (event dedup + the JS front-focus suppression stay first-layer); the route is built at the only scope that knows the server key + sessionID (the onClick closure could not cross the bridge - the native side constructs the tap navigation from the route). (2) A FOURTH event listener (handlePermissionAsked) completes the upstream dead switch: the settings toggle, the sound setting and the i18n key shipped with ZERO runtime trigger in the closure; the guard chain mirrors the agent/error branches plus the auto-approve guard (project-avatar-state precedent) so a project whose requests are auto-approved NEVER notifies - the approval wire-level call sites (auto-approve + dock decide) and this face stay double-touch free. The permission payload (action/resources/message) is deliberately NOT consumed - only the session title crosses into the body; the face has no reply/cancel action (tap navigates to the session's permission dock). i18n/settings keys are all pre-existing - zero new keys in this patch.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-notifications.ts groups 1/2/4 (upstream face anchors, permission dead-switch completion set, safety negatives: zero .reply( in the notification domain, zero addAction in the bridge); approval-path exhaustion stays exactly two wire-level call sites (verify-permission-requests); device behavior BLOCKED (G33).",
-      "rebase": "New patch (issue #23); rebase target is the handleSessionIdle/handleSessionError system-notification branches, the event.listen dispatch block and the import block of packages/app/src/shell/notifications/notification.tsx (single file, additive fourth listener + two delivery-face rewrites)."
+      "rebase": "New patch (issue #23); rebase target is the handleSessionIdle/handleSessionError system-notification branches, the event.listen dispatch block and the import block of packages/app/src/shell/notifications/notification.tsx (single file, additive fourth listener + two delivery-face rewrites).",
+      "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
+      "status": "active"
     },
     {
       "id": "M-024",
@@ -284,7 +328,9 @@
       "reason": "Android POST_NOTIFICATIONS request face (issue #23). Turning a notification switch ON is the user-in-foreground moment: the settings face calls the bridge requestPermission op, whose NATIVE side enforces the platform conditions - API < 33 or already granted answers {granted:true} without a dialog; a request arriving without window focus answers {granted:false, code:'foreground'} and NEVER opens a dialog (the platform does not allow background permission prompts and the shell never tries). Every outcome (granted / denied / bridge unavailable) surfaces in an explicit status row (settings.general.notifications.android.* keys, en+zh, missing-key fallback to en is the in-registry mechanism); a denial degrades to the in-app faces only (no retry loop, no fabricated success). M-009/M-013/M-018 three-file patch precedent.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; the new i18n keys present in the built language chunks; scripts/verify-notifications.ts group 5 (switch onChange wiring + user-in-foreground-only anchor); device behavior BLOCKED (G33 item 5).",
-      "rebase": "New patch (issue #23); rebase targets are the SettingsNotifications component body (switch onChange handlers + the android permission status row) of packages/app/src/settings/notifications/notifications.tsx and the settings.general.notifications i18n region of en.ts/zh.ts (en.ts is on its fifth patch: M-009/M-013/M-018/M-024 - the region anchor sits after the errors.description key)."
+      "rebase": "New patch (issue #23); rebase targets are the SettingsNotifications component body (switch onChange handlers + the android permission status row) of packages/app/src/settings/notifications/notifications.tsx and the settings.general.notifications i18n region of en.ts/zh.ts (en.ts is on its fifth patch: M-009/M-013/M-018/M-024 - the region anchor sits after the errors.description key).",
+      "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
+      "status": "active"
     },
     {
       "id": "M-025",
@@ -296,7 +342,9 @@
       "reason": "GUI extension disable-record union (issue #26). The disabled memo unions the desktop enable rows (extensionEnabled over installed.enableState(), the original fold unchanged) with the first-party device-local records (opencode-mobile.guiext.v1, packages/mobile-hosts/src/extensions/manager.ts), filtered to the CURRENT definition id set so ids unknown after an upstream rename self-heal away. The mobile settings manager (M-026) writes the records through the same shell-wide instance; the host watcher reacts to the merged set and deactivates/activates in the same frame. Desktop builds never render the mobile face and carry no such records - the union is empty there and behavior is unchanged (M-018 spillover precedent). The early-exit (`if (!state) return undefined`) is preserved verbatim: before the initial resource resolves neither the desktop rows nor the mobile records apply, matching today's web startup behavior. The VAC-anchored root.tsx faces (os gate, builtins OS filter, ipc bridge conditional, .ocdx comment) are untouched - the hunk sits in the disabled-memo domain.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-gui-extensions.ts group 4 (import anchor, createExtensionDisabled anchor, union+definitions-filter anchor, mobile(M-025) markers); packages/mobile-hosts/test/extension-manager.test.ts locks the record layer; scripts/verify-agent-capabilities.ts group 3 root.tsx anchors unchanged; device behavior BLOCKED (G35).",
-      "rebase": "New patch (issue #26); rebase target is the disabled createMemo in packages/app/src/runtime/extension/root.tsx (the union block after the extensionEnabled fold; the import block gains the first-party seam import)."
+      "rebase": "New patch (issue #26); rebase target is the disabled createMemo in packages/app/src/runtime/extension/root.tsx (the union block after the extensionEnabled fold; the import block gains the first-party seam import).",
+      "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2",
+      "status": "active"
     },
     {
       "id": "M-026",
@@ -310,7 +358,9 @@
       "reason": "Mobile settings face for GUI extensions (issue #26). shell.tsx gains one predicate line (mobileGuiExtensions = platform.platform !== \"desktop\" - the upstream guiExtensions gate line is UNTOUCHED), the redirect guard bounces the tab only where NEITHER face is mounted, the nav group opens for either face, and a second Tabs.Content branch lazily mounts the first-party ExtensionManager wrapper (useExtensionHost feeds definitions/status/failures/reload as props; the shared package never imports app internals). Mutual exclusion is structural: guiExtensions implies desktop, mobileGuiExtensions implies not - desktop behavior is unchanged (DEV face intact, prod redirect intact). i18n: en gains settings.guiExtensions.mobile.description (8->9); zh gains the full nine-key block (0->9) - the previously registered honest en8/zh0 gap closes. M-009/M-013/M-018/M-024 three-file patch precedent.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 tree equivalence with the patch registered (LAYERED round-trip: applies to pin+M-001..M-024 and byte-reproduces the implementation tree); bun run build:web rc=0 with the new keys in the built language chunks; scripts/verify-gui-extensions.ts group 4 (mobileGuiExtensions line, revised guard, nav condition, mount branch, M-008/M-018 hunks untouched) and scripts/verify-agent-capabilities.ts group 5 revised counts (9/9 - deliberate revision, issue #26); device behavior BLOCKED (G35).",
-      "rebase": "New patch (issue #26); LAYERED patch - generated against pin b4525d79bf + M-001..M-024 (shell.tsx already rewritten by M-008/M-018; en.ts on its sixth touch M-009/M-013/M-018/M-024/M-026, zh.ts fifth), round-trip verified on that base; rebase targets are the mobileGuiExtensions predicate line after the guiExtensions gate, the gui-extensions guard line, the nav-group conditional and the second gui-extensions Tabs.Content branch in packages/app/src/settings/shell.tsx, plus the settings.guiExtensions i18n region of en.ts/zh.ts (en anchor after status.blocked; zh anchor after the M-024 android notifications block)."
+      "rebase": "New patch (issue #26); LAYERED patch - generated against pin b4525d79bf + M-001..M-024 (shell.tsx already rewritten by M-008/M-018; en.ts on its sixth touch M-009/M-013/M-018/M-024/M-026, zh.ts fifth), round-trip verified on that base; rebase targets are the mobileGuiExtensions predicate line after the guiExtensions gate, the gui-extensions guard line, the nav-group conditional and the second gui-extensions Tabs.Content branch in packages/app/src/settings/shell.tsx, plus the settings.guiExtensions i18n region of en.ts/zh.ts (en anchor after status.blocked; zh anchor after the M-024 android notifications block).",
+      "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926",
+      "status": "active"
     },
     {
       "id": "M-027",
@@ -325,7 +375,9 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 layered round-trip after M-026; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
       "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-026, including the M-026 settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
-      "owner": "opencode-mobile maintainers"
+      "owner": "opencode-mobile maintainers",
+      "sha256": "69000e8bf451081222acdadc2383091afb84a06cbc9a4884b71d429c2adc4b62",
+      "status": "active"
     },
     {
       "id": "M-028",
@@ -337,7 +389,9 @@
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 layered round-trip after M-027; focused screen/source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout and navigation behavior remain to be verified under G36.",
       "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + M-001..M-027. Target is the mobile branch of ConnectServerScreen's method switch and its existing mobile SSH hosts action.",
-      "owner": "opencode-mobile maintainers"
+      "owner": "opencode-mobile maintainers",
+      "sha256": "66ee353fb91679403244a961a4fe4e8002e48ec9f7965b294ef3f65dd8bf671c",
+      "status": "active"
     },
     {
       "id": "M-029",
@@ -349,7 +403,9 @@
       "reason": "Carry forward the approved issue-55 M-029 correction: keep the mobile Use password and SSH method actions on one line when possible. Layered after M-028 and before the inline SSH method patch.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-connection-inline-ssh.ts asserts the labels retain whitespace-nowrap in the mobile initial screen; V3 layered closure verification.",
-      "rebase": "Layered after M-028; applies to the mobile connection method row in packages/app/src/servers/connect/screen.tsx."
+      "rebase": "Layered after M-028; applies to the mobile connection method row in packages/app/src/servers/connect/screen.tsx.",
+      "sha256": "8c660a5055d1fa5dc6d57229c0261a3cdc418472e9aa19b75ff041135585fad8",
+      "status": "active"
     },
     {
       "id": "M-030",
@@ -364,7 +420,9 @@
       "reason": "Issue #58: add an inline switchable SSH setup mode to ConnectServerScreen; restore the original no-server/signed-out Settings guard; AppShell-owned SSH onboarding retains the initial screen until the specifically owned host reaches ready with authenticated /api/info health. Reuses the existing host registry, credential dialog, host-key prompt, and SSH runtime.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-connection-inline-ssh.ts, mobile-host tests and V2 build smoke; MatePad APK/SW hash comparison located stale active worker (old `screen-Cz2Jyo6j.js`, new packaged worker waiting). Android worker rollover now promotes current build without clearing user storage; after install -r, DOM click rendered the inline host form at the same URL (G37 PASS). Synthetic unsubmitted drafts were cleared; no real credentials/hosts submitted. Real host-key/service-auth E2E remains BLOCKED.",
-      "rebase": "Layered after M-029; ConnectServerScreen method panel and AppShell in routes.tsx. Removes the M-027 settings exception/helper/test; keeps signed-out HTTP URL anchoring."
+      "rebase": "Layered after M-029; ConnectServerScreen method panel and AppShell in routes.tsx. Removes the M-027 settings exception/helper/test; keeps signed-out HTTP URL anchoring.",
+      "sha256": "f6d6c97b6260d916eb03465d423e6b029d656b1b2a4d923260a0ad7854d13712",
+      "status": "active"
     },
     {
       "id": "M-031",
@@ -378,7 +436,9 @@
       "reason": "Encode OpenCode Basic-auth credentials as UTF-8 bytes before base64 instead of calling btoa on Unicode code units; keeps legacy ASCII behavior and enables safe memory-only service authentication for Unicode passwords.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "api.test.ts covers ASCII compatibility, non-ASCII UTF-8 byte round-trips, and a real OpenCode client file.read request using a mapped SSH password; client.test.ts verifies Unicode credentials survive transport.update for a subsequent API request; V3 layered closure verification.",
-      "rebase": "Layered after M-030; target authTokenFromCredentials in packages/app/src/runtime/server/api.ts and its adjacent test."
+      "rebase": "Layered after M-030; target authTokenFromCredentials in packages/app/src/runtime/server/api.ts and its adjacent test.",
+      "sha256": "c59a7da93ed3462e7bbaf8786b85ec80dc6391096f31cad8e61ec7110e068b03",
+      "status": "active"
     },
     {
       "id": "M-032",
@@ -393,7 +453,9 @@
       "reason": "Issue #58 vault boundary replacement: use the origin-bound AndroidX WebViewCompat.addWebMessageListener injected object and protocol v2 readiness roundtrip instead of the bespoke window-message WebMessageChannel handshake. The direct-server caller surfaces candidate recovery refs without retry/commit on error; other five native bridges are unchanged.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-credential-vault.ts, vault transport tests, bun run build:web, and V3 layered closure. Direct-server UNKNOWN caller keeps the prior connection uncommitted and surfaces recoveryRef. Isolated device readiness smoke is historical; synthetic storage instrumentation timed out and is BLOCKED.",
-      "rebase": "Layered after M-031; replaces the vault transport wiring in entry.tsx and updates the credential-change failure copy/recoveryRef in connect/dialog.tsx and en/zh i18n."
+      "rebase": "Layered after M-031; replaces the vault transport wiring in entry.tsx and updates the credential-change failure copy/recoveryRef in connect/dialog.tsx and en/zh i18n.",
+      "sha256": "b71fa4b18eec4a0d5b99e067fc5adaff1658f703d5bea72926c9ec0e50372f56",
+      "status": "active"
     },
     {
       "id": "M-033",
@@ -411,7 +473,9 @@
       "reason": "Issue #63 S04: align the v2.2.1 Top/Side/Inbox interface mode. appearance.tabLayout gains the upstream 'inbox' literal (default stays 'horizontal', settings.v3 key unchanged); the shell sidebar predicate becomes tabLayout !== \"horizontal\" so inbox takes the side rail at desktop widths; the General section replaces the TabLayoutSetting select with the upstream InterfaceModeSetting fieldset (three preview cards, radio semantics, same settings-tab-layout anchor, Experimental badge on inbox); the search catalog entry and eight en i18n keys follow v2.2.1 verbatim (zh falls back to en at runtime, matching upstream's real v2.2.1 shape). The SidebarInbox grouping family (~5300 lines) is intentionally not ported: at >=768px inbox renders the same session rail as side, registered as a delta.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-interface-mode.ts probe (enum/predicate/mount/catalog/en keys/zh fallback/negative assertions), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts under --conditions=solid), V3 closure round-trip (git apply --check to pristine pin), bun run build:web, first-party bun test --conditions=browser packages/mobile-hosts.",
-      "rebase": "Layered after M-032. en.ts hunk anchors at :746-749 (after settings.appearance.row.tabs.vertical); the six registered en.ts patches (M-009 @@353, M-013 @@347, M-018 @@623, M-024 @@926, M-026 @@707+3, M-032 @@373) all end at least 36 lines away, no context overlap. general.tsx is a cherry-pick of four hunks: TerminalPlacementSetting and ExtensionSettingsSections naming are intentionally kept (v2.2.1 renames and terminal-plugin migration belong to other matrix rows)."
+      "rebase": "Layered after M-032. en.ts hunk anchors at :746-749 (after settings.appearance.row.tabs.vertical); the six registered en.ts patches (M-009 @@353, M-013 @@347, M-018 @@623, M-024 @@926, M-026 @@707+3, M-032 @@373) all end at least 36 lines away, no context overlap. general.tsx is a cherry-pick of four hunks: TerminalPlacementSetting and ExtensionSettingsSections naming are intentionally kept (v2.2.1 renames and terminal-plugin migration belong to other matrix rows).",
+      "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a",
+      "status": "active"
     },
     {
       "id": "M-034",
@@ -436,7 +500,9 @@
       "reason": "Issue #64 S38: expose the experimental settings entry. experimentalSettingsAvailable flips to true exactly as in v2.2.1 (no platform gate; settings/shell.tsx needs no change - its bounce guard and nav grouping both read that constant alone), and the Experimental tab presents the two v2.2.1 switches verbatim: newIcons (the ui-package SVG sprite experiment, first mobile patch to touch packages/ui) and foldUserMessages (messages past 12 lines fold to 8 with a Read more toggle, expanded state held by the existing row disclosure map). model.tsx gains only the two schema fields, defaults, withFallback readers, the setNewIcons effect and accessors; the fold chain is a sub-hunk surgery across message-timeline/current-message/session-timeline-row/message-content/message-part.css that excludes the v2.2.1 timeline rewrite (user-runs, quote family, sources chip, plugin migration). catalog.ts takes only the two new-icons replacement keys (minus, outline-chevron-right); sidebar-right and the 15 other v2.2.1 additions stay out so the experiment keeps a visible delta against pin artwork. Six en i18n keys (app 4 + ui 2) follow v2.2.1 verbatim; zh falls back to en at runtime, matching upstream's real v2.2.1 shape.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-experimental-settings.ts probe (constant flip, verbatim gates, 70-key replacement set, catalog negatives for all 15 rejected names, fold surgery boundaries, model.test.ts sync, i18n fallback anchors, patch-face set equality), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts under --conditions=solid), V3 closure round-trip (git apply --check to pristine pin + M-001..M-033), bun run build:web, first-party bun test --conditions=browser packages/mobile-hosts.",
-      "rebase": "Layered after M-033; model.tsx hunks touch only the import block, generalSchema before mobileTitlebarPosition, general defaults after showTurnDiffs, the provider effect after the font effect and accessors after setShowTurnDiffs (M-033's appearanceSchema edit is a different struct, no overlap); search-catalog.ts inserts between showCustomAgents and colorScheme while M-033 edits the :24-31 entry; en.ts inserts after settings.experimental.description at :701 while M-033 sits at :746+ and M-024 at :926+. message-part.css fold blocks are carved out of the v2.2.1 mega-hunk @@ -177,45 +188,106 by selector block."
+      "rebase": "Layered after M-033; model.tsx hunks touch only the import block, generalSchema before mobileTitlebarPosition, general defaults after showTurnDiffs, the provider effect after the font effect and accessors after setShowTurnDiffs (M-033's appearanceSchema edit is a different struct, no overlap); search-catalog.ts inserts between showCustomAgents and colorScheme while M-033 edits the :24-31 entry; en.ts inserts after settings.experimental.description at :701 while M-033 sits at :746+ and M-024 at :926+. message-part.css fold blocks are carved out of the v2.2.1 mega-hunk @@ -177,45 +188,106 by selector block.",
+      "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e",
+      "status": "active"
     },
     {
       "id": "M-035",
@@ -486,7 +552,9 @@
       "reason": "Issue #65 S17+S42: align the v2.2.1 reduced-motion three-state setting and the interface zoom setting. settings.model gains appearance.reduceMotion (Schema.Literals([\"system\",\"on\",\"off\"]), default \"system\"), the @solid-primitives/media system signal and the documentElement.dataset.motion arbiter effect (v2.2.1 verbatim, including its override comment); the ReduceMotion accessor pair follows setTabLayout. appearance.tsx renders the upstream Reduce motion Select (settings-reduce-motion) and the Zoom Select (settings-zoom) inside <Show when={appearance.zoom.available()}>; controllers.ts carries the upstream zoom/reduceMotion controller blocks verbatim plus desktopZoomLevels from desktop-menu (the pinch helper nextDesktopZoomLevel stays unported - S12/#74 domain). The web shell implements the zoom platform faces per the M-020 precedent (CSS zoom on documentElement + localStorage opencode-ui-zoom-level, validated against desktopZoomLevels; platform.tsx type file stays pin-identical, the faces join via a spread). The motion consumption chain is converted for the WHOLE vendored tree: 25 CSS files / 31 blocks switch from @media (prefers-reduced-motion: reduce) to :root[data-motion=\"reduce\"] (upstream v2.2.1 verbatim for the clean blocks; for index.css block 1, message-part highlight/question-prompt and the gui-extensions/progress-indicator blocks that v2.2.1 restructured with feature work, the pin block content is kept and only the selector line converted - same registered-delta pattern as index.css block 1), the three TS consumers (toast, segmented-control, animated-wordmark) call the new ui motion/reduced.ts prefersReducedMotion() fallback, and the tailwind @custom-variant pair wires the motion-reduce:/motion-safe: utilities. go-upsell-hero-art.ts is intentionally NOT converted (upstream never converted it - registered boundary). search-catalog gains the two appearance entries with the zoom entry dropping available:\"desktop\" (ruling A2 - the web platform now carries the face); search-results.test.ts 'font' query expectation moves 3->4 accordingly (execution-discovered necessity: the upstream keywords contain 'font' and A2 removes the desktop gate the upstream test relies on). en.ts gains the seven v2.2.1 keys after interfaceMode.experimental; zh falls back to en. model.test.ts asserts the reduceMotion default in both the defaults and decode expectations. Pin inventory note: the approved plan's 19-file/23-occurrence count covered app+ui only; execution found 10 more session-ui/gui-extensions CSS files that upstream v2.2.1 also converts, so M-035 completes the tree (no partial-surface motion).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-appearance-settings.ts probe (per-file conversion enumeration, whole-tree prefers-reduced-motion whitelist set-equality {settings/model.tsx, providers/connect/go-upsell-hero-art.ts, ui/motion/reduced.ts}, two negative injections, zoom faces + A2 + i18n fallback + patch-face assertions), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts and the registered 70-file app combination under --conditions=solid), session-ui registered 8-file subset, first-party bun test --conditions=browser packages/mobile-hosts, V3 closure round-trip, bun run build:web + copy-web-dist with dist marker retrieval.",
-      "rebase": "Layered after M-033. model.tsx hunks anchor after the M-033 tabLayout lines (schema/defaults/accessors) and after the font effect in the provider (the v2.2.1 source order font -> newIcons -> reduceMotion means the M-034 (#64) newIcons effect, once it lands, sits between them - rebase round must re-verify the four M-034 adjacent anchors from plan v2 section 2). en.ts hunk anchors after the M-033 interfaceMode.experimental key (:758 vendored; :762 after M-034). search-catalog hunks sit after the terminalFont entry (M-034's two general/experimental entries are in a disjoint region). settings.css motion blocks (:946/:1462/:1712 pin) do not overlap the M-009/M-013/M-024/M-026 hunk regions. web.ts hunks append after the M-020 faces. First ui/session-ui/gui-extensions source files in the patch chain besides M-001's package.json (ui package.json exports +1 line). | Issue #67 (M-035'): the two gui-extensions css hunks are dropped whole: packages/gui-extensions/src/browser/comment.css — the pin+M-035 transform result is byte-identical to gui-plugins@3ebcf9a's own comment.css (measured diff empty), so the conversion semantics are carried natively by the replacement package; packages/gui-extensions/src/details/details.css — the target selector .session-service-menu no longer exists in the gui-plugins version (pin 12 hits -> 0), so a re-anchor has nothing to anchor to (upstream restructured the component). targets 41->39; no re-anchoring, hunks not merged into M-037; patch regenerated (sha/index lines recomputed) against pristine pin + packageSources + M-001'..M-034."
+      "rebase": "Layered after M-033. model.tsx hunks anchor after the M-033 tabLayout lines (schema/defaults/accessors) and after the font effect in the provider (the v2.2.1 source order font -> newIcons -> reduceMotion means the M-034 (#64) newIcons effect, once it lands, sits between them - rebase round must re-verify the four M-034 adjacent anchors from plan v2 section 2). en.ts hunk anchors after the M-033 interfaceMode.experimental key (:758 vendored; :762 after M-034). search-catalog hunks sit after the terminalFont entry (M-034's two general/experimental entries are in a disjoint region). settings.css motion blocks (:946/:1462/:1712 pin) do not overlap the M-009/M-013/M-024/M-026 hunk regions. web.ts hunks append after the M-020 faces. First ui/session-ui/gui-extensions source files in the patch chain besides M-001's package.json (ui package.json exports +1 line). | Issue #67 (M-035'): the two gui-extensions css hunks are dropped whole: packages/gui-extensions/src/browser/comment.css — the pin+M-035 transform result is byte-identical to gui-plugins@3ebcf9a's own comment.css (measured diff empty), so the conversion semantics are carried natively by the replacement package; packages/gui-extensions/src/details/details.css — the target selector .session-service-menu no longer exists in the gui-plugins version (pin 12 hits -> 0), so a re-anchor has nothing to anchor to (upstream restructured the component). targets 41->39; no re-anchoring, hunks not merged into M-037; patch regenerated (sha/index lines recomputed) against pristine pin + packageSources + M-001'..M-034.",
+      "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50",
+      "status": "active"
     },
     {
       "id": "M-036",
@@ -519,7 +587,9 @@
       "reason": "Issue #66 W22+W23: register the v2.2.1 Goal and Sources panels on the old gui-extensions host. sources ports the 0f379f0a33 old-host four files verbatim (Extension.define with the soft browser `uses`, the transient side Panel whose list empties when the experiment is off, the LinkHandler, i18n tab.count) plus the session-ui sources subsystem (sources.ts turn parsing, experiment.ts v2.2.1 form, panel/chip/title/site-icon components, css, upstream sources.test.ts) and the three timeline hook increments (row turnSourcesValue memo + call-site props, current-message TurnSources passthrough - deliberately NOT the same diff's UserRun import - message-content AssistantTextContent footer restructure adapted to the pin's copy-wrapper shape) plus the app SourcesProvider wrapper. goal ports the v2.2.1 contract verbatim: schema/goal.ts (RPC opencode.goal, get + events.changed, with its three Schema.toStandardSchemaV1 wrappers - the closure's effect@4.0.1 exports the API and the promise client's PortableDefinition requires the Standard Schema form; the plan's strip adaptation was proven unnecessary at implementation) and the renderer's data layer (per-server+session goal store, createKeyed subscription keyed on server.connected and directory, heard-flag late-snapshot drop, the error-swallow that degrades a server without the goal plugin to 'no goal, no entry'), the three-state status map and the session.command pause/resume/clear path with the error toast. Registered deltas (D1/D2/D3 + mobile faces): the goal UI re-shells the upstream ComposerPill onto the old host's Panel (pinned tab listed only while a goal is loaded, mobile face order 70) - the pill host belongs to the #67 gui-plugins migration; the gate runs through ui/src/motion-tuning.ts, a minimal four-face shim (toggle/choice/spring/subscribe) over the upstream `opencode.motion.v2` localStorage record, default false, no settings.v3 key, with the Experimental tab's Sources row as its only writer (app en +2 keys); the sources panel gains the narrow-screen branch rendering the most recent turn with sources (chip LinkHandler stays upstream-verbatim); motion carries the verbatim zero-import spring.ts/loop.ts behind ui/src/motion/index.ts; catalog gains only outline-steer (goal's status icon; removed from the #64 probe's rejected list in the same commit); ui en +9 keys after ui.message.modelVariant; zh falls back to en.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-goal-sources.ts probe (registration set/order, mobile face order set {10..70} no-duplicates, four-token four-domain #67 boundary negatives, goal contract verbatim anchors + PortableDefinition form, sources 0f379 verbatim anchors, shim storage-format + default-false assertions, i18n pairing, user-runs/quote domain negatives, M-034 fold anchors intact, new-surface prefers-reduced-motion mentions set-equality {motion/reduced.ts}, three negative injections), verify-gui-extensions.ts (revised in the same commit: 15 builtins, web set 10, doc arithmetic, dist baseline), verify-experimental-settings.ts (revised in the same commit: group 5 negative token table 11->8, group 6 rejected-icon list 15->14), upstream targeted subsets (settings 3 files 41 tests; session-ui registered 8 files + new sources.test.ts = 151 tests; ui i18n.test.ts), V3 closure round-trip (git apply --check to pristine pin + M-001..M-035), bun run build:web + copy:web-dist with dist marker retrieval, first-party bun test --conditions=browser packages/mobile-hosts (423/2885 unchanged); rebase round (dev 0b79b06) re-verified: verify-appearance-settings whitelist interlock green, patch regenerated against pin + M-001..M-035.",
-      "rebase": "Issue #67 (M-036'): re-tabled for the gui-plugins migration. Dropped whole: the gui-extensions face (9 files / 11 hunks: renderer.ts/main.ts registration + sources four files + goal three files — the package replacement dissolves them), the app render.tsx SourcesProvider hunk (v2.2.1's own runtime/plugin/render.tsx natively carries PluginLinks+SourcesProvider and the whole file is replaced), and the ui motion-tuning.ts shim (replaced by the real v2.2.1 modules in M-037, ruling 4). Kept verbatim: schema/src/goal.ts (with its three Schema.toStandardSchemaV1 wrappers), session-ui sources subsystem and hook increments, app experimental.tsx Sources row + runtime/i18n/en +2 keys, ui motion/{spring,loop} edits + catalog outline-steer + i18n/en 9 keys + package.json ./motion additions. targets 33->22; regenerated against pristine pin + packageSources + M-001'..M-035'."
+      "rebase": "Issue #67 (M-036'): re-tabled for the gui-plugins migration. Dropped whole: the gui-extensions face (9 files / 11 hunks: renderer.ts/main.ts registration + sources four files + goal three files — the package replacement dissolves them), the app render.tsx SourcesProvider hunk (v2.2.1's own runtime/plugin/render.tsx natively carries PluginLinks+SourcesProvider and the whole file is replaced), and the ui motion-tuning.ts shim (replaced by the real v2.2.1 modules in M-037, ruling 4). Kept verbatim: schema/src/goal.ts (with its three Schema.toStandardSchemaV1 wrappers), session-ui sources subsystem and hook increments, app experimental.tsx Sources row + runtime/i18n/en +2 keys, ui motion/{spring,loop} edits + catalog outline-steer + i18n/en 9 keys + package.json ./motion additions. targets 33->22; regenerated against pristine pin + packageSources + M-001'..M-035'.",
+      "sha256": "9f035d5fa2587d098baafcbd9268ce788cf769f623e669b733cf06c9083606f8",
+      "status": "active"
     },
     {
       "id": "M-037",
@@ -708,7 +778,9 @@
       ],
       "reason": "Issue #67 S41+N11: replace packages/gui-extensions with packages/gui-plugins@v2.2.1 (extracted via manifest packageSources) and migrate the app host: packages/plugin gains src/gui (24 files, the plugin-side host API library) and the gui exports group; packages/util gains src/abort.ts (v2.2.1 9-line leaf, consumed by runtime/plugin/host.tsx and ui/forms/typeahead); app runtime/extension is replaced by runtime/plugin (28 corresponding files verbatim + 9 compile-closure drag-ins + root.tsx M-025 re-fall + settings-page-dev.tsx kept and adapted per D2), with panels.tsx and side-region.tsx kept pin-structured and re-hosted (the v2.2.1 pane rewrite is out of scope; DockRegion re-falls dormant because gui-plugins moves the terminal to the side region); 34 enumerated consumers + the ServerConnection Extension->Plugin discriminant fan-out (health, client, home view, tests) surgically renamed per the plan's token table; gui-plugins package.json pins @pierre/trees back to beta.4 and ghostty-web back to #83c0a07 (ruling 3, Option B); ui gains the real motion-tuning modules + motion/solid + 6 adopted catalog icons + search-list/typeahead + the 4 preview components the gui-plugins closure needs + 4 cascade util leaves (duration/process-signal/qr/session-turn); cascade app drag-ins shell/panel-motion.ts and shell/state/session-tabs.ts(+test) keep host-apis/pane-drag resolvable; 16 probe scripts revised in the follow-up commit. No third-party GUI plugin install/remove/store surface is exposed (D04 unchanged; the bridge install/remove faces remain negative anchors). Issue #90 amendment: the settings search consumer packages/app/src/settings/search.tsx was still on the pin-era surface.extensions handle when the Extension->Plugin rename fanned out, so the eagerly-evaluated catalog memo threw a TypeError on Settings mount without a service context; this patch migrates the consumer to surface.plugins (verbatim the v2.2.1 consumer form) and carries the rendered regression test packages/app/src/settings/settings-search-plugin.test.tsx as a new-file hunk (targets +2, patch file count unchanged at 38).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 (pin) + packageSources gui-plugins = 3ebcf9a32c7b28f658cfee80775448929361727a (v2.2.1)",
-      "verification": "V3 closure round-trip (git apply --check over the whole chain to pristine pin + packageSources extraction), zero-hit net gates (@/runtime/extension|@opencode/gui-extensions and Extension* tokens in vendor app/src), full import-closure resolver (2883 @opencode/* + @/ imports, 0 unresolved), bun run build:web (compile gate; @pierre/trees beta.4 resolver API presence recorded), dist marker retrieval (opencode.goal / sources.enabled / data-plugin), targeted upstream subsets, sixteen probes rc=0 with negative injections, first-party bun test, gradle assembleDebug APK SHA. Issue #90: the amended patch round-trips the full-chain git apply --check (V3 closure, tree byte-identical incl. the new test file); the rendered regression fails on the reverted-consumer tree with the same TypeError (undefined is not an object, evaluating 'surface.extensions.items') and passes on the fixed tree under a browser-conditioned bun test with an in-file hyperscript JSX transform (the packages/ui solid-jsx preload is inert under Bun 1.4.2, see the mobile-hosts rendered-test precedent); the settings three-file subset stays 41/0/98."
+      "verification": "V3 closure round-trip (git apply --check over the whole chain to pristine pin + packageSources extraction), zero-hit net gates (@/runtime/extension|@opencode/gui-extensions and Extension* tokens in vendor app/src), full import-closure resolver (2883 @opencode/* + @/ imports, 0 unresolved), bun run build:web (compile gate; @pierre/trees beta.4 resolver API presence recorded), dist marker retrieval (opencode.goal / sources.enabled / data-plugin), targeted upstream subsets, sixteen probes rc=0 with negative injections, first-party bun test, gradle assembleDebug APK SHA. Issue #90: the amended patch round-trips the full-chain git apply --check (V3 closure, tree byte-identical incl. the new test file); the rendered regression fails on the reverted-consumer tree with the same TypeError (undefined is not an object, evaluating 'surface.extensions.items') and passes on the fixed tree under a browser-conditioned bun test with an in-file hyperscript JSX transform (the packages/ui solid-jsx preload is inert under Bun 1.4.2, see the mobile-hosts rendered-test precedent); the settings three-file subset stays 41/0/98.",
+      "sha256": "9a3cca744552093ed517c1a217e0e1c2ccff4d4c1f1ade7ec859e975088e29ae",
+      "status": "active"
     },
     {
       "id": "M-038",
@@ -721,7 +793,9 @@
       "reason": "Issue #70 W21: give the /btw side-question a narrow-screen entry (first-party delta over v2.2.1, which keeps the desktop-width command gate and registers no btw mobile face). D1: the BuiltinPanel gains a mobile face (order 80, kind menu - the More-drawer entry after goal's 70, no existing face renumbered). D2: the mobile render path dispatches on the panel id (\"main\"; chat ids are UUIDs, so the dispatch cannot collide) and renders the most recent stored chat once the session store is ready (an empty container before that, mirroring the tabs' hidden-until-ready semantics), else the honest mobile.none empty state; the desktop strip path renders the tab's own chat id exactly as before. D3: the command gate drops the desktop-width term (enabled: mounted()); desktop-width behavior is unchanged by construction (>=768px makes !layout.narrow() constant, so the old gate already reduced to mounted()) and the /btw slash entry becomes reachable on narrow screens. D4 (kept upstream semantics, no patch face): ask() still opens with tab:\"select\", which appends+focuses without triggering the host's narrow-screen selectMobile branch - the ask does not auto-jump to the mobile view. i18n en +2 keys (mobile.title / mobile.none; zh falls back to en, the btw plugin-level i18n is en-only like sources/goal). model.ts / panel.tsx / index.ts stay v2.2.1 byte-identical (probe-locked). Registered narrow-screen storage effect (upstream store, unchanged): chats accumulate while the viewport is narrow (the mobile view has no tab-close channel) and reappear as desktop strip tabs once the viewport widens - the close path lives there; the store's kept-until-its-tab-closes semantics are upstream verbatim.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 closure round-trip (git apply --check over the whole 37-patch chain to pristine pin + packageSources, tree byte-identical); scripts/verify-gui-plugins.ts (revised same commit: gate comment + enabled: mounted() anchors, mobile face order 80/menu anchor, D2 mobile render branch anchors - panel-id dispatch + mobile.none + saved.ready() gate - and the v2.2.1 blob conservation of model.ts/panel.tsx/index.ts); scripts/verify-goal-sources.ts (revised same commit: mobile face order set {10..80} no duplicates); verify-commands-menus.ts + verify-attachments-artifacts.ts (37-patch sentinels); bun run build:web + copy-web-dist with dist markers (mobile.none copy) and refreshed dist baseline; vendored tsc -b (gui-plugins + app); negative injections (delete the mobile face, restore the desktop-width gate, delete the D2 branch, drift a trio blob, duplicate goal order 80) all FAIL-then-restore; device QA (slash reachability, drawer entry, TalkBack, desktop-width unchanged) registered in docs/build-and-verify.md and pending.",
-      "rebase": "New patch (issue #70); LAYERED patch - generated against pristine pin + packageSources (packages/gui-plugins from 3ebcf9a) + M-001..M-037 (the btw five files were byte-identical to v2.2.1 blobs at generation time: renderer.tsx c256c3b14f, i18n/en.ts 5da51e1820, verified by git hash-object both sides)."
+      "rebase": "New patch (issue #70); LAYERED patch - generated against pristine pin + packageSources (packages/gui-plugins from 3ebcf9a) + M-001..M-037 (the btw five files were byte-identical to v2.2.1 blobs at generation time: renderer.tsx c256c3b14f, i18n/en.ts 5da51e1820, verified by git hash-object both sides).",
+      "sha256": "2298709d78937d32c255d23588e3aef88003ef9b3c215dccfbbfa1f348c56f35",
+      "status": "active"
     },
     {
       "id": "M-040",
@@ -737,7 +811,9 @@
       "reason": "Issue #72 S39: About version face + notices v2.2.1 scroll alignment, delivered as two separated tracks. Track 1 (upstream alignment, closes the last v2.2.1 target-face gap verbatim): notices/dialog.tsx takes the v2.2.1 (3ebcf9a) face verbatim - 3 hunks: drop the ScrollView import, ScrollView wrapper -> div.settings-notices-scroll[data-scrollable] (open tag), closing tag </ScrollView> -> </div> - and settings.css gains exactly the enabling v2.2.1 line overflow-y: auto inside .settings-notices-scroll (no other v2.2.1 settings.css hunk taken; the file's remaining pin->v2.2.1 delta stays out of scope). Track 2 (baseline intent, registered first-party delta, NOT an upstream form): entry.tsx createWebPlatform(pkg.version) -> createWebPlatform(MOBILE_APP_VERSION) so platform.version is the mobile app version (0.1.0, first-party constant synced with android gradle versionName and packages/mobile-hosts package.json) and the About/error pages show this app's own version instead of impersonating the vendored base version; the Sentry release line stays pkg.version verbatim (negative-locked by the probe); about.tsx keeps the platform.version row verbatim and adds two rows in a settings-about-versions[data-component] anchor - the upstream base row (vendored packages/app package.json version = 2.1.4) and the server version row via the upstream public useServerCollectionController (the shown server is the first entry of the sorted collection: sortServerConnections ranks healthy-first over the full list INCLUDING hidden hosts, single-host equivalent; with multiple servers only the first sorted entry is shown - registered boundary, the complete per-server version face lives in the servers settings rows; key derivation ServerConnection.key(item)) with explicit degradation strings: no collection entry -> row not rendered; health entry undefined (not yet established) or checking -> checking key; unauthorized / unhealthy / healthy-but-version-missing-or-not-presentable (non-empty-string guard, verbatim display like the servers rows) -> unavailable key. i18n en +4 keys (settings.about.upstreamVersion / serverVersion.version / serverVersion.checking / serverVersion.unavailable; zh/zht zero new keys, non-en falls back through the language.tsx en-base-first merge chain - registered en-only lineage like #63-#70). Second-order effect registered in E27: ctx.app.version (runtime/plugin/host-apis) follows platform.version to 0.1.0; its mobile-reachable consumer is only the updater What's New read watermark (S40/E24 in-registry, desktop-host disabled set) - no version-comparison consumption.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; track 1 (dialog.tsx + settings.css line) matches v2.2.1 3ebcf9a verbatim, track 2 (about.tsx rows / entry.tsx injection / en.ts keys) is a registered first-party delta over both pin and v2.2.1",
       "verification": "V3 closure round-trip (git apply --check over the whole 38-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: M-040 git apply --check rc=0 against the pin + packageSources + M-001..M-038 intermediate tree, then applied and byte-compared == working tree); scripts/verify-about-version.ts (new probe: notices verbatim face incl. css one-line; version face anchors - platform row verbatim, base row pkg import, server row controller/ServerConnection.key/degradation branches/settings-about-versions anchor; three-way version sync constant==gradle:15==package.json; en exactly 4 keys + zh/zht zero + language.tsx fallback anchors verbatim; negative boundaries - Sentry pkg.version release line, error.tsx platform.version, host-apis ctx.app.version, search-catalog about row verbatim (two-condition lock: row verbatim + file absent from the M-040 touch set; the file's 88-line pre-existing delta is other patches' work), exact 5-file patch touch face with settings.css adding exactly one line, M-036..038 faces zero spill; manifest dual registration 38=38); verify-commands-menus/verify-attachments-artifacts/verify-gui-plugins sentinels revised same commit to 38 registered (M-019 and M-039 reserved-absent) and dist baseline refreshed; bun run build:web + copy-web-dist with dist markers; vendored tsc -b app 388 errors == pre-change baseline 388 (zero errors in the five touched files); negative injections (delete data-scrollable, re-substitute pkg.version into createWebPlatform, break the three-way version sync, delete the unavailable key, add a sixth file to the patch) all FAIL-then-restore; device QA (About three-row display, server degradation paths, notices scroll, zh fallback) registered in docs/build-and-verify.md and pending.",
-      "rebase": "New patch (issue #72); LAYERED patch - generated against pristine pin + packageSources (packages/gui-plugins from 3ebcf9a) + M-001..M-038 (pre-registration git apply --check rc=0 on that intermediate tree; at generation time dialog.tsx was byte-identical to the pin blob and the settings.css .settings-notices-scroll block sat at un-drifted context). M-039 stays reserved-absent for the parallel issue #71 branch (scan/deep-link, whose own commits touch neither entry.tsx nor the vendor/patch chain); a hole at 039 is tolerated by the filename-order application (M-019/0031 precedent)."
+      "rebase": "New patch (issue #72); LAYERED patch - generated against pristine pin + packageSources (packages/gui-plugins from 3ebcf9a) + M-001..M-038 (pre-registration git apply --check rc=0 on that intermediate tree; at generation time dialog.tsx was byte-identical to the pin blob and the settings.css .settings-notices-scroll block sat at un-drifted context). M-039 stays reserved-absent for the parallel issue #71 branch (scan/deep-link, whose own commits touch neither entry.tsx nor the vendor/patch chain); a hole at 039 is tolerated by the filename-order application (M-019/0031 precedent).",
+      "sha256": "4b0bcaa5decd132cb4fcd0f67496f9491366a1bf6ae2e5277d10c428579ec636",
+      "status": "active"
     },
     {
       "id": "M-041",
@@ -749,7 +825,9 @@
       "reason": "Issue #76 N08: route the Platform openExternal face over the shell's outbound external-open bridge op instead of window.open. Upstream web.ts opens _blank with noopener,noreferrer, but the Android shell WebView runs without setSupportMultipleWindows, so window.open is either a no-op or a same-WebView navigation that takes the whole shell off-shell to the external site (the defect). The hunk is single-file and single-line plus a comment: the upstream canParse gate and the http/https/mailto protocol gate stay VERBATIM (first layer only, never trusted); the window.open call is replaced by void activeFilesPort().openExternal(url.href) - the files bridge's fourth op (openExternal), whose native side is the ENFORCED layer (ExternalOpenPolicy: strict java.net.URI parse, http/https ONLY, userinfo refused, port range hardened, 2048 bound; mailto passes the JS gate and is refused natively with the fixed failure Toast - a registered first-party delta, the Office document link chain being the one real in-tree mailto consumer). entry.tsx is untouched: M-020 already injects the files client at bootstrap, and the port face is read per call through the module-level seam, so the same instance carries the new op. The Platform contract stays void (fire-and-forget): the client never throws, the OAuth controller's browserFailed face stays unreachable exactly as on web, and before the bridge acks the fail-closed stub answers false which the void face ignores. The intent is built natively from the SAME string the policy accepted (no second normalization - parser-differential closed). Rollback = revert this one patch.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 closure round-trip (git apply --check over the whole 39-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: M-041 git apply --check rc=0 against the pin + packageSources + M-001..M-040 intermediate tree, then applied and byte-compared == working tree); scripts/verify-open-external.ts (new probe: JS gate lines verbatim + bridge call + mobile(M-041) anchor + web.ts zero window.open( negative + FilesPort four-member/stub-false/ never-throw shapes + native policy/bridge/Toast anchors + manifest dual registration witness); scripts/verify-browser.ts group 7 window.open literal anchor replaced by the new-shape anchor same commit (21/20 RAW exhaustive count unchanged - both the definition and the new call shape are NON-HIT under the receiver pattern); scripts/verify-provider-models.ts group 3 window.open literal anchor replaced same commit, protocol gate/mailto lock + openBrowser negative lock + browserFailed-unreachable kept; verify-about-version/verify-attachments-artifacts/verify-commands-menus 38->39 counters + dist baselines backfilled same commit; bun test --conditions=browser packages/mobile-hosts (FilesPort four members, stub false, never-throw mapping matrix); gradle JVM ExternalOpenPolicyTest decision matrix; bun run build:web + copy-web-dist with refreshed dist baseline; device QA (allowed domain via the tabs-drawer Help feedback link, refused domain via native policy, no-handler path) registered in docs/build-and-verify.md issue #76.",
-      "rebase": "New patch (issue #76); LAYERED patch - generated against pristine pin + packageSources + M-001..M-040 (pre-registration git apply --check rc=0 on that intermediate tree; the hunk's context is the M-011/M-020 import line + M-040-free web.ts shape, all stable since #72)."
+      "rebase": "New patch (issue #76); LAYERED patch - generated against pristine pin + packageSources + M-001..M-040 (pre-registration git apply --check rc=0 on that intermediate tree; the hunk's context is the M-011/M-020 import line + M-040-free web.ts shape, all stable since #72).",
+      "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
+      "status": "active"
     },
     {
       "id": "M-042",
@@ -768,7 +846,9 @@
       "reason": "Issue #101 S01-S03: the settings framework's minimal dependency closure outside packages/app/src/settings/, added before the M-043 migration so its import graph resolves. Five new files copied VERBATIM from v2.2.1 3ebcf9a: shell/sidebar-toggle.tsx + sidebar-peek.ts + sidebar-peek.css (navigation.tsx's CollapsedSidebarToggleSpace back-row dependency and its sidebarUnread/motion deps; dev-only *.stories and navigation.test files excluded per the M-037 search-list rule), servers/registry/label.tsx (switcher.tsx's ServerLabel), ui/src/typography/slash/slash.tsx + slash.css (search.tsx's Slash separator) plus the packages/ui package.json exports[\"./slash\"] entry (the target's ./activity-ring and ./typeahead exports are deliberately NOT carried - nothing in this closure imports them). One surgical hunk on runtime/server/registry.tsx, PLANNING-DEVIATION (documented): the plan assumed useServers().label/hint already exist at pin; they are target-only additions, so M-042 cherry-picks exactly the label/hint block the new files consume - the exported serverLabel(conn, current?) helper, the useLanguage import, and the additive return members {current, label, tag, hint} - and takes the hostname read NO further than the target's fallback branch: the persisted hostnames record, setHostname, and the runtime.tsx hostname effect stay out of scope (hostname displays 'This computer' for the current server; the persisted-hostname face lands with the server-identity issue). All registry.tsx changes are pure additions; existing members and the M-010 vault block are untouched.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; the five new files match v2.2.1 3ebcf9a verbatim; registry.tsx is a first-party additive cherry-pick of the v2.2.1 label/hint block (hostname branch replaced by the fallback form, marked mobile(M-042))",
       "verification": "V3 closure round-trip (git apply --check over the whole 40-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: M-042 git apply --check rc=0 against pin + packageSources + M-001..M-041, applied and byte-compared == working tree); import-closure check - every import in the five new files resolves inside the applied tree (@solid-primitives/media + event-listener at app package.json:74-78, ui ./motion + ./motion-tuning vendored via M-035/M-037, ServerConnection.builtin + serverName + props.canonicalLocalServer in the accumulated registry, server.thisComputer key added to en.ts by M-043); bun run verify:closure PASS at registration",
-      "rebase": "New patch (issue #101); M-042 is PURELY ADDITIVE except the registry.tsx hunk, whose context is the accumulated (pin + M-001..M-041) registry.tsx shape - rebase regenerates against that accumulated tree, and the registry.tsx hunk's anchors (serverName function end, createServerProjects signature, provider return member list) are M-010-era stable."
+      "rebase": "New patch (issue #101); M-042 is PURELY ADDITIVE except the registry.tsx hunk, whose context is the accumulated (pin + M-001..M-041) registry.tsx shape - rebase regenerates against that accumulated tree, and the registry.tsx hunk's anchors (serverName function end, createServerProjects signature, provider return member list) are M-010-era stable.",
+      "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
+      "status": "active"
     },
     {
       "id": "M-043",
@@ -816,7 +896,9 @@
       "reason": "Issue #101 S01-S03: the settings framework (outer shell, navigation, route/view model, surface incl. the keyed server scope, search index/catalog/results/UI/focus-reveal, settings-command-palette bridge, shared settings/search CSS, and the settings-owned tests) migrated from pin to v2.2.1 3ebcf9a. TARGET-VERBATIM files (diff against target is empty after this patch): shell.tsx, navigation.tsx (CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem), route.ts + route.test.ts, pages.ts, command.tsx (settingsOpenCommand const), palette.ts (new), search.tsx (SearchList/SearchHighlight/Slash + createSettingsSearchCatalog + mod+f focus command + 800px narrow), search-catalog.ts, search-index.ts (selected-server indexing), search-results.ts (2-arg rankSettings), search-results.test.ts, search.css (absorbs the M-035 data-motion selectors), settings.css (absorbs M-035 motion + M-040 notices overflow hunks), servers/inventory.ts (settingsServerReachable + settingsProjects export dropped + label param), servers/inventory.test.ts, servers/switcher.tsx (new), servers/unavailable.tsx (new), runtime/server/health.ts (status/retry shape + stageHealth). SURGICAL cherry-picks (NOT whole-file): model.tsx takes only the sidebarOpen schema field + accessor (target :147/:451-454) on top of the M-033/M-034/M-035 state, marker-commented; servers/servers.tsx takes only the target SettingsServerList block (List + ServersHeader + ServerConnectionRow + ServerShell) and the retargeted SettingsServerGeneral signature {entry, onAddServer}, leaving the M-037 row/auth content for issue #102, with the ShellSetting action-prop thread dropped (vendored ShellSetting has no action prop; #102); the five page-glue files (providers/models/extensions/projects/workspaces) take only the headerAction/directory prop additions + the real settings-tab-header-actions render (target pattern) + projects.tsx's settingsProjects(context()) -> context().projects.list() swap; runtime/server/runtime.tsx takes only the servers return block (health: serverHealth.status, retry: serverHealth.retry) and the three serverHealth[key] -> serverHealth.status[key] subscript sites (:84/:91/:109 guards - the notification coordinator, setHostname effect, and projects rework stay out of scope); shell/commands/palette.ts takes only the setting-entry plumbing (type union, keywords?/setting? fields, createSettingsPaletteEntries import/call/select branch/deps entry - the session-search rework and its command.tsx keywords feed stay out, so entries' keywords field stays unset by commands); shell/commands/dialog.tsx takes the setting Match condition + palette.settings.items(q) in the filter; runtime/i18n/en.ts takes NINE new keys - the plan's 8 (palette.group.settings; settings.server.switcher.label/.unreachable/.manage; settings.server.unreachable.title/.description/.retry/.edit) plus PLANNING-DEVIATION server.thisComputer (en-only; zh lacks it at target), required by the M-042 label/hint chain the plan assessed as pin-existing. THREE NEW first-party test files authored per plan section 5: surface.test.ts (server-scope resolution order, selectServer no-op off root, openServers URL, search activation bump - over mock.module seams incl. a registry mock so the file does not join the mobile-hosts alias failure bucket), search-reveal.test.ts (reveal no-ops on a missing anchor + reveals and restores a present one over happy-dom stubs), palette.test.ts (<=5 type-setting entries, prefix ranking, entity exclusion, select -> surface.search.open). PLANNING-DEVIATION (the plan's openServer shim): the plan's shim `openServer(server, tab=\"general\") -> show({type:\"root\", tab, server})` was verified during review to round-trip faithfully through settingsViewUrl/parseSettingsView for every pin caller shape ({root,general,server} / {root,workspaces,server} / {root,servers,server} - the target rootTabs record includes the per-server tabs), so the rejection is NOT a parse limitation; the plan's named alternative (section 2.2 new-session row: 'otherwise 3-line call adaptation') is taken instead as the smaller surface change: new-session/screen.tsx openWorkspaces now calls the existing settingsSurface.openServers(draft?.server), which preserves the draft-server context and adds no transitional surface-API member for the new-session rework to remove, and the unused servers accessor is dropped. The vendored screen.tsx comment still carries the superseded wording; this field and the unit/architecture/ledger records carry the corrected rationale. surface.tsx itself is target-verbatim. THE KEYED TEST WINDOW: keyed-server-entry.test.tsx and settings-search-plugin.test.tsx are intentionally NOT touched by M-043 (the former is red against the migrated shell, the latter's file-level mobile-hosts alias error persists); both are completed by M-044 (plan section 4 red-window precision m1). REGISTRATION ADDENDUM (post-generation type gate): workspaces/project.tsx makes the SettingsProjectGeneral onClose prop optional (the target call site passes no onClose; the vendored signature required it) and client/src/promise/generated/types.ts adds the ServerInfo hostname field the migrated health.ts reads (the full client regeneration stays with its owning sync).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; the 19 target-verbatim files match v2.2.1 3ebcf9a byte-identically; surgical files carry only the hunks enumerated above over their M-033/M-034/M-035/M-037 states; the 3 new test files are first-party",
       "verification": "V3 closure round-trip (git apply --check over the whole 41-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: M-043 git apply --check rc=0 against pin + packageSources + M-001..M-041 + M-042, applied and byte-compared == working tree); bun run verify:closure PASS at registration; bun run build:web succeeds at the M-043+M-044 state (test-file fallout is resolved by M-044 inside the same registration round, plan red-window m1); diff(accumulated, target) empty for the 19 verbatim files (verified file-by-file at generation)",
-      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + M-001..M-042 (accumulated tree, committed snapshot at generation); context anchors are the accumulated shapes of runtime.tsx (M-037-era servers block), commands/palette.ts + dialog.tsx (pin search/dialog shapes), en.ts (10+ prior patch layers), servers.tsx (M-037), model.tsx (M-033/M-034/M-035), the five page files (pin-era + M-037); rebase regenerates against the re-accumulated tree per the M-040 rule."
+      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + M-001..M-042 (accumulated tree, committed snapshot at generation); context anchors are the accumulated shapes of runtime.tsx (M-037-era servers block), commands/palette.ts + dialog.tsx (pin search/dialog shapes), en.ts (10+ prior patch layers), servers.tsx (M-037), model.tsx (M-033/M-034/M-035), the five page files (pin-era + M-037); rebase regenerates against the re-accumulated tree per the M-040 rule.",
+      "sha256": "d934504614e991d330ed7e06338157a6f648ab160370cead847665fb192f4392",
+      "status": "active"
     },
     {
       "id": "M-044",
@@ -834,7 +916,9 @@
       "reason": "Issue #101 S01-S03: the re-anchored mobile faces on top of M-043's target-verbatim shell - 'what mobile carries' (M-043 = what upstream changed). M-008: MobileHostManager lazy block + mount as FIRST child of the migrated single Tabs.Content value=\"servers\" (above the target Show), keeping 'renders even with an empty upstream list'. M-026: the gui-extensions face re-anchored with the exact M-044 condition forms - predicate `const mobileGuiExtensions = platform.platform !== \"desktop\"` verbatim; guard inside the target guard effect `if (view.tab === \"gui-extensions\" && !mobileGuiExtensions) surface.open(\"general\")` (the pin's `!guiExtensions &&` term dropped: the upstream DEV+desktop GuiExtensionsSettings lazy gate and desktop-gate const are upstream-removed on the migrated shell and NOT restored - the DEV plugin face lives in PluginSettingsPages/settings-page-dev, already carried by M-037); nav group `...(mobileGuiExtensions ? [{ items: guiExtensionsTab.map(...) }] : [])` after the experimental group (guiExtensionsTab const restored, uses the already-present settings.guiExtensions.title key); mount next to PluginSettingsPages `{mobileGuiExtensions && (<Tabs.Content value=\"gui-extensions\" class=\"settings-panel\"><Suspense><MobileExtensionManager /></Suspense></Tabs.Content>)}` with the mobile(M-026) marker comments retained verbatim; route.ts SettingsRootTab + rootTabs and both pages.ts entries restore \"gui-extensions\" (deliberate, documented deviation from the target route model preserving unit contract D4; dropped when a later issue moves the manager into the plugin settings-page registry). M-035: the zoom catalog row drops `available: \"desktop\"` (web-available per #90-era ruling) with a mobile(M-035) marker. mobile(M-044) PRUNE: the three target catalog rows whose reveal anchors live only in S04+ page content are removed with owner-issue markers - settings-background-activity, settings-timeline-width (session/screen page issues), settings-sounds-interface (notifications page issue) - keeping every searchable result navigable to a real row and the en.ts key budget at 9; each row returns with its page anchor when the owning page issue lands. TEST COMPLETIONS (both REQUIRED, R2-1b): keyed-server-entry.test.tsx rewritten for the target servers-tab shape (non-keyed Show semantics rendered via createComponent+createRoot with a manual host append - the render-free fix for the frozen baseline's solid-js/web server-dist notSup environment failure - plus source assertions pinning the M-008 mount position, the SettingsServerList fallback wiring selected={surface.server()?.key}/onServerChange={selectServer}, and `entry={entry()}` passing); search-results.test.ts gets the four named M-044 edits (zoom not.toContain -> toContain, font length 3 -> 4, the target capsule -> settings-background-activity assertion deleted and replaced by absence locks on all three pruned rows, mobile(M-035) rationale comment); settings-search-plugin.test.tsx drops the removed `settingsProjects: () => []` mock key and updates its source assertions to the target form `plugins: surface.plugins.items()`. R4-1 (review note): the target shell.tsx has zero Suspense occurrences, so M-044 re-adds `Suspense` (+`lazy`) to the solid-js import line to keep the M-026 mount's <Suspense> wrapper verbatim from pin - choice documented here and in the patch.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; registered first-party mobile faces over the M-043 target state (route/pages/gui-extensions restoration is a deliberate deviation from v2.2.1 3ebcf9a)",
       "verification": "V3 closure round-trip (git apply --check over the whole 42-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: M-044 git apply --check rc=0 against pin + packageSources + M-001..M-043, applied and byte-compared == working tree); bun run verify:closure PASS at registration; vendored app unit suite green-set delta recorded in the ledger (keyed-entry failure upgraded to passing; both M-044-completed test files green in the worktree environment); probes verify-gui-plugins (groups 3/4 revised to the absence/M-044 forms) + verify-appearance-settings (group 9 revised) + the new scripts/verify-settings-framework.ts all rc=0 at the registered tree",
-      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + M-001..M-043; anchors are the M-043 target-verbatim shell.tsx/route.ts/pages.ts/search-catalog.ts/search-results.test.ts shapes, which are byte-stable against upstream unless v2.2.2+ changes those files - rebase regenerates against the re-accumulated tree and must re-take the exact M-044 condition forms pinned by verify-gui-plugins group 4 / verify-agent-capabilities / verify-settings-framework."
+      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + M-001..M-043; anchors are the M-043 target-verbatim shell.tsx/route.ts/pages.ts/search-catalog.ts/search-results.test.ts shapes, which are byte-stable against upstream unless v2.2.2+ changes those files - rebase regenerates against the re-accumulated tree and must re-take the exact M-044 condition forms pinned by verify-gui-plugins group 4 / verify-agent-capabilities / verify-settings-framework.",
+      "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98",
+      "status": "active"
     },
     {
       "id": "M-045",
@@ -851,7 +935,9 @@
       "reason": "Issue #102 (S35-S37): the servers page completed to the v2.2.1 target (3ebcf9a) - 'what upstream changed' on the F side of the #101 A/F boundary. servers.tsx becomes TARGET-VERBATIM (completes M-043's glue): SettingsServerGeneral loses its own M-037 row body and delegates to the shared ServerConnectionRow (dedicated SettingsServersHeader with the unconditional AddServerMenu, entry.name row naming, edit dialog saving back through onSave so the single view no longer routes through onServerChange), and its Shell preferences section is HEALTH-GATED (`props.entry.connection && health()?.healthy !== false`) - the M-037 state showed Shell whenever a connection existed; the target hides it on unhealthy/401 servers (health.ts maps 401 to healthy:false + unauthorized, so a signed-out server shows the Authenticate button and no shell row). SettingsServerList threads the search-reveal action: ServerShell gains the `action` prop and passes `action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}` so non-selected servers' shell rows are nameable apart in Settings search; the `serverName` import drops. general.tsx takes ONLY the ShellSetting action hunk (signature gains `action?: string`, Select renders `data-action={props.action ?? \"settings-shell\"}`) with a mobile(M-045) owner comment marking the rest of the file as deferred to the General-page unit (S04): the remaining pin->target delta (FollowUpBehavior/BackgroundActivity/TimelineWidth rows etc.) is NOT migrated here. row.tsx becomes TARGET-VERBATIM: upstream deleted the dead pin-era ServerRow component (-108 lines; zero importers - plugin-row.tsx imports a different ServerRow TYPE from @opencode/plugin/gui), leaving only ServerHealthIndicator with the Tooltip->Loader import change. redeem.ts drops the `export` on the Redemption type (target un-export; zero consumers of the exported type). persistence.test.ts aligns the 'migrates legacy auth' encode expectation to the M-002 semantics (the encoded form strips password, redecode of the stripped form is stable) with a mobile(M-002) comment citing persistence.ts and the issue #3 record - upgrading this issue's own-domain frozen baseline failure (upstream asserts a lossless encode round-trip; M-002 deliberately never persists a credential). NEW regression test servers-page.test.tsx carried in the patch (settings-search-plugin harness precedent: mock.module seam stubs + row-menu/Edit probe + Select data-action probe + insert-materialized hyperscript mount; source pins always run, the behavioral group degrades to skips under the shared solid-jsx preload and is evidenced standalone with `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/servers-page.test.tsx`). NOT in this patch: settings/general/controllers.ts stays at its aligned adaptation state (the two mobile hunks - behavior re-export boundary and the pin `config.update` naming over the generated PATCH /api/experimental/config endpoint - are wire-equivalent and pinned by verify-appearance-settings; matrix S37 documents the retained deviation).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; generated against pristine pin + packageSources + M-001..M-044 (the M-037 renames and M-043 glue are context), moving servers.tsx/row.tsx to v2.2.1 3ebcf9a bytes; general.tsx is deliberately PART-target (ShellSetting action hunk only, S04 deferral); persistence.test.ts carries a mobile(M-002) semantic alignment of an upstream test expectation, not an upstream change",
       "verification": "V3 closure round-trip (git apply --check over the 43-patch chain to pristine pin + packageSources, tree byte-identical, DANGLING=0; bun run verify:closure PASS at registration); servers.tsx/row.tsx/redeem.ts byte-compared == v2.2.1 3ebcf9a target files; vendored app unit suite: the persistence.test.ts baseline failure upgrades to passing (0 fail in the file), servers-page.test.tsx green in both environments (standalone 6/0/27 expect() behavioral; 2 source pins pass + 4 behavioral skips under the shared-preload suite command, no new suite failures); directed subset (servers-page/inventory/management/controller/registry/client/api) 0 fail; typecheck: the transitional servers.tsx action-prop error resolves against the general.tsx hunk, touched files zero errors; build:web rc=0 and the dist baseline registered in the dist-pinned probes at the same commit",
-      "rebase": "New patch (issue #102); LAYERED patch - generated against pristine pin + packageSources + M-001..M-044; servers.tsx/row.tsx anchors are target bytes (stable unless v2.2.2+ rewrites the servers settings/registry row), general.tsx anchor is the pin-era M-037 file + this hunk (the S04 General-page issue will supersede it), persistence.test.ts anchor is the M-002-layered persistence.ts codec; rebase regenerates against the re-accumulated tree."
+      "rebase": "New patch (issue #102); LAYERED patch - generated against pristine pin + packageSources + M-001..M-044; servers.tsx/row.tsx anchors are target bytes (stable unless v2.2.2+ rewrites the servers settings/registry row), general.tsx anchor is the pin-era M-037 file + this hunk (the S04 General-page issue will supersede it), persistence.test.ts anchor is the M-002-layered persistence.ts codec; rebase regenerates against the re-accumulated tree.",
+      "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
+      "status": "active"
     },
     {
       "id": "M-046",
@@ -878,7 +964,9 @@
       "reason": "Issue #103 (S04-S11, S13, S38): the General/Experimental preferences page surface completed to the v2.2.1 target (3ebcf9a). general.tsx becomes TARGET-VERBATIM: imports retyped (BackgroundActivity/TimelineWidth from ./model, createShellOptions from ./behavior with ShellSettingsController a standalone ./controllers type import), the M-045 owner note and the pin TerminalPlacementSetting component + render slot are removed, target BackgroundActivitySetting (data-action settings-background-activity) and TimelineWidthSetting (data-action settings-timeline-width) components land in the timeline section with the target border-b wrapper on the TimelineDetailControl slot; the M-033 InterfaceModeSetting line and M-037 PluginSettingsSections rename coincide with target bytes. model.tsx adopts the target schema/defaults/store surface: BackgroundActivity/TimelineWidth type exports, backgroundActivity/timelineWidth Literals, showTurnNavigator retired slot, sounds.interfaceEnabled Schema.optional (inert until the notifications-page issue), defaults backgroundActivity left / timelineWidth comfortable / sounds.interfaceEnabled true, notifications.agent true->false (fresh profiles only; stored settings.v3 decode keeps saved values), the extension->plugin comment updates x3, the dataset.timelineWidth document effect + store accessors; the M-043 sidebarOpen owner note goes (schema rework closes out this round). REGISTERED DEVIATIONS (retained, consumers live): TerminalPlacement type + terminalPlacement Literals + default side + withFallback + set accessor (session/screen-layout.ts:21,22) and showFileTree Schema.Boolean + default false + init accessor + store API + visibility.fileTree (screen-layout.ts:26, use-session-commands.tsx:70,452) - both retire with the W04/W05 session screen/dock rework issue. NOT ADOPTED (registered): the commentary placementOnlySchema slot, en.ts settings.timeline.category.commentary key and the target compact/quiet copy - they belong to the S10 session-ui timeline preset/enum rework (timeline/detail.ts timelineCategories), adopting the copy without the rendering chain would desync copy and behavior; vendored compact/quiet copy truthfully describes the vendored presets. search-catalog.ts restores the settings-background-activity and settings-timeline-width rows (tab general, target keywords verbatim) pruned by M-044; settings-sounds-interface stays pruned for the notifications-page issue (note narrowed accordingly). search-results.test.ts flips the M-044 absence locks to the target capsule->settings-background-activity toMatchObject + timeline-width positive anchor while keeping the sounds-interface negative assertion. en.ts adds settings.timeline.row.backgroundActivity.* (6) + settings.timeline.row.width.* (5) right after settings.timeline.title and settings.general.sounds.interface.* (2) after the sounds.errors family, deletes the 4 settings.general.row.terminalPlacement.* keys (en-only; other locales keep inert leftovers); timeline.description.compact/.quiet copy stays at the pin form on purpose. ui tailwind index.css lands the --container-session focused(488px)/wide(1000px) override blocks + comment sentence (7 md:max-w-session consumer sites already vendored); the target @source stories rename is NOT adopted (vendored tree has no stories directory). model.test.ts adopts the target expectations (plugins copy-out name, new defaults, notifications/sounds, invalid-decode backgroundActivity/timelineWidth) while keeping showFileTree:false + terminalPlacement:side as probe-anchored deviation lines. Non-goals unchanged: W05 (backgroundActivity composer presentation consumption - composer-lane/chips files do not exist in the vendored tree), W15 (queue/steer execution chain), Sources gate -> #109 (M-036 rows untouched), experimental.tsx/timeline-detail.*/controllers.ts/behavior.ts/interface-mode.* zero-delta reuse. The four deleted settings.general.row.terminalPlacement.* keys also leave the NINE typed locale dictionaries (dz/de/bn/no/tr/ne/si/zh/zht carry `type Keys = keyof typeof en`; the other 53 locales are untyped and their stale keys stay per the registered en-only cleanup) - tsc proved the plan's inert-leftover assumption wrong for the typed nine (9x TS2353 excess-property), so those files join the patch.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 closure round-trip (git apply --check over the 44-patch chain to pristine pin + packageSources, tree byte-identical on all 7 targets, DANGLING=0; bun run verify:closure PASS at registration); bun test targeted subset (model.test.ts, search-results.test.ts, search-reveal.test.ts, keyed-server-entry.test.tsx, palette.test.ts, route.test.ts) 48 pass / 0 fail; app full unit run reconciled per-file against the 5fe6d8e baseline (no NEW failures; 24 pre-existing errors are the mobile-hosts seam resolution set); typecheck:tsc reconciled per-class against baseline (zero new errors in touched files); device QA on DBY2-AL00 (modify/navigate/restart persistence per row, timeline width 3-state, search reveal on restored rows, terminalPlacement row absent, permissions opt-in, newIcons/fold regression) recorded in docs/build-and-verify.md issue #103 section.",
-      "rebase": "New patch (issue #103); LAYERED patch - generated against pristine pin + packageSources + M-001..M-045; general.tsx/model.tsx/en.ts hunks anchor on the M-033/M-034/M-035/M-037/M-043/M-044/M-045 accumulated forms (search-catalog context includes M-044's prune-note block position; general.tsx context is the M-045 ShellSetting action-prop form), so a v2.2.2+ rebase must first re-derive those drivers. Retained-deviation blocks (terminalPlacement, showFileTree/visibility.fileTree) are this patch's own face - they disappear when the W04/W05 session screen/dock rework lands. The not-adopted commentary slot/copy and the @source stories line converge with the S10 session-ui timeline rework issue."
+      "rebase": "New patch (issue #103); LAYERED patch - generated against pristine pin + packageSources + M-001..M-045; general.tsx/model.tsx/en.ts hunks anchor on the M-033/M-034/M-035/M-037/M-043/M-044/M-045 accumulated forms (search-catalog context includes M-044's prune-note block position; general.tsx context is the M-045 ShellSetting action-prop form), so a v2.2.2+ rebase must first re-derive those drivers. Retained-deviation blocks (terminalPlacement, showFileTree/visibility.fileTree) are this patch's own face - they disappear when the W04/W05 session screen/dock rework lands. The not-adopted commentary slot/copy and the @source stories line converge with the S10 session-ui timeline rework issue.",
+      "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
+      "status": "active"
     },
     {
       "id": "M-047",
@@ -894,7 +982,9 @@
       "reason": "Issue #104 (S12, S15-S17, S42): the ui theme component family converges to the v2.2.1 target form (3ebcf9a). This is a dead-export trim, NOT whole-file deletion across the family: index.ts loses the loader re-export block (applyTheme/loadThemeFromUrl/getActiveTheme/removeTheme/setColorScheme), the 37-name DEFAULT_THEMES re-export block (the DEFAULT_THEMES bucket constant plus the 36 theme-name exports) and the generateAlphaScale/lighten/darken + resolveTheme re-exports, landing the target 35-line barrel (types + color primitives + v2 resolve + context with useTheme/ColorScheme kept); color.ts loses ONLY the generateAlphaScale helper (18 lines) - the file itself and its 13 remaining primitive exports stay at the pin form and are byte-identical to the target's remaining body; resolve.ts loses ONLY the resolveTheme(theme) helper + its DesktopTheme import - resolveThemeVariant/themeToCss stay and keep serving the gui-plugins terminal consumer (verified import @opencode/ui/theme/resolve). loader.ts (123 lines) and default-themes.ts (148 lines, 37 export consts) ARE whole-file deletions: zero importers in the vendored tree (grep: the only theme/loader reference is index.ts's own re-export; the only default-themes reference is index.ts's own re-export; feedback/loader is an unrelated component family; ui package.json \"./loader\" export points at feedback/loader). Theme selection state is untouched: context.tsx stays 438-line byte-identical to target, themes/*.json set identical, appearance.tsx/controllers.tsx/search-catalog/web.ts zoom faces untouched (zero mobile hunks inside the five target files - pure pin->target re-derivation, no overlap with M-001..M-046). Net removal 359 lines. Measured cur-vs-target difflines: index 47, color 36, resolve 9, loader -123, default-themes -148.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + M-001..M-046) PASS; verify:closure PASS with 45 patches registered (both manifests 45=45, DANGLING=0); accumulated-tree 5-file byte-identity re-verified before generation (zero mobile hunks). app unit test:unit (no-seam) 646/4/24/1986 unchanged per-file (24 errors = mobile-hosts seam resolution set); mobile-hosts 434/0/2920 unchanged; typecheck:tsc 391 errors unchanged per-file; verify-appearance-settings rc=0 unmodified (zero-revision evidence); targeted suites unchanged; dist negative evidence: DEFAULT_THEMES/loadThemeFromUrl zero hits across shipped dist (previously reachable only via tree-shaking); device QA on DBY2-AL00 recorded in docs/build-and-verify.md issue #104 section.",
-      "rebase": "New patch (issue #104); LAYERED patch - generated against pristine pin + packageSources + M-001..M-046 (accumulated tree), but the five theme files carry NO earlier mobile hunks, so the hunks anchor on pure pin bytes: a v2.2.2+ rebase only needs the pin->new-target diff of these five files re-derived; deletion hunks (loader.ts, default-themes.ts) are layer-independent. If a future target re-grows consumers of the trimmed exports (generateAlphaScale/lighten/darken/resolveTheme/DEFAULT_THEMES/loader functions), re-derive from target bytes instead of re-adding this patch's deletions."
+      "rebase": "New patch (issue #104); LAYERED patch - generated against pristine pin + packageSources + M-001..M-046 (accumulated tree), but the five theme files carry NO earlier mobile hunks, so the hunks anchor on pure pin bytes: a v2.2.2+ rebase only needs the pin->new-target diff of these five files re-derived; deletion hunks (loader.ts, default-themes.ts) are layer-independent. If a future target re-grows consumers of the trimmed exports (generateAlphaScale/lighten/darken/resolveTheme/DEFAULT_THEMES/loader functions), re-derive from target bytes instead of re-adding this patch's deletions.",
+      "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
+      "status": "active"
     },
     {
       "id": "M-048",
@@ -914,7 +1004,9 @@
       "reason": "Issue #105 (S21-S26): the providers/models/extensions settings pages converge to the v2.2.1 target form (3ebcf9a). providers.tsx and models.tsx become TARGET-VERBATIM - M-043's mobile hunks (headerAction prop, settings-tab-header-actions slot, min-w-0 header, extensions directory prop) are absorbed because the target carries the same faces natively; providers.tsx swaps CONSOLE_PROVIDERS.has(providerID) for providerID === CONSOLE_INTEGRATION (the CONSOLE_PROVIDERS export stays in the pin controller for the deferred FU-1 face). extensions.tsx becomes TARGET-VERBATIM (+109/-53): MCP rows move from createResource+api.mcp.list to the data layer (data.location.mcp.server.sync/list with per-directory location() over data.location.default(), default-Location overlay + name sort), a data-status status dot with the statusLabels map, failed rows gain a View-error Button opening DialogMcp, needs_auth+integrationID rows gain a Sign-in Button (other rows keep a Switch with the explicit-state mutate({name, enabled}) form), busy state via toggleMcp.variables, and the plugins tab renders <ExtensionPlugins plugins own> with own = !!platform.plugins && ServerConnection.builtin(serverSdk.server). mcp.ts takes the target 17-line delta (onSuccess narrowed to () => void; mutationFn request-object refactor with the request.enabled === undefined pending guard) with ONE mobile hunk: the api.mcp.connect/disconnect call sites keep the pin generated-client namespace - wire-equivalent, because the target's own generated client keeps deprecated aliases client.mcp.connect/disconnect = client.experimental.mcp.connect/disconnect (same /api/experimental/mcp/:server/* paths, quoted at the target client.ts mcp alias block) and this vendored client's mcp group already dials those paths directly; mcp.list stays api.mcp.list in both. mcp-dialog.tsx becomes TARGET-VERBATIM (326-line delta): DialogSelectMcp stays a prop-less Component (use-session-commands lazy import unaffected) and delegates to the new DialogMcp: Component<{directory, server?}> (data-layer mcp.server.list/sync, fuzzysort search, per-server error details/copy/disable/retry, sign-in, SearchList UI). runtime/plugin/extension-plugins.tsx and shell/search-list.css are NEW target files carried verbatim; extension-plugins renders the plugin rows of the Extensions plugins tab (fallback = plain name rows for non-own servers/mobile web; the desktop OwnServerPlugins branch compiles against the vendored host/installed/root/builtins APIs unchanged - usePluginHost state{status,failures}+definitions()+reload(id), createInstalled(bridge).list(), useReservedPlugins, builtins, Bridge.manager.enable/disable/reload all verified present, zero adaptation hunks). en.ts adds 26 en-only keys for target en.ts key-set parity: 14 dialog.mcp.* (search.placeholder, search.empty, error.title, error.copy, error.copyFailed, error.open, error.status, signingIn, error.view, error.viewLabel, error.disable, signIn, signIn.open, error.details) + 12 settings.plugins.* (reload, status.loading, status.failed, error.notFound, error.show, error.hide, builtin, reserved, unsupported, part.server, part.tui, parts.note); note error.title/error.open are target-dead keys carried for set parity, and dialog.mcp.description (which target deletes, its sole consumer being the replaced pin mcp-dialog line) is RETAINED here - the cross-locale deletion sweep rides the FU-1 follow-up. zh stays untouched (target zh lacks the new keys; base-merge falls back to en). Resulting families: dialog.mcp en 3->17 / zh 3; settings.plugins en 0->12 / zh 0. providers/catalog/providers.ts takes the target 10-line syncWhileBooting retry wrapper (12 attempts, 1s-5s, isServiceUnavailableError-gated) around provider+model catalog sync - useProviders signature unchanged. NOT in this patch (deferred, registered as Milestone 1 follow-ups): FU-1 connect controller/dialog target redesign (controller.ts 143-line delta incl. command auth methods, CONSOLE_PROVIDERS removal, connectMethods ordering; dialog.tsx 1617->1813 redesign; dialog.provider.* key family; providers/credentials/ target deletion folds into FU-1 scope) and FU-2 model selector family target form (providers/models select-dialog/details/css family); settings/pages.ts gui-extensions removal is owned by issue #109.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + M-001..M-047) PASS; applied tree byte-identical (diff -r rc=0, zero output) to the working vendor tree; verify:closure PASS with 46 patches registered (both manifests 46=46, DANGLING=0); git diff --check clean. typecheck:tsc 391 errors unchanged per-file; app unit (no-seam) 646/4/24/1986 unchanged; mobile-hosts 434/0/2920 unchanged. The new packages/app/src/shell/search-list.css carries an upstream-native @media (prefers-reduced-motion: reduce) pending-dot guard (:207-211, .mcp-status-dot[data-status=pending] { animation: none; }) and is therefore added to verify-appearance-settings group 7 WHITELIST as its 6th entry (v2.2.1-native-file class, same as palette-menu.css) - the probe is revised in the same change; the i18n consumed-keys guard in verify-agent-capabilities (language.t literals of the five migrated files subset-checked against en.ts) is revised in the same change and covers the untyped-t() silent-defect class.",
-      "rebase": "New patch (issue #105); LAYERED patch - generated against pristine pin + packageSources + M-001..M-047 (accumulated tree). providers.tsx/extensions.tsx/models.tsx carry absorbed M-043 hunks (headerAction/directory/slot), so their hunks anchor on M-043-applied bytes; mcp-dialog.tsx/extension-plugins.tsx/search-list.css/catalog providers.ts/en.ts anchor on pure pin bytes (no earlier mobile hunks). Rebase: re-derive pin->new-target per file; the mcp.ts namespace hunk re-anchors on the new generated client's alias block (keep api.mcp.* only while the vendored client lacks the experimental.mcp group; drop the hunk once the client is refreshed to a target-era generated client); the en.ts key addition re-derives against the target en.ts block order."
+      "rebase": "New patch (issue #105); LAYERED patch - generated against pristine pin + packageSources + M-001..M-047 (accumulated tree). providers.tsx/extensions.tsx/models.tsx carry absorbed M-043 hunks (headerAction/directory/slot), so their hunks anchor on M-043-applied bytes; mcp-dialog.tsx/extension-plugins.tsx/search-list.css/catalog providers.ts/en.ts anchor on pure pin bytes (no earlier mobile hunks). Rebase: re-derive pin->new-target per file; the mcp.ts namespace hunk re-anchors on the new generated client's alias block (keep api.mcp.* only while the vendored client lacks the experimental.mcp group; drop the hunk once the client is refreshed to a target-era generated client); the en.ts key addition re-derives against the target en.ts block order.",
+      "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c",
+      "status": "active"
     },
     {
       "id": "M-049",
@@ -928,7 +1020,9 @@
       "reason": "Issue #106 (S27-S34): the settings projects/workspaces pages converge to the v2.2.1 target form (3ebcf9a). workspaces.tsx becomes TARGET-VERBATIM (3 adopted hunks): the settings-workspaces header block gains min-w-0 (same form the target carries next to the M-043 settings-tab-header-actions slot) and the DialogDeleteWorkspaces/DialogDeleteWorkspace Cancel buttons gain autofocus (target l.602/l.668 - delete-confirmation focus defaults to Cancel so a bare Enter cannot arm the danger remove button); with these hunks the file is byte-identical to the target. The vendored @opencode/ui Button already carries the Kobalte autofocus prop, with 5 pre-existing true Button-component autofocus usages in the vendored tree (providers/connect/chatgpt-welcome.tsx:31, runtime/plugin/dialogs.tsx:26/:31/:50, providers/connect/chatgpt-usage-limit.tsx:29; note providers/connect/mcp-dialog.tsx:146 is a native <button> element and providers/models/manage.tsx:119 a TextInput search field, i.e. NOT Button-component precedents); the vendored button's missing ghost-danger variant is untouched by this migration. projects.tsx adopts the target min-w-0 page header only; its addProject onSelect stays the vendored pin sync-guard form (registered mobile hunk, M-043 comment lines kept) because the target's async chain (add.ts async + ctx.projects.add + home/model.ts consumption) depends on FU-3 - the #8 registered swallowed-add validation gap (add.ts catch(() => undefined)) keeps its registered state and its convergence now follows FU-3. project.tsx adopts the target import line (type ServerConnection, useServers) + const registry = useServers() + <bdi dir=\"auto\">{registry.label(props.server)}</bdi> replacing the pin serverName(...) || ServerConnection.key(...) server-label source (registry.label/tag/hint landed with M-042, verified in place); the mobile(M-043) onClose hunks (comment + optional onClose prop + ProjectOptions onClose pass-through) are KEPT so the registered mobile close entry survives the target form. project-options.tsx is NOT in this patch: its M-043 mobile hunks (onClose prop, close() helper, Menu.Separator + close Menu.Item) are already in place and the file has zero content delta against the target. The 8 remaining settings/workspaces files (project-extensions.tsx, project-folder-missing.tsx, project-lsp.ts + .test.ts, project-model.ts, project-row.tsx, project.css, queries.ts) verified byte-identical to the target - S33 project extensions and S34 LSP (read-only info.lsp presentation + loadFailed retry, no config editor) ship as zero-change target-form reuse per the reuse clause. NOT in this patch (deferred, registered as Milestone 1 follow-up): FU-3 runtime project persistence target form - the target's runtime/server/registry.tsx createServerProjects storage shape (usedProjectIDs/lastProjectID keyed by project ID; hostnames keyed by connection, not by project ID) replacing the pin's directory-keyed projects/lastProject/recentlyClosed, the runtime/server/runtime.tsx ctx.projects new face (add/unique/used/forDirectory/hide/last/touch directory->id, 165 lines), the home/model.ts add/used/last consumption chain and the adjacent shell/state/layout.tsx (343 lines, LocalProject drops expanded); owner = home/layout work unit. S27/S28 page-level equivalence holds without it and the matrix residual-difference columns point at FU-3. Also not adopted (registered, not owned here): target helper workspaceSelectionDirectories (workspaces/paths.ts, consumers live in new-session - new-session/home unit) and shell/layout/project-icon.tsx getProjectAvatarGenerated + ProjectAvatar generated prop (settings pages do not consume it; home/layout avatar face, FU-3 domain). Zero i18n keys added (no language.t in any adopted hunk; zh untouched).",
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + M-001..M-048; git-archive scratch) PASS; applied scratch tree byte-identical to the working vendor tree (diff -r rc=0 zero output, node_modules excluded); verify:closure PASS with 47 patches registered (both manifests 47=47, DANGLING=0); git diff --check clean. typecheck:tsc 391 errors with per-file distribution identical to baseline (uniq diff empty); app unit (no-seam) 646 pass / 4 skip / 24 errors (absent mobile-hosts seam, zero real) / 1986 expect() unchanged; mobile-hosts 434/0/2920 unchanged; targeted settings subset model/search-results/route 41 pass / 0 fail / 105 expect() unchanged. Negative drills (both restored to byte-form after): re-introducing the pin server-label form serverName(props.server) || ServerConnection.key(props.server) into project.tsx fails the new verify-projects-sessions server-label anchors; stripping autofocus from a delete-dialog Cancel button fails the new verify-projects-sessions cancel-focus anchor.",
       "rebase": "New patch (issue #106); LAYERED patch - generated against pristine pin + packageSources + M-001..M-048 (accumulated tree). workspaces.tsx/projects.tsx hunks anchor on M-043-applied bytes (settings-tab-header-actions slot / settingsProjects accessor comment block), the same relation M-048 has to M-043; project.tsx hunks anchor on pure pin bytes (M-043 only touches the onClose block below them). Rebase: re-derive pin->new-target per file; workspaces.tsx should collapse to byte-identity with the new target (nothing mobile stays); projects.tsx keeps the M-043 comment lines + the vendored addProject onSelect sync-guard hunk until FU-3 lands (re-anchor the min-w-0 hunk on the new target header block); project.tsx keeps the M-043 onClose triple and re-derives the import/registry/registry.label hunk against the new target header block.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335",
+      "status": "active"
     },
     {
       "id": "M-050",
@@ -943,7 +1037,9 @@
       "reason": "Issue #107 (S18-S19): the settings notifications/sounds page converges to the v2.2.1 target form (3ebcf9a). notifications.tsx adopts the target's 11-line sounds-interface SettingsRow (settings.general.sounds.interface.title/.description; control = div[data-action=\"settings-sounds-interface\"] wrapping Switch checked={settings.sounds.interfaceEnabled()} onChange={(checked) => settings.sounds.setInterfaceEnabled(checked)}), inserted after the three SoundSetting rows exactly as in the target; the M-024 Android POST_NOTIFICATIONS face hunks (createSignal import, activeNotificationsPort seam import + comment, the requestAndroidPermissionIfNeeded/onNotificationSwitch/androidPermissionDescription block, the 3x onChange={onNotificationSwitch(...)} switch wrappers, the status-only Android row + comment) are preserved verbatim — the two sections are disjoint (notifications vs sounds), so the result is target + M-024 residual (189 lines = 139 + 50). The model.tsx interfaceEnabled schema/default/accessor/setInterfaceEnabled chain landed with M-046 and is consumed unchanged; i18n keys settings.general.sounds.interface.title/.description are already in vendored en.ts (target-identical text, absent from zh on both sides = target parity), zero new keys. search-catalog.ts restores the settings-sounds-interface catalog row (8 lines, byte-identical to the target row) in place of the M-044 prune note — the mobile(M-044) register in this file is GONE (grep mobile(M-044) = zero hits); route.ts keeps its own M-044 note for the gui-extensions faces (owner #109, untouched), and the mobile(M-035) zoom note stays as the registered catalog deviation. search-results.test.ts flips the sounds-interface assertion negative->positive (.toBe(true), #103 restored-rows/timeline-width positive-anchor precedent) with a mobile(#107) comment — a deliberate first-party extension kept beyond the target (which has no sounds-interface assertion), probe-pinned in both directions (verify-settings-framework group 5/7 + verify-appearance-settings group 9 require the positive form); expect() count unchanged. sound.ts adopts the target's 3 export-keyword removals (SoundOption/SoundID/soundSrc become module-private) — measured zero consumers outside sound.ts in the vendored tree (playSoundById/SOUND_OPTIONS stay exported); the file is now byte-identical to the target. NOT adopted (registered, owner = future notification-face/workbench issue, G33 domain): target shell/notifications/notification.tsx +16 hasRunningChild subagent guard (delivery-face, not Settings layer; M-023 untouched). NOT adopted (registered, NO-OWNER-GAP — no follow-up issue currently carved): target shell/notifications/toast.tsx dead-export trim (removes the dismissToast export + the toaster import, measured zero consumers of dismissToast in the vendored tree); shell/notifications source stays untouched outside sound.ts this round; candidate rider = a future notification-face / dead-export-sweep issue. INERT consumer registration: target consumes sounds.interfaceEnabled() in new-session/view.tsx (animated wordmark / PinBoard / brick-breaker face, pin-sound.ts family) — that face is entirely absent from the vendored tree (vendored wordmark.tsx is a 17-line stub), so the restored row lands field + switch + persistence + search row with the playback consumer inert; exact S11 backgroundActivity precedent, presentation owner = future new-session/W05 issue. The notifications bridge is FROZEN: zero bridge/Kotlin/mobile-hosts changes, op whitelist stays exactly {notify, requestPermission}, no read-permission-state op added. ui/src/assets/audio/*.aac tree hash identical both pins (zero resource migration; 45/45 already ship: 26 emitted files + 19 inlined data:audio/aac base64 URLs, the 3 defaults staplebops-01/-02 + nope-03 inlined).",
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + M-001..M-049; git-archive scratch) PASS; applied scratch tree byte-identical to the working vendor tree (diff of the four targets zero output); verify:closure PASS with 48 patches registered (both manifests 48=48, DANGLING=0, V3(a) byte-identical replay). typecheck:tsc 391 errors with per-file distribution identical to the 4b420c8 baseline (uniq diff empty; the sound.ts export trim strictly shrinks the surface); app unit (no-seam) 646 pass / 4 skip / 24 errors (absent mobile-hosts seam, zero real) / 1986 expect() unchanged; mobile-hosts 434/0/2920 unchanged; targeted settings subset model/search-results/route 41 pass / 0 fail / 105 expect() unchanged. Build: web-dist measured 3520/159665590 (+1563 bytes at the same 3520 file count, zero new chunks), backfilled into verify-notifications group 8 / verify-commands-menus group 8 / verify-gui-plugins group 8. Negative drills (both restored to byte-form after): reverting the catalog row fails verify-settings-framework group 5 ('the restored catalog row settings-sounds-interface is missing (issue #107)'); stripping the notifications.tsx data-action fails the same group's anchor check AND verify-notifications group 5. Post-build probe census 31 rc=0 + 2 preexisting rc=1 (debug-bar W28 stale anchor, inline-ssh-device CDP); leak-scan rc=1 = exactly the 5 pre-existing host-credential synthetic-fixture rows; audit-secret-persistence PASS.",
       "rebase": "New patch (issue #107); LAYERED patch - generated against pristine pin + packageSources + M-001..M-049 (accumulated tree). notifications.tsx sounds-section hunks anchor on pure pin bytes (M-024 touches only the disjoint notifications section above them); search-catalog.ts hunk anchors after the sounds-errors row on pin bytes (M-044's note text was the replaced content); search-results.test.ts hunk anchors on the M-044-era flipped forms (font length 4 / zoom toContain / timeline-width positive); sound.ts hunks anchor on pure pin bytes. Rebase: re-derive pin->new-target per file; notifications.tsx should collapse to target + the M-024 hunks (re-anchor the 11-line row against the new target sounds section); search-catalog.ts keeps only the mobile(M-035) zoom note as registered deviation (re-derive the row against the new target; if the target renames keywords, follow the target); search-results.test.ts keeps the deliberate first-party positive assertion (re-anchor comment) plus the M-035 residuals; sound.ts should collapse to byte-identity with the new target (nothing mobile stays).",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
+      "status": "active"
     },
     {
       "id": "M-051",
@@ -963,7 +1059,9 @@
       "reason": "Issue #108 (S20, keybinds): the Shortcuts in-page face, the command catalog/keymap core and the keybind migration converge to the v2.2.1 target form (3ebcf9a). 9 targets: (1) settings/keybinds/keybinds.tsx 512->546 target-verbatim (usePluginHost().definitions() filter — commands of unmounted plugins dropped from the shortcuts list via listFor 4th arg; follower collapse for opt.follows commands without own override; extracted unbind(id) + capture-state gap-1 wrapper with an Unbind button variant=\"ghost-danger\" wired to controller.capture.unbind setting \"none\"; Predicate.isString x3; SSR IS_MAC/document guards !==\"undefined\"; settings.current.keybinds optional ?? {}; typed createStore<{active}>; border-v2-border-border-base row class); (2) settings/keybinds/migration.ts 40->42 target-verbatim (new keybindRenames entry \"home.sessions.search.focus\"->\"sessions.search\" with 2-line comment; extension->plugin wording); (3) shell/commands/command.tsx 582->610 target-verbatim — CommandOption/CommandCatalogItem schema gains optional plugin/keywords/follows metadata fields (Schema.optional, backward compatible with persisted v1 catalogs), catalog writes carry plugin:/follows: so Shortcuts can filter/list bindings while the owner page is unmounted, exported commandKeymap(options, custom) ranks user-custom bindings ahead of same-key defaults (the configuration-actually-drives-commands core), skip?:(event)=>boolean lets a binding yield the key to its target and onSelect returning false declines the key, bind(id, def, follows?) falls back to follows' custom key, CommandSource/COMMAND_SEARCH_ID become exports (COMMAND_SEARCH_ID has no consumer this issue), KeybindConfig/CommandCatalogItem un-exported (measured zero external consumers in the vendored tree), keys/named switch to Map + Predicate.isString + bracketKey shift-label fix + typed suspendCount; the pre-existing vendored type error of runtime/plugin/commands.tsx importing the non-exported type CommandSource resolves with this change (expected tsc -1); vendored runtime/plugin/commands.tsx is already target-identical and untouched; (4) shell/commands/command.test.ts +28 target-verbatim (commandKeymap priority test, skip test.each x2, bracketKey test.each +4 rows incl. Cyrillic х and Dvorak, acme.open plugin-field catalog fixture); (4b) composer/model.ts MINIMAL CONSUMER ADAPTATION (plan-review surfacing, not in the plan's 8-target table): the target command.trigger acquires the decline-false return (boolean | undefined) and the vendored base-form clientCommand callback `return () => command.trigger(...)` then fails typecheck (TS2322 boolean not assignable to void | Promise<void> — surfaced by the clean tsc caliber as exactly one new error at composer/model.ts(298,5), the ONLY distribution delta beyond the two resolved CommandSource errors); the adopted hunk is the target's OWN adaptation for this spot, verbatim (comment 'A command declines only keys, so a slash command's `false` means nothing more.' + async wrapper awaiting trigger) — the file is NOT wholesale target-replaced (its remaining base->target delta — plugin/gui imports, session-search, quoteSource, readImage — belongs to out-of-scope plugin/session-search faces; M-037 co-tenancy is in a disjoint section, verified by the accumulated-tree git apply --check; verify-files group 7 and verify-commands-menus group 5 anchors live in other sections); (5) runtime/i18n/en.ts +1 line \"settings.shortcuts.unbind\": \"Unbind\", inserted between pressKeys and search.placeholder — en-only by target parity (target locales are Partial without this key; 15/15 sampled locales lack unbind on both sides, zero non-en locale edits); the en.ts insertion anchor sits in the shortcuts section on pin bytes, disjoint from the 14 existing patches that already touch en.ts elsewhere (corrected census: M-009/M-013/M-018/M-024/M-026/M-032/M-033/M-034/M-035/M-036/M-040/M-043/M-046/M-048 — the plan's initial 5-patch estimate was an undercount; method unchanged, overlap verified zero via the accumulated-tree derivation and git apply --check); (6/7/8) ui/src/actions/button/{button.tsx,button.css,button.stories.tsx} target-verbatim — the ghost-danger variant union line, the 19-line [data-variant=\"ghost-danger\"] rule block (hover/active/disabled) and the Ghost danger story: hard dependency of the keybinds.tsx Unbind button, converging ui/button to target byte-form. NOT adopted (registered, owner = future palette/search issue, commands-menus.md keeps palette keybind-only as the in-register mobile state): palette.ts, dialog.tsx/dialog.css, search.ts and the new command-search.tsx/session-search.tsx/safe-triangle.ts target files — command.tsx's target form imports none of them (import closure checked), so the catalog core stays independently migrable; desktop-menu.ts/desktop-menu.test.ts/desktop.tsx NOT migrated (Windows window-command red line, N10 gate unchanged); settings/model.tsx keybinds face untouched (base->target zero delta). NO bridge/Kotlin/mobile-hosts changes (bridge freeze discipline continues from #107).",
       "verification": "V3 closure round-trip at registration: patch derived in a git-archive scratch cumulative tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + M-001..M-050 applied in vendor-manifest order), git apply --check of M-051 against a second freshly built cumulative tree PASS, then applied and the 9 result files byte-compared against the working vendor tree — all 9 zero diff (cmp rc=0 per file). verify:closure PASS with 49 patches registered (both manifests 49=49, DANGLING=0, V3(a) byte-identical replay). App unit (no-seam caliber): pre-change baseline 646 pass / 4 skip / 24 fail / 24 errors / 1986 expect() (674 tests/115 files) re-confirmed at 17eeb88; post-change command.test.ts grows (+target block) with pass/expect counts rising, zero new failures, the 24-error mobile-hosts seam resolution set unchanged. Seam caliber: 791 pass / 4 skip / 1 fail / 2346 expect() baseline re-confirmed (sole fail = settings-search-plugin notSup, pre-existing). mobile-hosts browser 434/0/2920 unchanged. typecheck:tsc dual caliber recorded — PRE-REGISTERED expectation (recorded before measuring): the vendored runtime/plugin/commands.tsx import of type CommandSource is a live error and M-051's CommandSource export resolves it, so the count may DECREASE by 1. MEASURED OUTCOME (both calibers re-derived in-worktree by the git-stash double-run, full tsbuildinfo purge at vendor/upstream/packages/*/node_modules/.ts-dist before each clean run): baseline 17eeb88 clean=391 / incremental=391 (the #107-registered clean=398 does not reproduce in this worktree; both sides measured with the SAME purge+run procedure, so the pair is the binding in-register caliber here — the delta analysis uses this pair, not a 391-vs-398 cross-worktree mix); post-M-051 (8 targets, pre-4b) clean=390 / incremental=390 with distribution diff = the two CommandSource errors (TS2459 import + TS2322 source-param) RESOLVED and composer/model.ts(298,5) TS2322 NEW (the trigger decline-false return type vs the base-form clientCommand callback) — net -1, and the sole new error surfaced by the clean caliber became consumer adaptation target 4b; FINAL nine-target state re-measured with the same purge+run procedure: clean=389 / incremental=389, distribution diff (each caliber vs its own stash baseline) = exactly the two runtime/plugin/commands.tsx CommandSource errors RESOLVED, zero new errors — pre-registration fulfilled in direction and slightly over in magnitude (-2 vs the predicted -1: the import error and the dependent assignment error both died with the export). Negative drills (both restored to byte-form after): reverting the keybinds.tsx catalog consumption loop fails verify-commands-menus group 6; reverting the command.tsx CommandCatalogItem struct anchor fails the same group. Build: web-dist re-measured after build, sentinels backfilled (verify-commands-menus / verify-gui-plugins / verify-notifications group 8). Post-build probe census and post-gradle census recorded separately per ledger convention; leak-scan = exactly the 5 pre-existing rows; audit-secret-persistence PASS.",
       "rebase": "New patch (issue #108); LAYERED patch — generated against pristine pin + packageSources + M-001..M-050 (accumulated tree). keybinds.tsx/migration.ts/command.tsx/command.test.ts/ui-button-triple hunks anchor on pure pin bytes (those eight files have zero prior mobile hunks — M-051 is their sole owner); the composer/model.ts clientCommand hunk anchors on the vendored line (M-037's co-tenant hunks live in disjoint sections); the en.ts hunk anchor is pin bytes in the shortcuts section (between pressKeys and search.placeholder), disjoint from the 14 other patches' en.ts hunks in unrelated sections. Rebase: re-derive pin->new-target per file; keybinds.tsx/migration.ts/command.tsx/command.test.ts and the ui button triple collapse to new-target verbatim (nothing mobile stays); composer/model.ts re-derives only the clientCommand async-wrapper hunk against the new target (drop it if the new target's trigger reverts to void-only); en.ts keeps only the unbind line (re-anchor against the new target shortcuts section; if the target renames the key, follow the target); the plugin-filter/follower-collapse/Unbind/ghost-danger semantics should land inside the new target files verbatim.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a",
+      "status": "active"
     },
     {
       "id": "M-052",
@@ -979,7 +1077,9 @@
       "reason": "Issue #109 (S41/S43, GUI plugin management + contribution settings): resolves the D4 contract by KEEPING the dedicated gui-extensions root tab and disambiguating its label from the per-server Extensions tab. 6 targets - 4 comment/label edits (zero behavior change) + 2 test-file regression locks (test-only, outside the vite app graph): (1) settings/route.ts - the M-044 restoration note is reworded from 'dropped if a later issue moves the mobile manager into the plugin settings-page registry' to the resolved decision: the target PluginSettingsPages registry hosts plugin-owned contributions only, the target Extensions face is server-scoped (bridge-driven ExtensionPlugins - names-only with zero controls on web/mobile where platform.plugins is undefined, built-ins hidden unless failed, no WSL excluded row) and its content renders only under reachable-server data scope (reachable() + SettingsServerDataScope; zero servers -> nothing renders), so the window-local first-party manager cannot move there; union member and rootTabs entry unchanged; mobile(M-044) marker kept (verify-settings-framework group 3 pins it); (2) settings/pages.ts - both M-044 notes (icon + label entries) reworded the same way, entries unchanged; (3) runtime/i18n/en.ts - settings.guiExtensions.title 'Extensions' -> 'GUI extensions' and (4) runtime/i18n/zh.ts '扩展' -> 'GUI 扩展': the old value collided byte-for-byte with settings.tab.extensions ('Extensions'/'扩展'), undermining the issue's 'GUI rows vs server Plugins list clearly distinct' acceptance; new value matches mobile-hosts' own guiext.title. Key stays in both locales (verify-gui-plugins negative #4 pins the zh key's existence, not its value; the 9-key i18n budget is untouched). (5/6) settings/route.test.ts +2 tests: parse of the restored gui-extensions host root tab (bare and with server) and host-tab precedence over a plugin page claiming the same id (isRootTab branch precedes pluginTabs - pins the M-044/M-052 resolution); (6) settings-search-plugin.test.tsx +2 fixture tests: the review-shaped SettingsPage fixture {id: mobile-diff, page: general, section: general, entries: [settings-mobile-diff-wrap]} indexes with target=settings-mobile-diff-wrap, view {root, general} and the HOST General-section label (search-index.ts:108 - section present reads settings.general.section.general; plugin title is the section label only for a page-level contribution WITHOUT section, asserted by the contrast fixture); both render fields typed as the real SettingsPage requires (render: () => h(\"div\")()). Target evidence measured at 3ebcf9a: git grep 'GuiExtensionsSettings|guiExtensions' = zero hits (DEV manager deleted upstream); runtime/plugin/settings-pages.ts hosts plugin-owned pages/sections/rows only.",
       "verification": "Derived in a git-archive scratch cumulative tree (pin + packageSources gui-plugins 3ebcf9a + M-001..M-051 in vendor-manifest order), diffed, then git apply --check + apply on a second freshly built cumulative tree (replaying M-001..M-051 only - the 50-entry registered list includes M-052 itself and must be excluded from the derivation replay), all 6 result files byte-compared (cmp) against the worktree - zero diff both sides; the worktree application itself was done with GNU patch -p1 after git apply 2.53 in this environment reported 'Skipped patch' no-op inside the issue worktree (git add/commit verified working; only git apply is affected - recorded as an environment note, the patch bytes are git-apply-compatible as proven by the cumulative-tree apply). verify:closure PASS at registration (both manifests 50=50, DANGLING=0, V3(a) byte-exact replay over M-001..M-052; the initial 4-target registration left the plan §5 test additions outside the patch and failed V3(a) on route.test.ts/settings-search-plugin.test.tsx - corrected by extending M-052 to 6 targets with a full re-derivation, M-044 precedent of test edits riding the patch). App unit no-seam baseline re-confirmed pre-change at cc78698 (653 pass / 4 skip / 24 fail / 24 errors / 1997 expect, 681 tests/115 files; error set = 23x runtime/server/registry.tsx + 1x shell/notifications/notification.tsx module resolution + 2x persistence disk-full); mobile-hosts 434/0/2920; tsc dual-caliber 389/389; dist 3520/159672996 re-confirmed. Post-change gates recorded in docs/build-and-verify.md issue #109 section.",
       "rebase": "New patch (issue #109); LAYERED patch generated against pristine pin + packageSources + M-001..M-051 (accumulated tree). The en.ts hunk anchors on the guiExtensions block (M-026's eight-key addition, present since #26/#96 work); the zh.ts hunk anchors the same block; the route.ts/pages.ts hunks anchor on the M-044 notes themselves - all disjoint from other patches' hunks in these files (17 prior patches touch en.ts in unrelated sections; verified by the accumulated-tree apply on a second freshly built tree). Rebase: re-derive the four hunks against the new target; the comment notes describe a mobile-only tab absent in the target so they re-anchor on the same union/entry lines; if the target renames settings.guiExtensions.* keys, follow the target and re-pin the probes' key anchors; the en/zh label values must stay distinct from settings.tab.extensions in both locales.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69",
+      "status": "active"
     },
     {
       "id": "M-053",
@@ -992,7 +1092,9 @@
       "reason": "Avoid URL.parse and URL.canParse on older WebViews while retaining address and pairing validation.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Pairing tests simulate missing URL static methods; runtime WebView validation remains pending.",
-      "rebase": "Layered after M-052; preserve validation rules."
+      "rebase": "Layered after M-052; preserve validation rules.",
+      "sha256": "04e56d1eb9c0fb184d8b87f4bfda64494ae994328ef581cf63d18e38dfe0f6ac",
+      "status": "active"
     },
     {
       "id": "M-054",
@@ -1004,7 +1106,9 @@
       "reason": "Select the first connection password keyboard from the Android shell build flag while retaining visual masking and a password-input fallback.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "scripts/verify-password-keyboard.test.ts; Android WebView keyboard and masking require device verification.",
-      "rebase": "Layered after M-053; preserve the first connection password field and shell-only configuration fallback."
+      "rebase": "Layered after M-053; preserve the first connection password field and shell-only configuration fallback.",
+      "sha256": "674ad06ee1fb1211dddd43e8c065bd0403d0f9ed33d7e6903e289c63b795acd5",
+      "status": "active"
     },
     {
       "id": "M-055",
@@ -1016,7 +1120,9 @@
       "reason": "Provide URL.canParse and URL.parse in the application window on older WebViews using the app's existing core-js dependency; workers are outside scope.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "See docs/build-and-verify.md for URL regressions and device verification status.",
-      "rebase": "Layered after M-054; retain window imports until supported WebViews provide both APIs. Worker realms require independent evaluation."
+      "rebase": "Layered after M-054; retain window imports until supported WebViews provide both APIs. Worker realms require independent evaluation.",
+      "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
+      "status": "active"
     },
     {
       "id": "M-056",
@@ -1043,7 +1149,9 @@
       "reason": "Issue #124 UI-only parity with Desktop v2.2.1 (3ebcf9a32c7b28f658cfee80775448929361727a): remove Settings MobileHostManager, reuse original SSH dialog/row/state/name/contract/CSS/catalog through a narrow read-only mobile adapter. The original mobile runtime remains sole owner and keeps its keys. Unwired operations fail explicitly; cancel only clears dialog-local state. WSL is visible but disabled, with no extra explanation. Android HTML marker is presentation-only and never authorizes native capabilities.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Rendered Kobalte menu and real mobile adapter fail-closed tests, upstream challenge/state fixtures, Settings regressions, first-party tests, web/Android builds and layered closure. Actual device evidence and remaining blockers are recorded in docs/build-and-verify.md; fixtures do not establish real backend success.",
-      "rebase": "Layered after M-055; preserve pinned original JSX, minimal translation/error boundaries, batched start and no-error completion guard, sole mobile owner and no remote/persistence mutations, Android-only marker/menu adaptation and other plugin actions."
+      "rebase": "Layered after M-055; preserve pinned original JSX, minimal translation/error boundaries, batched start and no-error completion guard, sole mobile owner and no remote/persistence mutations, Android-only marker/menu adaptation and other plugin actions.",
+      "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
+      "status": "active"
     },
     {
       "id": "M-061",
@@ -1055,7 +1163,9 @@
       "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
-      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence."
+      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence.",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
+      "status": "active"
     },
     {
       "id": "M-062",
@@ -1068,7 +1178,508 @@
       "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
-      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts."
+      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts.",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
+      "status": "active"
+    },
+    {
+      "id": "M-057",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-U-session-workbench.patch",
+      "targets": [
+        "packages/app/e2e/regression/composer.spec.ts",
+        "packages/app/e2e/regression/mobile-timeline-scroll.spec.ts",
+        "packages/app/e2e/regression/multi-server.spec.ts",
+        "packages/app/e2e/regression/panel-edges.spec.ts",
+        "packages/app/e2e/regression/session-header.spec.ts",
+        "packages/app/e2e/regression/session-location-sync.spec.ts",
+        "packages/app/e2e/regression/session-queue.spec.ts",
+        "packages/app/e2e/regression/session-request-docks.spec.ts",
+        "packages/app/e2e/regression/side-panels.spec.ts",
+        "packages/app/e2e/regression/tabs.spec.ts",
+        "packages/app/e2e/regression/timeline-cache.spec.ts",
+        "packages/app/e2e/utils/side-panel.ts",
+        "packages/app/public/assets/JetBrainsMonoNerdFontMono-Bold.woff2",
+        "packages/app/src/composer/adapter.ts",
+        "packages/app/src/composer/attachments/destination.ts",
+        "packages/app/src/composer/attachments/uploads.test.ts",
+        "packages/app/src/composer/attachments/uploads.tsx",
+        "packages/app/src/composer/commands.tsx",
+        "packages/app/src/composer/comment-note.test.ts",
+        "packages/app/src/composer/comment-note.ts",
+        "packages/app/src/composer/composer.tsx",
+        "packages/app/src/composer/editor/actions.ts",
+        "packages/app/src/composer/editor/dom.test.ts",
+        "packages/app/src/composer/editor/dom.ts",
+        "packages/app/src/composer/editor/editor.css",
+        "packages/app/src/composer/editor/editor.tsx",
+        "packages/app/src/composer/editor/interaction.ts",
+        "packages/app/src/composer/editor/quote-comment.tsx",
+        "packages/app/src/composer/history/entry.ts",
+        "packages/app/src/composer/media.ts",
+        "packages/app/src/composer/model-label.test.ts",
+        "packages/app/src/composer/model-label.ts",
+        "packages/app/src/composer/model.ts",
+        "packages/app/src/composer/persistence.tsx",
+        "packages/app/src/composer/prompt-parts.ts",
+        "packages/app/src/composer/prompt.test.ts",
+        "packages/app/src/composer/prompt.ts",
+        "packages/app/src/composer/quote-source.ts",
+        "packages/app/src/composer/request.test.ts",
+        "packages/app/src/composer/request.ts",
+        "packages/app/src/composer/schema.test.ts",
+        "packages/app/src/composer/schema.ts",
+        "packages/app/src/composer/selection.ts",
+        "packages/app/src/composer/session-match.test.ts",
+        "packages/app/src/composer/session-match.ts",
+        "packages/app/src/composer/state.ts",
+        "packages/app/src/composer/submission-state.ts",
+        "packages/app/src/composer/submit.test.ts",
+        "packages/app/src/composer/submit.ts",
+        "packages/app/src/composer/suggestions/machine.test.ts",
+        "packages/app/src/composer/suggestions/machine.ts",
+        "packages/app/src/composer/types.ts",
+        "packages/app/src/home/sessions/queries.ts",
+        "packages/app/src/home/start/command-palette.tsx",
+        "packages/app/src/index.css",
+        "packages/app/src/providers/models/models.test.ts",
+        "packages/app/src/providers/models/models.tsx",
+        "packages/app/src/providers/models/selection.tsx",
+        "packages/app/src/runtime/animated-presence.ts",
+        "packages/app/src/runtime/array-move.test.ts",
+        "packages/app/src/runtime/array-move.ts",
+        "packages/app/src/runtime/i18n/language.test.ts",
+        "packages/app/src/runtime/persistence/drafts.test.ts",
+        "packages/app/src/runtime/persistence/drafts.ts",
+        "packages/app/src/runtime/plugin/closed-tabs.test.ts",
+        "packages/app/src/runtime/plugin/commands.test.ts",
+        "packages/app/src/runtime/plugin/panels.tsx",
+        "packages/app/src/runtime/plugin/side-region.tsx",
+        "packages/app/src/runtime/presence.ts",
+        "packages/app/src/runtime/server/api.test.ts",
+        "packages/app/src/runtime/server/client.test.ts",
+        "packages/app/src/runtime/server/client.tsx",
+        "packages/app/src/runtime/server/image.test.ts",
+        "packages/app/src/runtime/server/image.ts",
+        "packages/app/src/runtime/server/media.ts",
+        "packages/app/src/runtime/server/persistence.test.ts",
+        "packages/app/src/runtime/server/registry.test.ts",
+        "packages/app/src/runtime/server/request-queue.test.ts",
+        "packages/app/src/session/commands/export.test.ts",
+        "packages/app/src/session/commands/export.ts",
+        "packages/app/src/session/commands/fork-dialog.tsx",
+        "packages/app/src/session/commands/use-session-commands.tsx",
+        "packages/app/src/session/composer/activity-chips.css",
+        "packages/app/src/session/composer/activity-chips.tsx",
+        "packages/app/src/session/composer/adapter.ts",
+        "packages/app/src/session/composer/composer-lane.tsx",
+        "packages/app/src/session/composer/controller.ts",
+        "packages/app/src/session/composer/location-missing.css",
+        "packages/app/src/session/composer/location-missing.tsx",
+        "packages/app/src/session/composer/plugin-pills.tsx",
+        "packages/app/src/session/composer/queue-panel.css",
+        "packages/app/src/session/composer/queue-panel.tsx",
+        "packages/app/src/session/composer/queue.test.ts",
+        "packages/app/src/session/composer/queue.ts",
+        "packages/app/src/session/composer/region.tsx",
+        "packages/app/src/session/composer/session-composer-region-controller.ts",
+        "packages/app/src/session/composer/session-composer-region.tsx",
+        "packages/app/src/session/composer/shell-panel.ts",
+        "packages/app/src/session/composer/spring-height.tsx",
+        "packages/app/src/session/composer/subagent-bar.tsx",
+        "packages/app/src/session/composer/todo-pill.css",
+        "packages/app/src/session/composer/todo-pill.tsx",
+        "packages/app/src/session/composer/todos.ts",
+        "packages/app/src/session/fork.ts",
+        "packages/app/src/session/header/drag-area.tsx",
+        "packages/app/src/session/header/fit.ts",
+        "packages/app/src/session/header/separator.tsx",
+        "packages/app/src/session/header/session-header-actions.tsx",
+        "packages/app/src/session/requests/background.ts",
+        "packages/app/src/session/requests/model.ts",
+        "packages/app/src/session/requests/question-keys.test.ts",
+        "packages/app/src/session/requests/question-keys.ts",
+        "packages/app/src/session/requests/question-motion.ts",
+        "packages/app/src/session/requests/session-permission-dock.tsx",
+        "packages/app/src/session/requests/session-question-dock.tsx",
+        "packages/app/src/session/requests/session-websearch-dock.css",
+        "packages/app/src/session/requests/session-websearch-dock.tsx",
+        "packages/app/src/session/requests/steer-background.test.ts",
+        "packages/app/src/session/requests/steer-background.ts",
+        "packages/app/src/session/requests/websearch.ts",
+        "packages/app/src/session/revert.ts",
+        "packages/app/src/session/route-error.tsx",
+        "packages/app/src/session/route.tsx",
+        "packages/app/src/session/screen-layout.ts",
+        "packages/app/src/session/screen.tsx",
+        "packages/app/src/session/server-unavailable-panel.tsx",
+        "packages/app/src/session/session-identity-header.css",
+        "packages/app/src/session/session-identity-header.tsx",
+        "packages/app/src/session/session-layout.ts",
+        "packages/app/src/session/session-panel-width.test.ts",
+        "packages/app/src/session/session-panel-width.ts",
+        "packages/app/src/session/timeline/cache.ts",
+        "packages/app/src/session/timeline/controller.tsx",
+        "packages/app/src/session/timeline/interaction.ts",
+        "packages/app/src/session/timeline/message-timeline.tsx",
+        "packages/app/src/session/timeline/model.test.ts",
+        "packages/app/src/session/timeline/model.ts",
+        "packages/app/src/session/timeline/quote-background.ts",
+        "packages/app/src/session/timeline/quote-highlight.ts",
+        "packages/app/src/session/timeline/quote-text.ts",
+        "packages/app/src/session/timeline/quote.tsx",
+        "packages/app/src/session/timeline/search-controller.ts",
+        "packages/app/src/session/timeline/virtualizer.tsx",
+        "packages/app/src/session/timeline/voice-delegation.test.ts",
+        "packages/app/src/session/use-session-hash-scroll.ts",
+        "packages/app/src/settings/model.test.ts",
+        "packages/app/src/settings/search-results.test.ts",
+        "packages/app/src/shell/commands/command-search.tsx",
+        "packages/app/src/shell/commands/desktop-menu.test.ts",
+        "packages/app/src/shell/commands/dialog.css",
+        "packages/app/src/shell/commands/dialog.tsx",
+        "packages/app/src/shell/commands/palette.ts",
+        "packages/app/src/shell/commands/safe-triangle.ts",
+        "packages/app/src/shell/commands/search.ts",
+        "packages/app/src/shell/commands/session-search.tsx",
+        "packages/app/src/shell/layout/helpers.test.ts",
+        "packages/app/src/shell/layout/helpers.ts",
+        "packages/app/src/shell/layout/project-avatar-state.ts",
+        "packages/app/src/shell/layout/session-tab-avatar.tsx",
+        "packages/app/src/shell/notifications/notification.tsx",
+        "packages/app/src/shell/panel-motion.test.ts",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/routes/session-ui-provider.tsx",
+        "packages/app/src/shell/shell.tsx",
+        "packages/app/src/shell/state/layout.tsx",
+        "packages/app/src/shell/tabs/closed.ts",
+        "packages/app/src/shell/tabs/schema.ts",
+        "packages/app/src/shell/tabs/tabs.test.ts",
+        "packages/app/src/shell/tabs/tabs.tsx",
+        "packages/app/src/shell/titlebar/history.ts",
+        "packages/app/src/shell/titlebar/inbox-model.ts",
+        "packages/app/src/shell/titlebar/inbox.tsx",
+        "packages/app/src/shell/titlebar/recently-closed-tabs-menu.css",
+        "packages/app/src/shell/titlebar/recently-closed-tabs-menu.tsx",
+        "packages/app/src/shell/titlebar/right-slot.test.ts",
+        "packages/app/src/shell/titlebar/right-slot.tsx",
+        "packages/app/src/shell/titlebar/tab-nav.css",
+        "packages/app/src/shell/titlebar/tab-nav.tsx",
+        "packages/app/src/shell/titlebar/tab-popover.tsx",
+        "packages/app/src/shell/titlebar/tab-strip.tsx",
+        "packages/app/src/shell/titlebar/titlebar.css",
+        "packages/app/src/shell/titlebar/titlebar.tsx",
+        "packages/app/src/shell/titlebar/windows-menu.test.ts",
+        "packages/app/src/workspaces/paths.ts",
+        "packages/gui-plugins/src/btw/renderer.tsx",
+        "packages/gui-plugins/src/goal/i18n/en.ts",
+        "packages/gui-plugins/src/goal/renderer.tsx",
+        "packages/gui-plugins/src/sources/renderer.tsx",
+        "packages/patchmark/package.json",
+        "packages/patchmark/src/blocks.ts",
+        "packages/patchmark/src/entities.ts",
+        "packages/patchmark/src/heal.ts",
+        "packages/patchmark/src/html.ts",
+        "packages/patchmark/src/index.ts",
+        "packages/patchmark/src/inline.ts",
+        "packages/patchmark/src/stream.ts",
+        "packages/patchmark/src/types.ts",
+        "packages/schema/src/prompt.ts",
+        "packages/schema/src/session-inbox.ts",
+        "packages/schema/src/session-message.ts",
+        "packages/session-ui/component-tests/markdown.fixture.tsx",
+        "packages/session-ui/component-tests/markdown.spec.ts",
+        "packages/session-ui/component-tests/session-message-projection.spec.ts",
+        "packages/session-ui/component-tests/session-timeline-mobile.spec.ts",
+        "packages/session-ui/component-tests/session-timeline.spec.ts",
+        "packages/session-ui/src/actions.ts",
+        "packages/session-ui/src/components/basic-tool.css",
+        "packages/session-ui/src/components/basic-tool.tsx",
+        "packages/session-ui/src/components/dock-prompt.tsx",
+        "packages/session-ui/src/components/file-media.tsx",
+        "packages/session-ui/src/components/file-search.tsx",
+        "packages/session-ui/src/components/file-ssr.tsx",
+        "packages/session-ui/src/components/file.css",
+        "packages/session-ui/src/components/file.tsx",
+        "packages/session-ui/src/components/image-preview.tsx",
+        "packages/session-ui/src/components/line-comment-annotations.tsx",
+        "packages/session-ui/src/components/line-comment-styles.ts",
+        "packages/session-ui/src/components/link-segments.test.ts",
+        "packages/session-ui/src/components/link-segments.ts",
+        "packages/session-ui/src/components/linked-text.tsx",
+        "packages/session-ui/src/components/markdown-cache.tsx",
+        "packages/session-ui/src/components/markdown-clipboard.test.ts",
+        "packages/session-ui/src/components/markdown-clipboard.ts",
+        "packages/session-ui/src/components/markdown-image.ts",
+        "packages/session-ui/src/components/markdown-mermaid.ts",
+        "packages/session-ui/src/components/markdown-session-links.test.ts",
+        "packages/session-ui/src/components/markdown-session-links.ts",
+        "packages/session-ui/src/components/markdown-stream.test.ts",
+        "packages/session-ui/src/components/markdown-stream.ts",
+        "packages/session-ui/src/components/markdown-worker.ts",
+        "packages/session-ui/src/components/markdown.css",
+        "packages/session-ui/src/components/markdown.tsx",
+        "packages/session-ui/src/components/message-file.test.ts",
+        "packages/session-ui/src/components/message-file.ts",
+        "packages/session-ui/src/components/message-nav.css",
+        "packages/session-ui/src/components/message-part.css",
+        "packages/session-ui/src/components/question-prompt.css",
+        "packages/session-ui/src/components/quote-highlight.css",
+        "packages/session-ui/src/components/session-compaction.css",
+        "packages/session-ui/src/components/session-diff.test.ts",
+        "packages/session-ui/src/components/session-diff.ts",
+        "packages/session-ui/src/components/session-retry.tsx",
+        "packages/session-ui/src/components/session-review.css",
+        "packages/session-ui/src/components/session-review.tsx",
+        "packages/session-ui/src/components/session-turn.css",
+        "packages/session-ui/src/components/shell-submessage.css",
+        "packages/session-ui/src/components/timeline-separator.tsx",
+        "packages/session-ui/src/components/tool-error-card.css",
+        "packages/session-ui/src/components/tool-error-card.tsx",
+        "packages/session-ui/src/components/tool-status-title.css",
+        "packages/session-ui/src/context/data.tsx",
+        "packages/session-ui/src/context/markdown.tsx",
+        "packages/session-ui/src/message/agent-label.test.ts",
+        "packages/session-ui/src/message/agent-label.ts",
+        "packages/session-ui/src/message/attachment-card.css",
+        "packages/session-ui/src/message/attachment-card.tsx",
+        "packages/session-ui/src/message/comment-card.tsx",
+        "packages/session-ui/src/message/current-message.tsx",
+        "packages/session-ui/src/message/current-tool-state.ts",
+        "packages/session-ui/src/message/message-content.tsx",
+        "packages/session-ui/src/message/relative-time.test.ts",
+        "packages/session-ui/src/message/relative-time.ts",
+        "packages/session-ui/src/pierre/comment-hover.ts",
+        "packages/session-ui/src/pierre/file-find.ts",
+        "packages/session-ui/src/pierre/index.ts",
+        "packages/session-ui/src/pierre/virtualizer.ts",
+        "packages/session-ui/src/styles/index.css",
+        "packages/session-ui/src/timeline/detail.ts",
+        "packages/session-ui/src/timeline/projection.ts",
+        "packages/session-ui/src/timeline/session-timeline-row.tsx",
+        "packages/session-ui/src/timeline/timeline-row.ts",
+        "packages/session-ui/src/timeline/user-runs.test.ts",
+        "packages/session-ui/src/timeline/user-runs.ts",
+        "packages/session-ui/src/tools/ansi.test.ts",
+        "packages/session-ui/src/tools/ansi.ts",
+        "packages/session-ui/src/tools/tool-renderer.tsx",
+        "packages/session-ui/src/v2/components/line-comment-annotations-v2.tsx",
+        "packages/session-ui/src/v2/components/session-progress-indicator-v2.css",
+        "packages/session-ui/src/v2/components/session-progress-indicator-v2.tsx",
+        "packages/session-ui/src/v2/components/session-review-file-preview-v2-virtualize.test.ts",
+        "packages/session-ui/src/v2/components/session-review-file-preview-v2-virtualize.ts",
+        "packages/session-ui/src/v2/components/session-review-v2.css",
+        "packages/session-ui/src/v2/components/session-review-v2.tsx",
+        "packages/ui/src/components/collapsible.css",
+        "packages/ui/src/components/context-menu.css",
+        "packages/ui/src/components/dock-surface.css",
+        "packages/ui/src/components/dock-surface.tsx",
+        "packages/ui/src/components/error-details.css",
+        "packages/ui/src/components/file-icon.css",
+        "packages/ui/src/components/file-icon.tsx",
+        "packages/ui/src/components/hover-card.css",
+        "packages/ui/src/components/image-flight.test.ts",
+        "packages/ui/src/components/image-flight.ts",
+        "packages/ui/src/components/image-preview.css",
+        "packages/ui/src/components/image-preview.tsx",
+        "packages/ui/src/components/image-zoom.test.ts",
+        "packages/ui/src/components/image-zoom.ts",
+        "packages/ui/src/components/list.css",
+        "packages/ui/src/components/popover.css",
+        "packages/ui/src/components/progress.css",
+        "packages/ui/src/components/resize-handle.css",
+        "packages/ui/src/components/resize-handle.tsx",
+        "packages/ui/src/components/rolling-number.css",
+        "packages/ui/src/components/rolling-number.tsx",
+        "packages/ui/src/components/scroll-view.css",
+        "packages/ui/src/components/scroll-view.tsx",
+        "packages/ui/src/components/spinner-radar.test.ts",
+        "packages/ui/src/components/spinner-radar.ts",
+        "packages/ui/src/components/spinner.css",
+        "packages/ui/src/components/spinner.tsx",
+        "packages/ui/src/components/text-field.css",
+        "packages/ui/src/context/dialog.tsx",
+        "packages/ui/src/context/i18n.test.ts",
+        "packages/ui/src/context/i18n.tsx",
+        "packages/ui/src/data-display/line-comment/line-comment.css",
+        "packages/ui/src/data-display/line-comment/line-comment.tsx",
+        "packages/ui/src/data-display/project-avatar/animation.ts",
+        "packages/ui/src/data-display/project-avatar/generated.test.ts",
+        "packages/ui/src/data-display/project-avatar/generated.ts",
+        "packages/ui/src/data-display/project-avatar/project-avatar.css",
+        "packages/ui/src/data-display/project-avatar/project-avatar.test.ts",
+        "packages/ui/src/data-display/project-avatar/project-avatar.tsx",
+        "packages/ui/src/feedback/activity-ring/activity-ring.css",
+        "packages/ui/src/feedback/activity-ring/activity-ring.tsx",
+        "packages/ui/src/feedback/loader/loader.tsx",
+        "packages/ui/src/feedback/progress-circle/progress-circle.css",
+        "packages/ui/src/forms/checkbox/checkbox.css",
+        "packages/ui/src/forms/inline-input/inline-input.css",
+        "packages/ui/src/forms/search-list/navigation.test.ts",
+        "packages/ui/src/forms/switch/switch.css",
+        "packages/ui/src/forms/text-input/text-input.css",
+        "packages/ui/src/forms/text-input/text-input.tsx",
+        "packages/ui/src/hooks/index.ts",
+        "packages/ui/src/hooks/use-filtered-list.test.ts",
+        "packages/ui/src/hooks/use-filtered-list.tsx",
+        "packages/ui/src/icons/catalog.ts",
+        "packages/ui/src/icons/icon/additional-icons.ts",
+        "packages/ui/src/motion-tuning.test.ts",
+        "packages/ui/src/motion-tuning.ts",
+        "packages/ui/src/motion/index.ts",
+        "packages/ui/src/motion/slider.ts",
+        "packages/ui/src/motion/velocity.ts",
+        "packages/ui/src/navigation/menu/menu.css",
+        "packages/ui/src/navigation/menu/menu.tsx",
+        "packages/ui/src/navigation/segmented-control/segmented-control.tsx",
+        "packages/ui/src/navigation/tabs/tabs.css",
+        "packages/ui/src/overlays/dialog/dialog.tsx",
+        "packages/ui/src/overlays/tooltip/tooltip.css",
+        "packages/ui/src/overlays/tooltip/tooltip.tsx",
+        "packages/ui/src/styles/animations.css",
+        "packages/ui/src/styles/index.css",
+        "packages/ui/src/styles/scrollbar.css",
+        "packages/ui/src/styles/tailwind/index.css",
+        "packages/ui/src/styles/tailwind/utilities.css",
+        "packages/ui/src/styles/utilities.css",
+        "packages/util/src/abort.test.ts",
+        "packages/util/src/session-mention.test.ts",
+        "packages/util/src/session-mention.ts"
+      ],
+      "reason": "P126 session-workbench source candidate; deferred and not applied in Block 1.",
+      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
+      "status": "deferred-source-only"
+    },
+    {
+      "id": "M-058",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-client-compat.patch",
+      "targets": [
+        "packages/app/component-tests/timeline-virtualizer.fixture.tsx",
+        "packages/app/happydom.ts",
+        "packages/app/src/composer/commands.tsx",
+        "packages/app/src/composer/model.ts",
+        "packages/app/src/composer/composer.stories.tsx",
+        "packages/app/src/home/sessions/command-palette.tsx",
+        "packages/app/src/home/start/command-palette.tsx",
+        "packages/app/src/providers/models/select-dialog.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/language.tsx",
+        "packages/app/src/runtime/platform/platform.tsx",
+        "packages/app/src/runtime/server/api.test.ts",
+        "packages/app/src/runtime/server/api.ts",
+        "packages/app/src/runtime/server/persistence.test.ts",
+        "packages/app/src/runtime/server/persistence.ts",
+        "packages/app/src/runtime/server/registry.test.ts",
+        "packages/app/src/runtime/server/request-queue.ts",
+        "packages/app/src/runtime/server/runtime.tsx",
+        "packages/app/src/session/session-identity-header.tsx",
+        "packages/app/src/session/story-model.tsx",
+        "packages/app/src/session/timeline/voice-delegation.ts",
+        "packages/app/src/settings/model.tsx",
+        "packages/app/src/settings/search-catalog.ts",
+        "packages/app/src/shell/commands/desktop-menu.ts",
+        "packages/app/src/shell/commands/desktop.tsx",
+        "packages/app/src/shell/commands/palette.ts",
+        "packages/app/src/shell/commands/session-search.tsx",
+        "packages/app/src/shell/layout/helpers.ts",
+        "packages/app/src/shell/titlebar/titlebar.tsx",
+        "packages/client/src/promise/index.ts",
+        "packages/client/src/solid/data.ts",
+        "packages/patchmark/package.json",
+        "packages/session-ui/package.json",
+        "packages/ui/package.json",
+        "packages/ui/src/i18n/en.ts",
+        "packages/ui/src/motion-tuning.test.ts",
+        "packages/ui/src/motion-tuning.ts",
+        "packages/ui/test/solid-jsx.ts",
+        "packages/app/src/home/sessions/command-palette.test.tsx",
+        "packages/app/src/providers/models/select-dialog.test.tsx",
+        "packages/app/src/runtime/server/media-api.ts",
+        "packages/app/src/runtime/server/media-contract.ts",
+        "packages/app/src/runtime/server/runtime.test.tsx",
+        "packages/app/src/runtime/server/media-generated/.httpapi-codegen.json",
+        "packages/app/src/runtime/server/media-generated/client-error.ts",
+        "packages/app/src/runtime/server/media-generated/client.ts",
+        "packages/app/src/runtime/server/media-generated/index.ts",
+        "packages/app/src/runtime/server/media-generated/types.ts"
+      ],
+      "reason": "P126 client-compatibility source candidate layered after U; deferred and not applied in Block 1.",
+      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
+      "status": "deferred-source-only"
+    },
+    {
+      "id": "M-059",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-S-media-source-safety.patch",
+      "targets": [
+        "packages/app/src/composer/history/entry.ts",
+        "packages/app/src/composer/media.ts",
+        "packages/app/src/composer/persistence.tsx",
+        "packages/app/src/composer/prompt-parts.ts",
+        "packages/app/src/composer/prompt.ts",
+        "packages/app/src/composer/request.ts",
+        "packages/app/src/composer/schema.ts",
+        "packages/app/src/composer/state.ts",
+        "packages/app/src/runtime/persistence/drafts.test.ts",
+        "packages/app/src/runtime/persistence/drafts.ts",
+        "packages/app/src/runtime/server/client.tsx",
+        "packages/app/src/runtime/server/image.test.ts",
+        "packages/app/src/runtime/server/media.ts",
+        "packages/app/src/session/composer/queue.test.ts",
+        "packages/app/src/session/composer/queue.ts",
+        "packages/app/src/session/fork.ts",
+        "packages/app/src/session/revert.ts",
+        "packages/app/src/session/session-ownership.test.ts"
+      ],
+      "reason": "P126 media-source safety and ownership source candidate; deferred and not applied in Block 1.",
+      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
+      "status": "deferred-source-only"
+    },
+    {
+      "id": "M-060",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-A-android-adaptation.patch",
+      "targets": [
+        "packages/app/src/session/composer/region.tsx",
+        "packages/app/src/shell/routes/routes.tsx",
+        "packages/app/src/shell/panel-motion.ts"
+      ],
+      "reason": "P126 Android adaptation source candidate after U/C/S; deferred and not applied in Block 1.",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
+      "status": "deferred-source-only"
+    },
+    {
+      "id": "M-063",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-A-agent-selector.patch",
+      "targets": [
+        "packages/app/src/providers/models/agent.ts",
+        "packages/app/src/providers/models/agent.test.ts",
+        "packages/app/src/providers/models/selection.tsx"
+      ],
+      "reason": "P126 agent-selector source candidate; deferred and not applied in Block 1.",
+      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
+      "status": "deferred-source-only"
+    },
+    {
+      "id": "M-064",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-S-session-ownership-whitespace.patch",
+      "targets": [
+        "packages/app/src/session/session-ownership.test.ts"
+      ],
+      "reason": "P126 session-ownership whitespace source candidate; deferred and not applied in Block 1.",
+      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
+      "status": "deferred-source-only"
     }
-  ]
+  ],
+  "block1PatchPolicy": {
+    "base": "d37260c002b4390060f7d6cd78ffe6a11e9e1012",
+    "activePatchCount": 56,
+    "deferredSourceOnlyPatchCount": 6,
+    "deferredPatchesApplied": false,
+    "activeClosureUsesOnlyBaseOrder": true,
+    "futureOrderContract": "p126-replay-order.json"
+  }
 }
