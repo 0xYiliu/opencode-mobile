@@ -1,5 +1,13 @@
 # 单元：远程 Agent 能力与扩展配置（agent-capabilities）
 
+## Extensions 列表 WebView 适配（待修后设备验证）
+
+会话 details 的 MCP、Plugins、Skills、LSP 保留固定上游的列表、加载/空/失败状态与操作，不改变数据来源或恢复语义。Android WebView 中将 flyout 打开态的嵌套祖先选择器展开为等价普通选择器，避免内容层透明；手机窄屏原有 drawer 分支不变。验收：在 MatePad 上依次触摸四个入口，检查列表或空态实际可见、未被裁剪且可命中，切换和关闭正常；失败或空数据只报告对应状态，不操作子项。修前四项触摸均切换但内容层 opacity=0；修后设备验证待主会话核对源码并安装 APK 后进行。
+
+## Composer Agent 入口（M-063，待设备验证）
+
+Android 宿主标记生效且服务端 Agent 目录非空时，复用固定上游 Composer 的 Agent 选择器；空目录不显示，不生成 Build/Plan 数据。非 Android 仍按原 Desktop 偏好或自定义 Agent 条件显示。选中值及无已选值时的原有回退逻辑不变；不新增偏好存储。需在真实设备核验入口显示与打开，未验证之前不宣称设备通过。
+
 覆盖范围：远程 Agent、commands、skills、MCP 与插件配置的呈现与运行时启停（设置 extensions 三子 tab、项目级 extensions 四子 tab 含 LSP、`DialogSelectMcp`（/mcp）、new-session MCP 控件与 prepare 门、会话「更多」抽屉 details server 面板、composer @skill/@agent//slash 注入）、MCP 五态状态机与重认证流、断开语义、GUI 扩展主进程零执行边界。能力**全部由上游闭包承载**（issue #15，零新建界面、零运行时代码改动、零 vendor 补丁）；本文固化契约、状态矩阵与安全语义，并把「远程服务器扩展配置」（设置 extensions tab）与「GUI 扩展宿主」（gui-extensions tab——上游面 desktop+DEV 专属；其生命周期管理面自 issue #26 起以第一方移动面存在，见 [gui-extensions.md](gui-extensions.md)）两套上游同名概念显式区分（验收 1 落字）。Agent/Command/Skill 的**配置增删改无客户端 UI**（上游实态，见能力边界专节）——本文不虚构「可在手机上编辑 opencode.json」。
 
 ## 能力来源表

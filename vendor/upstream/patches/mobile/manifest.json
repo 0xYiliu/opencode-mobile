@@ -1703,14 +1703,27 @@
       "patch": "patches/mobile/P126-A-agent-selector.patch",
       "targets": [
         "packages/app/src/providers/models/agent.ts",
-        "packages/app/src/providers/models/agent.test.ts",
         "packages/app/src/providers/models/selection.tsx"
       ],
-      "reason": "Agent-selector source override remains deferred-source-only by explicit scope. No agent product behavior is activated in this runtime closure.",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only",
-      "verification": "Deferred source only; the patch is not in the active vendor replay.",
-      "rebase": "Not applied; requires a separate authorized scope decision."
+      "reason": "Show the existing server-provided agent selector on the Android host while retaining Desktop visibility and existing selection fallback semantics.",
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active",
+      "verification": "Static source inspection; empty catalogs remain hidden by the existing Composer view guard; device verification pending.",
+      "rebase": "Applied at the active replay tail after M-068; preserve the original selection fallback separately from Android visibility."
+    },
+    {
+      "id": "extensions-flyout-webview",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/extensions-flyout-webview.patch",
+      "targets": [
+        "packages/gui-plugins/src/details/details.css"
+      ],
+      "reason": "Flatten the existing flyout-open ancestor selector so Android WebView parses the same opacity and transition rules; no interaction or data changes.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "MatePad pre-fix: all four top-level taps activate panes, but flyout body computed opacity remains zero. Post-fix device verification pending.",
+      "rebase": "Layered at replay tail over the byte-identical fixed-target details.css; preserve declarations and interaction.",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active"
     }
   ]
 }

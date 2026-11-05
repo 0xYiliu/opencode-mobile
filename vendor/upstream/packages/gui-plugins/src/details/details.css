@@ -171,16 +171,17 @@ button.session-service-row:focus-visible,
     translate: -4px 0;
     transform-origin: left top;
   }
+}
 
-  .session-service-flyout[data-open] & {
-    opacity: 1;
-    scale: 1;
-    translate: 0 0;
-    transition:
-      opacity 0.15s cubic-bezier(0.2, 0.8, 0.2, 1),
-      scale 0.15s cubic-bezier(0.2, 0.8, 0.2, 1),
-      translate 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
+/* Keep the ancestor selector parseable by Android WebView's CSS nesting implementation. */
+.session-service-flyout[data-open] .session-service-flyout-body {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+  transition:
+    opacity 0.15s cubic-bezier(0.2, 0.8, 0.2, 1),
+    scale 0.15s cubic-bezier(0.2, 0.8, 0.2, 1),
+    translate 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 [data-color-scheme="dark"] .session-service-flyout-body {
