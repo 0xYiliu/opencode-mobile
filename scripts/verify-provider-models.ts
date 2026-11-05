@@ -1,6 +1,15 @@
 // verify-provider-models.ts — static probe for issue #14 (remote providers,
 // models, accounts, and runtime configuration unit).
 //
+// Issue #141 (FU-1, v2.2.1 provider connect flow) revisions: group 3 gains the
+// command-auth chain pins (command.connect/status/cancel, tagged attempt
+// wrappers, connectMethods ordering) and the Console/Go unmapping absences
+// (keyProvider/CONSOLE_PROVIDERS/consoleIntegration gone); the custom-provider
+// V2 stub verbatim pin became an absence assertion (v2.2.1 deleted
+// providers/credentials/ and the dialog entry with it); group 6 retires the
+// OPENAI_COMPATIBLE positive anchor with the deleted credentials/form.ts;
+// groups 2/7 re-measure the domain at 48 code files.
+//
 // Asserts, against the REAL vendored sources (pin b4525d79bf…), the structural
 // facts the providers-models unit document relies on:
 //
@@ -28,10 +37,12 @@
 //      booleans) and "chatgpt-plan-welcome.v1" (global — seen boolean). None
 //      carries a credential-shaped payload (selection schema fields =
 //      providerID/modelID/variant/agent; the other two are booleans).
-//      SCAN CALIBER: .ts/.tsx code files only — 49 measured on this pin
-//      (providers/ 42 + settings/providers 6 + settings/models 1; the three
-//      non-code files — one svg, two css — are excluded; 52 counting them),
-//      lower-bound assertion 45 so both calibers stay honest.
+//      SCAN CALIBER: .ts/.tsx code files only — 48 measured on this pin
+//      (providers/ 41 + settings/providers 6 + settings/models 1; the three
+//      non-code files — one svg, two css — are excluded; 51 counting them;
+//      issue #141: −3 providers/credentials/ deletion, +1
+//      connect/connect-methods.test.ts), lower-bound assertion 45 so both
+//      calibers stay honest.
 //   3. OAuth flow shape: the openBrowser/openExternal seam, the 1s poll
 //      interval, the four AttemptStatus branches (complete/failed/expired +
 //      polling failure), the Console-specific expired_token/access_denied
@@ -217,8 +228,9 @@ let osScanFiles = 0
       if (persist.test(source)) hits.push({ file: rel, source })
     }
   }
-  // Scan caliber: .ts/.tsx code files; 49 measured (52 counting the three
-  // non-code files), lower bound 45 keeps both calibers honest.
+  // Scan caliber: .ts/.tsx code files; 48 measured (51 counting the three
+  // non-code files; issue #141 re-measure), lower bound 45 keeps both calibers
+  // honest.
   if (domainFiles < 45) fail(`2: provider domain scan covered only ${domainFiles} files — the directory set looks wrong`)
 
   const findKey = (file: string, key: string) => {
@@ -337,12 +349,65 @@ let osScanFiles = 0
     if (!integration.includes(`status:Schema.Literal(${status})`)) fail(`3: the AttemptStatus ${status} literal moved`)
   }
 
-  // Custom provider save stub (upstream V2 boundary — verbatim).
-  const credDialog = await read(`${APP}src/providers/credentials/dialog.tsx`)
-  if (!credDialog.includes("// TODO: Restore custom providers when V2 exposes config and arbitrary credential APIs."))
-    fail("3: the custom-provider V2 stub TODO changed (verbatim)")
-  if (!squash(credDialog).includes('thrownewError(language.t("provider.custom.unavailable"))'))
-    fail("3: the custom-provider save stub throw changed")
+  // Command authentication chain (issue #141 / FU-1, target v2.2.1 verbatim):
+  // command methods connect without a form, poll via command.status, and
+  // cancel exactly like OAuth (two sites: dialog teardown + stale generation
+  // compensation). Attempt identity is a tagged union, not a bare
+  // Authorization.
+  const commandCancels = controller.match(/command\.cancel\(/g) ?? []
+  if (commandCancels.length !== 2)
+    fail(`3: controller.ts must call command.cancel at exactly 2 sites (got ${commandCancels.length})`)
+  if (!controller.includes("integration.command.connect({integrationID:options.provider(),methodID:selected.id,location:location()"))
+    fail("3: the command.connect call shape changed")
+  if (!controller.includes("integration.command.status({integrationID:options.provider(),attemptID:attempt.attemptID,location:location()"))
+    fail("3: the command.status poll call shape changed")
+  if (!controller.includes("integration.command.cancel({integrationID:options.provider(),attemptID:started.attempt.attemptID,location:location()"))
+    fail("3: the command.cancel stale-generation call shape changed")
+  if (!controller.includes('typeCommandAttempt=IntegrationCommandConnectOutput["data"]'))
+    fail("3: the CommandAttempt type moved")
+  if (!controller.includes("command?:{attempt:CommandAttempt;output:string}"))
+    fail("3: the controller store command field moved")
+  if (!controller.includes('type:"command.waiting"'))
+    fail("3: the command.waiting dispatch moved")
+  if (!controller.includes("constpollCommand="))
+    fail("3: the command polling loop moved")
+  if (!controller.includes('provider.connect.command.expired'))
+    fail("3: the command expired copy key moved")
+  if (!controller.includes('attempt?:{type:"oauth";attemptID:string}|{type:"command";attemptID:string}'))
+    fail("3: the tagged Polling attempt union changed")
+  if (!controller.includes('{type:"oauth",attemptID:') || !controller.includes('{type:"command",attemptID:'))
+    fail("3: the tagged attempt wrappers (oauth/command) changed")
+  // Method ordering: same order as the TUI — browser/command first, API key
+  // last; env methods never reach the connect surface.
+  if (!controller.includes('toSorted((a,b)=>Number(a.type==="key")-Number(b.type==="key"))'))
+    fail("3: the connectMethods key-last ordering changed")
+  if (!controller.includes('(method):methodisProviderConnectMethod=>method.type!=="env"'))
+    fail("3: the connectMethods env filter changed")
+  // Console/Go unmapping (issue #141): Go connects with its own methods, the
+  // same as the TUI — the Console provider set, the consoleIntegration mapping
+  // and the keyProvider re-routing option are gone; only CONSOLE_INTEGRATION
+  // remains as the "opencode" identity.
+  for (const banned of ["keyProvider", "CONSOLE_PROVIDERS", "consoleIntegration"]) {
+    if (controller.includes(banned)) fail(`3: controller.ts must NOT carry the Console/Go mapping symbol ${banned} (issue #141 unmapping)`)
+  }
+  if (!controller.includes('CONSOLE_INTEGRATION="opencode"'))
+    fail("3: the CONSOLE_INTEGRATION identity moved")
+  if (controller.includes("exporttypeProviderConnectionController="))
+    fail("3: the ProviderConnectionController type export came back (target-removed)")
+  // Command waiting copy rides the dialog's CommandView (issue #141).
+  if (!dialog.includes("provider.connect.command.waiting"))
+    fail("3: the command waiting copy key moved")
+  if (!dialog.includes('data-component="provider-connect-command-output"'))
+    fail("3: the CommandView output pre moved")
+
+  // Custom provider save stub → ABSENCE (issue #141): v2.2.1 deleted
+  // providers/credentials/ outright and the dialog's Other/Custom entry with
+  // it; the stub verbatim pins retired with the files.
+  if (await Bun.file(new URL(`${APP}src/providers/credentials/dialog.tsx`, repoRoot)).exists())
+    fail("3: providers/credentials/dialog.tsx must stay deleted (v2.2.1 removed the custom-provider stub)")
+  for (const banned of ["CUSTOM_ID", "CustomProviderForm"]) {
+    if (dialog.includes(banned)) fail(`3: connect/dialog.tsx must NOT carry the custom-provider entry (${banned})`)
+  }
 }
 
 // --- 4. Server authority & event refresh ---
@@ -388,7 +453,11 @@ let osScanFiles = 0
   if (!selection.includes('serverSDK.event.on("session.deleted",(event)=>{')) fail("5: the session.deleted cleanup moved")
 
   const runtime = squash(await read(`${APP}src/runtime/server/runtime.tsx`))
-  if (!runtime.includes('persisted(Persist.global("model"),ModelState,{'))
+  // issue #141 drift repair (new-fact registration): ae10625 renamed the local
+  // store binding ModelState → modelState; the anchored FACT (the
+  // createGlobalModels Persist.global("model") cross-server preference
+  // exception) is unchanged.
+  if (!runtime.includes('persisted(Persist.global("model"),modelState,{'))
     fail("5: the createGlobalModels Persist.global(\"model\") preference EXCEPTION moved (anti-overclaim anchor — preferences are cross-server global upstream)")
 
   // Migrated (v2.2.1) single-layout mounts (issue #101 / settings-framework-migration): the pin's dual layout is
@@ -430,7 +499,10 @@ let osScanFiles = 0
     fail("5: the free/paid grouping anchor changed")
   const models = squash(await read(`${APP}src/providers/models/models.tsx`))
   if (!models.includes("constRECENT_LIMIT=5")) fail("5: the recent-models cap changed")
-  if (!models.includes("if(latestSet().has(key))returntrue"))
+  // issue #141 drift repair (new-fact registration): ae10625 extended the
+  // default-visible rule with the free-set disjunction; the latest-per-family
+  // clause itself is unchanged.
+  if (!models.includes("if(latestSet().has(key)||freeSet().has(key))returntrue"))
     fail("5: the latest-per-family default-visible rule changed")
   if (!models.includes("return!Number.isFinite(release().get(key)??NaN)"))
     fail("5: the unparseable-release-date stays-visible rule changed")
@@ -460,12 +532,13 @@ let osScanFiles = 0
   for (const banned of ["@ai-sdk", '"anthropic"', '"openai"']) {
     if (pkg.includes(banned)) fail(`6: app/package.json must not carry an AI SDK dependency key (${banned})`)
   }
-  // Positive anchor: the custom-provider npm declaration is a SERVER-SIDE
-  // load instruction (models run on the server, never locally).
-  const form = squash(await read(`${APP}src/providers/credentials/form.ts`))
-  if (!form.includes('constOPENAI_COMPATIBLE="@ai-sdk/openai-compatible"'))
-    fail("6: the OPENAI_COMPATIBLE server-load declaration anchor changed")
-  if (!form.includes("npm:OPENAI_COMPATIBLE,")) fail("6: the custom-provider config npm field changed")
+  // Positive anchor RETIRED (issue #141): the custom-provider npm declaration
+  // lived in providers/credentials/form.ts, which v2.2.1 deleted outright
+  // (absence asserted in group 3). The server-side load declaration face is
+  // still guarded by the import-shape negative scan above (any local
+  // `from "@ai-sdk/…"` import would fail there).
+  if (await Bun.file(new URL(`${APP}src/providers/credentials/form.ts`, repoRoot)).exists())
+    fail("6: providers/credentials/form.ts must stay deleted (v2.2.1 removed the custom-provider form)")
 
   // Shared layer stays provider-face-free.
   const mhZero = /\.\s*credential\s*\.\s*(list|create|update|activate|remove)\(|api\s*\.\s*(integration|provider)\s*\.\s*\w+\s*\(/
@@ -497,8 +570,9 @@ let osScanFiles = 0
       }
     }
   }
-  // Lower bound (real count on this pin: 49 .ts/.tsx code files — providers/
-  // 42 + settings/providers 6 + settings/models 1; 52 counting the svg/css).
+  // Lower bound (real count on this pin: 48 .ts/.tsx code files — providers/
+  // 41 + settings/providers 6 + settings/models 1; 51 counting the svg/css;
+  // issue #141 re-measure: −3 credentials deletion, +1 connect test).
   if (osScanFiles < 45) fail(`7: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
   if (osScanFiles !== domainFiles) fail(`7: scan caliber mismatch between group 2 (${domainFiles}) and group 7 (${osScanFiles})`)
 }
@@ -511,14 +585,14 @@ console.log(
     "2: persistence-key exhaustion — exactly 3 Persist sites in the provider domain (" +
     domainFiles +
     " code files): model-selection (serverWorkspace) / settings-v2.models.providers (serverGlobal) / chatgpt-plan-welcome.v1 (global), selection schema zero credential-shaped fields; " +
-    "3: OAuth flow shape — openBrowser/openExternal seam, 1s poll, complete/failed/expired branches, expired_token/access_denied mappings, exactly 2 oauth.cancel sites, onCleanup disposition, desktop-only return_window gate, auto/code view split, copy-link + user_code fallbacks, web openExternal allowlist + browserFailed unreachable, RemoteAuthNotice loopback exclusion, Attempt schema, custom-provider V2 stub verbatim; " +
+    "3: OAuth flow shape — openBrowser/openExternal seam, 1s poll, complete/failed/expired branches, expired_token/access_denied mappings, exactly 2 oauth.cancel sites, onCleanup disposition, desktop-only return_window gate, auto/code view split, copy-link + user_code fallbacks, web openExternal allowlist + browserFailed unreachable, RemoteAuthNotice loopback exclusion, Attempt schema; command auth chain (issue #141) — exactly 2 command.cancel sites, command.connect/status shapes, CommandAttempt type + store field, tagged attempt union, connectMethods key-last ordering + env filter, Console/Go unmapping absences, CommandView output face, custom-provider stub absence (credentials/ deleted); " +
     "4: server authority — credential.updated invalidate+resync, credential.switched reorder, integration.updated three-catalog block, needs_auth + CredentialInfo/Credential.Entry shapes, RemoteAuthNotice en sentence verbatim; " +
     "5: model scope — serverWorkspace model-selection, handoff ScopedKey, model/agent/deleted event reconcile, Persist.global(\"model\") preference exception, dual-layout shell anchors (guard, nestedServerTabs, 2x Tabs.Content pairs, SettingsServerDataScope), pages/search-catalog registration, tooltip limits, free/paid grouping, default-visibility rules; " +
     "6: no local model/tool execution — zero AI SDK import shapes across " +
     aiScanFiles +
-    " four-package files, app/package.json zero AI deps, OPENAI_COMPATIBLE server-load positive anchor, mobile-hosts provider-face-free; " +
+    " four-package files, app/package.json zero AI deps, OPENAI_COMPATIBLE positive anchor retired with credentials/ (issue #141), mobile-hosts provider-face-free; " +
     "7: zero host-OS conditionals across " +
     osScanFiles +
-    " whitelisted code files (.ts/.tsx caliber; 49 measured); " +
+    " whitelisted code files (.ts/.tsx caliber; 48 measured); " +
     "STATIC check — OAuth round-trip, the outbound authorize hand-off inside the Android WebView shell (G25 first item; files-open-external routes it over the files-bridge external-open face, issue #76), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
 )
