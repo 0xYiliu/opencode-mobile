@@ -50,19 +50,19 @@ feed 为 generic provider，三通道（`packages/desktop/electron-builder.confi
 
 ## 2. 移动端现状（pin `b4525d79` / vendored 树 + 第一方壳 @ `ef10718`）
 
-### 2.1 vendored 树 updater 形态与 M-001 实际剥离集（F-1 修正）
+### 2.1 vendored 树 updater 形态与 gui-plugins-native-test-deps 实际剥离集（F-1 修正）
 
 vendor 闭包容 **gui-extensions 形态** updater：`vendor/upstream/packages/gui-extensions/src/updater/`，实测 75 文件 = **12 个非 i18n 源文件**（较 v2.2.1 多 `contract.ts`、少五个 beta 面文件）+ `i18n/` 63 文件。差异：主门更严 = `build.packaged && build.channel !== "dev"`（pin `main.ts:12`）；`main.ts:1` import electron `dialog`；`renderer.tsx:8` whatsNew 先于 :10 桌面早退（vendored 文件与 pin 逐字节一致，diff 实测空）。
 
-**M-001 实际剥离集（评审修正后复核，`patches/mobile/manifest.json` M-001 条目 + patch hunk 实读）**：仅从 `packages/gui-extensions/package.json` 的 devDependencies 剥 **`electron`（pin :61）/ `@lydell/node-pty`（:55）/ `devtools-protocol`（:60）** 三项；**`electron-updater: 6.8.9` 保留在 pin package.json:62**（vendored 树 :59），在 M-001 patch hunk 中仅作上下文行出现。本文与台账均按此实际剥离集描述。
+**gui-plugins-native-test-deps 实际剥离集（评审修正后复核，`patches/mobile/manifest.json` gui-plugins-native-test-deps 条目 + patch hunk 实读）**：仅从 `packages/gui-extensions/package.json` 的 devDependencies 剥 **`electron`（pin :61）/ `@lydell/node-pty`（:55）/ `devtools-protocol`（:60）** 三项；**`electron-updater: 6.8.9` 保留在 pin package.json:62**（vendored 树 :59），在 gui-plugins-native-test-deps patch hunk 中仅作上下文行出现。本文与台账均按此实际剥离集描述。
 
-### 2.2 「web 构建死代码」论证（不依赖 M-001）
+### 2.2 「web 构建死代码」论证（不依赖 gui-plugins-native-test-deps）
 
-main/platform 侧 updater 代码在移动 web 构建不可达，论证挂在两个独立事实、**不依赖 M-001**：① `electron-updater` 是 devDependency（pin package.json:62）——devDeps 不参与 web 生产打包；② 其唯一运行时 import 点 `platform.ts:2` 只被 `main.ts:20-21` 在 desktop 主进程 `enabled`（packaged）时动态 import，而移动 web 宿主从不执行任何 main entry（gui-extensions 设计单元「六 main entry 懒加载、phone never runs Electron/Node main-process extensions」）。
+main/platform 侧 updater 代码在移动 web 构建不可达，论证挂在两个独立事实、**不依赖 gui-plugins-native-test-deps**：① `electron-updater` 是 devDependency（pin package.json:62）——devDeps 不参与 web 生产打包；② 其唯一运行时 import 点 `platform.ts:2` 只被 `main.ts:20-21` 在 desktop 主进程 `enabled`（packaged）时动态 import，而移动 web 宿主从不执行任何 main entry（gui-extensions 设计单元「六 main entry 懒加载、phone never runs Electron/Node main-process extensions」）。
 
 ### 2.3 移动宿主注册与 desktop-host 禁用行
 
-updater 内建注册于移动 web 宿主使用的 compose：`vendor/upstream/packages/gui-extensions/src/renderer.ts:20-21`（import）/ **:52**（`{ ...updater, renderer: eager(updaterRenderer) }`；pin 树为 ：48，M-036 追加 sources/goal import 后漂移 +4）；`main.ts:11/:32` 同表 main 侧（web 不可达）。移动扩展管理器把 updater 列为四个 desktop-host 禁用行之一（`packages/mobile-hosts/src/ui/extension-manager.tsx:48` `DESKTOP_HOST_EXTENSIONS`，呈现「桌面专属」+ Switch 禁用态）。
+updater 内建注册于移动 web 宿主使用的 compose：`vendor/upstream/packages/gui-extensions/src/renderer.ts:20-21`（import）/ **:52**（`{ ...updater, renderer: eager(updaterRenderer) }`；pin 树为 ：48，session-goal-sources-panels 追加 sources/goal import 后漂移 +4）；`main.ts:11/:32` 同表 main 侧（web 不可达）。移动扩展管理器把 updater 列为四个 desktop-host 禁用行之一（`packages/mobile-hosts/src/ui/extension-manager.tsx:48` `DESKTOP_HOST_EXTENSIONS`，呈现「桌面专属」+ Switch 禁用态）。
 
 ### 2.4 F6：whatsNew 邻外面（R1，见 §6）
 
@@ -118,11 +118,11 @@ N09「远程服务升级已有独立实现」所指 = [0004](0004-service-operat
 
 | 选项 | 内容 | 代价 |
 | --- | --- | --- |
-| (a) vendored whatsNew 门补平台条件 | 在 vendored `renderer.tsx` whatsNew 注册处（:8）补 `ctx.desktop` 类平台条件 | 小补丁（约 1-3 行）+ web 构建验证 + 新 M-xxx 补丁链登记与探针锚修订——vendored 树变更的完整纪律 |
+| (a) vendored whatsNew 门补平台条件 | 在 vendored `renderer.tsx` whatsNew 注册处（:8）补 `ctx.desktop` 类平台条件 | 小补丁（约 1-3 行）+ web 构建验证 + 新语义 ID 补丁链登记与探针锚修订——vendored 树变更的完整纪律 |
 | (b) 移动 builtins 组合剔除 updater | 移动宿主组合不注册 updater 内建（whatsNew 随注册消失） | 同上量级的补丁 + 构建验证；**连带面更大**：extension-manager 的 desktop-host 行消失、能力三集合与探针闭集（verify-gui-extensions 组 7 等）同轮修订 |
 | (c) 仅文档化现状（零代码） | 本文 §2.4 + E24 登记；不动代码 | 零代码；面继续存在（启动期对 opencode.ai 的外联 + 换包后桌面 highlights 弹窗） |
 
-**#67 迁移后复核条件句**：上述锚点（vendored `gui-extensions/src/renderer.ts:52`）位于 #67（S41+N11 gui-plugins 迁移）的改造域——迁移落地后 compose 形态与行号会变化，R1 三选项的落点与代价需在该轮**复核后**再执行；本文记录的是迁移前实态（pin `b4525d79` + M-001..M-036）。
+**#67 迁移后复核条件句**：上述锚点（vendored `gui-extensions/src/renderer.ts:52`）位于 #67（S41+N11 gui-plugins 迁移）的改造域——迁移落地后 compose 形态与行号会变化，R1 三选项的落点与代价需在该轮**复核后**再执行；本文记录的是迁移前实态（pin `b4525d79` + gui-plugins-native-test-deps..session-goal-sources-panels）。
 
 ## 7. 风险与关联
 

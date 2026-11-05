@@ -1,7 +1,7 @@
 // verify-open-external.ts — static probe for issue #76 (N08: the openExternal
 // shell bridge). Locks the structural facts the delivery relies on, against
 // the REAL sources: the vendored platform face (pin b4525d79bf… + packageSources
-// + M-001..M-041), the first-party mobile-hosts files port, the Android shell
+// + gui-plugins-native-test-deps..files-open-external), the first-party mobile-hosts files port, the Android shell
 // (ExternalOpenPolicy + FilesBridge + strings.xml + manifest) and the patch
 // registration.
 //
@@ -36,11 +36,11 @@
 //      QUERY_ALL_PACKAGES, and the permission set is verify-pairing group 6's
 //      master lock (exactly {INTERNET, POST_NOTIFICATIONS, CAMERA}) — this
 //      probe only witnesses that the OUTBOUND face added no manifest surface.
-//   3. Registration face: M-041 is dual-registered (patches/mobile/manifest.json
+//   3. Registration face: files-open-external is dual-registered (patches/mobile/manifest.json
 //      row with targets exactly [web.ts] + non-empty upstreamBaseline;
 //      vendor-manifest.json mobilePatches carries the path). The exact 50=50
 //      chain count (39=39 was the issue #76-era total; 50 since issue #109's
-//      M-052, re-verified by issue #110) is the MASTER lock of verify-about-version group 6 +
+//      settings-gui-plugins-tab-label, re-verified by issue #110) is the MASTER lock of verify-about-version group 6 +
 //      verify-attachments-artifacts group 6 + verify-commands-menus group 8 —
 //      witnessed here, not re-locked.
 //
@@ -88,7 +88,7 @@ const STRINGS_XML = "android/app/src/main/res/values/strings.xml"
 const PATCH_MANIFEST = "vendor/upstream/patches/mobile/manifest.json"
 const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
 
-// --- 1. JS face: the platform face routes over the files bridge (M-041) ---
+// --- 1. JS face: the platform face routes over the files bridge (files-open-external) ---
 {
   const web = await read(WEB_TS)
   const flat = squash(web)
@@ -101,15 +101,15 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
   if (!flat.includes('consturl=newURL(value)'))
     fail("1: web.ts lost the openExternal URL construction line (verbatim)")
 
-  // M-041: the outbound call is the files-bridge port face.
+  // files-open-external: the outbound call is the files-bridge port face.
   if (!flat.includes("voidactiveFilesPort().openExternal(url.href)"))
-    fail("1: web.ts lost the M-041 external-open bridge call shape")
+    fail("1: web.ts lost the files-open-external external-open bridge call shape")
   if (!web.includes("mobile(M-041)"))
     fail("1: web.ts lost the mobile(M-041) outbound-face marker comment")
 
   // NEGATIVE: the same-WebView navigation defect must not return in this file.
   if (web.includes("window.open("))
-    fail("1: web.ts gained a window.open call site (M-041 routed the outbound face over the files bridge)")
+    fail("1: web.ts gained a window.open call site (files-open-external routed the outbound face over the files bridge)")
 
   // FilesPort: exactly the four members, openExternal never-throw contract.
   const client = await read(FILES_CLIENT)
@@ -234,29 +234,29 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
     fail("2: manifest gained a custom scheme (witness — decision 0007 inbound remains proposal-stage; master lock verify-pairing group 4)")
 }
 
-// --- 3. Registration face: M-041 dual registration (count master-locked elsewhere) ---
+// --- 3. Registration face: files-open-external dual registration (count master-locked elsewhere) ---
 {
   const patchManifest = JSON.parse(await read(PATCH_MANIFEST)) as {
     patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown }>
   }
   const rows = patchManifest.patches ?? []
-  const m041 = rows.filter((row) => row.id === "M-041")
-  if (m041.length !== 1) fail("3: patches manifest must carry exactly one M-041 entry")
+  const m041 = rows.filter((row) => row.id === "files-open-external")
+  if (m041.length !== 1) fail("3: patches manifest must carry exactly one files-open-external entry")
   const entry = m041[0]!
-  if (entry.patch !== "patches/mobile/0041-M-041-open-external-platform-face.patch")
-    fail(`3: M-041 patch path mismatch: ${String(entry.patch)}`)
+  if (entry.patch !== "patches/mobile/files-open-external.patch")
+    fail(`3: files-open-external patch path mismatch: ${String(entry.patch)}`)
   const targets = Array.isArray(entry.targets) ? (entry.targets as unknown[]).filter((t): t is string => typeof t === "string") : []
   if (targets.length !== 1 || targets[0] !== "packages/app/src/runtime/platform/web.ts")
-    fail("3: M-041 targets must be exactly [packages/app/src/runtime/platform/web.ts] (single-file hunk)")
+    fail("3: files-open-external targets must be exactly [packages/app/src/runtime/platform/web.ts] (single-file hunk)")
   if (typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline)
-    fail("3: M-041 entry must retain a non-empty upstreamBaseline")
+    fail("3: files-open-external entry must retain a non-empty upstreamBaseline")
 
   const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
   const paths = Array.isArray(vendorManifest.mobilePatches)
     ? (vendorManifest.mobilePatches as unknown[]).filter((value): value is string => typeof value === "string")
     : []
-  if (!paths.includes("patches/mobile/0041-M-041-open-external-platform-face.patch"))
-    fail("3: vendor-manifest mobilePatches lost the M-041 path")
+  if (!paths.includes("patches/mobile/files-open-external.patch"))
+    fail("3: vendor-manifest mobilePatches lost the files-open-external path")
 
   // WITNESS: the exact 50=50 chain count + path-for-path agreement is the
   // MASTER lock of verify-about-version group 6 / verify-attachments-artifacts
@@ -264,13 +264,13 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
   // the issue #76-era total). This probe
   // deliberately does not re-count the chain.
   if (!JSON.stringify(entry).includes("issue #76"))
-    fail("3: M-041 registration lost the issue #76 attribution")
+    fail("3: files-open-external registration lost the issue #76 attribution")
 }
 
 console.log(
   "verify-open-external: PASS (" +
-    "1: JS face — upstream canParse + protocol gates verbatim, M-041 bridge-call shape + marker, web.ts zero window.open negative, FilesPort exactly four members + stub false + client never-throw fail-closed shapes + op union + timeout anchor untouched; " +
+    "1: JS face — upstream canParse + protocol gates verbatim, files-open-external bridge-call shape + marker, web.ts zero window.open negative, FilesPort exactly four members + stub false + client never-throw fail-closed shapes + op union + timeout anchor untouched; " +
     "2: native face — ExternalOpenPolicy JVM purity + six gates (strict parse, http/https-only mailto delta, userinfo, host, port range, 2048) + Decision enum, FilesBridge exactly-four-op set + dispatch + ACTION_VIEW-from-accepted-string + no-handler capture + {opened} body + LENGTH_SHORT fixed-string Toast + zero-value-log negative, en-only fixed copy + no values-zh negative, MainActivity zero wiring negative, manifest witness zero VIEW/scheme/QUERY_ALL_PACKAGES (first locks verify-pairing groups 3/4/6 NOT re-locked); " +
-    "3: registration — M-041 dual registration with targets exactly [web.ts] + baseline + issue #76 attribution (50=50 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
+    "3: registration — files-open-external dual registration with targets exactly [web.ts] + baseline + issue #76 attribution (50=50 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
     "STATIC check — allowed-domain hand-off, refused-domain Toast, mailto delta Toast and no-handler path on a device are QA-1/QA-2/QA-3/QA-4 registered in docs/build-and-verify.md issue #76; the JVM decision matrix (ExternalOpenPolicyTest) is the policy behavioral lower bound)",
 )

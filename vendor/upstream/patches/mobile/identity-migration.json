@@ -1,0 +1,462 @@
+{
+  "version": 1,
+  "baseline": "b45e1800024665e7fcc558ee9ffc3b913812189b",
+  "purpose": "One-time identity translation, not a live registry or replay order. Hashes describe migration-time payloads; source markers retain legacy spellings.",
+  "patches": [
+    {
+      "legacyId": "M-001",
+      "legacyPath": "patches/mobile/0001-M-001-gui-plugins-strip-native-test-deps.patch",
+      "id": "gui-plugins-native-test-deps",
+      "path": "patches/mobile/gui-plugins-native-test-deps.patch",
+      "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058"
+    },
+    {
+      "legacyId": "M-002",
+      "legacyPath": "patches/mobile/0002-M-002-app-server-password-memory-only.patch",
+      "id": "connection-password-memory-only",
+      "path": "patches/mobile/connection-password-memory-only.patch",
+      "sha256": "27ad5b0789df3aec50c3ad968f114608f2815d838b2940bfb537aa2549eee913"
+    },
+    {
+      "legacyId": "M-003",
+      "legacyPath": "patches/mobile/0003-M-003-strip-dangling-workspace-refs.patch",
+      "id": "workspace-dependency-closure",
+      "path": "patches/mobile/workspace-dependency-closure.patch",
+      "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565"
+    },
+    {
+      "legacyId": "M-004",
+      "legacyPath": "patches/mobile/0004-M-004-app-vite-alias-mobile-hosts.patch",
+      "id": "app-mobile-hosts-alias",
+      "path": "patches/mobile/app-mobile-hosts-alias.patch",
+      "sha256": "b2e8784451619821666605647ab97a68e147f52835a3893c14d234edfde8dfd3"
+    },
+    {
+      "legacyId": "M-005",
+      "legacyPath": "patches/mobile/0005-M-005-server-persistence-credential-ref.patch",
+      "id": "connection-credential-reference",
+      "path": "patches/mobile/connection-credential-reference.patch",
+      "sha256": "f237c0874c80b4cb1a2ec19e4a1113c930b57381dc397519b36c5af126d5e6d4"
+    },
+    {
+      "legacyId": "M-006",
+      "legacyPath": "patches/mobile/0006-M-006-dialog-preserve-credential-ref.patch",
+      "id": "connection-dialog-credential-reference",
+      "path": "patches/mobile/connection-dialog-credential-reference.patch",
+      "sha256": "4650985fe6e608544070f5b57ca227ee494d0dfca2ae302d30f1b9281193b273"
+    },
+    {
+      "legacyId": "M-007",
+      "legacyPath": "patches/mobile/0007-M-007-mobile-hosts-bootstrap-in-web-entry.patch",
+      "id": "app-mobile-hosts-bootstrap",
+      "path": "patches/mobile/app-mobile-hosts-bootstrap.patch",
+      "sha256": "c8bc3466e179cf062ad2cb9eb893c3186d2cb5045f225e3266041560284deede"
+    },
+    {
+      "legacyId": "M-008",
+      "legacyPath": "patches/mobile/0008-M-008-mount-mobile-host-manager-in-server-settings.patch",
+      "id": "settings-mobile-host-manager",
+      "path": "patches/mobile/settings-mobile-host-manager.patch",
+      "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb"
+    },
+    {
+      "legacyId": "M-009",
+      "legacyPath": "patches/mobile/0009-M-009-remember-credential-branch-in-connect-dialog.patch",
+      "id": "connection-remember-credential",
+      "path": "patches/mobile/connection-remember-credential.patch",
+      "sha256": "7ac107c76535efa7985cd868431944f1e4d04fa55fcbc9277151eeb74e6ed41d"
+    },
+    {
+      "legacyId": "M-010",
+      "legacyPath": "patches/mobile/0010-M-010-registry-hydration-credential-resolution.patch",
+      "id": "connection-credential-hydration",
+      "path": "patches/mobile/connection-credential-hydration.patch",
+      "sha256": "b281f43bcd01125e61b1bf8a8a7d28bca0e66aa6bc140869bd70303113aae61c"
+    },
+    {
+      "legacyId": "M-011",
+      "legacyPath": "patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch",
+      "id": "connection-platform-fetch-policy",
+      "path": "patches/mobile/connection-platform-fetch-policy.patch",
+      "sha256": "30fd327f10d70a1dff8f95ad3823c5085fa9d4ee65a5cc35b9075de0f6bd6e2b"
+    },
+    {
+      "legacyId": "M-012",
+      "legacyPath": "patches/mobile/0012-M-012-upload-xhr-redirect-validation.patch",
+      "id": "attachments-upload-redirect-policy",
+      "path": "patches/mobile/attachments-upload-redirect-policy.patch",
+      "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9"
+    },
+    {
+      "legacyId": "M-013",
+      "legacyPath": "patches/mobile/0013-M-013-probe-classified-connect-errors-in-server-dialog.patch",
+      "id": "connection-error-classification",
+      "path": "patches/mobile/connection-error-classification.patch",
+      "sha256": "cbc5360a21026e8724dec8fefafd67d66091c8f4353f1068bf755b1a150c2dc1"
+    },
+    {
+      "legacyId": "M-014",
+      "legacyPath": "patches/mobile/0014-M-014-probe-bridge-wiring-in-web-entry.patch",
+      "id": "app-connection-probe-bridge",
+      "path": "patches/mobile/app-connection-probe-bridge.patch",
+      "sha256": "383dd43f86958f349887d0576fba2d111d8e55c57a8436127c99d7d89890b9b5"
+    },
+    {
+      "legacyId": "M-015",
+      "legacyPath": "patches/mobile/0015-M-015-ssh-bridge-wiring-in-web-entry.patch",
+      "id": "app-ssh-bridge",
+      "path": "patches/mobile/app-ssh-bridge.patch",
+      "sha256": "1ba2ebce5ab35e5546e5b20f780381f7054d036ede0990a6a7803e9b17dbb946"
+    },
+    {
+      "legacyId": "M-016",
+      "legacyPath": "patches/mobile/0016-M-016-svcops-bridge-wiring-in-web-entry.patch",
+      "id": "app-service-operations-bridge",
+      "path": "patches/mobile/app-service-operations-bridge.patch",
+      "sha256": "c077d6d331d1d5a5dc86ba16b472eae4f74fe74b32c7bebe051f6eb40b781cbb"
+    },
+    {
+      "legacyId": "M-017",
+      "legacyPath": "patches/mobile/0017-M-017-home-session-archive-wiring.patch",
+      "id": "session-home-archive",
+      "path": "patches/mobile/session-home-archive.patch",
+      "sha256": "896177b54870763a19386a373e8e920674f0c7f0ece78a16bcf867ccc645f8bc"
+    },
+    {
+      "legacyId": "M-018",
+      "legacyPath": "patches/mobile/0018-M-018-settings-ssh-hosts-entry-and-guard.patch",
+      "id": "settings-ssh-entry-guard",
+      "path": "patches/mobile/settings-ssh-entry-guard.patch",
+      "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e"
+    },
+    {
+      "legacyId": "M-020",
+      "legacyPath": "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
+      "id": "files-platform-bridge",
+      "path": "patches/mobile/files-platform-bridge.patch",
+      "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e"
+    },
+    {
+      "legacyId": "M-021",
+      "legacyPath": "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
+      "id": "attachments-share-bridge",
+      "path": "patches/mobile/attachments-share-bridge.patch",
+      "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c"
+    },
+    {
+      "legacyId": "M-022",
+      "legacyPath": "patches/mobile/0021-M-022-entry-notifications-bridge-wiring.patch",
+      "id": "app-notifications-bridge",
+      "path": "patches/mobile/app-notifications-bridge.patch",
+      "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e"
+    },
+    {
+      "legacyId": "M-023",
+      "legacyPath": "patches/mobile/0022-M-023-notification-reroute-and-permission-face.patch",
+      "id": "notifications-platform-delivery",
+      "path": "patches/mobile/notifications-platform-delivery.patch",
+      "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062"
+    },
+    {
+      "legacyId": "M-024",
+      "legacyPath": "patches/mobile/0023-M-024-settings-android-permission-face.patch",
+      "id": "settings-notification-permission",
+      "path": "patches/mobile/settings-notification-permission.patch",
+      "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842"
+    },
+    {
+      "legacyId": "M-025",
+      "legacyPath": "patches/mobile/0024-M-025-root-disabled-merge.patch",
+      "id": "gui-plugins-disabled-merge",
+      "path": "patches/mobile/gui-plugins-disabled-merge.patch",
+      "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2"
+    },
+    {
+      "legacyId": "M-026",
+      "legacyPath": "patches/mobile/0025-M-026-mobile-gui-extensions-settings-face.patch",
+      "id": "settings-mobile-gui-plugins",
+      "path": "patches/mobile/settings-mobile-gui-plugins.patch",
+      "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926"
+    },
+    {
+      "legacyId": "M-027",
+      "legacyPath": "patches/mobile/0026-M-027-initial-ssh-entry.patch",
+      "id": "connection-initial-ssh-entry",
+      "path": "patches/mobile/connection-initial-ssh-entry.patch",
+      "sha256": "69000e8bf451081222acdadc2383091afb84a06cbc9a4884b71d429c2adc4b62"
+    },
+    {
+      "legacyId": "M-028",
+      "legacyPath": "patches/mobile/0027-M-028-connection-method-layout.patch",
+      "id": "connection-method-layout",
+      "path": "patches/mobile/connection-method-layout.patch",
+      "sha256": "66ee353fb91679403244a961a4fe4e8002e48ec9f7965b294ef3f65dd8bf671c"
+    },
+    {
+      "legacyId": "M-029",
+      "legacyPath": "patches/mobile/0028-M-029-connection-label-nowrap.patch",
+      "id": "connection-label-nowrap",
+      "path": "patches/mobile/connection-label-nowrap.patch",
+      "sha256": "8c660a5055d1fa5dc6d57229c0261a3cdc418472e9aa19b75ff041135585fad8"
+    },
+    {
+      "legacyId": "M-030",
+      "legacyPath": "patches/mobile/0029-M-030-inline-ssh-setup.patch",
+      "id": "connection-inline-ssh",
+      "path": "patches/mobile/connection-inline-ssh.patch",
+      "sha256": "f6d6c97b6260d916eb03465d423e6b029d656b1b2a4d923260a0ad7854d13712"
+    },
+    {
+      "legacyId": "M-031",
+      "legacyPath": "patches/mobile/0030-M-031-utf8-basic-auth.patch",
+      "id": "connection-utf8-basic-auth",
+      "path": "patches/mobile/connection-utf8-basic-auth.patch",
+      "sha256": "c59a7da93ed3462e7bbaf8786b85ec80dc6391096f31cad8e61ec7110e068b03"
+    },
+    {
+      "legacyId": "M-032",
+      "legacyPath": "patches/mobile/0032-M-032-vault-androidx-listener.patch",
+      "id": "vault-androidx-listener",
+      "path": "patches/mobile/vault-androidx-listener.patch",
+      "sha256": "b71fa4b18eec4a0d5b99e067fc5adaff1658f703d5bea72926c9ec0e50372f56"
+    },
+    {
+      "legacyId": "M-033",
+      "legacyPath": "patches/mobile/0033-M-033-interface-mode-setting.patch",
+      "id": "settings-interface-mode",
+      "path": "patches/mobile/settings-interface-mode.patch",
+      "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a"
+    },
+    {
+      "legacyId": "M-034",
+      "legacyPath": "patches/mobile/0034-M-034-experimental-settings.patch",
+      "id": "settings-experimental",
+      "path": "patches/mobile/settings-experimental.patch",
+      "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e"
+    },
+    {
+      "legacyId": "M-035",
+      "legacyPath": "patches/mobile/0035-M-035-appearance-motion-zoom.patch",
+      "id": "appearance-motion-zoom",
+      "path": "patches/mobile/appearance-motion-zoom.patch",
+      "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50"
+    },
+    {
+      "legacyId": "M-036",
+      "legacyPath": "patches/mobile/0036-M-036-goal-sources-panels.patch",
+      "id": "session-goal-sources-panels",
+      "path": "patches/mobile/session-goal-sources-panels.patch",
+      "sha256": "9f035d5fa2587d098baafcbd9268ce788cf769f623e669b733cf06c9083606f8"
+    },
+    {
+      "legacyId": "M-037",
+      "legacyPath": "patches/mobile/0037-M-037-gui-plugins-migration.patch",
+      "id": "gui-plugins-api-migration",
+      "path": "patches/mobile/gui-plugins-api-migration.patch",
+      "sha256": "9a3cca744552093ed517c1a217e0e1c2ccff4d4c1f1ade7ec859e975088e29ae"
+    },
+    {
+      "legacyId": "M-038",
+      "legacyPath": "patches/mobile/0038-M-038-btw-narrow-entry.patch",
+      "id": "session-btw-narrow-entry",
+      "path": "patches/mobile/session-btw-narrow-entry.patch",
+      "sha256": "2298709d78937d32c255d23588e3aef88003ef9b3c215dccfbbfa1f348c56f35"
+    },
+    {
+      "legacyId": "M-040",
+      "legacyPath": "patches/mobile/0040-M-040-about-version-face.patch",
+      "id": "settings-about-version",
+      "path": "patches/mobile/settings-about-version.patch",
+      "sha256": "4b0bcaa5decd132cb4fcd0f67496f9491366a1bf6ae2e5277d10c428579ec636"
+    },
+    {
+      "legacyId": "M-041",
+      "legacyPath": "patches/mobile/0041-M-041-open-external-platform-face.patch",
+      "id": "files-open-external",
+      "path": "patches/mobile/files-open-external.patch",
+      "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983"
+    },
+    {
+      "legacyId": "M-042",
+      "legacyPath": "patches/mobile/0042-M-042-settings-framework-target-deps.patch",
+      "id": "settings-framework-dependencies",
+      "path": "patches/mobile/settings-framework-dependencies.patch",
+      "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b"
+    },
+    {
+      "legacyId": "M-043",
+      "legacyPath": "patches/mobile/0043-M-043-settings-framework-target-migration.patch",
+      "id": "settings-framework-migration",
+      "path": "patches/mobile/settings-framework-migration.patch",
+      "sha256": "d934504614e991d330ed7e06338157a6f648ab160370cead847665fb192f4392"
+    },
+    {
+      "legacyId": "M-044",
+      "legacyPath": "patches/mobile/0044-M-044-settings-framework-mobile-faces.patch",
+      "id": "settings-framework-mobile",
+      "path": "patches/mobile/settings-framework-mobile.patch",
+      "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98"
+    },
+    {
+      "legacyId": "M-045",
+      "legacyPath": "patches/mobile/0045-M-045-servers-page-target-migration.patch",
+      "id": "settings-servers-migration",
+      "path": "patches/mobile/settings-servers-migration.patch",
+      "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14"
+    },
+    {
+      "legacyId": "M-046",
+      "legacyPath": "patches/mobile/0046-M-046-general-experimental-pages-target-migration.patch",
+      "id": "settings-general-experimental-migration",
+      "path": "patches/mobile/settings-general-experimental-migration.patch",
+      "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627"
+    },
+    {
+      "legacyId": "M-047",
+      "legacyPath": "patches/mobile/0047-M-047-theme-component-target-form.patch",
+      "id": "theme-components-migration",
+      "path": "patches/mobile/theme-components-migration.patch",
+      "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684"
+    },
+    {
+      "legacyId": "M-048",
+      "legacyPath": "patches/mobile/0048-M-048-providers-models-extensions-target-migration.patch",
+      "id": "settings-providers-models-extensions",
+      "path": "patches/mobile/settings-providers-models-extensions.patch",
+      "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c"
+    },
+    {
+      "legacyId": "M-049",
+      "legacyPath": "patches/mobile/0049-M-049-workspaces-pages-target-form.patch",
+      "id": "settings-workspaces-migration",
+      "path": "patches/mobile/settings-workspaces-migration.patch",
+      "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335"
+    },
+    {
+      "legacyId": "M-050",
+      "legacyPath": "patches/mobile/0050-M-050-notifications-page-target-form.patch",
+      "id": "settings-notifications-migration",
+      "path": "patches/mobile/settings-notifications-migration.patch",
+      "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9"
+    },
+    {
+      "legacyId": "M-051",
+      "legacyPath": "patches/mobile/0051-M-051-keybinds-command-catalog-target-form.patch",
+      "id": "settings-keybinds-command-catalog",
+      "path": "patches/mobile/settings-keybinds-command-catalog.patch",
+      "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a"
+    },
+    {
+      "legacyId": "M-052",
+      "legacyPath": "patches/mobile/0052-M-052-guiext-tab-decision-and-label.patch",
+      "id": "settings-gui-plugins-tab-label",
+      "path": "patches/mobile/settings-gui-plugins-tab-label.patch",
+      "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69"
+    },
+    {
+      "legacyId": "M-053",
+      "legacyPath": "patches/mobile/0053-M-053-pairing-url-compat.patch",
+      "id": "connection-pairing-url",
+      "path": "patches/mobile/connection-pairing-url.patch",
+      "sha256": "04e56d1eb9c0fb184d8b87f4bfda64494ae994328ef581cf63d18e38dfe0f6ac"
+    },
+    {
+      "legacyId": "M-054",
+      "legacyPath": "patches/mobile/0054-M-054-password-keyboard.patch",
+      "id": "connection-password-keyboard",
+      "path": "patches/mobile/connection-password-keyboard.patch",
+      "sha256": "674ad06ee1fb1211dddd43e8c065bd0403d0f9ed33d7e6903e289c63b795acd5"
+    },
+    {
+      "legacyId": "M-055",
+      "legacyPath": "patches/mobile/0055-M-055-webview-url-compat.patch",
+      "id": "webview-url-polyfill",
+      "path": "patches/mobile/webview-url-polyfill.patch",
+      "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115"
+    },
+    {
+      "legacyId": "M-056",
+      "legacyPath": "patches/mobile/0056-M-056-settings-server-menu.patch",
+      "id": "settings-server-menu",
+      "path": "patches/mobile/settings-server-menu.patch",
+      "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163"
+    },
+    {
+      "legacyId": "M-057",
+      "legacyPath": "patches/mobile/P126-U-session-workbench.patch",
+      "id": "session-workbench-upstream",
+      "path": "patches/mobile/session-workbench-upstream.patch",
+      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1"
+    },
+    {
+      "legacyId": "M-058",
+      "legacyPath": "patches/mobile/P126-C-client-compat.patch",
+      "id": "session-client-compatibility",
+      "path": "patches/mobile/session-client-compatibility.patch",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330"
+    },
+    {
+      "legacyId": "M-065",
+      "legacyPath": "patches/mobile/P126-C-project-open-compat.patch",
+      "id": "session-project-open-compatibility",
+      "path": "patches/mobile/session-project-open-compatibility.patch",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db"
+    },
+    {
+      "legacyId": "M-059",
+      "legacyPath": "patches/mobile/P126-S-media-source-safety.patch",
+      "id": "session-media-source-safety",
+      "path": "patches/mobile/session-media-source-safety.patch",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323"
+    },
+    {
+      "legacyId": "M-060",
+      "legacyPath": "patches/mobile/P126-A-android-adaptation.patch",
+      "id": "session-android-adaptation",
+      "path": "patches/mobile/session-android-adaptation.patch",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73"
+    },
+    {
+      "legacyId": "M-061",
+      "legacyPath": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "id": "connection-initial-credential-persistence",
+      "path": "patches/mobile/connection-initial-credential-persistence.patch",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70"
+    },
+    {
+      "legacyId": "M-062",
+      "legacyPath": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "id": "connection-vault-ready-wait",
+      "path": "patches/mobile/connection-vault-ready-wait.patch",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288"
+    },
+    {
+      "legacyId": "M-067",
+      "legacyPath": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "id": "session-e2e-runtime-compatibility",
+      "path": "patches/mobile/session-e2e-runtime-compatibility.patch",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc"
+    },
+    {
+      "legacyId": "M-068",
+      "legacyPath": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "id": "session-composer-test-fixture",
+      "path": "patches/mobile/session-composer-test-fixture.patch",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe"
+    },
+    {
+      "legacyId": "M-063",
+      "legacyPath": "patches/mobile/P126-A-agent-selector.patch",
+      "id": "session-agent-selector",
+      "path": "patches/mobile/session-agent-selector.patch",
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b"
+    },
+    {
+      "legacyId": "extensions-flyout-webview",
+      "legacyPath": "patches/mobile/extensions-flyout-webview.patch",
+      "id": "extensions-flyout-webview",
+      "path": "patches/mobile/extensions-flyout-webview.patch",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6"
+    }
+  ]
+}

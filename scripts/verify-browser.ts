@@ -373,18 +373,18 @@ const srcFiles = async (base: string): Promise<string[]> => {
   // anchored (positive); the upstream protocol gate above stays verbatim (first layer
   // only — the native ExternalOpenPolicy is the enforced layer).
   if (web.includes("window.open("))
-    fail("7: web.ts gained a window.open call site (M-041 routed the outbound face over the files bridge)")
+    fail("7: web.ts gained a window.open call site (files-open-external routed the outbound face over the files bridge)")
   if (!web.includes("void activeFilesPort().openExternal(url.href)"))
-    fail("7: web.ts lost the M-041 external-open bridge call shape")
+    fail("7: web.ts lost the files-open-external external-open bridge call shape")
   if (!web.includes("mobile(M-041)"))
     fail("7: web.ts lost the mobile(M-041) outbound-face marker comment")
 
   // EXHAUSTIVE openExternal call-site set over app/src + gui-extensions/src.
   // RAW pattern `\b(platform|system)\s*\.\s*openExternal\s*\(`.
   // Baseline: 21 hits in 20 files. (The pre-#76 in-register comment said "19 hits in 18
-  // files (pin b4525d79bf + M-036)" — a stale count from before the issue #67/#70
+  // files (pin b4525d79bf + session-goal-sources-panels)" — a stale count from before the issue #67/#70
   // updater faces landed; the assertion below has been exactly 21/20 since. issue #76's
-  // M-041 keeps it EXACT: both the web.ts definition (`openExternal(value) {`, no
+  // files-open-external keeps it EXACT: both the web.ts definition (`openExternal(value) {`, no
   // receiver) and the new bridge call (`activeFilesPort().openExternal(url.href)`) are
   // NON-HIT under the receiver pattern, so no expected entry changes.)
   // app/src — 12 calling files, exactly 1 hit each:
@@ -622,7 +622,7 @@ console.log(
     "4: permission & enablement — deny-until-attach + acquireRelease, permission 'browser', attachment lifecycle accessors, toolbar map (canGoBack/canGoForward, suspended||failed, reachable, inspectable, aria-pressed); " +
     "5: error paths — three refusal codes, static zero-echo normalizeURL message, blocked-link/blocked-address sameness + ERR_BLOCKED_BY_CLIENT, did-fail-load/render-process-gone/page_crashed, navigation_failed|operation_failed + do-not-bypass-certificate wording, [browser.disconnected]/[browser.tab_unavailable]/[browser.timeout], unsupported stop-retrying contract, generation staleness anchor; " +
     "6: no-leak — main-only sidecar password, metadata-only event feed (README), untrusted-page-data preamble, desktop-only details kept out of the server's tab state; " +
-    "7: external-jump boundary — web openExternal http/https/mailto gate verbatim + M-041 bridge-call shape (zero window.open negative, mobile(M-041) marker), EXHAUSTIVE openExternal set over app/src + gui-extensions/src = exactly 21 hits in 20 files (app 12×1 + gui-ext 7 files/7 hits incl. sources/panel from issue #66 and the updater beta faces from #70, browser/panel ×2; the definition and the bridge-call shapes stay NON-HIT under the receiver pattern), in-pane popup anchor; " +
+    "7: external-jump boundary — web openExternal http/https/mailto gate verbatim + files-open-external bridge-call shape (zero window.open negative, mobile(M-041) marker), EXHAUSTIVE openExternal set over app/src + gui-extensions/src = exactly 21 hits in 20 files (app 12×1 + gui-ext 7 files/7 hits incl. sources/panel from issue #66 and the updater beta faces from #70, browser/panel ×2; the definition and the bridge-call shapes stay NON-HIT under the receiver pattern), in-pane popup anchor; " +
     "8: mobile presentation chain — case \"browser\" + ui.tool.browser en/zh pair, no browser-specific ToolRegistry registration (negative), data: file-part production + schema Content union, CONSUMER static locks (flatMap text-only normalizer + currentToolOutput over session-ui/src non-test = exactly 3 files × 1), legacy element-comment note, pane-gated preview fallback; " +
     "9: zero host-OS — platform-access two-mode scan over gui-ext browser (non-test) + plugin-browser/src (" +
     scannedBrowserFiles +

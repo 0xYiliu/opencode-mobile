@@ -42,12 +42,13 @@ def check(vendor, refresh=False):
     by_id, by_path, hashes = {}, {}, {}
     for entry in entries:
         identity, path, status = entry["id"], entry["patch"], entry["status"]
-        require(isinstance(identity, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", identity),
-                f"invalid patch ID: {identity!r}")
+        require(isinstance(identity, str) and re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+", identity),
+                f"invalid semantic patch ID: {identity!r}")
         require(isinstance(path, str) and re.fullmatch(r"patches/mobile/[A-Za-z0-9][A-Za-z0-9._-]*\.patch", path),
                 f"invalid patch path: {path!r}")
         require(identity not in by_id, f"duplicate ID: {identity}")
         require(path not in by_path, f"duplicate patch path: {path}")
+        require(path == f"patches/mobile/{identity}.patch", f"patch filename must match ID: {identity}")
         require(status in ("active", "deferred"), f"invalid status: {identity}")
         file = vendor / path
         require(file.is_file() and not file.is_symlink(), f"missing or symlink patch: {path}")

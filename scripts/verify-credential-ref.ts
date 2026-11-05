@@ -1,12 +1,12 @@
-// verify-credential-ref.ts — N2 probe for M-005/M-006 (issue #3).
+// verify-credential-ref.ts — N2 probe for connection-credential-reference/connection-dialog-credential-reference (issue #3).
 //
 // Asserts, against the REAL vendored schema and dialog source:
 //   1. Constructing a connection with http.credentialRef and passing it through the
 //      persistence schema's decode/encode (the add/replace persistence round-trip) keeps
 //      the reference...
-//   2. ...while the password is still stripped on encode (M-002 unchanged), including for
+//   2. ...while the password is still stripped on encode (connection-password-memory-only unchanged), including for
 //      legacy payloads without a reference.
-//   3. M-006 statically: the dialog forwards original.http.credentialRef into the
+//   3. connection-dialog-credential-reference statically: the dialog forwards original.http.credentialRef into the
 //      constructed connection and the early-exit comparison does not consult it. Running
 //      the live Solid dialog needs the app's happy-dom harness; that boundary is recorded
 //      honestly in docs/build-and-verify.md (targeted probe + reasoning, not an E2E run).
@@ -66,7 +66,7 @@ if (encodedFirst.http.credentialRef !== "mobile-credential:probe-entry-1") {
   fail(`credentialRef did not survive the encode half (add/replace persistence round-trip)`)
 }
 if ("password" in (encodedFirst.http ?? {}) && encodedFirst.http.password !== undefined) {
-  fail("password survived encode — M-002 regression")
+  fail("password survived encode — connection-password-memory-only regression")
 }
 const blob = JSON.stringify(encoded)
 if (/definitely-a-secret/.test(blob)) fail("password value leaked into the encoded payload")
@@ -84,9 +84,9 @@ const legacyEncoded = JSON.stringify(Schema.encodeSync(schema)(legacy))
 if (/legacy-secret/.test(legacyEncoded)) fail("legacy password survived encode")
 if (!/old\.example\.invalid/.test(legacyEncoded)) fail("legacy url lost")
 
-// 3. Static M-006/M-009 check: the dialog's constructed connection carries the reference
-//    from the remember decision's passthrough (M-006's original forward was generalized by
-//    M-009: the prior is the edit original, or the URL-matched record on add, and the ref
+// 3. Static connection-dialog-credential-reference/connection-remember-credential check: the dialog's constructed connection carries the reference
+//    from the remember decision's passthrough (connection-dialog-credential-reference's original forward was generalized by
+//    connection-remember-credential: the prior is the edit original, or the URL-matched record on add, and the ref
 //    comes from the truth-table decision), and the early-exit comparison still does not
 //    consult it.
 const dialogSource = new URL("../vendor/upstream/packages/app/src/servers/connect/dialog.tsx", import.meta.url)
@@ -94,19 +94,19 @@ const dialog = await Bun.file(dialogSource).text()
 const constructsHttp = /const connection: ServerConnection\.Http = \{[\s\S]*?http: \{[\s\S]*?\}/.exec(dialog)
 if (!constructsHttp) fail("dialog connection construction block not found")
 if (!/credentialRef:\s*decision\.action === "passthrough" \? decision\.ref : undefined/.test(constructsHttp[0]!)) {
-  fail("M-006/M-009: dialog does not carry the remember decision's passthrough reference into the constructed connection")
+  fail("connection-dialog-credential-reference/connection-remember-credential: dialog does not carry the remember decision's passthrough reference into the constructed connection")
 }
 const earlyExit = /Nothing changed[\s\S]*?password === original\.http\.password/.exec(dialog)
 if (!earlyExit) fail("dialog early-exit comparison not found")
 if (/credentialRef/.test(earlyExit[0]!)) {
-  fail("M-006/M-009: the early-exit comparison consults credentialRef (must not)")
+  fail("connection-dialog-credential-reference/connection-remember-credential: the early-exit comparison consults credentialRef (must not)")
 }
 // mobile(M-009) glue: the early exit is forced off when a rendered checkbox state differs
 // from the prior's remembered flag, and the remember decision runs BEFORE the exit.
 if (!/!decision\.forcesSave &&/.test(earlyExit[0]!)) {
-  fail("M-009: the early-exit condition does not honor decision.forcesSave")
+  fail("connection-remember-credential: the early-exit condition does not honor decision.forcesSave")
 }
 const decisionBeforeExit = dialog.indexOf("evaluateRemember(") < dialog.indexOf("Nothing changed")
-if (!decisionBeforeExit) fail("M-009: the remember decision must run before the nothing-changed early exit")
+if (!decisionBeforeExit) fail("connection-remember-credential: the remember decision must run before the nothing-changed early exit")
 
-console.log("verify-credential-ref: PASS (schema round-trip keeps credentialRef, strips password; M-006/M-009 carry the decision's passthrough reference, early exit stays ref-free and honors forcesSave)")
+console.log("verify-credential-ref: PASS (schema round-trip keeps credentialRef, strips password; connection-dialog-credential-reference/connection-remember-credential carry the decision's passthrough reference, early exit stays ref-free and honors forcesSave)")

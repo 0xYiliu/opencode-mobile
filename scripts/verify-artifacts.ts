@@ -50,7 +50,7 @@
 //      artifact-view.tsx for `saveFile|shareDataUrl|download(` must stay at the
 //      MEASURED BASELINE OF ZERO (the viewer has no save/download affordance —
 //      a future affordance must go through plan re-evaluation, candidate
-//      M-022+), the M-021 data:-branch / file://-branch pair in region.tsx,
+//      artifact download), the attachments-share-bridge data:-branch / file://-branch pair in region.tsx,
 //      and the corrected attachments-artifacts wording (office kinds render
 //      through the microsoft-office extension viewer chain, not placeholders).
 //   8. Zero host-OS / zero electron scan: over the microsoft-office non-test
@@ -515,17 +515,17 @@ const slice = (source: string, start: string, end: string) => {
   // RAW scan (no squash — call-shape, `\s*`-tolerant): the artifact viewer has
   // NO save/download affordance. Baseline is the MEASURED ZERO (pin
   // b4525d79bf): any hit means a viewer affordance appeared — plan re-eval and
-  // the M-022+ candidate registry must move first (plan R5④/R5⑤/R7).
+  // the artifact-download candidate registry must move first (plan R5④/R5⑤/R7).
   const affordanceRe = /(saveFile|shareDataUrl|download)\s*\(/g
   const view = await read(`${GUI}src/file/artifact-view.tsx`)
   const affordanceHits = [...view.matchAll(affordanceRe)].length
   if (affordanceHits !== 0)
-    fail(`7: artifact-view.tsx gained a save/download affordance (baseline is exactly 0 hits; got ${affordanceHits} — candidate M-022+ requires plan re-evaluation first)`)
+    fail(`7: artifact-view.tsx gained a save/download affordance (baseline is exactly 0 hits; got ${affordanceHits} — artifact-download candidate requires plan re-evaluation first)`)
 
-  // M-021 pair: data: branch shares over the bridge, file:// branch untouched.
+  // attachments-share-bridge pair: data: branch shares over the bridge, file:// branch untouched.
   const region = await read(`${APP}src/session/composer/region.tsx`)
   if (!region.includes('shareDataUrl(url, getFilename(file.name) || "attachment", file.mime)'))
-    fail("7: region.tsx lost the M-021 data:-branch share call")
+    fail("7: region.tsx lost the attachments-share-bridge data:-branch share call")
   if (!region.includes('if (url.startsWith("data:"))'))
     fail("7: region.tsx lost the data: branch gate")
   if (!region.includes("The file:// branch below is REMOTELY-held identity"))
@@ -546,8 +546,8 @@ const slice = (source: string, start: string, end: string) => {
   const unit = squash(await read("docs/design/units/artifact-viewers.md"))
   if (!unit.includes(squash("**没有保存/下载 affordance**")))
     fail("7: units/artifact-viewers.md lost the zero-download-affordance boundary")
-  if (!unit.includes(squash("M-022+ 候选 A")))
-    fail("7: units/artifact-viewers.md lost the M-022+ candidate A registry entry")
+  if (!unit.includes(squash("移动适配候选 A「工件下载：")))
+    fail("7: units/artifact-viewers.md lost the artifact-download candidate A registry entry")
 }
 
 // --- 8. Zero host-OS / zero electron scan (microsoft-office + util artifact) ---
@@ -584,7 +584,7 @@ console.log(
     "4: worker/asset closure — three per-file workers, three WorkerClosedError messages, no-font-request-leaves-the-machine, CJK alias undefined, dist manifest EXACTLY 4 wasm {docx_edit_bg, docx_parse_bg, pptx_wasm_bg, xlsx_wasm_bg} (hash not locked per R8) + 3 office workers + 86 ttf with Caladea/Carlito ×4; " +
     "5: license — BetterOffice notices entry (four packages/openooxml/Apache 2.0/crateNotices), OFL-1.1 font-family section + OFL-1.1.txt on disk, PERMISSIVE whitelist Apache-2.0 AND OFL-1.1, four @betteroffice lock versions, NEGATIVE fonts-cjk not in lock; " +
     "6: error paths — file-view four-state Switch, loadFailed toast, MAX_MEDIA_BYTES 256 MiB + bounded-cache/NUL-8KiB comments + 8-kind binaryKinds, worker teardown + far-page release anchors, office i18n EXACT seven error keys verbatim (single en locale); " +
-    "7: identity/download boundary — artifact-view save/download affordance RAW scan at the measured baseline 0, M-021 data:/file:// pair, corrected attachments-artifacts wording, unit doc zero-download boundary + M-022+ candidate registry; " +
+    "7: identity/download boundary — artifact-view save/download affordance RAW scan at the measured baseline 0, attachments-share-bridge data:/file:// pair, corrected attachments-artifacts wording, unit doc zero-download boundary + artifact-download candidate registry; " +
     "8: zero host-OS/electron — platform-access two modes + node:os + electron over " +
     scannedArtifactFiles +
     " office/util files, baseline exactly 0 hits; " +

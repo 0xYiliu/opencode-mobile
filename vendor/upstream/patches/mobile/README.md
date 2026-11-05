@@ -4,9 +4,10 @@
 
 ## 身份与顺序
 
-- 新 ID 与文件名使用小写 `功能域-用途`，例如 ID `connection-vault-ready-wait`、文件 `connection-vault-ready-wait.patch`。不使用全局递增编号，不绑定 Issue；有 Issue/PR 可在原因或验证记录中引用。
+- 全部 ID 与文件名使用小写 `功能域-用途`，ID 等于文件名 stem，例如 ID `connection-vault-ready-wait`、文件 `connection-vault-ready-wait.patch`。不使用全局递增编号，不绑定 Issue；有 Issue/PR 可在原因或验证记录中引用。
 - ID 与用途明确后保持稳定；同名冲突先判断是否重复工作，必要时细化用途，不通过抢“下一个序号”解决。
-- 历史数字 ID、数字文件名、`P126-*` 及其他已登记名称原样保留，不要求 ID 与旧文件名相同。登记工具兼容历史命名；新命名规则由变更审阅核对。
+- 2026-11-05 全量迁移覆盖此前“历史名称保留”方案：65 项登记均采用语义身份，64 个文件改名，`extensions-flyout-webview` 保持已有语义名称；见 [identity-migration.json](identity-migration.json)。patch payload 字节不变，源码与产物中的 `mobile(M-xxx)` 等 marker 保留原文，通过映射追溯，不能当作当前登记 ID 或待迁移尾巴。
+- 历史编号预留位（如 M-019、M-039）及 M-022+ 候选池标签仅为旧记录证据，不再有效；新候选按用途去重、获准实施时语义命名。文档中 `起点..终点`、`起点–终点`、`起点…终点` 补丁范围指对应历史版本的重放顺序区间，不是名称字典序，也不包含从未登记的预留位。
 - 一组同目的修改可跨多个文件组成一个补丁。修订已有适配可更新所属补丁，但必须验证后续链仍能重放；独立目的或需独立控制的修改再新增补丁。
 - **唯一执行顺序是 `vendor/upstream/vendor-manifest.json#mobilePatches` 数组。** 不从文件名、ID、登记表或来源镜像排序，不增加数字 `order`。
 

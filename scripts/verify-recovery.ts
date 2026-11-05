@@ -46,7 +46,7 @@
 //      NO durable.seq gap detection exists; the snapshot is the only recovery
 //      authority (upstream design, honestly registered).
 //   4. Cold-start recovery chain: HOSTS_STORAGE_KEY, storageVolatile surfacing,
-//      the M-010 hydration block (mobile marker + vault.get + never-reach-a-
+//      the connection-credential-hydration hydration block (mobile marker + vault.get + never-reach-a-
 //      persistent-backend comment), the five tabs Persist.window keys, the
 //      IndexedDB draft store, the shell's unimplemented onSaveInstanceState
 //      TODO — and the NEGATIVE auto-reconnect sentinels: entry.tsx carries
@@ -231,7 +231,7 @@ const HOSTS = "packages/mobile-hosts/"
   if (!runtime.includes("never an auto-connect"))
     fail("4: runtime.ts lost the never-an-auto-connect comment (cold-start hosts must stay manual)")
 
-  // M-010 hydration: in-memory-only password injection after hydrate.
+  // connection-credential-hydration hydration: in-memory-only password injection after hydrate.
   const registry = await read(`${APP}src/runtime/server/registry.tsx`)
   if (!registry.includes("mobile(M-010)")) fail("4: registry.tsx lost the mobile(M-010) patch marker")
   if (!registry.includes("can never reach a persistent backend"))
@@ -255,7 +255,7 @@ const HOSTS = "packages/mobile-hosts/"
   // NEGATIVE sentinels: no startup auto-connect anywhere in the entry assembly.
   const entry = await read(`${APP}src/entry.tsx`)
   if (!entry.includes("createMobileHosts({"))
-    fail("4: entry.tsx lost the createMobileHosts bootstrap (M-007)")
+    fail("4: entry.tsx lost the createMobileHosts bootstrap (app-mobile-hosts-bootstrap)")
   const connectHit = /\.connect\(/.exec(entry)
   if (connectHit)
     fail(`4: entry.tsx gained a startup connect call ("${connectHit[0]}") — hosts recover as idle with MANUAL reconnect; re-review recovery.md and G30④ before keeping an auto-reconnect`)
@@ -319,7 +319,7 @@ const HOSTS = "packages/mobile-hosts/"
     fail("5: upstream-map.ts lost the reconnect hook forwarding")
 
   // Direct connections have NO reconnect hook (plugin/sidecar only; the conn
-  // discriminator renamed extension→plugin with the M-037 gui-plugins move).
+  // discriminator renamed extension→plugin with the gui-plugins-api-migration gui-plugins move).
   const clientAssembly = await read(`${APP}src/runtime/server/client.tsx`)
   if (
     !clientAssembly.includes(
@@ -453,7 +453,7 @@ console.log(
     "1: connection constants 2s/1s/45s/20s verbatim, attempt-reset rule, forced-resync bypass comment+block, per-retry reconnect hook, fixed-wait anchor + NEGATIVE zero exponential form; " +
     "2: four lifecycle/network listeners, pageshow→start, network-restored resync, CROSS-REFERENCE pagehide→stop + foreground resync (vsw first locks), NEGATIVE zero offline listener (file domain: connection.ts), persist flush timing (100ms debounce + hidden/pagehide force-flush) + dirty-value-priority guard (F-R1); " +
     "3: CROSS-REFERENCE capacity 4096 + data.ts adjacent pair (vsw first locks), NEGATIVE durable consumed only inside the debug-log block (no seq-gap detection); " +
-    "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + M-010 hydration block + five tabs stores + IndexedDB drafts + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
+    "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + connection-credential-hydration hydration block + five tabs stores + IndexedDB drafts + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
     "5: ensureTunnel bounded loop (ready/non-offline/retry) + ssh-tunnel-unavailable throw + RECONNECT_MAX_RETRIES budget + T9 remote-keeps-running + OFFLINE_ENDPOINT/managed/reconnect-forwarding + direct connections hook-free; " +
     "6: host-manager action Match set in order + host-key-changed danger recovery + PendingSessionState skeleton + svcops B1 watcher + survivedDisconnect evidence bit; " +
     "7: recovery.md structure + four honest-state sentences + four 不得声称 red lines + idle-hook-spin sentence, architecture.md network-switch row pointing at recovery.md/G30, interaction.md G1–G35 enumeration (issue #26 revision) + G30 row + sixteenth honest wording + recovery failure path; " +

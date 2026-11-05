@@ -2,7 +2,7 @@
 // the experimental settings entry — new icons, folded long user messages).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patch
-// M-034), the structural facts the S38 alignment record relies on:
+// settings-experimental), the structural facts the S38 alignment record relies on:
 //
 //   1. Entry face (settings/experimental/experimental.tsx): the flag flips to
 //      true exactly as in v2.2.1 (which has NO platform gate) and the tab body
@@ -15,11 +15,11 @@
 //   3. Settings model (settings/model.tsx): the S38 sub-hunks are intact —
 //      the two schema fields with their upstream comments, the false defaults,
 //      the withFallback readers, the module-level setNewIcons effect and the
-//      four accessors. Issue #103 / M-046: the S11 companions
+//      four accessors. Issue #103 / settings-general-experimental-migration: the S11 companions
 //      backgroundActivity/timelineWidth leave the negative list — their schema
 //      face legitimately lands with the General/Experimental preferences-page
 //      target migration (Literals schema + defaults; the sidebarOpen face went
-//      legitimate with M-043, reduceMotion with M-035's rebase round, issue #65).
+//      legitimate with settings-framework-migration, reduceMotion with appearance-motion-zoom's rebase round, issue #65).
 //      The showFileTree/terminalPlacement anchors stay — issue #103 RETAINS them
 //      as registered mobile deviations (their session screen/dock consumers are
 //      outside this issue's scope).
@@ -47,7 +47,7 @@
 //      pixelSize (new artwork stays 16px where small shrinks to 14) and the
 //      next()-switched viewBox/use href. Catalog negative boundary: sidebar-right
 //      stays, all FOURTEEN other v2.2.1 additions stay out (issue #66 moved
-//      outline-steer to the adopted set for M-036's goal icon), and the pin trash /
+//      outline-steer to the adopted set for session-goal-sources-panels's goal icon), and the pin trash /
 //      copy artwork bodies are still verbatim (the v2.2.1 body rewrites — the
 //      "graduated" new-icons defaults — must NOT land, or the experiment would
 //      have no visible delta).
@@ -61,10 +61,10 @@
 //      (app language.tsx en-base-first flatten; ui context/i18n.tsx
 //      en[key] ?? String(key)) — upstream v2.2.1's real shape, a registered
 //      delta, NOT a missing translation.
-//   9. Patch/manifest face: M-034 is registered in BOTH manifests; the patch
+//   9. Patch/manifest face: settings-experimental is registered in BOTH manifests; the patch
 //      file touches exactly the fourteen S38 files (app 6 + session-ui 4 + ui 4);
 //      no other registered patch references the S38 tokens; no vendor source
-//      outside the M-034 files mentions them (byte-level tree equivalence is
+//      outside the settings-experimental files mentions them (byte-level tree equivalence is
 //      V3 verify-closure's job and must be run alongside this probe).
 //  10. First-party negative: packages/mobile-hosts carries ZERO
 //      newIcons/foldUserMessages/experimental references (S38 is vendor-side).
@@ -178,10 +178,10 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     if (!model.includes(accessor)) fail("3: model.tsx lost the newIcons/foldUserMessages accessors")
   }
 
-  // Issue #103 / M-046: the S11 companions backgroundActivity/timelineWidth leave the
+  // Issue #103 / settings-general-experimental-migration: the S11 companions backgroundActivity/timelineWidth leave the
   // negative list — their schema face legitimately lands with the General/Experimental
   // preferences-page target migration (mobile(M-035 rebase round, issue #65) moved
-  // "reduceMotion" off the list the same way; issue #101 / M-043 did it for "sidebarOpen").
+  // "reduceMotion" off the list the same way; issue #101 / settings-framework-migration did it for "sidebarOpen").
   if (!model.includes('  backgroundActivity: Schema.Literals(["off", "left", "center", "right"]),\n  timelineWidth: Schema.Literals(["focused", "comfortable", "wide"]),'))
     fail("3: model.tsx lost the backgroundActivity/timelineWidth schema Literals (issue #103)")
   if (!model.includes('    backgroundActivity: "left",\n    timelineWidth: "comfortable",'))
@@ -268,7 +268,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     if (!content.includes(anchor)) fail(`5: message-content.tsx lost the plumbing anchor ${anchor.trim().slice(0, 60)}`)
   }
   // Negative boundary: rewrite content must not leak. Issue #66 revision: useSources /
-  // SourcesChip leave the table (the sources chain registers under M-036 from that issue on)
+  // SourcesChip leave the table (the sources chain registers under session-goal-sources-panels from that issue on)
   // and the "run?: UserRun" entry is dropped as redundant under the kept "UserRun" substring;
   // the remaining eight tokens still fence the user-runs/quote/link-rewrites domain (the
   // sources side of the boundary is now ALSO locked from inside by verify-goal-sources.ts).
@@ -331,10 +331,10 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 
   // Issue #67 revision: the six gui-plugins-domain icons (outline-expand,
   // outline-code-brackets, outline-quote, comment, file-document, outline-console) are
-  // adopted by M-037 and leave this rejection list; file-tree was never on it (pin has the
+  // adopted by gui-plugins-api-migration and leave this rejection list; file-tree was never on it (pin has the
   // artwork + alias — D5). All EIGHT remaining rejected v2.2.1 additions stay out
-  // (17 additions − 9 adopted: minus, outline-chevron-right, outline-steer since #66/M-036,
-  // plus the six M-037 adoptions).
+  // (17 additions − 9 adopted: minus, outline-chevron-right, outline-steer since #66/session-goal-sources-panels,
+  // plus the six gui-plugins-api-migration adoptions).
   const rejected = [
     "outline-magnifier-minus",
     "outline-magnifier-plus",
@@ -432,14 +432,14 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 // --- 9. Patch/manifest face ---
 {
   const manifest = await read(`${PATCHES}manifest.json`)
-  if (!manifest.includes('"id": "M-034"') || !manifest.includes("patches/mobile/0034-M-034-experimental-settings.patch"))
-    fail("9: patches/mobile/manifest.json does not register M-034")
+  if (!manifest.includes('"id": "settings-experimental"') || !manifest.includes("patches/mobile/settings-experimental.patch"))
+    fail("9: patches/mobile/manifest.json does not register settings-experimental")
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
-  if (!vendorManifest.includes("patches/mobile/0034-M-034-experimental-settings.patch"))
-    fail("9: vendor-manifest.json does not register M-034 (verify-closure reads only this list)")
+  if (!vendorManifest.includes("patches/mobile/settings-experimental.patch"))
+    fail("9: vendor-manifest.json does not register settings-experimental (verify-closure reads only this list)")
 
   // The patch file touches exactly the fourteen S38 files (app 6 + session-ui 4 + ui 4).
-  const patch = await read(`${PATCHES}0034-M-034-experimental-settings.patch`)
+  const patch = await read(`${PATCHES}settings-experimental.patch`)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
   const expected = [
     "packages/app/src/runtime/i18n/en.ts",
@@ -458,23 +458,23 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     "packages/ui/src/icons/new-icons.ts",
   ]
   if (JSON.stringify([...touched].sort()) !== JSON.stringify(expected))
-    fail(`9: M-034 patch face drifted: ${JSON.stringify(touched)} (expected exactly the fourteen S38 files)`)
+    fail(`9: settings-experimental patch face drifted: ${JSON.stringify(touched)} (expected exactly the fourteen S38 files)`)
 
   // No other registered patch ADDS the S38 content (context lines around
   // earlier patches' own edits legitimately show the guard, so only added
   // lines count).
   for (const name of readdirSync(join(repoRoot.pathname, PATCHES))) {
-    if (!name.endsWith(".patch") || name.startsWith("0034-")) continue
+    if (!name.endsWith(".patch") || name === "settings-experimental.patch") continue
     const other = await read(`${PATCHES}${name}`)
     const added = other
       .split("\n")
       .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
       .join("\n")
     if (added.includes("new-icons") || added.includes("newIcons") || added.includes("foldUserMessages") || added.includes("experimentalSettingsAvailable"))
-      fail(`9: ${name} adds S38 content (only M-034 may)`)
+      fail(`9: ${name} adds S38 content (only settings-experimental may)`)
   }
 
-  // Diff face: no vendor source outside the M-034 files mentions the new face.
+  // Diff face: no vendor source outside the settings-experimental files mentions the new face.
   const tokens = ["newIcons", "setNewIcons", "foldUserMessages", "UserMessageFold", "user-message-fold", "user-expanded"]
   const m034Files = new Set(expected.map((p) => `vendor/upstream/${p}`))
   // Issue #67: gui-plugins@v2.2.1's browser panel legitimately reads the newIcons
@@ -492,7 +492,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
       if (!/\.(ts|tsx|css|js|jsx|json|md|html|svg|txt)$/.test(entry.name)) continue
       const body = await Bun.file(path).text()
       for (const token of tokens) {
-        if (body.includes(token)) fail(`9: ${path.replace(repoRoot.pathname, "")} mentions ${token} outside the M-034 file set`)
+        if (body.includes(token)) fail(`9: ${path.replace(repoRoot.pathname, "")} mentions ${token} outside the settings-experimental file set`)
       }
     }
   }
@@ -523,13 +523,13 @@ console.log(
   "verify-experimental-settings: PASS (" +
     "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
-    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/M-046; sidebarOpen by M-043, reduceMotion by M-035's rebase round), showFileTree+terminalPlacement kept as issue #103 retained deviations; " +
+    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree+terminalPlacement kept as issue #103 retained deviations; " +
     "4: model.test.ts defaults +2 lines, retained showFileTree/terminalPlacement lines kept, plugins copy-out test name (issue #103 target form); " +
-    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/linkSegments/quote/spring leak (the useSources/SourcesChip tokens moved to the M-036 boundary, issue #66); " +
+    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/linkSegments/quote/spring leak (the useSources/SourcesChip tokens moved to the session-goal-sources-panels boundary, issue #66); " +
     "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right/outline-steer only (issue #66), sidebar-right kept, 14 rejections out, pin trash/copy artwork bodies locked; " +
     "7: fold CSS two selector blocks in, data-run-folded/run-actions/user-message-link out; " +
     "8: six en keys (app 4 after settings.experimental.description, ui 2 after ui.message.collapse), zh/zht/ko/de/fr key-free, both fallback anchors verbatim; " +
-    "9: M-034 in BOTH manifests, patch face exactly the fourteen S38 files, no other patch references the face, no vendor source outside the set mentions it; " +
+    "9: settings-experimental in BOTH manifests, patch face exactly the fourteen S38 files, no other patch references the face, no vendor source outside the set mentions it; " +
     "10: packages/mobile-hosts zero newIcons/foldUserMessages/experimental references; " +
     "STATIC check - switch flipping, sprite swap, real fold visuals, disclosure survival, lh-unit WebView behavior and settings.v3 persistence are device-QA items registered in docs/build-and-verify.md)",
 )

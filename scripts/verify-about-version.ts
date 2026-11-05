@@ -1,8 +1,8 @@
 // verify-about-version.ts — static probe for issue #72 (S39: About page version
-// displays alignment, patch M-040).
+// displays alignment, patch settings-about-version).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patches
-// M-001..M-052, M-019/M-039 reserved-absent), the structural facts
+// registered by semantic identity), the structural facts
 // the S39 alignment record (E27) relies on. Dual-track delivery, registered separately:
 //
 //   Track 1 (upstream alignment — the last v2.2.1 target-face gap closed verbatim):
@@ -10,7 +10,7 @@
 //      div.settings-notices-scroll[data-scrollable] replacing the ScrollView wrapper (open
 //      and close tags), the ScrollView import GONE (zero ScrollView tokens in the file);
 //      settings.css gains exactly the enabling v2.2.1 line `overflow-y: auto` inside
-//      .settings-notices-scroll — and the M-040 patch adds exactly one line / removes zero
+//      .settings-notices-scroll — and the settings-about-version patch adds exactly one line / removes zero
 //      lines in settings.css (the v2.2.1 file's remaining 100+ line delta must NOT ride in).
 //
 //   Track 2 (baseline intent — the mobile version face, a registered first-party delta,
@@ -44,15 +44,15 @@
 //      is only the updater What's New read watermark, S40/E24 in-registry, no version
 //      comparison); settings/search-catalog.ts about row VERBATIM (MINOR-1 two-condition
 //      lock: (a) the row `{ tab: "about", … keywords: "version license credits" }` and
-//      (b) search-catalog.ts is NOT among the M-040 patch targets — the file's ~88-line
+//      (b) search-catalog.ts is NOT among the settings-about-version patch targets — the file's ~88-line
 //      delta vs the pin is other patches' work, so a file-level equality gate would be
-//      wrong; the ROW is the contract); the M-040 patch touches EXACTLY the five files;
-//      the M-036..M-038 faces (gui-plugins btw renderer/i18n, goal panels) show zero
+//      wrong; the ROW is the contract); the settings-about-version patch touches EXACTLY the five files;
+//      the session-goal-sources-panels..session-btw-narrow-entry faces (gui-plugins btw renderer/i18n, goal panels) show zero
 //      spill from this unit.
-//   6. Manifest dual registration: manifest.json has an M-040 entry with the exact patch
+//   6. Manifest dual registration: manifest.json has an settings-about-version entry with the exact patch
 //      path, the five targets and a non-empty upstreamBaseline; vendor-manifest.json
-//      mobilePatches lists the same path; both registries hold exactly 52 entries (52=52 after M-053; 50=50
-//      since issue #109's M-052, re-verified by issue #110) and agree path-for-path.
+//      mobilePatches lists the same path; the shared checker verifies semantic identities,
+//      registry agreement and replay order without a fixed registry size.
 //
 // HONEST BOUNDARY (same tradition as the verify-* family): this is a static STRUCTURE
 // check. It proves source shape, NOT runtime behavior: the actual three-row rendering,
@@ -65,8 +65,6 @@
 //   bun run scripts/verify-about-version.ts
 // Exit 0 = all assertions PASS.
 
-import { parse } from "node:path"
-
 const repoRoot = new URL("../", import.meta.url)
 
 function fail(message: string): never {
@@ -78,7 +76,7 @@ const read = async (path: string) => await Bun.file(new URL(path, repoRoot)).tex
 
 const APP = "vendor/upstream/packages/app/"
 const HOSTS = "packages/mobile-hosts/"
-const PATCH = "vendor/upstream/patches/mobile/0040-M-040-about-version-face.patch"
+const PATCH = "vendor/upstream/patches/mobile/settings-about-version.patch"
 const MANIFEST = "vendor/upstream/patches/mobile/manifest.json"
 const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
 
@@ -106,7 +104,7 @@ const M040_TARGETS = [
   if (!block.includes("  overflow-y: auto;"))
     fail("1: settings.css .settings-notices-scroll lost the v2.2.1 enabling line overflow-y: auto")
 
-  // R6 guard: the M-040 patch adds exactly ONE line and removes ZERO lines in settings.css
+  // R6 guard: the settings-about-version patch adds exactly ONE line and removes ZERO lines in settings.css
   // (the v2.2.1 file's remaining delta must not ride in).
   const patch = await read(PATCH)
   const cssDiff = patch
@@ -116,9 +114,9 @@ const M040_TARGETS = [
   const cssPlus = cssDiff.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++"))
   const cssMinus = cssDiff.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---"))
   if (cssPlus.length !== 1 || cssPlus[0] !== "+  overflow-y: auto;")
-    fail(`1: M-040 settings.css hunk must add exactly one line (+  overflow-y: auto;), got ${cssPlus.length} added`)
+    fail(`1: settings-about-version settings.css hunk must add exactly one line (+  overflow-y: auto;), got ${cssPlus.length} added`)
   if (cssMinus.length !== 0)
-    fail(`1: M-040 settings.css hunk must remove zero lines, got ${cssMinus.length} removed`)
+    fail(`1: settings-about-version settings.css hunk must remove zero lines, got ${cssMinus.length} removed`)
 }
 
 // --- 2. Version face (about.tsx, track 2) ---
@@ -204,7 +202,7 @@ const M040_TARGETS = [
   for (const locale of ["zh", "zht"]) {
     const dict = await read(`${APP}src/runtime/i18n/${locale}.ts`)
     if (dict.includes("settings.about.serverVersion") || dict.includes("settings.about.upstreamVersion"))
-      fail(`4: ${locale}.ts carries new M-040 keys (must stay zero — en-only lineage, fallback via language.tsx)`)
+      fail(`4: ${locale}.ts carries new settings-about-version keys (must stay zero — en-only lineage, fallback via language.tsx)`)
   }
 
   // Fallback chain anchors verbatim: en is the base, non-en merges spread base first.
@@ -238,80 +236,75 @@ const M040_TARGETS = [
     fail("5: host-apis.tsx lost the ctx.app.version consumer (negative lock, E27)")
 
   // MINOR-1 two-condition lock on search-catalog.ts: (a) about row verbatim; (b) file not
-  // in the M-040 touch set (asserted with the touch face below). The ~88-line file delta
+  // in the settings-about-version touch set (asserted with the touch face below). The ~88-line file delta
   // vs the pin is other patches' work — a file-level equality gate would be wrong here.
   const catalog = await read(`${APP}src/settings/search-catalog.ts`)
   if (!catalog.includes(`{ tab: "about", label: "settings.tab.about", keywords: "version license credits" },`))
     fail("5: search-catalog.ts lost the verbatim about row")
 
-  // M-040 touch face: exactly the five declared files, no sixth file.
+  // settings-about-version touch face: exactly the five declared files, no sixth file.
   const patch = await read(PATCH)
   const touched = [...patch.matchAll(/^diff --git a\/(.+) b\/\1$/gm)].map((m) => m[1])
   if (touched.length !== M040_TARGETS.length)
-    fail(`5: M-040 patch must touch exactly ${M040_TARGETS.length} files, diff carries ${touched.length}`)
+    fail(`5: settings-about-version patch must touch exactly ${M040_TARGETS.length} files, diff carries ${touched.length}`)
   for (const target of M040_TARGETS)
-    if (!touched.includes(target)) fail(`5: M-040 patch is missing the declared target ${target}`)
+    if (!touched.includes(target)) fail(`5: settings-about-version patch is missing the declared target ${target}`)
   for (const file of touched)
-    if (!M040_TARGETS.includes(file!)) fail(`5: M-040 patch touches undeclared file ${file}`)
+    if (!M040_TARGETS.includes(file!)) fail(`5: settings-about-version patch touches undeclared file ${file}`)
   if (touched.includes("packages/app/src/settings/search-catalog.ts"))
-    fail("5: M-040 patch must NOT touch search-catalog.ts (MINOR-1 condition b)")
+    fail("5: settings-about-version patch must NOT touch search-catalog.ts (MINOR-1 condition b)")
 
-  // M-036..M-038 faces show zero spill from this unit.
+  // session-goal-sources-panels..session-btw-narrow-entry faces show zero spill from this unit.
   const btwRenderer = await read("vendor/upstream/packages/gui-plugins/src/btw/renderer.tsx")
   if (!btwRenderer.includes('"mobile.title"') || !btwRenderer.includes('"mobile.none"'))
-    fail("5: btw renderer.tsx lost the M-038 mobile face anchors (zero-spill negative)")
+    fail("5: btw renderer.tsx lost the session-btw-narrow-entry mobile face anchors (zero-spill negative)")
   if (!btwRenderer.includes("enabled: mounted()"))
-    fail("5: btw renderer.tsx lost the M-038 D3 gate anchor (zero-spill negative)")
+    fail("5: btw renderer.tsx lost the session-btw-narrow-entry D3 gate anchor (zero-spill negative)")
   const btwEn = await read("vendor/upstream/packages/gui-plugins/src/btw/i18n/en.ts")
   if (!btwEn.includes('"mobile.title": "Side question"'))
-    fail("5: btw i18n/en.ts lost the M-038 keys (zero-spill negative)")
+    fail("5: btw i18n/en.ts lost the session-btw-narrow-entry keys (zero-spill negative)")
   const guiPluginsRenderer = await read("vendor/upstream/packages/gui-plugins/src/goal/renderer.tsx")
   if (!guiPluginsRenderer.includes("mobile"))
-    fail("5: goal renderer.tsx lost its mobile face (M-036 zero-spill negative)")
+    fail("5: goal renderer.tsx lost its mobile face (session-goal-sources-panels zero-spill negative)")
 }
 
-// --- 6. Manifest dual registration (52=52) ---
+// --- 6. Semantic identity and About patch registration ---
 {
   const manifest = JSON.parse(await read(MANIFEST)) as {
     patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown }>
   }
   const rows = manifest.patches ?? []
-  // Issue #109: M-052 (gui-extensions D4 resolution + label disambiguation) -> 50.
-  if (rows.length !== 52) fail(`6: patches manifest must register exactly 52 patches (got ${rows.length})`)
-  const m040 = rows.filter((row) => row.id === "M-040")
-  if (m040.length !== 1) fail("6: patches manifest must carry exactly one M-040 entry")
+  // Registry-wide identity, status and order belong to the shared checker.
+  const registration = Bun.spawnSync(["python3", "scripts/mobile-patches.py"], { cwd: repoRoot.pathname })
+  if (registration.exitCode !== 0) fail(`patch registration: ${registration.stderr.toString()}`)
+  const m040 = rows.filter((row) => row.id === "settings-about-version")
+  if (m040.length !== 1) fail("6: patches manifest must carry exactly one settings-about-version entry")
   const entry = m040[0]!
-  if (entry.patch !== "patches/mobile/0040-M-040-about-version-face.patch")
-    fail(`6: M-040 patch path mismatch: ${String(entry.patch)}`)
+  if (entry.patch !== "patches/mobile/settings-about-version.patch")
+    fail(`6: settings-about-version patch path mismatch: ${String(entry.patch)}`)
   const targets = Array.isArray(entry.targets) ? (entry.targets as string[]) : []
   if (targets.length !== M040_TARGETS.length || targets.join("\n") !== M040_TARGETS.join("\n"))
-    fail(`6: M-040 targets must equal the five declared files (got ${targets.length})`)
+    fail(`6: settings-about-version targets must equal the five declared files (got ${targets.length})`)
   if (typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline)
-    fail("6: M-040 entry must retain a non-empty upstreamBaseline")
+    fail("6: settings-about-version entry must retain a non-empty upstreamBaseline")
 
   const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
   const paths = Array.isArray(vendorManifest.mobilePatches)
     ? (vendorManifest.mobilePatches as unknown[]).filter((value): value is string => typeof value === "string")
     : []
-  if (paths.length !== 52) fail(`6: vendor-manifest mobilePatches must list exactly 52 patches (got ${paths.length})`)
-  if (!paths.includes("patches/mobile/0040-M-040-about-version-face.patch"))
-    fail("6: vendor-manifest mobilePatches lost the M-040 path")
+  if (!paths.includes("patches/mobile/settings-about-version.patch"))
+    fail("6: vendor-manifest mobilePatches lost the settings-about-version path")
 
-  // Path-for-path agreement (the 52=52 core).
-  const manifestPaths = rows.map((row) => row.patch).filter((value): value is string => typeof value === "string")
-  const sortedA = manifestPaths.toSorted()
-  const sortedB = paths.toSorted()
-  if (sortedA.length !== sortedB.length || sortedA.some((value, index) => value !== sortedB[index]))
-    fail("6: the two registries disagree on the patch path set")
+
 }
 
 console.log(
   "verify-about-version: PASS (" +
-    "1: notices v2.2.1 verbatim face - data-scrollable div + zero ScrollView tokens + css overflow-y: auto with the M-040 css hunk exactly +1/-0 (R6); " +
+    "1: notices v2.2.1 verbatim face - data-scrollable div + zero ScrollView tokens + css overflow-y: auto with the settings-about-version css hunk exactly +1/-0 (R6); " +
     "2: version face - platform.version row verbatim, base row pkg import, server row via useServerCollectionController with first-sorted-entry (hidden-hosts-included, single-host equivalent, MAJOR-1) + ServerConnection.key(item) derivation + no-render/checking/unavailable degradation branches + settings-about-versions anchor + presentableVersion guard; " +
     "3: three-way version sync MOBILE_APP_VERSION == gradle versionName == mobile-hosts package.json + index export + entry injection; " +
-    "4: en exactly the four M-040 keys (3 serverVersion + 1 upstreamVersion), zh/zht zero new keys, language.tsx en-base-first fallback anchors verbatim (registered en-only lineage); " +
-    "5: negative boundaries - Sentry pkg.version release + pkg import verbatim, createWebPlatform(pkg.version) absent, error.tsx both platform.version consumers, host-apis ctx.app.version, search-catalog about row verbatim AND outside the M-040 touch set (MINOR-1 two-condition: row lock, not file-level - the ~88-line file delta is other patches' work), M-040 touch face exactly the five declared files, btw/goal M-036..038 zero spill; " +
-    "6: manifest dual registration 52=52 with M-040 targets/baseline and path-for-path agreement (M-041 by issue #76, M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107, M-051 by issue #108, M-052 by issue #109; M-019/M-039 reserved-absent); " +
+    "4: en exactly the four settings-about-version keys (3 serverVersion + 1 upstreamVersion), zh/zht zero new keys, language.tsx en-base-first fallback anchors verbatim (registered en-only lineage); " +
+    "5: negative boundaries - Sentry pkg.version release + pkg import verbatim, createWebPlatform(pkg.version) absent, error.tsx both platform.version consumers, host-apis ctx.app.version, search-catalog about row verbatim AND outside the settings-about-version touch set (MINOR-1 two-condition: row lock, not file-level - the ~88-line file delta is other patches' work), settings-about-version touch face exactly the five declared files, btw/goal session-goal-sources-panels..session-btw-narrow-entry zero spill; " +
+    "6: shared semantic registration check plus settings-about-version targets/baseline and active path membership; " +
     "STATIC check - row rendering, degradation transitions, notices scrolling and zh fallback presentation are device-QA items registered in docs/build-and-verify.md issue #72; tree byte-equivalence is V3 verify-closure)",
 )

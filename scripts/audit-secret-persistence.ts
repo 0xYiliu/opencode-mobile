@@ -9,7 +9,7 @@
 //      import key, window storage prefix, draft keys, the SSH host registry) — any change
 //      must be reviewed before the audit passes again.
 //   C. Per-key secret-shape assertion: the persisted server payload's encode path strips
-//      password (M-002) — schema round-trip against effect@4.0.1, including the legacy
+//      password (connection-password-memory-only) — schema round-trip against effect@4.0.1, including the legacy
 //      payload path which is DECODED but never re-encoded with the secret.
 //   D. Extension connections carry no secret field (upstream ServerEntry shape + the
 //      first-party extension mirror).
@@ -60,9 +60,9 @@ async function read(rel: string): Promise<string> {
     .filter((f) => !f.endsWith(".test.ts") && !f.endsWith(".test.tsx") && !f.includes("/e2e/"))
   const registered: Record<string, (src: string) => void> = {
     [`${APP_SRC}/runtime/persistence/storage.ts`]: (src) => {
-      // The machinery routes every write through the schema encode path (M-002 strip).
+      // The machinery routes every write through the schema encode path (connection-password-memory-only strip).
       if (!src.includes("mobile(M-002): password stripped at encode (memory-only)")) {
-        fail("persistence machinery lost the M-002 strip marker")
+        fail("persistence machinery lost the connection-password-memory-only strip marker")
       }
     },
     [`${APP_SRC}/runtime/platform/pwa.ts`]: (src) => {
@@ -75,7 +75,7 @@ async function read(rel: string): Promise<string> {
         fail("notifications coordinator writes an unexpected key — re-register this writer with its key")
       }
     },
-    // Issue #67 sweep finding (writer shipped by M-035, issue #65): the web zoom face persists
+    // Issue #67 sweep finding (writer shipped by appearance-motion-zoom, issue #65): the web zoom face persists
     // the six-level UI zoom as a number under a fixed non-secret key.
     [`${APP_SRC}/runtime/platform/web.ts`]: (src) => {
       if (!src.includes("const UI_ZOOM_KEY = \"opencode-ui-zoom-level\"")) {
@@ -107,7 +107,7 @@ async function read(rel: string): Promise<string> {
     [`${APP_SRC}/shell/notifications/coordinator.tsx`]: true,
     // Issue #67: the closed-tabs drag-in reads two DEV-only debug modifiers (no writes).
     [`${APP_SRC}/runtime/plugin/closed-tabs.ts`]: true,
-    // M-035's web zoom face reads its persisted level back (write registered above).
+    // appearance-motion-zoom's web zoom face reads its persisted level back (write registered above).
     [`${APP_SRC}/runtime/platform/web.ts`]: true,
     // public/oc-theme-preload.js reads theme keys only (no setItem — asserted by the writers list above).
     ["vendor/upstream/packages/app/public/oc-theme-preload.js"]: true,
@@ -125,7 +125,7 @@ async function read(rel: string): Promise<string> {
     fail("saveHosts no longer writes through the StoragePort with the whitelist key")
   }
   // The machinery identity check: storage.ts funnels the raw handle through write() and the
-  // M-002 strip marker anchors the encode path.
+  // connection-password-memory-only strip marker anchors the encode path.
   const machinery = await read(`${APP_SRC}/runtime/persistence/storage.ts`)
   if (!machinery.includes("function write(storage: Storage")) {
     fail("the persistence machinery write() funnel drifted")
@@ -185,8 +185,8 @@ async function read(rel: string): Promise<string> {
   }
   const decoded = Schema.decodeUnknownSync(schema)(input)
   const encoded = JSON.stringify(Schema.encodeSync(schema)(decoded))
-  if (encoded.includes("audit-synthetic-secret-value")) fail("M-002 regression: password survived the encode path into the persisted payload")
-  if (!encoded.includes("mobile-credential:audit-entry-1")) fail("credentialRef lost from the encoded payload (M-005 regression)")
+  if (encoded.includes("audit-synthetic-secret-value")) fail("connection-password-memory-only regression: password survived the encode path into the persisted payload")
+  if (!encoded.includes("mobile-credential:audit-entry-1")) fail("credentialRef lost from the encoded payload (connection-credential-reference regression)")
   // Legacy tolerance: a stored password DECODES (so an old client keeps working) and is
   // stripped again on encode — the legacy path never becomes a plaintext writer.
   const legacy = Schema.decodeUnknownSync(schema)({
@@ -198,7 +198,7 @@ async function read(rel: string): Promise<string> {
   })
   const legacyEncoded = JSON.stringify(Schema.encodeSync(schema)(legacy))
   if (legacyEncoded.includes("legacy-synthetic-secret")) fail("legacy payload re-encoded with its password intact")
-  console.log("C OK: encode strips password (M-002), legacy payloads decode-tolerate and never re-encode secrets")
+  console.log("C OK: encode strips password (connection-password-memory-only), legacy payloads decode-tolerate and never re-encode secrets")
 }
 
 // ---------------------------------------------------------------------------

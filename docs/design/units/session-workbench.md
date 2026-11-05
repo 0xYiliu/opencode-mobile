@@ -1,6 +1,6 @@
 # 单元：session-workbench（会话工作台——流式消息、上下文、工具与子任务）
 
-状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑，mobile patch registry 为 18 项；当前本轮 P126 以 copy 上游实现并做必要 Android 适配为主，跟踪状态为 63 项 active、1 项 deferred。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
+状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑，mobile patch registry 为 18 项；当前本轮 P126 以 copy 上游实现并做必要 Android 适配为主，当前登记状态为 65 项 active、0 项 deferred（2026-11-05 语义身份迁移）。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
 
 行号声明：本文引用的行号为 vendor pin `b4525d79bf` 时点值，仅供定位；权威以引号内源文本锚为准。
 

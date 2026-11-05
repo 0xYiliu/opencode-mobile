@@ -61,16 +61,16 @@
 
 ## 下载与身份分离专节
 
-- **远程工件 vs 设备副本（#16 在册，本期复验零改动）**：schema 双类型 `PathAttachmentPart {path}`（远程工件身份，字节永不入 draft store）vs `ImageAttachmentPart.blob`（设备副本）；发送侧 `file://${path}` 记号 vs `dataUrl` 双形态；M-021 分享**仅触 data: 分支**、**file:// 分支零改动**（远程工件不触发任何设备侧动作——身份分离防线）；`verify-attachments-artifacts.ts` 断言 3（「remote artifacts keep upstream behavior」）继续生效。
-- **下载面实态（上游能力边界，如实登记）**：工件查看器（artifact-view.tsx）**没有保存/下载 affordance**（探针 RAW 扫描基线=实测零命中）；设备侧保存仅两条既有路径=timeline 附件 data: 芯片（save/share 经第五桥）+ 会话导出（SAF）。**远程 Office/媒体工件当前无设备侧下载路径**——若产品需要「把远程工件存到手机」，属新面候选 **M-022+ 候选 A「工件下载：ArtifactView 增保存动作→经 files 桥 save op（sanitizeFilename 双层净化/32MiB 界/SAF 落点均在位可复用）」**，本期不预设、交用户决策；在用户决策前，「downloaded copy distinct」由既有 #16 面（timeline 附件设备副本 vs 远程工件）承载并经探针复验。
+- **远程工件 vs 设备副本（#16 在册，本期复验零改动）**：schema 双类型 `PathAttachmentPart {path}`（远程工件身份，字节永不入 draft store）vs `ImageAttachmentPart.blob`（设备副本）；发送侧 `file://${path}` 记号 vs `dataUrl` 双形态；attachments-share-bridge 分享**仅触 data: 分支**、**file:// 分支零改动**（远程工件不触发任何设备侧动作——身份分离防线）；`verify-attachments-artifacts.ts` 断言 3（「remote artifacts keep upstream behavior」）继续生效。
+- **下载面实态（上游能力边界，如实登记）**：工件查看器（artifact-view.tsx）**没有保存/下载 affordance**（探针 RAW 扫描基线=实测零命中）；设备侧保存仅两条既有路径=timeline 附件 data: 芯片（save/share 经第五桥）+ 会话导出（SAF）。**远程 Office/媒体工件当前无设备侧下载路径**——若产品需要「把远程工件存到手机」，属新面候选 **移动适配候选 A「工件下载：ArtifactView 增保存动作→经 files 桥 save op（sanitizeFilename 双层净化/32MiB 界/SAF 落点均在位可复用）」**，本期不预设、交用户决策；在用户决策前，「downloaded copy distinct」由既有 #16 面（timeline 附件设备副本 vs 远程工件）承载并经探针复验。
 - **G29⑧ 负例**：file:// 工件全程零设备侧动作（无分享/无下载/无路径解析）；timeline data: 附件的保存/分享照常（设备副本路径与远程工件路径呈现可区分——#16 芯片区分复验）。
 
 ## PDF/CJK 两不确定点专条（实态判定项，非既立事实）
 
 > 编写纪律：本节只登记**静态可证事实**与**静态风险**；两项运行实态均**未经判定**，任何文档/提交不得把「PDF 在 WebView 可渲染」「CJK 完整显示」列为既立事实。
 
-- **PDF iframe（G29② 判定点）**：静态可证事实——pdf kind 走 `ArtifactFrame` iframe（blob URL + `#navpanes=0&view=FitH` PDF Open Parameters），注释逐字「The PDF viewer is Chromium's own and does not run in a sandboxed frame.」——**产出依赖宿主 Chromium 内建 PDF 渲染器**。「Android WebView 无内建 PDF 渲染器」（Chromium PDF viewer 属 Chrome 不属 WebView）为业界通识级**静态风险**，与上述事实并列在册；**真机实态未经判定**——不可用→按失败路径四步协议交用户决策（候选含 M-022+ PDF 查看面）；可用→核对渲染质量并回填本文。两分支均如实记录。
-- **CJK Latin 兜底（G29⑥ 判定点）**：静态可证事实——CJK add-on（约 33MB）不随包、`CJK_FONT_ASSET_URLS = undefined`、中日韩文本以 bundled Latin faces 兜底渲染。**观感充分性未经判定**——不可接受→按四步协议交用户决策（候选含 M-022+ CJK 字体包评估）；可接受→回填本文。
+- **PDF iframe（G29② 判定点）**：静态可证事实——pdf kind 走 `ArtifactFrame` iframe（blob URL + `#navpanes=0&view=FitH` PDF Open Parameters），注释逐字「The PDF viewer is Chromium's own and does not run in a sandboxed frame.」——**产出依赖宿主 Chromium 内建 PDF 渲染器**。「Android WebView 无内建 PDF 渲染器」（Chromium PDF viewer 属 Chrome 不属 WebView）为业界通识级**静态风险**，与上述事实并列在册；**真机实态未经判定**——不可用→按失败路径四步协议交用户决策（候选含 移动适配候选 PDF 查看面）；可用→核对渲染质量并回填本文。两分支均如实记录。
+- **CJK Latin 兜底（G29⑥ 判定点）**：静态可证事实——CJK add-on（约 33MB）不随包、`CJK_FONT_ASSET_URLS = undefined`、中日韩文本以 bundled Latin faces 兜底渲染。**观感充分性未经判定**——不可接受→按四步协议交用户决策（候选含 移动适配候选 CJK 字体包评估）；可接受→回填本文。
 
 ## 门禁与验证
 
@@ -85,5 +85,5 @@
 - **PDF 呈现形态未判定**：见专条；判定前任何文档不得断言两可之外结论。
 - **CJK 字体边界（上游裁定，非本期缺陷）**：33MB add-on 不随包、中日韩文本以 Latin 兜底；观感充分性归 G29⑥ 判定。
 - **i18n en-only**：office 查看器文案仅 en，zh 用户见英文混排——上游实态如实登记。
-- **上游能力边界（非本期缺口）**：①ArtifactView 无保存/下载 affordance——远程工件在设备侧无下载路径（候选 M-022+）；②文档外链经 `window.open`（G25③ 壳内实态在册沿用）；③office 引擎 wasm 体积（每格式数 MB）按需懒加载为上游设计（流量与首开延迟的权衡如实登记）；④引擎字体内嵌字体让位于 metric-compatible 兜底。
+- **上游能力边界（非本期缺口）**：①ArtifactView 无保存/下载 affordance——远程工件在设备侧无下载路径（候选 移动适配候选）；②文档外链经 `window.open`（G25③ 壳内实态在册沿用）；③office 引擎 wasm 体积（每格式数 MB）按需懒加载为上游设计（流量与首开延迟的权衡如实登记）；④引擎字体内嵌字体让位于 metric-compatible 兜底。
 - **服务端语义边界**：工件字节全部经 `fs.read`（#11 围栏/ETag/Range 语义，服务端面引缓存分层）——本期零新增服务端语义。

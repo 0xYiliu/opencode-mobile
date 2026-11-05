@@ -25,12 +25,12 @@
 //      local, the remote service keeps running) is double-written in the Kotlin sources.
 //   6. (vendor-dependent, full mode only) dist markers: the built bundle carries the ssh
 //      bridge handshake string and the mobile(ssh-v1) marker, and the vendored entry
-//      wires the ssh transport/verifier into createMobileHosts (M-015).
+//      wires the ssh transport/verifier into createMobileHosts (app-ssh-bridge).
 //
 // Staged strategy (review note F3 of issue #5, mirrored): every commit point stays
 // verifiable. At the scripts commit run with BOTH --pre-native (the Kotlin ssh/ files do
 // not exist yet) and --pre-vendor (the dist does not carry the markers yet). After the
-// Kotlin commit run with --pre-vendor only. After M-015 lands, run in full mode (default)
+// Kotlin commit run with --pre-vendor only. After app-ssh-bridge lands, run in full mode (default)
 // — the missing-marker and missing-native assertions then FAIL again.
 //
 // Usage:
@@ -264,7 +264,7 @@ if (!PRE_VENDOR) {
     SSH_BRIDGE.handshake,
     "createMobileHosts",
   ]) {
-    if (!entrySrc.includes(needle)) fail(`vendored entry.tsx: M-015 wiring missing (${needle})`)
+    if (!entrySrc.includes(needle)) fail(`vendored entry.tsx: app-ssh-bridge wiring missing (${needle})`)
   }
   const sshListenerAt = entrySrc.indexOf("const ssh = createWebMessageSshTransport")
   const localeWaitAt = entrySrc.indexOf("void loadInitialLocale().then")
@@ -280,9 +280,9 @@ if (!PRE_VENDOR) {
     if (text.includes(SSH_BRIDGE.handshake)) handshakeHits += 1
     if (text.includes("mobile(ssh-v1)")) markerHits += 1
   }
-  if (handshakeHits === 0) fail("built dist does not carry the ssh bridge handshake string (M-015 not built in?)")
+  if (handshakeHits === 0) fail("built dist does not carry the ssh bridge handshake string (app-ssh-bridge not built in?)")
   if (markerHits === 0) fail("built dist does not carry the mobile(ssh-v1) marker")
-  console.log("verify-ssh: vendor markers ok (dist handshake + mobile(ssh-v1), M-015 wiring)")
+  console.log("verify-ssh: vendor markers ok (dist handshake + mobile(ssh-v1), app-ssh-bridge wiring)")
 }
 
 console.log("verify-ssh: PASS")

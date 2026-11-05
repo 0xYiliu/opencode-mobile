@@ -34,8 +34,8 @@ describe("first connection password keyboard contract", () => {
   test("vendor patch is registered in both manifests", () => {
     const manifest = JSON.parse(read("vendor/upstream/vendor-manifest.json"))
     const patches = JSON.parse(read("vendor/upstream/patches/mobile/manifest.json"))
-    const patch = "patches/mobile/0054-M-054-password-keyboard.patch"
+    const patch = "patches/mobile/connection-password-keyboard.patch"
     expect(manifest.mobilePatches).toContain(patch)
-    expect(patches.patches.some((entry: { id: string; patch: string }) => entry.id === "M-054" && entry.patch === patch)).toBe(true)
+    expect(patches.patches.some((entry: { id: string; patch: string }) => entry.id === "connection-password-keyboard" && entry.patch === patch)).toBe(true)
   })
 })

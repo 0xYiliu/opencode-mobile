@@ -7,10 +7,10 @@
 //   2. Every row's VAULT side effect through the in-process engine running REAL envelope
 //      crypto (WebCrypto AES-GCM + AAD): put mints/updates exactly one encrypted entry,
 //      clear removes it, abort/none/passthrough leave the store untouched.
-//   3. M-010 static: the hydration injection in the vendored registry writes the resolved
-//      password through setStore ONLY (memory-only; the M-002 encode path strips on every
+//   3. connection-credential-hydration static: the hydration injection in the vendored registry writes the resolved
+//      password through setStore ONLY (memory-only; the connection-password-memory-only encode path strips on every
 //      persist write) — no direct storage write in the injection block.
-//   4. M-032 static: AndroidX vault listener is wired before render; native callback requires
+//   4. vault-androidx-listener static: AndroidX vault listener is wired before render; native callback requires
 //      exact source origin + main frame and uses a bounded process-wide serial queue.
 //
 // Usage: bun run scripts/verify-credential-vault.ts  (exit 0 = PASS)
@@ -141,7 +141,7 @@ async function softwareVaultNative() {
     })
     if (decision.action !== row.action) fail(`row ${row.n}: decision ${decision.action} != expected ${row.action}`)
 
-    // Translate the decision into vault ops exactly like the M-009/M-host-dialog glue does.
+    // Translate the decision into vault ops exactly like the connection-remember-credential/M-host-dialog glue does.
     if (decision.action === "put") {
       const ref = await vault.put({ kind: "password", value: `row-${row.n}-value`, ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}) })
       if (row.priorRef && decision.existingRef === row.priorRef && ref !== row.priorRef) {
@@ -184,36 +184,36 @@ async function softwareVaultNative() {
 }
 
 // ---------------------------------------------------------------------------
-// 3: M-010 static probe — hydration injection is setStore-only and gated correctly.
+// 3: connection-credential-hydration static probe — hydration injection is setStore-only and gated correctly.
 // ---------------------------------------------------------------------------
 {
   const source = await Bun.file(new URL("../vendor/upstream/packages/app/src/runtime/server/registry.tsx", import.meta.url)).text()
   const injection = /mobile\(M-010\)[\s\S]*?const vault = \(\(\) => \{[\s\S]*?\}\)\(\)[\s\S]*?if \(vault\) \{[\s\S]*?\n    \}\n/.exec(source)
-  if (!injection) fail("M-010: hydration injection block not found in registry.tsx")
+  if (!injection) fail("connection-credential-hydration: hydration injection block not found in registry.tsx")
   const block = injection[0]!
   if (!/conn\.http\.password \|\| !conn\.http\.credentialRef/.test(block)) {
-    fail("M-010: injection is not gated on credentialRef present AND password absent")
+    fail("connection-credential-hydration: injection is not gated on credentialRef present AND password absent")
   }
   if (!/setStore\("list", index, "http", "password", value\)/.test(block)) {
-    fail("M-010: the resolved password is not injected through setStore")
+    fail("connection-credential-hydration: the resolved password is not injected through setStore")
   }
-  // M-062 (issue #128): the hydration awaits the feature-detected, bounded vault readiness
+  // connection-vault-ready-wait (issue #128): the hydration awaits the feature-detected, bounded vault readiness
   // BEFORE the per-entry loop — the cold-start restore must not race the async native
   // ready roundtrip (get() one microtask early threw unavailable and restored nothing).
   if (!/if \(typeof vault\.ready === "function"\) await vault\.ready\(\)/.test(block)) {
-    fail("M-062: hydration does not await vault.ready() before the credential loop (issue #128)")
+    fail("connection-vault-ready-wait: hydration does not await vault.ready() before the credential loop (issue #128)")
   }
   // Memory-only: the injection block itself must not touch any storage backend directly.
   if (/localStorage|sessionStorage|\.setItem\(/.test(block)) {
-    fail("M-010: the injection block writes to a storage backend directly (must be setStore-only)")
+    fail("connection-credential-hydration: the injection block writes to a storage backend directly (must be setStore-only)")
   }
-  // The M-002 strip still anchors the persist path (the injected value cannot survive it).
+  // The connection-password-memory-only strip still anchors the persist path (the injected value cannot survive it).
   const persistence = await Bun.file(new URL("../vendor/upstream/packages/app/src/runtime/server/persistence.ts", import.meta.url)).text()
   if (!persistence.includes("mobile(M-002): password stripped at encode (memory-only)")) {
-    fail("M-002 marker lost from persistence.ts — the M-010 memory-only argument no longer holds")
+    fail("connection-password-memory-only marker lost from persistence.ts — the connection-credential-hydration memory-only argument no longer holds")
   }
   if (!/encode: SchemaGetter\.transform/.test(persistence)) {
-    fail("M-002 encode-side strip missing from persistence.ts")
+    fail("connection-password-memory-only encode-side strip missing from persistence.ts")
   }
 }
 
@@ -240,7 +240,7 @@ async function softwareVaultNative() {
 }
 
 // ---------------------------------------------------------------------------
-// 4: M-007 amendment — AndroidX listener wiring + legacy transport test coverage.
+// 4: app-mobile-hosts-bootstrap amendment — AndroidX listener wiring + legacy transport test coverage.
 // ---------------------------------------------------------------------------
 {
   const entry = await Bun.file(new URL("../vendor/upstream/packages/app/src/entry.tsx", import.meta.url)).text()
@@ -251,36 +251,36 @@ async function softwareVaultNative() {
     "createVaultResolver",
     "vault,",
   ]) {
-    if (!entry.includes(marker)) fail(`M-007 amendment: entry.tsx is missing ${marker}`)
+    if (!entry.includes(marker)) fail(`app-mobile-hosts-bootstrap amendment: entry.tsx is missing ${marker}`)
   }
   // The listener client must be initialized before render, and no old window-message
   // handshake is present in production wiring.
   const subscribeAt = entry.indexOf("createAndroidXVaultTransport")
   const renderAt = entry.lastIndexOf("render(")
   if (subscribeAt === -1 || renderAt === -1 || subscribeAt > renderAt) {
-    fail("M-007 amendment: AndroidX listener client is not initialized before first render")
+    fail("app-mobile-hosts-bootstrap amendment: AndroidX listener client is not initialized before first render")
   }
   if (stripComments(entry).includes("createWebMessageChannelTransport"))
-    fail("M-007 amendment: production vault still uses bespoke channel transport")
+    fail("app-mobile-hosts-bootstrap amendment: production vault still uses bespoke channel transport")
   const nativeBridge = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/CredentialVaultBridge.kt", import.meta.url)).text()
   for (const marker of ["WebViewCompat.addWebMessageListener", "VaultOriginPolicy.shouldAcceptMessage", "VaultOriginPolicy.canRegister", "ArrayBlockingQueue(8)", "preflight(raw)", "candidateId", "recoveryRef", "replyProxy.postMessage", "VaultGenerationGate", "onNavigationStarted", '"unknown"']) {
-    if (!nativeBridge.includes(marker)) fail(`M-032 native vault boundary missing ${marker}`)
+    if (!nativeBridge.includes(marker)) fail(`vault-androidx-listener native vault boundary missing ${marker}`)
   }
   const limits = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultRequestLimits.kt", import.meta.url)).text()
   if (!limits.includes("MAX_VALUE_BYTES * 6 + 8192") || !limits.includes("leadingRequestId") || !limits.includes("utf8Bytes"))
-    fail("M-032 vault request cap must account for JSON escaping and independently enforce UTF-8 value bytes")
+    fail("vault-androidx-listener vault request cap must account for JSON escaping and independently enforce UTF-8 value bytes")
   const store = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultStore.kt", import.meta.url)).text()
   if (!store.includes('File(dir, "$id.bin")') || !store.includes('File(dir, "index.json")')
     || store.includes("VaultEntryJournal") || store.includes("payloadFile"))
-    fail("M-032 vault storage format must remain the legacy id.bin + metadata index layout")
+    fail("vault-androidx-listener vault storage format must remain the legacy id.bin + metadata index layout")
   const nativePolicy = await Bun.file(new URL("../android/app/src/main/java/ai/opencode/mobile/vault/VaultOriginPolicy.kt", import.meta.url)).text()
   if (!nativePolicy.includes('scheme == "http"') || !nativePolicy.includes("BuildConfig.WEB_ASSET_PORT"))
-    fail("M-032 native vault origin policy is not exact HTTP loopback + configured port")
+    fail("vault-androidx-listener native vault origin policy is not exact HTTP loopback + configured port")
   const directDialog = await Bun.file(new URL("../vendor/upstream/packages/app/src/servers/connect/dialog.tsx", import.meta.url)).text()
   if (!directDialog.includes("connection.http.credentialRef = await vault!.put")
     || !directDialog.includes('language.t("dialog.server.remember.saveFailed")')
     || !directDialog.includes("await vault!.remove(decision.ref)"))
-    fail("M-032 direct-server credential caller lost its fail-closed save path")
+    fail("vault-androidx-listener direct-server credential caller lost its fail-closed save path")
   const directPutStart = directDialog.indexOf('if (decision.action === "put")')
   const directCommitStart = directDialog.indexOf('if (original?.type === "http")', directPutStart)
   const directMutationBlock = directDialog.slice(directPutStart, directCommitStart)
@@ -289,7 +289,7 @@ async function softwareVaultNative() {
     || !directMutationBlock.includes("catch (error)")
     || !directMutationBlock.includes("recoveryRef")
     || !directMutationBlock.includes("return"))
-    fail("M-032 direct-server caller retries or commits a credential change after UNKNOWN")
+    fail("vault-androidx-listener direct-server caller retries or commits a credential change after UNKNOWN")
   const runtime = await Bun.file(new URL("../packages/mobile-hosts/src/runtime.ts", import.meta.url)).text()
   const removeStart = runtime.indexOf("const remove = async (id: string)")
   const registryDelete = runtime.indexOf("registry.remove(id)", removeStart)
@@ -298,7 +298,7 @@ async function softwareVaultNative() {
   if (removeStart < 0 || registryDelete < removeStart
     || removeBody.includes("vault.remove(")
     || !removeBody.includes('send(id, { type: "delete" })'))
-    fail("M-032 SSH host removal must be local-only and retain saved credentials for explicit cleanup")
+    fail("vault-androidx-listener SSH host removal must be local-only and retain saved credentials for explicit cleanup")
 
   // Legacy test harness compatibility only: production uses AndroidX protocol v2 and does
   // not register this handshake; these checks retain the old in-process envelope test engine.
@@ -336,7 +336,7 @@ async function softwareVaultNative() {
   handler!({ data: VAULT_BRIDGE.handshake, ports: [] })
   handler!({ data: "unrelated", ports: [port] })
   handler!({ data: VAULT_BRIDGE.handshake, ports: [{}, {}] })
-  if (transport2.status() !== "unavailable") fail("M-007 dynamic: malformed handshake captured (shape gate broken)")
+  if (transport2.status() !== "unavailable") fail("app-mobile-hosts-bootstrap dynamic: malformed handshake captured (shape gate broken)")
 }
 
 // ---------------------------------------------------------------------------
@@ -361,5 +361,5 @@ const distMarker = VAULT_BRIDGE.marker
 if (!distMarker.startsWith("mobile(vault-v2)")) fail("vault protocol v2 marker missing from the transport module")
 
 console.log(
-  "verify-credential-vault: PASS (truth table v3 rows 1-12 + review-fix row 13 with in-process envelope-crypted vault effects; early-exit forcing + initial value; host-dialog assembly passes boundKind; M-010 setStore-only hydration injection; M-032 AndroidX origin/frame gate + bounded preflight + non-secret candidate refs for uncertain mutations; legacy channel harness remains test-only)",
+  "verify-credential-vault: PASS (truth table v3 rows 1-12 + review-fix row 13 with in-process envelope-crypted vault effects; early-exit forcing + initial value; host-dialog assembly passes boundKind; connection-credential-hydration setStore-only hydration injection; vault-androidx-listener AndroidX origin/frame gate + bounded preflight + non-secret candidate refs for uncertain mutations; legacy channel harness remains test-only)",
 )
