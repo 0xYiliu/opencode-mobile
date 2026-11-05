@@ -25,7 +25,7 @@
 
 import { createRequire } from "node:module"
 import { Persistence } from "../vendor/upstream/packages/app/src/runtime/persistence/schema"
-import { serverState } from "../vendor/upstream/packages/app/src/runtime/server/persistence"
+import { ServerState } from "../vendor/upstream/packages/app/src/runtime/server/persistence"
 
 const ROOT = new URL("..", import.meta.url)
 const APP_SRC = "vendor/upstream/packages/app/src"
@@ -168,8 +168,8 @@ async function read(rel: string): Promise<string> {
   const vendoredRequire = createRequire(new URL("../vendor/upstream/packages/app/package.json", import.meta.url))
   const { Schema } = vendoredRequire("effect") as typeof import("effect")
 
-  const initial = { list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} }
-  const schema = Persistence.withInitial(serverState(), initial)
+  const initial = { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} }
+  const schema = Persistence.withInitial(ServerState, initial)
   const input = {
     list: [
       {
@@ -192,9 +192,6 @@ async function read(rel: string): Promise<string> {
   const legacy = Schema.decodeUnknownSync(schema)({
     list: [{ url: "https://legacy.example.invalid", password: "legacy-synthetic-secret" }],
     hidden: {},
-    projects: {},
-    lastProject: {},
-    recentlyClosed: {},
   })
   const legacyEncoded = JSON.stringify(Schema.encodeSync(schema)(legacy))
   if (legacyEncoded.includes("legacy-synthetic-secret")) fail("legacy payload re-encoded with its password intact")
