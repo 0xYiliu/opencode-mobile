@@ -1,6 +1,6 @@
 # 单元：files（远程文件浏览、搜索、查看与上下文引用）
 
-状态：**已实现（未验证）**（issue #11）。远程文件树/搜索/查看（含移动专属 `MobileFiles` 面）、行选择与 @-引用、文件评论上下文、消息内文件链接、文件 tab/滚动/行选择按 workspace 恢复、大文件/二进制/编码/陈旧处理——**全部由上游闭包承载**（`app/src/workspaces/files/*` + `app/src/composer/{model,request,prompt}` + `app/src/shell/state/layout.tsx` + `gui-extensions/src/file/*` + `client` 生成面），本仓库零新建界面、零运行时代码改动、零 vendor 补丁（本期 `patches/mobile/manifest.json` 维持 18 个不变）。全部运行期行为未经设备验证：真机门禁见 **G22**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。diff 查看（review/diff 查看器）**不在本期**（`architecture.md` 单元清单 diff 行保持 TODO）。
+状态：**已实现（未验证）**（issue #11；#143 增量：流式读取 + 文件订阅）。远程文件树/搜索/查看（含移动专属 `MobileFiles` 面）、行选择与 @-引用、文件评论上下文、消息内文件链接、文件 tab/滚动/行选择按 workspace 恢复、大文件/二进制/编码/陈旧处理——**全部由上游闭包承载**（`app/src/workspaces/files/*` + `app/src/composer/{model,request,prompt}` + `app/src/shell/state/layout.tsx` + `gui-extensions/src/file/*` + `client` 生成面），issue #11 本仓库零新建界面、零运行时代码改动、零 vendor 补丁。**#143 增量**（目标 v2.2.1 `3ebcf9a` copy 优先）：媒体走服务端 ranged read 流式读取（HEAD 探测 + `fileStreamUrl`，`artifact.ts`/`model.tsx`/`api.ts`）、`fs.watch`/`fs.unwatch` 文件订阅（`protocol/fs.ts` + 生成面 + `model.tsx` watch/unwatch/`server.connected` 重订阅），登记为 `files-stream-watch.patch`（`gui-plugins-api-migration.patch` 同轮重生成 model.tsx/artifact.ts hunks）。全部运行期行为未经设备验证：真机门禁见 **G22**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED；#143 轮真机亦因设备 adb 不可达 BLOCKED（见 build-and-verify #143 段）。diff 查看（review/diff 查看器）**不在本期**（`architecture.md` 单元清单 diff 行保持 TODO）。
 
 行号声明：本文引用的行号为 vendor pin `b4525d79bf` 时点值，仅供定位；权威以引号内源文本锚为准（静态探针 `scripts/verify-files.ts` 锁定）。**来源边界**：服务端语义（`packages/core/src/filesystem.ts`、`packages/core/src/file-access.ts`、`packages/core/src/filesystem/search.ts`、`packages/core/src/filesystem/protected.ts`、`packages/server/src/handlers/fs.ts`、`packages/schema/src/{schema,filesystem}.ts`、`packages/protocol/src/groups/fs.ts`）**不在 vendored 闭包内**，引自上游 pin 提交树采集缓存 `~/.cache/opencode-upstream` @ `b4525d79bf`（同 [architecture.md](../architecture.md) CORS 节「来源表述」先例）；vendored 侧仅生成类型/端点/消费面可静态断言。pin 更新时缓存引文需随 PROVENANCE 演练同步。
 
@@ -8,7 +8,7 @@
 
 | 面 | 上游实现锚（`vendor/upstream/packages/...`） | 状态 |
 | --- | --- | --- |
-| 数据模型 | `app/src/workspaces/files/model.tsx`（346 行，`useFile` context）：树=`serverSDK.api.file.list({ path: dir, location: { directory: scope() } })`（响应映射 `FileNode{name,path,absolute,type,ignored}`，树节点 `absolute = \`${scope()}/${entry.path}\``）；查看=`api.file.read(request)`（源码跨行书写；声明 400/401/404、`binary: true`）；搜索=`api.file.find({ location, query, type, limit }, { signal })`（AbortSignal）；生成错误分类器 `isFileNotFoundError`（generated types.ts:2890，`_tag === "FileNotFoundError"`） | 已实现（未验证） |
+| 数据模型 | `app/src/workspaces/files/model.tsx`（383 行，`useFile` context）：树=`serverSDK.api.file.list({ path: dir, location: { directory: scope() } })`（响应映射 `FileNode{name,path,absolute,type,ignored}`，树节点 `absolute = \`${scope()}/${entry.path}\``）；查看=`api.file.read(request)`（源码跨行书写；声明 400/401/404、`binary: true`）；搜索=`api.file.find({ location, query, type, limit }, { signal })`（AbortSignal）；生成错误分类器 `isFileNotFoundError`（generated types.ts:2890，`_tag === "FileNotFoundError"`）。**#143 增量**（目标 v2.2.1 逐字 + 2 行调用点适配）：媒体 kind（`streamedKinds`=image/audio/video）走 `fileStreamUrl` + `(platform.fetch ?? fetch)(url, { method: "HEAD" })` 探测→`streamedFileContent` 版本化 URL，HEAD 失败/无 URL 回落 `api.file.read` 下载；`watch(file)`/`unwatch(file)`=归一化后 `api.file.watch/unwatch`（location 作用域、静默容错 `.catch(() => {})`），`server.connected` 时对 `attachment.files.opened()` 重发 watch（onCleanup 清理）——调用点由目标的 `api.experimental.file.*` 改为本 vendored 生成面 `api.file.*`（pin 生成面无 Experimental 命名空间，`mobile(files-stream-watch)` 注记在位） | 已实现（未验证） |
 | path identity | `app/src/workspaces/files/path.ts` `createPathHelpers(scope)`：`normalize`（剥 `file://`/query/hash、`unquoteGitPath` git 引号路径、workspace 前缀剥离→**workspace 相对路径**为 store 键；根外路径保持绝对，注释「it is a file outside the workspace」）、`absolute()`（根外判定）、`normalizeDir`；Windows 盘符/Cygwin/UNC 兼容在列。文件 tab 身份=`fileTabId(files, path)`（`gui-extensions/src/file/path.ts`）；renderer `normalize` 锚「Older builds stored some files as absolute paths; one file is one tab once the workspace root is known」——编码名（如 `a%23b.txt`）单次解析后保持同 tab | 已实现（未验证） |
 | 树 UI | `gui-extensions/src/file/tree-v2.tsx`（396 行）：tanstack virtual 虚拟化（`estimateSize: () => 28`）、行渲染为 `<button type="button">`（`as="button"`）、目录行 `aria-expanded`、活动行自动 scrollIntoView、聚焦行保持渲染（rangeExtractor 追加）；`tree-model.ts`（`buildFileTreeV2Model`/`flattenFileTreeV2`/`flattenLiveFileTreeV2`）纯逻辑可测 | 已实现（未验证） |
 | 搜索 UI | `gui-extensions/src/file/browser.tsx` `SessionFileBrowserTab`：过滤输入 `role="combobox"`（`aria-controls`/`aria-activedescendant`/`aria-expanded` 接线）、`createQuery`（`file.search(value, { limit: 200, signal })`、`keepPreviousData`、`enabled: connected && query.length > 0`）、loading/空态均 `role="status"` + i18n；**搜索失败被吞为空结果**（`model.tsx` search 非 abort 错误 `.catch → []`）——呈现充分性核对归 G22③ 首项 | 已实现（未验证） |
@@ -29,6 +29,12 @@
 | `/api/fs/list`（client.ts:1715） | GET | 「List direct children using an absolute path or a path relative to the requested location, **including parents and siblings outside its directory**. Entry paths remain relative to the requested location; listing does not switch locations.」（fs.list OpenAPI 描述 @ 缓存逐字；**上游有意设计**，见安全专节） |
 | `/api/fs/find`（client.ts:1727） | GET | 「Find recursively ranked filesystem entries relative to the requested location.」；location 作用域索引（ripgrep/fff 二选一 @ 缓存），无已声明错误类型（fff 初始化失败降级恒空结果）；home 目录扫描排除 `Protected.names()`（`filesystem/protected.ts` @ 缓存） |
 | `/api/experimental/fs/write`（client.ts:1739） | POST | 「Unlike read, the target is not confined to the location.」——**文件浏览/搜索/查看路径零调用**；vendored app+gui-extensions 源码唯一线级调用点=`composer/attachments/destination.ts`（附件上传，attachments-upload-redirect-policy 校验面），归 #16（见边界专节） |
+| `/api/experimental/fs/watch`（#143，protocol `fs.watch`，identifier `experimental.fs.watch`） | POST | 「Watch one file relative to the requested location for 24 hours, publishing filesystem.changed on that location when it changes. Watching an already watched file resets its expiry. Paths follow read confinement. Experimental: may change without compatibility guarantees.」（目标 protocol @ 3ebcf9a 逐字）；payload `{ path }`（相对 location）、success 204 NoContent、声明 400/401/404/**503**（503=ServiceUnavailableError，location 未就绪）；客户端消费=`model.tsx` `watch(file)`（tab 打开/展示时）+ `server.connected` 重订阅 |
+| `/api/experimental/fs/watch`（#143，protocol `fs.unwatch`，identifier `experimental.fs.unwatch`） | DELETE | 「Stop watching one file relative to the requested location. Experimental: may change without compatibility guarantees.」（目标 protocol @ 3ebcf9a 逐字）；同路径同 payload、success 204、声明 400/401/404；客户端消费=`model.tsx` `unwatch(file)`；vendored 生成面 wrapper 名 `file.watch`/`file.unwatch`（`FileWatchInput/Output`、`FileUnwatchInput/Output`，去目标 `Experimental` 前缀——pin 生成面命名），watch 声明 `[400,401,404,503]`、unwatch `[400,401,404]` |
+
+### `fileStreamUrl`（`runtime/server/api.ts`，#143 目标逐字，移动适配形态注记）
+
+`fileStreamUrl(server, { path, directory })`：媒体元素（不可带 Authorization 头、凭据不得进 DOM URL）直连服务端 ranged read 的 URL 工厂——**`server.password` 存在即返回 `undefined`**（有密码服务的媒体改走 API 下载，语义同 `createApiForServer` 认证面）；无密码时产出 `<server>/api/fs/read/<逐段 encodeURIComponent 的 path>?location[directory]=<dir>`。**来源边界注记**：vendored `api.ts` 是移动适配形态（connection-utf8-basic-auth 与 session-client-compatibility 两补丁承载认证适配），`fileStreamUrl` 为 #143 以追加 hunk 方式落位（files-stream-watch.patch），非整文件 copy；所需 `ServerConnection` import 已在文件头。
 
 ### 类型与事件（生成面，不另行定义）
 
@@ -52,8 +58,8 @@
 | large | 媒体 `MAX_MEDIA_BYTES = 256 * 1024 * 1024` 超限→占位 `{ type: "binary", content: "", size }`（「Media above this stays a placeholder so the in-memory file cache stays bounded」）；内容 LRU（`MAX_FILE_CONTENT_ENTRIES = 40`、`MAX_FILE_CONTENT_BYTES = 20 * 1024 * 1024`）超限逐出后下次重取。**文本文件无客户端大小上限**（一次载入整文件字节）——超大文本在移动 WebView 的加载表现归 G22④ 真机核对（计划 R9，不预设分页/截断补丁）；HTTP 层另有 ETag/Range/304（fs.read 描述 @ 缓存） |
 | binary | `isBinaryBytes`：「Text files never contain NUL; a NUL in the first 8 KiB marks an unknown binary」——前 8KiB 含 NUL→binary 占位 |
 | encoding | 文本恒 UTF-8 解码且**非 fatal**（非法字节替换为 U+FFFD，解码从不抛错）——**无独立「编码失败」错误态**，如实分层（工具级 `Content.encoding: "utf8"|"base64"` schema 属 agent 工具读路径 @ 缓存，非本 HTTP 面） |
-| stale | 五重客户端链 + ETag 再验证 + 索引 ≤10s 陈旧（见陈旧专节） |
-| offline | 断连期动作失败走既有 toast/错误通道（`enabled: connected && ...` 使搜索在断连期不发请求）；重连后 `filesystem.changed` watcher 与快照语义补齐（与 session-workbench 恢复口径同构）；运行期断连恢复呈现归 G22⑤ |
+| stale | 五重客户端链 + ETag 再验证 + 索引 ≤10s 陈旧（见陈旧专节）；**#143 增量第六链**：文件 tab 打开/展示即 `api.file.watch`（24h 窗口、重复 watch 重置过期），`server.connected` 对已打开文件重发 watch（重启服务端遗忘订阅）——`filesystem.changed` 事件仍经 `invalidateFromWatcher` 失效链落地 |
+| offline | 断连期动作失败走既有 toast/错误通道（`enabled: connected && ...` 使搜索在断连期不发请求）；重连后 `filesystem.changed` watcher 与快照语义补齐（与 session-workbench 恢复口径同构）；**#143 增量**：重连（`server.connected`）自动对全部已打开文件重发 watch、静默容错，watch 失败不弹错（旧服务器无该路由时零噪音）；运行期断连恢复呈现归 G22⑤ |
 
 ## 大文件/二进制/编码/陈旧专节（验收 1 失败路径落字）
 
@@ -67,6 +73,8 @@
   3. 链接打开强制重读（renderer 注释逐字「Confirm the file exists before a tab appears for it; a file deleted since its link rendered shows the load error. Always reread: a cached copy can be stale.」+ `files.sync(targetPath, { force: true })`）；
   4. workspace 目录（scope）变化→ `createComputed(on(scope, …))` 清 inflight/`resetFileContentLru()`/`reconcile({})`/`tree.reset()`（model.tsx 注释「a reset after that load would discard its reply」逐字）+ renderer `moved` memo 重载聚焦 tab；
   5. LRU 逐出后重取。
+  6. **#143 增量（服务端订阅链）**：文件 tab 打开/展示与重连时 `api.file.watch(path, location)`（服务端 watch 24h、重复请求重置过期；`filesystem.changed` 事件由此在生产端产生），静默容错 `.catch(() => {})` 是目标自带的旧服务器容错（旧服务无路由→404 被吞，零噪音）——客户端不自行轮询，事件消费仍走链 1。
+- **流式媒体读取（#143 增量）**：`streamedKinds`（image/audio/video）媒体在 `model.tsx` `read()` 先以 `(platform.fetch ?? fetch)(fileStreamUrl(...), { method: "HEAD" })` 探测，响应 ok 则 `streamedFileContent` 产出 `v=<content-length>-<last-modified>` 版本化 URL（文件变化→URL 变化→元素重载），否则/无 URL 回落 `api.file.read` 全量下载——HEAD 失败的报错由全量下载路径呈现（HEAD 无 body，不另立错误态）。`fileStreamUrl` 有密码返回 undefined（凭据不进 DOM URL），密码服务恒走下载。
 - **搜索索引陈旧**：服务端 `filesystem/search.ts` `REFRESH_INTERVAL = Duration.toMillis("10 seconds")` @ 缓存——搜索结果 ≤10s 陈旧（如实落字）。
 
 ## 安全与边界专节（验收 2/3 权威落字）
@@ -106,13 +114,14 @@ Android 文件导入（附件上传 `composer/attachments/*` + `onShowFileChoose
 ## 门禁与验证
 
 - **G22**（[interaction.md](../interaction.md) 新设）：远程文件面运行期真机清单十项（移动 Files 视图可达/树浏览/搜索/查看四态/stale/上下文引用/恢复/client exit 红线/窄屏读屏触摸目标首项核对/SSH+直连双路由）。
-- **V-probe**：`scripts/verify-files.ts` 静态结构探针（八组断言：数据面接线/写面穷举集合/大文件二进制编码锚/stale 链/恢复键控/移动面与桌面门槛/上下文引用链/零 OS 分支扫描 + 负例控制）。诚实边界：静态结构检查，对运行时行为零证明力。
+- **V-probe**：`scripts/verify-files.ts` 静态结构探针（#143 起九组断言：数据面接线/写面穷举集合/大文件二进制编码锚/stale 链/恢复键控/移动面与桌面门槛/上下文引用链/零 OS 分支扫描 + **组 9 流式读取与订阅锚**（streamedKinds/HEAD 回退对/fileStreamUrl 凭据语义/protocol 两 endpoint 标识/vendored 去前缀生成面名/`api.experimental.file.*` 泄漏负例））。诚实边界：静态结构检查，对运行时行为零证明力。注：组 2 的 destination.ts anchors 在基线 `3310b80` 即 FAIL（session-workbench-upstream 迁移移除 M-012 upload 校验，见 build-and-verify #143 段），属预存基线失败，非 #143 引入。
+- **#143 测试**：`api.test.ts` 目标逐字 `fileStreamUrl` 用例（无密码 URL 形/有密码 undefined）；`artifact.test.ts` `streamedFileContent` 版本化 URL/mime/缺头 `v=0-0` 用例 + `streamedKinds` 集合恰为 image/audio/video；model.tsx watch 生命周期上游零直接测试，覆盖=探针+构建+真机（同装配层口径）。
 - **测试子集**：上游 app 子集追加 4 文件（`workspaces/files/{artifact,content-cache-accounting,path,watcher}.test.ts`，纯逻辑 bun:test）+ gui-extensions 新包子集 4 文件（`src/file/{artifact,path,tree-model,resolve-link}.test.ts`，包内 bunfig preload 生效，显式列文件不裸跑）；首跑逐例归因门适用两处（上游固有/runner 环境/我方基建 + pristine pin 对照，归因不了即阻断）。
 - **装配层覆盖口径**：`model.tsx`/`tree-store.ts`/`view-cache.ts`/`renderer.tsx`/`mobile.tsx`/`view.tsx` 上游零直接测试——覆盖=探针（结构）+ V2（构建）+ G22（真机）三层，与 #10 dock 口径同型，不声称单测覆盖。
 
 ## 诚实边界
 
-- **G22 全部运行期行为 BLOCKED**：文件树到达/查看渲染/搜索行为/stale 重读时机/上下文引用流向 composer 的呈现/恢复过程/client exit 红线/读屏焦点触摸目标——本交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
+- **G22 全部运行期行为 BLOCKED**：文件树到达/查看渲染/搜索行为/stale 重读时机/上下文引用流向 composer 的呈现/恢复过程/client exit 红线/读屏焦点触摸目标——本交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。**#143 轮设备 adb 不可达（192.168.3.209:5555 拒绝连接，疑无线调试关闭）**：G22①–⑨、G22⑤ watch 订阅生命周期（服务路由已在 v2.2.1 服务实测存在，见 build-and-verify #143 段服务前置核对）、G29 Office 门禁、G28 浏览器结果面均 BLOCKED；解除条件=恢复设备无线 ADB（设备屏物理操作）后按本轮 APK 复测。
 - **真模型 live E2E BLOCKED**：@-引用/行范围上下文在真实模型会话中的可读性与效果需授权服务与模型（直连+SSH 双路由），不允许 fixture 替代。
 - **服务端语义来源边界**：read 三重围栏/list 父兄目录设计/write 零围栏/搜索索引 10s/ETag 语义均引上游 pin 缓存（非闭包）；真服务核对归 G22/live E2E；pin 更新时缓存引文随 PROVENANCE 演练同步。
 - **diff 查看不在本期**：文件与 Diff 拆分后 diff 单元保持「未开始」；`sidebar.tsx`（changes 树 tab）与 `SessionReviewV2*` 的 diff 面不声称已交付。

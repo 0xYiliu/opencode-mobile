@@ -1,0 +1,228 @@
+diff --git a/packages/protocol/src/groups/fs.ts b/packages/protocol/src/groups/fs.ts
+index 612e8d3..f41fa74 100644
+--- a/packages/protocol/src/groups/fs.ts
++++ b/packages/protocol/src/groups/fs.ts
+@@ -3,7 +3,7 @@ import { Location } from "@opencode/schema/location"
+ import { PositiveInt } from "@opencode/schema/schema"
+ import { Schema } from "effect"
+ import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/http-api"
+-import { FileNotFoundError } from "../errors.js"
++import { FileNotFoundError, ServiceUnavailableError } from "../errors.js"
+ import { LocationQuery, locationQueryOpenApi } from "./location.js"
+ 
+ const ListQuery = Schema.Struct({
+@@ -21,6 +21,10 @@ const WriteQuery = Schema.Struct({
+   }),
+ })
+ 
++const WatchPayload = Schema.Struct({
++  path: Schema.String.annotate({ description: "A file path relative to the requested location." }),
++})
++
+ const FindQuery = Schema.Struct({
+   ...LocationQuery.fields,
+   query: FileSystem.FindInput.fields.query,
+@@ -91,6 +95,39 @@ export const FileSystemGroup = HttpApiGroup.make("server.fs")
+         }),
+       ),
+   )
++  .add(
++    HttpApiEndpoint.post("fs.watch", "/api/experimental/fs/watch", {
++      query: LocationQuery,
++      payload: WatchPayload,
++      success: HttpApiSchema.NoContent,
++      error: [FileNotFoundError, ServiceUnavailableError],
++    })
++      .annotateMerge(locationQueryOpenApi)
++      .annotateMerge(
++        OpenApi.annotations({
++          identifier: "experimental.fs.watch",
++          summary: "Watch file",
++          description:
++            "Watch one file relative to the requested location for 24 hours, publishing filesystem.changed on that location when it changes. Watching an already watched file resets its expiry. Paths follow read confinement. Experimental: may change without compatibility guarantees.",
++        }),
++      ),
++  )
++  .add(
++    HttpApiEndpoint.delete("fs.unwatch", "/api/experimental/fs/watch", {
++      query: LocationQuery,
++      payload: WatchPayload,
++      success: HttpApiSchema.NoContent,
++    })
++      .annotateMerge(locationQueryOpenApi)
++      .annotateMerge(
++        OpenApi.annotations({
++          identifier: "experimental.fs.unwatch",
++          summary: "Unwatch file",
++          description:
++            "Stop watching one file relative to the requested location. Experimental: may change without compatibility guarantees.",
++        }),
++      ),
++  )
+   .annotateMerge(
+     OpenApi.annotations({
+       title: "filesystem",
+diff --git a/packages/client/src/promise/generated/client.ts b/packages/client/src/promise/generated/client.ts
+index 312caa5..e63a15d 100644
+--- a/packages/client/src/promise/generated/client.ts
++++ b/packages/client/src/promise/generated/client.ts
+@@ -195,6 +195,10 @@ import type {
+   FileFindOutput,
+   FileWriteInput,
+   FileWriteOutput,
++  FileWatchInput,
++  FileWatchOutput,
++  FileUnwatchInput,
++  FileUnwatchOutput,
+   CommandListInput,
+   CommandListOutput,
+   SkillListInput,
+@@ -1746,6 +1750,32 @@ export function make(options: ClientOptions) {
+           },
+           requestOptions,
+         ),
++      watch: (input: FileWatchInput, requestOptions?: RequestOptions) =>
++        request<FileWatchOutput>(
++          {
++            method: "POST",
++            path: `/api/experimental/fs/watch`,
++            query: { location: input["location"] },
++            body: { path: input["path"] },
++            successStatus: 204,
++            declaredStatuses: [400, 401, 404, 503],
++            empty: true,
++          },
++          requestOptions,
++        ),
++      unwatch: (input: FileUnwatchInput, requestOptions?: RequestOptions) =>
++        request<FileUnwatchOutput>(
++          {
++            method: "DELETE",
++            path: `/api/experimental/fs/watch`,
++            query: { location: input["location"] },
++            body: { path: input["path"] },
++            successStatus: 204,
++            declaredStatuses: [400, 401, 404],
++            empty: true,
++          },
++          requestOptions,
++        ),
+     },
+     command: {
+       list: (input?: CommandListInput, requestOptions?: RequestOptions) =>
+diff --git a/packages/client/src/promise/generated/types.ts b/packages/client/src/promise/generated/types.ts
+index 1ebec42..3157b21 100644
+--- a/packages/client/src/promise/generated/types.ts
++++ b/packages/client/src/promise/generated/types.ts
+@@ -5601,6 +5601,20 @@ export type FileWriteInput = {
+ 
+ export type FileWriteOutput = { location: LocationPublicRef; data: FileSystemWrite }
+ 
++export type FileWatchInput = {
++  readonly location?: { readonly directory?: string | undefined } | undefined
++  readonly path: string
++}
++
++export type FileWatchOutput = void
++
++export type FileUnwatchInput = {
++  readonly location?: { readonly directory?: string | undefined } | undefined
++  readonly path: string
++}
++
++export type FileUnwatchOutput = void
++
+ export type CommandListInput = {
+   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+ }
+diff --git a/packages/app/src/runtime/server/api.ts b/packages/app/src/runtime/server/api.ts
+index f078af3..3563f69 100644
+--- a/packages/app/src/runtime/server/api.ts
++++ b/packages/app/src/runtime/server/api.ts
+@@ -124,3 +124,20 @@ export function createApiForServer(input: {
+ export type MediaServerApi = ReturnType<typeof createApiForServer>
+ export type ServerApi = MediaServerApi["inline"]
+ export type InlineServerApi = ServerApi
++
++/**
++ * The server's ranged read of one file, for media elements. They cannot send the Authorization header, and a credential
++ * never goes in a DOM URL, so a server that needs a password has none: its media downloads through the API instead.
++ */
++export function fileStreamUrl(server: ServerConnection.HttpBase, input: { path: string; directory: string }) {
++  if (server.password) return
++
++  const url = new URL(
++    `api/fs/read/${input.path.split("/").map(encodeURIComponent).join("/")}`,
++    server.url.endsWith("/") ? server.url : `${server.url}/`,
++  )
++
++  url.searchParams.set("location[directory]", input.directory)
++
++  return url.href
++}
+diff --git a/packages/app/src/runtime/server/api.test.ts b/packages/app/src/runtime/server/api.test.ts
+index d10169e..cd360bd 100644
+--- a/packages/app/src/runtime/server/api.test.ts
++++ b/packages/app/src/runtime/server/api.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, test } from "bun:test"
+-import { authFromToken, authTokenFromCredentials, createApiForServer } from "./api"
++import { authFromToken, authTokenFromCredentials, createApiForServer, fileStreamUrl } from "./api"
+ 
+ test.each([
+   [btoa("opencode:secret"), { password: "secret" }],
+@@ -16,6 +16,14 @@ test("authTokenFromCredentials ignores usernames in legacy saved credentials", (
+   expect(authTokenFromCredentials(credentials)).toBe(btoa("opencode:secret"))
+ })
+ 
++test("fileStreamUrl never puts a credential in a media URL", () => {
++  const input = { path: "clips/final cut.mp4", directory: "/work/app" }
++  expect(fileStreamUrl({ url: "http://127.0.0.1:4096", password: "secret" }, input)).toBeUndefined()
++  expect(fileStreamUrl({ url: "http://127.0.0.1:4096" }, input)).toBe(
++    "http://127.0.0.1:4096/api/fs/read/clips/final%20cut.mp4?location%5Bdirectory%5D=%2Fwork%2Fapp",
++  )
++})
++
+ test("the authenticated binary media read never puts a credential in a media URL", async () => {
+   const requests: Array<{ url: string; headers: Headers; signal?: AbortSignal | null }> = []
+   const api = createApiForServer({ server: { url: "http://127.0.0.1:4096/prefix", password: "fixture-secret" },
+diff --git a/packages/app/src/workspaces/files/artifact.test.ts b/packages/app/src/workspaces/files/artifact.test.ts
+index af6996e..841b9bb 100644
+--- a/packages/app/src/workspaces/files/artifact.test.ts
++++ b/packages/app/src/workspaces/files/artifact.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, test } from "bun:test"
+-import { fileContentFromBytes, MAX_MEDIA_BYTES } from "./artifact"
++import { fileContentFromBytes, MAX_MEDIA_BYTES, streamedFileContent, streamedKinds } from "./artifact"
+ import { approxBytes } from "./content-cache"
+ 
+ describe("fileContentFromBytes", () => {
+@@ -45,3 +45,28 @@ describe("fileContentFromBytes", () => {
+     expect(fileContentFromBytes("a.bin", new Uint8Array([1, 0, 2]))).toEqual({ type: "binary", content: "", size: 3 })
+   })
+ })
++
++describe("streamedFileContent", () => {
++  test("versions the URL from the HEAD's content-length and last-modified, with the artifact mime", () => {
++    const modified = "Mon, 02 Jan 2026 03:04:05 GMT"
++    const response = new Response(null, { headers: { "content-length": "1024", "last-modified": modified } })
++    const url = "http://127.0.0.1:4096/api/fs/read/a.png?location%5Bdirectory%5D=%2Fwork%2Fapp"
++    expect(streamedFileContent("a.png", url, response)).toEqual({
++      type: "binary",
++      content: "",
++      size: 1024,
++      mimeType: "image/png",
++      url: `${url}&v=1024-${Date.parse(modified)}`,
++    })
++  })
++
++  test("a HEAD without caching headers sizes zero and versions v=0-0", () => {
++    const content = streamedFileContent("clip.mp4", "http://127.0.0.1:4096/api/fs/read/clip.mp4", new Response(null))
++    expect(content).toMatchObject({ type: "binary", content: "", size: 0, mimeType: "video/mp4" })
++    expect(new URL(content.url!).searchParams.get("v")).toBe("0-0")
++  })
++})
++
++test("streamedKinds is exactly the image/audio/video set", () => {
++  expect([...streamedKinds].sort()).toEqual(["audio", "image", "video"])
++})

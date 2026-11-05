@@ -390,6 +390,81 @@ let osScanFiles = 0
   if (osScanFiles < 100) fail(`8: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
 }
 
+// --- 9. Streaming reads + file-watch subscriptions (issue #143) ---
+{
+  // model.tsx: the streamed media read (HEAD-first, download fallback), the
+  // watch/unwatch lifecycle (open-or-show watch, reconnect re-watch), and the
+  // mobile call-point adaptation (vendored generated face has no `experimental`
+  // namespace on the file group — see the mobile(files-stream-watch) note).
+  const model = squash(await read(`${APP}src/workspaces/files/model.tsx`))
+  if (!model.includes("streamedKinds.has(artifactKind(file))"))
+    fail("9: model.tsx lost the streamed-kind gate (HEAD-first read)")
+  if (!model.includes("platform.fetch??fetch)(url,{method:\"HEAD\"})"))
+    fail("9: model.tsx lost the HEAD probe shape (platform.fetch ?? fetch)")
+  if (!model.includes("response.ok?streamedFileContent(file,url,response):download()"))
+    fail("9: model.tsx lost the streamed/download fallback pair")
+  if (!model.includes("voidserverSDK.api.file.watch({path:file,location:{directory:scope()}}).catch(()=>{})"))
+    fail("9: model.tsx watch must dial api.file.watch scoped to the location and swallow errors (old-server tolerance)")
+  if (!model.includes("voidserverSDK.api.file.unwatch({path:file,location:{directory:scope()}}).catch(()=>{})"))
+    fail("9: model.tsx unwatch must dial api.file.unwatch scoped to the location and swallow errors")
+  if (!model.includes('serverSDK.event.on("server.connected"'))
+    fail("9: model.tsx lost the server.connected re-watch subscription")
+  if (!model.includes("attachment.files.opened().forEach(watch)"))
+    fail("9: the reconnect handler must re-watch the opened files")
+  if (!model.includes("onCleanup(stop)"))
+    fail("9: the server.connected subscription must clean up (onCleanup)")
+  if (model.includes("api.experimental.file.watch") || model.includes("api.experimental.file.unwatch"))
+    fail("9: the pin generated-face namespace (api.experimental.file.*) leaked back into model.tsx")
+
+  // artifact.ts: streamed media kinds + the versioned URL composition.
+  const artifact = squash(await read(`${APP}src/workspaces/files/artifact.ts`))
+  if (!artifact.includes('exportconststreamedKinds=newSet<ArtifactKind>(["image","audio","video"])'))
+    fail("9: streamedKinds must be exactly the image/audio/video set")
+  if (!artifact.includes("exportfunctionstreamedFileContent(path:string,url:string,response:Response)"))
+    fail("9: streamedFileContent changed shape")
+  if (!artifact.includes('versioned.searchParams.set("v",`${size}-${Date.parse(response.headers.get("last-modified")??"")||0}`)'))
+    fail("9: the v=<size>-<mtime> version composition changed")
+  if (!artifact.includes("mimeType:artifactMime(path)"))
+    fail("9: streamed content mime must come from artifactMime")
+
+  // api.ts: fileStreamUrl — credential never enters a DOM URL.
+  const api = squash(await read(`${APP}src/runtime/server/api.ts`))
+  if (!api.includes("exportfunctionfileStreamUrl(server:ServerConnection.HttpBase,input:{path:string;directory:string})"))
+    fail("9: fileStreamUrl changed shape")
+  if (!api.includes("if(server.password)return"))
+    fail("9: fileStreamUrl must return undefined for password-protected servers (credentials stay out of DOM URLs)")
+  if (!api.includes('url.searchParams.set("location[directory]",input.directory)'))
+    fail("9: fileStreamUrl lost the location[directory] query parameter")
+
+  // protocol fs.ts: the two endpoint identifiers (route identity the client dials).
+  const fs = await read(`${APP}../protocol/src/groups/fs.ts`)
+  if (!fs.includes('identifier: "experimental.fs.watch"')) fail("9: protocol fs group lost the experimental.fs.watch endpoint")
+  if (!fs.includes('identifier: "experimental.fs.unwatch"')) fail("9: protocol fs group lost the experimental.fs.unwatch endpoint")
+  if (!fs.includes('HttpApiEndpoint.post("fs.watch", "/api/experimental/fs/watch"'))
+    fail("9: fs.watch must POST /api/experimental/fs/watch")
+  if (!fs.includes('HttpApiEndpoint.delete("fs.unwatch", "/api/experimental/fs/watch"'))
+    fail("9: fs.unwatch must DELETE the same /api/experimental/fs/watch path")
+  if (!fs.includes("ServiceUnavailableError"))
+    fail("9: fs.watch must declare ServiceUnavailableError (location not ready → 503)")
+
+  // generated client: the vendored (de-prefixed) wrapper names and statuses.
+  const client = await read(`${CLIENT}src/promise/generated/client.ts`)
+  if (!client.includes("path: `/api/experimental/fs/watch`"))
+    fail("9: the generated client lost the watch/unwatch endpoint path")
+  const watchBlock = /watch:\s*\(input: FileWatchInput[\s\S]*?unwatch:\s*\(input: FileUnwatchInput[\s\S]*?\),\s*\n\s*\},/.exec(client)
+  if (!watchBlock) fail("9: the file.watch/unwatch wrapper block (FileWatchInput/FileUnwatchInput names) changed")
+  if (watchBlock && !watchBlock[0].includes("successStatus: 204,\n            declaredStatuses: [400, 401, 404, 503],\n            empty: true,"))
+    fail("9: file.watch must declare success 204 with [400, 401, 404, 503]")
+  if (client.includes("ExperimentalFileWatchInput") || client.includes("ExperimentalFileUnwatchInput"))
+    fail("9: the Experimental-prefixed type names leaked into the vendored generated client")
+
+  // types.ts: the four de-prefixed payload types.
+  const types = await read(`${CLIENT}src/promise/generated/types.ts`)
+  for (const name of ["FileWatchInput", "FileWatchOutput", "FileUnwatchInput", "FileUnwatchOutput"]) {
+    if (!types.includes(`export type ${name} =`)) fail(`9: generated types lost ${name}`)
+  }
+}
+
 console.log(
   "verify-files: PASS (" +
     "1: tree/read/search wired through api.file.list/read/find with location scope + path identity + NotFound normalization + search swallow registered; generated client fs endpoints with [400,401,404]/binary read; " +
@@ -402,5 +477,6 @@ console.log(
     "8: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted files (workspaces + gui-extensions/file); " +
+    "9: streamed media reads (HEAD-first via fileStreamUrl, download fallback, streamedKinds image/audio/video) + file.watch/unwatch subscriptions (scoped, silent-failure, server.connected re-watch, onCleanup) with the vendored de-prefixed generated face and [400,401,404,503] watch statuses; " +
     "STATIC check - tree/search/view runtime behavior, stale reread timing, recovery, client-exit red line and touch/a11y adequacy are G22)",
 )

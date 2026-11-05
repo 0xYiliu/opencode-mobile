@@ -29,6 +29,11 @@
 | S27–S30/W01/W08 | FU-3：registry 仍目录型 projects/lastProject，未迁至 usedProjectIDs/lastProjectID | 项目身份/最近使用持久化迁移、导航和恢复 |
 | W03/W16/M04 | `app/src/workspaces/files/model.tsx` 缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅 | 文件刷新/订阅生命周期及真实切网恢复 |
 
+## E36 增量核实（2026-11-06，issue #143 实施轮）
+
+- 基线：worktree `feat--221-file-viewing`，分支 `feat/221-file-viewing`，base `3310b808c27ddb4b5f861912081e4f10ef652f75`；上游目标仍 `3ebcf9a32c7b28f658cfee80775448929361727a`。
+- W03/W16/M04 行增量：E35 所列「缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅」已按目标 copy 迁入——`model.tsx`/`artifact.ts`（gui-plugins-api-migration hunks 重生成）+ `protocol/fs.ts`、`client.ts`、`types.ts`、`api.ts`（新 files-stream-watch.patch，0-based 58）；model.tsx 仅 2 行调用点适配（`api.experimental.file.*` → `api.file.*`，vendored 生成面命名，mobile 注记在位）。vendored `api.ts` 为移动适配形态（connection-utf8-basic-auth/session-client-compatibility 在先），`fileStreamUrl` 以追加 hunk 落位。typecheck 总数 419→417（mounted-session watch/unwatch TS2339 对闭合）；watch 路由在 v2.2.1 服务（desktop-ssh 2.2.1 实例）实测存在（POST/DELETE 204，未知路由 404 负例）。**运行验收未闭合**：本轮设备 adb 不可达，G22①–⑨/G22⑤/G29/G28 全部 BLOCKED，解除条件=恢复设备无线 ADB（设备屏物理操作）后按本轮 APK（SHA-256 `1c8c440ab868555051338a16a987974dc2675443e58308963bc233f8825e6d6f`）复测。
+
 ## E35 已有运行证据与发布边界
 
 - PR [#135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已合并；GitHub merge commit 为 `bbd0b488efb5a654ce55cbde30661d5287bc4381`，最终 Agent/Extensions 修复提交为 `813e68d`。PR 正文的 Draft、旧 APK 和较早评论不是最终状态。

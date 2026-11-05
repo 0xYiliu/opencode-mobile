@@ -601,7 +601,7 @@
     {
       "id": "gui-plugins-api-migration",
       "path": "patches/mobile/gui-plugins-api-migration.patch",
-      "sha256": "9a3cca744552093ed517c1a217e0e1c2ccff4d4c1f1ade7ec859e975088e29ae",
+      "sha256": "8deb24d1c1dd186e6eb5fc56208f6f06e391c0abd9bd39845f19b124c5822634",
       "status": "active"
     },
     {
@@ -734,6 +734,12 @@
       "id": "session-media-source-safety",
       "path": "patches/mobile/session-media-source-safety.patch",
       "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
+      "status": "active"
+    },
+    {
+      "id": "files-stream-watch",
+      "path": "patches/mobile/files-stream-watch.patch",
+      "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
       "status": "active"
     },
     {
