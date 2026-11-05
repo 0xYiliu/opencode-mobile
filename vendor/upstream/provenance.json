@@ -739,7 +739,7 @@
     {
       "id": "files-stream-watch",
       "path": "patches/mobile/files-stream-watch.patch",
-      "sha256": "39a8e420cf15a8979f3c2fe5957442d5014339d80a66c8389e1940a33570bc80",
+      "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
       "status": "active"
     },
     {
