@@ -2844,6 +2844,40 @@ sweep 域 = scripts/verify-*.ts 全量（陈旧见证串形态：`49=49`/`39=39`
 - Desktop 视觉对照 BLOCKED 继承；`<768px` 两侧联验 BLOCKED 继承；TalkBack 走查按适用面登记（About 行/弹窗行语义 DOM 级已核，读屏实走未行）。
 - 许可审计 V4 12 项保持「待用户决策」原样引用；`docs/decisions/0005-apk-update.md` 零改动（引用不改变——本段与 settings.md 均只引用）。
 
+## issue #141 段（S21–S23：供应商连接与认证完整流程对齐 Desktop v2.2.1——provider-connect-flow-redesign）——2026-11-06 实测记录
+
+**分支与基线**：worktree `feat--221-provider-auth`，base `3310b808`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1，本地 `/home/peterhan/repository/opencode` 对象=`release: v2.2.1`）+ 65 移动补丁；实施提交链 feat vendor 迁移（provider-connect-flow-redesign 11 targets）→ chore verify（探针修订 + dist 常量回填）→ docs 同步，未 push。计划 `/tmp/issue141/plan.md`（两轮对抗评审 r2 PASS）绑定实施。
+
+**交付面**：controller.ts/dialog.tsx/dialog.stories.tsx/chatgpt-{usage-limit,welcome}.stories.tsx/go-upsell-hero-art.ts **目标逐字**（与 3ebcf9a 逐字节 cmp 同一，零移动适配——依赖逐项预核验：client 类型/端点、platform、i18n、Checkbox/DialogTitleGroup/search-list.css/hover-reveal 全在闭包）；connect-methods.test.ts **NEW** 第一方纯函数测试（new-file hunk 入补丁）；en.ts +24 键（10 `dialog.provider.*` + 2 `provider.connect.command.*` + 12 `provider.connect.form.*`）+ `accounts.add` 值变更（"Add another account"→"Add account"）；providers/credentials/{dialog,form,form.test} 三件**随目标删除**（547 行；目标 `git ls-tree` 为空）；**在册死键保留**（方案 A）：目标删除的 49 键（12 连接域 + 37 `provider.custom.*`）不清扫，zh 与 ~60 locale 零触碰（#105 死键先例）；connect 域其余 11 文件零差异不动（实测 diff=0），`mcp.ts` 的 mobile(M-048) hunk 原样保留。DialogConnectProvider 契约：原 6 props 全保留 + `standalone?`，7 个消费方零改动。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| 开工基线 | `verify:patches` / `verify:closure` | PASS（65 补丁）；app 单测（无 seam）**627/5/46/44/2010**（678 tests/129 files）；typecheck:tsc（清 tsbuildinfo）**419**/53 文件（connect 域零错误）——当期实测为对账基准（历史段落数值已漂移，不沿用） |
+| V3 闭包 | `bun run verify:closure` | **PASS**（66 补丁字节级重放，DANGLING=0，双 manifest 66=66，`git diff --check` clean；per-package sources app=pin b4525d79bf…、gui-plugins=3ebcf9a…） |
+| 补丁派生自检 | scratch 法（plan §4.3） | pin pristine 树 + packageSources → 依序 65 补丁 → 累积树；`git apply --check` PASS → 应用后 11 targets 与工作树 **cmp 逐字节一致**；patch 3014 行、恰 11 文件头（6 modified + 1 `new file mode` + 3 `deleted file mode` + en.ts）；sha256 `244bfc66…` 由 patches:refresh 计算 |
+| 负例演练（patch 载荷可证伪） | deferred + 摘除 mobilePatches → closure → 还原 | 摘除后（合法 deferred 形，refresh 同步镜像）closure **FAIL**：`V3(a) FAIL … Only in …/connect: connect-methods.test.ts` + 文件类型差异（重放树仍带 credentials 三件、缺对话框族改动）→ 还原 active + refresh + closure **PASS**——补丁载荷真实承载 11 路径差异 |
+| app 全量单测（无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | **635 pass / 5 skip / 46 fail / 44 errors / 2018 expect()（686 tests/129 files）**；对账 = 基线 627→635（**+10 = 新 connect-methods.test 10 例全绿；−2 = `providers/credentials/form.test.ts` 退册**，678→686 tests 同式）；fail/error 集（2 显式 + 44 unhandled：mobile-hosts seam 解析 + solid server 端 Client-only API 预存族）与基线**逐项全等**，零新失败 |
+| 新增单测 | connect-methods.test.ts | **10 pass / 0 fail / 13 expect()**（connectMethods 排序/env 过滤/env-only 空表 + providerFormDefaults hidden+default/external 跳过/eq/neq/数组 contains/未答条件不激活）；runtime server 链（registry→mobile-hosts）以 mock.module 边界隔离（palette.test.ts 同型 seam），被测函数全真 |
+| 受影响在册测试 | go-upsell-hero-art / remote / settings accounts | 与基线同态：art+accounts 全绿；remote.test.ts 的 unhandled seam 错误为**基线在册项**（baseline-unhandled 清单含该文件），非本期引入 |
+| typecheck | `bun run typecheck:tsc`（清 tsbuildinfo） | **419 errors**，逐文件分布与基线**全等**（53 文件 uniq 计数 diff 为空）；connect 域零新增（中途 3 条 TS2741 为测试 fixture FormOption 缺 label，修正后归零） |
+| 探针修订 | `verify-provider-models` / `verify-agent-capabilities` | provider-models **rc=0**：组 3 增 command 链钉（`command.cancel` 恰 2、connect/status 调用形、CommandAttempt/store 字段/tagged attempt union、`connectMethods` 排序+env 过滤表达式、`provider.connect.command.waiting`/output pre）+ Console/Go absence 钉（`keyProvider`/`CONSOLE_PROVIDERS`/`consoleIntegration` 零命中、`export type ProviderConnectionController` 负锚、CONSOLE_INTEGRATION 保留）+ custom-provider absence（credentials/ 目录不存在、dialog 零 CUSTOM_ID/CustomProviderForm）；组 6 OPENAI_COMPATIBLE 正锚退役（保留 import 负扫描 + package.json 键检查）；组 2/7 域计数 49→**48**（−3 credentials +1 测试，下限 45 保持）；agent-capabilities **rc=0**：connect dialog 入 consumed-keys 护栏（81 字面量）+ ui i18n universe + 三元条件操作数 skip 规则。**既有组 3/5/6 钉零回退**（openBrowser seam/1s 轮询/四分支/ expired_token 映射/2×oauth.cancel/onCleanup/return_window/auto-code/Console 文案族/dialog 十锚全数原样命中） |
+| 探针预存漂移修复（新事实即登记，#105 verify-pairing 先例） | 同上两探针 | 三处 main@3310b80 预存 rc=1 修复（干净 HEAD worktree 复跑同败证明预存）：provider-models 组 5 两钉（ae10625 更名 ModelState→modelState、latest 规则新增 freeSet 析取——锚定事实不变）+ agent-capabilities 组 3 specifier 集漂移（plugin/gui 33→37、builtin 9→10、新增 test-only `gui-plugins/terminal` ×1）——探针 rc 自 rc=1 修复至 rc=0，注释逐条 issue #141 归因 |
+| 探针普查 | 33 个 verify-*.ts | **build 前 8 rc=0 / 25 rc=1；build 后 10 rc=0 / 23 rc=1**（direct-connection/service-ops/ssh 三探针随 dist 重建恢复）；post-gradle permission-requests/session-workbench rc=1 = build intermediates 扫描（#101/#105 在册「产物条件性 by design」同型）。**rc=1 集 = main@3310b80 预存漂移**：干净 HEAD worktree 同法普查 5 rc=0/28 rc=1 同败同文（样本核验 about-version/appearance-settings/diff/notifications/pairing/gui-plugins/files/recovery 失败行均为 session/appearance/btw/domain 源锚陈旧，零一文件属本期改动域）；本轮实施工作树相对基线**零探针由过转败**（基线 rc=0 集合 ⊆ 交付 rc=0 集合），两修订探针 rc=1→rc=0。**普查口径如实登记：#105 期「27/6」记录已陈旧，探针群组性漂移属 main 预存状态，归各域 owner 后续刷新（不在 #141 范围）** |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行 + 低置信审阅行集合与基线同族；新增/修改文件零命中 |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，dist 标记命中于新 dist） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 5617 files / 149,595,730 bytes**（上一次在册 manifest=3520/159,564,015——**增量主体为自该次构建以来 main 累积的 vendor 漂移**（当前 vendor 的 rolldown 分块形态，2691 map + 2926 非 map），非 #141 单独体量；#141 面 = connect 对话框/controller/键族入包）。dist 正例检索：`dialog.provider.connected`、`provider.connect.form.selectOne` 命中 `_assets/language-BHZZwYAy.js`，`provider-connect-command-output` 命中 `_assets/dialog-YBCpiy8B.js`；"Add account"/"Integrations" 新文案命中 language chunk。commands-menus/gui-plugins/notifications 三探针 dist 常量 **3520/159558361→5617/149595730** 同提交回填（issue #141 归因注释） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk gradle-9.6.1 … :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 37s**；单测 **31 tests / 0 failures**（testDebugUnitTest XML 汇总）；APK SHA-256 **`b1117c40cabcdb015b5bae1957b30ecf4e63053a030dd42b883b676aafc3785e`** |
+
+### 设备 QA
+
+**BLOCKED（无设备）**：`adb devices` = 空列表（本轮 QA 窗口内 MatePad .145 未连接/未预约登记）——S21 验收「设置入口与 Composer /connect 目标导航、返回/取消无悬挂认证」、S22「key/OAuth/command 真实授权路径与失败重试」、S23「多账号操作刷新」及 localStorage 18/18 红线复验**均未在设备执行**，不得记为通过。解除条件 = 设备按 #139 预约规则在场（单操作者）+ 可达测试服务 + 授权测试凭据（OAuth/command 链需真实账号，缺凭据路径沿用 #105 忠实登记口径，不模拟成功）。结构面已由探针/单测/目标逐字承载：对话框关闭 onCleanup 双 cancel、command 状态机、四分组 picker、env-only 禁用行。
+
+### 文档同步
+
+`docs/design/units/providers-models.md`（覆盖范围/能力来源表连接对话框行目标形/端点表 command 调用方/状态矩阵 +6 行（command waiting/轮询/failed-expired/env-only/needsSignIn + 方法选择目标形）/能力边界 1（stub 已删）/6（i18n 85/33 en、死键 49）/7（command UI 已迁语义归 G25）/安全边界 48 文件/门禁段 #141 证据/诚实边界 FU-1 已交付）；`docs/alignment/windows-desktop/v2.2.1/matrix.md`（S21/S22/S23 行升级 + 汇总缺口行 + 工作计划 #141 行）；补丁 manifest `provider-connect-flow-redesign` reason/verification/rebase 字段即偏离登记文档（11 targets、死键清单、M-048 保留说明、Console/Go 拆分、层位与负例演练记录）；本文件（#141 段新增）。
+
 ## 许可审计 12 项待用户决策（2026-10-24 实跑输出）
 
 `bun run scripts/license-audit.ts`：1089 packages 审计，STOP 于以下 12 项（9 个独立包，按平台二进制折叠为 6 家族；NOTICE-THIRD-PARTY.md 因此未生成）：
