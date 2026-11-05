@@ -1154,35 +1154,6 @@
       "status": "active"
     },
     {
-      "id": "M-061",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
-      "targets": [
-        "packages/app/src/servers/connect/screen.tsx"
-      ],
-      "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
-      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence.",
-      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
-      "status": "active"
-    },
-    {
-      "id": "M-062",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
-      "targets": [
-        "packages/app/src/runtime/server/registry.tsx",
-        "packages/app/src/runtime/server/registry-hydration.test.tsx"
-      ],
-      "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
-      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts.",
-      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
-      "status": "active"
-    },
-    {
       "id": "M-057",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/P126-U-session-workbench.patch",
@@ -1546,9 +1517,11 @@
         "packages/util/src/session-mention.test.ts",
         "packages/util/src/session-mention.ts"
       ],
-      "reason": "P126 session-workbench source candidate; deferred and not applied in Block 1.",
+      "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
       "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a."
     },
     {
       "id": "M-058",
@@ -1593,20 +1566,33 @@
         "packages/ui/src/motion-tuning.test.ts",
         "packages/ui/src/motion-tuning.ts",
         "packages/ui/test/solid-jsx.ts",
-        "packages/app/src/home/sessions/command-palette.test.tsx",
-        "packages/app/src/providers/models/select-dialog.test.tsx",
         "packages/app/src/runtime/server/media-api.ts",
         "packages/app/src/runtime/server/media-contract.ts",
-        "packages/app/src/runtime/server/runtime.test.tsx",
         "packages/app/src/runtime/server/media-generated/.httpapi-codegen.json",
         "packages/app/src/runtime/server/media-generated/client-error.ts",
         "packages/app/src/runtime/server/media-generated/client.ts",
         "packages/app/src/runtime/server/media-generated/index.ts",
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
-      "reason": "P126 client-compatibility source candidate layered after U; deferred and not applied in Block 1.",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
+      "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded.",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
+      "status": "active",
+      "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered directly after M-057 U and before M-065 host project compatibility."
+    },
+    {
+      "id": "M-065",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-project-open-compat.patch",
+      "targets": [
+        "packages/app/src/runtime/plugin/host-apis.tsx"
+      ],
+      "reason": "The session-workbench host API called projects.add, but the runtime exposes projects.open(directory). Adapt the production host API and retain the draft's existing ServerConnection.key and directory.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding M-061/M-062 + M-057 + M-058",
+      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
+      "rebase": "Layered after M-057 U and M-058 C, before M-059 S. The only target is packages/app/src/runtime/plugin/host-apis.tsx.",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
+      "status": "active"
     },
     {
       "id": "M-059",
@@ -1632,9 +1618,11 @@
         "packages/app/src/session/revert.ts",
         "packages/app/src/session/session-ownership.test.ts"
       ],
-      "reason": "P126 media-source safety and ownership source candidate; deferred and not applied in Block 1.",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
+      "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
+      "status": "active",
+      "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after M-057 U, M-058 C and M-065 compatibility; before M-060 Android adaptation."
     },
     {
       "id": "M-060",
@@ -1643,11 +1631,71 @@
       "targets": [
         "packages/app/src/session/composer/region.tsx",
         "packages/app/src/shell/routes/routes.tsx",
-        "packages/app/src/shell/panel-motion.ts"
+        "packages/app/src/shell/panel-motion.ts",
+        "packages/app/src/shell/panel-motion.test.ts"
       ],
-      "reason": "P126 Android adaptation source candidate after U/C/S; deferred and not applied in Block 1.",
+      "reason": "Minimal Android adaptation layer: retain mobile-hosts initialScreenOwned gating, keep the dev/Beta components lab out of this client, and guard the older WebView :dir() selector. Its composer hunk removes the target VoiceComposer wrapper and preserves the non-voice Composer fallback in accordance with ADR 0006; it does not enable voice calls.",
       "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
+      "status": "active",
+      "verification": "Replay and panel-motion/route/composer tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
+      "rebase": "Layered after M-057 U, M-058 C, M-065 and M-059 S. The VoiceComposer hunk is explicitly traceable to ADR 0006 (deferred), not a voice feature port."
+    },
+    {
+      "id": "M-061",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "targets": [
+        "packages/app/src/servers/connect/screen.tsx"
+      ],
+      "reason": "Persist the credential from the initial authenticated connection through the Android vault, preserving Desktop-style connection reuse without writing the password to WebView storage.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Targeted connection persistence tests; vault-unavailable environments retain the explicit memory-only fallback.",
+      "rebase": "Layered after M-056; replaces the initial servers.add call with vault-backed credentialRef persistence.",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
+      "status": "active"
+    },
+    {
+      "id": "M-062",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "targets": [
+        "packages/app/src/runtime/server/registry.tsx",
+        "packages/app/src/runtime/server/registry-hydration.test.tsx"
+      ],
+      "reason": "Issue #128 (restore half of the M-061 fix): the M-010 hydration ran once, microtask-early, before the AndroidX vault transport completed its async native ready roundtrip, so every get() threw unavailable, no password was restored, the first /api call 401'd and the cold start fell back to the Connect screen. The hydration now awaits a feature-detected, bounded vault.ready() before the per-entry loop; on timeout the loop proceeds exactly as before (explicit re-entry through the server's authentication flow, no fallback).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "New registry-hydration.test.tsx (delayed-ready restores into memory; injected password never reaches the persisted payload (M-002); never-ready keeps today's behavior with no injection and no unhandled rejection) plus the M-010 anchor in scripts/verify-credential-vault.ts and first-party ready() contract tests; device cold-start evidence in docs/build-and-verify.md.",
+      "rebase": "Layered after M-061 (write half); the registry hunk inserts the wait between the hydration promise resolution and the M-010 entry loop — keep every M-010 anchor byte-identical (mobile(M-010) marker, the credentialRef/password gate, the vault.get call, the setStore injection) and the four-space if-block close shape pinned by scripts/verify-credential-vault.ts.",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
+      "status": "active"
+    },
+    {
+      "id": "M-067",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "targets": [
+        "packages/app/e2e/utils/mock-server.ts"
+      ],
+      "reason": "Carries the mockPluginsActivating helper byte-identical to fixed upstream v2.2.1; this is an upstream E2E utility, not a mobile runtime adaptation.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "The copied helper remains available to the upstream Composer E2E cases; optimizer and production build configuration are unchanged.",
+      "rebase": "The target is an exact source copy from the fixed upstream release tree.",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
+      "status": "active"
+    },
+    {
+      "id": "M-068",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "targets": [
+        "packages/app/e2e/utils/app-direction.fixture.tsx"
+      ],
+      "reason": "Carries the fixed upstream v2.2.1 app-direction fixture source copy for the GUI plugin host contract; no Composer seed adaptation is added.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Byte-identical to packages/app/e2e/utils/app-direction.fixture.tsx at the fixed upstream target.",
+      "rebase": "The target is an exact source copy from the fixed upstream release tree.",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
+      "status": "active"
     },
     {
       "id": "M-063",
@@ -1655,31 +1703,27 @@
       "patch": "patches/mobile/P126-A-agent-selector.patch",
       "targets": [
         "packages/app/src/providers/models/agent.ts",
-        "packages/app/src/providers/models/agent.test.ts",
         "packages/app/src/providers/models/selection.tsx"
       ],
-      "reason": "P126 agent-selector source candidate; deferred and not applied in Block 1.",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
+      "reason": "Show the existing server-provided agent selector on the Android host while retaining Desktop visibility and existing selection fallback semantics.",
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active",
+      "verification": "Static source inspection; empty catalogs remain hidden by the existing Composer view guard; device verification pending.",
+      "rebase": "Applied at the active replay tail after M-068; preserve the original selection fallback separately from Android visibility."
     },
     {
-      "id": "M-064",
+      "id": "extensions-flyout-webview",
       "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/P126-S-session-ownership-whitespace.patch",
+      "patch": "patches/mobile/extensions-flyout-webview.patch",
       "targets": [
-        "packages/app/src/session/session-ownership.test.ts"
+        "packages/gui-plugins/src/details/details.css"
       ],
-      "reason": "P126 session-ownership whitespace source candidate; deferred and not applied in Block 1.",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
+      "reason": "Flatten the existing flyout-open ancestor selector so Android WebView parses the same opacity and transition rules; no interaction or data changes.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "MatePad pre-fix: all four top-level taps activate panes, but flyout body computed opacity remains zero. Post-fix device verification pending.",
+      "rebase": "Layered at replay tail over the byte-identical fixed-target details.css; preserve declarations and interaction.",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active"
     }
-  ],
-  "block1PatchPolicy": {
-    "base": "d37260c002b4390060f7d6cd78ffe6a11e9e1012",
-    "activePatchCount": 56,
-    "deferredSourceOnlyPatchCount": 6,
-    "deferredPatchesApplied": false,
-    "activeClosureUsesOnlyBaseOrder": true,
-    "futureOrderContract": "p126-replay-order.json"
-  }
+  ]
 }

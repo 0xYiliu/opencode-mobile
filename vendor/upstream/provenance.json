@@ -24,6 +24,9 @@
       "plugin",
       "ai"
     ],
+    "patchCreatedPackages": [
+      "patchmark"
+    ],
     "fileCount": 4473,
     "fileCountBasis": "git ls-files count under packages/ at the pin (review correction N1: 4460 was an intermediate-state residue)",
     "packagesTreeSizeMB": 45,
@@ -167,6 +170,98 @@
       "summary": "Registry hydration awaits a feature-detected bounded vault.ready() before restoring credentials into memory (issue #128 cold-start restore half of M-061); carries the new registry-hydration.test.tsx regression",
       "reason": "The M-010 hydration raced the AndroidX vault transport's async native ready roundtrip and restored nothing on cold start, sending the app back to the Connect screen; the bounded wait keeps the restore deterministic while a timeout preserves today's explicit re-entry path.",
       "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288"
+    },
+    {
+      "id": "M-057",
+      "file": "patches/mobile/P126-U-session-workbench.patch",
+      "targets": 358,
+      "summary": "Fixed v2.2.1 session-workbench runtime overlay (composer, timeline, tabs, requests and session UI dependencies).",
+      "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1"
+    },
+    {
+      "id": "M-058",
+      "file": "patches/mobile/P126-C-client-compat.patch",
+      "targets": 45,
+      "summary": "Target client/runtime compatibility and media API contract.",
+      "reason": "Client/runtime compatibility source and media API contract. Test files not present in the fixed target were excluded from this patch; generated media client files remain required by the runtime.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330"
+    },
+    {
+      "id": "M-065",
+      "file": "patches/mobile/P126-C-project-open-compat.patch",
+      "targets": [
+        "packages/app/src/runtime/plugin/host-apis.tsx"
+      ],
+      "summary": "Adapt the host project picker to the real projects.open API.",
+      "reason": "The session-workbench host API called projects.add, while the runtime exposes projects.open(directory); the production adapter preserves the selected server key and draft directory.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding M-061/M-062 + M-057 + M-058",
+      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db"
+    },
+    {
+      "id": "M-059",
+      "file": "patches/mobile/P126-S-media-source-safety.patch",
+      "targets": 18,
+      "summary": "Session media-source safety, queue/fork/revert and ownership.",
+      "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323"
+    },
+    {
+      "id": "M-060",
+      "file": "patches/mobile/P126-A-android-adaptation.patch",
+      "targets": 4,
+      "summary": "Minimal Android adaptation; VoiceComposer remains deferred per ADR 0006.",
+      "reason": "Minimal Android adaptation layer: retain mobile-hosts initialScreenOwned gating, keep the dev/Beta components lab out of this client, and guard the older WebView :dir() selector. Its composer hunk removes the target VoiceComposer wrapper and preserves the non-voice Composer fallback in accordance with ADR 0006; it does not enable voice calls.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73"
+    },
+    {
+      "id": "M-063",
+      "file": "patches/mobile/P126-A-agent-selector.patch",
+      "targets": 2,
+      "summary": "Android visibility for the existing server-provided Agent selector.",
+      "reason": "Show the existing server-provided agent selector on the Android host while retaining Desktop visibility and existing selection fallback semantics.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active"
+    },
+    {
+      "id": "M-067",
+      "file": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "targets": [
+        "packages/app/e2e/utils/mock-server.ts"
+      ],
+      "summary": "Fixed upstream mockPluginsActivating E2E helper source copy.",
+      "reason": "Copy the helper byte-identical to the fixed v2.2.1 source; no Vite optimizer or runtime configuration is changed.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "The helper remains available to upstream Composer E2E cases.",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc"
+    },
+    {
+      "id": "M-068",
+      "file": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "targets": [
+        "packages/app/e2e/utils/app-direction.fixture.tsx"
+      ],
+      "summary": "Fixed upstream app-direction fixture source copy.",
+      "reason": "Copy the v2.2.1 GUI plugin host fixture byte-identically; no Composer seed adaptation is included.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Byte-identical to the file at the fixed upstream target.",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe"
+    },
+    {
+      "id": "extensions-flyout-webview",
+      "file": "patches/mobile/extensions-flyout-webview.patch",
+      "targets": 1,
+      "summary": "Android WebView Extensions flyout CSS nesting compatibility.",
+      "reason": "Flatten the existing flyout-open ancestor selector so Android WebView parses the same opacity and transition rules; no interaction or data changes.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active"
     }
   ],
   "upstreamPatches": {
@@ -618,6 +713,36 @@
       "status": "active"
     },
     {
+      "id": "M-057",
+      "path": "patches/mobile/P126-U-session-workbench.patch",
+      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
+      "status": "active"
+    },
+    {
+      "id": "M-058",
+      "path": "patches/mobile/P126-C-client-compat.patch",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
+      "status": "active"
+    },
+    {
+      "id": "M-065",
+      "path": "patches/mobile/P126-C-project-open-compat.patch",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
+      "status": "active"
+    },
+    {
+      "id": "M-059",
+      "path": "patches/mobile/P126-S-media-source-safety.patch",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
+      "status": "active"
+    },
+    {
+      "id": "M-060",
+      "path": "patches/mobile/P126-A-android-adaptation.patch",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
+      "status": "active"
+    },
+    {
       "id": "M-061",
       "path": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
       "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
@@ -630,86 +755,2851 @@
       "status": "active"
     },
     {
+      "id": "M-067",
+      "path": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
+      "status": "active"
+    },
+    {
+      "id": "M-068",
+      "path": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
+      "status": "active"
+    },
+    {
+      "id": "M-063",
+      "path": "patches/mobile/P126-A-agent-selector.patch",
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active"
+    },
+    {
+      "id": "extensions-flyout-webview",
+      "path": "patches/mobile/extensions-flyout-webview.patch",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active"
+    }
+  ],
+  "deferredMobilePatches": [],
+  "p126RuntimePatchSources": [
+    {
       "id": "M-057",
       "path": "patches/mobile/P126-U-session-workbench.patch",
       "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/e2e/regression/composer.spec.ts",
+          "hunks": 16,
+          "change": "modify",
+          "blobRange": "4d65395..806fb3a"
+        },
+        {
+          "path": "packages/app/e2e/regression/mobile-timeline-scroll.spec.ts",
+          "hunks": 15,
+          "change": "modify",
+          "blobRange": "83707b3..60edbef"
+        },
+        {
+          "path": "packages/app/e2e/regression/multi-server.spec.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "cb25ee5..288cc0b"
+        },
+        {
+          "path": "packages/app/e2e/regression/panel-edges.spec.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..651d157"
+        },
+        {
+          "path": "packages/app/e2e/regression/session-header.spec.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "f9fc8e0..73d2adc"
+        },
+        {
+          "path": "packages/app/e2e/regression/session-location-sync.spec.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "971cad5..d189c92"
+        },
+        {
+          "path": "packages/app/e2e/regression/session-queue.spec.ts",
+          "hunks": 21,
+          "change": "modify",
+          "blobRange": "fdbb28b..2b5086d"
+        },
+        {
+          "path": "packages/app/e2e/regression/session-request-docks.spec.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "2206c0e..6cab746"
+        },
+        {
+          "path": "packages/app/e2e/regression/side-panels.spec.ts",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "c19049f..b4cd9fe"
+        },
+        {
+          "path": "packages/app/e2e/regression/tabs.spec.ts",
+          "hunks": 27,
+          "change": "modify",
+          "blobRange": "7bedf76..cddaca5"
+        },
+        {
+          "path": "packages/app/e2e/regression/timeline-cache.spec.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "8737196..54655b0"
+        },
+        {
+          "path": "packages/app/e2e/utils/side-panel.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..745817e"
+        },
+        {
+          "path": "packages/app/public/assets/JetBrainsMonoNerdFontMono-Bold.woff2",
+          "hunks": 0,
+          "binary": true,
+          "change": "add",
+          "blobRange": "0000000000000000000000000000000000000000..4d671d1db4547d5e74f07d5425dc086ee1b4893a"
+        },
+        {
+          "path": "packages/app/src/composer/adapter.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "6f37355..0b9fc5a"
+        },
+        {
+          "path": "packages/app/src/composer/attachments/destination.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "571b2f0..76d583c"
+        },
+        {
+          "path": "packages/app/src/composer/attachments/uploads.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..2762313"
+        },
+        {
+          "path": "packages/app/src/composer/attachments/uploads.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "c6f6d35..b8f5470"
+        },
+        {
+          "path": "packages/app/src/composer/commands.tsx",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "e6b5807..3ecdc9a"
+        },
+        {
+          "path": "packages/app/src/composer/comment-note.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "3571bac..96300f5"
+        },
+        {
+          "path": "packages/app/src/composer/comment-note.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "a349925..205178b"
+        },
+        {
+          "path": "packages/app/src/composer/composer.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "3fba623..92a024c"
+        },
+        {
+          "path": "packages/app/src/composer/editor/actions.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "4819951..c1b06fd"
+        },
+        {
+          "path": "packages/app/src/composer/editor/dom.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "f22987c..2665526"
+        },
+        {
+          "path": "packages/app/src/composer/editor/dom.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "c13ee46..7ff5e15"
+        },
+        {
+          "path": "packages/app/src/composer/editor/editor.css",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "8b75ccf..64e4492"
+        },
+        {
+          "path": "packages/app/src/composer/editor/editor.tsx",
+          "hunks": 34,
+          "change": "modify",
+          "blobRange": "defbf66..7404e1c"
+        },
+        {
+          "path": "packages/app/src/composer/editor/interaction.ts",
+          "hunks": 23,
+          "change": "modify",
+          "blobRange": "bde7d86..d59b058"
+        },
+        {
+          "path": "packages/app/src/composer/editor/quote-comment.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..bc71bf5"
+        },
+        {
+          "path": "packages/app/src/composer/history/entry.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "c8787e4..17a76ab"
+        },
+        {
+          "path": "packages/app/src/composer/media.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..1b9adef"
+        },
+        {
+          "path": "packages/app/src/composer/model-label.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..5b7bccc"
+        },
+        {
+          "path": "packages/app/src/composer/model-label.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7eaf932"
+        },
+        {
+          "path": "packages/app/src/composer/model.ts",
+          "hunks": 10,
+          "change": "modify",
+          "blobRange": "83547cb..d348fd5"
+        },
+        {
+          "path": "packages/app/src/composer/persistence.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "ad9ae93..ae53eda"
+        },
+        {
+          "path": "packages/app/src/composer/prompt-parts.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "2a96509..e64fdee"
+        },
+        {
+          "path": "packages/app/src/composer/prompt.test.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "6c275f6..4ae426b"
+        },
+        {
+          "path": "packages/app/src/composer/prompt.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "fbceef2..7843401"
+        },
+        {
+          "path": "packages/app/src/composer/quote-source.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d4448d6"
+        },
+        {
+          "path": "packages/app/src/composer/request.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "1e7d825..7e0f91d"
+        },
+        {
+          "path": "packages/app/src/composer/request.ts",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "a928b80..c8f1f4e"
+        },
+        {
+          "path": "packages/app/src/composer/schema.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "48a2dcc..2f82eda"
+        },
+        {
+          "path": "packages/app/src/composer/schema.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "6ac7dd0..9e2512d"
+        },
+        {
+          "path": "packages/app/src/composer/selection.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "5b24db5..2013ee5"
+        },
+        {
+          "path": "packages/app/src/composer/session-match.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..cda8406"
+        },
+        {
+          "path": "packages/app/src/composer/session-match.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..4bb5165"
+        },
+        {
+          "path": "packages/app/src/composer/state.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "51a7326..7aad582"
+        },
+        {
+          "path": "packages/app/src/composer/submission-state.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "f2fd3d8..f5f283b"
+        },
+        {
+          "path": "packages/app/src/composer/submit.test.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "85bb7ca..78d992e"
+        },
+        {
+          "path": "packages/app/src/composer/submit.ts",
+          "hunks": 12,
+          "change": "modify",
+          "blobRange": "be339fd..8000f0c"
+        },
+        {
+          "path": "packages/app/src/composer/suggestions/machine.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5c4c847..ec1a268"
+        },
+        {
+          "path": "packages/app/src/composer/suggestions/machine.ts",
+          "hunks": 12,
+          "change": "modify",
+          "blobRange": "c2d4758..33c7a48"
+        },
+        {
+          "path": "packages/app/src/composer/types.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "46a5699..597bdc2"
+        },
+        {
+          "path": "packages/app/src/home/sessions/queries.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c7247c2"
+        },
+        {
+          "path": "packages/app/src/home/start/command-palette.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..0b81687"
+        },
+        {
+          "path": "packages/app/src/index.css",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "cf49746..902fab9"
+        },
+        {
+          "path": "packages/app/src/providers/models/models.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..e60c7f7"
+        },
+        {
+          "path": "packages/app/src/providers/models/models.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "33b67a9..cd89374"
+        },
+        {
+          "path": "packages/app/src/providers/models/selection.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "c6308de..65f0936"
+        },
+        {
+          "path": "packages/app/src/runtime/animated-presence.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "33be140..227e8cb"
+        },
+        {
+          "path": "packages/app/src/runtime/array-move.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..2a69351"
+        },
+        {
+          "path": "packages/app/src/runtime/array-move.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..2765e33"
+        },
+        {
+          "path": "packages/app/src/runtime/i18n/language.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "90ebe60..1939ba3"
+        },
+        {
+          "path": "packages/app/src/runtime/persistence/drafts.test.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "fb07cd9..8556dbe"
+        },
+        {
+          "path": "packages/app/src/runtime/persistence/drafts.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "727a5b3..00d5bd6"
+        },
+        {
+          "path": "packages/app/src/runtime/plugin/closed-tabs.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..6cb0ea1"
+        },
+        {
+          "path": "packages/app/src/runtime/plugin/commands.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..9d18a76"
+        },
+        {
+          "path": "packages/app/src/runtime/plugin/panels.tsx",
+          "hunks": 16,
+          "change": "modify",
+          "blobRange": "bb119d4..f84aacc"
+        },
+        {
+          "path": "packages/app/src/runtime/plugin/side-region.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "1b82b52..2c10a6d"
+        },
+        {
+          "path": "packages/app/src/runtime/presence.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..0d2ab5f"
+        },
+        {
+          "path": "packages/app/src/runtime/server/api.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "5c7df9e..5476e41"
+        },
+        {
+          "path": "packages/app/src/runtime/server/client.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "86d1151..1089ce7"
+        },
+        {
+          "path": "packages/app/src/runtime/server/client.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "96d62da..a54a947"
+        },
+        {
+          "path": "packages/app/src/runtime/server/image.test.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "05b469f..70daa1c"
+        },
+        {
+          "path": "packages/app/src/runtime/server/image.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "1f3d9d2..ea24956"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7dddc1d"
+        },
+        {
+          "path": "packages/app/src/runtime/server/persistence.test.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "dcd0f54..10ed3af"
+        },
+        {
+          "path": "packages/app/src/runtime/server/registry.test.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "d23b7c9..5f42989"
+        },
+        {
+          "path": "packages/app/src/runtime/server/request-queue.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5706501..18063aa"
+        },
+        {
+          "path": "packages/app/src/session/commands/export.test.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "fe829d2..156cd82"
+        },
+        {
+          "path": "packages/app/src/session/commands/export.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "b047382..52dc303"
+        },
+        {
+          "path": "packages/app/src/session/commands/fork-dialog.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "7305b89..dbec3ed"
+        },
+        {
+          "path": "packages/app/src/session/commands/use-session-commands.tsx",
+          "hunks": 11,
+          "change": "modify",
+          "blobRange": "405addb..680cb6d"
+        },
+        {
+          "path": "packages/app/src/session/composer/activity-chips.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..21e0f79"
+        },
+        {
+          "path": "packages/app/src/session/composer/activity-chips.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..4d83082"
+        },
+        {
+          "path": "packages/app/src/session/composer/adapter.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "23ab0af..15fc9a5"
+        },
+        {
+          "path": "packages/app/src/session/composer/composer-lane.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..820baa2"
+        },
+        {
+          "path": "packages/app/src/session/composer/controller.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "1a28152..3160b8e"
+        },
+        {
+          "path": "packages/app/src/session/composer/location-missing.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..da18955"
+        },
+        {
+          "path": "packages/app/src/session/composer/location-missing.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "8043d98..09b611b"
+        },
+        {
+          "path": "packages/app/src/session/composer/plugin-pills.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..eb2a522"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue-panel.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7c29c32"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue-panel.tsx",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "650fdde..e696612"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue.test.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "561b3f2..42dcbdd"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue.ts",
+          "hunks": 18,
+          "change": "modify",
+          "blobRange": "e5337e8..52b603c"
+        },
+        {
+          "path": "packages/app/src/session/composer/region.tsx",
+          "hunks": 12,
+          "change": "modify",
+          "blobRange": "d4b742e..d46c3e3"
+        },
+        {
+          "path": "packages/app/src/session/composer/session-composer-region-controller.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "f07f5dd..5fe0e7a"
+        },
+        {
+          "path": "packages/app/src/session/composer/session-composer-region.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "b9b8a95..f0e6670"
+        },
+        {
+          "path": "packages/app/src/session/composer/shell-panel.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..89277d0"
+        },
+        {
+          "path": "packages/app/src/session/composer/spring-height.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..fc14064"
+        },
+        {
+          "path": "packages/app/src/session/composer/subagent-bar.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..6520133"
+        },
+        {
+          "path": "packages/app/src/session/composer/todo-pill.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..24e3021"
+        },
+        {
+          "path": "packages/app/src/session/composer/todo-pill.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..75106e1"
+        },
+        {
+          "path": "packages/app/src/session/composer/todos.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..366cf10"
+        },
+        {
+          "path": "packages/app/src/session/fork.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..ebdd72a"
+        },
+        {
+          "path": "packages/app/src/session/header/drag-area.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..25724c1"
+        },
+        {
+          "path": "packages/app/src/session/header/fit.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c14cec8"
+        },
+        {
+          "path": "packages/app/src/session/header/separator.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d36b3d7"
+        },
+        {
+          "path": "packages/app/src/session/header/session-header-actions.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "d21c8e6..5305229"
+        },
+        {
+          "path": "packages/app/src/session/requests/background.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "6dfafda..1f30578"
+        },
+        {
+          "path": "packages/app/src/session/requests/model.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "844223d..915b99d"
+        },
+        {
+          "path": "packages/app/src/session/requests/question-keys.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c6a9cc1"
+        },
+        {
+          "path": "packages/app/src/session/requests/question-keys.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..5637fe7"
+        },
+        {
+          "path": "packages/app/src/session/requests/question-motion.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d91bfd9"
+        },
+        {
+          "path": "packages/app/src/session/requests/session-permission-dock.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "f1b0445..aaa274d"
+        },
+        {
+          "path": "packages/app/src/session/requests/session-question-dock.tsx",
+          "hunks": 17,
+          "change": "modify",
+          "blobRange": "36a01a0..7cf39ba"
+        },
+        {
+          "path": "packages/app/src/session/requests/session-websearch-dock.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "a0c15f6..762d5ce"
+        },
+        {
+          "path": "packages/app/src/session/requests/session-websearch-dock.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "1f83c96..54cff97"
+        },
+        {
+          "path": "packages/app/src/session/requests/steer-background.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..0c3e836"
+        },
+        {
+          "path": "packages/app/src/session/requests/steer-background.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..03b6690"
+        },
+        {
+          "path": "packages/app/src/session/requests/websearch.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "ad08e8c..4d15fdf"
+        },
+        {
+          "path": "packages/app/src/session/revert.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "ca79e16..d0d4896"
+        },
+        {
+          "path": "packages/app/src/session/route-error.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "8d4006b..35c2ae7"
+        },
+        {
+          "path": "packages/app/src/session/route.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "ec8d008..e66317c"
+        },
+        {
+          "path": "packages/app/src/session/screen-layout.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "a721b16..515828b"
+        },
+        {
+          "path": "packages/app/src/session/screen.tsx",
+          "hunks": 17,
+          "change": "modify",
+          "blobRange": "d7e43d0..6705368"
+        },
+        {
+          "path": "packages/app/src/session/server-unavailable-panel.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..efd7964"
+        },
+        {
+          "path": "packages/app/src/session/session-identity-header.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "1c7d6b4..6ee17d8"
+        },
+        {
+          "path": "packages/app/src/session/session-identity-header.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "2f44367..13395c0"
+        },
+        {
+          "path": "packages/app/src/session/session-layout.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "5b6f59f..060ab9b"
+        },
+        {
+          "path": "packages/app/src/session/session-panel-width.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "35ee282..7510e42"
+        },
+        {
+          "path": "packages/app/src/session/session-panel-width.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "3cf0efe..9afe75e"
+        },
+        {
+          "path": "packages/app/src/session/timeline/cache.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "98f6543..f0514fd"
+        },
+        {
+          "path": "packages/app/src/session/timeline/controller.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "bca709a..6062f8f"
+        },
+        {
+          "path": "packages/app/src/session/timeline/interaction.ts",
+          "hunks": 11,
+          "change": "modify",
+          "blobRange": "fff2269..9bc18cf"
+        },
+        {
+          "path": "packages/app/src/session/timeline/message-timeline.tsx",
+          "hunks": 17,
+          "change": "modify",
+          "blobRange": "7ecb77b..d80b2c1"
+        },
+        {
+          "path": "packages/app/src/session/timeline/model.test.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "7aa247f..7769a4f"
+        },
+        {
+          "path": "packages/app/src/session/timeline/model.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "4a1ad3d..ff97b23"
+        },
+        {
+          "path": "packages/app/src/session/timeline/quote-background.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..b9b4b39"
+        },
+        {
+          "path": "packages/app/src/session/timeline/quote-highlight.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..1132d9f"
+        },
+        {
+          "path": "packages/app/src/session/timeline/quote-text.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..527e94d"
+        },
+        {
+          "path": "packages/app/src/session/timeline/quote.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..69102db"
+        },
+        {
+          "path": "packages/app/src/session/timeline/search-controller.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "2482095..cb2b9cd"
+        },
+        {
+          "path": "packages/app/src/session/timeline/virtualizer.tsx",
+          "hunks": 21,
+          "change": "modify",
+          "blobRange": "5a78725..281d427"
+        },
+        {
+          "path": "packages/app/src/session/timeline/voice-delegation.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "360346f..7723787"
+        },
+        {
+          "path": "packages/app/src/session/use-session-hash-scroll.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "c133c63..aa6ed09"
+        },
+        {
+          "path": "packages/app/src/settings/model.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "bd44e53..974f846"
+        },
+        {
+          "path": "packages/app/src/settings/search-results.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "ac29580..abd1f55"
+        },
+        {
+          "path": "packages/app/src/shell/commands/command-search.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7bb3166"
+        },
+        {
+          "path": "packages/app/src/shell/commands/desktop-menu.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..74aae77"
+        },
+        {
+          "path": "packages/app/src/shell/commands/dialog.css",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "284e2f9..6fb4d8e"
+        },
+        {
+          "path": "packages/app/src/shell/commands/dialog.tsx",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "c60e31f..fed41df"
+        },
+        {
+          "path": "packages/app/src/shell/commands/palette.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "f064153..4f4426a"
+        },
+        {
+          "path": "packages/app/src/shell/commands/safe-triangle.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d836245"
+        },
+        {
+          "path": "packages/app/src/shell/commands/search.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5307a73..a3766b3"
+        },
+        {
+          "path": "packages/app/src/shell/commands/session-search.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..b14c063"
+        },
+        {
+          "path": "packages/app/src/shell/layout/helpers.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "530922a..4d1eb31"
+        },
+        {
+          "path": "packages/app/src/shell/layout/helpers.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "278475a..423eaff"
+        },
+        {
+          "path": "packages/app/src/shell/layout/project-avatar-state.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "d4fe451..52d2b01"
+        },
+        {
+          "path": "packages/app/src/shell/layout/session-tab-avatar.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "c05d814..8e00136"
+        },
+        {
+          "path": "packages/app/src/shell/notifications/notification.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "04ae5ea..78a4f3e"
+        },
+        {
+          "path": "packages/app/src/shell/panel-motion.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..6e5dd42"
+        },
+        {
+          "path": "packages/app/src/shell/routes/routes.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "2468e3d..2aa62fb"
+        },
+        {
+          "path": "packages/app/src/shell/routes/session-ui-provider.tsx",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "e17c307..aa7f4e6"
+        },
+        {
+          "path": "packages/app/src/shell/shell.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "63ad269..52e8c1f"
+        },
+        {
+          "path": "packages/app/src/shell/state/layout.tsx",
+          "hunks": 16,
+          "change": "modify",
+          "blobRange": "77686c6..278fb60"
+        },
+        {
+          "path": "packages/app/src/shell/tabs/closed.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "d176df4..036e52c"
+        },
+        {
+          "path": "packages/app/src/shell/tabs/schema.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "e11ce49..7a72746"
+        },
+        {
+          "path": "packages/app/src/shell/tabs/tabs.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "4ea371d..3bbc5b2"
+        },
+        {
+          "path": "packages/app/src/shell/tabs/tabs.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "e51ca9c..efb4267"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/history.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "762add0..126c230"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/inbox-model.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..9da8a12"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/inbox.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7c97331"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/recently-closed-tabs-menu.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..259916b"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/recently-closed-tabs-menu.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "d8d3f87..f80419c"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/right-slot.test.ts",
+          "hunks": 1,
+          "change": "delete",
+          "blobRange": "b879b37..0000000"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/right-slot.tsx",
+          "hunks": 1,
+          "change": "delete",
+          "blobRange": "05cf680..0000000"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/tab-nav.css",
+          "hunks": 13,
+          "change": "modify",
+          "blobRange": "448b53e..e8427b1"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/tab-nav.tsx",
+          "hunks": 13,
+          "change": "modify",
+          "blobRange": "7d90325..1f8cf03"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/tab-popover.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "080eda6..747e9a9"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/tab-strip.tsx",
+          "hunks": 18,
+          "change": "modify",
+          "blobRange": "11a08b6..4c1e421"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/titlebar.css",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "16aa40a..2b77904"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/titlebar.tsx",
+          "hunks": 22,
+          "change": "modify",
+          "blobRange": "5ceaf55..7ac8d8b"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/windows-menu.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "c5552fa..e9bfb6a"
+        },
+        {
+          "path": "packages/app/src/workspaces/paths.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "7e68065..3022a35"
+        },
+        {
+          "path": "packages/gui-plugins/src/btw/renderer.tsx",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "5ee5532..c256c3b"
+        },
+        {
+          "path": "packages/gui-plugins/src/goal/i18n/en.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "c7fe7bf..98344bb"
+        },
+        {
+          "path": "packages/gui-plugins/src/goal/renderer.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "07c291e..0d9ef36"
+        },
+        {
+          "path": "packages/gui-plugins/src/sources/renderer.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "4f3fc8a..1015976"
+        },
+        {
+          "path": "packages/patchmark/package.json",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..f459103"
+        },
+        {
+          "path": "packages/patchmark/src/blocks.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..3c1c522"
+        },
+        {
+          "path": "packages/patchmark/src/entities.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c9a4e23"
+        },
+        {
+          "path": "packages/patchmark/src/heal.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..bc161ed"
+        },
+        {
+          "path": "packages/patchmark/src/html.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..8a4fec6"
+        },
+        {
+          "path": "packages/patchmark/src/index.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..2242932"
+        },
+        {
+          "path": "packages/patchmark/src/inline.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..983ceef"
+        },
+        {
+          "path": "packages/patchmark/src/stream.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..8165890"
+        },
+        {
+          "path": "packages/patchmark/src/types.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..05c6440"
+        },
+        {
+          "path": "packages/schema/src/prompt.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "ba8a7a7..666be1f"
+        },
+        {
+          "path": "packages/schema/src/session-inbox.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "361c0c4..16e9001"
+        },
+        {
+          "path": "packages/schema/src/session-message.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "b3fbaa3..639ad04"
+        },
+        {
+          "path": "packages/session-ui/component-tests/markdown.fixture.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "24f1ade..0b6a2c1"
+        },
+        {
+          "path": "packages/session-ui/component-tests/markdown.spec.ts",
+          "hunks": 12,
+          "change": "modify",
+          "blobRange": "fc7a2c0..8c120b3"
+        },
+        {
+          "path": "packages/session-ui/component-tests/session-message-projection.spec.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "111281f..0666cf3"
+        },
+        {
+          "path": "packages/session-ui/component-tests/session-timeline-mobile.spec.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "3fa5609..32a633e"
+        },
+        {
+          "path": "packages/session-ui/component-tests/session-timeline.spec.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "b5956d9..962b7a1"
+        },
+        {
+          "path": "packages/session-ui/src/actions.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "a78ad65..7771ba7"
+        },
+        {
+          "path": "packages/session-ui/src/components/basic-tool.css",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "2e129ce..1b5a7fc"
+        },
+        {
+          "path": "packages/session-ui/src/components/basic-tool.tsx",
+          "hunks": 11,
+          "change": "modify",
+          "blobRange": "fc29410..22f5672"
+        },
+        {
+          "path": "packages/session-ui/src/components/dock-prompt.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "3cf3d89..95056a9"
+        },
+        {
+          "path": "packages/session-ui/src/components/file-media.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "d7bca49..4283398"
+        },
+        {
+          "path": "packages/session-ui/src/components/file-search.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "384ae8e..723c011"
+        },
+        {
+          "path": "packages/session-ui/src/components/file-ssr.tsx",
+          "hunks": 1,
+          "change": "delete",
+          "blobRange": "62da56e..0000000"
+        },
+        {
+          "path": "packages/session-ui/src/components/file.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "a17732f..b273f2a"
+        },
+        {
+          "path": "packages/session-ui/src/components/file.tsx",
+          "hunks": 15,
+          "change": "modify",
+          "blobRange": "94e9803..1d38682"
+        },
+        {
+          "path": "packages/session-ui/src/components/image-preview.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "0d5c08a..175bd2b"
+        },
+        {
+          "path": "packages/session-ui/src/components/line-comment-annotations.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "4ba881c..8377db0"
+        },
+        {
+          "path": "packages/session-ui/src/components/line-comment-styles.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "7e0a961..7a3eff7"
+        },
+        {
+          "path": "packages/session-ui/src/components/link-segments.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..be584a9"
+        },
+        {
+          "path": "packages/session-ui/src/components/link-segments.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..5bd31ae"
+        },
+        {
+          "path": "packages/session-ui/src/components/linked-text.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..dc8a46b"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-cache.tsx",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "900d190..7928eed"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-clipboard.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..31d10ec"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-clipboard.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..b0cd457"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-image.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "7a8291c..d829d78"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-mermaid.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "6733742..c2090c0"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-session-links.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "094e3ff..37d06ee"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-session-links.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "dd3f41b..cb3842d"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-stream.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "5cc0ff7..ebba8fe"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-stream.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "4879a09..84d0c1d"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown-worker.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "37c79d8..5330bdd"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown.css",
+          "hunks": 11,
+          "change": "modify",
+          "blobRange": "e7d7fd4..3a4a870"
+        },
+        {
+          "path": "packages/session-ui/src/components/markdown.tsx",
+          "hunks": 21,
+          "change": "modify",
+          "blobRange": "befb96d..af2010a"
+        },
+        {
+          "path": "packages/session-ui/src/components/message-file.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "ba654d3..2f5d6d7"
+        },
+        {
+          "path": "packages/session-ui/src/components/message-file.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "8c72e3a..3fa7177"
+        },
+        {
+          "path": "packages/session-ui/src/components/message-nav.css",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "d0ffbf8..e070f60"
+        },
+        {
+          "path": "packages/session-ui/src/components/message-part.css",
+          "hunks": 21,
+          "change": "modify",
+          "blobRange": "85a17a4..dcf92ce"
+        },
+        {
+          "path": "packages/session-ui/src/components/question-prompt.css",
+          "hunks": 15,
+          "change": "modify",
+          "blobRange": "537cb16..aacad0d"
+        },
+        {
+          "path": "packages/session-ui/src/components/quote-highlight.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..fce4641"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-compaction.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d93b531"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-diff.test.ts",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "6755063..4a86286"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-diff.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "abd0ba4..df4813e"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-retry.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "11be5bc..399e7c6"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-review.css",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "702edf2..0276552"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-review.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "7fe0234..bc905c2"
+        },
+        {
+          "path": "packages/session-ui/src/components/session-turn.css",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "64140e6..09a5f21"
+        },
+        {
+          "path": "packages/session-ui/src/components/shell-submessage.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "f72ba3f..59f0ae0"
+        },
+        {
+          "path": "packages/session-ui/src/components/timeline-separator.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "1e9f733..296035d"
+        },
+        {
+          "path": "packages/session-ui/src/components/tool-error-card.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "c553902..0212972"
+        },
+        {
+          "path": "packages/session-ui/src/components/tool-error-card.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "45b78bc..b1ad99f"
+        },
+        {
+          "path": "packages/session-ui/src/components/tool-status-title.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "6e6daa4..2c3ad48"
+        },
+        {
+          "path": "packages/session-ui/src/context/data.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "ffd6a90..d617e87"
+        },
+        {
+          "path": "packages/session-ui/src/context/markdown.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "c13e9dc..f3f37a2"
+        },
+        {
+          "path": "packages/session-ui/src/message/agent-label.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..e69931b"
+        },
+        {
+          "path": "packages/session-ui/src/message/agent-label.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..361fa09"
+        },
+        {
+          "path": "packages/session-ui/src/message/attachment-card.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "094523d..a24d6bf"
+        },
+        {
+          "path": "packages/session-ui/src/message/attachment-card.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "273b6d5..f3b7d85"
+        },
+        {
+          "path": "packages/session-ui/src/message/comment-card.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "8fc87f4..733956b"
+        },
+        {
+          "path": "packages/session-ui/src/message/current-message.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "5beee04..7f5c01a"
+        },
+        {
+          "path": "packages/session-ui/src/message/current-tool-state.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "a987149..18d61c1"
+        },
+        {
+          "path": "packages/session-ui/src/message/message-content.tsx",
+          "hunks": 24,
+          "change": "modify",
+          "blobRange": "9c0ab09..d6f4caa"
+        },
+        {
+          "path": "packages/session-ui/src/message/relative-time.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..856eef3"
+        },
+        {
+          "path": "packages/session-ui/src/message/relative-time.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c72f2ab"
+        },
+        {
+          "path": "packages/session-ui/src/pierre/comment-hover.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "520ed31..b01ff11"
+        },
+        {
+          "path": "packages/session-ui/src/pierre/file-find.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "142e02d..ba57476"
+        },
+        {
+          "path": "packages/session-ui/src/pierre/index.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "315890d..5d4fed6"
+        },
+        {
+          "path": "packages/session-ui/src/pierre/virtualizer.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "b8661e6..bfa99fa"
+        },
+        {
+          "path": "packages/session-ui/src/styles/index.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "6f1a6ca..6364953"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/detail.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "a7868f1..712c5a4"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/projection.ts",
+          "hunks": 17,
+          "change": "modify",
+          "blobRange": "9a3ea55..b7312c6"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/session-timeline-row.tsx",
+          "hunks": 18,
+          "change": "modify",
+          "blobRange": "b955e20..83aaadc"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/timeline-row.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "3ff5b44..184c6e0"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/user-runs.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7b3ee2e"
+        },
+        {
+          "path": "packages/session-ui/src/timeline/user-runs.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..a7608ba"
+        },
+        {
+          "path": "packages/session-ui/src/tools/ansi.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..3622278"
+        },
+        {
+          "path": "packages/session-ui/src/tools/ansi.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..76499d6"
+        },
+        {
+          "path": "packages/session-ui/src/tools/tool-renderer.tsx",
+          "hunks": 26,
+          "change": "modify",
+          "blobRange": "3150ad6..9799f8d"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/line-comment-annotations-v2.tsx",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "6c235bd..bf5383d"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-progress-indicator-v2.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "d320eb0..7cebec8"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-progress-indicator-v2.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5399597..7fcdb3c"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-review-file-preview-v2-virtualize.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "3bbf173..d3bdbcd"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-review-file-preview-v2-virtualize.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "7795a85..86595f6"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-review-v2.css",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "6c08149..478a1c0"
+        },
+        {
+          "path": "packages/session-ui/src/v2/components/session-review-v2.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "064d85a..48cf9c7"
+        },
+        {
+          "path": "packages/ui/src/components/collapsible.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "8e0b6f1..683d94c"
+        },
+        {
+          "path": "packages/ui/src/components/context-menu.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "1e366dc..92c17a7"
+        },
+        {
+          "path": "packages/ui/src/components/dock-surface.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5d0b2db..cd8519b"
+        },
+        {
+          "path": "packages/ui/src/components/dock-surface.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "38e2926..2e538da"
+        },
+        {
+          "path": "packages/ui/src/components/error-details.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..db471cf"
+        },
+        {
+          "path": "packages/ui/src/components/file-icon.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "5776425..07e4ba5"
+        },
+        {
+          "path": "packages/ui/src/components/file-icon.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "559930a..b81b231"
+        },
+        {
+          "path": "packages/ui/src/components/hover-card.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "02d1f10..ac2893d"
+        },
+        {
+          "path": "packages/ui/src/components/image-flight.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..9bcfbdd"
+        },
+        {
+          "path": "packages/ui/src/components/image-flight.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..3646cf5"
+        },
+        {
+          "path": "packages/ui/src/components/image-preview.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "3c47f7a..d69b4fe"
+        },
+        {
+          "path": "packages/ui/src/components/image-preview.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "7eda4d0..880ba65"
+        },
+        {
+          "path": "packages/ui/src/components/image-zoom.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..1dd4a78"
+        },
+        {
+          "path": "packages/ui/src/components/image-zoom.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..2bd0e26"
+        },
+        {
+          "path": "packages/ui/src/components/list.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "fe9b404..d0d203e"
+        },
+        {
+          "path": "packages/ui/src/components/popover.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "b49542a..8eb42c1"
+        },
+        {
+          "path": "packages/ui/src/components/progress.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "c728912..361169f"
+        },
+        {
+          "path": "packages/ui/src/components/resize-handle.css",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "5d8b90b..1a8cbbb"
+        },
+        {
+          "path": "packages/ui/src/components/resize-handle.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "f63f83a..c8c8285"
+        },
+        {
+          "path": "packages/ui/src/components/rolling-number.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..82a8fe1"
+        },
+        {
+          "path": "packages/ui/src/components/rolling-number.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..995db8d"
+        },
+        {
+          "path": "packages/ui/src/components/scroll-view.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "80ba17c..6cbbc47"
+        },
+        {
+          "path": "packages/ui/src/components/scroll-view.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "8d92074..c066707"
+        },
+        {
+          "path": "packages/ui/src/components/spinner-radar.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d563ebe"
+        },
+        {
+          "path": "packages/ui/src/components/spinner-radar.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..88fd523"
+        },
+        {
+          "path": "packages/ui/src/components/spinner.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "2ca474d..4863403"
+        },
+        {
+          "path": "packages/ui/src/components/spinner.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "9e950d0..ddb0edf"
+        },
+        {
+          "path": "packages/ui/src/components/text-field.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "47c7f9f..922c0cc"
+        },
+        {
+          "path": "packages/ui/src/context/dialog.tsx",
+          "hunks": 12,
+          "change": "modify",
+          "blobRange": "b6fcfc3..6e2a3cb"
+        },
+        {
+          "path": "packages/ui/src/context/i18n.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "8fac26e..d6d040f"
+        },
+        {
+          "path": "packages/ui/src/context/i18n.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "7d62838..3731614"
+        },
+        {
+          "path": "packages/ui/src/data-display/line-comment/line-comment.css",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "a496a6e..0e99edc"
+        },
+        {
+          "path": "packages/ui/src/data-display/line-comment/line-comment.tsx",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "ce9cb8c..8e6370b"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/animation.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..ac4030c"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/generated.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..f81f0c2"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/generated.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..0bb2123"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/project-avatar.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "fddd185..f49e9fa"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/project-avatar.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..ff68a7a"
+        },
+        {
+          "path": "packages/ui/src/data-display/project-avatar/project-avatar.tsx",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "54e52e8..81351f9"
+        },
+        {
+          "path": "packages/ui/src/feedback/activity-ring/activity-ring.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d90315e"
+        },
+        {
+          "path": "packages/ui/src/feedback/activity-ring/activity-ring.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..621bb5c"
+        },
+        {
+          "path": "packages/ui/src/feedback/loader/loader.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "6a2d67b..c1be19e"
+        },
+        {
+          "path": "packages/ui/src/feedback/progress-circle/progress-circle.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "7616c7e..4c97f58"
+        },
+        {
+          "path": "packages/ui/src/forms/checkbox/checkbox.css",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "751560e..172bc6a"
+        },
+        {
+          "path": "packages/ui/src/forms/inline-input/inline-input.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "503dfe2..3a7c2d6"
+        },
+        {
+          "path": "packages/ui/src/forms/search-list/navigation.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..7f3b275"
+        },
+        {
+          "path": "packages/ui/src/forms/switch/switch.css",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "2b73627..e95504d"
+        },
+        {
+          "path": "packages/ui/src/forms/text-input/text-input.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "60d8f56..a6a9c97"
+        },
+        {
+          "path": "packages/ui/src/forms/text-input/text-input.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "a44deeb..fdc98b7"
+        },
+        {
+          "path": "packages/ui/src/hooks/index.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "a4e9d58..d41ad2f"
+        },
+        {
+          "path": "packages/ui/src/hooks/use-filtered-list.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..cb9dd1a"
+        },
+        {
+          "path": "packages/ui/src/hooks/use-filtered-list.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "4e2bfcb..ed74842"
+        },
+        {
+          "path": "packages/ui/src/icons/catalog.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "7fcaab3..81b22fe"
+        },
+        {
+          "path": "packages/ui/src/icons/icon/additional-icons.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "3c1a745..e3789db"
+        },
+        {
+          "path": "packages/ui/src/motion-tuning.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d5a2d9c"
+        },
+        {
+          "path": "packages/ui/src/motion-tuning.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "91ef17b..4585e98"
+        },
+        {
+          "path": "packages/ui/src/motion/index.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "fe3a1b8..1803f70"
+        },
+        {
+          "path": "packages/ui/src/motion/slider.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..d6cf394"
+        },
+        {
+          "path": "packages/ui/src/motion/velocity.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..f84310a"
+        },
+        {
+          "path": "packages/ui/src/navigation/menu/menu.css",
+          "hunks": 6,
+          "change": "modify",
+          "blobRange": "b78bb2f..6b6335a"
+        },
+        {
+          "path": "packages/ui/src/navigation/menu/menu.tsx",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "c3347d8..4aca8f6"
+        },
+        {
+          "path": "packages/ui/src/navigation/segmented-control/segmented-control.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "0ef0be0..96c60da"
+        },
+        {
+          "path": "packages/ui/src/navigation/tabs/tabs.css",
+          "hunks": 17,
+          "change": "modify",
+          "blobRange": "8d3b12f..c40ee34"
+        },
+        {
+          "path": "packages/ui/src/overlays/dialog/dialog.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "39fe2b0..d6f2adb"
+        },
+        {
+          "path": "packages/ui/src/overlays/tooltip/tooltip.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "cdd8a0b..9f85acd"
+        },
+        {
+          "path": "packages/ui/src/overlays/tooltip/tooltip.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "e933ea3..a29299d"
+        },
+        {
+          "path": "packages/ui/src/styles/animations.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "f9a09df..fe08680"
+        },
+        {
+          "path": "packages/ui/src/styles/index.css",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "9a5fc2d..1596664"
+        },
+        {
+          "path": "packages/ui/src/styles/scrollbar.css",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..ba197ca"
+        },
+        {
+          "path": "packages/ui/src/styles/tailwind/index.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "9647ad4..37e0c7f"
+        },
+        {
+          "path": "packages/ui/src/styles/tailwind/utilities.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "2c88136..b700743"
+        },
+        {
+          "path": "packages/ui/src/styles/utilities.css",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "3a05a95..61ad323"
+        },
+        {
+          "path": "packages/util/src/abort.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..c854216"
+        },
+        {
+          "path": "packages/util/src/session-mention.test.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..8ca5ea1"
+        },
+        {
+          "path": "packages/util/src/session-mention.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..20001dc"
+        }
+      ],
+      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
     },
     {
       "id": "M-058",
       "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/component-tests/timeline-virtualizer.fixture.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "b86baa7..2f9b2e9"
+        },
+        {
+          "path": "packages/app/happydom.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "16903fe..93d40b4"
+        },
+        {
+          "path": "packages/app/src/composer/commands.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "3ecdc9a..0225840"
+        },
+        {
+          "path": "packages/app/src/composer/model.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "d348fd5..41b085b"
+        },
+        {
+          "path": "packages/app/src/composer/composer.stories.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "1314cdc..5896ffb"
+        },
+        {
+          "path": "packages/app/src/home/sessions/command-palette.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "e4f2ece..2413502"
+        },
+        {
+          "path": "packages/app/src/home/start/command-palette.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "0b81687..3c888ce"
+        },
+        {
+          "path": "packages/app/src/providers/models/select-dialog.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "aaad7bc..e80ad1e"
+        },
+        {
+          "path": "packages/app/src/runtime/i18n/en.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "e4ffcc4..4ebded3"
+        },
+        {
+          "path": "packages/app/src/runtime/i18n/language.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "fed6514..2aeb34a"
+        },
+        {
+          "path": "packages/app/src/runtime/platform/platform.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "86b60d6..68db113"
+        },
+        {
+          "path": "packages/app/src/runtime/server/api.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "5476e41..d10169e"
+        },
+        {
+          "path": "packages/app/src/runtime/server/api.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "c426816..f078af3"
+        },
+        {
+          "path": "packages/app/src/runtime/server/persistence.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "10ed3af..baccb6e"
+        },
+        {
+          "path": "packages/app/src/runtime/server/persistence.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "f14fbdf..c6628df"
+        },
+        {
+          "path": "packages/app/src/runtime/server/registry.test.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "5f42989..35e1346"
+        },
+        {
+          "path": "packages/app/src/runtime/server/request-queue.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "04d88a5..2d76596"
+        },
+        {
+          "path": "packages/app/src/runtime/server/runtime.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "68a9849..78555cb"
+        },
+        {
+          "path": "packages/app/src/session/session-identity-header.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "13395c0..d8bf328"
+        },
+        {
+          "path": "packages/app/src/session/story-model.tsx",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "a280645..084ab48"
+        },
+        {
+          "path": "packages/app/src/session/timeline/voice-delegation.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "939c336..82f8107"
+        },
+        {
+          "path": "packages/app/src/settings/model.tsx",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "e35c085..1d26e7c"
+        },
+        {
+          "path": "packages/app/src/settings/search-catalog.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "154f1f6..1d52195"
+        },
+        {
+          "path": "packages/app/src/shell/commands/desktop-menu.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "8f9f681..d256a42"
+        },
+        {
+          "path": "packages/app/src/shell/commands/desktop.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "375a191..97e7cae"
+        },
+        {
+          "path": "packages/app/src/shell/commands/palette.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "4f4426a..1ea6e04"
+        },
+        {
+          "path": "packages/app/src/shell/commands/session-search.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "b14c063..f1c84f9"
+        },
+        {
+          "path": "packages/app/src/shell/layout/helpers.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "423eaff..19116d7"
+        },
+        {
+          "path": "packages/app/src/shell/titlebar/titlebar.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "7ac8d8b..dc5986f"
+        },
+        {
+          "path": "packages/client/src/promise/index.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "5b2561d..cc20b10"
+        },
+        {
+          "path": "packages/client/src/solid/data.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "99291f2..05c4669"
+        },
+        {
+          "path": "packages/patchmark/package.json",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "f459103..cf7493b"
+        },
+        {
+          "path": "packages/session-ui/package.json",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "4cb59e7..2452566"
+        },
+        {
+          "path": "packages/ui/package.json",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "cdf25ae..4853e13"
+        },
+        {
+          "path": "packages/ui/src/i18n/en.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "d341205..b1a8772"
+        },
+        {
+          "path": "packages/ui/src/motion-tuning.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "d5a2d9c..b8847dd"
+        },
+        {
+          "path": "packages/ui/src/motion-tuning.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "4585e98..b868fd7"
+        },
+        {
+          "path": "packages/ui/test/solid-jsx.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "4dd5861..a5160d0"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-api.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..e2e4689"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-contract.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..69fdca6"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-generated/.httpapi-codegen.json",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..f09b399"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-generated/client-error.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..8d7cc7e"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-generated/client.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..a77d6ec"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-generated/index.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..1a4e5ea"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media-generated/types.ts",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null",
+          "blobRange": "0000000..be2369d"
+        }
+      ],
+      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
+    },
+    {
+      "id": "M-065",
+      "path": "patches/mobile/P126-C-project-open-compat.patch",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/runtime/plugin/host-apis.tsx",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "3b180b1..55d71e8"
+        }
+      ],
+      "note": "Production projects.add to projects.open compatibility adaptation."
     },
     {
       "id": "M-059",
       "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/composer/history/entry.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "17a76ab..aca14b3"
+        },
+        {
+          "path": "packages/app/src/composer/media.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "1b9adef..3c8dff5"
+        },
+        {
+          "path": "packages/app/src/composer/persistence.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "ae53eda..f075836"
+        },
+        {
+          "path": "packages/app/src/composer/prompt-parts.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "e64fdee..7fa2b8c"
+        },
+        {
+          "path": "packages/app/src/composer/prompt.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "7843401..4d139d7"
+        },
+        {
+          "path": "packages/app/src/composer/request.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "c8f1f4e..bc7fc1c"
+        },
+        {
+          "path": "packages/app/src/composer/schema.ts",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "9e2512d..0aab15f"
+        },
+        {
+          "path": "packages/app/src/composer/state.ts",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "7aad582..c872368"
+        },
+        {
+          "path": "packages/app/src/runtime/persistence/drafts.test.ts",
+          "hunks": 5,
+          "change": "modify",
+          "blobRange": "8556dbe..3e87956"
+        },
+        {
+          "path": "packages/app/src/runtime/persistence/drafts.ts",
+          "hunks": 9,
+          "change": "modify",
+          "blobRange": "00d5bd6..4afb2ec"
+        },
+        {
+          "path": "packages/app/src/runtime/server/client.tsx",
+          "hunks": 7,
+          "change": "modify",
+          "blobRange": "a54a947..59b0b60"
+        },
+        {
+          "path": "packages/app/src/runtime/server/image.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "70daa1c..9a57886"
+        },
+        {
+          "path": "packages/app/src/runtime/server/media.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "7dddc1d..ffa5c6d"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue.test.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "42dcbdd..9e1d100"
+        },
+        {
+          "path": "packages/app/src/session/composer/queue.ts",
+          "hunks": 18,
+          "change": "modify",
+          "blobRange": "52b603c..43ce00e"
+        },
+        {
+          "path": "packages/app/src/session/fork.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "ebdd72a..e4d3e8a"
+        },
+        {
+          "path": "packages/app/src/session/revert.ts",
+          "hunks": 8,
+          "change": "modify",
+          "blobRange": "d0d4896..85d21e3"
+        },
+        {
+          "path": "packages/app/src/session/session-ownership.test.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "102e52b..63c3f38"
+        }
+      ],
+      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
     },
     {
       "id": "M-060",
       "path": "patches/mobile/P126-A-android-adaptation.patch",
       "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/session/composer/region.tsx",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "d46c3e3..b36a697"
+        },
+        {
+          "path": "packages/app/src/shell/routes/routes.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "2aa62fb..3b31c3f"
+        },
+        {
+          "path": "packages/app/src/shell/panel-motion.ts",
+          "hunks": 2,
+          "change": "modify",
+          "blobRange": "12514f1..97b63ea"
+        },
+        {
+          "path": "packages/app/src/shell/panel-motion.test.ts",
+          "hunks": 2,
+          "change": "modify"
+        }
+      ],
+      "note": "VoiceComposer removal preserves the ADR 0006 deferred boundary."
+    },
+    {
+      "id": "M-061",
+      "path": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
+      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/servers/connect/screen.tsx",
+          "hunks": 1,
+          "change": "modify"
+        }
+      ],
+      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
+    },
+    {
+      "id": "M-062",
+      "path": "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/runtime/server/registry-hydration.test.tsx",
+          "hunks": 1,
+          "change": "add",
+          "from": "/dev/null"
+        },
+        {
+          "path": "packages/app/src/runtime/server/registry.tsx",
+          "hunks": 1,
+          "change": "modify"
+        }
+      ],
+      "note": "Source bytes are pinned by SHA-256; file operations and hunk counts are parsed from the immutable patch."
+    },
+    {
+      "id": "M-067",
+      "path": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/e2e/utils/mock-server.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "4f557aa79a07654e4400cf4a0e96266c8e2f03cf..1b5d5e577a7ba4b5aef5a53bf1ffcf18c9f88b6d"
+        }
+      ],
+      "note": "Exact upstream mockPluginsActivating helper source copy."
+    },
+    {
+      "id": "M-068",
+      "path": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/e2e/utils/app-direction.fixture.tsx",
+          "hunks": 3,
+          "change": "modify",
+          "blobRange": "3226c4657f71b1ba16aa05afcca1b8b784de737a..dbf298be3630755c1226078b1952a38caf323b17"
+        }
+      ],
+      "note": "Exact fixed-target app-direction fixture source copy."
     },
     {
       "id": "M-063",
       "path": "patches/mobile/P126-A-agent-selector.patch",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/app/src/providers/models/agent.ts",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "f5c76d1..c97ec4f"
+        },
+        {
+          "path": "packages/app/src/providers/models/selection.tsx",
+          "hunks": 4,
+          "change": "modify",
+          "blobRange": "65f0936..b3c9b69"
+        }
+      ],
+      "note": "Active Android visibility adaptation; existing selection fallback is retained."
     },
     {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
+      "id": "extensions-flyout-webview",
+      "path": "patches/mobile/extensions-flyout-webview.patch",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active",
+      "applied": true,
+      "files": [
+        {
+          "path": "packages/gui-plugins/src/details/details.css",
+          "hunks": 1,
+          "change": "modify",
+          "blobRange": "f12da4f..a3cda1b"
+        }
+      ],
+      "note": "Flatten the target ancestor selector only; post-fix device verification pending."
     }
-  ],
-  "deferredMobilePatches": [
-    {
-      "id": "M-057",
-      "path": "patches/mobile/P126-U-session-workbench.patch",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-058",
-      "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-059",
-      "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-060",
-      "path": "patches/mobile/P126-A-android-adaptation.patch",
-      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-063",
-      "path": "patches/mobile/P126-A-agent-selector.patch",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
-    }
-  ],
-  "block1PatchPolicy": {
-    "base": "d37260c002b4390060f7d6cd78ffe6a11e9e1012",
-    "activePatchCount": 56,
-    "deferredSourceOnlyPatchCount": 6,
-    "deferredPatchesApplied": false,
-    "activeClosureUsesOnlyBaseOrder": true,
-    "futureOrderContract": "p126-replay-order.json"
-  }
+  ]
 }

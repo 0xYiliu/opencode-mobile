@@ -165,6 +165,15 @@
         "vite": "catalog:",
       },
     },
+    "vendor/upstream/packages/patchmark": {
+      "name": "@opencode/patchmark",
+      "version": "2.2.1",
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native": "catalog:",
+      },
+    },
     "vendor/upstream/packages/plugin": {
       "name": "@opencode/plugin",
       "version": "2.1.4",
@@ -247,8 +256,10 @@
       "name": "@opencode/session-ui",
       "version": "2.1.4",
       "dependencies": {
+        "@kitlangton/solid-motion": "0.2.2",
         "@kobalte/core": "catalog:",
         "@opencode/client": "workspace:*",
+        "@opencode/patchmark": "workspace:*",
         "@opencode/ui": "workspace:*",
         "@opencode/util": "workspace:*",
         "@pierre/diffs": "catalog:",
@@ -263,6 +274,7 @@
         "marked": "catalog:",
         "mermaid": "11.17.2",
         "motion": "12.34.5",
+        "pele": "1.7.0",
         "remend": "catalog:",
         "solid-js": "catalog:",
         "strip-ansi": "7.1.2",
@@ -892,6 +904,8 @@
     "@opencode/client": ["@opencode/client@workspace:vendor/upstream/packages/client"],
 
     "@opencode/gui-plugins": ["@opencode/gui-plugins@workspace:vendor/upstream/packages/gui-plugins"],
+
+    "@opencode/patchmark": ["@opencode/patchmark@workspace:vendor/upstream/packages/patchmark"],
 
     "@opencode/plugin": ["@opencode/plugin@workspace:vendor/upstream/packages/plugin"],
 
@@ -2214,6 +2228,8 @@
     "path-parse": ["path-parse@1.0.7", "", {}, "sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw=="],
 
     "path-scurry": ["path-scurry@2.0.2", "", { "dependencies": { "lru-cache": "^11.0.0", "minipass": "^7.1.2" } }, "sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg=="],
+
+    "pele": ["pele@1.7.0", "", {}, "sha512-nkYb5VnxsTgwD4NThF6j4pJEC4AhGLJ9ptiL4q/vIzGr9q6ZtoRE3hFr94LgHpZ/xy56d1pw42UAQGaZkjM5XA=="],
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 

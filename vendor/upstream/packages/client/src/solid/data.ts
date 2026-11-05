@@ -23,14 +23,15 @@ import type {
   Project,
   ProviderInfo,
   ReferenceInfo,
-  SessionMessageInfo,
+  SessionMessageInfo as InlineSessionMessageInfo,
   SessionMessageAssistant,
   SessionMessageAssistantReasoning,
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
   SessionInfo,
   SessionListInput,
-  SessionInboxInfo,
+  SessionInboxInfo as InlineSessionInboxInfo,
+  PromptAttachment,
   SessionInboxCompaction,
   ShellInfo,
   SkillInfo,
@@ -52,6 +53,30 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
+// Only transcript/inbox reads opt into the media response union. The canonical schema remains
+// readonly; this store's ownership explicitly projects its encoded JSON into mutable containers.
+type MutableWire<T> = T extends object ? { -readonly [Key in keyof T]: MutableWire<T[Key]> } : T
+type SessionMessageInfo = Exclude<InlineSessionMessageInfo, { type: "user" }> |
+  (Omit<Extract<InlineSessionMessageInfo, { type: "user" }>, "files"> & { files?: MutableWire<PromptAttachment>[] })
+type SessionInboxInfo = Exclude<InlineSessionInboxInfo, { type: "user" }> |
+  (Omit<Extract<InlineSessionInboxInfo, { type: "user" }>, "payload"> & {
+    payload: Omit<Extract<InlineSessionInboxInfo, { type: "user" }>["payload"], "files"> & { files?: MutableWire<PromptAttachment>[] }
+  })
+type MessagePage = Omit<Awaited<ReturnType<OpenCodeClient["message"]["list"]>>, "data"> & { data: SessionMessageInfo[] }
+type DataApi = Omit<OpenCodeClient, "message" | "session"> & {
+  message: Omit<OpenCodeClient["message"], "list"> & {
+    list: (...args: Parameters<OpenCodeClient["message"]["list"]>) => Promise<MessagePage>
+  }
+  session: Omit<OpenCodeClient["session"], "message" | "inbox"> & {
+    message: Omit<OpenCodeClient["session"]["message"], "get"> & {
+      get: (...args: Parameters<OpenCodeClient["session"]["message"]["get"]>) => Promise<SessionMessageInfo>
+    }
+    inbox: Omit<OpenCodeClient["session"]["inbox"], "list"> & {
+      list: (...args: Parameters<OpenCodeClient["session"]["inbox"]["list"]>) => Promise<SessionInboxInfo[]>
+    }
+  }
+}
+
 export type DataSessionStatus = "idle" | "running"
 /**
  * Where a pending user prompt stands relative to the runner: `starting` is promoted at the next idle boundary,
@@ -62,7 +87,7 @@ export type DataPendingStatus = "starting" | "steering" | "stranded" | "queued"
 type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent, { type: Type }> }
 
 export type CreateDataInput = {
-  readonly api: () => OpenCodeClient
+  readonly api: () => DataApi
   readonly directory: string
   /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
   readonly initialMessageLimit?: () => number

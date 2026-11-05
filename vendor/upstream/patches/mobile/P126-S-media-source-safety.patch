@@ -1611,7 +1611,7 @@ index 102e52b..cee9e24 100644
 +  const path = phase === "cancel"
 +    ? `/api/session/ses_a/inbox/${message.id}`
 +    : `/api/session/ses_a/revert${phase === "clear" ? "" : "/stage"}`
-+  
++
 +  const pending = hold(path)
 +  const operation = phase === "clear" ? a.revert.redo() : a.revert.to(message.id)
 +  await started(path)

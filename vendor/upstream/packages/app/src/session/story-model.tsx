@@ -13,6 +13,7 @@ import { CurrentSessionProviders, STORY_MODEL } from "@opencode/session-ui/story
 import { SessionTimeline } from "@opencode/session-ui/timeline"
 import { createComposerEditor } from "@/composer/editor/interaction"
 import type { ComposerPersistedState } from "@/composer/types"
+import { SubagentBar } from "@/session/composer/subagent-bar"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
@@ -56,8 +57,11 @@ const storyComposerModel = {
   latest: true,
 } satisfies NonNullable<ReturnType<ModelSelection["current"]>>
 
+const [favorites, setStateFavorites] = createStore<{ models: Array<typeof storyComposerModel> }>({ models: [] })
+
 const modelSelection = {
   ready: modelReady,
+  key: () => ({ providerID: STORY_MODEL.providerID, modelID: STORY_MODEL.id, variant: STORY_MODEL.variant }),
   current: () => storyComposerModel,
   recent: () => [storyComposerModel],
   list: () => [storyComposerModel],
@@ -65,6 +69,16 @@ const modelSelection = {
   set() {},
   visible: () => true,
   setVisibility() {},
+  favorite: {
+    list: () => favorites.models,
+    toggle(key: { providerID: string; modelID: string }) {
+      setStateFavorites("models", (models) => {
+        const known = models.some((item) => item.providerID === key.providerID && item.id === key.modelID)
+
+        return known ? [] : [{ ...storyComposerModel }]
+      })
+    },
+  },
   variant: {
     configured: () => STORY_MODEL.variant,
     selected: () => STORY_MODEL.variant,
@@ -233,10 +247,7 @@ function SessionSurfaceState(props: SessionPreviewProps & { onReset: () => void 
       setState("request", undefined)
       setState("activity", "Submitted the answer locally")
     },
-    openParent: () => setState("activity", "Opened the parent Session locally"),
-    setPromptRef() {},
     setDockRef() {},
-    parentID: () => props.child?.parentID,
     child: () => !!props.child,
     showComposer: () => true,
   } satisfies SessionComposerRegionViewController
@@ -273,6 +284,16 @@ function SessionSurfaceState(props: SessionPreviewProps & { onReset: () => void 
                   </div>
                   <SessionComposerRegion
                     controller={region}
+                    subagent={
+                      <Show when={props.child}>
+                        <SubagentBar
+                          agent="explore"
+                          model={{ name: "Claude Sonnet 4", variant: STORY_MODEL.variant }}
+                          started={Date.now()}
+                          onBack={() => setState("activity", "Opened the parent Session locally")}
+                        />
+                      </Show>
+                    }
                     composer={<Composer model={prompt.controller} borderUnderlay />}
                   />
                 </section>

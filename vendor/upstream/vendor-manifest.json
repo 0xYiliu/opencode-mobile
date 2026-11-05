@@ -21,6 +21,9 @@
     "plugin",
     "ai"
   ],
+  "patchCreatedPackages": [
+    "patchmark"
+  ],
   "topLevelFiles": [
     "LICENSE"
   ],
@@ -100,8 +103,17 @@
     "patches/mobile/0054-M-054-password-keyboard.patch",
     "patches/mobile/0055-M-055-webview-url-compat.patch",
     "patches/mobile/0056-M-056-settings-server-menu.patch",
+    "patches/mobile/P126-U-session-workbench.patch",
+    "patches/mobile/P126-C-client-compat.patch",
+    "patches/mobile/P126-C-project-open-compat.patch",
+    "patches/mobile/P126-S-media-source-safety.patch",
+    "patches/mobile/P126-A-android-adaptation.patch",
     "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
-    "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch"
+    "patches/mobile/0062-M-062-registry-hydration-vault-ready-wait.patch",
+    "patches/mobile/P126-B-e2e-runtime-compat.patch",
+    "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+    "patches/mobile/P126-A-agent-selector.patch",
+    "patches/mobile/extensions-flyout-webview.patch"
   ],
   "excluded": {
     "packages": [
@@ -468,6 +480,36 @@
       "status": "active"
     },
     {
+      "id": "M-057",
+      "path": "patches/mobile/P126-U-session-workbench.patch",
+      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
+      "status": "active"
+    },
+    {
+      "id": "M-058",
+      "path": "patches/mobile/P126-C-client-compat.patch",
+      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
+      "status": "active"
+    },
+    {
+      "id": "M-065",
+      "path": "patches/mobile/P126-C-project-open-compat.patch",
+      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
+      "status": "active"
+    },
+    {
+      "id": "M-059",
+      "path": "patches/mobile/P126-S-media-source-safety.patch",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
+      "status": "active"
+    },
+    {
+      "id": "M-060",
+      "path": "patches/mobile/P126-A-android-adaptation.patch",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
+      "status": "active"
+    },
+    {
       "id": "M-061",
       "path": "patches/mobile/0061-M-061-initial-connect-credential-persistence.patch",
       "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
@@ -480,86 +522,29 @@
       "status": "active"
     },
     {
-      "id": "M-057",
-      "path": "patches/mobile/P126-U-session-workbench.patch",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
+      "id": "M-067",
+      "path": "patches/mobile/P126-B-e2e-runtime-compat.patch",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
+      "status": "active"
     },
     {
-      "id": "M-058",
-      "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-059",
-      "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-060",
-      "path": "patches/mobile/P126-A-android-adaptation.patch",
-      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
+      "id": "M-068",
+      "path": "patches/mobile/P126-C-composer-test-fixture-compat.patch",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
+      "status": "active"
     },
     {
       "id": "M-063",
       "path": "patches/mobile/P126-A-agent-selector.patch",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
+      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
+      "status": "active"
     },
     {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
+      "id": "extensions-flyout-webview",
+      "path": "patches/mobile/extensions-flyout-webview.patch",
+      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "active"
     }
   ],
-  "deferredMobilePatches": [
-    {
-      "id": "M-057",
-      "path": "patches/mobile/P126-U-session-workbench.patch",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-058",
-      "path": "patches/mobile/P126-C-client-compat.patch",
-      "sha256": "f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-059",
-      "path": "patches/mobile/P126-S-media-source-safety.patch",
-      "sha256": "384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-060",
-      "path": "patches/mobile/P126-A-android-adaptation.patch",
-      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-063",
-      "path": "patches/mobile/P126-A-agent-selector.patch",
-      "sha256": "9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9",
-      "status": "deferred-source-only"
-    },
-    {
-      "id": "M-064",
-      "path": "patches/mobile/P126-S-session-ownership-whitespace.patch",
-      "sha256": "8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c",
-      "status": "deferred-source-only"
-    }
-  ],
-  "block1PatchPolicy": {
-    "base": "d37260c002b4390060f7d6cd78ffe6a11e9e1012",
-    "activePatchCount": 56,
-    "deferredSourceOnlyPatchCount": 6,
-    "deferredPatchesApplied": false,
-    "activeClosureUsesOnlyBaseOrder": true,
-    "futureOrderContract": "p126-replay-order.json"
-  }
+  "deferredMobilePatches": []
 }

@@ -117,8 +117,10 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
   No main-app/device data was cleared; real SSH E2E remains BLOCKED.
 
-The active vendor tree invariant: **tree == pin tree + the 56 active baseline mobile patches**, byte-identical,
-zero other diff (checked by `scripts/verify-closure.sh`). Source-only deferred candidates are registered separately and are never applied by the active closure replay.
+The active vendor tree invariant: **tree == pin tree + the active mobile patches listed in
+`vendor-manifest.json#mobilePatches`**, byte-identical, zero other diff (checked by
+`scripts/verify-closure.sh`). Deferred source candidates are registered separately and are not
+applied by active closure replay.
 
 ## Upstream update exercise (issue #27 lifecycle, S3)
 
@@ -222,10 +224,37 @@ Six P126 source files are registered as `deferred-source-only`; none is applied 
 | `M-058` | `patches/mobile/P126-C-client-compat.patch` | `f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359` | `deferred-source-only` |
 | `M-059` | `patches/mobile/P126-S-media-source-safety.patch` | `384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2` | `deferred-source-only` |
 | `M-060` | `patches/mobile/P126-A-android-adaptation.patch` | `1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73` | `deferred-source-only` |
-| `M-063` | `patches/mobile/P126-A-agent-selector.patch` | `9bf73e327546874ab363cf611e3070b43dd03a154b5dfbb6b518c04b222a5bd9` | `deferred-source-only` |
+| `M-063` | `patches/mobile/P126-A-agent-selector.patch` | `f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b` | `active` (since session runtime cleanup follow-up) |
 | `M-064` | `patches/mobile/P126-S-session-ownership-whitespace.patch` | `8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c` | `deferred-source-only` |
 
 The future ordering contract is base M-001…M-056 excluding the later-positioned M-061/M-062, then
 P126 U/C/S/A, then M-061/M-062, then agent-selector and session-ownership-whitespace. It does not
 authorize applying these patches in this block. Active replay and tree checks consume only
 `vendor-manifest.json#mobilePatches` (56 base entries).
+
+## P126 session runtime source cleanup (2026-11-05)
+
+The current source overlay targets upstream `v2.2.1` commit
+`3ebcf9a32c7b28f658cfee80775448929361727a`; active replay order is the `mobilePatches` array in
+`vendor-manifest.json`. M-063 is active at the replay tail after M-068. Its Android marker only
+exposes the existing server-provided Agent selector; an empty catalog stays hidden and the original
+Desktop preference/custom-Agent condition and selection fallback remain unchanged. The previously
+deferred test hunk is excluded. M-065 retains only the production
+`projects.add` → `projects.open(directory)` host API adaptation. The `patchmark` workspace is added
+by the client-compat source patch and is registered as patch-created, not extracted as a package at
+the older pin.
+
+| ID | Source patch | SHA-256 | Status |
+| --- | --- | --- | --- |
+| `M-065` | `patches/mobile/P126-C-project-open-compat.patch` | `afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db` | `active` |
+| `M-067` | `patches/mobile/P126-B-e2e-runtime-compat.patch` | `aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc` | `active` |
+| `M-068` | `patches/mobile/P126-C-composer-test-fixture-compat.patch` | `666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe` | `active` |
+
+M-067 carries only the exact target `mockPluginsActivating` helper; M-068 carries only the exact target
+`app-direction.fixture.tsx` copy. Both copies were byte-compared with the fixed release tree. The
+Composer E2E suite is restored byte-for-byte to that target, without local server-seed edits. The M-066
+matcher patch, standalone host API test, three client-compat tests absent from the fixed target,
+optimizer-only Vite override, and whitespace-only M-064 patch were removed; the whitespace line is
+kept in the owning M-059 source patch rather than as a separate registry entry.
+`verify-closure.sh` is restored to the generic implementation from
+`d37260c002b4390060f7d6cd78ffe6a11e9e1012`.

@@ -281,6 +281,19 @@ function number(id: string, fallback: number) {
   return id in saved && Number.isFinite(value) ? value : fallback
 }
 
+export function storedToggle(id: string, initial: boolean) {
+  return number(id, Number(initial)) === 1
+}
+
+export function setStoredToggle(id: string, value: boolean, initial: boolean) {
+  if (value === initial) delete saved[id]
+  else saved[id] = Number(value)
+  const knob = knobs.get(id)
+  if (knob?.kind === "toggle" || knob?.kind === "mode") knob.value = value
+  persistSaved()
+  notify()
+}
+
 function load(): Record<string, number> {
   try {
     localStorage.removeItem("opencode.motion.v1")
@@ -314,34 +327,14 @@ function save() {
 
       return [[knob.id, knob.value, knob.initial]]
     })
-    .flatMap(([id, value, initial]) => (value === initial ? [] : [[id, value]]))
-
-  try {
-    if (entries.length === 0) return localStorage.removeItem(key)
-    localStorage.setItem(key, JSON.stringify(Object.fromEntries(entries)))
-  } catch {}
+  for (const [id, value, initial] of entries) {
+    if (value === initial) delete saved[id]
+    else saved[id] = value
+  }
+  persistSaved()
 }
 
-// mobile(M-036): the Sources experiment's gate lives outside the knobs registry (issue #66); these two first-party
-// helpers read and write the same `opencode.motion.v2` record directly, and the settings Experimental tab's Sources
-// row is their only writer. The record's non-defaults-only invariant is kept: a value flipped back to its initial
-// drops the entry again. (A DEV knobs-console save() rewrites the record from the registry alone; the in-memory
-// `saved` read here keeps the gate correct for the session — DEV-only caveat, prod DCEs the console.)
-/** The stored value of a toggle, for readers outside the experiment module (the settings row). */
-export function storedToggle(id: string, initial: boolean) {
-  return number(id, initial ? 1 : 0) === 1
-}
-
-/** Flips a toggle and persists it in the upstream record; the entry is dropped again at the default. */
-export function setStoredToggle(id: string, value: boolean, initial: boolean) {
-  if (value === initial) delete saved[id]
-  else saved[id] = value ? 1 : 0
-
-  persist()
-  notify()
-}
-
-function persist() {
+function persistSaved() {
   try {
     if (Object.keys(saved).length === 0) return localStorage.removeItem(key)
     localStorage.setItem(key, JSON.stringify(saved))

@@ -1,6 +1,6 @@
 # 单元：session-workbench（会话工作台——流式消息、上下文、工具与子任务）
 
-状态：**已实现（未验证）**（issue #9）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`），本仓库零新建界面、零运行时代码改动、零 vendor 补丁（本期 `patches/mobile/manifest.json` 维持 18 个不变）。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
+状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑，mobile patch registry 为 18 项；当前本轮 P126 以 copy 上游实现并做必要 Android 适配为主，跟踪状态为 63 项 active、1 项 deferred。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
 
 行号声明：本文引用的行号为 vendor pin `b4525d79bf` 时点值，仅供定位；权威以引号内源文本锚为准。
 
@@ -116,7 +116,6 @@
 - **G20（新设，见 [interaction.md](../interaction.md)）**：会话工作台全部运行期行为的真机门禁——流式增量呈现、长历史翻页、发送/停止（显式取消）、断开→重连快照恢复（含 queued inputs）、草稿/滚动/上下文跨切换恢复、失败反馈、**断开不中断远端**（机械核对四步：真实长任务→断连三态→远端存活→快照补齐+零 interrupt 日志命中）、窄屏/读屏/焦点/触摸目标核验。与 G12 互补分工：G12=壳生命周期，G20=工作台行为。
 - 静态探针：`scripts/verify-session-workbench.ts`（取消调用面穷举集合断言（换行容忍匹配）、SSE live-only + 快照恢复锚、按会话状态保持锚、事件面抽样 + 无 `default:` 负断言、移动适配事实；诚实标注为静态结构检查）。
 - 上游定向测试子集（app 追加清单 / client 8 文件 / session-ui 6 文件）与 V2 构建冒烟：见 [../../build-and-verify.md](../../build-and-verify.md) issue #9 段（含 client/session-ui 首跑逐例归因门）。
-
 ## 诚实边界
 
 - **权限确认、终端（PTY）、文件与 Diff 三个独立单元不在本期验收**：architecture.md 仍保留 TODO 行；本期仅记录 permission/question/elicitation dock 在工作台内的事件接线事实（`permission.asked`/`form.*` 等 case 的呈现面），不声称这三个单元已交付。

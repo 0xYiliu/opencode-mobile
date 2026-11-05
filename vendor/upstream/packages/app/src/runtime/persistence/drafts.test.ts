@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { createDraftStore, draftTextChunk, draftTextThreshold, resolveBlobUrl } from "./drafts"
+import {
+  blobDataUrl,
+  createDraftStore,
+  draftTextChunk,
+  draftTextThreshold,
+  resolveBlobUrl,
+  setMediaBlobLoader,
+  pinMediaBlob,
+} from "./drafts"
 
 function memoryDriver() {
   const documents = new Map<string, string>()
@@ -16,10 +24,12 @@ function memoryDriver() {
       // missing is refused.
       set: async (key: string, value: string, strict: boolean) => {
         const ids = new Set<string>()
+        // oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters -- mirrors the stores' scan of opaque serialized documents
         JSON.parse(value, (_key, item) => {
           if (item?.blob && typeof item.blob.id === "string") ids.add(item.blob.id)
 
           if (item?.blob && Array.isArray(item.blob.ids)) item.blob.ids.forEach((id: unknown) => ids.add(String(id)))
+          // oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters
 
           return item
         })
@@ -335,5 +345,135 @@ describe("draft store image retention", () => {
   test("a reference to bytes the store no longer holds resolves to nothing", async () => {
     fresh()
     expect(await resolveBlobUrl({ id: "gone" })).toBeUndefined()
+  })
+})
+
+describe("draft store media refs", () => {
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+  const pngDataUrl = `data:image/png;base64,${png}`
+
+  // A server's media blobs, served through the authenticated loader the way the media cache does.
+  const serveMedia = (key: string, blobs: Map<string, string>) => {
+    const loads: string[] = []
+    const close = setMediaBlobLoader(key, async (uri) => {
+      loads.push(uri)
+
+      return blobs.get(uri.slice("media:".length))
+    })
+
+    return { loads, close }
+  }
+
+  test("a media:<hash> ref is saved with its bytes, restored, and submitted as bytes after the server sweeps it", async () => {
+    const hash = "a".repeat(64)
+    const ref = `media:${hash}`
+    const server = new Map([[hash, pngDataUrl]])
+    const media = serveMedia("srv-draft-media", server)
+
+    try {
+      const memory = memoryDriver()
+      const store = createDraftStore(memory.driver)
+      // The composer holds the URL-neutral ref a restored message carries; `media:` is never fetched directly.
+      const live = { id: ref, url: ref, sourceServerKey: "srv-draft-media" }
+      await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }] })
+
+      const stored = JSON.parse(memory.documents.get("doc")!).prompt[0].blob
+      expect(stored.id).not.toContain("media:")
+      expect(Buffer.from(await memory.blobs.get(stored.id)!.arrayBuffer()).toString("base64")).toBe(png)
+      expect(media.loads).toEqual([ref])
+
+      // Later saves reuse the draft's copy instead of loading the blob again.
+      await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }], cursor: 1 })
+      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob.id).toBe(stored.id)
+      expect(media.loads).toEqual([ref])
+
+      // GC: the inbox item or message that referenced the blob is gone and the server swept it.
+      server.delete(hash)
+
+      const restored = JSON.parse((await createDraftStore(memory.driver).getItem("doc"))!).prompt[0].blob
+      expect(restored.id).toBe(stored.id)
+      expect(await blobDataUrl(restored, "image/png")).toBe(pngDataUrl)
+      expect(await blobDataUrl(live, "image/png")).toBe(pngDataUrl)
+      expect(media.loads).toEqual([ref])
+    } finally {
+      media.close()
+    }
+  })
+
+  test("an unresolved media ref preserves the draft but cannot be submitted as attachment bytes", async () => {
+    const ref = `media:${"b".repeat(64)}`
+    const media = serveMedia("srv-draft-media-gone", new Map())
+    const error = console.error
+    console.error = () => {}
+
+    try {
+      const memory = memoryDriver()
+      const store = createDraftStore(memory.driver)
+      await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: { id: ref, url: ref } }] })
+      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ mediaURI: ref })
+      expect(await resolveBlobUrl({ id: ref, url: ref })).toBeUndefined()
+      await expect(blobDataUrl({ id: ref, url: ref }, "image/png")).rejects.toBeDefined()
+      expect(media.loads).toEqual([])
+      const restored = JSON.parse((await store.getItem("doc"))!).prompt[0].blob
+      expect(restored.id).toBe(ref)
+    } finally {
+      console.error = error
+      media.close()
+    }
+  })
+
+  test.each(["missing", "403", "404", "offline", "unknown"] as const)("source %s fails closed with zero calls to another server", async (failure) => {
+    const ref = `media:${"c".repeat(64)}`
+    let a = 0
+    let b = 0
+    const closeA = failure === "missing" ? () => {} : setMediaBlobLoader("failclosed-a", async () => {
+      a++
+      throw new Error(failure)
+    })
+    const closeB = setMediaBlobLoader("failclosed-b", async () => { b++; return pngDataUrl })
+    try {
+      const reference = { id: ref, url: "", sourceServerKey: failure === "unknown" ? undefined : "failclosed-a" }
+      await expect(pinMediaBlob(reference)).rejects.toBeDefined()
+      expect(await resolveBlobUrl(reference)).toBeUndefined()
+      expect(b).toBe(0)
+      expect(a).toBe(failure === "missing" || failure === "unknown" ? 0 : 2)
+    } finally { closeA(); closeB() }
+  })
+
+  test("equal remote hashes use source-scoped aliases and local copies remain usable offline", async () => {
+    const ref = `media:${"d".repeat(64)}`
+    let a = 0
+    let b = 0
+    const closeA = setMediaBlobLoader("alias-a", async () => { a++; return "data:text/plain;base64,QQ==" })
+    const closeB = setMediaBlobLoader("alias-b", async () => { b++; return "data:text/plain;base64,Qg==" })
+    const first = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-a" })
+    expect(a).toBe(1)
+    expect(b).toBe(0)
+    const second = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-b" })
+    expect(second.id).not.toBe(first.id)
+    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
+    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
+    closeA(); closeB()
+    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
+    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
+    expect(await resolveBlobUrl({ id: ref, sourceServerKey: "alias-unknown" })).toBeUndefined()
+  })
+
+  test("late same-key completion and old cleanup cannot publish aliases or unregister a successor", async () => {
+    const ref = `media:${"e".repeat(64)}`
+    let finish!: (value: string) => void
+    const pending = new Promise<string>((resolve) => { finish = resolve })
+    const closeOld = setMediaBlobLoader("generation", () => pending)
+    const old = pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
+    const rejected = old.then(() => false, () => true)
+    let successor = 0
+    const closeNew = setMediaBlobLoader("generation", async () => { successor++; return "data:text/plain;base64,TkVX" })
+    closeOld()
+    finish("data:text/plain;base64,T0xE")
+    expect(await rejected).toBe(true)
+    const current = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
+    expect(successor).toBe(1)
+    expect(await blobDataUrl(current, "text/plain")).toBe("data:text/plain;base64,TkVX")
+    closeNew()
   })
 })

@@ -131,29 +131,3 @@ test("rotates HTTP and PTY clients together", async () => {
     },
   ])
 })
-
-test("transport.update retains the session-only Unicode service password on subsequent API requests", async () => {
-  const requests: Array<{ url: string; authorization: string | null }> = []
-  const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const request = input instanceof Request ? input : new Request(input, init)
-    requests.push({ url: request.url, authorization: request.headers.get("authorization") })
-    return Response.json({
-      version: "2.0.0-test",
-      pid: 1,
-      urls: [request.url],
-      paths: { tmp: "/tmp/opencode" },
-    })
-  }) as typeof globalThis.fetch
-  const transport = createServerTransport({ http: { url: "http://127.0.0.1:4100" }, fetch })
-  const password = "service-秘密-🔐"
-  const bytes = new TextEncoder().encode(`opencode:${password}`)
-  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
-  const token = `Basic ${btoa(binary)}`
-
-  expect(transport.update({ url: "http://127.0.0.1:4200", password })).toBe(transport.api)
-  await transport.api.server.info()
-  expect(requests).toEqual([{
-    url: "http://127.0.0.1:4200/api/info",
-    authorization: token,
-  }])
-})

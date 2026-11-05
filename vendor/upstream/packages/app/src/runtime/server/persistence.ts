@@ -136,7 +136,13 @@ export function serverState(canonicalLocalServer: () => string | undefined = () 
   )
 }
 
+const FavoriteIdentity = Persistence.struct({
+  providerID: Schema.String.check(Schema.isMinLength(1)),
+  modelID: Schema.String.check(Schema.isMinLength(1)),
+})
+
 export const ModelState = Persistence.struct({
+  favorite: Persistence.array(FavoriteIdentity),
   user: Persistence.array(
     Persistence.struct({
       providerID: Schema.String,
@@ -153,6 +159,36 @@ export const ModelState = Persistence.struct({
     ),
   ),
 })
+
+// Inspect raw presence before recovery supplies the empty default. An explicit (even malformed)
+// new field is authoritative, so removing the last favorite never revives legacy flags.
+export const modelState = Persistence.migrate(
+  ModelState,
+  Schema.Unknown.pipe(Schema.decode({
+    decode: SchemaGetter.transform((value) => {
+      if (!Predicate.isObject(value)) return value
+      const entries = Object.hasOwn(value, "favorite")
+        ? (Array.isArray(value.favorite) ? value.favorite : [])
+        : (Array.isArray(value.user) ? value.user.filter((item) =>
+            Predicate.isObject(item) && item.favorite === true &&
+            (item.visibility === "show" || item.visibility === "hide")) : [])
+      const seen = new Map<string, Set<string>>()
+      const decode = Schema.decodeUnknownOption(FavoriteIdentity)
+      const favorite = entries.flatMap((entry) => {
+        const identity = decode(entry)
+        if (Option.isNone(identity)) return []
+        const { providerID, modelID } = identity.value
+        const models = seen.get(providerID) ?? new Set<string>()
+        if (models.has(modelID)) return []
+        models.add(modelID)
+        seen.set(providerID, models)
+        return [{ providerID, modelID }]
+      })
+      return { ...value, favorite }
+    }),
+    encode: SchemaGetter.transform((value) => value),
+  })),
+)
 
 export const VcsState = Persistence.struct({
   value: Schema.optional(
