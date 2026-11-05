@@ -1,5 +1,15 @@
 # 构建与验证证据（V8）
 
+## 当前使用入口
+
+本文件是按 issue/轮次积累的证据台账。结果只证明对应提交、构建和环境；历史 BLOCKED 不自动成为当前阻塞，历史 PASS 也不自动覆盖新实现。当前状态以[功能矩阵](alignment/windows-desktop/v2.2.1/matrix.md)为入口，检查范围按[推进规则](alignment/workflow.md)和本次执行卡选择。
+
+Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:web`、`bun run copy:web-dist`；vendor 修改按需执行 `bun run verify:closure`。Android 使用已配置的 SDK 与本地 Gradle 发行版运行 `gradle -p android :app:assembleDebug`，相关单测按改动选择。最近清理轮的实际 Gradle 路径与构建结果见下节。仓库未提供 `android/gradlew`，不要直接照抄历史 wrapper 命令。安装后还须按本次验收核对资源与实际交互；构建成功不代表设备验收通过。
+
+### 规范更新文档核对（2026-11-05）
+
+本轮仅更新执行规范及过时状态入口；核对相对链接、Markdown 代码块闭合与 `git diff --check`。未运行构建或设备测试，不增加功能通过结论；最终检查与独立评审结果随本次 PR 交付。
+
 ### P126 session runtime copy cleanup (2026-11-05)
 
 - Source target: upstream release `v2.2.1`, commit `3ebcf9a32c7b28f658cfee80775448929361727a`; package source pin and per-package override remain in `vendor/upstream/vendor-manifest.json`. The active patch order is the single `mobilePatches` list there; deferred source remains marked in `patches/mobile/manifest.json`.
@@ -258,19 +268,23 @@ Initial handoff form-open review follow-up (2026-10-29): `canHandoffInitialSsh` 
 
 本期没有 screen 测试：该界面依赖完整 Solid/WebView 测试装配；入口点击与空态管理面已在 MatePad UI dump 上验证，路由纯函数测试已加入补丁并纳入闭包 round-trip。
 
-## 工具链（本机真实版本）
+## 工具链（历史实测快照）
+
+以下为历次构建记录的工具版本，使用前核对本机实际环境；不是每个任务重新安装或升级工具链的要求。
 
 | 工具 | 版本 | 用途 |
 | --- | --- | --- |
 | bun | 1.4.2（= 上游 `packageManager`） | 依赖安装、web 构建 |
 | node | v24.20.0 | 间接依赖执行环境 |
-| openjdk | 21.0.12.1 | 已安装；Android 构建需要 SDK（缺失，见 BLOCKED） |
+| openjdk | 21.0.12.1 | 已安装；Android SDK 后续已在位，见下行，不沿用早期缺失结论 |
 | python3 | 系统自带（xml.dom.minidom、json.tool） | V5/V6 结构校验 |
 | git / gh | 可用 | 闭包获取、issue 记录 |
 | Android SDK / Gradle | **在位**（`~/.android-sdk`，platforms/android-36 + build-tools；gradle 9.6.1 本地发行版，wrapper jar 不提交）；2026-10-24 起 `:app:compileDebugKotlin` 已实测 PASS（issue #7 S5 勘误，替代既往「未安装」记录） | Kotlin 编译经真实工具链；APK 打包已随 v0.1.0 修复打通（packaging 排除块 + ignoreAssets `<dir>_*` 订正，2026-10-28；见 BLOCKED 总表 v0.1.0 行） |
 | kotlinc / gitleaks | kotlinc 经 `kotlin-compiler-embeddable`（gradle 发行版自带，2.3.21/2.4.21）；**gitleaks 未安装** | 编译探针可用；泄漏扫描以启发式脚本 `scripts/leak-scan.sh` 代替，明示非 gitleaks |
 
 ## 构建流水线（真实命令）
+
+**历史命令汇编，非当前必跑清单。** 以下 V 编号、测试子集、旧 `gui-extensions` 路径及 BLOCKED 结论适用于各自记录轮次；现有包名、脚本和测试装配应以当前树为准。不要将历史累计子集升级为本次门禁，也不要为运行失效命令扩建测试环境。当前构建入口见本文开头。
 
 ```bash
 bun install --frozen-lockfile          # V1
@@ -345,6 +359,8 @@ cd android && gradle :app:compileDebugKotlin          # 真实工具链编译（
 ```
 
 `--conditions=browser` 的原因：solid-js@1.9.15 的 exports 无 `solid` 条目，bun test 默认按 `node` 条件解析到无响应式的 server 构建；`browser` 条件选中有响应式的 client 构建（已用最小 repro 验证：store 变更触发 memo 重算）。上游 app 自身测试使用 `--conditions=solid` + happy-dom 预载（其 JSX 预载所必需），与本包命令不同属正常，两者均已如实记录。
+
+**下段为 issue #7 时的历史失败记录**：其中 assembleDebug 失败及“待用户决策”已被后续 packaging 修复与 APK 构建成功记录覆盖（见工具链表及本文顶部）；不代表当前构建阻塞。wrapper 命令也不代表仓库当前提供 wrapper。
 `cd android && ./gradlew :app:compileDebugKotlin` 与 `:app:assembleDebug` **已实测**（issue #7 S5 起，本地 gradle 9.6.1 发行版 + `ANDROID_HOME=~/.android-sdk`；SDK licenses 已接受、build-tools 35 自动装）：compileDebugKotlin **PASS**；assembleDebug **FAIL** 于 `mergeDebugJavaResource` 的 jsch+bcprov `META-INF/versions/9/OSGI-INF/MANIFEST.MF` 重复（jar 元数据冲突，非 SDK 缺失；解法=build.gradle.kts packaging 排除块，在计划零改动清单内，待用户决策）。`gradle wrapper --gradle-version 8.11.1`（wrapper jar 引导）仍未执行；wrapper jar 不提交（见 `.gitignore`）。
 
 ## 验证项记录

@@ -2,7 +2,7 @@
 
 OpenCode 移动端客户端。目标平台是 Android（APK），以固定上游 OpenCode Windows Desktop 版本为复制基准；后续平台适配不改变该基准。
 
-> 当前状态：Android 客户端已有共享前端、Kotlin WebView 壳、SSH/直连、凭据保险库和远程工作界面。debug APK 已构建并有 MatePad 局部验证记录；inline SSH 表单渲染门禁通过。完整 SSH 主机指纹/认证及远程任务 E2E 仍未通过。详见[构建与验证记录](docs/build-and-verify.md)和[功能对齐矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)。
+> 当前状态：Android 客户端已有共享前端、Kotlin WebView 壳、SSH/直连、凭据保险库和远程工作界面。debug APK 已构建并有 MatePad 局部验证记录；#61 已有 SSH 信任、认证、隧道及到达既有会话的历史主链证据，当前集成版完整复验及任务级端到端验收仍未完成。详见[构建与验证记录](docs/build-and-verify.md)和[功能对齐矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)。
 
 ## 产品目标
 
