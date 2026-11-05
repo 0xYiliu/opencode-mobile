@@ -6,6 +6,16 @@
 
 Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:web`、`bun run copy:web-dist`；vendor 修改按需执行 `bun run verify:closure`。Android 使用已配置的 SDK 与本地 Gradle 发行版运行 `gradle -p android :app:assembleDebug`，相关单测按改动选择。最近清理轮的实际 Gradle 路径与构建结果见下节。仓库未提供 `android/gradlew`，不要直接照抄历史 wrapper 命令。安装后还须按本次验收核对资源与实际交互；构建成功不代表设备验收通过。
 
+### #133 移动补丁登记治理（2026-11-05）
+
+- 基线 `3220f799`；本轮只改维护工具与规范。历史 65 个补丁的 ID、路径、内容、hash、状态及生效顺序未变；新命名不依赖全局编号或 Issue，详见[维护协议](../vendor/upstream/patches/mobile/README.md)。
+- `python3 scripts/test_mobile_patches.py`：8 项通过，覆盖无编号补丁并行登记/真实 git apply、重复登记、依赖与状态、文件/hash、镜像及刷新幂等、无效登记时 sync 不删除源码，以及完整 closure 对 packages/LICENSE 可执行位变化的拒绝。
+- `python3 scripts/mobile-patches.py` 与 `--refresh`：通过，65 条登记一致；刷新无文件改动。两份来源 JSON 的重复 registry/deferred 字段改为工具生成，历史叙述保留。
+- 当前开发目录直接运行 closure 曾失败：存在未跟踪的 `packages/app/vendor/upstream/packages/app/node_modules` 嵌套开发链接，造成额外目录差异。保留该本地目录；没有放宽排除规则或把此次失败记为通过。
+- 在 `git archive 3220f799` 加本轮脚本的干净快照中，完整 `verify-closure.sh` PASS：65 个补丁重放、源码字节/类型/可执行位/symlink、LICENSE 及 workspace 引用均通过（DANGLING=0）。仅改变 packages 文件或 LICENSE 的可执行位，实际 closure 正确返回 FAIL；LICENSE 覆盖由独立评审发现遗漏后补齐，最终完整重放已重新通过。
+- 同一隔离快照运行实际 `vendor-sync.sh` 成功，重建后的 4,688 个 Git 跟踪源码/LICENSE 路径与开发基线的内容、类型和可执行位一致。未在开发目录执行破坏性重建。
+- `bash -n` 与 `git diff --check` 通过。运行时代码、上游依赖和补丁内容未改，本轮未构建 APK 或执行设备测试；最终独立审查与提交身份见关联 PR。
+
 ### 规范更新文档核对（2026-11-05）
 
 本轮仅更新执行规范及过时状态入口；核对相对链接、Markdown 代码块闭合与 `git diff --check`。未运行构建或设备测试，不增加功能通过结论；最终检查与独立评审结果随本次 PR 交付。

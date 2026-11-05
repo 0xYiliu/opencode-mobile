@@ -3,6 +3,13 @@
 Machine-readable twin: `provenance.json`. Acquisition/rebuild tool: `scripts/vendor-sync.sh`.
 Verification: `scripts/verify-closure.sh` (V3).
 
+Current mobile patch maintenance: [protocol and commands](patches/mobile/README.md).
+`vendor-manifest.json#mobilePatches` alone determines replay order. The patch registry
+owns IDs, paths, status and hashes; `bun run patches:refresh` generates the registry
+mirrors in both machine-readable provenance files. Historical narrative inventories
+below are not additional live registries. Existing names remain unchanged; new names
+use semantic domain/purpose identities without global numbers or mandatory Issues.
+
 ## Pin
 
 | Field | Value |
