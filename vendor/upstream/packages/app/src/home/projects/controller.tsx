@@ -123,7 +123,10 @@ export function createHomeProjectsController(home: HomeController) {
                 Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json)),
               )(await file.text())
 
-              const api = home.server.context(conn).sdk.api.experimental.session
+              // mobile: the pin-generation client exposes the session import endpoint on the session
+// namespace (the target client re-homes it under experimental with a deprecated alias on
+// the same wire path), so the import reads through api.session.import.
+              const api = home.server.context(conn).sdk.api.session
 
               // SAFETY: the import endpoint validates the transcript, including exports written by earlier releases.
               const imported = await api.import({
