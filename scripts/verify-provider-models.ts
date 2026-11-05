@@ -453,12 +453,12 @@ let osScanFiles = 0
   if (!selection.includes('serverSDK.event.on("session.deleted",(event)=>{')) fail("5: the session.deleted cleanup moved")
 
   const runtime = squash(await read(`${APP}src/runtime/server/runtime.tsx`))
-  // issue #141 drift repair (new-fact registration): ae10625 renamed the local
-  // store binding ModelState → modelState; the anchored FACT (the
-  // createGlobalModels Persist.global("model") cross-server preference
-  // exception) is unchanged.
-  if (!runtime.includes('persisted(Persist.global("model"),modelState,{'))
-    fail("5: the createGlobalModels Persist.global(\"model\") preference EXCEPTION moved (anti-overclaim anchor — preferences are cross-server global upstream)")
+  // issue #140 merge repair: the target-form runtime restores upstream's ModelState
+  // binding (the scc-era modelState exception hunk retired with the target's own
+  // favorites recovery semantics); the anchored FACT (the createGlobalModels
+  // Persist.global("model") cross-server preference surface) is unchanged.
+  if (!runtime.includes('persisted(Persist.global("model"),ModelState,{'))
+    fail("5: the createGlobalModels Persist.global(\"model\") preference surface moved (anti-overclaim anchor — preferences are cross-server global upstream)")
 
   // Migrated (v2.2.1) single-layout mounts (issue #101 / settings-framework-migration): the pin's dual layout is
   // gone — the five-tab redirect guard and the nestedServerTabs composition are

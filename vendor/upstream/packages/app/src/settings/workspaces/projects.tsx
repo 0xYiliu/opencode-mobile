@@ -50,18 +50,9 @@ export const SettingsProjects: Component<{
       multiple: true,
       onSelect: (result) => {
         const directories = homeProjectDirectories(result)
-        const directory = addProjects(context(), directories)
-
-        if (!directory) return
-
-        if (directories.length > 1) return
-
-        const project = context()
-          .projects.list()
-          .find((item) => item.worktree === directory)
-
-        if (!project) return
-        props.onOpenProject(project)
+        void addProjects(context(), directories).then((project) => {
+          if (project && directories.length === 1) props.onOpenProject(project)
+        })
       },
     })
 

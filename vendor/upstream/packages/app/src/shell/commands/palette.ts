@@ -152,7 +152,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
   const sessions = createServerSessionEntries({
     server: ServerConnection.key(serverSDK.server),
     known: createKnownServerSessions(serverCtx),
-    projects: serverCtx.projects.catalog.list,
+    projects: serverCtx.projects.list,
     load: (search, signal) =>
       serverSDK.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
     get: (sessionID, signal) => serverSDK.api.session.get({ sessionID }, { signal }),

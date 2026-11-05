@@ -108,9 +108,10 @@ function seedPersistedServer() {
     JSON.stringify({
       list: [{ type: "http", http: { url: "http://synthetic.restore.invalid:4096", credentialRef: CREDENTIAL_REF } }],
       hidden: {},
+      lastProjectID: {},
+      usedProjectIDs: {},
+      hostnames: {},
       projects: {},
-      lastProject: {},
-      recentlyClosed: {},
     }),
   )
 }

@@ -1,0 +1,1303 @@
+diff --git a/packages/app/src/home/projects/controller.tsx b/packages/app/src/home/projects/controller.tsx
+index f531d26..34f58cf 100644
+--- a/packages/app/src/home/projects/controller.tsx
++++ b/packages/app/src/home/projects/controller.tsx
+@@ -6,7 +6,7 @@ import { type LocalProject } from "@/shell/state/layout"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { ServerConnection } from "@/runtime/server/registry"
+-import { closeHomeProject, errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
++import { errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { showToast } from "@/shell/notifications/toast"
+ import { useDialog } from "@opencode/ui/context/dialog"
+@@ -46,7 +46,7 @@ export function createHomeProjectsController(home: HomeController) {
+   }
+ 
+   // An expired pairing session or a changed password signs the app out of an HTTP server; signing in again edits it,
+-  // and the action that asked for sign-in continues once the dialog saves, as it does for extension servers. It continues
++  // and the action that asked for sign-in continues once the dialog saves, as it does for plugin servers. It continues
+   // with the saved connection: the one it started with still carries the rejected credentials.
+   function authenticate(conn: ServerConnection.Any, onConnected?: (conn: ServerConnection.Any) => void) {
+     if (conn.type !== "http" || !home.server.health(conn)?.unauthorized)
+@@ -65,7 +65,7 @@ export function createHomeProjectsController(home: HomeController) {
+       server: conn,
+       title: language.t("command.project.open"),
+       multiple: true,
+-      onSelect: (result) => home.project.add(conn, homeProjectDirectories(result)),
++      onSelect: (result) => void home.project.add(conn, homeProjectDirectories(result)),
+     })
+   }
+ 
+@@ -79,6 +79,7 @@ export function createHomeProjectsController(home: HomeController) {
+     server: {
+       list: home.server.list,
+       health: home.server.health,
++      label: home.server.label,
+       projects: home.project.forServer,
+       collapsed: (conn: ServerConnection.Any) => state().collapsed[ServerConnection.key(conn)] ?? false,
+       toggleCollapsed: (conn: ServerConnection.Any) => {
+@@ -98,8 +99,6 @@ export function createHomeProjectsController(home: HomeController) {
+     },
+     project: {
+       list: home.project.list,
+-      recentlyClosed: home.project.recentlyClosed,
+-      homedir: home.project.homedir,
+       select: (conn: ServerConnection.Any, directory: string) => {
+         if (authenticate(conn, (next) => home.project.select(next, directory))) return
+         home.project.select(conn, directory)
+@@ -124,6 +123,9 @@ export function createHomeProjectsController(home: HomeController) {
+                 Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json)),
+               )(await file.text())
+ 
++              // mobile: the pin-generation client exposes the session import endpoint on the session
++// namespace (the target client re-homes it under experimental with a deprecated alias on
++// the same wire path), so the import reads through api.session.import.
+               const api = home.server.context(conn).sdk.api.session
+ 
+               // SAFETY: the import endpoint validates the transcript, including exports written by earlier releases.
+@@ -163,19 +165,7 @@ export function createHomeProjectsController(home: HomeController) {
+         if (home.server.health(conn)?.healthy === false) return
+         choose(conn)
+       },
+-      close: (conn: ServerConnection.Any, directory: string) => {
+-        const next = closeHomeProject(
+-          home.selection.value(),
+-          ServerConnection.key(conn),
+-          home.server.context(conn).projects,
+-          directory,
+-        )
+-
+-        if (next) home.selection.set(next)
+-      },
+-      move: (conn: ServerConnection.Any, worktree: string, index: number) => {
+-        home.server.context(conn).projects.move(worktree, index)
+-      },
++      hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
+       canReveal: revealProject.available,
+       reveal: revealProject.reveal,
+     },
+
+diff --git a/packages/app/src/runtime/persistence/consumers.test.ts b/packages/app/src/runtime/persistence/consumers.test.ts
+index 54e12b3..e368ea7 100644
+--- a/packages/app/src/runtime/persistence/consumers.test.ts
++++ b/packages/app/src/runtime/persistence/consumers.test.ts
+@@ -1,13 +1,13 @@
+ import { describe, expect, test } from "bun:test"
+ import { Schema } from "effect"
+-import { WorkspaceOnboardingSchema, ProviderTipSchema, WorkspaceTipSchema } from "@/new-session/view"
++import { WorkspaceOnboardingSchema, ProviderTipSchema } from "@/new-session/view"
+ import { ModelSelectionSchema } from "@/providers/models/selection"
+ import { Persistence } from "@/runtime/persistence/schema"
+ import { FileViewsSchema } from "@/workspaces/files/view-cache"
+ import { languageSchema } from "@/runtime/i18n/language"
+ import { HomeServersSchema } from "@/home/projects/controller"
+ import { ModelProvidersSchema } from "@/settings/models/models"
+-import { IconState, ProjectState, VcsState } from "@/runtime/server/persistence"
++import { ProjectState, VcsState } from "@/runtime/server/persistence"
+ 
+ function stored<S extends Schema.ConstraintCodec<object, unknown>>(
+   name: string,
+@@ -42,7 +42,6 @@ describe("persisted consumer schemas", () => {
+       [{ dismissedAt: Infinity }, { dismissedAt: 0 }],
+       [{ dismissedAt: 123 }, { dismissedAt: 123 }],
+     ]),
+-    stored("workspace tip", WorkspaceTipSchema, { dismissedAt: 0 }, [[{ dismissedAt: 123 }, { dismissedAt: 123 }]]),
+     stored("home server collapse", HomeServersSchema, { collapsed: {} }, collapsed),
+     stored("model provider collapse", ModelProvidersSchema, { collapsed: {} }, collapsed),
+     stored("VCS cache", VcsState, { value: undefined }, [
+@@ -78,13 +77,6 @@ describe("persisted consumer schemas", () => {
+         },
+       ],
+     ]),
+-    stored("icon cache", IconState, { value: undefined }, [
+-      [{}, { value: undefined }],
+-      [{ value: 42 }, { value: undefined }],
+-      [{ value: null }, { value: undefined }],
+-      [{ value: "" }, { value: "" }],
+-      [{ value: "data:image/png;base64,abc" }, { value: "data:image/png;base64,abc" }],
+-    ]),
+   ])("$name defaults missing or invalid values and round-trips valid ones", (row) => {
+     row.cases.forEach(([input, expected]) => {
+       const value = row.decode(input)
+
+diff --git a/packages/app/src/runtime/server/global-sync/bootstrap.test.ts b/packages/app/src/runtime/server/global-sync/bootstrap.test.ts
+index aa405aa..c2abeb6 100644
+--- a/packages/app/src/runtime/server/global-sync/bootstrap.test.ts
++++ b/packages/app/src/runtime/server/global-sync/bootstrap.test.ts
+@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
+ import { QueryClient } from "@tanstack/solid-query"
+ import { OpenCode } from "@opencode/client/promise"
+ import { createStore } from "solid-js/store"
+-import { bootstrapGlobal, loadPathQuery, loadProjectsQuery } from "./bootstrap"
++import { bootstrapGlobal, inferHomeDirectory, loadPathQuery, loadProjectsQuery } from "./bootstrap"
+ import { ServerScope } from "@/runtime/server/scope"
+ import type { ServerApi } from "@/runtime/server/api"
+ import { createServerTransport } from "@/runtime/server/client"
+@@ -131,9 +131,13 @@ describe("query keys", () => {
+ 
+     expect(calls).toEqual([{ location: { directory: "/repo/subpath" } }])
+     expect(result).toMatchObject({ directory: "/repo/subpath", worktree: "/repo" })
++    expect(inferHomeDirectory("/Users/kamil/Developer/opencode")).toBe("/Users/kamil")
++    expect(inferHomeDirectory("/home/ubuntu/workspace/repo")).toBe("/home/ubuntu")
++    expect(inferHomeDirectory("C:\\Users\\luke\\repo")).toBe("C:\\Users\\luke")
++    expect(inferHomeDirectory("/repo/subpath")).toBe("")
+   })
+ 
+-  test("loads project metadata without enumerating any project's worktrees", async () => {
++  test("loads project metadata in server order without enumerating any project's worktrees", async () => {
+     const requests: string[] = []
+ 
+     const api = OpenCode.make({
+@@ -164,11 +168,11 @@ describe("query keys", () => {
+     const result = await new QueryClient().fetchQuery(loadProjectsQuery(ServerScope.local, api.project))
+ 
+     expect(requests).toEqual(["/api/project"])
+-    expect(result).toHaveLength(302)
+-    expect(result.slice(0, 2)).toMatchObject([
+-      { id: "a", worktree: "/a", sandboxes: ["/a/legacy"], worktrees: [{ directory: "/a" }] },
++    expect(result).toHaveLength(303)
++    expect(result.slice(300)).toMatchObject([
+       { id: "b", worktree: "/b", sandboxes: [], worktrees: [{ directory: "/b" }] },
++      { id: "a", worktree: "/a", sandboxes: ["/a/legacy"], worktrees: [{ directory: "/a" }] },
++      { id: "test", worktree: "/tmp/opencode-test-1" },
+     ])
+-    expect(result.some((project) => project.id === "test")).toBe(false)
+   })
+ })
+
+diff --git a/packages/app/src/runtime/server/global-sync/bootstrap.ts b/packages/app/src/runtime/server/global-sync/bootstrap.ts
+index 5b3c91d..692a3f5 100644
+--- a/packages/app/src/runtime/server/global-sync/bootstrap.ts
++++ b/packages/app/src/runtime/server/global-sync/bootstrap.ts
+@@ -5,7 +5,7 @@ import { getFilename } from "@opencode/util/path"
+ import { retry } from "@opencode/util/retry"
+ import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
+ import type { State } from "./types"
+-import { cmp, normalizeProjectInfo } from "./utils"
++import { normalizeProjectInfo } from "./utils"
+ import { formatServerError } from "@/runtime/server/errors"
+ import { QueryClient, queryOptions } from "@tanstack/solid-query"
+ import type { ServerScope } from "@/runtime/server/scope"
+@@ -62,22 +62,35 @@ type ProjectApi = {
+ 
+ type LocationApi = { readonly get: (input?: LocationGetInput) => Promise<LocationGetOutput> }
+ 
+-// Metadata only. Worktree inventories load per project when a view shows it (see workspaces/inventory).
++// Metadata only, in the server's order (most recently active first). Worktree inventories load per project when a
++// view shows it (see workspaces/inventory).
+ export const loadProjectsQuery = (scope: ServerScope, projects: ProjectApi) =>
+   queryOptions({
+     queryKey: [scope, "project"],
+     queryFn: () =>
+       retry(() =>
+-        projects.list().then((items) =>
+-          items
+-            .filter((project) => !!project?.id)
+-            .map(normalizeProjectInfo)
+-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+-            .sort((a, b) => cmp(a.id, b.id)),
+-        ),
++        projects
++          .list()
++          .then((items) => items.flatMap((project) => (project?.id ? [normalizeProjectInfo(project)] : []))),
+       ),
+   })
+ 
++export function loadProjects(input: {
++  scope: ServerScope
++  project: ProjectApi
++  setGlobalStore: SetStoreFunction<GlobalStore>
++  queryClient: QueryClient
++}) {
++  return input.queryClient.fetchQuery(loadProjectsQuery(input.scope, input.project)).then((data) =>
++    input.setGlobalStore(
++      "project",
++      data.map((project) =>
++        withWorktreeInventory(project, input.queryClient.getQueryData(worktreeInventoryKey(input.scope, project.id))),
++      ),
++    ),
++  )
++}
++
+ export async function bootstrapGlobal(input: {
+   serverAPI: {
+     readonly location: LocationApi
+@@ -89,19 +102,17 @@ export async function bootstrapGlobal(input: {
+ }) {
+   const slow = [
+     () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope)),
+-    () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverAPI.location)),
+     () =>
+-      input.queryClient.fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project)).then((data) =>
+-        input.setGlobalStore(
+-          "project",
+-          data.map((project) =>
+-            withWorktreeInventory(
+-              project,
+-              input.queryClient.getQueryData(worktreeInventoryKey(input.scope, project.id)),
+-            ),
+-          ),
+-        ),
+-      ),
++      input.queryClient
++        .fetchQuery(loadPathQuery(input.scope, null, input.serverAPI.location))
++        .then((data) => input.setGlobalStore("path", data)),
++    () =>
++      loadProjects({
++        scope: input.scope,
++        project: input.serverAPI.project,
++        setGlobalStore: input.setGlobalStore,
++        queryClient: input.queryClient,
++      }),
+   ]
+ 
+   await runAll(slow)
+@@ -111,6 +122,15 @@ function projectID(directory: string, projects: Project[]) {
+   return projects.find((project) => project.worktree === directory || project.sandboxes?.includes(directory))?.id
+ }
+ 
++export function inferHomeDirectory(path: string) {
++  const normalized = path.replaceAll("\\", "/")
++  const match = /^(\/Users\/[^/]+|\/home\/[^/]+|\/root|[A-Za-z]:\/Users\/[^/]+)(?=\/|$)/.exec(normalized)
++
++  if (!match) return ""
++
++  return path.includes("\\") ? match[1]!.replaceAll("/", "\\") : match[1]!
++}
++
+ export const loadPathQuery = (scope: ServerScope, directory: string | null, api: LocationApi) =>
+   queryOptions<Path>({
+     queryKey: [scope, directory, "path"],
+@@ -120,7 +140,7 @@ export const loadPathQuery = (scope: ServerScope, directory: string | null, api:
+         config: "",
+         worktree: location.project.directory,
+         directory: location.directory,
+-        home: "",
++        home: inferHomeDirectory(location.directory) || inferHomeDirectory(location.project.directory),
+       })),
+   })
+ 
+
+diff --git a/packages/app/src/runtime/server/global-sync/child-store.ts b/packages/app/src/runtime/server/global-sync/child-store.ts
+index 011b140..b463e34 100644
+--- a/packages/app/src/runtime/server/global-sync/child-store.ts
++++ b/packages/app/src/runtime/server/global-sync/child-store.ts
+@@ -7,7 +7,6 @@ import {
+   MAX_DIR_STORES,
+   type ChildOptions,
+   type DirState,
+-  type IconCache,
+   type MetaCache,
+   type ProjectMeta,
+   type State,
+@@ -19,7 +18,7 @@ import { directoryKey, type DirectoryKey } from "./utils"
+ import type { ServerScope } from "@/runtime/server/scope"
+ import type { Data } from "@opencode/client/solid"
+ import { normalizeAgentList, normalizeProviderList } from "./utils"
+-import { IconState, ProjectState, VcsState } from "../persistence"
++import { ProjectState, VcsState } from "../persistence"
+ 
+ export function createChildStoreManager(input: {
+   owner: Owner
+@@ -40,7 +39,6 @@ export function createChildStoreManager(input: {
+ }) {
+   const children: Record<string, [Store<State>, SetStoreFunction<State>]> = {}
+   const metaCache = new Map<string, MetaCache>()
+-  const iconCache = new Map<string, IconCache>()
+   const lifecycle = new Map<string, DirState>()
+   const pins = new Map<string, number>()
+   const ownerPins = new WeakMap<object, Set<string>>()
+@@ -132,7 +130,6 @@ export function createChildStoreManager(input: {
+     }
+ 
+     metaCache.delete(key)
+-    iconCache.delete(key)
+     lifecycle.delete(key)
+     mcpDirectories.delete(key)
+     activeDirectories.delete(key)
+@@ -191,17 +188,9 @@ export function createChildStoreManager(input: {
+       if (!meta) throw new Error(input.translate("error.childStore.persistedProjectMetadataCreateFailed"))
+       metaCache.set(key, { store: meta[0], setStore: meta[1], ready: meta[3] })
+ 
+-      const icon = runWithOwner(input.owner, () =>
+-        input.persist(Persist.serverWorkspace(input.scope, directory, "icon"), IconState, { value: undefined }),
+-      )
+-
+-      if (!icon) throw new Error(input.translate("error.childStore.persistedProjectIconCreateFailed"))
+-      iconCache.set(key, { store: icon[0], setStore: icon[1], ready: icon[3] })
+-
+       const init = () =>
+         createRoot((dispose) => {
+           const initialMeta = meta[0].value
+-          const initialIcon = icon[0].value
+           const [instanceQueriesEnabled, setInstanceQueriesEnabled] = createSignal(false)
+ 
+           const lspQuery = useQuery(() => ({
+@@ -212,7 +201,6 @@ export function createChildStoreManager(input: {
+           const child = createStore<State>({
+             project: "",
+             projectMeta: initialMeta,
+-            icon: initialIcon,
+             get provider_ready() {
+               return (
+                 input.data.location.provider.list({ directory }) !== undefined &&
+@@ -306,11 +294,6 @@ export function createChildStoreManager(input: {
+             if (child[0].projectMeta !== initialMeta) return
+             child[1]("projectMeta", meta[0].value)
+           })
+-
+-          onPersistedInit(icon[2], () => {
+-            if (child[0].icon !== initialIcon) return
+-            child[1]("icon", icon[0].value)
+-          })
+         })
+ 
+       runWithOwner(input.owner, init)
+@@ -383,24 +366,11 @@ export function createChildStoreManager(input: {
+     setStore("projectMeta", next)
+   }
+ 
+-  function projectIcon(directory: string, value: string | undefined) {
+-    const key = directoryKey(directory)
+-    const [store, setStore] = ensureChild(directory)
+-    const cached = iconCache.get(key)
+-
+-    if (!cached) return
+-
+-    if (store.icon === value) return
+-    cached.setStore("value", value)
+-    setStore("icon", value)
+-  }
+-
+   return {
+     children,
+     ensureChild,
+     child,
+     projectMeta,
+-    projectIcon,
+     mark,
+     pin,
+     unpin,
+
+diff --git a/packages/app/src/runtime/server/global-sync/types.ts b/packages/app/src/runtime/server/global-sync/types.ts
+index 19915bb..45dfa2b 100644
+--- a/packages/app/src/runtime/server/global-sync/types.ts
++++ b/packages/app/src/runtime/server/global-sync/types.ts
+@@ -3,7 +3,7 @@ import type { ReferenceInfo } from "@opencode/client/promise"
+ import type { CommandInfo, McpResource, McpServer } from "@opencode/client/promise"
+ import type { Accessor } from "solid-js"
+ import type { SetStoreFunction, Store } from "solid-js/store"
+-import { IconState, ProjectState } from "../persistence"
++import { ProjectState } from "../persistence"
+ 
+ export type ProjectMeta = NonNullable<typeof ProjectState.Type.value>
+ 
+@@ -14,7 +14,6 @@ export type State = {
+   reference: ReferenceInfo[]
+   project: string
+   projectMeta: ProjectMeta | undefined
+-  icon: string | undefined
+   provider_ready: boolean
+   provider: ProviderListResponse
+   config: Config
+@@ -37,12 +36,6 @@ export type MetaCache = {
+   ready: Accessor<boolean>
+ }
+ 
+-export type IconCache = {
+-  store: Store<typeof IconState.Type>
+-  setStore: SetStoreFunction<typeof IconState.Type>
+-  ready: Accessor<boolean>
+-}
+-
+ export type ChildOptions = {
+   bootstrap?: boolean
+   mcp?: boolean
+
+diff --git a/packages/app/src/runtime/server/global-sync/utils.ts b/packages/app/src/runtime/server/global-sync/utils.ts
+index fa168b6..af36458 100644
+--- a/packages/app/src/runtime/server/global-sync/utils.ts
++++ b/packages/app/src/runtime/server/global-sync/utils.ts
+@@ -5,8 +5,6 @@ import { unwrap } from "solid-js/store"
+ 
+ export { pathKey as directoryKey, type PathKey as DirectoryKey } from "@/workspaces/path-key"
+ 
+-export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+-
+ const providerCatalogs = new WeakMap<
+   ProviderListOutput["data"],
+   WeakMap<ModelListOutput["data"], ProviderListResponse>
+
+diff --git a/packages/app/src/runtime/server/persistence.test.ts b/packages/app/src/runtime/server/persistence.test.ts
+index 10ed3af..99ef599 100644
+--- a/packages/app/src/runtime/server/persistence.test.ts
++++ b/packages/app/src/runtime/server/persistence.test.ts
+@@ -16,13 +16,13 @@ describe("server persistence schema", () => {
+     const input = {
+       list: [
+         "http://localhost:4096",
+-        { url: "https://flat.example", username: "legacy", password: "first" },
++        { url: "https://flat.example", username: "legacy", password: "first", credentialRef: "fixture-ref-a" },
+         {
+           type: "http",
+           displayName: "Remote",
+           label: "Production",
+           authToken: true,
+-          http: { url: "https://nested.example", username: "legacy", password: "second" },
++          http: { url: "https://nested.example", username: "legacy", password: "second", credentialRef: "fixture-ref-b" },
+         },
+       ],
+       projects: { local: [{ worktree: "/project", expanded: true }] },
+@@ -35,13 +35,13 @@ describe("server persistence schema", () => {
+     expect(state).toEqual({
+       list: [
+         { type: "http", http: { url: "http://localhost:4096" } },
+-        { type: "http", http: { url: "https://flat.example", password: "first" } },
++        { type: "http", http: { url: "https://flat.example", password: "first", credentialRef: "fixture-ref-a" } },
+         {
+           type: "http",
+           displayName: "Remote",
+           label: "Production",
+           authToken: true,
+-          http: { url: "https://nested.example", password: "second" },
++          http: { url: "https://nested.example", password: "second", credentialRef: "fixture-ref-b" },
+         },
+       ],
+       hidden: {},
+@@ -52,8 +52,20 @@ describe("server persistence schema", () => {
+     })
+     expect(input.list[1]).toHaveProperty("username", "legacy")
+     const encoded = Schema.encodeSync(schema)(state)
+-    expect(encoded).toEqual(state)
+-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
++    // mobile(M-002): the encode (stored) path drops the password (memory-only) while the
++    // non-secret credential reference survives, so no persistent backend sees a credential.
++    expect(encoded).toEqual({ ...state, list: [
++      { type: "http", http: { url: "http://localhost:4096" } },
++      { type: "http", http: { url: "https://flat.example", credentialRef: "fixture-ref-a" } },
++      { type: "http", displayName: "Remote", label: "Production", authToken: true,
++        http: { url: "https://nested.example", credentialRef: "fixture-ref-b" } },
++    ] })
++    expect(input.list[1]).toHaveProperty("password", "first")
++    const wire = JSON.parse(JSON.stringify(encoded))
++    expect(Schema.decodeUnknownSync(schema)(wire)).toEqual(wire)
++    expect(Schema.encodeSync(schema)(Schema.decodeUnknownSync(schema)({ list: [
++      { type: "http", http: { url: "https://no-password.example/", credentialRef: "fixture-ref-c" } },
++    ] }))).toHaveProperty("list.0.http", { url: "https://no-password.example/", credentialRef: "fixture-ref-c" })
+   })
+ 
+   test("defaults missing or malformed fields and drops invalid entries independently", () => {
+
+diff --git a/packages/app/src/runtime/server/persistence.ts b/packages/app/src/runtime/server/persistence.ts
+index f14fbdf..a247e23 100644
+--- a/packages/app/src/runtime/server/persistence.ts
++++ b/packages/app/src/runtime/server/persistence.ts
+@@ -65,77 +65,29 @@ const StoredServer = Schema.Union([ServerHttp, ServerHttpBase, Schema.String]).p
+   }),
+ )
+ 
+-const ProjectList = Persistence.array(
+-  Persistence.struct({
+-    worktree: Schema.String,
+-    expanded: Persistence.fallback(Schema.Boolean, () => true),
+-  }),
+-)
+-
+-const Projects = Persistence.record(ProjectList)
+-
+-const LastProject = Persistence.record(Schema.String.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none()))))
+-
+-const State = Persistence.struct({
++// Project data comes from the server; per server scope, the client keeps only which projects it has used.
++// `projects` is the directory list older builds kept: each scope's entry is migrated to project IDs once the
++// server's list loads, then deleted. Stored `recentlyClosed` and directory-keyed `lastProject` fields are not part
++// of this schema, so decoding drops them.
++export const ServerState = Persistence.struct({
+   list: Persistence.array(StoredServer),
+   hidden: Schema.Record(
+     Schema.String,
+     Schema.mutableKey(Schema.Boolean.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none())))),
+   ),
+-  projects: Schema.Record(Schema.String, Schema.mutableKey(ProjectList)),
+-  lastProject: Schema.Record(
++  lastProjectID: Schema.Record(
+     Schema.String,
+     Schema.mutableKey(Schema.String.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none())))),
+   ),
+-  recentlyClosed: Schema.Record(Schema.String, Schema.mutableKey(Persistence.array(Schema.String))),
++  usedProjectIDs: Persistence.record(Persistence.array(Schema.String)),
++  // The last hostname each server reported, so its name shows before the first health check answers.
++  hostnames: Schema.Record(
++    Schema.String,
++    Schema.mutableKey(Schema.String.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none())))),
++  ),
++  projects: Persistence.record(Persistence.array(Persistence.struct({ worktree: Schema.String }))),
+ })
+ 
+-export function serverState(canonicalLocalServer: () => string | undefined = () => undefined) {
+-  return Persistence.migrate(
+-    State,
+-    Persistence.legacy({ projects: Projects, lastProject: LastProject }).pipe(
+-      Schema.decode({
+-        decode: SchemaGetter.transform((value) => {
+-          const canonical = canonicalLocalServer()
+-
+-          if (!canonical || canonical === "local") return value
+-          const previous = value.projects[canonical]
+-          const last = value.lastProject[canonical]
+-
+-          if (!previous && last === undefined) return value
+-
+-          const projects = { ...value.projects }
+-
+-          if (previous) {
+-            const local = projects.local ?? []
+-            const worktrees = new Set(local.map((project) => project.worktree))
+-            projects.local = [
+-              ...local,
+-              ...previous.filter((project) => {
+-                if (worktrees.has(project.worktree)) return false
+-                worktrees.add(project.worktree)
+-
+-                return true
+-              }),
+-            ]
+-            delete projects[canonical]
+-          }
+-
+-          const lastProject = { ...value.lastProject }
+-
+-          if (last !== undefined) {
+-            lastProject.local ??= last
+-            delete lastProject[canonical]
+-          }
+-
+-          return { ...value, projects, lastProject }
+-        }),
+-        encode: SchemaGetter.transform((value) => value),
+-      }),
+-    ),
+-  )
+-}
+-
+ export const ModelState = Persistence.struct({
+   user: Persistence.array(
+     Persistence.struct({
+@@ -146,6 +98,7 @@ export const ModelState = Persistence.struct({
+     }),
+   ),
+   recent: Persistence.array(Persistence.struct({ providerID: Schema.String, modelID: Schema.String })),
++  favorite: Persistence.array(Persistence.struct({ providerID: Schema.String, modelID: Schema.String })),
+   variant: Schema.Record(
+     Schema.String,
+     Schema.mutableKey(
+@@ -177,7 +130,3 @@ const ProjectMeta = Persistence.struct({
+ export const ProjectState = Persistence.struct({
+   value: Schema.optional(ProjectMeta),
+ })
+-
+-export const IconState = Persistence.struct({
+-  value: Schema.optional(Schema.String),
+-})
+
+diff --git a/packages/app/src/runtime/server/registry-hydration.test.tsx b/packages/app/src/runtime/server/registry-hydration.test.tsx
+index 8a1dc89..5a7ca55 100644
+--- a/packages/app/src/runtime/server/registry-hydration.test.tsx
++++ b/packages/app/src/runtime/server/registry-hydration.test.tsx
+@@ -108,9 +108,10 @@ function seedPersistedServer() {
+     JSON.stringify({
+       list: [{ type: "http", http: { url: "http://synthetic.restore.invalid:4096", credentialRef: CREDENTIAL_REF } }],
+       hidden: {},
++      lastProjectID: {},
++      usedProjectIDs: {},
++      hostnames: {},
+       projects: {},
+-      lastProject: {},
+-      recentlyClosed: {},
+     }),
+   )
+ }
+
+diff --git a/packages/app/src/runtime/server/registry.test.ts b/packages/app/src/runtime/server/registry.test.ts
+index 5f42989..18db7ee 100644
+--- a/packages/app/src/runtime/server/registry.test.ts
++++ b/packages/app/src/runtime/server/registry.test.ts
+@@ -50,6 +50,18 @@ test("startup auth_token credentials override a persisted same-url server; witho
+   expect(kept).toHaveLength(1)
+   expect(kept[0]?.http).toEqual({ url, password: "saved" })
+   expect(kept[0]?.type === "http" ? kept[0].authToken : true).toBeUndefined()
++  const schema = serverSchema()
++  const state = Schema.decodeUnknownSync(schema)({ list: [
++    { type: "http", http: { url, password: "fixture-password", credentialRef: "fixture-ref" }, authToken: true },
++    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
++  ] })
++  expect(state.list[0]?.http.password).toBe("fixture-password")
++  const encoded = JSON.parse(JSON.stringify(Schema.encodeSync(schema)(state)))
++  expect(encoded.list).toEqual([
++    { type: "http", http: { url, credentialRef: "fixture-ref" }, authToken: true },
++    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
++  ])
++  expect(Schema.decodeUnknownSync(schema)(JSON.parse(JSON.stringify(encoded)))).toEqual(encoded)
+ })
+ 
+ test("treats WSL sidecars as remote server connections", () => {
+
+diff --git a/packages/app/src/runtime/server/registry.tsx b/packages/app/src/runtime/server/registry.tsx
+index 850670e..3fdb106 100644
+--- a/packages/app/src/runtime/server/registry.tsx
++++ b/packages/app/src/runtime/server/registry.tsx
+@@ -1,21 +1,16 @@
+ import { createSimpleContext } from "@opencode/ui/context"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { batch, createMemo } from "solid-js"
+-import { type SetStoreFunction, type Store } from "solid-js/store"
++import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+-import { pathKey } from "@/workspaces/path-key"
+ import { ServerScope } from "@/runtime/server/scope"
+ import type { ServerEntry } from "@opencode/plugin/gui"
++import { ServerHttp, ServerHttpBase, ServerKey, ServerState } from "./persistence"
+ // mobile(M-010): stored direct servers remember their password through the shell's device
+ // vault (issue #4); after hydration the reference is resolved into memory here.
+ import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
+-import { ServerHttp, ServerHttpBase, ServerKey, serverState } from "./persistence"
+ 
+-type ServerState = ReturnType<typeof serverState>["current"]["Type"]
+-
+-// Retain closed paths until reopened so settings can exclude them from the server inventory.
+-// The Home page independently limits the visible recently closed entries.
+-export const RECENTLY_CLOSED_DISPLAY_LIMIT = 5
++type StoredState = typeof ServerState.Type
+ 
+ export function normalizeServerUrl(input: string) {
+   const trimmed = input.trim()
+@@ -52,76 +47,53 @@ function isLocalHost(url: string) {
+   if (host === "localhost" || host === "127.0.0.1") return "local"
+ }
+ 
++// Project data comes from the server; this keeps which projects this client has used and the last one.
+ export function createServerProjects(input: {
+   scope: () => ServerScope
+-  store: Store<ServerState>
+-  setStore: SetStoreFunction<ServerState>
++  store: Store<StoredState>
++  setStore: SetStoreFunction<StoredState>
+ }) {
+-  const setStore = input.setStore
+-  const current = () => input.store.projects[input.scope()] ?? []
+-  const currentClosed = () => input.store.recentlyClosed?.[input.scope()] ?? []
+-
+-  const remove = (directory: string) => {
+-    setStore(
+-      "projects",
+-      input.scope(),
+-      current().filter((project) => project.worktree !== directory),
+-    )
+-  }
++  const used = () => input.store.usedProjectIDs[input.scope()] ?? []
+ 
+-  return {
+-    list: current,
+-    closed: currentClosed,
+-    recentlyClosed: currentClosed,
+-    remove,
+-    open(directory: string) {
+-      const scope = input.scope()
+-      const key = pathKey(directory)
+-      const closed = currentClosed()
+-
+-      if (closed.some((worktree) => pathKey(worktree) === key)) {
+-        setStore(
+-          "recentlyClosed",
+-          scope,
+-          closed.filter((worktree) => pathKey(worktree) !== key),
+-        )
+-      }
++  const use = (projectIDs: string[]) => {
++    const current = used()
++    const next = [...new Set([...current, ...projectIDs])]
+ 
+-      if (current().some((project) => project.worktree === directory)) return
+-      setStore("projects", scope, [{ worktree: directory, expanded: true }, ...current()])
+-    },
+-    // User-initiated close: removes the project and records it in recently closed.
+-    // Internal, non-user removals (e.g. sandbox/worktree normalization) should use remove().
+-    close(directory: string) {
+-      remove(directory)
+-      const key = pathKey(directory)
+-      const closed = [directory, ...currentClosed().filter((worktree) => pathKey(worktree) !== key)]
+-      setStore("recentlyClosed", input.scope(), closed)
+-    },
+-    expand(directory: string) {
+-      const index = current().findIndex((project) => project.worktree === directory)
++    if (next.length !== current.length) input.setStore("usedProjectIDs", input.scope(), next)
++  }
+ 
+-      if (index !== -1) setStore("projects", input.scope(), index, "expanded", true)
++  return {
++    last() {
++      return input.store.lastProjectID[input.scope()]
+     },
+-    collapse(directory: string) {
+-      const index = current().findIndex((project) => project.worktree === directory)
+-
+-      if (index !== -1) setStore("projects", input.scope(), index, "expanded", false)
++    touch(projectID: string) {
++      batch(() => {
++        input.setStore("lastProjectID", input.scope(), projectID)
++        use([projectID])
++      })
+     },
+-    move(directory: string, toIndex: number) {
+-      const fromIndex = current().findIndex((project) => project.worktree === directory)
+-
+-      if (fromIndex === -1 || fromIndex === toIndex) return
+-      const next = [...current()]
+-      const [item] = next.splice(fromIndex, 1)
+-      next.splice(toIndex, 0, item)
+-      setStore("projects", input.scope(), next)
++    used,
++    use,
++    hide(projectIDs: string[]) {
++      input.setStore(
++        "usedProjectIDs",
++        input.scope(),
++        used().filter((id) => !projectIDs.includes(id)),
++      )
+     },
+-    last() {
+-      return input.store.lastProject[input.scope()]
++    /** Directories an older build listed for this server, until `migrate` consumes them. */
++    legacy() {
++      return input.store.projects[input.scope()]?.map((project) => project.worktree)
+     },
+-    touch(directory: string) {
+-      setStore("lastProject", input.scope(), directory)
++    migrate(projectIDs: string[]) {
++      const scope = input.scope()
++      batch(() => {
++        use(projectIDs)
++        input.setStore(
++          "projects",
++          reconcile(Object.fromEntries(Object.entries(input.store.projects).filter(([key]) => key !== scope))),
++        )
++      })
+     },
+   }
+ }
+@@ -237,8 +209,8 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+         sync: true,
+         previousKey: "server.v3",
+       },
+-      serverState(() => props.canonicalLocalServer),
+-      { list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} },
++      ServerState,
++      { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} },
+     )
+ 
+     // mobile(M-010): after the persisted list hydrates, entries that carry a credential
+@@ -287,6 +259,8 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+         .catch(() => undefined)
+     }
+ 
++    const language = useLanguage()
++
+     const allServers = createMemo((): Array<ServerConnection.Any> => {
+       return resolveServerList({ stored: store.list, props: props.servers })
+     })
+@@ -336,17 +310,17 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+       return next
+     }
+ 
+-    const language = useLanguage()
+-
+     // The desktop sidecar, or the server that served the web app.
+     const current = (conn: ServerConnection.Any) =>
+       ServerConnection.builtin(conn) || ServerConnection.key(conn) === props.canonicalLocalServer
+ 
+-    // mobile(M-042): the hostname read stays out of this migration (the persisted `hostnames`
+-    // record and the `setHostname` plumbing land with the server-identity issue); the label
+-    // falls back to the localized "This computer" for the current server.
+     const label = (conn: ServerConnection.Any) =>
+-      serverLabel(conn, current(conn) ? { fallback: language.t("server.thisComputer") } : undefined)
++      serverLabel(
++        conn,
++        current(conn)
++          ? { hostname: store.hostnames[ServerConnection.key(conn)], fallback: language.t("server.thisComputer") }
++          : undefined,
++      )
+ 
+     return {
+       get list() {
+@@ -381,6 +355,9 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+ 
+         return current(conn) && label(conn) !== text ? text : undefined
+       },
++      setHostname(key: ServerConnection.Key, hostname: string) {
++        if (store.hostnames[key] !== hostname) setStore("hostnames", key, hostname)
++      },
+       projects: {
+         forServer: projectsForServer,
+       },
+
+diff --git a/packages/app/src/runtime/server/runtime.tsx b/packages/app/src/runtime/server/runtime.tsx
+index 44ac19c..8fc8a5d 100644
+--- a/packages/app/src/runtime/server/runtime.tsx
++++ b/packages/app/src/runtime/server/runtime.tsx
+@@ -1,6 +1,6 @@
+ import { createSimpleContext } from "@opencode/ui/context"
+ import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
+-import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
++import { createServerProjects, ServerConnection, useServers } from "./registry"
+ import { pathKey } from "@/workspaces/path-key"
+ import { useServerHealth } from "@/runtime/server/health"
+ import { createServerSdkContext } from "./client"
+@@ -21,7 +21,9 @@ import { formatServerError } from "./errors"
+ import { useSettings } from "@/settings/model"
+ import { timelinePreset } from "@opencode/session-ui/timeline/detail"
+ import type { SessionInfo } from "@opencode/client/promise"
+-import { resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
++import { projectForSession } from "@/shell/layout/helpers"
++import { isProjectDirectory } from "@/workspaces/paths"
++import type { Project } from "@/runtime/server/types"
+ 
+ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
+   name: "Global",
+@@ -86,6 +88,15 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+       }
+     })
+ 
++    createEffect(() => {
++      for (const conn of server.list) {
++        const key = ServerConnection.key(conn)
++        const hostname = serverHealth.status[key]?.hostname
++
++        if (hostname) server.setHostname(key, hostname)
++      }
++    })
++
+     createEffect(() => {
+       for (const [key] of serverCtxs) {
+         if (serverHealth.status[key]?.unauthorized || !server.list.find((conn) => ServerConnection.key(conn) === key))
+@@ -100,6 +111,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
+         retry: serverHealth.retry,
+       },
+       models,
++      /** Runs each keyed sound and system notification once across windows; notifications only while none has focus. */
++      notifications: notificationCoordinator,
+       ensureServerCtx(conn: ServerConnection.Any) {
+         return ensureServerCtx(conn)
+       },
+@@ -119,6 +132,7 @@ function createGlobalModels() {
+   const [store, setStore, _, ready] = persisted(Persist.global("model"), ModelState, {
+     user: [],
+     recent: [],
++    favorite: [],
+     variant: {},
+   })
+ 
+@@ -134,15 +148,16 @@ function createGlobalModels() {
+     store,
+     set: setStore,
+     ready,
+-    favorite: () => {
+-      loaded()
+-      return store.favorite
+-    },
+     recent: () => {
+       loaded()
+ 
+       return store.recent
+     },
++    favorite: () => {
++      loaded()
++
++      return store.favorite
++    },
+     // Marks models visible in the picker regardless of the "latest per family" default.
+     show(models: ReadonlyArray<{ providerID: string; modelID: string }>) {
+       const seen = new Map(store.user.map((item, index) => [`${item.providerID}:${item.modelID}`, index]))
+@@ -181,6 +196,8 @@ function createServerController(
+   const sdk = createServerSdkContext(conn, scope)
+ 
+   const source = createData({
++    // mobile: the vendored data layer consumes the media-aware client wrapper (the pin client
++    // has no inlined media surface), so the controller reads through `sdk.mediaApi`.
+     api: () => sdk.mediaApi,
+     initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
+     event: {
+@@ -203,6 +220,8 @@ function createServerController(
+     remove: (sessionID) => sdk.api.session.remove({ sessionID }),
+   })
+ 
++  // Transcripts otherwise stay loaded for every session this window ever opened. Open tabs and the three most
++  // recently viewed sessions keep theirs; any other session reloads its transcript when it is opened again.
+   createSessionRetention({
+     session: data.session,
+     current: () => {
+@@ -210,12 +229,15 @@ function createServerController(
+ 
+       return route.type === "session" && route.server === connKey ? route.sessionId : undefined
+     },
++    // Until the stored tabs load, keep every transcript so startup never evicts a tab's session.
+     keep: () =>
+-      tabs.store.flatMap((tab) =>
+-        tab.type === "session" && tab.server === connKey
+-          ? [tab.sessionId, ...(tab.routeSessionId ? [tab.routeSessionId] : [])]
+-          : [],
+-      ),
++      tabs.ready()
++        ? tabs.store.flatMap((tab) =>
++            tab.type === "session" && tab.server === connKey
++              ? [tab.sessionId, ...(tab.routeSessionId ? [tab.routeSessionId] : [])]
++              : [],
++          )
++        : data.session.list().map((session) => session.id),
+     limit: 3,
+   })
+ 
+@@ -223,53 +245,82 @@ function createServerController(
+   createPermissionAutoApprover({ sdk, data })
+   const notification = createServerNotificationState({ sdk, data, key: connKey, coordinator: notificationCoordinator })
+ 
+-  function enrich(project: { worktree: string; expanded: boolean }) {
+-    const [childStore] = sync.child(project.worktree, { bootstrap: false })
+-    const projectID = childStore.project
+-
+-    const metadata = projectID
+-      ? sync.data.project.find((x) => x.id === projectID)
+-      : sync.data.project.find((x) => x.worktree === project.worktree)
+-
+-    // Preserve local icon override from per-workspace localStorage cache (childStore.icon).
+-    // Without this, different subdirectories of the same git repo would share the same
+-    // icon from the database instead of using their individual overrides.
+-    const base = {
+-      ...metadata,
+-      ...(!metadata || metadata.id === "global" ? childStore.projectMeta : undefined),
+-      ...project,
+-    }
+-
+-    if (childStore.icon) {
+-      return { ...base, icon: { ...base.icon, override: childStore.icon } }
+-    }
++  // Projects whose repository has no root commit share the `global` ID; their name and icon stay local to the
++  // directory because the server cannot tell them apart.
++  function withLocalMeta(project: Project): Project {
++    if (project.id !== "global") return project
+ 
+-    return base
++    return { ...project, ...sync.child(project.worktree, { bootstrap: false })[0].projectMeta }
+   }
+ 
+-  const projectsList = createMemo(() => projects.list().map(enrich))
++  const list = createMemo(() => sync.data.project.map(withLocalMeta))
+ 
+-  const forSession = (session: SessionInfo) => {
+-    const project = resolveProjectForSession(session, projectsList(), sync.data.project)
++  // One directory can belong to several project IDs, for example a folder resolved before `.git` existed and again
++  // after a remote was added. The list is most recent first, so the first project per path is the current one.
++  const unique = createMemo(() => {
++    const seen = new Set<string>()
+ 
+-    if (!project) return
++    return list().filter((project) => {
++      const key = pathKey(project.worktree)
+ 
+-    return "expanded" in project ? project : { ...project, expanded: false }
+-  }
++      if (seen.has(key)) return false
++      seen.add(key)
+ 
+-  const detailsForSession = (session: SessionInfo) =>
+-    resolveSessionDetailsProject(session, projectsList(), sync.data.project)
++      return true
++    })
++  })
+ 
+-  const recentlyClosedList = createMemo(() => {
+-    const known = new Set(sync.data.project.map((project) => pathKey(project.worktree)))
++  // The projects this client has used, in server order. Using any ID of a path shows that path's current project.
++  const used = createMemo(() => {
++    const ids = new Set(projects.used())
++    const paths = new Set(list().flatMap((project) => (ids.has(project.id) ? [pathKey(project.worktree)] : [])))
+ 
+-    return projects
+-      .recentlyClosed()
+-      .filter((worktree) => known.has(pathKey(worktree)))
+-      .slice(0, RECENTLY_CLOSED_DISPLAY_LIMIT)
+-      .map((worktree) => enrich({ worktree, expanded: false }))
++    return unique().filter((project) => paths.has(pathKey(project.worktree)))
+   })
+ 
++  const forDirectory = (directory: string): Project | undefined => {
++    const key = pathKey(directory)
++
++    return (
++      list().find(
++        (project) => pathKey(project.worktree) === key || project.sandboxes.some((sandbox) => pathKey(sandbox) === key),
++      ) ??
++      list()
++        .filter((project) => isProjectDirectory(project, directory))
++        .toSorted((a, b) => b.worktree.length - a.worktree.length)[0]
++    )
++  }
++
++  // Older builds kept opened directories locally; once the server's list loads they become used project IDs.
++  createEffect(() => {
++    const legacy = projects.legacy()
++
++    if (!legacy || !sync.project.ready()) return
++    untrack(() => projects.migrate(legacy.flatMap((directory) => forDirectory(directory)?.id ?? [])))
++  })
++
++  // Resolving a directory registers its project on the server; the list then reloads to include it, and the
++  // project becomes this client's last used one.
++  function add(directory: string) {
++    return sdk.api.location
++      .get({ location: { directory } })
++      .then(async (location) => {
++        await sync.project.refresh()
++        projects.touch(location.project.id)
++
++        return list().find((project) => project.id === location.project.id)
++      })
++      .catch((error) => {
++        showToast({
++          variant: "error",
++          title: language.t("common.requestFailed"),
++          description: formatServerError(error, language.t),
++        })
++
++        return undefined
++      })
++  }
++
+   const isLocal =
+     (conn?.type === "sidecar" && conn.variant === "base") || (conn?.type === "http" && isLocalHost(conn.http.url))
+ 
+@@ -279,12 +330,24 @@ function createServerController(
+     sync,
+     isLocal,
+     projects: {
+-      ...projects,
+-      list: projectsList,
+-      forSession,
+-      detailsForSession,
+-      resolve: enrich,
+-      recentlyClosed: recentlyClosedList,
++      list,
++      unique,
++      used,
++      add,
++      forDirectory,
++      forSession: (session: SessionInfo): Project | undefined => projectForSession(session, list()),
++      last: () => list().find((project) => project.id === projects.last()),
++      // Marks the project of a directory as used from this client, and as the last one.
++      touch(directory: string) {
++        const id = forDirectory(directory)?.id
++
++        if (id) projects.touch(id)
++      },
++      // Removes a project from this client's used projects until it is used again; the server keeps it.
++      hide(project: Pick<Project, "worktree">) {
++        const key = pathKey(project.worktree)
++        projects.hide(list().flatMap((item) => (pathKey(item.worktree) === key ? [item.id] : [])))
++      },
+     },
+     notification,
+   }
+
+diff --git a/packages/app/src/runtime/server/sync.tsx b/packages/app/src/runtime/server/sync.tsx
+index 1c739c2..eee4fec 100644
+--- a/packages/app/src/runtime/server/sync.tsx
++++ b/packages/app/src/runtime/server/sync.tsx
+@@ -5,13 +5,20 @@ import { getOwner, onCleanup, untrack } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { type ServerSDK } from "./client"
+-import { bootstrapDirectory, bootstrapGlobal, loadGlobalConfigQuery, loadPathQuery } from "./global-sync/bootstrap"
++import {
++  bootstrapDirectory,
++  bootstrapGlobal,
++  loadGlobalConfigQuery,
++  loadPathQuery,
++  loadProjects,
++  loadProjectsQuery,
++} from "./global-sync/bootstrap"
+ import { createChildStoreManager } from "./global-sync/child-store"
+ import type { ProjectMeta } from "./global-sync/types"
+ import { formatServerError } from "@/runtime/server/errors"
+ import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
+ import { createRefreshQueue } from "./global-sync/queue"
+-import { directoryKey, updateProjectInfo } from "./global-sync/utils"
++import { directoryKey, normalizeProjectInfo, updateProjectInfo } from "./global-sync/utils"
+ import { PathKey } from "@/workspaces/path-key"
+ import type { ServerScope } from "@/runtime/server/scope"
+ import { persisted } from "@/runtime/persistence/storage"
+@@ -30,7 +37,7 @@ type GlobalStore = {
+   reload: undefined | "pending" | "complete"
+ }
+ 
+-export const loadLspQuery = (scope: ServerScope, directory: string) =>
++const loadLspQuery = (scope: ServerScope, directory: string) =>
+   queryOptions({
+     queryKey: [scope, directory, "lsp"] as const,
+     // TODO: Restore LSP status when the V2 client exposes an LSP API.
+@@ -47,7 +54,7 @@ function makeQueryOptionsApi(scope: ServerScope, serverAPI: () => ServerApi) {
+ 
+ export type QueryOptionsApi = ReturnType<typeof makeQueryOptionsApi>
+ 
+-export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
++function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
+   const language = useLanguage()
+   const platform = usePlatform()
+   const owner = getOwner()
+@@ -177,7 +184,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
+         refetchType: "none",
+       })
+     },
+-    connected: (info) => {
++    connected: () => {
+       if (bootstrap.data !== undefined && !bootstrap.isFetching) void bootstrap.refetch()
+       // The refresh queue re-syncs two directories at a time, held ones first. Syncing every active
+       // directory here as well sent the whole catalog fan-out for all of them at once.
+@@ -228,17 +235,37 @@ export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
+     return promise
+   }
+ 
++  // Mirrors the server's list: unarchived projects, most recently active first. Unknown projects join the list and
++  // archived ones leave it.
+   function applyProjectUpdate(update: Parameters<typeof updateProjectInfo>[1]) {
+-    setGlobalStore("project", (projects) =>
+-      projects.map((project) =>
+-        project.id === update.id
+-          ? // The wire payload carries no worktrees; keep the inventory this project already loaded.
+-            withWorktreeInventory(updateProjectInfo(project, update), worktrees.cached(update.id))
+-          : project,
+-      ),
+-    )
++    setGlobalStore("project", (projects) => {
++      const rest = projects.filter((project) => project.id !== update.id)
++
++      if (update.time.archived) return rest
++
++      const previous = projects.find((project) => project.id === update.id)
++
++      // The wire payload carries no worktrees; keep the inventory this project already loaded.
++      const next = withWorktreeInventory(
++        previous ? updateProjectInfo(previous, update) : normalizeProjectInfo(update),
++        worktrees.cached(update.id),
++      )
++
++      return [...rest, next].toSorted(
++        (a, b) => b.time.active - a.time.active || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
++      )
++    })
+   }
+ 
++  // Observes the list the bootstrap loads without fetching it again, so readers can tell "no projects" from "not loaded".
++  const projectsQuery = useQuery(() => ({
++    ...loadProjectsQuery(serverSDK.scope, serverSDK.api.project),
++    enabled: false,
++  }))
++
++  const refreshProjects = () =>
++    loadProjects({ scope: serverSDK.scope, project: serverSDK.api.project, setGlobalStore, queryClient })
++
+   const unsub = serverSDK.event.listen((event) => {
+     connection.handleEvent({ type: event.type })
+ 
+@@ -260,7 +287,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
+     const directory = event.location.directory
+     const key = directoryKey(directory)
+ 
+-    if (!children.children[key]) return
++    if (!children.active(key)) return
+     children.mark(key)
+ 
+     if (event.type === "config.updated" || event.type === "agent.updated") queue.push(key)
+@@ -278,12 +305,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
+ 
+   const projectApi = {
+     update: applyProjectUpdate,
++    ready: () => projectsQuery.isSuccess,
++    refresh: refreshProjects,
+     meta(directory: string, patch: ProjectMeta) {
+       children.projectMeta(directory, patch)
+     },
+-    icon(directory: string, value: string | undefined) {
+-      children.projectIcon(directory, value)
+-    },
+   }
+ 
+   const updateConfigMutation = useMutation(() => ({
+
+diff --git a/packages/app/src/session/session-identity-header.tsx b/packages/app/src/session/session-identity-header.tsx
+index 13395c0..d85f4f9 100644
+--- a/packages/app/src/session/session-identity-header.tsx
++++ b/packages/app/src/session/session-identity-header.tsx
+@@ -34,8 +34,8 @@ import { errorMessage } from "@/shell/layout/helpers"
+ import { useLayout, type LocalProject } from "@/shell/state/layout"
+ import { tabKey, useTabs } from "@/shell/tabs/tabs"
+ import { useSettingsSurface } from "@/settings/surface"
+-import { pathKey } from "@/workspaces/path-key"
+ import { isProjectDirectory, workspaceDirectories } from "@/workspaces/paths"
++import { pathKey } from "@/workspaces/path-key"
+ import { sessionHref } from "@/shell/routes/session"
+ import { showToast } from "@/shell/notifications/toast"
+ import { sessionTitle } from "./title"
+
+diff --git a/packages/app/src/settings/workspaces/project-options.tsx b/packages/app/src/settings/workspaces/project-options.tsx
+index fff00f7..044b3e6 100644
+--- a/packages/app/src/settings/workspaces/project-options.tsx
++++ b/packages/app/src/settings/workspaces/project-options.tsx
+@@ -36,8 +36,11 @@ export const ProjectOptions: Component<{
+     directories().forEach((directory) => notification.project.markViewed(directory))
+   }
+ 
++  // mobile: keep the registered settings close face; on the target project-identity model it
++  // maps to hiding the project from this client's used list (the server keeps the project),
++  // the same semantic the target Home row close (hide) uses.
+   const close = () => {
+-    context().projects.close(props.project.worktree)
++    context().projects.hide(props.project)
+     props.onClose?.()
+   }
+ 
+
+diff --git a/packages/app/src/settings/workspaces/projects.tsx b/packages/app/src/settings/workspaces/projects.tsx
+index ba895ee..d0d20d4 100644
+--- a/packages/app/src/settings/workspaces/projects.tsx
++++ b/packages/app/src/settings/workspaces/projects.tsx
+@@ -28,6 +28,8 @@ export const SettingsProjects: Component<{
+   const pickDirectory = useDirectoryPicker()
+   const [store, setStore] = createStore({ filter: "" })
+   const context = createMemo(() => global.ensureServerCtx(props.server))
++  // mobile(M-043): the migrated inventory no longer exports `settingsProjects`; the
++  // context accessor is the target form.
+   const projects = createMemo(() => context().projects.list())
+   const searchable = createMemo(() => projects().length > 7)
+ 
+@@ -48,18 +50,9 @@ export const SettingsProjects: Component<{
+       multiple: true,
+       onSelect: (result) => {
+         const directories = homeProjectDirectories(result)
+-        const directory = addProjects(context(), directories)
+-
+-        if (!directory) return
+-
+-        if (directories.length > 1) return
+-
+-        const project = context()
+-          .projects.list()
+-          .find((item) => item.worktree === directory)
+-
+-        if (!project) return
+-        props.onOpenProject(project)
++        void addProjects(context(), directories).then((project) => {
++          if (project && directories.length === 1) props.onOpenProject(project)
++        })
+       },
+     })
+ 

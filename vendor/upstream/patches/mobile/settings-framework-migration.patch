@@ -4001,7 +4001,7 @@ index 8b1f78d..095ac9b 100644
  import { SettingsSearchEmpty } from "../search-empty"
  import { SettingsSearchField } from "../search-field"
  import { SettingsProjectRow } from "./project-row"
-@@ -22,13 +21,16 @@ export const SettingsProjects: Component<{
+@@ -22,13 +21,14 @@ export const SettingsProjects: Component<{
    server: ServerConnection.Any
    active: boolean
    onOpenProject: (project: LocalProject) => void
@@ -4013,8 +4013,6 @@ index 8b1f78d..095ac9b 100644
    const [store, setStore] = createStore({ filter: "" })
    const context = createMemo(() => global.ensureServerCtx(props.server))
 -  const projects = createMemo(() => settingsProjects(context()))
-+  // mobile(M-043): the migrated inventory no longer exports `settingsProjects`; the
-+  // context accessor is the target form.
 +  const projects = createMemo(() => context().projects.list())
    const searchable = createMemo(() => projects().length > 7)
  

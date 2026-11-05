@@ -19,6 +19,9 @@ index b86baa7..2f9b2e9 100644
              renderRow={(row) => (
                <div
 
+
+
+
 diff --git aa/packages/app/happydom.ts bb/packages/app/happydom.ts
 index 16903fe..93d40b4 100644
 --- aa/packages/app/happydom.ts
@@ -102,6 +105,9 @@ index 16903fe..93d40b4 100644
  HTMLCanvasElement.prototype.getContext = function (contextType: string, _options?: unknown) {
    if (contextType === "2d") {
 
+
+
+
 diff --git aa/packages/app/src/composer/commands.tsx bb/packages/app/src/composer/commands.tsx
 index 3ecdc9a..0225840 100644
 --- aa/packages/app/src/composer/commands.tsx
@@ -171,19 +177,8 @@ index 3ecdc9a..0225840 100644
        id: "provider.connect",
        title: language.t("command.provider.connect"),
 
-diff --git aa/packages/app/src/composer/model.ts bb/packages/app/src/composer/model.ts
-index d348fd5..41b085b 100644
---- aa/packages/app/src/composer/model.ts
-+++ bb/packages/app/src/composer/model.ts
-@@ -215,7 +215,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
-   const sessions = createServerSessionEntries({
-     server: server.key,
-     known: createKnownServerSessions(server.ctx),
--    projects: server.ctx.projects.list,
-+    projects: server.ctx.projects.catalog.list,
-     load: async (search, signal) => {
-       const page = await serverSDK.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal })
-       page.data.forEach(data.session.remember)
+
+
 
 diff --git aa/packages/app/src/composer/composer.stories.tsx bb/packages/app/src/composer/composer.stories.tsx
 index 1314cdc..5896ffb 100644
@@ -225,34 +220,8 @@ index 1314cdc..5896ffb 100644
        configured: () => STORY_MODEL.variant,
        selected: () => story.variant,
 
-diff --git aa/packages/app/src/home/sessions/command-palette.tsx bb/packages/app/src/home/sessions/command-palette.tsx
-index e4f2ece..2413502 100644
---- aa/packages/app/src/home/sessions/command-palette.tsx
-+++ bb/packages/app/src/home/sessions/command-palette.tsx
-@@ -31,8 +31,7 @@ export function HomeCommandPalette(props: {
- 
-   const sessions = createServerSessionEntries({
-     server: ServerConnection.key(props.server),
--    opened: server.projects.list,
--    stored: () => server.sync.data.project,
-+    projects: server.projects.catalog.list,
-     load: (search, signal) => server.sdk.api.session.list({ parentID: null, search, limit: 50 }, { signal }),
-     get: (sessionID, signal) => server.sdk.api.session.get({ sessionID }, { signal }),
-     untitled: () => language.t("command.session.new"),
 
-diff --git aa/packages/app/src/home/start/command-palette.tsx bb/packages/app/src/home/start/command-palette.tsx
-index 0b81687..3c888ce 100644
---- aa/packages/app/src/home/start/command-palette.tsx
-+++ bb/packages/app/src/home/start/command-palette.tsx
-@@ -35,7 +35,7 @@ export function HomeCommandPalette(props: {
-   const sessions = createServerSessionEntries({
-     server: ServerConnection.key(props.server),
-     known: createKnownServerSessions(server),
--    projects: server.projects.list,
-+    projects: server.projects.catalog.list,
-     load: (search, signal) =>
-       server.sdk.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
-     get: (sessionID, signal) => server.sdk.api.session.get({ sessionID }, { signal }),
+
 
 diff --git aa/packages/app/src/providers/models/select-dialog.tsx bb/packages/app/src/providers/models/select-dialog.tsx
 index aaad7bc..e80ad1e 100644
@@ -288,6 +257,9 @@ index aaad7bc..e80ad1e 100644
  
                  return
                }
+
+
+
 
 diff --git aa/packages/app/src/runtime/i18n/en.ts bb/packages/app/src/runtime/i18n/en.ts
 index e4ffcc4..4ebded3 100644
@@ -368,6 +340,9 @@ index e4ffcc4..4ebded3 100644
    "session.location.unavailable": "Session location unavailable",
    "session.location.description": "Choose another directory to continue this session.",
 
+
+
+
 diff --git aa/packages/app/src/runtime/i18n/language.tsx bb/packages/app/src/runtime/i18n/language.tsx
 index fed6514..2aeb34a 100644
 --- aa/packages/app/src/runtime/i18n/language.tsx
@@ -403,6 +378,9 @@ index fed6514..2aeb34a 100644
          setStore("locale", normalizeLocale(next))
        },
 
+
+
+
 diff --git aa/packages/app/src/runtime/platform/platform.tsx bb/packages/app/src/runtime/platform/platform.tsx
 index 86b60d6..68db113 100644
 --- aa/packages/app/src/runtime/platform/platform.tsx
@@ -417,6 +395,9 @@ index 86b60d6..68db113 100644
    /** Get whether native pinch/Ctrl-scroll zoom gestures are enabled (desktop only) */
    getPinchZoomEnabled?(): Promise<boolean> | boolean
  
+
+
+
 
 diff --git aa/packages/app/src/runtime/server/api.test.ts bb/packages/app/src/runtime/server/api.test.ts
 index 5476e41..d10169e 100644
@@ -522,6 +503,9 @@ index 5476e41..d10169e 100644
 +  await expect(api.message.list({ sessionID: "ses_1" })).rejects.toBeDefined()
 +  expect(calls).toBe(3)
 +})
+
+
+
 
 diff --git aa/packages/app/src/runtime/server/api.ts bb/packages/app/src/runtime/server/api.ts
 index c426816..f078af3 100644
@@ -637,352 +621,8 @@ index c426816..f078af3 100644
 +export type ServerApi = MediaServerApi["inline"]
 +export type InlineServerApi = ServerApi
 
-diff --git aa/packages/app/src/runtime/server/persistence.test.ts bb/packages/app/src/runtime/server/persistence.test.ts
-index 10ed3af..baccb6e 100644
---- aa/packages/app/src/runtime/server/persistence.test.ts
-+++ bb/packages/app/src/runtime/server/persistence.test.ts
-@@ -1,12 +1,12 @@
- import { describe, expect, test } from "bun:test"
- import { Schema } from "effect"
--import { ModelState, ServerState } from "./persistence"
-+import { ModelState, modelState, serverState } from "./persistence"
- import { Persistence } from "@/runtime/persistence/schema"
- 
--const initial = { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} }
-+const initial = { list: [], hidden: {}, projects: {}, lastProject: {}, recentlyClosed: {} }
- 
--function serverSchema() {
--  return Persistence.withInitial(ServerState, initial)
-+function serverSchema(canonical?: () => string | undefined) {
-+  return Persistence.withInitial(serverState(canonical), initial)
- }
- 
- describe("server persistence schema", () => {
-@@ -16,68 +16,147 @@ describe("server persistence schema", () => {
-     const input = {
-       list: [
-         "http://localhost:4096",
--        { url: "https://flat.example", username: "legacy", password: "first" },
-+        { url: "https://flat.example", username: "legacy", password: "first", credentialRef: "fixture-ref-a" },
-         {
-           type: "http",
-           displayName: "Remote",
-           label: "Production",
-           authToken: true,
--          http: { url: "https://nested.example", username: "legacy", password: "second" },
-+          http: { url: "https://nested.example", username: "legacy", password: "second", credentialRef: "fixture-ref-b" },
-         },
-       ],
-       projects: { local: [{ worktree: "/project", expanded: true }] },
-       recentlyClosed: { local: ["/closed"] },
-       lastProject: { local: "/project" },
--      lastProjectID: { local: "project" },
-     }
- 
-     const state = Schema.decodeUnknownSync(schema)(input)
-     expect(state).toEqual({
-       list: [
-         { type: "http", http: { url: "http://localhost:4096" } },
--        { type: "http", http: { url: "https://flat.example", password: "first" } },
-+        { type: "http", http: { url: "https://flat.example", password: "first", credentialRef: "fixture-ref-a" } },
-         {
-           type: "http",
-           displayName: "Remote",
-           label: "Production",
-           authToken: true,
--          http: { url: "https://nested.example", password: "second" },
-+          http: { url: "https://nested.example", password: "second", credentialRef: "fixture-ref-b" },
-         },
-       ],
-       hidden: {},
--      lastProjectID: { local: "project" },
--      usedProjectIDs: {},
--      hostnames: {},
--      projects: { local: [{ worktree: "/project" }] },
-+      lastProject: { local: "/project" },
-+      recentlyClosed: { local: ["/closed"] },
-+      projects: { local: [{ worktree: "/project", expanded: true }] },
-     })
-     expect(input.list[1]).toHaveProperty("username", "legacy")
-     const encoded = Schema.encodeSync(schema)(state)
--    expect(encoded).toEqual(state)
--    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
-+    expect(encoded).toEqual({ ...state, list: [
-+      { type: "http", http: { url: "http://localhost:4096" } },
-+      { type: "http", http: { url: "https://flat.example", credentialRef: "fixture-ref-a" } },
-+      { type: "http", displayName: "Remote", label: "Production", authToken: true,
-+        http: { url: "https://nested.example", credentialRef: "fixture-ref-b" } },
-+    ] })
-+    expect(input.list[1]).toHaveProperty("password", "first")
-+    const wire = JSON.parse(JSON.stringify(encoded))
-+    expect(Schema.decodeUnknownSync(schema)(wire)).toEqual(wire)
-+    expect(Schema.encodeSync(schema)(Schema.decodeUnknownSync(schema)({ list: [
-+      { type: "http", http: { url: "https://no-password.example/", credentialRef: "fixture-ref-c" } },
-+    ] }))).toHaveProperty("list.0.http", { url: "https://no-password.example/", credentialRef: "fixture-ref-c" })
-   })
- 
-   test("defaults missing or malformed fields and drops invalid entries independently", () => {
-     const decode = Schema.decodeUnknownSync(serverSchema())
-     expect(decode({})).toEqual(initial)
--    expect(decode({ list: null, hidden: [], lastProjectID: 1, usedProjectIDs: [], projects: "bad" })).toEqual(initial)
-+    expect(decode({ list: null, hidden: [], lastProject: 1, recentlyClosed: [], projects: "bad" })).toEqual(initial)
-     expect(
-       decode({
-         list: [null, 1, {}, { type: "http", http: { url: 12 } }, "https://valid.example"],
--        lastProjectID: { local: "project", remote: 1 },
--        usedProjectIDs: { local: ["project", 1, null], remote: "bad" },
-+        lastProject: { local: "/project", remote: 1 },
-+        recentlyClosed: { local: ["/closed", 1, null], remote: "bad" },
-         projects: { local: [null, {}, { worktree: 1 }, { worktree: "/project", expanded: true }], remote: false },
-       }),
-     ).toEqual({
-       ...initial,
-       list: [{ type: "http", http: { url: "https://valid.example" } }],
--      lastProjectID: { local: "project" },
--      usedProjectIDs: { local: ["project"], remote: [] },
--      projects: { local: [{ worktree: "/project" }], remote: [] },
-+      lastProject: { local: "/project" },
-+      recentlyClosed: { local: ["/closed"], remote: [] },
-+      projects: { local: [{ worktree: "/project", expanded: true }], remote: [] },
-     })
-   })
-+
-+  test("moves canonical project buckets without changing server keys or unrelated scopes", () => {
-+    const schema = serverSchema(() => "https://opencode.example.com")
-+    const input = {
-+      list: ["https://opencode.example.com"], hidden: { "https://opencode.example.com": true },
-+      projects: {
-+        local: [{ worktree: "/local", expanded: false }],
-+        "https://opencode.example.com": [{ worktree: "/local", expanded: true }, { worktree: "/remote", expanded: true }, { worktree: "/remote", expanded: false }],
-+        other: [{ worktree: "/other", expanded: true }],
-+      },
-+      lastProject: { local: "/local", "https://opencode.example.com": "/remote", other: "/other" },
-+      recentlyClosed: { local: ["/closed"], "https://opencode.example.com": ["/old-closed"] },
-+    }
-+    const before = structuredClone(input)
-+    const state = Schema.decodeUnknownSync(schema)(input)
-+    expect(state.projects).toEqual({ local: [{ worktree: "/local", expanded: false }, { worktree: "/remote", expanded: true }], other: input.projects.other })
-+    expect(state.lastProject).toEqual({ local: "/local", other: "/other" })
-+    expect(state.list[0]?.http.url).toBe("https://opencode.example.com")
-+    expect(state.hidden).toEqual(input.hidden)
-+    expect(state.recentlyClosed).toEqual(input.recentlyClosed)
-+    expect(Schema.encodeSync(schema)(state)).toEqual(state)
-+    expect(Schema.decodeUnknownSync(schema)(state)).toEqual(state)
-+    expect(input).toEqual(before)
-+  })
-+
-+  test("reads the latest canonical local prop on each decode", () => {
-+    const props: { canonicalLocalServer?: string } = {}
-+    const schema = serverSchema(() => props.canonicalLocalServer)
-+    const decode = Schema.decodeUnknownSync(schema)
-+    const input = { projects: { remote: [{ worktree: "/project", expanded: true }] }, lastProject: { remote: "/project" } }
-+    const before = structuredClone(input)
-+    expect(decode(input).projects).toEqual(input.projects)
-+    props.canonicalLocalServer = "remote"
-+    expect(decode(input).projects).toEqual({ local: [{ worktree: "/project", expanded: true }] })
-+    expect(decode(input).lastProject).toEqual({ local: "/project" })
-+    props.canonicalLocalServer = "local"
-+    expect(decode(input).projects).toEqual(input.projects)
-+    expect(input).toEqual(before)
-+    props.canonicalLocalServer = "remote"
-+    expect(decode({ lastProject: { remote: "/project" } })).toEqual({ ...initial, lastProject: { local: "/project" } })
-+  })
- })
- 
- describe("model persistence schema", () => {
-+  test("raw presence governs favorites, tuple dedup is stable, and cancellation survives repeated reload", () => {
-+    const schema = Persistence.withInitial(modelState, { user: [], recent: [], favorite: [], variant: {} })
-+    const decode = Schema.decodeUnknownSync(schema)
-+    const user = [
-+      { providerID: "a:b", modelID: "c", visibility: "show", favorite: true },
-+      { providerID: "a", modelID: "b:c", visibility: "hide", favorite: true },
-+      { providerID: "a:b", modelID: "c", visibility: "hide", favorite: true },
-+      { providerID: "bad", modelID: "bad", visibility: "bad", favorite: true },
-+    ]
-+    const input = { user, recent: [{ providerID: "r", modelID: "m" }], variant: { model: "high" } }
-+    const before = structuredClone(input)
-+    const expected = [{ providerID: "a:b", modelID: "c" }, { providerID: "a", modelID: "b:c" }]
-+    expect(decode(input).favorite).toEqual(expected)
-+    for (const favorite of [[], null, undefined, 0, "x", {}, [null, { providerID: "", modelID: "x" }]]) {
-+      // The malformed values are intentionally invalid wire data, so hand the raw form to the
-+      // decoder; an undefined favorite stays an own property, unlike a JSON round trip.
-+      const wire = { ...input, favorite } as Omit<typeof input, "favorite"> & { favorite: unknown }
-+      const state = decode(wire)
-+      expect(state.favorite).toEqual([])
-+      expect(state.user).toEqual(user.slice(0, 3) as typeof state.user)
-+      expect(state.recent).toEqual(input.recent)
-+      expect(state.variant).toEqual(input.variant)
-+      const saved = Schema.encodeSync(schema)(state)
-+      expect(saved).toHaveProperty("favorite", [])
-+      expect(decode(JSON.parse(JSON.stringify(Schema.encodeSync(schema)(decode(saved)))))).toEqual(state)
-+    }
-+    expect(decode({ ...input, favorite: [null, expected[1], expected[1], { providerID: " A ", modelID: "M" }] }).favorite)
-+      .toEqual([expected[1], { providerID: " A ", modelID: "M" }])
-+    expect(input).toEqual(before)
-+  })
-   test("defaults missing state and keeps valid entries beside malformed entries", () => {
-     const decode = Schema.decodeUnknownSync(
-       Persistence.withInitial(ModelState, { user: [], recent: [], favorite: [], variant: {} }),
 
-diff --git aa/packages/app/src/runtime/server/persistence.ts bb/packages/app/src/runtime/server/persistence.ts
-index f14fbdf..c6628df 100644
---- aa/packages/app/src/runtime/server/persistence.ts
-+++ bb/packages/app/src/runtime/server/persistence.ts
-@@ -136,7 +136,13 @@ export function serverState(canonicalLocalServer: () => string | undefined = ()
-   )
- }
- 
-+const FavoriteIdentity = Persistence.struct({
-+  providerID: Schema.String.check(Schema.isMinLength(1)),
-+  modelID: Schema.String.check(Schema.isMinLength(1)),
-+})
-+
- export const ModelState = Persistence.struct({
-+  favorite: Persistence.array(FavoriteIdentity),
-   user: Persistence.array(
-     Persistence.struct({
-       providerID: Schema.String,
-@@ -154,6 +160,36 @@ export const ModelState = Persistence.struct({
-   ),
- })
- 
-+// Inspect raw presence before recovery supplies the empty default. An explicit (even malformed)
-+// new field is authoritative, so removing the last favorite never revives legacy flags.
-+export const modelState = Persistence.migrate(
-+  ModelState,
-+  Schema.Unknown.pipe(Schema.decode({
-+    decode: SchemaGetter.transform((value) => {
-+      if (!Predicate.isObject(value)) return value
-+      const entries = Object.hasOwn(value, "favorite")
-+        ? (Array.isArray(value.favorite) ? value.favorite : [])
-+        : (Array.isArray(value.user) ? value.user.filter((item) =>
-+            Predicate.isObject(item) && item.favorite === true &&
-+            (item.visibility === "show" || item.visibility === "hide")) : [])
-+      const seen = new Map<string, Set<string>>()
-+      const decode = Schema.decodeUnknownOption(FavoriteIdentity)
-+      const favorite = entries.flatMap((entry) => {
-+        const identity = decode(entry)
-+        if (Option.isNone(identity)) return []
-+        const { providerID, modelID } = identity.value
-+        const models = seen.get(providerID) ?? new Set<string>()
-+        if (models.has(modelID)) return []
-+        models.add(modelID)
-+        seen.set(providerID, models)
-+        return [{ providerID, modelID }]
-+      })
-+      return { ...value, favorite }
-+    }),
-+    encode: SchemaGetter.transform((value) => value),
-+  })),
-+)
-+
- export const VcsState = Persistence.struct({
-   value: Schema.optional(
-     Persistence.struct({
 
-diff --git aa/packages/app/src/runtime/server/registry.test.ts bb/packages/app/src/runtime/server/registry.test.ts
-index 5f42989..35e1346 100644
---- aa/packages/app/src/runtime/server/registry.test.ts
-+++ bb/packages/app/src/runtime/server/registry.test.ts
-@@ -1,18 +1,17 @@
- import { expect, test } from "bun:test"
- import { canRemoveServer, createServerProjects, resolveServerList, ServerConnection, serverLabel } from "./registry"
- import { Schema } from "effect"
--import { ServerState } from "./persistence"
-+import { serverState } from "./persistence"
- import { createStore } from "solid-js/store"
- import { ServerScope } from "./scope"
- import { Persistence } from "@/runtime/persistence/schema"
- 
- function serverSchema() {
--  return Persistence.withInitial(ServerState, {
-+  return Persistence.withInitial(serverState(), {
-     list: [],
-     hidden: {},
--    lastProjectID: {},
--    usedProjectIDs: {},
--    hostnames: {},
-+    lastProject: {},
-+    recentlyClosed: {},
-     projects: {},
-   })
- }
-@@ -50,6 +49,18 @@ test("startup auth_token credentials override a persisted same-url server; witho
-   expect(kept).toHaveLength(1)
-   expect(kept[0]?.http).toEqual({ url, password: "saved" })
-   expect(kept[0]?.type === "http" ? kept[0].authToken : true).toBeUndefined()
-+  const schema = serverSchema()
-+  const state = Schema.decodeUnknownSync(schema)({ list: [
-+    { type: "http", http: { url, password: "fixture-password", credentialRef: "fixture-ref" }, authToken: true },
-+    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
-+  ] })
-+  expect(state.list[0]?.http.password).toBe("fixture-password")
-+  const encoded = JSON.parse(JSON.stringify(Schema.encodeSync(schema)(state)))
-+  expect(encoded.list).toEqual([
-+    { type: "http", http: { url, credentialRef: "fixture-ref" }, authToken: true },
-+    { type: "http", http: { url: url + "/", credentialRef: "fixture-ref-2" } },
-+  ])
-+  expect(Schema.decodeUnknownSync(schema)(JSON.parse(JSON.stringify(encoded)))).toEqual(encoded)
- })
- 
- test("treats WSL sidecars as remote server connections", () => {
-@@ -90,12 +101,8 @@ test("keeps exact persisted server identities and prevents removing provided ser
- /** The server props a project store follows, which the test changes. */
- type ProjectScopeProps = { server: ServerConnection.Key; canonicalLocalServer?: ServerConnection.Key }
- 
--test("used and last projects follow dynamic server scopes, and migration consumes only its scope", () => {
--  const [store, setStore] = createStore(
--    Schema.decodeUnknownSync(serverSchema())({
--      projects: { local: [{ worktree: "/a" }], other: [{ worktree: "/b" }] },
--    }),
--  )
-+test("project actions update schema-derived state and follow dynamic server scopes", () => {
-+  const [store, setStore] = createStore(Schema.decodeUnknownSync(serverSchema())({}))
- 
-   const props: ProjectScopeProps = { server: ServerConnection.Key.make("https://remote.example") }
- 
-@@ -105,18 +112,29 @@ test("used and last projects follow dynamic server scopes, and migration consume
-     scope: () => ServerScope.fromServerKey(props.server, props.canonicalLocalServer),
-   })
- 
--  projects.touch("remote-project")
--  expect(projects.last()).toBe("remote-project")
--  expect(projects.used()).toEqual(["remote-project"])
--  expect(projects.legacy()).toBeUndefined()
-+  projects.open("/remote")
-+  projects.collapse("/remote")
-+  projects.touch("/remote")
-+  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
-+  expect(projects.last()).toBe("/remote")
-   props.canonicalLocalServer = props.server
-+  expect(projects.list()).toEqual([])
-   expect(projects.last()).toBeUndefined()
--  expect(projects.legacy()).toEqual(["/a"])
--  projects.migrate(["a", "b"])
--  projects.touch("a")
--  projects.hide(["b"])
--  expect(projects.legacy()).toBeUndefined()
--  expect(store.projects).toEqual({ other: [{ worktree: "/b" }] })
--  expect(store.lastProjectID).toEqual({ local: "a", [props.server]: "remote-project" })
--  expect(store.usedProjectIDs).toEqual({ local: ["a"], [props.server]: ["remote-project"] })
-+  projects.open("/local")
-+  projects.close("/local")
-+  expect(projects.recentlyClosed()).toEqual(["/local"])
-+  projects.open("/local")
-+  expect(projects.recentlyClosed()).toEqual([])
-+  projects.collapse("/local")
-+  projects.expand("/local")
-+  projects.open("/second")
-+  projects.move("/second", 0)
-+  expect(projects.list()).toEqual([{ worktree: "/second", expanded: true }, { worktree: "/local", expanded: true }])
-+  projects.remove("/second")
-+  expect(projects.recentlyClosed()).toEqual([])
-+  expect(store.projects.local).toEqual([{ worktree: "/local", expanded: true }])
-+  expect(store.projects[props.server]).toEqual([{ worktree: "/remote", expanded: false }])
-+  props.canonicalLocalServer = undefined
-+  expect(projects.last()).toBe("/remote")
-+  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
- })
 
 diff --git aa/packages/app/src/runtime/server/request-queue.ts bb/packages/app/src/runtime/server/request-queue.ts
 index 04d88a5..2d76596 100644
@@ -1069,49 +709,13 @@ index 04d88a5..2d76596 100644
  
        if (queued) await queued
 
+
+
+
 diff --git aa/packages/app/src/runtime/server/runtime.tsx bb/packages/app/src/runtime/server/runtime.tsx
 index 68a9849..78555cb 100644
 --- aa/packages/app/src/runtime/server/runtime.tsx
 +++ bb/packages/app/src/runtime/server/runtime.tsx
-@@ -1,5 +1,6 @@
- import { createSimpleContext } from "@opencode/ui/context"
--import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
-+import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, onCleanup, on, untrack } from "solid-js"
-+import { useQuery, useQueryClient } from "@tanstack/solid-query"
- import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
- import { pathKey } from "@/workspaces/path-key"
- import { useServerHealth } from "@/runtime/server/health"
-@@ -14,14 +15,18 @@ import { useCurrentRoute } from "@/shell/state/layout"
- import { useTabs } from "@/shell/tabs/tabs"
- import { Persist, persisted } from "@/runtime/persistence/storage"
- import { createDesktopData } from "./data"
--import { ModelState } from "./persistence"
-+import { modelState } from "./persistence"
- import { useLanguage } from "@/runtime/i18n/language"
- import { showToast } from "@/shell/notifications/toast"
- import { formatServerError } from "./errors"
- import { useSettings } from "@/settings/model"
- import { timelinePreset } from "@opencode/session-ui/timeline/detail"
- import type { SessionInfo } from "@opencode/client/promise"
--import { resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
-+import { projectForSession, resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
-+import { normalizeProjectInfo } from "./global-sync/utils"
-+import { containsDirectory } from "@opencode/util/path"
-+
-+let nextCatalogGeneration = 0
- 
- export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
-   name: "Global",
-@@ -116,7 +121,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
- })
- 
- function createGlobalModels() {
--  const [store, setStore, _, ready] = persisted(Persist.global("model"), ModelState, {
-+  const [store, setStore, _, ready] = persisted(Persist.global("model"), modelState, {
-+    favorite: [],
-     user: [],
-     recent: [],
-     variant: {},
 @@ -134,6 +140,10 @@ function createGlobalModels() {
      store,
      set: setStore,
@@ -1132,120 +736,7 @@ index 68a9849..78555cb 100644
      initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
      event: {
        on: sdk.event.on,
-@@ -245,6 +255,62 @@ function createServerController(
- 
-   const projectsList = createMemo(() => projects.list().map(enrich))
- 
-+  // This independent inventory deliberately does not reuse the filtered sync/bootstrap query.
-+  // Every controller (including a same-key reauthentication) owns a distinct cache generation.
-+  const queryClient = useQueryClient()
-+  const catalogKey = [scope, connKey, "session-project-catalog", ++nextCatalogGeneration] as const
-+  let catalogActive = true
-+  const catalogQuery = useQuery(() => ({
-+    queryKey: [...catalogKey, sdk.generation],
-+    enabled: sdk.connection.status() === "connected",
-+    retry: false,
-+    queryFn: async ({ signal }) => {
-+      const api = sdk.api
-+      const items = await api.project.list(undefined, { signal })
-+      if (!catalogActive || signal.aborted || sdk.api !== api) throw new DOMException("Aborted", "AbortError")
-+      return items.map(normalizeProjectInfo)
-+    },
-+  }))
-+  const refreshCatalog = () => {
-+    if (catalogActive && sdk.connection.status() === "connected")
-+      void queryClient.invalidateQueries({ queryKey: catalogKey })
-+  }
-+  const unsubscribeCatalog = sdk.event.on("project.updated", refreshCatalog)
-+  createEffect(on(sdk.connection.status, (status, previous) => {
-+    if (previous && previous !== "connected" && status === "connected") refreshCatalog()
-+  }))
-+  createEffect(() => {
-+    if (!catalogQuery.isError) return
-+    showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(catalogQuery.error, language.t) })
-+  })
-+  onCleanup(() => {
-+    catalogActive = false
-+    unsubscribeCatalog()
-+    void queryClient.cancelQueries({ queryKey: catalogKey })
-+    queryClient.removeQueries({ queryKey: catalogKey })
-+  })
-+  const catalogList = () => catalogQuery.data ?? []
-+  const catalogAppearance = (project: ReturnType<typeof catalogList>[number] | undefined, directory: string) => {
-+    if (!project) return
-+    const local = projectsList().find((item) => pathKey(item.worktree) === pathKey(directory)) ??
-+      projectsList().find((item) => pathKey(item.worktree) === pathKey(project.worktree))
-+    if (!local) return project
-+    return { ...project, name: local.name ?? project.name, icon: local.icon ?? project.icon }
-+  }
-+  const catalogForDirectory = (directory: string) => {
-+    const normalized = pathKey(directory)
-+    const list = catalogList()
-+    const exact = list.find((item) => pathKey(item.worktree) === normalized) ??
-+      list.find((item) => item.sandboxes?.some((sandbox) => pathKey(sandbox) === normalized) ||
-+        item.worktrees?.some((worktree) => pathKey(worktree.directory) === normalized))
-+    const closest = exact ?? list.flatMap((project, order) =>
-+      [project.worktree, ...(project.sandboxes ?? []), ...(project.worktrees ?? []).map((item) => item.directory)]
-+        .filter((root) => containsDirectory(root, directory))
-+        .map((root) => ({ project, length: pathKey(root).length, order })))
-+      .sort((a, b) => b.length - a.length || a.order - b.order)[0]?.project
-+    return catalogAppearance(closest, directory)
-+  }
-+
-   const forSession = (session: SessionInfo) => {
-     const project = resolveProjectForSession(session, projectsList(), sync.data.project)
- 
-@@ -277,6 +343,14 @@ function createServerController(
-     projects: {
-       ...projects,
-       list: projectsList,
-+      catalog: {
-+        list: catalogList,
-+        ready: () => catalogQuery.data !== undefined,
-+        status: () => catalogQuery.status,
-+        error: () => catalogQuery.error,
-+        forSession: (session: SessionInfo) => catalogAppearance(projectForSession(session, catalogList()), session.location.directory),
-+      },
-+      forDirectory: catalogForDirectory,
-       forSession,
-       detailsForSession,
-       resolve: enrich,
 
-diff --git aa/packages/app/src/session/session-identity-header.tsx bb/packages/app/src/session/session-identity-header.tsx
-index 13395c0..d8bf328 100644
---- aa/packages/app/src/session/session-identity-header.tsx
-+++ bb/packages/app/src/session/session-identity-header.tsx
-@@ -34,8 +34,7 @@ import { errorMessage } from "@/shell/layout/helpers"
- import { useLayout, type LocalProject } from "@/shell/state/layout"
- import { tabKey, useTabs } from "@/shell/tabs/tabs"
- import { useSettingsSurface } from "@/settings/surface"
--import { pathKey } from "@/workspaces/path-key"
--import { isProjectDirectory, workspaceDirectories } from "@/workspaces/paths"
-+import { workspaceDirectories } from "@/workspaces/paths"
- import { sessionHref } from "@/shell/routes/session"
- import { showToast } from "@/shell/notifications/toast"
- import { sessionTitle } from "./title"
-@@ -582,18 +581,11 @@ export function SessionIdentityHeader(props: { sessionID: string; session?: Sess
-   )
- 
-   const project = createMemo(() => {
--    if (props.session) return server.ctx.projects.forSession(props.session)
--    const projects = server.ctx.projects.list()
-+    if (props.session) return server.ctx.projects.catalog.forSession(props.session)
-     const value = directory()
- 
-     if (!value) return undefined
--    const key = pathKey(value)
--
--    return (
--      projects.find(
--        (item) => pathKey(item.worktree) === key || item.sandboxes?.some((sandbox) => pathKey(sandbox) === key),
--      ) ?? server.ctx.sync.data.project.find((item) => isProjectDirectory(item, value))
--    )
-+    return server.ctx.projects.forDirectory(value)
-   })
- 
-   return (
 
 diff --git aa/packages/app/src/session/story-model.tsx bb/packages/app/src/session/story-model.tsx
 index a280645..084ab48 100644
@@ -1317,6 +808,9 @@ index a280645..084ab48 100644
                    />
                  </section>
 
+
+
+
 diff --git aa/packages/app/src/session/timeline/voice-delegation.ts bb/packages/app/src/session/timeline/voice-delegation.ts
 index 939c336..82f8107 100644
 --- aa/packages/app/src/session/timeline/voice-delegation.ts
@@ -1348,6 +842,9 @@ index 939c336..82f8107 100644
 +
    return { instruction, framing: body?.voice?.trim() || undefined }
  }
+
+
+
 
 diff --git aa/packages/app/src/settings/model.tsx bb/packages/app/src/settings/model.tsx
 index e35c085..1d26e7c 100644
@@ -1449,6 +946,9 @@ index e35c085..1d26e7c 100644
        },
        appearance: {
 
+
+
+
 diff --git aa/packages/app/src/settings/search-catalog.ts bb/packages/app/src/settings/search-catalog.ts
 index 154f1f6..1d52195 100644
 --- aa/packages/app/src/settings/search-catalog.ts
@@ -1463,6 +963,9 @@ index 154f1f6..1d52195 100644
    },
    {
      tab: "appearance",
+
+
+
 
 diff --git aa/packages/app/src/shell/commands/desktop-menu.ts bb/packages/app/src/shell/commands/desktop-menu.ts
 index 8f9f681..d256a42 100644
@@ -1641,6 +1144,9 @@ index 8f9f681..d256a42 100644
    return list
  }
 
+
+
+
 diff --git aa/packages/app/src/shell/commands/desktop.tsx bb/packages/app/src/shell/commands/desktop.tsx
 index 375a191..97e7cae 100644
 --- aa/packages/app/src/shell/commands/desktop.tsx
@@ -1664,122 +1170,8 @@ index 375a191..97e7cae 100644
        category: language.t("command.category.settings"),
        onSelect: () => void platform.exportDebugLogs?.(),
 
-diff --git aa/packages/app/src/shell/commands/palette.ts bb/packages/app/src/shell/commands/palette.ts
-index 4f4426a..1ea6e04 100644
---- aa/packages/app/src/shell/commands/palette.ts
-+++ bb/packages/app/src/shell/commands/palette.ts
-@@ -152,7 +152,7 @@ export function createCommandPaletteModel(props: { filesOnly?: () => boolean; on
-   const sessions = createServerSessionEntries({
-     server: ServerConnection.key(serverSDK.server),
-     known: createKnownServerSessions(serverCtx),
--    projects: serverCtx.projects.list,
-+    projects: serverCtx.projects.catalog.list,
-     load: (search, signal) =>
-       serverSDK.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
-     get: (sessionID, signal) => serverSDK.api.session.get({ sessionID }, { signal }),
 
-diff --git aa/packages/app/src/shell/commands/session-search.tsx bb/packages/app/src/shell/commands/session-search.tsx
-index b14c063..f1c84f9 100644
---- aa/packages/app/src/shell/commands/session-search.tsx
-+++ bb/packages/app/src/shell/commands/session-search.tsx
-@@ -27,7 +27,7 @@ export function DialogSessionSearch() {
-       server: ServerConnection.key(conn),
-       known: createKnownServerSessions(ctx),
-       apply: ctx.data.session.apply,
--      projects: ctx.projects.list,
-+      projects: ctx.projects.catalog.list,
-       load: (search, signal) =>
-         ctx.sdk.api.session.list({ parentID: null, search, archived: false, limit: 50 }, { signal }),
-       get: (sessionID, signal) => ctx.sdk.api.session.get({ sessionID }, { signal }),
 
-diff --git aa/packages/app/src/shell/layout/helpers.ts bb/packages/app/src/shell/layout/helpers.ts
-index 423eaff..19116d7 100644
---- aa/packages/app/src/shell/layout/helpers.ts
-+++ bb/packages/app/src/shell/layout/helpers.ts
-@@ -1,4 +1,5 @@
- import type { SessionInfo } from "@opencode/client/promise"
-+import { displayName } from "@opencode/ui/project-avatar"
- import { pathKey } from "@/workspaces/path-key"
- import { isProjectDirectory } from "@/workspaces/paths"
- import type { ServerConnection } from "@/runtime/server/registry"
-@@ -28,6 +29,58 @@ export function homeProjectDirectories(result: string | string[] | null) {
-   return Array.isArray(result) ? result : [result]
- }
- 
-+export function closeHomeProject(
-+  selected: HomeProjectSelection | undefined,
-+  server: ServerConnection.Key,
-+  projects: { close: (directory: string) => void },
-+  directory: string,
-+) {
-+  projects.close(directory)
-+  if (selected?.server === server && selected.directory === directory) return { server }
-+  return selected
-+}
-+
-+type ProjectAppearance = {
-+  name?: string
-+  worktree: string
-+  icon?: { color?: string; url?: string; override?: string }
-+}
-+
-+function withProjectAppearance<T extends ProjectAppearance>(metadata: T, appearance?: ProjectAppearance) {
-+  if (!appearance || appearance === metadata) return metadata
-+  return { ...metadata, name: displayName(appearance), icon: appearance.icon }
-+}
-+
-+export function resolveProjectForSession<
-+  T extends { id?: string; worktree: string; sandboxes?: string[] },
-+  U extends { id?: string; worktree: string; sandboxes?: string[] },
-+>(session: SessionInfo, opened: T[], stored: U[]) {
-+  const current = projectForSession(session, opened)
-+  if (current?.id === session.projectID) {
-+    const unresolved = opened.find(
-+      (project) => !project.id && pathKey(project.worktree) === pathKey(session.location.directory),
-+    )
-+    if (!unresolved) return current
-+    const canonical = projectForSession(session, stored)
-+    if (canonical?.id === session.projectID && pathKey(canonical.worktree) === pathKey(unresolved.worktree))
-+      return unresolved
-+    return current
-+  }
-+  const synced = projectForSession(session, stored)
-+  if (synced?.id !== session.projectID) return current ?? synced
-+  if (current && !current.id && pathKey(current.worktree) === pathKey(session.location.directory)) return current
-+  return synced
-+}
-+
-+export function resolveSessionDetailsProject<
-+  T extends ProjectAppearance & { id?: string; sandboxes?: string[] },
-+  U extends ProjectAppearance & { id?: string; sandboxes?: string[] },
-+>(session: SessionInfo, opened: T[], stored: U[]) {
-+  const metadata = projectForSession(session, stored)
-+  if (!metadata) return
-+  return withProjectAppearance(metadata, resolveProjectForSession(session, opened, stored))
-+}
-+
- export function projectForSession<T extends { id?: string; worktree: string; sandboxes?: string[] }>(
-   session: SessionInfo,
-   projects: T[],
-
-diff --git aa/packages/app/src/shell/titlebar/titlebar.tsx bb/packages/app/src/shell/titlebar/titlebar.tsx
-index 7ac8d8b..dc5986f 100644
---- aa/packages/app/src/shell/titlebar/titlebar.tsx
-+++ bb/packages/app/src/shell/titlebar/titlebar.tsx
-@@ -399,9 +399,12 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
- 
-                   const projects = conn ? global.ensureServerCtx(conn).projects : undefined
- 
-+                  // mobile(C): the retained facade keeps the directory-valued lastProject, so resolve the
-+                  // fallback through the project list instead of the target's project-ID lookup.
-+                  const lastDirectory = projects?.last()
-                   const project =
-                     projects?.list().find((item) => item.worktree === selection.directory) ??
--                    projects?.last() ??
-+                    projects?.list().find((item) => item.worktree === lastDirectory) ??
-                     projects?.list()[0]
- 
-                   if (conn && project) {
 
 diff --git aa/packages/client/src/promise/index.ts bb/packages/client/src/promise/index.ts
 index 5b2561d..cc20b10 100644
@@ -1812,6 +1204,9 @@ index 5b2561d..cc20b10 100644
  export type { EventSubscribeOutput as OpenCodeEvent } from "./generated/types.js"
  export type OpenCodeClient = ReturnType<typeof OpenCode.make>
 +export type { Attachment as PromptAttachment } from "@opencode/schema/prompt"
+
+
+
 
 diff --git aa/packages/client/src/solid/data.ts bb/packages/client/src/solid/data.ts
 index 99291f2..05c4669 100644
@@ -1876,6 +1271,9 @@ index 99291f2..05c4669 100644
    /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
    readonly initialMessageLimit?: () => number
 
+
+
+
 diff --git aa/packages/patchmark/package.json bb/packages/patchmark/package.json
 index f459103..cf7493b 100644
 --- aa/packages/patchmark/package.json
@@ -1898,6 +1296,9 @@ index f459103..cf7493b 100644
 +    "@typescript/native": "catalog:"
    }
  }
+
+
+
 
 diff --git aa/packages/session-ui/package.json bb/packages/session-ui/package.json
 index 4cb59e7..2452566 100644
@@ -1933,6 +1334,9 @@ index 4cb59e7..2452566 100644
      "solid-js": "catalog:",
      "strip-ansi": "7.1.2"
 
+
+
+
 diff --git aa/packages/ui/package.json bb/packages/ui/package.json
 index cdf25ae..4853e13 100644
 --- aa/packages/ui/package.json
@@ -1945,6 +1349,9 @@ index cdf25ae..4853e13 100644
      "./avatar": "./src/data-display/avatar/avatar.tsx",
      "./badge": "./src/data-display/badge/badge.tsx",
      "./button": "./src/actions/button/button.tsx",
+
+
+
 
 diff --git aa/packages/ui/src/i18n/en.ts bb/packages/ui/src/i18n/en.ts
 index d341205..b1a8772 100644
@@ -1989,6 +1396,9 @@ index d341205..b1a8772 100644
    // mobile(M-037): the four ui.preview.* keys the dragged-in preview-controls face reads (v2.2.1 values;
    // zh falls back to en at runtime, matching the vendored-subset convention).
    "ui.preview.controls": "Preview controls",
+
+
+
 
 diff --git aa/packages/ui/src/motion-tuning.test.ts bb/packages/ui/src/motion-tuning.test.ts
 index d5a2d9c..b8847dd 100644
@@ -2035,6 +1445,9 @@ index d5a2d9c..b8847dd 100644
 +  expect(JSON.parse(localStorage.getItem("opencode.motion.v2")!)).toEqual({ speed: 2 })
 +})
 
+
+
+
 diff --git aa/packages/ui/src/motion-tuning.ts bb/packages/ui/src/motion-tuning.ts
 index 4585e98..b868fd7 100644
 --- aa/packages/ui/src/motion-tuning.ts
@@ -2080,6 +1493,9 @@ index 4585e98..b868fd7 100644
    } catch {}
  }
 
+
+
+
 diff --git aa/packages/ui/test/solid-jsx.ts bb/packages/ui/test/solid-jsx.ts
 index 4dd5861..a5160d0 100644
 --- aa/packages/ui/test/solid-jsx.ts
@@ -2119,6 +1535,9 @@ index 4dd5861..a5160d0 100644
      }))
    },
 
+
+
+
 diff --git a/packages/app/src/runtime/server/media-api.ts b/packages/app/src/runtime/server/media-api.ts
 new file mode 100644
 index 0000000..e2e4689
@@ -2133,6 +1552,9 @@ index 0000000..e2e4689
 +  const media = make(options)
 +  return { ...client, experimental: { ...client.experimental, media: media.experimental.media } }
 +}
+
+
+
 diff --git a/packages/app/src/runtime/server/media-contract.ts b/packages/app/src/runtime/server/media-contract.ts
 new file mode 100644
 index 0000000..69fdca6
@@ -2179,6 +1601,9 @@ index 0000000..69fdca6
 +    throw new ClientError("MalformedResponse")
 +}
 
+
+
+
 diff --git a/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json b/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json
 new file mode 100644
 index 0000000..f09b399
@@ -2186,6 +1611,9 @@ index 0000000..f09b399
 +++ b/packages/app/src/runtime/server/media-generated/.httpapi-codegen.json
 @@ -0,0 +1 @@
 +["client-error.ts", "client.ts", "index.ts", "types.ts"]
+
+
+
 diff --git a/packages/app/src/runtime/server/media-generated/client-error.ts b/packages/app/src/runtime/server/media-generated/client-error.ts
 new file mode 100644
 index 0000000..8d7cc7e
@@ -2209,6 +1637,9 @@ index 0000000..8d7cc7e
 +    super(detail ? `${reason}: ${detail}` : reason, options)
 +  }
 +}
+
+
+
 diff --git a/packages/app/src/runtime/server/media-generated/client.ts b/packages/app/src/runtime/server/media-generated/client.ts
 new file mode 100644
 index 0000000..a77d6ec
@@ -2374,6 +1805,9 @@ index 0000000..a77d6ec
 +function isContentType(response: Response, expected: string) {
 +  return response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() === expected
 +}
+
+
+
 diff --git a/packages/app/src/runtime/server/media-generated/index.ts b/packages/app/src/runtime/server/media-generated/index.ts
 new file mode 100644
 index 0000000..1a4e5ea
@@ -2383,6 +1817,9 @@ index 0000000..1a4e5ea
 +export { ClientError, type ClientErrorReason } from "./client-error.js"
 +export * as OpenCode from "./client.js"
 +export * from "./types.js"
+
+
+
 diff --git a/packages/app/src/runtime/server/media-generated/types.ts b/packages/app/src/runtime/server/media-generated/types.ts
 new file mode 100644
 index 0000000..be2369d

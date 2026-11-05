@@ -36,8 +36,11 @@ export const ProjectOptions: Component<{
     directories().forEach((directory) => notification.project.markViewed(directory))
   }
 
+  // mobile: keep the registered settings close face; on the target project-identity model it
+  // maps to hiding the project from this client's used list (the server keeps the project),
+  // the same semantic the target Home row close (hide) uses.
   const close = () => {
-    context().projects.close(props.project.worktree)
+    context().projects.hide(props.project)
     props.onClose?.()
   }
 

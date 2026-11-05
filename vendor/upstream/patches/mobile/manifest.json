@@ -896,8 +896,8 @@
       "reason": "Issue #101 S01-S03: the settings framework (outer shell, navigation, route/view model, surface incl. the keyed server scope, search index/catalog/results/UI/focus-reveal, settings-command-palette bridge, shared settings/search CSS, and the settings-owned tests) migrated from pin to v2.2.1 3ebcf9a. TARGET-VERBATIM files (diff against target is empty after this patch): shell.tsx, navigation.tsx (CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem), route.ts + route.test.ts, pages.ts, command.tsx (settingsOpenCommand const), palette.ts (new), search.tsx (SearchList/SearchHighlight/Slash + createSettingsSearchCatalog + mod+f focus command + 800px narrow), search-catalog.ts, search-index.ts (selected-server indexing), search-results.ts (2-arg rankSettings), search-results.test.ts, search.css (absorbs the appearance-motion-zoom data-motion selectors), settings.css (absorbs appearance-motion-zoom motion + settings-about-version notices overflow hunks), servers/inventory.ts (settingsServerReachable + settingsProjects export dropped + label param), servers/inventory.test.ts, servers/switcher.tsx (new), servers/unavailable.tsx (new), runtime/server/health.ts (status/retry shape + stageHealth). SURGICAL cherry-picks (NOT whole-file): model.tsx takes only the sidebarOpen schema field + accessor (target :147/:451-454) on top of the settings-interface-mode/settings-experimental/appearance-motion-zoom state, marker-commented; servers/servers.tsx takes only the target SettingsServerList block (List + ServersHeader + ServerConnectionRow + ServerShell) and the retargeted SettingsServerGeneral signature {entry, onAddServer}, leaving the gui-plugins-api-migration row/auth content for issue #102, with the ShellSetting action-prop thread dropped (vendored ShellSetting has no action prop; #102); the five page-glue files (providers/models/extensions/projects/workspaces) take only the headerAction/directory prop additions + the real settings-tab-header-actions render (target pattern) + projects.tsx's settingsProjects(context()) -> context().projects.list() swap; runtime/server/runtime.tsx takes only the servers return block (health: serverHealth.status, retry: serverHealth.retry) and the three serverHealth[key] -> serverHealth.status[key] subscript sites (:84/:91/:109 guards - the notification coordinator, setHostname effect, and projects rework stay out of scope); shell/commands/palette.ts takes only the setting-entry plumbing (type union, keywords?/setting? fields, createSettingsPaletteEntries import/call/select branch/deps entry - the session-search rework and its command.tsx keywords feed stay out, so entries' keywords field stays unset by commands); shell/commands/dialog.tsx takes the setting Match condition + palette.settings.items(q) in the filter; runtime/i18n/en.ts takes NINE new keys - the plan's 8 (palette.group.settings; settings.server.switcher.label/.unreachable/.manage; settings.server.unreachable.title/.description/.retry/.edit) plus PLANNING-DEVIATION server.thisComputer (en-only; zh lacks it at target), required by the settings-framework-dependencies label/hint chain the plan assessed as pin-existing. THREE NEW first-party test files authored per plan section 5: surface.test.ts (server-scope resolution order, selectServer no-op off root, openServers URL, search activation bump - over mock.module seams incl. a registry mock so the file does not join the mobile-hosts alias failure bucket), search-reveal.test.ts (reveal no-ops on a missing anchor + reveals and restores a present one over happy-dom stubs), palette.test.ts (<=5 type-setting entries, prefix ranking, entity exclusion, select -> surface.search.open). PLANNING-DEVIATION (the plan's openServer shim): the plan's shim `openServer(server, tab=\"general\") -> show({type:\"root\", tab, server})` was verified during review to round-trip faithfully through settingsViewUrl/parseSettingsView for every pin caller shape ({root,general,server} / {root,workspaces,server} / {root,servers,server} - the target rootTabs record includes the per-server tabs), so the rejection is NOT a parse limitation; the plan's named alternative (section 2.2 new-session row: 'otherwise 3-line call adaptation') is taken instead as the smaller surface change: new-session/screen.tsx openWorkspaces now calls the existing settingsSurface.openServers(draft?.server), which preserves the draft-server context and adds no transitional surface-API member for the new-session rework to remove, and the unused servers accessor is dropped. The vendored screen.tsx comment still carries the superseded wording; this field and the unit/architecture/ledger records carry the corrected rationale. surface.tsx itself is target-verbatim. THE KEYED TEST WINDOW: keyed-server-entry.test.tsx and settings-search-plugin.test.tsx are intentionally NOT touched by settings-framework-migration (the former is red against the migrated shell, the latter's file-level mobile-hosts alias error persists); both are completed by settings-framework-mobile (plan section 4 red-window precision m1). REGISTRATION ADDENDUM (post-generation type gate): workspaces/project.tsx makes the SettingsProjectGeneral onClose prop optional (the target call site passes no onClose; the vendored signature required it) and client/src/promise/generated/types.ts adds the ServerInfo hostname field the migrated health.ts reads (the full client regeneration stays with its owning sync).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; the 19 target-verbatim files match v2.2.1 3ebcf9a byte-identically; surgical files carry only the hunks enumerated above over their settings-interface-mode/settings-experimental/appearance-motion-zoom/gui-plugins-api-migration states; the 3 new test files are first-party",
       "verification": "V3 closure round-trip (git apply --check over the whole 41-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: settings-framework-migration git apply --check rc=0 against pin + packageSources + gui-plugins-native-test-deps..files-open-external + settings-framework-dependencies, applied and byte-compared == working tree); bun run verify:closure PASS at registration; bun run build:web succeeds at the settings-framework-migration+settings-framework-mobile state (test-file fallout is resolved by settings-framework-mobile inside the same registration round, plan red-window m1); diff(accumulated, target) empty for the 19 verbatim files (verified file-by-file at generation)",
-      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + gui-plugins-native-test-deps..settings-framework-dependencies (accumulated tree, committed snapshot at generation); context anchors are the accumulated shapes of runtime.tsx (gui-plugins-api-migration-era servers block), commands/palette.ts + dialog.tsx (pin search/dialog shapes), en.ts (10+ prior patch layers), servers.tsx (gui-plugins-api-migration), model.tsx (settings-interface-mode/settings-experimental/appearance-motion-zoom), the five page files (pin-era + gui-plugins-api-migration); rebase regenerates against the re-accumulated tree per the settings-about-version rule.",
-      "sha256": "d934504614e991d330ed7e06338157a6f648ab160370cead847665fb192f4392",
+      "rebase": "New patch (issue #101); LAYERED patch - generated against pristine pin + packageSources + gui-plugins-native-test-deps..settings-framework-dependencies (accumulated tree, committed snapshot at generation); context anchors are the accumulated shapes of runtime.tsx (gui-plugins-api-migration-era servers block), commands/palette.ts + dialog.tsx (pin search/dialog shapes), en.ts (10+ prior patch layers), servers.tsx (gui-plugins-api-migration), model.tsx (settings-interface-mode/settings-experimental/appearance-motion-zoom), the five page files (pin-era + gui-plugins-api-migration); rebase regenerates against the re-accumulated tree per the settings-about-version rule. Issue #140: the settings/workspaces/projects.tsx M-043 accessor comment lines retired; the hunk now lands the target accessor text directly. Issue #140: the settings/workspaces/projects.tsx M-043 accessor comment lines retired; the hunk now lands the target accessor text directly. Issue #140: the settings/workspaces/projects.tsx M-043 accessor comment lines retired; the hunk now lands the target accessor text directly.",
+      "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
       "status": "active"
     },
     {
@@ -935,7 +935,7 @@
       "reason": "Issue #102 (S35-S37): the servers page completed to the v2.2.1 target (3ebcf9a) - 'what upstream changed' on the F side of the #101 A/F boundary. servers.tsx becomes TARGET-VERBATIM (completes settings-framework-migration's glue): SettingsServerGeneral loses its own gui-plugins-api-migration row body and delegates to the shared ServerConnectionRow (dedicated SettingsServersHeader with the unconditional AddServerMenu, entry.name row naming, edit dialog saving back through onSave so the single view no longer routes through onServerChange), and its Shell preferences section is HEALTH-GATED (`props.entry.connection && health()?.healthy !== false`) - the gui-plugins-api-migration state showed Shell whenever a connection existed; the target hides it on unhealthy/401 servers (health.ts maps 401 to healthy:false + unauthorized, so a signed-out server shows the Authenticate button and no shell row). SettingsServerList threads the search-reveal action: ServerShell gains the `action` prop and passes `action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}` so non-selected servers' shell rows are nameable apart in Settings search; the `serverName` import drops. general.tsx takes ONLY the ShellSetting action hunk (signature gains `action?: string`, Select renders `data-action={props.action ?? \"settings-shell\"}`) with a mobile(M-045) owner comment marking the rest of the file as deferred to the General-page unit (S04): the remaining pin->target delta (FollowUpBehavior/BackgroundActivity/TimelineWidth rows etc.) is NOT migrated here. row.tsx becomes TARGET-VERBATIM: upstream deleted the dead pin-era ServerRow component (-108 lines; zero importers - plugin-row.tsx imports a different ServerRow TYPE from @opencode/plugin/gui), leaving only ServerHealthIndicator with the Tooltip->Loader import change. redeem.ts drops the `export` on the Redemption type (target un-export; zero consumers of the exported type). persistence.test.ts aligns the 'migrates legacy auth' encode expectation to the connection-password-memory-only semantics (the encoded form strips password, redecode of the stripped form is stable) with a mobile(M-002) comment citing persistence.ts and the issue #3 record - upgrading this issue's own-domain frozen baseline failure (upstream asserts a lossless encode round-trip; connection-password-memory-only deliberately never persists a credential). NEW regression test servers-page.test.tsx carried in the patch (settings-search-plugin harness precedent: mock.module seam stubs + row-menu/Edit probe + Select data-action probe + insert-materialized hyperscript mount; source pins always run, the behavioral group degrades to skips under the shared solid-jsx preload and is evidenced standalone with `bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/servers-page.test.tsx`). NOT in this patch: settings/general/controllers.ts stays at its aligned adaptation state (the two mobile hunks - behavior re-export boundary and the pin `config.update` naming over the generated PATCH /api/experimental/config endpoint - are wire-equivalent and pinned by verify-appearance-settings; matrix S37 documents the retained deviation).",
       "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; generated against pristine pin + packageSources + gui-plugins-native-test-deps..settings-framework-mobile (the gui-plugins-api-migration renames and settings-framework-migration glue are context), moving servers.tsx/row.tsx to v2.2.1 3ebcf9a bytes; general.tsx is deliberately PART-target (ShellSetting action hunk only, S04 deferral); persistence.test.ts carries a mobile(M-002) semantic alignment of an upstream test expectation, not an upstream change",
       "verification": "V3 closure round-trip (git apply --check over the 43-patch chain to pristine pin + packageSources, tree byte-identical, DANGLING=0; bun run verify:closure PASS at registration); servers.tsx/row.tsx/redeem.ts byte-compared == v2.2.1 3ebcf9a target files; vendored app unit suite: the persistence.test.ts baseline failure upgrades to passing (0 fail in the file), servers-page.test.tsx green in both environments (standalone 6/0/27 expect() behavioral; 2 source pins pass + 4 behavioral skips under the shared-preload suite command, no new suite failures); directed subset (servers-page/inventory/management/controller/registry/client/api) 0 fail; typecheck: the transitional servers.tsx action-prop error resolves against the general.tsx hunk, touched files zero errors; build:web rc=0 and the dist baseline registered in the dist-pinned probes at the same commit",
-      "rebase": "New patch (issue #102); LAYERED patch - generated against pristine pin + packageSources + gui-plugins-native-test-deps..settings-framework-mobile; servers.tsx/row.tsx anchors are target bytes (stable unless v2.2.2+ rewrites the servers settings/registry row), general.tsx anchor is the pin-era gui-plugins-api-migration file + this hunk (the S04 General-page issue will supersede it), persistence.test.ts anchor is the connection-password-memory-only-layered persistence.ts codec; rebase regenerates against the re-accumulated tree.",
+      "rebase": "New patch (issue #102); LAYERED patch - generated against pristine pin + packageSources + gui-plugins-native-test-deps..settings-framework-mobile; servers.tsx/row.tsx anchors are target bytes (stable unless v2.2.2+ rewrites the servers settings/registry row), general.tsx anchor is the pin-era gui-plugins-api-migration file + this hunk (the S04 General-page issue will supersede it), persistence.test.ts anchor is the connection-password-memory-only-layered persistence.ts codec; rebase regenerates against the re-accumulated tree. Issue #140: this patch's M-002 strip-assertion hunk keeps its chain position (it anchors on the pin-form test); the assertion is carried onto the target-form test by project-identity-migration, which rewrites the file at chain end. Issue #140: this patch's M-002 strip-assertion hunk keeps its chain position (it anchors on the pin-form test); the assertion is carried onto the target-form test by project-identity-migration, which rewrites the file at chain end. Issue #140: this patch's M-002 strip-assertion hunk keeps its chain position (it anchors on the pin-form test); the assertion is carried onto the target-form test by project-identity-migration, which rewrites the file at chain end.",
       "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
       "status": "active"
     },
@@ -1575,24 +1575,10 @@
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
       "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded.",
-      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
+      "sha256": "3b9ebe74cd40555605fd227e077ea047f0eb9f19911aa0078658cdd7308e0be1",
       "status": "active",
       "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Layered directly after session-workbench-upstream U and before session-project-open-compatibility host project compatibility."
-    },
-    {
-      "id": "session-project-open-compatibility",
-      "owner": "opencode-mobile maintainers",
-      "patch": "patches/mobile/session-project-open-compatibility.patch",
-      "targets": [
-        "packages/app/src/runtime/plugin/host-apis.tsx"
-      ],
-      "reason": "The session-workbench host API called projects.add, but the runtime exposes projects.open(directory). Adapt the production host API and retain the draft's existing ServerConnection.key and directory.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding connection-initial-credential-persistence/connection-vault-ready-wait + session-workbench-upstream + session-client-compatibility",
-      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
-      "rebase": "Layered after session-workbench-upstream U and session-client-compatibility C, before session-media-source-safety S. The only target is packages/app/src/runtime/plugin/host-apis.tsx.",
-      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
-      "status": "active"
+      "rebase": "Layered directly after session-workbench-upstream U and before session-project-open-compatibility host project compatibility. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain."
     },
     {
       "id": "session-media-source-safety",
@@ -1745,6 +1731,91 @@
       "status": "active"
     },
     {
+      "id": "project-identity-migration",
+      "patch": "patches/mobile/project-identity-migration.patch",
+      "targets": [
+        "packages/app/src/runtime/server/persistence.ts",
+        "packages/app/src/runtime/server/persistence.test.ts",
+        "packages/app/src/runtime/server/registry.tsx",
+        "packages/app/src/runtime/server/registry.test.ts",
+        "packages/app/src/runtime/server/registry-hydration.test.tsx",
+        "packages/app/src/runtime/server/runtime.tsx",
+        "packages/app/src/runtime/server/sync.tsx",
+        "packages/app/src/runtime/server/global-sync/bootstrap.ts",
+        "packages/app/src/runtime/server/global-sync/bootstrap.test.ts",
+        "packages/app/src/runtime/server/global-sync/types.ts",
+        "packages/app/src/runtime/server/global-sync/child-store.ts",
+        "packages/app/src/runtime/server/global-sync/utils.ts",
+        "packages/app/src/runtime/persistence/consumers.test.ts",
+        "packages/app/src/session/session-identity-header.tsx",
+        "packages/app/src/shell/commands/palette.ts",
+        "packages/app/src/shell/commands/session-search.tsx",
+        "packages/app/src/composer/model.ts",
+        "packages/app/src/runtime/plugin/host-apis.tsx",
+        "packages/app/src/shell/titlebar/titlebar.tsx",
+        "packages/app/src/shell/layout/helpers.ts",
+        "packages/app/src/settings/workspaces/projects.tsx",
+        "packages/app/src/settings/workspaces/project-options.tsx",
+        "packages/app/src/home/projects/controller.tsx"
+      ],
+      "reason": "FU-3 project identity (issue #140): carry the fixed-upstream v2.2.1 (3ebcf9a) data layer onto the vendored pin. ServerState switches the per-server project model to usedProjectIDs/lastProjectID plus reported hostnames; the registry projects face becomes used/use/touch/hide/legacy/migrate and the runtime ctx.projects face becomes list/unique/used/add/forDirectory/forSession/last/touch/hide, with the legacy directory buckets migrating once the server list is ready. The M-010 credential hydration block and the vault-ready wait ride above this patch and are carried across the rewrite byte-identically; the M-002/M-005 password-strip and credentialRef semantics are re-asserted behaviorally in the target-form persistence/registry tests (the strip assertions registered under settings-servers-migration keep their chain position on the pin-form test and are carried onto the target-form test here). Consumers retire their old-model compat: catalog.list readers, projects.open, titlebar mobile(C) lastDirectory, closeHomeProject helper family, session-import endpoint read through the pin client session namespace, settings project close face mapped to target hide.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 closure byte-level replay with the patch registered; targeted regression src/runtime/server/{registry,persistence}.test.ts, registry-hydration.test.tsx, global-sync tests, runtime/persistence/consumers.test.ts under the in-record browser-condition command; scripts/verify-projects-sessions.ts static probe; issue #140 record in docs/build-and-verify.md.",
+      "rebase": "New patch (issue #140); rebase target is the target-form data layer listed in targets. The hunk applies after connection-vault-ready-wait and carries the hydration block text forward.",
+      "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
+      "status": "active"
+    },
+    {
+      "id": "home-new-session-parity",
+      "patch": "patches/mobile/home-new-session-parity.patch",
+      "targets": [
+        "packages/app/src/home/model.ts",
+        "packages/app/src/home/route.tsx",
+        "packages/app/src/home/scroll.ts",
+        "packages/app/src/home/projects/add.ts",
+        "packages/app/src/home/projects/controller.tsx",
+        "packages/app/src/home/projects/region.tsx",
+        "packages/app/src/home/projects/view.css",
+        "packages/app/src/home/projects/view.tsx",
+        "packages/app/src/home/sessions/command-palette.tsx",
+        "packages/app/src/home/sessions/controller.tsx",
+        "packages/app/src/home/sessions/records.ts",
+        "packages/app/src/home/sessions/records.test.ts",
+        "packages/app/src/home/sessions/search.ts",
+        "packages/app/src/home/sessions/view.css",
+        "packages/app/src/home/sessions/view.tsx",
+        "packages/app/src/home/start/command-palette.tsx",
+        "packages/app/src/new-session/brick-breaker.tsx",
+        "packages/app/src/new-session/commands.tsx",
+        "packages/app/src/new-session/location/dialog.css",
+        "packages/app/src/new-session/location/dialog.tsx",
+        "packages/app/src/new-session/pin-board.tsx",
+        "packages/app/src/new-session/pin-quads.ts",
+        "packages/app/src/new-session/pin-sound.ts",
+        "packages/app/src/new-session/project/controller.ts",
+        "packages/app/src/new-session/project/selector.test.tsx",
+        "packages/app/src/new-session/project/selector.tsx",
+        "packages/app/src/new-session/route.tsx",
+        "packages/app/src/new-session/screen.tsx",
+        "packages/app/src/new-session/view.tsx",
+        "packages/app/src/new-session/wordmark.css",
+        "packages/app/src/new-session/wordmark.stories.tsx",
+        "packages/app/src/new-session/wordmark.tsx",
+        "packages/app/src/new-session/workspace/controller.ts",
+        "packages/app/src/new-session/workspace/selector.tsx",
+        "packages/app/src/workspaces/location.tsx",
+        "packages/app/src/shell/layout/project-icon.tsx",
+        "packages/ui/src/data-display/badge/badge.css",
+        "packages/app/src/runtime/i18n/en.ts"
+      ],
+      "reason": "Home and new-session parity with the fixed-upstream v2.2.1 form (issue #140): Home lists used projects with the ready()-gated restored selection, sessions views and search take the target form, home/sessions/command-palette.tsx is deleted (no target importer). New-session gains the location dialog, pin board/quads/sound, brick-breaker and the target view/screen/wordmark/project/workspace selectors; the session-home-archive (M-017) real archive call rides on the target controller stub unchanged. The project icon wrapper adopts the target generated-avatar prop, workspaces/location drops the vendored-only LocationContext re-export, badge.css takes the target border token, and en.ts gains the seven typed keys the copied surface consumes (session.new.location.*, session.location.toggle).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 closure byte-level replay; src/home/sessions/{alt-hold,archive,index,open,records}.test.ts and src/new-session/{project/selector,workspace/controller} tests under the in-record browser-condition command; scripts/verify-projects-sessions.ts static probe (M-017 anchors); issue #140 record in docs/build-and-verify.md.",
+      "rebase": "New patch (issue #140); applies after session-home-archive and carries the M-017 archive block across the controller rewrite.",
+      "sha256": "f7421bbf8cfc870b0772952bcd7c9e22a3380a0189b196d085aca40daaad6014",
+      "status": "active"
+    },
+    {
       "id": "provider-connect-flow-redesign",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/provider-connect-flow-redesign.patch",
@@ -1766,6 +1837,19 @@
       "verification": "Patch derivation (plan 4.3): generated against the pristine pin b4525d79bf tree + packageSources gui-plugins 3ebcf9a + the accumulated tree of the 65 prior mobilePatches (scratch git repo, git diff --full-index of exactly the 11 target paths); self-check = git apply --check on the cumulative tree PASS and the applied tree byte-identical (cmp) to the working tree for all 11 paths (6 modified connect files, new connect-methods.test.ts, modified en.ts, 3 credentials deletions). Registration: verify:patches PASS (66 registered); verify:closure PASS (66/66 byte-level replay, DANGLING=0, both manifests 66=66, git diff --check clean); negative drill - removing this patch from mobilePatches makes verify:closure report the 11-path delta (patch payload carries the difference), then restored to PASS. Typecheck:tsc 419 errors with per-file distribution identical to the 3310b80 baseline; app unit suite (no-seam) fail/error sets identical to baseline (zero new failures) with connect-methods.test.ts 10 pass/0 fail/13 expect(); affected tests go-upsell-hero-art.test.ts, remote.test.ts, settings/providers/accounts.test.ts baseline-equal; verify-provider-models rc=0 after the #141 revision (group 3 command pins + Console/Go absence pins + custom-provider absence, group 6 OPENAI_COMPATIBLE anchor retired, groups 2/7 re-measured at 48 code files); verify-agent-capabilities rc=0 with the connect dialog added to the consumed-keys guard (81 literals + ui i18n universe).",
       "rebase": "New patch (issue #141); LAYERED patch at the mobilePatches tail - generated against the 65-patch cumulative tree, appended after extensions-flyout-webview so the en.ts hunk anchors on settings-providers-models-extensions-applied bytes (its 26 keys precede this patch). controller.ts/dialog.tsx/dialog.stories.tsx/chatgpt stories/go-upsell-hero-art.ts/connect-methods.test.ts anchor on pure pin bytes (no earlier mobile hunks touch the connect domain except mcp.ts/mcp-dialog.tsx/remote.test.ts, all untouched here). Rebase: re-derive per file against the new target (copy-first); the en.ts key additions re-derive against the cumulative en.ts block order (dialog.provider family before search.placeholder region / after group.popular; command+form family after title.anthropicProMax); the dead-key retention resolves against the FU follow-up locale sweep; keep the mcp.ts mobile(M-048) hunk owned by settings-providers-models-extensions and re-verify its line equivalence against the refreshed generated client.",
       "sha256": "244bfc6609bbd8864e17bd54e5e05ff4b5f3786c92f529c0f668cb25b410c916",
+      "status": "active"
+    },
+    {
+      "id": "ui-typeahead-export",
+      "patch": "patches/mobile/ui-typeahead-export.patch",
+      "targets": [
+        "packages/ui/package.json"
+      ],
+      "reason": "Export the vendored @opencode/ui typeahead control (src/forms/typeahead, carried by gui-plugins-api-migration) so the target new-session project and workspace selectors can import it (issue #140). The vendored ui package predates the target's @opencode/util devDependency, so consumers need the test-time node_modules seam vendor/upstream/packages/ui/node_modules/@opencode/util -> ../../../util (rebuild alongside the app seam; node_modules never enters git or the closure).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "V3 closure replay with the export registered; bun run build:web type gate compiles @opencode/ui/typeahead consumers; issue #140 record in docs/build-and-verify.md.",
+      "rebase": "New patch (issue #140); single export-map entry.",
+      "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
       "status": "active"
     }
   ]

@@ -105,7 +105,6 @@
     "patches/mobile/settings-server-menu.patch",
     "patches/mobile/session-workbench-upstream.patch",
     "patches/mobile/session-client-compatibility.patch",
-    "patches/mobile/session-project-open-compatibility.patch",
     "patches/mobile/session-media-source-safety.patch",
     "patches/mobile/files-stream-watch.patch",
     "patches/mobile/session-android-adaptation.patch",
@@ -115,7 +114,10 @@
     "patches/mobile/session-composer-test-fixture.patch",
     "patches/mobile/session-agent-selector.patch",
     "patches/mobile/extensions-flyout-webview.patch",
-    "patches/mobile/provider-connect-flow-redesign.patch"
+    "patches/mobile/provider-connect-flow-redesign.patch",
+    "patches/mobile/project-identity-migration.patch",
+    "patches/mobile/home-new-session-parity.patch",
+    "patches/mobile/ui-typeahead-export.patch"
   ],
   "excluded": {
     "packages": [
@@ -400,7 +402,7 @@
     {
       "id": "settings-framework-migration",
       "path": "patches/mobile/settings-framework-migration.patch",
-      "sha256": "d934504614e991d330ed7e06338157a6f648ab160370cead847665fb192f4392",
+      "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
       "status": "active"
     },
     {
@@ -490,13 +492,7 @@
     {
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
-      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330",
-      "status": "active"
-    },
-    {
-      "id": "session-project-open-compatibility",
-      "path": "patches/mobile/session-project-open-compatibility.patch",
-      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db",
+      "sha256": "3b9ebe74cd40555605fd227e077ea047f0eb9f19911aa0078658cdd7308e0be1",
       "status": "active"
     },
     {
@@ -554,9 +550,27 @@
       "status": "active"
     },
     {
+      "id": "project-identity-migration",
+      "path": "patches/mobile/project-identity-migration.patch",
+      "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
+      "status": "active"
+    },
+    {
+      "id": "home-new-session-parity",
+      "path": "patches/mobile/home-new-session-parity.patch",
+      "sha256": "f7421bbf8cfc870b0772952bcd7c9e22a3380a0189b196d085aca40daaad6014",
+      "status": "active"
+    },
+    {
       "id": "provider-connect-flow-redesign",
       "path": "patches/mobile/provider-connect-flow-redesign.patch",
       "sha256": "244bfc6609bbd8864e17bd54e5e05ff4b5f3786c92f529c0f668cb25b410c916",
+      "status": "active"
+    },
+    {
+      "id": "ui-typeahead-export",
+      "path": "patches/mobile/ui-typeahead-export.patch",
+      "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
       "status": "active"
     }
   ],
