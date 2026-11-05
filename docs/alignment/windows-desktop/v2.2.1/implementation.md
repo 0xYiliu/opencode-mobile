@@ -2,7 +2,7 @@
 
 补丁引用口径（2026-11-05）：本文有效 ID/文件路径已迁移为语义名称，旧身份与源码 `mobile(M-xxx)` marker 见[映射](../../../../vendor/upstream/patches/mobile/identity-migration.json)。`gui-plugins-native-test-deps..vault-androidx-listener` 等长范围是对应历史快照的重放区间（本例原 M-001..M-032），不是按名称排序；实际重放只读取 `vendor-manifest.json#mobilePatches` 数组。M-019/M-039 等空号、预留槽及数字文件名前缀仅解释历史证据，不再构成有效分配规则。原提交、测试数、PASS/FAIL 与未验证边界不因改名变化。
 
-> **当前索引（2026-11-01）**：当前检查基线为 main/dev `c68ccc0c2541e4cf19be4befc706cb09fcce0690`，见 [E34 当前复核](current-review.md)。本文 E01–E33 保留各实施时点的来源与验证历史；其中“待执行”“待用户决策”“等 #67”等表述不能覆盖后续补验、ADR 收口和当前矩阵。最新功能结论见 [matrix.md](matrix.md)，设备事实以 `docs/build-and-verify.md` 对应 issue 的后续补验小节为准。E34 尤其补齐 #90/#96 复验状态、Inbox/队列/导出/Goal 的当前差异。
+> **当前索引（2026-11-06）**：检查基线 `740ce386`，见 [E35 当前复核 / E34 历史](current-review.md)。本文 E01–E33 保留各实施时点的来源与验证历史；其中“待执行”“待用户决策”“等 #67”、Inbox/queue/导出/Goal 未迁移等表述不能覆盖后续迁移与补验。最新功能结论见 [matrix.md](matrix.md)，设备事实以 `docs/build-and-verify.md` 对应 issue 的最终补验为准。E34 的 `c68ccc0` 仅是旧快照，不能继续用作当前结论。
 
 ## 检查身份与复现
 

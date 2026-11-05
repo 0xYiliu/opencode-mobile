@@ -6,6 +6,21 @@
 
 Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:web`、`bun run copy:web-dist`；vendor 修改按需执行 `bun run verify:closure`。Android 使用已配置的 SDK 与本地 Gradle 发行版运行 `gradle -p android :app:assembleDebug`，相关单测按改动选择。最近清理轮的实际 Gradle 路径与构建结果见下节。仓库未提供 `android/gradlew`，不要直接照抄历史 wrapper 命令。安装后还须按本次验收核对资源与实际交互；构建成功不代表设备验收通过。
 
+### E35 发布规划事实校准（2026-11-06；仅文档）
+
+- 检查基线 `740ce386cd74569afc11722182247092b0b6390a`；工作树 `/home/peterhan/worktrees/opencode-mobile/docs--221-release-plan`，分支 `docs/221-release-plan`；固定上游 `3ebcf9a32c7b28f658cfee80775448929361727a`，从 git 对象比较 `vendor/upstream`。完整核实表与执行卡见 [E35](alignment/windows-desktop/v2.2.1/current-review.md)，E34 保留历史但不得用作当前结论。
+- Inbox/titlebar、queue+server/session 归属保护、composer/media 与 fork/revert、export 的 `mediaRefs: false`、Goal ComposerPill、backgroundActivity 消费、notification、voice-delegation 已迁入；S10 categories/commentary 与 compact/quiet 预设亦已更新。palette/session-search 仅 catalog 兼容差异。
+- 当前源码剩余：home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份、W18 子能力 usage.view、文件 stream HEAD/watch/unwatch/重连订阅，以及版本同步（Android `0.1.0` / code `1`、mobile app `0.1.0`、vendor app `2.1.4`）。Settings 已迁入部分继续补真实运行验收。
+- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节 65 active / 0 deferred 的历史重放 PASS 不能作为发布通过。
+- 用户已授权先文档、后总 Issue/详细子 Issue/并行首批；已创建 [总任务 #139](https://github.com/0xYiliu/opencode-mobile/issues/139) 和 #140–#149 十个子项，API 回读确认全部正文、10 条原生子关系、26 条 blocked-by 与规划一致且无依赖环。首批 #140/#141/#143，完整分工回填 [矩阵](alignment/windows-desktop/v2.2.1/matrix.md)，实时状态以 GitHub 为准。子 Issue 边界经独立检查和定向复审通过，补齐 W12 压缩验收、明确纯验收零源码/零补丁，不新增功能完成声明。
+
+### PR #135 最终交付补录（2026-11-06 读取 GitHub；设备证据为既有轮次）
+
+- [PR #135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已 **MERGED**；最终修复提交 `813e68d`，GitHub merge commit `bbd0b488efb5a654ce55cbde30661d5287bc4381`。正文和较早评论的 Draft/待安装状态、旧 APK 仅为历史。
+- 最终 APK SHA-256：`9e4a4f7c3ba01377ed649edf052c83eceba8d052c2a68ade77d0967c72002fa6`；既有 MatePad 安装和活动资源身份匹配，Agent 用户确认正常。最终记录复用清理后的 frozen install、Web build/copy、Gradle assemble 成功证据，不声称本轮重建。
+- Details 实际可见：**MCP 2 行、Skills 10 行、Plugins/LSP 空态**；pane opacity=1、非零矩形/触摸命中、切换后旧面 hidden/inert、关闭 Details 关闭全部 flyouts 已通过。设备局部证据 `/tmp/opencode/extensions-145-evidence.json`；以 PR 最终评论为持久记录，不以早期仅 aria-expanded 的检查替代可见性验收。
+- **未验收**：整体消息列宽度、排版密度、Composer 尺寸、工具卡片截图差异、完整竖屏键盘。未执行模型/变体选择、服务启停、授权、发消息或远端任务动作；不能扩大为完整任务/Settings/生命周期通过。
+
 ### 全量补丁语义身份迁移（2026-11-05；实施验证及独立复审通过）
 
 - 执行卡：目标为全部历史移动 patch ID/文件名及文档/执行引用迁移；基准 `main@b45e180`，目录 `/home/peterhan/repository/opencode-mobile`。用户授权覆盖旧“历史名称保留”方案；当前映射 65 项、64 文件改名、65 active/0 deferred。
