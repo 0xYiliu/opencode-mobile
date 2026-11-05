@@ -353,6 +353,10 @@ let mhFiles = 0
   // Issue #67: the app/src specifier graph moved to @opencode/plugin/gui* + gui-plugins/renderer.
   // Measured (gui-plugins-api-migration tree): plugin/gui x33, /builtin x9, /host x16, /browser x1, /file x1,
   // /main x1, /review x1, /updater x1, gui-plugins/renderer x2; main-process entries zero.
+  // Issue #141 drift repair (new-fact registration): commits after the last
+  // probe refresh added plugin/gui x4 (session shell), /builtin x1 (mobile
+  // ssh) and the test-only gui-plugins/terminal import (desktop-menu.test.ts);
+  // main-process entries stay zero.
   const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\(|import\()\s*["']@opencode\/(plugin\/gui[^"']*|gui-plugins\/?[^"']*)["']/g
   const specifiers = new Map<string, number>([
     ["plugin/gui", 0],
@@ -365,6 +369,7 @@ let mhFiles = 0
     ["plugin/gui/updater", 0],
     ["gui-plugins", 0],
     ["gui-plugins/renderer", 0],
+    ["gui-plugins/terminal", 0],
   ])
   let appSrcFiles = 0
   for (const rel of await srcFiles(`${APP}src/`)) {
@@ -382,8 +387,8 @@ let mhFiles = 0
   }
   if (appSrcFiles < 300) fail(`3: app/src scan implausibly small (${appSrcFiles} files)`)
   const expectSpecifiers: [string, number][] = [
-    ["plugin/gui", 33],
-    ["plugin/gui/builtin", 9],
+    ["plugin/gui", 37],
+    ["plugin/gui/builtin", 10],
     ["plugin/gui/host", 16],
     ["plugin/gui/browser", 1],
     ["plugin/gui/file", 1],
@@ -392,6 +397,7 @@ let mhFiles = 0
     ["plugin/gui/updater", 1],
     ["gui-plugins", 0],
     ["gui-plugins/renderer", 2],
+    ["gui-plugins/terminal", 1],
   ]
   for (const [key, count] of expectSpecifiers) {
     const got = specifiers.get(key) ?? -1
@@ -619,6 +625,12 @@ let mhFiles = 0
   // literals inside the call parens, ternary-wrapped forms included — NOT a
   // naive call-site regex) is the machine check that closes the class.
   const enKeyUniverse = new Set([...en.matchAll(/["']([A-Za-z0-9_.]+)["']\s*:/g)].map((m) => m[1]!))
+  // issue #141 (deliberate extension): the connect dialog also consumes shared
+  // ui-package keys (ui.question.custom.placeholder etc.) that the language
+  // base-merge resolves from packages/ui/src/i18n/en.ts — include that
+  // universe so the guard checks the dialog's full literal set.
+  const uiEn = await read(`vendor/upstream/packages/ui/src/i18n/en.ts`)
+  for (const match of uiEn.matchAll(/["']([A-Za-z0-9_.]+)["']\s*:/g)) enKeyUniverse.add(match[1]!)
   const languageTLiterals = (source: string): string[] => {
     const out: string[] = []
     const marker = "language.t("
@@ -643,7 +655,14 @@ let mhFiles = 0
             literal += source[j]!
             j++
           }
-          out.push(literal)
+          // issue #141 skip rule (same family as the `key === ""` rule): a
+          // quoted literal immediately followed by `?` is the CONDITION
+          // operand of a ternary key choice
+          // (`language.t(provider === "opencode-go" ? "a" : "b")`) — not a
+          // key; both ternary branches still end in `:` or `)` and are checked.
+          let peek = j + 1
+          while (peek < source.length && /\s/.test(source[peek]!)) peek++
+          if (source[peek] !== "?") out.push(literal)
           i = j + 1
           continue
         }
@@ -663,6 +682,10 @@ let mhFiles = 0
     // literals (notification/sound/interface rows) must exist in en.ts; the dynamic
     // `language.t(androidPermissionDescription())` form contributes no literal.
     `${APP}src/settings/notifications/notifications.tsx`,
+    // Issue #141 (deliberate extension): the redesigned connect dialog joins the
+    // guard — its 81 static language.t literals (picker groups, form wizard,
+    // command view, accounts) must exist in en.ts; tsc cannot catch a missing key.
+    `${APP}src/providers/connect/dialog.tsx`,
   ]) {
     const source = await read(rel)
     let checked = 0
@@ -833,7 +856,7 @@ console.log(
     "2: re-auth three-site chain (integration.get → oauth.connect → openExternal + interactiveForm anchors + failed-state terminal re-check verbatim), integration.get exactly 5, oauth.connect exactly 4 (source caliber, N2); " +
     "3: GUI-extension main-process zero-execution — web.ts no extensions field, Bridge/Ipc verbatim, zero electron imports, specifier set exactly {sdk:34, sdk/bridge:8, renderer:2, updater:1} zero main, DEV+desktop double gate + guard, anti-overclaim renderer/os/installed anchors, details drawer chain (order 50 kind drawer + MobileViewTabs), wsl os literal, 6 main: entries desktop-side; " +
     "4: data-face five events (mcp.status.changed verbatim push-back comment) + reconnect resync five directories + locationResource accessors + connection.ts zero capability calls (event.subscribe only); " +
-    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by settings-providers-models-extensions), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the five migrated files, manageConfig copy; " +
+    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by settings-providers-models-extensions), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the seven guarded files (issue #107 notifications, issue #141 connect dialog + ui i18n universe), manageConfig copy; " +
     "6: config write boundary — updateConfig stub verbatim, mcp.add/remove + plugin.check/update + session.skill ZERO (receiver-tolerant), generated client anchors (PluginCheck/PluginUpdate/McpAdd/McpRemove/SessionSkill), Mcp.Server no-echo schema + five statuses, LocalConfig cwd verbatim, mobile-hosts " +
     mhFiles +
     " files capability-face-free, protocol descriptions verbatim; " +

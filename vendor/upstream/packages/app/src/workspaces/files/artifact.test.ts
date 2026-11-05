@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { fileContentFromBytes, MAX_MEDIA_BYTES } from "./artifact"
+import { fileContentFromBytes, MAX_MEDIA_BYTES, streamedFileContent, streamedKinds } from "./artifact"
 import { approxBytes } from "./content-cache"
 
 describe("fileContentFromBytes", () => {
@@ -44,4 +44,29 @@ describe("fileContentFromBytes", () => {
   test("marks unknown binaries without keeping bytes", () => {
     expect(fileContentFromBytes("a.bin", new Uint8Array([1, 0, 2]))).toEqual({ type: "binary", content: "", size: 3 })
   })
+})
+
+describe("streamedFileContent", () => {
+  test("versions the URL from the HEAD's content-length and last-modified, with the artifact mime", () => {
+    const modified = "Mon, 02 Jan 2026 03:04:05 GMT"
+    const response = new Response(null, { headers: { "content-length": "1024", "last-modified": modified } })
+    const url = "http://127.0.0.1:4096/api/fs/read/a.png?location%5Bdirectory%5D=%2Fwork%2Fapp"
+    expect(streamedFileContent("a.png", url, response)).toEqual({
+      type: "binary",
+      content: "",
+      size: 1024,
+      mimeType: "image/png",
+      url: `${url}&v=1024-${Date.parse(modified)}`,
+    })
+  })
+
+  test("a HEAD without caching headers sizes zero and versions v=0-0", () => {
+    const content = streamedFileContent("clip.mp4", "http://127.0.0.1:4096/api/fs/read/clip.mp4", new Response(null))
+    expect(content).toMatchObject({ type: "binary", content: "", size: 0, mimeType: "video/mp4" })
+    expect(new URL(content.url!).searchParams.get("v")).toBe("0-0")
+  })
+})
+
+test("streamedKinds is exactly the image/audio/video set", () => {
+  expect([...streamedKinds].sort()).toEqual(["audio", "image", "video"])
 })

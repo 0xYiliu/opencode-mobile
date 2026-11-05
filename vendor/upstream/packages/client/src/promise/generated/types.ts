@@ -5601,6 +5601,20 @@ export type FileWriteInput = {
 
 export type FileWriteOutput = { location: LocationPublicRef; data: FileSystemWrite }
 
+export type FileWatchInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+
+export type FileWatchOutput = void
+
+export type FileUnwatchInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly path: string
+}
+
+export type FileUnwatchOutput = void
+
 export type CommandListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }

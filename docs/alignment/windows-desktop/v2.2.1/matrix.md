@@ -22,7 +22,7 @@
 
 | 类别 | 关键结论 | 关联 ID |
 | --- | --- | --- |
-| 明确的版本增量缺口 | home/new-session 与 location/dialog、pin-board/pin-sound 已随 issue #140 迁入（源码目标形，运行验收待 G19）；FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份（源码已落地，运行待验）；usage.view；文件 stream HEAD/watch/unwatch/重连订阅 | W01/W18/W25、S19/S21/S22/S24/S27–S30、W03/W16/M04 |
+| 明确的版本增量缺口 | home/new-session 与 location/dialog、pin-board/pin-sound 已随 issue #140 迁入、FU-1 provider 认证已随 #141 源码级收敛、文件 stream HEAD/watch/unwatch/重连订阅已随 #143 迁入（三者均为源码目标形，运行验收待设备门禁）；FU-2 模型选择器、FU-3 项目身份已随 issue #140 源码落地（运行待验）；usage.view | W01/W18/W25、S19/S21/S22/S24/S27–S30、W03/W16/M04 |
 | 已迁入、待完整运行验收 | Inbox/titlebar、queue+归属保护、media/fork/revert、导出 mediaRefs:false、Goal ComposerPill、backgroundActivity、notification/voice-delegation；palette/session-search 的 catalog 兼容差异已随 issue #140 退役（目标形直读 ctx.projects.list） | S04/S09–S11/S18、W05/W06/W08/W11/W13/W15/W22/W26 |
 | 已补齐的移动/版本能力 | gui-plugins 宿主、实验设置、减少动效/缩放、About、相机授权、原生外跳已有；Settings 崩溃、主机塌缩、管理器开关已修复并有局部真机复验 | S17/S38/S39/S41/S42、S27/S35/S43、N08/N11、D03 |
 | 最大验收缺口 | 当前集成版真实任务收发/权限/恢复双路由闭环，以及文件、Diff、PTY、Office、通知等运行门禁仍未全过 | W01–W20、M02–M05 |
@@ -52,9 +52,9 @@
 | S18 | Agent/权限/错误系统通知 | 已有代码及局部运行证据 | #107 设置页三开关、Android 状态/权限行及持久化局部通过；当前 notification.tsx 已逐字目标，含 hasRunningChild，不再归未迁移项。真实投递、点击路由、失败恢复及 allow/deny/revoke 权限矩阵仍待验；存活期间 best-effort，D05 边界不变 | E08/E35，G33；#107 历史局部验证 |
 | S19 | 任务声音选择、预览与界面音效 | **已实现（页面目标形已验；issue #107/settings-notifications-migration）** | 对齐；设置页随 #107 收敛目标形：三类声音 Select + **Interface 声音行**（字段+Switch+持久化+搜索行恢复——播放消费者随 issue #140 迁入：new-session wordmark/PinBoard/pin-sound 消费族已在 vendored 树，运行期声音呈现归 G19/G33）；45 音资源双侧同树 hash（26 emitted + 19 内联，三默认音内联）；sound.ts 随目标收敛 3 个 export（零消费者）；.145 设备 QA：选择持久化跨重启 + 静音（None→零 `new Audio` 构造）+ **播放路径机证**（`Audio.prototype.play` promise resolution：emitted `alert-01` + 内联 data-URL 双形态；emitted 文件 loads-phase fetch 200）+ logcat AudioTrack 归因 PASS——**人耳可听性与 WebView 后台音频不可验**（无声学通路，如实登记），不能写已全部可听 | E02/E08；G33③；settings-notifications-migration；#107 |
 | S20 | 快捷键搜索、修改、冲突与恢复 | 已有代码及局部运行证据 | #108 Shortcuts、目录/执行核心及键位迁移已迁入；页面、搜索、捕获开合、Unbind 持久化、Reset 和旧 ID 迁移有设备记录。当前 palette/session-search 已目标形加 catalog 兼容，不再列整族未迁移；冲突反馈、捕获完成、实际命令触发仍缺外接键盘验收，CDP 合成按键不作替代 | E02/E11/E35，G34；#108 历史局部验证 |
-| S21 | 供应商列表、来源与连接/断开 | **已实现（运行期部分验证；issue #105/settings-providers-models-extensions）** | providers.tsx 目标逐字（headerAction 切换槽、`providerID === CONSOLE_INTEGRATION` 目标判定）；.145 设备 QA：页面目标形渲染 + 服务器切换槽双向切换 + View all→连接对话框（搜索 + Other/Custom 入口）PASS，三类 SSH 失败面如实呈现；目录行/连接链运行证据 BLOCKED（三远端主机不可达/服务下线，见 #105 段）；custom provider 保存 stub 保持既有上游边界；**剩余差异=连接对话框族目标重设计（FU-1，登记为 Milestone 1 后续工作：controller 143 行增量/dialog 重设计/dialog.provider.* 键族）** | E04，G25；settings-providers-models-extensions；#105 |
-| S22 | 供应商 API key / OAuth | **已实现（运行期部分验证；issue #105）** | 服务端 attempt/轮询/取消/过期/失败恢复在当前对话框形**全部可达**（pin controller `oauth.cancel` 两处/complete/failed/expired 分支/statusFailed retry/`onCleanup`——verify-provider-models 组 3 与 providers-models.md 状态矩阵钉定）；真实授权链 BLOCKED（缺凭据，忠实登记）；**剩余差异=FU-1 重设计自身的增量（command 认证方法 UI、Console/Go 拆分、方法排序）在 #105 验收面之外，归 FU-1（Milestone 1 后续工作）** | E04/E33，G25；#105 |
-| S23 | 供应商多账号管理 | 已有代码（#105/settings-providers-models-extensions 零上游增量） | account-actions.ts/accounts.ts/account-name.tsx **零目标 delta、逐字复用**（AGENTS.md 复用条款）；逐操作与 Console settle 轮询真账号验证 BLOCKED（缺凭据） | E04，G25；#105 复核 |
+| S21 | 供应商列表、来源与连接/断开 | **已实现（源码级收敛 v2.2.1；运行期待设备验证；issue #105 + issue #141/provider-connect-flow-redesign）** | providers.tsx 目标逐字（headerAction 切换槽、`providerID === CONSOLE_INTEGRATION` 目标判定）；.145 设备 QA（#105）：页面目标形渲染 + 服务器切换槽双向切换 + View all→连接对话框 PASS，三类 SSH 失败面如实呈现（Other/Custom 入口已随 #141 目标形移除）；**#141 连接对话框族已收敛目标形**（controller 553→628 + dialog 1617→1813 目标逐字、四分组 picker、逐字段向导、CommandView、credentials 三件删除——verify:closure 66/66 + connect-methods 单测 + 探针 rc=0）；连接链/目录行运行证据 BLOCKED（#105 三远端主机不可达 + #141 无设备在场，见 #105 段与 providers-models.md 门禁段） | E04，G25；settings-providers-models-extensions；provider-connect-flow-redesign；#105；#141 |
+| S22 | 供应商 API key / OAuth | **已实现（源码级收敛 v2.2.1；运行期待设备验证；issue #105 + #141）** | attempt/轮询/取消/过期/失败恢复全链在目标形**全部可达**（oauth 与 command 双链：`oauth.cancel`/`command.cancel` 各两处、complete/failed/expired 分支、statusFailed retry、`onCleanup`、command 500ms status 轮询 + CommandView 输出流——verify-provider-models 组 3 修订钉定 + connect-methods.test.ts 排序/表单默认值行为断言）；**Console/Go 拆分落地**（CONSOLE_PROVIDERS/consoleIntegration/keyProvider 删除，Go 用自有方法，方法排序 = browser/command→key，目标逐字）；真实授权链（key/OAuth/command 真实凭据）BLOCKED（#105 缺凭据 + #141 无设备，忠实登记，不模拟成功） | E04/E33，G25；settings-providers-models-extensions；provider-connect-flow-redesign；#105；#141 |
+| S23 | 供应商多账号管理 | 已有代码（#105/settings-providers-models-extensions 零上游增量；#141 复核零触碰） | account-actions.ts/accounts.ts/account-name.tsx **零目标 delta、逐字复用**（AGENTS.md 复用条款；#141 连接对话框侧账号面随目标形更新：面包屑/hover-reveal/selectAccount/remove-last-disconnects/addAccount 去 Go 特例——#141 补丁 targets 零含 settings/providers 三件）；逐操作与 Console settle 轮询真账号验证 BLOCKED（缺凭据+无设备） | E04，G25；#105 复核；#141 复核 |
 | S24 | 模型搜索、分组与显示/隐藏 | **已实现（运行期部分验证；issue #105/settings-providers-models-extensions）** | settings/models.tsx 目标逐字（6 行增量：headerAction/插槽目标原生），与选择器 pin 形**共用 `useModels`**（现形一致性由共享控制器承载）；目录同步 `syncWhileBooting` 重试（12×1s–5s、service-unavailable 门）落地；.145 QA：Models 页目标形 + 搜索框 + 空态 PASS，分组/可见性切换/重启持久化 BLOCKED（远端服务下线，目录空）；**剩余差异=选择器族目标形（FU-2，登记为 Milestone 1 后续工作：select-dialog/details/manage/unpaid/provider-group/search/css/models.test）** | E04，G25；settings-providers-models-extensions；#105 |
 | S25 | MCP 状态、启停、认证和错误 | **已实现（运行期部分验证；issue #105/settings-providers-models-extensions）** | extensions.tsx MCP 行目标形（数据层 sync/list、`mcp-status-dot[data-status]` 状态点、failed→View error 按钮（`DialogMcp`）、needs_auth→Sign in 按钮、显式态 mutate、busy 门）+ mcp-dialog 目标形（`DialogMcp {directory, server?}`）+ mcp.ts 目标增量（pin `api.mcp.*` 命名单 hunk 保留，线等价——目标客户端自身保 deprecated 别名同路径）；.145 QA：MCPs 子 tab 渲染 PASS；行面（本地 stdio 配置的连接/启停/View error/retry）BLOCKED（远端 opencode 服务全部下线）；真实 MCP OAuth 重认证回流 BLOCKED（需真实服务，忠实登记） | E04/E33，G26；settings-providers-models-extensions；#105 |
 | S26 | 服务端 Plugins / Skills 列表 | **已实现（运行期部分验证；issue #105/settings-providers-models-extensions）** | plugins tab → `<ExtensionPlugins>` 目标新文件（`own` 门=桌面自有服务器才挂控制面；fallback=纯名称行，mobile/web 恒 fallback）+ Skills 只读行 + 「How to add skills」外链；.145 QA：Plugins/Skills 子 tab 渲染、空态可读、外链在位 PASS；非空列表呈现 BLOCKED（远端服务下线）；与 #26 手机 GUI 管理器的区分保持（settings extensions tab=远程服务端面 ≠ gui-extensions tab=第一方管理面） | E04/E09；settings-providers-models-extensions；#105 |
@@ -82,7 +82,7 @@
 | --- | --- | --- | --- | --- |
 | W01 | 项目/位置选择、创建并进入会话 | 已有代码（源码目标形；issue #140） | home/new-session/location/dialog、pin-board/pin-sound/brick-breaker 已迁入目标形；FU-3 registry usedProjectIDs/lastProjectID + ctx.projects 新面已落地（迁移轮默认落点缺口见台账 issue #140 段）。#61 既有会话历史证据不覆盖新建/完整生命周期与当前双路由；运行验收归 G19 | E03/E18/E35；issue #140；G19 |
 | W02 | 发送、流式输出、权限交互 | 已有代码 | 对齐；工作台/审批链已存在，真实模型发送→流式→工具/权限闭环未完成 | E03，G20/G21 |
-| W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；workspaces/files/model.tsx 缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅；触屏选择/评论、真实仓库、文件刷新与失败恢复待验 | E05/E35，G22/G23 |
+| W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；#143 迁入目标 stream HEAD（fileStreamUrl+HEAD 失败回退下载）、watch/unwatch 与 reconnect 重订阅（files-stream-watch.patch，mobilePatches 0-based 58；typecheck 净 −2、探针组 9 过；v2.2.1 服务 watch 路由实测存在）；触屏选择/评论、真实仓库、文件刷新/订阅生命周期与失败恢复待真机验（#143 轮设备 adb 不可达 BLOCKED） | E05/E35，G22/G23 |
 | W04 | 多终端创建、显示、关闭 | 已有代码 | 适配；PTY/重连链已有；WebView WASM、IME/尺寸、控制键软输入与三远端 OS 验收未完成 | E05，G24；不能由旧 dock 文档推定当前 side panel 运行通过 |
 | W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；聚合、分组与活动实际呈现待完整验收 | E03/E19/E35 |
 | W06 | 附件选择与上传 | 已有代码 | Android FilesBridge、上传、composer/media.ts 与队列/fork/revert 媒体保留链已有；真实上传、取消/失败与跨服务归属待验 | E06/E35，G27 |
@@ -95,11 +95,11 @@
 | W13 | 导出会话、复制 ID | 已有代码 | export.ts 逐字目标，含两处 `mediaRefs: false`；导出→Platform.saveFile→FilesBridge→SAF 已接通；真实保存/产物完整性、取消/失败仍待验，桥降级静默取消 | E03/E06/E35，G27 |
 | W14 | 问题、多步回答与结构化表单 | 已有代码 | 适配；请求契约已有，逐类目标差异及真实并发/过期响应待验 | E03，G21 |
 | W15 | 后续消息和队列 | 已有代码 | 目标串行、乐观编辑/重排、失败草稿恢复、已接纳不重发与媒体 pin 链已迁入；额外 server+session mutation scope、capture/current 保护归属；真实竞态及切服务/会话恢复待验 | E35；源码存在不等于运行通过 |
-| W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验 | E05，G22 |
+| W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验（#143 轮无代码变更；设备 adb 不可达，真机核对 BLOCKED，需用户授权触摸选区→真实模型读取） | E05，G22 |
 | W17 | Agent、模型与变体切换 | 部分实现 | #135 最终 Agent 用户确认正常；模型/变体开合有局部记录，实际切换未全验。FU-2 select-dialog 旧形、details/manage.css 缺失，继续迁移选择器族 | E04/E35；#135 最终记录 |
 | W18 | 用量与上下文面板 | 部分实现 | context 已注册；明确子能力 **usage.view**：app/src/usage 缺失且 composer commands 未注册 usage.view，需迁移用量入口/数据/状态并验收；保留本 ID 不新增行 | E03/E23/E35 |
-| W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对 | E07，G28；不是计划在手机复制 Electron 浏览器 |
-| W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制 | E06/E33，G29 |
+| W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对（#143 轮无代码变更；设备 adb 不可达 BLOCKED） | E07，G28；不是计划在手机复制 Electron 浏览器 |
+| W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制（#143 轮无代码变更；设备 adb 不可达，G29 含 WebView 68 module-worker 结构性受限复现项 BLOCKED） | E06/E33，G29 |
 | W21 | /btw 侧问 | 已有代码 | 适配；session-btw-narrow-entry 放宽窄屏命令门并加 More 入口，呈最近 chat；不自动跳面，窄屏无 close 通道；真实会话与 <768px QA 阻塞 | E26/E34；不是上游本来已有的窄屏入口 |
 | W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；真实服务往返、菜单与降级待验 | E22/E23 历史；E35 当前 |
 | W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验 | E22/E23/E34 |
@@ -155,7 +155,7 @@
 | 工作单元 | 关联功能/明确缺口 | 最终集成/关闭前置 | 可提前执行 |
 | --- | --- | --- | --- |
 | [#140 Home/新建会话与项目状态](https://github.com/0xYiliu/opencode-mobile/issues/140) | S06/S19/S27–S34；W01/W08/W09/W10/W25；FU-3 | 无 | **首批开发** |
-| [#141 供应商认证](https://github.com/0xYiliu/opencode-mobile/issues/141) | S21–S23；W17；FU-1 | 无 | **首批开发** |
+| [#141 供应商认证](https://github.com/0xYiliu/opencode-mobile/issues/141) | S21–S23；W17；FU-1 | 无 | **实施完成（源码级收敛 + 工程门禁全过；真机 QA BLOCKED 无设备，缺凭据路径忠实登记）**——分支 feat/221-provider-auth，补丁 provider-connect-flow-redesign（第 66），证据见 build-and-verify.md #141 段 |
 | [#142 模型选择与用量](https://github.com/0xYiliu/opencode-mobile/issues/142) | S24/W17/W18/W26；FU-2、usage.view | #141 | 只读核对目标接口 |
 | [#143 文件读取/订阅与内容查看](https://github.com/0xYiliu/opencode-mobile/issues/143) | W03/W16/W19/W20；stream/watch、Office、浏览器结果 | 无 | **首批开发** |
 | [#144 Settings 整体对照](https://github.com/0xYiliu/opencode-mobile/issues/144) | S01–S43 界面；N12；搜索/状态/偏好 | #140/#141/#142 | 参考采集与历史证据适用性核对 |
