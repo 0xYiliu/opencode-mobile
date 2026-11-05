@@ -4,6 +4,8 @@
 
 ## 文档索引
 
+本索引描述设计覆盖范围；下表及“事实状态图例”后的长段基线保留各 issue 当时的实现/验证快照，不作为当前进度表。当前实现、后续补验和剩余缺口以[功能矩阵](../alignment/windows-desktop/v2.2.1/matrix.md)及其引用的[构建与验证证据](../build-and-verify.md)为准。例如 #61 已有 SSH 信任、认证和隧道主链证据，不能由早期“未实现”或 G36 BLOCKED 快照推定当前仍未实施，也不能由历史局部通过推定当前全链已验收。
+
 | 文档 | 覆盖范围 |
 | --- | --- |
 | [architecture.md](architecture.md) | 架构视角：设计单元清单、结构图（含 mobile-hosts 层与 vault v2 AndroidX listener）、信任边界（credentialRef/vault origin+frame gate/其他 channel bridge event.origin 平台证据/host-key stub/身份键）、CORS 差异、补丁剥离面与运行时接缝（M-001…M-032）、流转矩阵 |
