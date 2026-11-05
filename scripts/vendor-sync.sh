@@ -26,6 +26,9 @@ command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
 [ -d "$CACHE/.git" ] || { echo "upstream cache not found at $CACHE" >&2; exit 1; }
 [ -f "$MANIFEST" ] || { echo "vendor manifest not found at $MANIFEST" >&2; exit 1; }
 
+# Fail on invalid registration before deleting or rebuilding any vendored source.
+python3 "$ROOT/scripts/mobile-patches.py"
+
 PIN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["upstream"]["pin"])' "$MANIFEST")"
 REV="${1:-$PIN}"
 FULL="$(git -C "$CACHE" rev-parse --verify "$REV^{commit}")"

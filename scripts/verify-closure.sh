@@ -18,6 +18,8 @@ DEST="$ROOT/vendor/upstream"
 MANIFEST="$DEST/vendor-manifest.json"
 CACHE="${OPENCODE_UPSTREAM_CACHE:-$HOME/.cache/opencode-upstream}"
 
+python3 "$ROOT/scripts/mobile-patches.py"
+
 PIN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["upstream"]["pin"])' "$MANIFEST")"
 PACKAGES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["packages"]))' "$MANIFEST")"
 PATCH_CREATED="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1])).get("patchCreatedPackages", [])))' "$MANIFEST")"
@@ -87,6 +89,45 @@ else
   done
   SOURCES_NOTE="$SOURCES_NOTE)"
   echo "V3(a) OK: vendor packages tree == pin $PIN + packageSources + registered mobile patches, byte-identical $SOURCES_NOTE (install/build artifact dirs node_modules|dist|.vite|.turbo excluded)"
+fi
+
+# diff -r compares contents, not Git executable bits or symlink identity.
+if ! python3 - "$WORK/pristine" "$DEST" $TOPFILES <<'PY'
+import os
+from pathlib import Path
+import sys
+
+def modes(root):
+    result = {}
+    for directory, dirs, files in os.walk(root / "packages"):
+        dirs[:] = [d for d in dirs if d not in {"node_modules", "dist", ".vite", ".turbo"}]
+        for name in dirs[:] + files:
+            path = Path(directory) / name
+            if path.is_symlink():
+                result[path.relative_to(root).as_posix()] = ("symlink", os.readlink(path))
+                if name in dirs:
+                    dirs.remove(name)
+            elif path.is_file():
+                result[path.relative_to(root).as_posix()] = ("file", bool(path.stat().st_mode & 0o100))
+    for name in sys.argv[3:]:
+        path = root / name
+        if path.is_symlink():
+            result[name] = ("symlink", os.readlink(path))
+        elif path.is_file():
+            result[name] = ("file", bool(path.stat().st_mode & 0o100))
+        else:
+            result[name] = ("missing-or-not-file",)
+    return result
+
+expected, actual = map(modes, map(Path, sys.argv[1:3]))
+different = [p for p in sorted(expected.keys() | actual.keys()) if expected.get(p) != actual.get(p)]
+if different:
+    print("V3(a) FAIL: file types/executable bits/symlinks differ:", *different[:40], sep="\n")
+    sys.exit(1)
+print("V3(a) OK: file types, executable bits and symlinks match")
+PY
+then
+  status=1
 fi
 
 for f in $TOPFILES; do

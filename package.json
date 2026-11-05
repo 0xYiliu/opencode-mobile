@@ -7,6 +7,8 @@
   "scripts": {
     "vendor:sync": "bash scripts/vendor-sync.sh",
     "verify:closure": "bash scripts/verify-closure.sh",
+    "verify:patches": "python3 scripts/mobile-patches.py",
+    "patches:refresh": "python3 scripts/mobile-patches.py --refresh",
     "build:web": "bun run --cwd vendor/upstream/packages/app build",
     "copy:web-dist": "bash scripts/copy-web-dist.sh"
   },
