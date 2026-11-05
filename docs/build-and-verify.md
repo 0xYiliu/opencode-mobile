@@ -2868,7 +2868,7 @@ sweep 域 = scripts/verify-*.ts 全量（陈旧见证串形态：`49=49`/`39=39`
 | 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行 + 低置信审阅行集合与基线同族；新增/修改文件零命中 |
 | V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，dist 标记命中于新 dist） |
 | 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0；**dist 5617 files / 149,595,730 bytes**（上一次在册 manifest=3520/159,564,015——**增量主体为自该次构建以来 main 累积的 vendor 漂移**（当前 vendor 的 rolldown 分块形态，2691 map + 2926 非 map），非 #141 单独体量；#141 面 = connect 对话框/controller/键族入包）。dist 正例检索：`dialog.provider.connected`、`provider.connect.form.selectOne` 命中 `_assets/language-BHZZwYAy.js`，`provider-connect-command-output` 命中 `_assets/dialog-YBCpiy8B.js`；"Add account"/"Integrations" 新文案命中 language chunk。commands-menus/gui-plugins/notifications 三探针 dist 常量 **3520/159558361→5617/149595730** 同提交回填（issue #141 归因注释） |
-| Android | `ANDROID_HOME=$HOME/.android-sdk gradle-9.6.1 … :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 37s**；单测 **31 tests / 0 failures**（testDebugUnitTest XML 汇总）；APK SHA-256 **`b1117c40cabcdb015b5bae1957b30ecf4e63053a030dd42b883b676aafc3785e`** |
+| Android | `ANDROID_HOME=$HOME/.android-sdk gradle-9.6.1 … :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 37s**；单测 **31 tests / 0 failures**（worktree `android/app/build/test-results/testDebugUnitTest/` XML 汇总，8 文件）；APK **`021a315d5da0ed94a651abc4cda34d6182d5bf2a0e7cc070330264c7c8b07c48`**（`app-debug.apk`，**64,282,794 bytes**）。〔**r1 证据更正（评审 F-1，本提交）**：初版登记误为 `b1117c40…`——当时以相对路径取哈希，实际读到了主检出 2026-11-04 的陈旧 APK；现以绝对路径对 worktree 在盘产物实测，并重跑 `:app:assembleDebug` 复核（up-to-date，1 executed/35 up-to-date，产物字节与哈希不变，mtime 与首次构建一致）——登记值 = 在盘产物，构建身份链闭合〕 |
 
 ### 设备 QA
 
