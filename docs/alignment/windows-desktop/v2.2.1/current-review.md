@@ -1,4 +1,44 @@
-# 当前实现复核（E34，2026-11-01）
+# 当前实现复核（E35，2026-11-06）
+
+## E35 当前基线与执行卡
+
+- 目标：校准 v2.2.1 发布规划的源码事实与验收边界；固定上游 `3ebcf9a32c7b28f658cfee80775448929361727a`，从 `/home/peterhan/repository/opencode` 的 git 对象读取；本地共享源码均在 `vendor/upstream/`。
+- 工作目录：`/home/peterhan/worktrees/opencode-mobile/docs--221-release-plan`；分支 `docs/221-release-plan`；开工 base/HEAD `740ce386cd74569afc11722182247092b0b6390a`，开工干净。主代理远端查询确认 main 同值；dev 仍为 `c9339b240c3b295dbe02a9cff8844a2dbf593579`，不是当前集成基线。
+- 范围与授权：文档事实校准、总/子 Issue 与并行依赖安排；无运行代码修改、构建或设备操作。验收为固定来源比较、93 个稳定 ID 不变、本地相对链接、diff 和实际 GitHub 关系检查。文档 PR 不代表授权合并；运行等价性仍未全验。
+- 当前用户授权覆盖旧的不另建总任务安排；已创建总任务 [#139](https://github.com/0xYiliu/opencode-mobile/issues/139) 与子项 #140–#149，原生子关系 10 条、blocked-by 26 条已通过 API 回读核实。首批可并行开发 #140/#141/#143；其余准备工作与最终依赖见[矩阵](matrix.md)。任务边界经独立检查及定向复审通过；已补 W12 压缩验收并明确验收任务允许零源码/零补丁变更。
+- 全局 vendor pin 仍为 `b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43`，gui-plugins 包来源为目标 SHA，另有目标迁移补丁，不能凭全局 pin 判定未迁移。当前补丁为 **65 active / 0 deferred**；历史重放通过仅证明重放，不证明版本可发布。本轮未重跑。
+- 版本仍待同步：Android `versionName=0.1.0` / `versionCode=1`，mobile app `0.1.0`，vendored app `2.1.4`；目标为 `2.2.1`，远端服务版本另记。
+
+## E35 源码核实与真实剩余
+
+路径均相对 `vendor/upstream/packages/`；“逐字”指与固定目标字节相同，不代表实际可用或完整运行等价。
+
+| 关联 ID | 当前核实 | 剩余验收或迁移 |
+| --- | --- | --- |
+| S02/S20/W09/W26 | Settings 搜索已经迁移；`app/src/shell/commands/palette.ts`、`session-search.tsx` 为目标形加 `ctx.projects.catalog.list` 兼容 | 触摸入口、外接键盘、跨服务搜索与失败路径仍待完整验证，不能再列整族未迁移 |
+| S04/W05 | `app/src/shell/titlebar/inbox.tsx` 与 `inbox-model.ts` 逐字目标，`titlebar.tsx` 已 import/渲染 SidebarInbox | 聚合、分组、未读与跨服务实态待验；E19/E34 的 Side rail 结论仅属历史 |
+| S09/W06/W08/W11/W15 | queue 已迁入目标串行、乐观编辑/重排、失败草稿恢复与已接纳不重发链；额外以 server+session scope、capture/current 守卫保护归属；`app/src/composer/media.ts`、session fork/revert 的 `pinPromptMedia` 链已有 | 真服务竞态、切服务器/会话、附件与恢复端到端未全验 |
+| W13/N08 | `app/src/session/commands/export.ts` 逐字目标，两处 `mediaRefs: false` 已有；Android 保存桥链已有 | SAF 保存、取消/失败及产物完整性仍归 G27 |
+| W22 | `gui-plugins/src/goal/renderer.tsx` 逐字目标 ComposerPill；composer region 已消费 SessionPluginPills | Goal 往返、菜单与降级待运行验证，不再是旧 Panel 缺口 |
+| S10/S11 | `session-ui/src/timeline/detail.ts` 逐字目标，categories 已含 commentary，compact/quiet 的 subagents 为 separate；settings schema 已含 commentary；`session/composer/composer-lane.tsx` 已消费 backgroundActivity | 分类实际呈现、位置偏好、消息列宽度仍待验；旧“不采纳/消费文件不存在”结论失效 |
+| S18/W24 | `app/src/shell/notifications/notification.tsx`、`app/src/session/timeline/voice-delegation.ts` 逐字目标 | 通知真实投递/点击仍待验；交接解析已迁入不改变 ADR 0006 的语音通话暂缓决定 |
+| W01/S19/W25 | home/new-session 仍旧结构，目标 `location/dialog`、pin-board、pin-sound 缺失 | 按完整首页/新会话与位置流程迁移；界面音效消费者随之补齐 |
+| S21/S22 | FU-1：providers/connect/controller 仍为 key/oauth/external，无 command 认证，Console/Go 仍旧映射 | 目标连接对话框/认证方法与真实授权失败恢复 |
+| S24/W17 | FU-2：models/select-dialog 旧结构，details/manage.css 缺失 | 选择器目标结构、非空目录及模型/变体切换 |
+| W18 | context 面板已有；`app/src/usage` 缺失，composer commands 无 `usage.view` | usage.view 是 W18 的明确子能力，不新增矩阵 ID；需迁移入口、数据与状态 |
+| S27–S30/W01/W08 | FU-3：registry 仍目录型 projects/lastProject，未迁至 usedProjectIDs/lastProjectID | 项目身份/最近使用持久化迁移、导航和恢复 |
+| W03/W16/M04 | `app/src/workspaces/files/model.tsx` 缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅 | 文件刷新/订阅生命周期及真实切网恢复 |
+
+## E35 已有运行证据与发布边界
+
+- PR [#135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已合并；GitHub merge commit 为 `bbd0b488efb5a654ce55cbde30661d5287bc4381`，最终 Agent/Extensions 修复提交为 `813e68d`。PR 正文的 Draft、旧 APK 和较早评论不是最终状态。
+- 最终 MatePad APK SHA-256：`9e4a4f7c3ba01377ed649edf052c83eceba8d052c2a68ade77d0967c72002fa6`，安装与活动资源身份匹配；Agent 用户确认正常；MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见，切换 hidden/inert 及关闭通过。该证据是会话 Details 面，不自动覆盖 Settings 的启停/授权及所有失败恢复。
+- **仍未验收**：整体消息列宽度、排版密度、Composer 尺寸、工具卡片截图差异、完整竖屏键盘，以及当前集成版 SSH/直连真实任务、权限、恢复等完整门禁。Settings 主要已迁入，按具体运行缺口补验，不重建页面。
+- 本轮只读取源码与 PR 最终记录并发布任务安排，无新 build/APK/设备测试。最小核对结果：`git diff --check` 通过；矩阵 **93 个稳定 ID 无增删、无重复、顺序一致**；9 份修改文档 **273 个本地相对链接目标均存在**（未检查标题锚点/全部远程链接可达性；新建 Issue 正文和原生关系已 API 回读）。不借历史重放或局部设备 PASS 宣称发布完成。
+
+## E34 历史快照（2026-11-01，禁止作为当前结论）
+
+以下保留 E34 当时的原始记录。其“本轮”“当前”、缺文件与未迁移结论均只指 `c68ccc0`，已被上方 E35 与后续迁移覆盖；不作为当前待办、基线或优先级。历史检查数字亦不代表本轮检查。
 
 ## 比较身份与覆盖范围
 

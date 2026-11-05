@@ -2,13 +2,13 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-01**；Mobile 检查提交：**`c68ccc0c2541e4cf19be4befc706cb09fcce0690`**，本轮远端查询确认 main/dev 均为该提交。
+- 更新日期：**2026-11-06**；Mobile 检查提交：**`740ce386cd74569afc11722182247092b0b6390a`**，文档工作树 `docs/221-release-plan`；远端查询确认 main 同值，dev 仍为 `c9339b240c3b295dbe02a9cff8844a2dbf593579`，不能以 dev 代表当前集成进度。
 - 上游目标：Windows Desktop **v2.2.1**，`3ebcf9a32c7b28f658cfee80775448929361727a`。本轮沿用活跃版本，未切换至上游最新分支。
 - Vendor：全局 pin **`b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43`**，gui-plugins 单包来源为目标 `3ebcf9a…`，叠加移动补丁；**不是整套上游已升级到 v2.2.1**。
 - 架构：共享 Web UI + Kotlin 原生 WebView。已有 debug APK、MatePad 与模拟器局部运行记录；本次只核对源码和台账，没有新构建或设备测试。Windows v2.2.1 安装包尚未运行验证。
-- 本轮将长篇实施历史归回证据索引，保留全部稳定 ID；当前结论与历史限制的适用边界见 [E34 当前复核](current-review.md)。原始盘点 `cf1504d`、首次集成 `4c2ec43` 是历史来源，不再充当当前基线。
+- 保留全部 **93 个稳定 ID**；当前结论见 [E35 当前复核](current-review.md)，该页 E34 原文仅保留历史，不作为当前缺口。Android `0.1.0` / code `1`、mobile app `0.1.0`、vendor app `2.1.4` 尚未同步目标版本。65 active / 0 deferred 的历史重放通过不等于发布完成。
 
-[推进规则](../../workflow.md) · [Windows 源码及验收映射](baseline.md#source-map) · [E01–E33 历史实现证据](implementation.md) · [E34 当前源码/台账复核](current-review.md) · [运行验证台账](../../../build-and-verify.md)
+[推进规则](../../workflow.md) · [Windows 源码及验收映射](baseline.md#source-map) · [E01–E33 历史实现证据](implementation.md) · [E35 当前复核 / E34 历史](current-review.md) · [运行验证台账](../../../build-and-verify.md)
 
 ## 状态定义
 
@@ -22,8 +22,8 @@
 
 | 类别 | 关键结论 | 关联 ID |
 | --- | --- | --- |
-| 明确的版本增量缺口 | Inbox 只有设置面、仍呈 Side rail；queue 仍为 pin 实现，缺目标乐观编辑/重排、失败恢复及媒体保留链；导出未带目标 `mediaRefs: false` | S04/W05、S09/W15、W13 |
-| 已有能力的呈现差异 | 搜索保留旧组件交互；Goal 保留侧面板而非 ComposerPill；Sources、btw 有第一方窄屏适配 | S02、W21–W23 |
+| 明确的版本增量缺口 | home/new-session 与 location/dialog、pin-board/pin-sound；FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份；usage.view；文件 stream HEAD/watch/unwatch/重连订阅 | W01/W18/W25、S19/S21/S22/S24/S27–S30、W03/W16/M04 |
+| 已迁入、待完整运行验收 | Inbox/titlebar、queue+归属保护、media/fork/revert、导出 mediaRefs:false、Goal ComposerPill、backgroundActivity、notification/voice-delegation；palette/session-search 仅 catalog 兼容差异 | S04/S09–S11/S18、W05/W06/W08/W11/W13/W15/W22/W26 |
 | 已补齐的移动/版本能力 | gui-plugins 宿主、实验设置、减少动效/缩放、About、相机授权、原生外跳已有；Settings 崩溃、主机塌缩、管理器开关已修复并有局部真机复验 | S17/S38/S39/S41/S42、S27/S35/S43、N08/N11、D03 |
 | 最大验收缺口 | 当前集成版真实任务收发/权限/恢复双路由闭环，以及文件、Diff、PTY、Office、通知等运行门禁仍未全过 | W01–W20、M02–M05 |
 | 已确认范围差异 | 手机不托管本地服务/浏览器、无第三方 GUI 完整运行、无进程死亡通知；APK 更新/语音暂缓，外链唤起不实施 | N01–N03/N06/N07/N09、D01–D05、S40/W24 |
@@ -35,23 +35,23 @@
 | S01 | 设置导航、进入/退出与返回上下文 | 已实现（未验证） | 对齐；**框架已迁移至 v2.2.1（issue #101/settings-framework-migration/settings-framework-mobile）**：单一 RootSettings 布局 + CollapsedSidebarToggleSpace 48px 返回行 + view 模型（root{server?}/project，pin 嵌套 server 视图移除）+ settingsViewRedirect 出口表；返回链（search.back→clear→surface.back→common.goBack）与键盘避让设备冒烟 PASS（DBY2-AL00）；宽窄导航一致性的 Desktop 对照仍 BLOCKED（无 Windows 参考端） | E13/E31/E34；#90 补验 Settings 可达 PASS |
 | S02 | 搜索设置并定位设置行 | 已实现（未验证） | 对齐；**目标 SearchList/SearchHighlight/Slash 分组搜索已迁移（issue #101/settings-framework-migration）**，聚焦定位（searchActivation→revealSettingsSearch，anchor 缺失 no-op 不崩）与命令面板桥（≤5 条 setting 行）；mobile(M-044) 剪除的**三悬挂目录行已全部恢复**：background-activity/timeline-width 随 #103/settings-general-experimental-migration 连同 general.tsx 页 anchor 恢复（设备实测 capsule/timeline width 命中→定位→行可见）；`settings-sounds-interface` 随 **issue #107/settings-notifications-migration** 连同 notifications 页真实 anchor 恢复（catalog 行 + `data-action="settings-sounds-interface"` Switch 双正锚；search-catalog.ts 的 settings-framework-mobile 剪除注记随之移除，route.ts 自有 settings-framework-mobile 注记归 #109；设备实测 `interface`/`sound` 查询命中「Interface｜Sound effects」→ 定位真实行在视口内）；#90 回归不复现（源断言+设备实测）；设备冒烟 font→4 结果含 Zoom→定位→返回 PASS；分组/聚焦 Desktop 对照 BLOCKED | E02/E31/E34；#90 搜索命中 PASS；#103 搜索复验 PASS |
 | S03 | 设置中的服务器选择与数据隔离 | 已实现（未验证） | 对齐；**server scope 单一事实来源已迁移（issue #101/settings-framework-migration/settings-framework-mobile）**：surface.server() 解析序（视图 server→source→本地连接→第一台）、selectServer/openServers、目标 SettingsServerSwitcher（≤1 不渲染，RadioGroup+健康点+Manage 出口）与 SettingsServerUnavailable（Retry/Edit 出口）；设备冒烟：三服务器 switcher 换选保页 PASS（authorized-bastion→bastion-main）；**真服务隔离（项目列表归属核对）仍待真服务验证**；Unavailable 整页态未在冒烟中捕获（服务器停留 Loading 态）——结构+单测锁定，实态归 G 门禁 | E02/E04，G13 |
-| S04 | Top / Side / Inbox 模式 | 部分实现 | **设置面已目标形（issue #103/settings-general-experimental-migration）**：InterfaceModeSetting 三模式行随 general.tsx 目标逐字迁移（设置与持久化已有）；Inbox 选择后的实际呈现仍是 Side rail，缺分组/跨服务聚合/相应徽标（W05 保持）——不以设置面存在推定模式体验对齐 | E19/E34；MatePad 宽屏实态已验，<768px 未验；#103 设备逐项持久化见台账 |
+| S04 | Top / Side / Inbox 模式 | 已有代码 | 设置面已有；Inbox 两文件逐字目标且 titlebar 已接入，分组/聚合/徽标不再是未迁移缺口；当前各模式与窄屏实态未全验，旧 Side rail 观察仅属历史 | E19/E34 历史；E35 当前源码 |
 | S05 | 语言切换 | 已实现（未验证） | 对齐；#103 新增 13 键 en-only（backgroundActivity 6/width 5/sounds.interface 2），回退英文为上游 v2.2.1 实态，不能宣称全量中文覆盖；被移除的 terminalPlacement 4 键只清 en 与 9 个 typed locale 字典（其余 53 个无类型 locale 的滞留键惰性保留） | E02/E20–E23 |
 | S06 | 默认工作区目的地 | 已实现（未验证） | 对齐；WorkspaceDestinationSetting 行经 #103 逐字核对=目标形（默认 last-used、三选项序）；远程目录执行语义仍归 G 运行面 | E02/E03 |
 | S07 | 默认自动批准权限 | 已实现（未验证） | 对齐；AutoApprovePermissionsSetting 行经 #103 逐字核对=目标形，**默认关（opt-in）保持**；代答执行面（once/always 落盘/批量扩散）归属 permission-requests 单元契约，真服务审批门禁归 G21 | E02/E03，G21 |
 | S08 | 显示自定义 Agent | 已实现（未验证） | 对齐；行经 #103 逐字核对=目标形（默认 false），开关/能力契约已有，新增行为待核 | E02/E04 |
-| S09 | 后续消息 queue / steer | 部分实现 | **设置行对齐（issue #103/settings-general-experimental-migration）**：FollowUpBehaviorSetting 行随 general.tsx 目标逐字（默认 steer、mod+enter 描述）；执行链仍为旧 queue（W15 保持）——设置面通过不关闭执行链差距 | E03/E34 |
-| S10 | 时间线详情分类与预设 | 已实现（未验证） | **timeline-detail 控件零增量复用（pin=target 逐字节）**；预设/枚举呈现链明确登记为 session-ui 后续：`timelineCategories` 目标形增 commentary、compact/quiet 预设 subagents grouped→separate——对应 `commentary` placement 槽与 `settings.timeline.category.commentary` 键/新文案**不采纳**（settings-general-experimental-migration 登记，避免 copy 与 vendored 预设行为不符）；目标写出的含 commentary 槽文档 decode 丢槽；「类别枚举与实际呈现尚未逐项证明等价」保持 | E02/E03 |
-| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已实现（未验证） | **字段+行+搜索行+宽度消费 token 已落地（issue #103/settings-general-experimental-migration）**：backgroundActivity（默认 left）/timelineWidth（默认 comfortable）schema+defaults+store API+设置行+恢复的搜索目录行；`dataset.timelineWidth` → `:root[data-timeline-width=…]` → `--container-session`（488/744/1000px）→ 7 个既有 `md:max-w-session` 消费点（≥768px 断点域）；**逐项实测口径**（不再以设置页存在推定等价）：宽度三档实态/重启保持为 #103 设备 QA 项；backgroundActivity 的 composer 呈现消费不接（目标消费文件在 vendored 树不存在，W05 相邻面登记）；每轮 Diff（turnDiffs）行目标形已有 | E02/E03；#103 设备宽度三档记录 |
+| S09 | 后续消息 queue / steer | 已有代码 | 设置行与目标 queue 执行链均已迁入，并增加 server/session 归属保护；真服务竞态与失败恢复待验，见 W15 | E03/E35 |
+| S10 | 时间线详情分类与预设 | 已有代码 | timeline/detail.ts 逐字目标，categories 已含 commentary，compact/quiet 的 subagents 已为 separate，settings schema 已含 commentary；旧“不采纳/解码丢槽”结论失效。类别与实际呈现仍未逐项运行验收 | E02/E03/E35 |
+| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已有代码及局部运行证据 | 设置/schema/宽度 token 已有；composer-lane 已消费 backgroundActivity，region 已接入。#103 偏好与 token 局部验证保留；消息列三档实际宽度、活动位置、每轮 Diff 与重启组合仍需当前构建验收 | E02/E03/E35；#103 历史局部记录；#135 整体列宽未验收 |
 | S12 | 捏合缩放 | 已有代码（平台默认态） | 适配；保持 WebView 默认，不移植 desktop-only 捏合开关；MatePad 主页捏合/双击无缩放且无布局破损；#102 服务器页迁移未触及捏合行（General 页逐字保留）；#103 General 页目标迁移后捏合行与 desktop 条件门在目标形中原样保留（桌面平台条件可见）；#104 换壳复验：新设置壳下 General 页 data-action 全集零 pinch/zoom 行（desktop 门控行 mobile 不渲染）+ viewport meta 无 user-scalable 负锚复验 + 工作台 zoom=2 交叉场景双击观察（visualViewport.scale 恒 1、零横向溢出、零布局破损——双指捏合注入未执行，#74 WebView 默认裁定与代码负锚为准） | E30；界面放大另见 S42 |
 | S13 | 窄屏标题栏顶部/底部 | 已实现（未验证） | **设置面无增量**（mobile() 标题栏行目标原生含于 settings-general-experimental-migration 迁移的 general.tsx）；返回键、安全区、软键盘及 <768px 实态仍需联验——设备 DPR 2.25 下最小原生 CSS 宽 ≈818px>768，物理达不到窄断点；CDP `Emulation.setDeviceMetricsOverride` 路径可用则实测，否则 BLOCKED 并记录 DPR 依据 | E02/E32；#103 按可做/阻塞口径记录 |
 | S14 | Diff 换行 | 已有代码及局部运行证据 | 对齐；review 贡献设置已有且经 #109 宿主承载核验（PluginSettingsSections general/general 挂载 + 搜索揭示 target=settings-mobile-diff-wrap、节标签=宿主 Preferences/General 实测命中）+ wrap 偏好跨重启保持实测通过；真实长 Diff overflow 翻转待验（无可达服务会话面，如实登记） | E05/E23，G23；issue #109 |
 | S15 | 主题与系统/浅色/深色 | 已有代码及运行证据（issue #104） | 对齐；外观页内面目标形（appearance.tsx byte-identical + context.tsx 438 行 byte-identical + themes/*.json 36 文件集合全等 + theme-components-migration 死代码收敛）；设备 DBY2-AL00 复验：system/light/dark 即时生效（data-color-scheme+背景+style color-scheme 三通道）、Dark 跨重启保持、Theme 名下拉 36 选项集呈现、Dracula 选择即时生效并跨重启保持；Windows Desktop 实机对照保持 BLOCKED（无参考端） | E02；#104 补验 |
 | S16 | 界面/代码/终端字体 | 已有代码及运行证据（issue #104） | 对齐；外观页内面三类 TextInput 行目标形（settings-ui-font/settings-code-font/settings-terminal-font）；设备复验：UI=--font-family-sans、code=--font-family-mono+document.fonts.load 即时生效，terminal 经 appearance accessor 消费（target 形，终端面呈现归 terminal 单元），自定义值跨重启保持、清空回落默认（Inter/IBM Plex Mono 栈）；CJK 内容回退栅格化观察本轮 en-locale 设置页无 CJK 内容不可采，栅格化差异按文档口径不算布局偏差，运行期核对保持 G31 | E02，G31；#104 补验 |
 | S17 | 减少动效 system/on/off | 已有代码及运行证据（issue #104 复验） | 对齐；设置与消费链已接通，显式 On/Off 与持久化已验；#104 换壳复验：On→dataset.motion=reduce 即时+采样 transition 0s、Off→full、On/Off 各自跨重启保持（写后 ≥10s 再 force-stop——写后即刻 force-stop 会落入 Chromium localStorage 提交窗口丢末次写，QA 方法注记非应用缺陷）；System 档实测平台映射=full（WebView 114 无系统映射，环境差异再登记，不加静默回退） | E21/E34；#65/#104 补验 |
-| S18 | Agent/权限/错误系统通知 | **已实现（页面目标形已验；issue #107/settings-notifications-migration）** | 对齐；设置页随 #107 收敛目标形（三开关 + Android 状态行 + settings-notification-permission 权限面逐字保留；not-adopted 登记：target notification.tsx +16 hasRunningChild 工作台面归后续 issue、toast.tsx dead-export 收敛 no-owner-gap）；.145 设备 QA：页面目标形渲染 + 开关持久化跨重启 + OFF→ON 请求零 dialog + 状态行 session-signal 语义（同进程保留/跨重启回中性）PASS；**真实通知投递/点击路由/失败恢复 BLOCKED**（无可达服务），allow/deny/revoke 全矩阵 BLOCKED（API 31 无 runtime dialog）——存活期间 best-effort 不变，完整事件到达/点击门禁归 G33 | E08，G33；settings-notifications-migration；D05 为范围边界；#107 |
+| S18 | Agent/权限/错误系统通知 | 已有代码及局部运行证据 | #107 设置页三开关、Android 状态/权限行及持久化局部通过；当前 notification.tsx 已逐字目标，含 hasRunningChild，不再归未迁移项。真实投递、点击路由、失败恢复及 allow/deny/revoke 权限矩阵仍待验；存活期间 best-effort，D05 边界不变 | E08/E35，G33；#107 历史局部验证 |
 | S19 | 任务声音选择、预览与界面音效 | **已实现（页面目标形已验；issue #107/settings-notifications-migration）** | 对齐；设置页随 #107 收敛目标形：三类声音 Select + **Interface 声音行**（字段+Switch+持久化+搜索行恢复——播放消费者惰性登记：target 的 new-session wordmark/PinBoard 消费族不在 vendored 树，呈现归后续 new-session issue，S11 先例）；45 音资源双侧同树 hash（26 emitted + 19 内联，三默认音内联）；sound.ts 随目标收敛 3 个 export（零消费者）；.145 设备 QA：选择持久化跨重启 + 静音（None→零 `new Audio` 构造）+ **播放路径机证**（`Audio.prototype.play` promise resolution：emitted `alert-01` + 内联 data-URL 双形态；emitted 文件 loads-phase fetch 200）+ logcat AudioTrack 归因 PASS——**人耳可听性与 WebView 后台音频不可验**（无声学通路，如实登记），不能写已全部可听 | E02/E08；G33③；settings-notifications-migration；#107 |
-| S20 | 快捷键搜索、修改、冲突与恢复 | **已实现（触摸可达面已验；issue #108/settings-keybinds-command-catalog）** | 对齐；Shortcuts 页内面 + 命令目录/键位执行核心 + 键位迁移收敛到 v2.2.1 目标（keybinds.tsx/migration.ts/command.tsx/command.test.ts 目标逐字 + composer/model.ts 最小消费方适配 + en +1 键 + ui button ghost-danger 三件套）；.145 设备 QA：页面目标形（50 行/六分组/深浅双 sweep）、搜索（model/terminal/zzz 空态/清除）、捕获开合 toggle 零残留零 toast、Unbind（ghost-danger）置 none 持久化跨重启、Reset to defaults（toast+清空+默认回显）三轮 PASS、旧 id 迁移种子实测（存储改写新 id + 零崩溃）；**冲突反馈/捕获完成/实际命令触发 BLOCKED**（.145 无外接键盘——dumpsys QA 始末双查 IsExternal 全 false；CDP 合成按键不作证据，issue 明文；冲突优先级/skip/decline-false 由 command.test.ts 目标块单测锁定）；not-adopted 登记：palette/dialog/search 本体 + command-search/session-search/safe-triangle 新文件归后续 palette/搜索 issue，desktop-menu 族红线不动 | E02/E11，G34；settings-keybinds-command-catalog；#108 |
+| S20 | 快捷键搜索、修改、冲突与恢复 | 已有代码及局部运行证据 | #108 Shortcuts、目录/执行核心及键位迁移已迁入；页面、搜索、捕获开合、Unbind 持久化、Reset 和旧 ID 迁移有设备记录。当前 palette/session-search 已目标形加 catalog 兼容，不再列整族未迁移；冲突反馈、捕获完成、实际命令触发仍缺外接键盘验收，CDP 合成按键不作替代 | E02/E11/E35，G34；#108 历史局部验证 |
 | S21 | 供应商列表、来源与连接/断开 | **已实现（运行期部分验证；issue #105/settings-providers-models-extensions）** | providers.tsx 目标逐字（headerAction 切换槽、`providerID === CONSOLE_INTEGRATION` 目标判定）；.145 设备 QA：页面目标形渲染 + 服务器切换槽双向切换 + View all→连接对话框（搜索 + Other/Custom 入口）PASS，三类 SSH 失败面如实呈现；目录行/连接链运行证据 BLOCKED（三远端主机不可达/服务下线，见 #105 段）；custom provider 保存 stub 保持既有上游边界；**剩余差异=连接对话框族目标重设计（FU-1，登记为 Milestone 1 后续工作：controller 143 行增量/dialog 重设计/dialog.provider.* 键族）** | E04，G25；settings-providers-models-extensions；#105 |
 | S22 | 供应商 API key / OAuth | **已实现（运行期部分验证；issue #105）** | 服务端 attempt/轮询/取消/过期/失败恢复在当前对话框形**全部可达**（pin controller `oauth.cancel` 两处/complete/failed/expired 分支/statusFailed retry/`onCleanup`——verify-provider-models 组 3 与 providers-models.md 状态矩阵钉定）；真实授权链 BLOCKED（缺凭据，忠实登记）；**剩余差异=FU-1 重设计自身的增量（command 认证方法 UI、Console/Go 拆分、方法排序）在 #105 验收面之外，归 FU-1（Milestone 1 后续工作）** | E04/E33，G25；#105 |
 | S23 | 供应商多账号管理 | 已有代码（#105/settings-providers-models-extensions 零上游增量） | account-actions.ts/accounts.ts/account-name.tsx **零目标 delta、逐字复用**（AGENTS.md 复用条款）；逐操作与 Console settle 轮询真账号验证 BLOCKED（缺凭据） | E04，G25；#105 复核 |
@@ -72,7 +72,7 @@
 | S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；长消息折叠展开与性能仍阻塞；#103/settings-general-experimental-migration 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认 |
 | S39 | About、版本、许可与声明 | **已实现（复验收口；issue #110）** | 对齐/适配；notices 滚动目标差异已补齐（`data-scrollable` 目标形，#110 复验 scrollH 5327/clientH 404 滚动不回退）；另显示移动版本与基座，服务版本取排序首项为移动边界；#110 新基线复验：三行实显 + 搜索命中 PASS、服务行诚实降级串实测（checking 恒驻与 #72 同形）、zh 回退不回退；链接实测为**目标形 plain `target=_blank` 原位打开**（非 files-open-external 消费者——计划前提经设备实测更正，链接可打开 + 返回复原成立；显式失败半边继承 #76 JVM/AVD 证据）；服务行真服务展示 BLOCKED 维持（需可达服务） | E28/E34；#72 补验；#110 复验；完整许可审计另见台账 V4 |
 | S40 | 更新检查、安装与发行说明 | 不实现（当前暂缓） | 已确认暂缓；当前只保留已有 What's New 外联面，APK 更新待已签名 release 与版本清单等激活条件；上游 external 契约不等于已有生产实现；**#110 复核：暂缓维持、呈现不误导已验**（更新操作三负例成立——updater=desktop-host 禁用行、零 Updates 页、About 零更新控件；冷启动无伪弹窗，seen 水位 = 0.1.0；真实跃迁触发路径 BLOCKED，激活条件不变） | E24；[ADR 0005](../../../decisions/0005-apk-update.md)；#110 复核 |
-| S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | 对齐；#109 完成宿主承载面收口：PluginSettingsPages 壳挂载 + General 页双 PluginSettingsSections 放置（目标逐字）实测渲染 review wrap 行；GUI tab 标签改歧义 "GUI extensions"/"GUI 扩展"（与服务端 Extensions 不再同值，设备实测两 tab 并存）；贡献无需 app 侧移动过滤（pairing/updater 桌面守卫后注册，结构性缺席）探针在钉；旧 pane 结构与 Goal Panel 等差异保留 | E23/E34；issue #109；面板回归未全验 |
+| S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | #109 宿主设置挂载、review wrap 行和 GUI tab 标签已局部验证；pairing/updater 桌面守卫保留。Goal 已目标 ComposerPill，不再沿用旧 Panel 断言；当前会话贡献面与生命周期回归未全验 | E23/E34 历史；E35 当前；#109 |
 | S42 | 界面缩放比例 | 已有代码及运行证据（issue #104 复验） | 适配；100%–200% 六档，以 CSS zoom 实现并持久化；#104 换壳复验：六档逐档 documentElement.style.zoom 生效（100% 档属性移除）、`opencode-ui-zoom-level` 逐档持久、零横向溢出、200% 跨重启保持；系统字号 1.3 × zoom 200% 组合下设置页可垂直滚动（scrollHeight 898 > clientHeight 644）、末行可达无遮挡、软键盘避让正常（聚焦输入全程可见）、恢复默认可逆；非法存储值回退 1（属性移除）实态复验；非 Desktop 原生窗口缩放机制 | E21/E34；#65/#104 补验 |
 | S43 | GUI 启停、状态、失败与 Reload | 已有代码及局部运行证据 | 适配；#109 设备轮：D4 契约已决（专用 tab 保留）、管理面 15 行三集分类 DOM 实测（web 10 可启停/desktop-host 4 禁用+桌面专属/excluded 1 零控件）、review+terminal 双向启停存储逐步实测、禁用跨 force-stop 重启存活双向实测、Reload 活性行零崩溃；会话面板撤除/恢复与失败注入全链仍待验（无可达服务，如实登记） | E09/E23/E34；G35；issue #109 |
 
@@ -80,32 +80,32 @@
 
 | ID | 功能/Windows v2.2.1 目标 | 本项目实现 | 策略与当前差距 | 证据/验证 |
 | --- | --- | --- | --- | --- |
-| W01 | 项目/位置选择、创建并进入会话 | 已有代码及局部运行证据 | 对齐；#61 已到远端既有会话；新建任务与完整生命周期、当前集成版双路由回归仍待验 | E03/E18/E34，G19 |
+| W01 | 项目/位置选择、创建并进入会话 | 部分实现 | home/new-session 仍旧结构，location/dialog、pin-board/pin-sound 缺失；FU-3 registry 仍目录型 projects/lastProject，目标 usedProjectIDs/lastProjectID 未迁入。#61 既有会话历史证据不覆盖新建/完整生命周期与当前双路由 | E03/E18/E35，G19 |
 | W02 | 发送、流式输出、权限交互 | 已有代码 | 对齐；工作台/审批链已存在，真实模型发送→流式→工具/权限闭环未完成 | E03，G20/G21 |
-| W03 | 文件浏览与 Diff | 已有代码 | 适配；file/review 已有，触屏行选择/评论、真实仓库与失败恢复未验 | E05，G22/G23 |
+| W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；workspaces/files/model.tsx 缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅；触屏选择/评论、真实仓库、文件刷新与失败恢复待验 | E05/E35，G22/G23 |
 | W04 | 多终端创建、显示、关闭 | 已有代码 | 适配；PTY/重连链已有；WebView WASM、IME/尺寸、控制键软输入与三远端 OS 验收未完成 | E05，G24；不能由旧 dock 文档推定当前 side panel 运行通过 |
-| W05 | 会话标签与后台活动 | 部分实现 | 适配；旧 tabs/活动已有；目标 Inbox 列表与聚合未移植，和 S04 同一缺口 | E03/E19/E34 |
-| W06 | 附件选择与上传 | 已有代码 | 适配；Android FilesBridge 与上传链已有；目标媒体引用/队列保留链未全迁移，真实附件上传待验 | E06/E34，G27 |
+| W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；聚合、分组与活动实际呈现待完整验收 | E03/E19/E35 |
+| W06 | 附件选择与上传 | 已有代码 | Android FilesBridge、上传、composer/media.ts 与队列/fork/revert 媒体保留链已有；真实上传、取消/失败与跨服务归属待验 | E06/E35，G27 |
 | W07 | 断开客户端不停止远程任务 | 已有代码/约束 | 对齐；#61 断开后进程/端口/会话恢复有历史证据；真实长任务存活、直连与进程死亡路径未验全 | E18/E34，G20⑤/G12/G30 |
-| W08 | 偏好、草稿与导航恢复 | 已有代码 | 适配；普通草稿与服务密码生命周期分开；局部重启证据已有，队列失败草稿恢复缺目标增量，完整进程/切网恢复未验 | E11/E14/E18/E34，G30 |
-| W09 | 会话搜索与列表筛选 | 已有代码 | 对齐；作用域与目标搜索差异待核 | E03 |
+| W08 | 偏好、草稿与导航恢复 | 部分实现 | 队列失败草稿恢复及 server/session 归属保护已有；FU-3 项目身份/最近使用持久层仍旧结构，完整进程/切网恢复未验；凭据生命周期另验 | E11/E14/E18/E35，G30 |
+| W09 | 会话搜索与列表筛选 | 已有代码 | shell/commands/session-search.tsx 为目标形加 projects.catalog.list 兼容；跨服务搜索、筛选和失败路径待运行验证 | E03/E35 |
 | W10 | 重命名、归档、删除 | 已有代码 | 对齐；session-home-archive 归档接线已有，运行失败路径未验全 | E03，G19 |
 | W11 | Undo / Redo / Fork | 已有代码 | 对齐；命令存在，文件与消息真实回退未验全 | E03/E11，G23 |
 | W12 | 上下文压缩 | 已有代码 | 对齐；当前模型、禁用态及失败提示待真服务验证 | E03/E11 |
-| W13 | 导出会话、复制 ID | 部分实现 | 适配；导出→Platform.saveFile→FilesBridge→SAF 源码链已接通；缺目标导出 `mediaRefs: false` 参数，真实保存/产物完整性未验；桥降级静默取消 | E03/E06/E34，G27；不再把保存桥接线列为未知 |
+| W13 | 导出会话、复制 ID | 已有代码 | export.ts 逐字目标，含两处 `mediaRefs: false`；导出→Platform.saveFile→FilesBridge→SAF 已接通；真实保存/产物完整性、取消/失败仍待验，桥降级静默取消 | E03/E06/E35，G27 |
 | W14 | 问题、多步回答与结构化表单 | 已有代码 | 适配；请求契约已有，逐类目标差异及真实并发/过期响应待验 | E03，G21 |
-| W15 | 后续消息和队列 | 部分实现 | 对齐；queue.ts 仍逐字等于 pin，缺目标按会话串行、乐观编辑/重排、失败草稿恢复、已接纳后不重发与媒体 pin 链；现有 queue/steer 不等于缺失全部功能 | E34；真服务竞态未验 |
+| W15 | 后续消息和队列 | 已有代码 | 目标串行、乐观编辑/重排、失败草稿恢复、已接纳不重发与媒体 pin 链已迁入；额外 server+session mutation scope、capture/current 保护归属；真实竞态及切服务/会话恢复待验 | E35；源码存在不等于运行通过 |
 | W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验 | E05，G22 |
-| W17 | Agent、模型与变体切换 | 已有代码 | 对齐；能力与作用域已有，运行一致性待验 | E04 |
-| W18 | 用量与上下文面板 | 已有代码 | 对齐；context 已注册，服务数据缺失及目标面板差异待核 | E03/E23 |
+| W17 | Agent、模型与变体切换 | 部分实现 | #135 最终 Agent 用户确认正常；模型/变体开合有局部记录，实际切换未全验。FU-2 select-dialog 旧形、details/manage.css 缺失，继续迁移选择器族 | E04/E35；#135 最终记录 |
+| W18 | 用量与上下文面板 | 部分实现 | context 已注册；明确子能力 **usage.view**：app/src/usage 缺失且 composer commands 未注册 usage.view，需迁移用量入口/数据/状态并验收；保留本 ID 不新增行 | E03/E23/E35 |
 | W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对 | E07，G28；不是计划在手机复制 Electron 浏览器 |
 | W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制 | E06/E33，G29 |
 | W21 | /btw 侧问 | 已有代码 | 适配；session-btw-narrow-entry 放宽窄屏命令门并加 More 入口，呈最近 chat；不自动跳面，窄屏无 close 通道；真实会话与 <768px QA 阻塞 | E26/E34；不是上游本来已有的窄屏入口 |
-| W22 | Goal 状态/暂停/继续/清除 | 已有代码（呈现不同） | 适配；RPC/三状态/命令链已有；#67 后仍保留 side Panel + mobile face，未改为目标 ComposerPill/popover；真实服务往返/降级未验 | E22/E23/E34；不再写“等待 #67” |
+| W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；真实服务往返、菜单与降级待验 | E22/E23 历史；E35 当前 |
 | W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验 | E22/E23/E34 |
 | W24 | 非 prod 实验语音通话 | 未实现（已确认暂缓） | 当前暂缓；上游受 desktop/非 prod/实验开关/服务凭据门控，不是生产默认能力；满足 ADR 激活条件再重启 | E25；[ADR 0006](../../../decisions/0006-voice-call.md)；非待用户决策 |
-| W25 | 会话详情、工作区位置菜单 | 已有代码 | 适配；details 已注册，逐个工作区操作及失败路径待核 | E03/E23 |
-| W26 | 命令面板统一检索 | 已有代码 | 适配；命令契约已有；触屏入口覆盖、外接键盘与新增命令仍待核，不能由 CDP mod+k 成功推定触屏可达 | E11/E29，G34 |
+| W25 | 会话详情、工作区位置菜单 | 部分实现 | #135 Details 的 MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见、切换 hidden/inert 与关闭通过；目标 location/dialog 缺失，工作区操作/失败路径待迁移验收 | E03/E23/E35 |
+| W26 | 命令面板统一检索 | 已有代码 | palette.ts 为目标形加 projects.catalog.list 兼容；触屏入口覆盖、外接键盘及命令执行待验；usage.view 缺口明确归 W18，不能以面板存在关闭 | E11/E29/E35，G34 |
 | W27 | 会话内容搜索与高亮 | 已有代码 | 适配；WebView CSS highlights 与长历史定位未验 | E03 |
 | W28 | Debug bar、堆快照、动效诊断 | 部分实现（web 子集） | 适配；宽屏 debug.toggle 三元素及持久化已验；heap/主进程诊断/DEV 调参缺席符合宿主边界，窄屏 bar 隐藏；禁用→撤除链仍待复验 | E29/E34；#96 仅解除管理开关阻塞 |
 
@@ -146,9 +146,37 @@
 | M04 | 网络变化与前台恢复 | 已有代码及局部运行证据 | 适配；代际/取消保护、重新 health 后发布 endpoint 已有；同进程重连及杀进程后重新认证有历史记录，真实切网/任务补齐未验 | E14/E18，G30 |
 | M05 | 通知渠道与系统权限 | 已有代码 | 适配；NotificationsBridge 与授权入口已有，真实后台到达/点击/权限矩阵未验全 | E08，G33 |
 
+## 当前发布推进指针（E35，2026-11-06）
+
+用户最新授权：**先校准文档，再创建总 Issue、详细子 Issue 和并行首批**；覆盖此前“不另建总任务”的安排。总任务为 [#139](https://github.com/0xYiliu/opencode-mobile/issues/139)，下列 10 项已挂为 GitHub 原生子 Issue，并建立 26 条 blocked-by 依赖。执行卡与固定基线见 [E35](current-review.md)。本轮没有构建或设备操作。
+
+矩阵负责功能事实与证据；总 Issue 负责关系/调度/全问题归属；子 Issue 负责各自执行卡。以下是工作入口与依赖快照，实时状态以 GitHub 为准，不在此复制 Issue 全文。各行原有 FU-1/2/3 或“Milestone 1 后续”历史称呼，当前分别归 #141/#142/#140；不暗示现存 GitHub Milestone。
+
+| 工作单元 | 关联功能/明确缺口 | 最终集成/关闭前置 | 可提前执行 |
+| --- | --- | --- | --- |
+| [#140 Home/新建会话与项目状态](https://github.com/0xYiliu/opencode-mobile/issues/140) | S06/S19/S27–S34；W01/W08/W09/W10/W25；FU-3 | 无 | **首批开发** |
+| [#141 供应商认证](https://github.com/0xYiliu/opencode-mobile/issues/141) | S21–S23；W17；FU-1 | 无 | **首批开发** |
+| [#142 模型选择与用量](https://github.com/0xYiliu/opencode-mobile/issues/142) | S24/W17/W18/W26；FU-2、usage.view | #141 | 只读核对目标接口 |
+| [#143 文件读取/订阅与内容查看](https://github.com/0xYiliu/opencode-mobile/issues/143) | W03/W16/W19/W20；stream/watch、Office、浏览器结果 | 无 | **首批开发** |
+| [#144 Settings 整体对照](https://github.com/0xYiliu/opencode-mobile/issues/144) | S01–S43 界面；N12；搜索/状态/偏好 | #140/#141/#142 | 参考采集与历史证据适用性核对 |
+| [#145 Session 与 Android 交互](https://github.com/0xYiliu/opencode-mobile/issues/145) | S04/S10/S11/S13/S38/S41；W05/W08/W09/W18/W21–W23/W25–W28；M03/N10 | #140/#142 | 只读整理 #135 差异与参考条件 |
+| [#146 双路由任务/权限/恢复](https://github.com/0xYiliu/opencode-mobile/issues/146) | S03/S07/S09/S29/S35–S37；W01/W02/W06–W08/W12/W14/W15/W17；N04/N05/M02/M04 | #140/#141/#142/#145 | 授权测试服务/模型/项目准备；独立失败路径采证 |
+| [#147 项目/Git/PTY/附件操作](https://github.com/0xYiliu/opencode-mobile/issues/147) | S27–S34；W03/W04/W06/W10/W11/W13/W16/W25；N08 | #140/#143/#145/#146 | 可丢弃仓库、文档/附件样本、远端 OS 准备 |
+| [#148 扫码/通知/扩展生命周期](https://github.com/0xYiliu/opencode-mobile/issues/148) | S18/S19/S25/S26/S33/S34/S41/S43；D03/N08/N11/N12/M05 | #141/#145/#146 | QR/MCP/权限设备准备 |
+| [#149 版本同步与签名发行](https://github.com/0xYiliu/opencode-mobile/issues/149) | S39/M01；版本/来源/许可、必要检查、签名/升级；S40/N09 保持暂缓边界 | #140–#148 全部 | 仓库外签名保管、渠道/versionCode 方案 |
+
+**并行约束**：首批 #140/#141/#143 各用独立 worktree 和单写入者；项目域、integration 域、file 域分工。client/protocol、en.ts、lockfile 和补丁登记可能相交，后合入者 rebase 最新 main、保留双方 hunk、重新生成镜像并验证重放；禁止整文件选择 ours/theirs。需要跨域共享 API 改动时，在相关 Issue 明确唯一所有者和消费者接口，受影响部分等待。设备必须预约，同一设备同一时刻只有一个操作者；不同设备/构建的局部 PASS 不得拼成集成版 PASS。纯验收允许零源码/零补丁变更。
+
+**依赖语义**：blocked-by 是最终集成/关闭条件，不禁止表中独立准备工作；准备完成不等于允许抢写前置源码。#141 合并后 #142 可启动，不必等首批另外两项；前置满足后 #144/#145 可并行，#147/#148 亦可并行，但共享源码修复和设备占用须按上述规则协调。创建任务不代表授权合并未来 PR 或实际发布 Release。
+
+1. Settings 主要已迁入，按下节保留的具体运行/整体对照缺口继续验收；Inbox、queue/media、导出参数、Goal、通知及搜索不得重复列为未迁移。
+2. 真实迁移工作为 home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份/恢复、W18 usage.view、文件流与订阅；按上表完整流程和共享写入边界推进。
+3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。65 active / 0 deferred 历史重放通过不是发布结论。
+4. #135 已合并，最终修复 `813e68d`，merge commit `bbd0b488`；Agent 及 Details 可见/切换/关闭局部通过。消息列宽度、密度、Composer 尺寸、工具卡片截图差异和完整竖屏键盘未验收。
+
 ## 下一实施工作单元：Settings 整体界面对齐
 
-**状态：实施中（框架及多个页面已迁移，整体对照尚未验收）。** 本节是该工作单元的推进主记录；S/W/N/D/M 功能 ID 保持原义，不新增一套功能编号。分阶段执行，不把阶段分别算作功能完成。后续实施提交、验证结果及剩余差异回填本节和关联功能行。
+**状态：主要页面已迁入，整体对照尚未验收。** 本节保留 Settings 工作单元的范围与历史产出；总体下一步以上方 E35 发布推进指针为准。S/W/N/D/M 功能 ID 保持原义，不新增一套功能编号。分阶段执行，不把阶段分别算作功能完成。
 
 ### 目标、边界与关联项
 
@@ -189,14 +217,14 @@
 
 **实施前环境准备**：可运行的固定版本上游参考、移动模拟器/真机、代表性设置数据，以及远程页所需的授权服务。当前没有新增环境验证结果；某环境缺失只阻塞相应验收，不把整个工作退回产品待决策。
 
-**当前推进指针（2026-11-05 文档核对）**：从上表已迁移页面及关联 S 行的最新证据继续补整体对照缺口，按开工规则核实实际实施基线；本次未重新运行验收，也未重新排列用户任务优先级。以下 #108 回填为历史快照，其中分支、“未 push”和后续计划仅描述当时状态，不作为当前 GitHub 或工作树状态。
+**历史推进指针（2026-11-05 文档核对）**：上表记录 Settings 当时的阶段产出，当前总体次序见 E35 发布推进指针。以下 #108 回填为历史快照，其中分支、“未 push”和后续计划仅描述当时状态，不作为当前 GitHub 或工作树状态。
 
 **推进回填栏**：实施分支：`issue-108-keybinds`（settings-keybinds-command-catalog 实施提交链，未 push；前轮 `issue-107-notifications` settings-notifications-migration 链已并入 main）；前轮 `issue-106-projects-workspaces` settings-workspaces-migration 链已并入 main）；实现 PR：由协调者创建（本 issue 实施面）；构建/运行证据：verify:closure PASS(49)、app 单测（无 seam 653/4/24/1997；seam 798/4/1）、mobile-hosts 434/0/2920、tsc 双口径 389/389（基线 391/391，恰两条 CommandSource 既有错误解析）、dist 3520/159,672,996、APK `93d61eda…`、.145 设备 QA（见阶段 3 回填与 build-and-verify.md issue #108 段）；剩余差异：FU-1/FU-2（#105）/FU-3（运行期项目持久层目标形，S27/S28 剩余差异列指向）、hasRunningChild 工作台面与 toast.tsx dead-export 收敛（no-owner-gap，candidate rider 登记）为 Milestone 1 后续工作，About 页内面与阶段 4 对照回归归后续 Issue/轮次。
 
 ## 推进口径
 
 1. **Settings 整体界面对齐仍有对照验收缺口**，从已迁移框架和页面继续核对，不退回“尚未实施”；下一实际任务以用户当前决定与推进记录为准，不以本表历史顺序覆盖后续决定。
-2. 当前集成版 **SSH/HTTPS → 新建会话 → 发送/流式/权限 → 断线恢复与任务存活**仍是整体版本完成的必要门禁；历史 #61 到达既有会话不能替代。Settings 之后继续队列/媒体链、导出参数与 Inbox 的明确增量，保留已有移动适配。
+2. 当前集成版 **SSH/HTTPS → 新建会话 → 发送/流式/权限 → 断线恢复与任务存活**仍是整体版本完成的必要门禁；历史 #61 到达既有会话不能替代。队列/媒体链、导出参数与 Inbox 已迁入，后续为运行验收；真实迁移缺口见 E35。
 3. 文件/Diff/PTY/Office/通知/扫码兑换与 <768px 手机交互需要对应真实环境；补验通过前保持运行缺口。
 4. ADR 0005–0007 已收口：APK 更新/语音暂缓，外链唤起不实施；无新增待决项。WSL 禁用行已实现，执行排除决定不变。
 5. 不按行数计算完成率；整体完成必须满足范围内行为、跨功能核心流程与必要设备门禁。详情见 [本轮复核与优先级](current-review.md)。

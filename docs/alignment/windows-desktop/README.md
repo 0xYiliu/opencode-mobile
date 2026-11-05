@@ -6,7 +6,9 @@
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.1 | 活跃目标，首个基准 | main/dev `c68ccc0`（2026-11-01 远端核对）；全局 vendor `b4525d79bf`，gui-plugins `3ebcf9a` + 移动补丁 | SSH 历史主链与设置/宿主局部补验已有；Inbox、队列/媒体等目标增量及当前双路由任务闭环仍有缺口 | [矩阵](v2.2.1/matrix.md) · [Windows 基准](v2.2.1/baseline.md) · [历史证据](v2.2.1/implementation.md) · [当前复核 E34](v2.2.1/current-review.md) |
+| v2.2.1 | 活跃目标，首个基准 | 检查基线 `740ce386`（2026-11-06）；全局 vendor `b4525d79bf`，gui-plugins `3ebcf9a` + 65 active / 0 deferred 补丁 | Settings、Inbox、queue/media、导出参数、Goal pill 等已迁入；剩余 home/new-session、FU-1/2/3、usage.view、文件订阅与版本同步，以及当前双路由任务和整体体验验收 | [矩阵](v2.2.1/matrix.md) · [Windows 基准](v2.2.1/baseline.md) · [历史证据](v2.2.1/implementation.md) · [当前复核 E35 / 历史 E34](v2.2.1/current-review.md) |
+
+当前 Android 版本为 `0.1.0`（code 1），mobile app `0.1.0`，vendored app `2.1.4`；尚未同步为目标 `2.2.1`。历史补丁重放与 PR #135 局部设备通过不等于发布完成；本轮没有构建或设备操作。总任务 [#139](https://github.com/0xYiliu/opencode-mobile/issues/139) 下挂 #140–#149 十个原生子 Issue；首批可并行开发 #140/#141/#143，详细范围与依赖见矩阵推进指针，实时调度以 GitHub 为准。
 
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 
