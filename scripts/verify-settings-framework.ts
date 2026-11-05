@@ -1,21 +1,21 @@
 // verify-settings-framework.ts — static probe for issue #101 (S01–S03: the settings
 // framework — outer shell, navigation, route/view model, surface server scope, search,
 // settings→command-palette bridge — migrated to v2.2.1 3ebcf9a via mobile patches
-// M-042/M-043/M-044).
+// settings-framework-dependencies/settings-framework-migration/settings-framework-mobile).
 //
 // Asserts, against the REAL applied sources (vendored pin b4525d79bf… + mobile patches
-// M-001..M-044), the structural facts the S01–S03 record relies on:
+// gui-plugins-native-test-deps..settings-framework-mobile), the structural facts the S01–S03 record relies on:
 //
 //   1. Shell (settings/shell.tsx): the migrated target layout (single RootSettings, keyed
 //      server scope, SettingsServerSwitcher/Unavailable around the per-server pages), the
-//      M-008 host-manager mount as the servers tab's first child, the M-026 single-face
+//      settings-mobile-host-manager host-manager mount as the servers tab's first child, the settings-mobile-gui-plugins single-face
 //      gui-extensions forms (predicate/guard/nav/mount), and the absence of the pin-era
 //      dual layout (ServerSettings/nested server tabs).
 //   2. Navigation (settings/navigation.tsx): the CollapsedSidebarToggleSpace back-row
-//      dependency (M-042 file) and the 48px row comment.
+//      dependency (settings-framework-dependencies file) and the 48px row comment.
 //   3. Route model (settings/route.ts + pages.ts): no `type: "server"` views, the
 //      gui-extensions root tab restored (mobile faces, documented deviation; issue #109
-//      resolved the D4 contract as KEEP — M-052 rewrote the pending-removal notes in
+//      resolved the D4 contract as KEEP — settings-gui-plugins-tab-label rewrote the pending-removal notes in
 //      place, marker strings unchanged), the `plugins`→extensions subtab redirect.
 //   4. Server scope (settings/surface.tsx + servers/inventory.ts): the resolution order
 //      (view server → source server → local connected → first), selectServer/openServers,
@@ -23,20 +23,20 @@
 //   5. Search (settings/search.tsx + search-index.ts + search-catalog.ts +
 //      search-results.ts): SearchList/SearchHighlight/Slash, the 2-arg rankSettings, the
 //      zoom row present WITHOUT the desktop gate (mobile(M-035)), the general-page pair of
-//      dangling-anchor rows restored by issue #103/M-046 (catalog rows + general.tsx
+//      dangling-anchor rows restored by issue #103/settings-general-experimental-migration (catalog rows + general.tsx
 //      data-action anchors) and the settings-sounds-interface row restored by issue
-//      #107/M-050 (catalog row + notifications.tsx data-action anchor — the narrowed
-//      mobile(M-044) catalog note is gone; route.ts keeps its own M-044 note for
+//      #107/settings-notifications-migration (catalog row + notifications.tsx data-action anchor — the narrowed
+//      mobile(M-044) catalog note is gone; route.ts keeps its own settings-framework-mobile note for
 //      gui-extensions, which issue #109 resolved as a KEEP), and the pin search consumer
 //      form gone.
 //   6. Command-palette bridge (shell/commands/palette.ts + dialog.tsx + settings/palette.ts):
 //      the `setting` entry type, the createSettingsPaletteEntries plumbing, and the
 //      palette.group.settings category key.
-//   7. Tests: the M-044-completed keyed/search-results/search-plugin test forms and the
+//   7. Tests: the settings-framework-mobile-completed keyed/search-results/search-plugin test forms and the
 //      three new first-party test files present.
 //   8. Page glue: headerAction renders in all five page files (the switcher's reachability
 //      on per-server pages depends on it).
-//   9. i18n: the nine new en.ts keys (the plan's 8 + server.thisComputer for the M-042
+//   9. i18n: the nine new en.ts keys (the plan's 8 + server.thisComputer for the settings-framework-dependencies
 //      label/hint chain), zh fallback per the upstream strategy.
 //
 // HONEST BOUNDARY (same tradition as the verify-* family): this is a static STRUCTURE
@@ -85,12 +85,12 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     if (shell.includes(gone)) fail(`1: shell.tsx still carries the pin-era shape: ${gone}`)
   }
 
-  // M-056: Settings exposes only the upstream Server surface; the old manager is not mounted.
+  // settings-server-menu: Settings exposes only the upstream Server surface; the old manager is not mounted.
   const serversTab = shell.indexOf('<Tabs.Content value="servers" class="settings-panel">')
   if (serversTab < 0 || shell.includes("MobileHostManager"))
     fail("1: shell.tsx must retain the upstream Server tab without the old mobile host manager")
 
-  // M-026 single-face forms (the verify-gui-plugins group 4 / verify-agent-capabilities
+  // settings-mobile-gui-plugins single-face forms (the verify-gui-plugins group 4 / verify-agent-capabilities
   // group 3 common witness — keep the exact strings in sync).
   for (const form of [
     'const mobileGuiExtensions = platform.platform !== "desktop"',
@@ -101,7 +101,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     "function MobileExtensionManager() {",
     "usePluginHost",
   ]) {
-    if (!shell.includes(form)) fail(`1: shell.tsx lost the M-026 form: ${JSON.stringify(form.slice(0, 60))}`)
+    if (!shell.includes(form)) fail(`1: shell.tsx lost the settings-mobile-gui-plugins form: ${JSON.stringify(form.slice(0, 60))}`)
   }
   // Code-form check (no spaces): the pin condition `!guiExtensions && mobileGuiExtensions`
   // survives only in marker comments when written with spaces, so this cannot false-positive.
@@ -112,7 +112,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 {
   const nav = await read(`${APP}src/settings/navigation.tsx`)
   if (!nav.includes('import { CollapsedSidebarToggleSpace } from "@/shell/sidebar-toggle"'))
-    fail("2: navigation.tsx lost the CollapsedSidebarToggleSpace import (M-042 dep)")
+    fail("2: navigation.tsx lost the CollapsedSidebarToggleSpace import (settings-framework-dependencies dep)")
   if (!nav.includes("CollapsedSidebarToggleSpace start={24}")) fail("2: navigation.tsx lost the 48px back-row space")
   if (nav.includes("export type SettingsNavItem")) fail("2: navigation.tsx re-exported SettingsNavItem (target un-exports it)")
 }
@@ -185,13 +185,13 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   const zoomRow = zoomStart >= 0 ? catalog.slice(zoomStart, zoomEnd) : ""
   if (!zoomRow) fail("5: the zoom catalog row is missing")
   if (/(^|\n)\s*available:/.exec(zoomRow))
-    fail("5: the zoom catalog row still carries an availability gate (M-035 drop regressed)")
+    fail("5: the zoom catalog row still carries an availability gate (appearance-motion-zoom drop regressed)")
   if (!catalog.includes('target: "settings-zoom"')) fail("5: the zoom catalog row is missing")
   if (!catalog.includes("mobile(M-035)")) fail("5: the zoom row lost the mobile(M-035) marker")
-  // Issue #103 / M-046: the two general-page rows return with their page anchors.
-  // Issue #107 / M-050: settings-sounds-interface returns the same way — catalog row plus
+  // Issue #103 / settings-general-experimental-migration: the two general-page rows return with their page anchors.
+  // Issue #107 / settings-notifications-migration: settings-sounds-interface returns the same way — catalog row plus
   // a real notifications.tsx anchor (the narrowed mobile(M-044) catalog note is gone;
-  // route.ts keeps its own M-044 note for the gui-extensions faces — issue #109 resolved
+  // route.ts keeps its own settings-framework-mobile note for the gui-extensions faces — issue #109 resolved
   // the note's pending question as KEEP, marker unchanged).
   for (const restored of ["settings-background-activity", "settings-timeline-width"]) {
     if (!catalog.includes(`target: "${restored}"`)) fail(`5: the restored catalog row ${restored} is missing (issue #103)`)
@@ -253,16 +253,16 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 {
   const keyed = await read(`${APP}src/settings/keyed-server-entry.test.tsx`)
   for (const marker of ["entry={entry()}", "selected={surface.server()?.key}", 'not.toContain("MobileHostManager")', "mobile(M-044)"]) {
-    if (!keyed.includes(marker)) fail(`7: keyed-server-entry.test.tsx lost the M-044 marker: ${marker}`)
+    if (!keyed.includes(marker)) fail(`7: keyed-server-entry.test.tsx lost the settings-framework-mobile marker: ${marker}`)
   }
   if (keyed.includes("<Show when={singleEntry()} keyed>")) fail("7: keyed-server-entry.test.tsx still pins the pin-era keyed form")
 
   const searchTest = await read(`${APP}src/settings/search-results.test.ts`)
-  if (!searchTest.includes('expect(rankSettings("font", items)).toHaveLength(4)')) fail("7: the font length flip is missing (M-044)")
-  if (!searchTest.includes('expect(targets({})).toContain("settings-zoom")')) fail("7: the zoom toContain flip is missing (M-044)")
+  if (!searchTest.includes('expect(rankSettings("font", items)).toHaveLength(4)')) fail("7: the font length flip is missing (settings-framework-mobile)")
+  if (!searchTest.includes('expect(targets({})).toContain("settings-zoom")')) fail("7: the zoom toContain flip is missing (settings-framework-mobile)")
   if (!searchTest.includes("mobile(M-035)")) fail("7: search-results.test.ts lost the mobile(M-035) comment")
-  // Issue #103 / M-046: the target capsule assertion is back with the restored rows.
-  // Issue #107 / M-050: the sounds-interface assertion is flipped positive (row restored
+  // Issue #103 / settings-general-experimental-migration: the target capsule assertion is back with the restored rows.
+  // Issue #107 / settings-notifications-migration: the sounds-interface assertion is flipped positive (row restored
   // with its real page anchor; deliberate first-party extension, timeline-width precedent).
   if (!searchTest.includes('expect(rankSettings("capsule", items)[0].view).toMatchObject({'))
     fail("7: search-results.test.ts lost the target capsule assertion (issue #103 restored the rows)")
@@ -323,11 +323,11 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   ]) {
     if (!en.includes(key)) fail(`9: en.ts lost the settings-framework key: ${key}`)
   }
-  // The M-018 key stays registered (live consumer servers/connect/screen.tsx).
-  if (!en.includes('"settings.tab.sshHosts":')) fail("9: en.ts lost the M-018 settings.tab.sshHosts key")
+  // The settings-ssh-entry-guard key stays registered (live consumer servers/connect/screen.tsx).
+  if (!en.includes('"settings.tab.sshHosts":')) fail("9: en.ts lost the settings-ssh-entry-guard settings.tab.sshHosts key")
 }
 
-// --- 10. Dependency closure files (M-042) + css ---
+// --- 10. Dependency closure files (settings-framework-dependencies) + css ---
 {
   for (const file of [
     "src/shell/sidebar-toggle.tsx",
@@ -335,17 +335,17 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     "src/shell/sidebar-peek.css",
     "src/servers/registry/label.tsx",
   ]) {
-    if (!(await exists(`${APP}${file}`))) fail(`10: the M-042 dep file is missing: ${file}`)
+    if (!(await exists(`${APP}${file}`))) fail(`10: the settings-framework-dependencies dep file is missing: ${file}`)
   }
   for (const file of ["src/typography/slash/slash.tsx", "src/typography/slash/slash.css"]) {
-    if (!(await exists(`${UI}${file}`))) fail(`10: the M-042 ui dep file is missing: ${file}`)
+    if (!(await exists(`${UI}${file}`))) fail(`10: the settings-framework-dependencies ui dep file is missing: ${file}`)
   }
   const uiPkg = JSON.parse(await read(`${UI}package.json`)) as { exports?: Record<string, string> }
   if (uiPkg.exports?.["./slash"] !== "./src/typography/slash/slash.tsx") fail("10: ui package.json lost the ./slash export")
 
   const registry = await read(`${APP}src/runtime/server/registry.tsx`)
   if (!registry.includes("export function serverLabel(") || !registry.includes("hint(conn: ServerConnection.Any)"))
-    fail("10: registry.tsx lost the M-042 label/hint block")
+    fail("10: registry.tsx lost the settings-framework-dependencies label/hint block")
 
   const settingsCss = await read(`${APP}src/settings/settings.css`)
   for (const marker of ["settings-server-switcher-", "settings-server-unavailable-", "settings-tab-header-actions", '--settings-bottom-inset']) {
@@ -368,11 +368,11 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     patches?: Array<{ id?: unknown }>
   }
   const ids = new Set((manifest.patches ?? []).map((row) => String(row.id)))
-  for (const id of ["M-042", "M-043", "M-044"]) {
+  for (const id of ["settings-framework-dependencies", "settings-framework-migration", "settings-framework-mobile"]) {
     if (!ids.has(id)) fail(`11: the patches manifest lost the ${id} registration`)
   }
-  // Issue #109 / M-052 registered (the D4-resolution patch this probe's group 12 locks).
-  if (!ids.has("M-052")) fail("11: the patches manifest lost the M-052 registration (issue #109)")
+  // Issue #109 / settings-gui-plugins-tab-label registered (the D4-resolution patch this probe's group 12 locks).
+  if (!ids.has("settings-gui-plugins-tab-label")) fail("11: the patches manifest lost the settings-gui-plugins-tab-label registration (issue #109)")
 }
 
 // --- 12. Plugin settings-contribution hosting + label disambiguation (issue #109:
@@ -402,7 +402,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
     if (!reviewSettings.includes(anchor)) fail(`12: review/settings.tsx lost the Wrap-lines row anchor: ${anchor} (issue #109 S14)`)
   }
 
-  // Sources row (M-036 registered deviation — target has no settings row; the knob lives
+  // Sources row (session-goal-sources-panels registered deviation — target has no settings row; the knob lives
   // in the DEV motion-tuning panel) keeps its storedToggle wiring.
   const experimental = await read(`${APP}src/settings/experimental/experimental.tsx`)
   for (const anchor of ['storedToggle("sources.enabled", false)', 'setStoredToggle("sources.enabled", checked, false)', 'data-action="settings-sources"', "mobile(M-036)"]) {
@@ -423,17 +423,17 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
 
 console.log(
   "verify-settings-framework: PASS (" +
-    "1: migrated shell — single RootSettings + keyed server scope + switcher/unavailable, M-056 upstream-only Server tab (no MobileHostManager), M-026 single-face forms (predicate/guard/nav/mount), pin dual-layout negatives; " +
+    "1: migrated shell — single RootSettings + keyed server scope + switcher/unavailable, settings-server-menu upstream-only Server tab (no MobileHostManager), settings-mobile-gui-plugins single-face forms (predicate/guard/nav/mount), pin dual-layout negatives; " +
     "2: navigation CollapsedSidebarToggleSpace back row + un-exported SettingsNavItem; " +
-    "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4 — issue #109 resolved the contract as KEEP, notes reworded in place by M-052); " +
+    "3: route model — no server views, servers-page parse, plugins->extensions redirect, gui-extensions restoration (mobile faces deviation, D4 — issue #109 resolved the contract as KEEP, notes reworded in place by settings-gui-plugins-tab-label); " +
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +
-    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/M-046 (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/M-050 (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone; route.ts note resolved as KEEP by #109), target plugins consumer form; " +
+    "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/settings-general-experimental-migration (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/settings-notifications-migration (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone; route.ts note resolved as KEEP by #109), target plugins consumer form; " +
     "6: command-palette bridge — setting entry type + createSettingsPaletteEntries + select branch + dialog Match/items; " +
-    "7: tests — M-044 keyed/search-results/search-plugin forms (capsule + sounds-interface assertions at the issue #103/#107 restored-row shapes) + three new first-party test files; " +
+    "7: tests — settings-framework-mobile keyed/search-results/search-plugin forms (capsule + sounds-interface assertions at the issue #103/#107 restored-row shapes) + three new first-party test files; " +
     "8: page glue — headerAction rendered in all five pages + projects accessor swap; " +
     "9: i18n — nine en.ts keys (plan's 8 + server.thisComputer), sshHosts retained; " +
-    "10: M-042 dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +
-    "11: manifest registration M-042/M-043/M-044 + M-052 (issue #109); " +
+    "10: settings-framework-dependencies dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +
+    "11: manifest registration settings-framework-dependencies/settings-framework-migration/settings-framework-mobile + settings-gui-plugins-tab-label (issue #109); " +
     "12: plugin settings-contribution hosting (PluginSettingsPages shell mount + general.tsx section/page placements), review mobile-diff contribution shape, Sources row wiring, and the GUI-extensions label disambiguation en/zh (issue #109 S41/S14/Sources); " +
     "STATIC check — device navigation/search/offline/isolation are smoke items in docs/build-and-verify.md issue #101; tree byte-equivalence is V3 verify-closure)",
 )

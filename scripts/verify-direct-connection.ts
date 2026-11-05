@@ -9,14 +9,14 @@
 //   3. Probe taxonomy consistency: every JS DirectErrorCode string is spoken by the Kotlin
 //      bridge (codeName mapping), and the first-party i18n carries one non-empty EN+ZH line
 //      per code (F5 key set 1).
-//   4. (vendor-dependent, full mode only) M-011/M-014 dist markers: the built bundle carries
+//   4. (vendor-dependent, full mode only) connection-platform-fetch-policy/app-connection-probe-bridge dist markers: the built bundle carries
 //      the validated-follow wrapper (mobile(M-011)), the probe bridge handshake string and
 //      the probe bridge marker (mobile(probe-v1)); the vendored web.ts injects
 //      createSecureFetch into the platform seam.
 //
 // Staged strategy (review note F3 — every commit point stays verifiable): at the scripts
 // commit (before the vendor patches land) run with --pre-vendor, which skips assertion 4
-// (the dist does not carry the markers yet). After M-011/M-014 land, run in full mode
+// (the dist does not carry the markers yet). After connection-platform-fetch-policy/app-connection-probe-bridge land, run in full mode
 // (default) — assertion 4 is then permanent, so a lost marker FAILs again.
 //
 // Usage:
@@ -104,14 +104,14 @@ const path = (...segments: string[]) => `${ROOT}${segments.join("/")}`
 }
 
 // ---------------------------------------------------------------------------
-// 4. Vendor-dependent: M-011/M-014 seam + dist markers (full mode only — F3 staging)
+// 4. Vendor-dependent: connection-platform-fetch-policy/app-connection-probe-bridge seam + dist markers (full mode only — F3 staging)
 // ---------------------------------------------------------------------------
 if (PRE_VENDOR) {
-  console.log("4 SKIPPED (--pre-vendor): M-011/M-014 seam and dist-marker assertions activate once the vendor patches land")
+  console.log("4 SKIPPED (--pre-vendor): connection-platform-fetch-policy/app-connection-probe-bridge seam and dist-marker assertions activate once the vendor patches land")
 } else {
   const webTs = await Bun.file(path("vendor/upstream/packages/app/src/runtime/platform/web.ts")).text()
   if (!webTs.includes("createSecureFetch")) {
-    fail("vendored web.ts does not inject createSecureFetch into the platform fetch seam (M-011)")
+    fail("vendored web.ts does not inject createSecureFetch into the platform fetch seam (connection-platform-fetch-policy)")
   }
   if (!webTs.includes("mobile(M-011)")) fail("vendored web.ts is missing the mobile(M-011) marker comment")
 
@@ -125,7 +125,7 @@ if (PRE_VENDOR) {
     })
     if (proc.stdout.toString().trim() === "") fail(`dist marker ${marker} not found in built assets`)
   }
-  console.log(`4 OK: M-011 platform seam present in vendored web.ts; dist markers ${markers.join(", ")} found in ${distFiles.length} built assets`)
+  console.log(`4 OK: connection-platform-fetch-policy platform seam present in vendored web.ts; dist markers ${markers.join(", ")} found in ${distFiles.length} built assets`)
 }
 
 console.log("verify-direct-connection: PASS")

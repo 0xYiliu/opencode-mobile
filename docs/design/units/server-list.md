@@ -4,7 +4,7 @@
 
 ## 字段契约（已实现）
 
-来源：`vendor/upstream/packages/app/src/runtime/server/persistence.ts`（M-002 预应用后）。
+来源：`vendor/upstream/packages/app/src/runtime/server/persistence.ts`（connection-password-memory-only 预应用后）。
 
 | 字段 | 类型 | 语义 | 状态 |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@
 | `projects` | Record<key, { worktree, expanded }[]> | 每服务器的项目（worktree）树与展开态 | 已实现（未验证） |
 | `lastProject` | Record<key, …> | 每服务器最后选中的项目 | 已实现（未验证） |
 
-password 字段经同一 M-002 encode 剥离，列表持久化同样收不到凭据。
+password 字段经同一 connection-password-memory-only encode 剥离，列表持久化同样收不到凭据。
 
 ## SSH 主机注册表契约（已实现（未验证）：issue #3）
 
@@ -83,29 +83,29 @@ MatePad 实际安装 APK SHA-256：`db54c703ce2a070aa897e23d29c69c200af8b58f6319
 | 唯一 Settings 面及数据保护 | `settings/shell.tsx`、既有 HTTP registry | Server 无额外 SSH Hosts 区块；以唯一回环测试直连临时进入，结束时仅删除该记录并逐键核对 localStorage | PASS；原服务器与全部 localStorage 键/值精确恢复；只清理自建本机服务和该条 adb reverse，无远端停止 |
 | 尚未验证的范围 | 原 SSH row/challenge 展示与共享响应式/无障碍基线 | 真实 SSH Auth/Trust/Update/Delete 行、真实后台 SSH、窄手机断点、TalkBack、外接键盘、Desktop 同屏对照 | 设备未验证；fixture 不替代真实后台或设备结果；全仓 typecheck 非零，不作为 PASS |
 
-以下管理面表格及 M-008/M-018/M-045 说明为 **issue #124 之前的历史挂载**，不表示 Settings 仍展示这些控件；host-dialog/InitialSshSetup 等其他入口不在本次修改范围。
+以下管理面表格及 settings-mobile-host-manager/settings-ssh-entry-guard/settings-servers-migration 说明为 **issue #124 之前的历史挂载**，不表示 Settings 仍展示这些控件；host-dialog/InitialSshSetup 等其他入口不在本次修改范围。
 
 | 组件 | 归属单元文档 | 挂载点 | 职责 |
 | --- | --- | --- | --- |
-| host-manager | 本文档 | 设置 → servers 标签页（M-008 挂载，lazy import） | SSH 主机列表：展示名称/target/状态徽标+**已绑定凭据指示**（issue #4：行内显示该主机是否绑定凭据），入口到 host-dialog、删除、重连；删除只移除本地主机，已保存凭据留在凭据管理器孤儿区供用户单独处理，远端服务/任务不受影响；**凭据管理器入口**（issue #4）；空态引导新增。SSH tunnel ready 但 OpenCode `/api/info` 返回认证挑战时显示独立 service-auth-prompt：密码输入只在 DOM/component/runtime 内存中，Check again 走 runtime Basic auth check，成功后运行态 endpoint/session 保存内存凭据，不写主机注册表/本地存储；Disconnect local 只拆本地隧道。MatePad 2026-10-29 已验证 Settings → Server 可呈现已保存主机行与 service-auth-required 提示/空 password input/Check again；完整真实密码验证未执行。 |
+| host-manager | 本文档 | 设置 → servers 标签页（settings-mobile-host-manager 挂载，lazy import） | SSH 主机列表：展示名称/target/状态徽标+**已绑定凭据指示**（issue #4：行内显示该主机是否绑定凭据），入口到 host-dialog、删除、重连；删除只移除本地主机，已保存凭据留在凭据管理器孤儿区供用户单独处理，远端服务/任务不受影响；**凭据管理器入口**（issue #4）；空态引导新增。SSH tunnel ready 但 OpenCode `/api/info` 返回认证挑战时显示独立 service-auth-prompt：密码输入只在 DOM/component/runtime 内存中，Check again 走 runtime Basic auth check，成功后运行态 endpoint/session 保存内存凭据，不写主机注册表/本地存储；Disconnect local 只拆本地隧道。MatePad 2026-10-29 已验证 Settings → Server 可呈现已保存主机行与 service-auth-required 提示/空 password input/Check again；完整真实密码验证未执行。 |
 | host-dialog | 本文档 | host-manager 内（对话框） | SSH 主机新增/编辑表单：name（唯一）、target（格式校验）、**凭据绑定块（issue #4 重构：移除 #3 的自由文本 ref 输入；改为「记住凭据」勾选/私钥导入路径，真值表语义见 [connection.md](connection.md)）；保存失败（含 vault put 失败）**保留原配置** |
 | credential-manager | 本文档 | host-manager 内入口（对话框/面板，issue #4 新增） | 凭据条目元数据列表（kind/label/时间，**无值**）：vault unavailable 横幅、corrupt/recovery-needed 标红与恢复动作（重输/删除）、**孤儿区**（无宿主引用的条目对账+删除） |
 | service-auth-prompt | 本文档 | host-manager 行内（service auth required）及 InitialSshSetup 共用 | OpenCode 服务认证，与 SSH 私钥/密码认证严格分离；password type 输入、用户显式 Check again；成功则内存 session auth，不持久化；切主机/离开活动模式/卸载时清除 draft 与取消过期检查 |
 | host-key-prompt | [connection.md](connection.md) | 连接状态机 hostKeyUnverified 态 | 指纹确认（stub fail-closed，BLOCKED #6） |
 
 - 设计单元归属说明：host-manager/host-dialog/credential-manager 并入本单元（它们是服务器列表的管理面），host-key-prompt 并入 connection 单元（它是连接确认交互）；architecture.md 设计单元清单不单列新行。
-- **issue #102 管理面上游形态更新（M-045，目标逐字）**：servers 标签页的上游列表行现为目标 `ServerConnectionRow`（每行 `settings-shell:<key>` 搜索命名——选中服务器行保持默认 `settings-shell`，其余行逐服务器命名供 Settings 搜索 reveal；健康点 + `entry.name` 行名 + 未授权 401 时行内 Authenticate 入口），每个服务器段的 Shell 偏好段随 `healthy !== false` **健康门显隐**（不可达/401 服务器不再显示 Shell 行——目标行为，勿报回归）；单服务器 General 视图同一行组件 + 同一健康门。`Manage servers…`（switcher 菜单）可达 servers 标签页。M-008 主机管理器挂载（Tabs.Content 第一子元素）不变，第一方行/凭据/服务认证面与上游行**并列独立呈列**（设备复核 2026-11-01：3 个既有 SSH 主机独立呈列，凭据绑定徽标正常）。设备复核另见 [../../build-and-verify.md](../../build-and-verify.md) issue #102 段。
-- host-dialog 凭据绑定块（issue #4）：SSH 主机不再手输引用标识符——密码凭据通过上游连接对话框的「记住」勾选（M-009）或主机表单绑定；表单内不再存在任何凭据值输入位。
+- **issue #102 管理面上游形态更新（settings-servers-migration，目标逐字）**：servers 标签页的上游列表行现为目标 `ServerConnectionRow`（每行 `settings-shell:<key>` 搜索命名——选中服务器行保持默认 `settings-shell`，其余行逐服务器命名供 Settings 搜索 reveal；健康点 + `entry.name` 行名 + 未授权 401 时行内 Authenticate 入口），每个服务器段的 Shell 偏好段随 `healthy !== false` **健康门显隐**（不可达/401 服务器不再显示 Shell 行——目标行为，勿报回归）；单服务器 General 视图同一行组件 + 同一健康门。`Manage servers…`（switcher 菜单）可达 servers 标签页。settings-mobile-host-manager 主机管理器挂载（Tabs.Content 第一子元素）不变，第一方行/凭据/服务认证面与上游行**并列独立呈列**（设备复核 2026-11-01：3 个既有 SSH 主机独立呈列，凭据绑定徽标正常）。设备复核另见 [../../build-and-verify.md](../../build-and-verify.md) issue #102 段。
+- host-dialog 凭据绑定块（issue #4）：SSH 主机不再手输引用标识符——密码凭据通过上游连接对话框的「记住」勾选（connection-remember-credential）或主机表单绑定；表单内不再存在任何凭据值输入位。
 - 诚实边界：
-  - 多 host 一窗、设置页/home 内 extension 行渲染待真机核对，归 G13/G15；Settings → Server 的 M-008 主机管理器与已保存行已在 MatePad 运行核对（2026-10-29），保存主机 Connect 可达 host-key prompt，未确认指纹。
-  - 已知展示缺口（M-008）——**已由 M-018 承接（未验证，issue #8）**：上游多 server 布局下（`multiple()`），设置导航以 per-server 条目取代 "servers" 标签页，host-manager 曾在该布局不可达。M-018 以「入口 + 守卫修订」承接（`multiple()` 组加 SSH hosts 入口；重定向守卫 `includes` 列表移除 `"servers"`——守卫修订是入口可达性的前提），详见 [projects-sessions.md](projects-sessions.md) 与 [../interaction.md](../interaction.md) G19；运行期可达性待真机核对（G19）。
-  - 直连服务记录仍由上游原生注册表承载（含 M-005/M-006/M-009/M-010 的 credentialRef 行为），本单元的注册表只管理 SSH 主机。
+  - 多 host 一窗、设置页/home 内 extension 行渲染待真机核对，归 G13/G15；Settings → Server 的 settings-mobile-host-manager 主机管理器与已保存行已在 MatePad 运行核对（2026-10-29），保存主机 Connect 可达 host-key prompt，未确认指纹。
+  - 已知展示缺口（settings-mobile-host-manager）——**已由 settings-ssh-entry-guard 承接（未验证，issue #8）**：上游多 server 布局下（`multiple()`），设置导航以 per-server 条目取代 "servers" 标签页，host-manager 曾在该布局不可达。settings-ssh-entry-guard 以「入口 + 守卫修订」承接（`multiple()` 组加 SSH hosts 入口；重定向守卫 `includes` 列表移除 `"servers"`——守卫修订是入口可达性的前提），详见 [projects-sessions.md](projects-sessions.md) 与 [../interaction.md](../interaction.md) G19；运行期可达性待真机核对（G19）。
+  - 直连服务记录仍由上游原生注册表承载（含 connection-credential-reference/connection-dialog-credential-reference/connection-remember-credential/connection-credential-hydration 的 credentialRef 行为），本单元的注册表只管理 SSH 主机。
 
 ## 结构与流转
 
 - 上游 UI 代码随闭包携带（`packages/app/src/servers/`），但未在设备上运行，流转行为待验证；本仓库未为其建立单独交互契约。
-- 流转：server-list → 选择服务器/项目 → 会话列表（目标单元未开始，见 [../architecture.md](../architecture.md) 流转矩阵）；录入新服务 → connection 单元；设置 servers 标签页 → host-manager（已实现（未验证），M-008）。
-- 无 SSH 形态的服务记录（归 issue #6）：注册表记录经 upstream-map 映射为 extension 型连接注入上游列表（已实现（未验证），M-007 经 props.servers 注入）。
+- 流转：server-list → 选择服务器/项目 → 会话列表（目标单元未开始，见 [../architecture.md](../architecture.md) 流转矩阵）；录入新服务 → connection 单元；设置 servers 标签页 → host-manager（已实现（未验证），settings-mobile-host-manager）。
+- 无 SSH 形态的服务记录（归 issue #6）：注册表记录经 upstream-map 映射为 extension 型连接注入上游列表（已实现（未验证），app-mobile-hosts-bootstrap 经 props.servers 注入）。
 
 ## 状态矩阵（单元级）
 

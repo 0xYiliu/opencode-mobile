@@ -2,7 +2,7 @@
 // Windows v2.2.1 Top / Side / Inbox interface mode).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patch
-// M-033), the structural facts the S04 alignment record relies on:
+// settings-interface-mode), the structural facts the S04 alignment record relies on:
 //
 //   1. Enum + persistence (settings/model.tsx): appearance.tabLayout carries the
 //      three-value literal (horizontal/vertical/inbox) with the upstream
@@ -18,7 +18,7 @@
 //      General section (fieldset, radio semantics, settings-tab-layout anchor,
 //      Experimental badge, three preview modes top/horizontal side/vertical
 //      inbox/inbox); the old TabLayoutSetting select and tabLayoutOptions are
-//      gone. Issue #103 / M-046: the S11 companion rows
+//      gone. Issue #103 / settings-general-experimental-migration: the S11 companion rows
 //      (BackgroundActivity/TimelineWidth) land in the same file (positive
 //      anchors) and the pin TerminalPlacementSetting component is removed with
 //      the target migration (negative anchor — the S37 shell-setting domain is
@@ -32,10 +32,10 @@
 //      interfaceMode keys and language.tsx merges the en base
 //      FIRST, so non-en locales fall back to English (upstream v2.2.1's real
 //      shape — registered delta, NOT a missing translation to fix).
-//   6. Patch/manifest face: M-033 is registered in BOTH manifests; the patch
+//   6. Patch/manifest face: settings-interface-mode is registered in BOTH manifests; the patch
 //      file touches exactly the seven S04 files; no other registered patch
-//      references interface-mode; no vendor source outside the M-033 files
-//      mentions interfaceMode (diff face stays M-033-only — the byte-level
+//      references interface-mode; no vendor source outside the settings-interface-mode files
+//      mentions interfaceMode (diff face stays settings-interface-mode-only — the byte-level
 //      tree equivalence itself is V3 verify-closure, which must be run
 //      alongside this probe).
 //   7. First-party negative: packages/mobile-hosts carries ZERO
@@ -120,7 +120,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (general.includes("TabLayoutSetting"))
     fail("3: general.tsx still references the removed TabLayoutSetting component")
 
-  // Issue #103 / M-046: TerminalPlacementSetting leaves the general page with the target
+  // Issue #103 / settings-general-experimental-migration: TerminalPlacementSetting leaves the general page with the target
   // migration (component + render slot removed; the S37 shell-setting domain is carried by
   // the controllers.ts retained hunks, not by this component).
   if (general.includes("TerminalPlacementSetting"))
@@ -128,7 +128,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // Issue #67: the Plugin* naming pipeline (§6.B.5) renames the sections import.
   if (!general.includes('import { PluginSettingsSections } from "@/runtime/plugin/settings-page-view"'))
     fail("3: general.tsx lost the PluginSettingsSections import (issue #67 rename)")
-  // Issue #103 / M-046: the S11 setting rows land in the general page (target form).
+  // Issue #103 / settings-general-experimental-migration: the S11 setting rows land in the general page (target form).
   if (!general.includes("BackgroundActivitySetting") || !general.includes("TimelineWidthSetting"))
     fail("3: general.tsx lost the issue #103 BackgroundActivity/TimelineWidth setting rows (S11)")
 
@@ -220,16 +220,16 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 
 // --- 6. Patch/manifest face ---
 {
-  // Both manifests register M-033.
+  // Both manifests register settings-interface-mode.
   const manifest = await read(`${PATCHES}manifest.json`)
-  if (!manifest.includes('"id": "M-033"') || !manifest.includes("patches/mobile/0033-M-033-interface-mode-setting.patch"))
-    fail("6: patches/mobile/manifest.json does not register M-033")
+  if (!manifest.includes('"id": "settings-interface-mode"') || !manifest.includes("patches/mobile/settings-interface-mode.patch"))
+    fail("6: patches/mobile/manifest.json does not register settings-interface-mode")
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
-  if (!vendorManifest.includes("patches/mobile/0033-M-033-interface-mode-setting.patch"))
-    fail("6: vendor-manifest.json does not register M-033 (verify-closure reads only this list)")
+  if (!vendorManifest.includes("patches/mobile/settings-interface-mode.patch"))
+    fail("6: vendor-manifest.json does not register settings-interface-mode (verify-closure reads only this list)")
 
   // The patch file touches exactly the seven S04 files.
-  const patch = await read(`${PATCHES}0033-M-033-interface-mode-setting.patch`)
+  const patch = await read(`${PATCHES}settings-interface-mode.patch`)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
   const expected = [
     "packages/app/src/runtime/i18n/en.ts",
@@ -241,27 +241,27 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     "packages/app/src/shell/shell.tsx",
   ]
   if (JSON.stringify([...touched].sort()) !== JSON.stringify(expected))
-    fail(`6: M-033 patch face drifted: ${JSON.stringify(touched)} (expected exactly the seven S04 files)`)
+    fail(`6: settings-interface-mode patch face drifted: ${JSON.stringify(touched)} (expected exactly the seven S04 files)`)
 
   // No other registered patch carries interface-mode content. mobile(M-035) is exempted
   // on the patch-FILE scan only: its en.ts hunk context legitimately contains the
-  // interfaceMode.experimental key line (the M-035 seven keys insert directly after it,
+  // interfaceMode.experimental key line (the appearance-motion-zoom seven keys insert directly after it,
   // issue #65) — its diff face touches zero interface-mode files (asserted in
   // verify-appearance-settings group 12).
-  // Issue #67: M-037 joins the exemption (its consumer-token hunks legitimately carry
+  // Issue #67: gui-plugins-api-migration joins the exemption (its consumer-token hunks legitimately carry
   // `interfaceMode` context lines in settings/general surface files — same precedent as
-  // the M-033/M-035 exemptions; its diff face touches zero interface-mode files).
-  // Issue #103: M-046 joins the exemption (its general.tsx import hunk carries the
+  // the settings-interface-mode/appearance-motion-zoom exemptions; its diff face touches zero interface-mode files).
+  // Issue #103: settings-general-experimental-migration joins the exemption (its general.tsx import hunk carries the
   // `import { InterfaceModeSetting } from "./interface-mode"` line as CONTEXT — the
   // migration does not touch that line; its diff face touches zero interface-mode files).
   for (const name of readdirSync(join(repoRoot.pathname, PATCHES))) {
-    if (!name.endsWith(".patch") || name.startsWith("0033-") || name.startsWith("0035-") || name.startsWith("0037-") || name.startsWith("0046-")) continue
+    if (!name.endsWith(".patch") || ["settings-interface-mode.patch", "appearance-motion-zoom.patch", "gui-plugins-api-migration.patch", "settings-general-experimental-migration.patch"].includes(name)) continue
     const content = await read(`${PATCHES}${name}`)
     if (content.includes("interface-mode") || content.includes("interfaceMode"))
-      fail(`6: ${name} unexpectedly references interface-mode (only M-033 may)`)
+      fail(`6: ${name} unexpectedly references interface-mode (only settings-interface-mode may)`)
   }
 
-  // Diff face: no vendor source outside the M-033 files mentions the new face.
+  // Diff face: no vendor source outside the settings-interface-mode files mentions the new face.
   // (Byte-level tree equivalence == pin + registered patches is V3
   // verify-closure's job and must be run alongside this probe.)
   const tokens = ["interfaceMode", "interface-mode"]
@@ -286,7 +286,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
       const content = await Bun.file(path).text()
       for (const token of tokens) {
         if (content.includes(token))
-          fail(`6: ${path.replace(repoRoot.pathname, "")} mentions ${token} outside the M-033 file set`)
+          fail(`6: ${path.replace(repoRoot.pathname, "")} mentions ${token} outside the settings-interface-mode file set`)
       }
     }
   }
@@ -317,10 +317,10 @@ console.log(
   "verify-interface-mode: PASS (" +
     "1: tabLayout three-value literal + upstream comment, default horizontal, settings.v3 verbatim, withFallback read path + per-field recover() contract; " +
     "2: shell predicate !== \"horizontal\" && !mobile() one-liner, no === \"vertical\" remnant; " +
-    "3: InterfaceModeSetting mounted h3→fieldset→list, modes exactly top/side/inbox, radio+anchor+experimental badge, adaptive grid CSS, TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting removed with the target migration (issue #103/M-046 — S37 shell-setting lives in controllers.ts) and the BackgroundActivity/TimelineWidth rows in place (issue #103 S11), PluginSettingsSections import (issue #67 rename); " +
+    "3: InterfaceModeSetting mounted h3→fieldset→list, modes exactly top/side/inbox, radio+anchor+experimental badge, adaptive grid CSS, TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting removed with the target migration (issue #103/settings-general-experimental-migration — S37 shell-setting lives in controllers.ts) and the BackgroundActivity/TimelineWidth rows in place (issue #103 S11), PluginSettingsSections import (issue #67 rename); " +
     "4: search-catalog interfaceMode entry with settings-tab-layout target and v2.2.1 keywords; " +
     "5: EIGHT en keys (nine lines) one-by-one after the kept legacy tabs block, zero interfaceMode keys in zh/zht/ko/de/fr, language.tsx base-first merge fallback chain; " +
-    "6: M-033 in BOTH manifests, patch face exactly the seven S04 files, no other patch references interface-mode (0035/0037/0046 context-line exemptions registered — M-046 by issue #103), zero interfaceMode tokens in vendor sources outside the M-033 set (byte equivalence is V3's job); " +
+    "6: settings-interface-mode in BOTH manifests, patch face exactly the seven S04 files, no other patch references interface-mode (0035/0037/0046 context-line exemptions registered — settings-general-experimental-migration by issue #103), zero interfaceMode tokens in vendor sources outside the settings-interface-mode set (byte equivalence is V3's job); " +
     "7: packages/mobile-hosts zero interface-mode/tabLayout references; " +
     "STATIC check - preview rendering, radio interaction, narrow-screen stacking, restart persistence and the inbox-rail (no grouping/aggregation/badge) presentation are device-QA items registered in docs/build-and-verify.md)",
 )

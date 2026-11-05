@@ -66,6 +66,6 @@ G18（四桥并存 bring-up：四握手各自捕获/互不误捕/互不重置 ac
 
 | 条目 | 状态 |
 | --- | --- |
-| 命令面/授权流/发现模型/错误分类/第四桥/UI 代码承载 | `packages/mobile-hosts/src/service-ops/*` + `src/ui/service-panel.tsx` + `android/.../svcops/*` + M-016（**已实现（未验证）**；本机验证=V-mh 全套单测、V-svcops 探针全模式 PASS、V2/V3 冒烟、Kotlin 编译探针 PASS（compileDebugKotlin 经真实工具链）；APK 打包在 mergeDebugJavaResource 受 jsch+bcprov 既有 jar 元数据冲突阻塞（需 build.gradle.kts packaging 块，属零改动清单，待用户决策）；设备级全 BLOCKED） |
+| 命令面/授权流/发现模型/错误分类/第四桥/UI 代码承载 | `packages/mobile-hosts/src/service-ops/*` + `src/ui/service-panel.tsx` + `android/.../svcops/*` + app-service-operations-bridge（**已实现（未验证）**；本机验证=V-mh 全套单测、V-svcops 探针全模式 PASS、V2/V3 冒烟、Kotlin 编译探针 PASS（compileDebugKotlin 经真实工具链）；APK 打包在 mergeDebugJavaResource 受 jsch+bcprov 既有 jar 元数据冲突阻塞（需 build.gradle.kts packaging 块，属零改动清单，待用户决策）；设备级全 BLOCKED） |
 | 设备/真 OS 验证（G18、三 OS E2E、occupied-port/permission-denied 真实路径、真实回滚、bash=WSL 负例、断开存活） | **BLOCKED** |
 | 敏感信息 | 本文不含凭据、令牌、私钥或真实连接配置 |

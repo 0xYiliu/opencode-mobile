@@ -9,13 +9,13 @@
 //
 // DIVISION OF LABOR (three header declarations, per the in-registry
 // dedup convention):
-//   1. verify-credential-ref.ts reads dialog.tsx too, but asserts the M-006/
-//      M-009 credentialRef round-trip — THIS probe asserts the pairing gate
+//   1. verify-credential-ref.ts reads dialog.tsx too, but asserts the connection-dialog-credential-reference/
+//      connection-remember-credential credentialRef round-trip — THIS probe asserts the pairing gate
 //      (preview-cancel comment, checkbox render gate, redeem call face).
 //      Zero overlap. screen.tsx and registry.tsx "whole-replacement" anchors
 //      are NEW first locks here (the credref probe does not read them).
 //   2. CROSS-REFERENCE re-checks (referencing, NOT first locks — the
-//      originals live elsewhere): the M-002 encode-strip marker (first lock:
+//      originals live elsewhere): the connection-password-memory-only encode-strip marker (first lock:
 //      audit-secret-persistence.ts), the truth-table rows 6/11 passthrough
 //      decision core (first lock: verify-credential-vault.ts), the netsec
 //      cleartextTrafficPermitted="true" anchor (first lock:
@@ -52,7 +52,7 @@
 // ISSUE #71 REVISION REGISTER (deliberate sentinel revisions, NOT bypasses):
 //   - group 6: the camera-unavailable baseline flipped to the ENABLED state.
 //     The decision carrier is issue #71 itself (a user-created issue whose
-//     acceptance 1 is the MatePad scan-acceptance item) — the former M-022+
+//     acceptance 1 is the MatePad scan-acceptance item) — the former mobile-adaptation
 //     "scan enable is a pending user decision" framing is spent. The
 //     zero-CAMERA and zero-onPermissionRequest negatives became PAIRED
 //     anchors (CAMERA only with its grant-discipline comment; onPermission-
@@ -95,7 +95,7 @@
 //      zero-write assertion over the EXPLICIT domain (servers/connect/ +
 //      mobile-hosts/src), the out-of-domain four-write fact (declared set),
 //      zero console/Log calls in pairing/redeem/scanner/camera, and the
-//      cross-reference M-002 strip marker + rows 6/11 passthrough comment.
+//      cross-reference connection-password-memory-only strip marker + rows 6/11 passthrough comment.
 //   6. Camera-scan ENABLED baseline (issue #71; QA-0 judged the native gate
 //      holds — M-039 reserved-absent): manifest CAMERA line with its grant-
 //      discipline comment (paired anchor) + exactly the INTERNET +
@@ -109,7 +109,7 @@
 //   7. Routing and trust preservation: keep-address comments (screen +
 //      dialog) and the signed-out fallback url prop, the health-check-before-
 //      add ordering (four call sites), the screen credential/ref persistence
-//      reality pair (legacy `{ ...existing, http }` or M-061 vault-backed
+//      reality pair (legacy `{ ...existing, http }` or connection-initial-credential-persistence vault-backed
 //      `{ ...existing, http: saved }` + registry whole replacement), the
 //      SSH-domain zero-contact negative (servers/connect/ zero known_hosts/
 //      HostKeyVerifier/hostKey), the zero-bypass negative (zero
@@ -367,7 +367,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
 
   // Out-of-domain fact (declared, not asserted as a violation): the upstream app
   // has exactly five writeText sites in exactly four files, none in the pairing flow.
-  // Issue #105/M-048: providers/connect/mcp-dialog.tsx gains the MCP error-details
+  // Issue #105/settings-providers-models-extensions: providers/connect/mcp-dialog.tsx gains the MCP error-details
   // copy fallback (platform.writeClipboardText ?? navigator.clipboard.writeText).
   const appFiles = (await listFiles(APP_SRC)).filter((file) => /\.(ts|tsx)$/.test(file))
   const writers: string[] = []
@@ -399,7 +399,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   // CROSS-REFERENCE re-checks (first locks live elsewhere — see header).
   const persistence = await read(PERSISTENCE)
   if (!persistence.includes("mobile(M-002): password stripped at encode (memory-only)"))
-    fail("5: persistence.ts lost the M-002 strip marker (cross-reference with audit-secret-persistence.ts)")
+    fail("5: persistence.ts lost the connection-password-memory-only strip marker (cross-reference with audit-secret-persistence.ts)")
   const remember = await read(REMEMBER)
   if (!remember.includes("no checkbox means no remember intent either way"))
     fail("5: remember.ts lost the rows 6/11 passthrough comment (cross-reference with verify-credential-vault.ts decision core)")
@@ -505,8 +505,8 @@ const DIST_MANIFEST = "web-dist/manifest.json"
   if (checkAt < 0 || addAt < 0 || checkAt > addAt)
     fail("7: screen.tsx ordering changed (the health check must precede servers.add — a failed check must leave no registry write)")
 
-  // The screen credential/ref REALITY pair: before M-061 the shorthand http
-  // object intentionally dropped an existing ref; M-061 now persists the
+  // The screen credential/ref REALITY pair: before connection-initial-credential-persistence the shorthand http
+  // object intentionally dropped an existing ref; connection-initial-credential-persistence now persists the
   // authenticated credential through the vault and writes the saved ref.
   const refDropAdd = screen.includes('servers.add(existing ? { ...existing, http } : { type: "http", http })')
   const credentialPersistence =
@@ -516,7 +516,7 @@ const DIST_MANIFEST = "web-dist/manifest.json"
     screen.includes("saved = { ...http, credentialRef }") &&
     screen.includes('servers.add(existing ? { ...existing, http: saved } : { type: "http", http: saved })')
   if (!refDropAdd && !credentialPersistence)
-    fail("7: screen.tsx lost the credential/ref persistence anchor (expected the legacy ref-drop or M-061 vault-backed add shape)")
+    fail("7: screen.tsx lost the credential/ref persistence anchor (expected the legacy ref-drop or connection-initial-credential-persistence vault-backed add shape)")
   const registry = await read(REGISTRY)
   if (!registry.includes('setStore("list", existing, conn)'))
     fail("7: registry.tsx lost the whole-replacement add() anchor (no merge with the stored entry's ref — new first lock, zero conflict with verify-credential-ref.ts)")
@@ -609,9 +609,9 @@ console.log(
     "2: bounded multi-address redeem + 401→expired mapping + last.code reuse + scanner 3s rejected suppression + nine i18n keys + mixedContent https:-page early return (structurally unreachable in this shell); " +
     "3: preview-cancel comment verbatim + checkbox render gate (dialog first lock) + useRedeemPairing consumption set equality (redeem.ts definition + dialog + screen; scanner via props) + exactly 2 redeem faces per form + NEGATIVE zero VIEW intent-filter / onNewIntent only with the pendingRoute internal-route anchor (issue #23 — external launch stays banned); " +
     "4: NEGATIVE opencode:// zero hits across six upstream src domains + pairing.test.ts rejection anchors (opencode-ios://, /connect#abc); " +
-    "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + M-002 and rows-6/11 cross-references; " +
+    "5: setSavePassword(false) + ssl handler.cancel() (first locks here) + clipboard zero-write over servers/connect/ + mobile-hosts/src (domain explicit) + out-of-domain four-write fact set + zero console/Log in the import path + connection-password-memory-only and rows-6/11 cross-references; " +
     "6: ENABLED (issue #71) CAMERA line + grant-discipline comment (paired anchor) + exactly-3 uses-permission {INTERNET, POST_NOTIFICATIONS, CAMERA} (any fourth still fails) + onPermissionRequest only with the CameraGrantPolicy whitelist anchors (foreign-origin/audio-resource grants deny) + video-only policy constants + camera.ts gate + cameraHint() branches + scanner closure anchors + dist scanner chunk prefixes; " +
-    "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen credential/ref persistence reality pair (legacy ref-drop or M-061 vault-backed add + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
+    "7: keep-address comments both faces + signed-out fallback prop + health-check-before-add (four faces, ordering asserted) + screen credential/ref persistence reality pair (legacy ref-drop or connection-initial-credential-persistence vault-backed add + registry whole replacement) + SSH-domain zero contact + zero cert-bypass identifiers + netsec cleartext cross-reference; " +
     "8: connection.md pairing section + eight subsections + key sentences, interaction.md G1–G35 enumeration (issue #26 revision) + G32 row + eighteenth wording + failure path + :151 face qualification, architecture.md connection row, design README index + baseline; " +
     "STATIC check - scan-entry presentation, LAN cleartext wording, device token secrecy, ref persistence semantics, cancel/cold/hot-start behavior and dual-route pass are G32)",
 )

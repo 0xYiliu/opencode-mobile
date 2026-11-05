@@ -23,12 +23,12 @@
 //      uninstall execution path; bounded 16KiB output constants; pinned-fingerprint gate
 //      over SshHostKeyStore; zero-value logging in the exec face; the svcops handshake
 //      literal distinct from the three sibling handshakes.
-//   7. (vendor mode) M-016 entry wiring + dist markers (handshake string + the
+//   7. (vendor mode) app-service-operations-bridge entry wiring + dist markers (handshake string + the
 //      minification-proof mobile(svcops-v1) marker).
 //
 // Staged strategy: at the scripts commit run with BOTH --pre-native (the Kotlin svcops/
 // files do not exist yet) and --pre-vendor (the dist does not carry the markers yet).
-// After the Kotlin commit run with --pre-vendor only. After M-016 lands, run in full
+// After the Kotlin commit run with --pre-vendor only. After app-service-operations-bridge lands, run in full
 // mode (default).
 //
 // Usage:
@@ -335,7 +335,7 @@ if (!PRE_NATIVE) {
 if (!PRE_VENDOR) {
   const entrySrc = await Bun.file(path("vendor/upstream/packages/app/src/entry.tsx")).text()
   for (const needle of ["createWebMessageServiceOpsTransport", "setActiveServiceOpsPort", SVCOPS_BRIDGE.handshake]) {
-    if (!entrySrc.includes(needle)) fail(`vendored entry.tsx: M-016 wiring missing (${needle})`)
+    if (!entrySrc.includes(needle)) fail(`vendored entry.tsx: app-service-operations-bridge wiring missing (${needle})`)
   }
   const distDir = path("android/app/src/main/assets/web/")
   let handshakeHits = 0
@@ -345,9 +345,9 @@ if (!PRE_VENDOR) {
     if (text.includes(SVCOPS_BRIDGE.handshake)) handshakeHits += 1
     if (text.includes("mobile(svcops-v1)")) markerHits += 1
   }
-  if (handshakeHits === 0) fail("built dist does not carry the svcops bridge handshake string (M-016 not built in?)")
+  if (handshakeHits === 0) fail("built dist does not carry the svcops bridge handshake string (app-service-operations-bridge not built in?)")
   if (markerHits === 0) fail("built dist does not carry the mobile(svcops-v1) marker")
-  console.log("verify-service-ops: vendor markers ok (dist handshake + mobile(svcops-v1), M-016 wiring)")
+  console.log("verify-service-ops: vendor markers ok (dist handshake + mobile(svcops-v1), app-service-operations-bridge wiring)")
 }
 
 console.log("verify-service-ops: PASS")

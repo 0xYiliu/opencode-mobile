@@ -21,7 +21,7 @@
 //      `api.file.write(` / `/api/experimental/fs/write` call sites form a set
 //      EQUAL to exactly {composer/attachments/destination.ts} — the browse/
 //      search/view paths make ZERO write calls (this set is also the #16
-//      starting baseline). The M-012 responseURL validation context stays.
+//      starting baseline). The attachments-upload-redirect-policy responseURL validation context stays.
 //   3. Large-file/binary/encoding anchors: MAX_MEDIA_BYTES = 256*1024*1024
 //      (media-only placeholder; text has NO client-side size cap — honest),
 //      the 8 KiB NUL binary test, the unknown-binary placeholder comment, the
@@ -163,14 +163,14 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   }
   if (collected.size !== 1) fail(`2: write call-site set must equal exactly 1 file, got ${collected.size}`)
 
-  // The single call site keeps its M-012 transport-hygiene context (#16 face).
+  // The single call site keeps its attachments-upload-redirect-policy transport-hygiene context (#16 face).
   const destination = await read(`${APP}src/composer/attachments/destination.ts`)
   if (!destination.includes('new URL("/api/experimental/fs/write", server.conn.http.url)'))
     fail("2: destination.ts lost the upload endpoint construction")
   if (!destination.includes("validateRedirectTarget(url.href, xhr.responseURL)"))
-    fail("2: destination.ts lost the M-012 responseURL validated-follow check")
+    fail("2: destination.ts lost the attachments-upload-redirect-policy responseURL validated-follow check")
   if (!destination.includes("assertNoUrlCredentials(url.href)"))
-    fail("2: destination.ts lost the M-012 userinfo-credential URL refusal")
+    fail("2: destination.ts lost the attachments-upload-redirect-policy userinfo-credential URL refusal")
   if (!destination.includes("a 200 from `fs.write` is its declared success body"))
     fail("2: destination.ts lost the SAFETY comment context")
 
@@ -393,7 +393,7 @@ let osScanFiles = 0
 console.log(
   "verify-files: PASS (" +
     "1: tree/read/search wired through api.file.list/read/find with location scope + path identity + NotFound normalization + search swallow registered; generated client fs endpoints with [400,401,404]/binary read; " +
-    "2: fs.write call sites form exactly the closed 1-file set {composer/attachments/destination.ts} in app+gui-extensions src/** (client generated wrapper single-listed, zero callers — #16 baseline) with M-012 context kept; " +
+    "2: fs.write call sites form exactly the closed 1-file set {composer/attachments/destination.ts} in app+gui-extensions src/** (client generated wrapper single-listed, zero callers — #16 baseline) with attachments-upload-redirect-policy context kept; " +
     "3: 256MiB media placeholder (text uncapped — honest), 8KiB NUL binary test, unknown-binary placeholder, UTF-8 non-fatal decode, LRU 40 entries / 20MiB; " +
     "4: watcher invalidate chain (.git/ skip, force+silent reread, link-open force sync verbatim, adjacent scope-change reset, selectedLines persistence); " +
     "5: SessionStateKey.is migration filter, 50-key eviction list containing file-view, serverScoped file-view store 500/20, SessionStateKey.from/is brands; " +

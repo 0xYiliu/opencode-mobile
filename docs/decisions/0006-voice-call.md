@@ -81,9 +81,9 @@ vendored 树与 pin 对两个服务端语音契约**精确相等**（相等断�
 
 ### 2.4 移动壳事实与连接模型
 
-1. **平台门结构性排除（决定性事实）**：M-011 移动平台适配器报 `platform: "web"`（`vendor/upstream/patches/mobile/0011-M-011-platform-fetch-injection-redirect-policy.patch` hunk :9-10）。上游 `enabled()` 第一门 `platform === "desktop"`（§1.2）在移动 payload **按构造为 false**——即使源码全部移植，按钮也不渲染；反之，**上游自己的 web 平台访客同样看不到按钮**。移动现状与上游 web 平台行为一致，这是「非对齐缺口」判定的根据（§0）。
+1. **平台门结构性排除（决定性事实）**：connection-platform-fetch-policy 移动平台适配器报 `platform: "web"`（`vendor/upstream/patches/mobile/connection-platform-fetch-policy.patch` hunk :9-10）。上游 `enabled()` 第一门 `platform === "desktop"`（§1.2）在移动 payload **按构造为 false**——即使源码全部移植，按钮也不渲染；反之，**上游自己的 web 平台访客同样看不到按钮**。移动现状与上游 web 平台行为一致，这是「非对齐缺口」判定的根据（§0）。
 2. **渠道门不构成障碍**：`VITE_OPENCODE_CHANNEL ?? "local"`（vendored `app/src/env.d.ts:5` 类型、`runtime/extension/host-apis.tsx:253`），移动构建不设置该 env → channel = `"local"` ≠ `"prod"`，渠道门通过（issue 三核对项之二「目标渠道」已核）。
-3. **实验开关面缺失**：移动 Experimental 设置只呈现 newIcons/foldUserMessages（M-034）+ sources 行（M-036 经 motion-tuning shim）；vendored 树现有 knob 实例恰四个（`sources.enabled` toggle、`sources.icons` choice、`sources.fade`/`sources.expand` spring，`packages/session-ui/src/sources/experiment.ts:6/:17/:27/:41`），**`voice.calls` knob 实例不存在、无设置行、无任何移动 face**（负断言 grep `voice.calls` 零命中 rc=1）；shim 默认 false、无 auto-enable。
+3. **实验开关面缺失**：移动 Experimental 设置只呈现 newIcons/foldUserMessages（settings-experimental）+ sources 行（session-goal-sources-panels 经 motion-tuning shim）；vendored 树现有 knob 实例恰四个（`sources.enabled` toggle、`sources.icons` choice、`sources.fade`/`sources.expand` spring，`packages/session-ui/src/sources/experiment.ts:6/:17/:27/:41`），**`voice.calls` knob 实例不存在、无设置行、无任何移动 face**（负断言 grep `voice.calls` 零命中 rc=1）；shim 默认 false、无 auto-enable。
 4. **麦克风宿主（issue 三核对项之三）**：`AndroidManifest.xml` 仅 `INTERNET`（:7）+ `POST_NOTIFICATIONS`（:10），**`RECORD_AUDIO` 零命中**（负断言 rc=1）；`MainActivity.kt:202` WebChromeClient 仅重写 `onConsoleMessage`/`onGeolocationPermissionsShowPrompt`（拒绝，:210）等——**无 `onPermissionRequest`**，默认行为拒绝一切 getUserMedia 授权请求；WebView settings（`configureWebView`，:142-154）未动媒体自动播放默认。这与 **D03（issue #71，OPEN：相机扫码）是同型前提**——同为「Android WebView 媒体权限接线」缺失。
 5. **安全上下文（预期，属运行属性）**：WebView 资产服务器为 loopback `http://127.0.0.1:<port>/`（network_security_config.xml :15 有 127.0.0.1 明文例外）；按 W3C secure-context 规范 loopback 属 potentially trustworthy origin，`isSecureContext` 预期 true、getUserMedia 接口预期暴露——**源码级推定，须运行探针实证（若未来实施）**；WebView 的 WebRTC（RTCPeerConnection/data channel/Audio autoplay）支持随 WebView 版本浮动，同归运行探针。
 6. **服务端域边界（计述精确化）**：上游 pin **对象本身**包含服务端语音实现（`packages/core/src/voice.ts` 164 行 + `packages/server/src/handlers/voice.ts`，v2.2.1 同在且为含 Console 连接的新形态）；但移动仓 vendored 闭包不 vendor 这两包（`vendor/upstream/PROVENANCE.md`「Excluded packages」明列 core/server 等，实测 vendored 树两目录 0 文件）——服务端语音实现属远程服务域，与 #66 goal 服务端插件「服务端域不移植」同一逻辑。计划 v2 §0.2.5「pin 不 vendor core/server」的措辞按本条精确化（订正留痕见 §8）。
@@ -97,7 +97,7 @@ vendored 树与 pin 对两个服务端语音契约**精确相等**（相等断�
 | 权限与安全 | 新增 `RECORD_AUDIO` + `onPermissionRequest` 授权流（origin 限制、代际校验、拒绝路径；#71/D03 同型接线）+ 新敏感权限域 | 零新权限、零新信任面 | 零变化 |
 | 连接模型 | 新增隧道外路径：手机 ↔ OpenAI RTC 直连（`iceServers: []` 仅 host candidates，§1.3）；用户须显式接受 | 无 | 无 |
 | 服务端依赖 | 目标远端服务 ≥ v2.2.1 + realtime 凭据（provider key/env 或 gpt-live-1 走 Console 连接），否则 `VoiceFailure("unavailable")`（§1.2 第四条件） | 无 | 无 |
-| 实现规模 | 大：18 文件移植（移动补丁序列新条目 M-0xx，双登记 + `git apply --check` 硬门禁）+ 壳接线 + 运行探针 + 设置面 + 服务端配置前提 | 零代码；一次小提交落「不实现」终态（§9.3） | 零代码；仅文档 |
+| 实现规模 | 大：18 文件移植（移动补丁序列新条目采用语义 ID，登记表与生效数组分别维护 + `git apply --check` 硬门禁）+ 壳接线 + 运行探针 + 设置面 + 服务端配置前提 | 零代码；一次小提交落「不实现」终态（§9.3） | 零代码；仅文档 |
 | 与项目约定兼容 | 需产品批准（平台门语义分歧）+ AGENTS.md 权限纪律（凭据/权限经平台安全能力）+ 运行验证义务（workflow.md §6.4/6.5） | 完全兼容 | 完全兼容 |
 | 前置条件（当前状态） | 七项全部未满足（§5） | 无 | 无 |
 
@@ -128,7 +128,7 @@ vendored 树与 pin 对两个服务端语音契约**精确相等**（相等断�
 ## 5. 实施前提条件清单（若用户批准实施；本模块不实施）
 
 1. **上游语义分歧批准**：改 `platform === "desktop"` 门（composer.tsx:43-44）为移动可达——对上游产品范围的主动偏离，须差异登记并获产品批准。
-2. **源码移植**：`packages/app/src/voice/` 18 个 .ts/.tsx 文件（5 个 .test.ts 在内）+ voice.css（84 行）+ 17 个 en 键（`experiment.voiceCalls` + `voice.*` 16 个）+ `voice.calls` knob 的移动 face 与设置行——作为移动补丁序列新条目（M-0xx，manifest 双登记 + `git apply --check` 硬门禁，沿 M-034/035/036 先例）；**以 v2.2.1 为源重取，不得沿用 pin 的回退残留/前形态契约**（§2.2）。
+2. **源码移植**：`packages/app/src/voice/` 18 个 .ts/.tsx 文件（5 个 .test.ts 在内）+ voice.css（84 行）+ 17 个 en 键（`experiment.voiceCalls` + `voice.*` 16 个）+ `voice.calls` knob 的移动 face 与设置行——作为移动补丁序列新条目（语义 ID，登记表与生效数组分别维护 + `git apply --check` 硬门禁，沿 settings-experimental/appearance-motion-zoom/session-goal-sources-panels 先例）；**以 v2.2.1 为源重取，不得沿用 pin 的回退残留/前形态契约**（§2.2）。
 3. **Android 壳媒体权限**：`RECORD_AUDIO` + `WebChromeClient.onPermissionRequest` 接线（origin 限制、代际校验、拒绝路径）——与 #71/D03 同型，应共享同一接线设计；当前壳零实现（负断言：manifest 仅 :7/:10 两权限；WebChromeClient 无 onPermissionRequest）。
 4. **运行探针**：loopback `http://127.0.0.1` 的 `isSecureContext`/getUserMedia 暴露实证；WebView WebRTC（RTCPeerConnection/data channel/`Audio` autoplay 与媒体自动播放默认）实证——均为源码级推定（§2.4.5），实施前须真机探针。
 5. **服务端前提**：目标远端 opencode 服务 ≥ v2.2.1（server voice handler + core Voice.Service 在移动 vendored 闭包之外，§2.4.6）且配置 realtime 供应商凭据（provider key/env，或 gpt-live-1 走 OpenCode Console 连接——3330b3cf38 形态）→ `experimental.voice.models` 返回 gpt-live-1 `available && webrtc`。
@@ -175,7 +175,7 @@ git -C /home/peterhan/repository/opencode-mobile grep -n 'RECORD_AUDIO' 70232d0 
 git -C /home/peterhan/repository/opencode-mobile show 70232d0:android/app/src/main/java/ai/opencode/mobile/MainActivity.kt | grep -c 'onPermissionRequest'                              # → 0
 ```
 
-行号锚点（固定对象实测，供复查）：composer.tsx :19-25（knob；experiment :24 / value:false :25）、:43-44（三重门）；transport.ts :20/:21/:88/:93-95/:98/:116-127/:147/:149、Audio :22/:44/:75/:77；app.tsx :2/:3/:107-111；region.tsx :10/:587-594；realtime.ts :35（引擎表首行）；en.ts :4-20（17 键）；security.ts :10；window.ts :25；electron-builder.config.ts :158；desktop-native.ts :233；voice-delegation v2.2.1 注释 :3-5；message-timeline vendored :27/:301、pin :26/:297、v2.2.1 :28/:341；env.d.ts :5；host-apis.tsx :253；M-011 patch :9-10；MainActivity.kt :142-154/:202/:210；AndroidManifest.xml :7/:10。
+行号锚点（固定对象实测，供复查）：composer.tsx :19-25（knob；experiment :24 / value:false :25）、:43-44（三重门）；transport.ts :20/:21/:88/:93-95/:98/:116-127/:147/:149、Audio :22/:44/:75/:77；app.tsx :2/:3/:107-111；region.tsx :10/:587-594；realtime.ts :35（引擎表首行）；en.ts :4-20（17 键）；security.ts :10；window.ts :25；electron-builder.config.ts :158；desktop-native.ts :233；voice-delegation v2.2.1 注释 :3-5；message-timeline vendored :27/:301、pin :26/:297、v2.2.1 :28/:341；env.d.ts :5；host-apis.tsx :253；connection-platform-fetch-policy patch :9-10；MainActivity.kt :142-154/:202/:210；AndroidManifest.xml :7/:10。
 
 ## 8. 诚实边界
 

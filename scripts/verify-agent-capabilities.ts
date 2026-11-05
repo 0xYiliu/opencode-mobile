@@ -251,14 +251,14 @@ let mhFiles = 0
   if (!/api\(\)\s*\.\s*mcp\s*\.\s*list/.test(data))
     fail("1: the data-layer function-call receiver (api().mcp.list — N1) moved")
 
-  // B1 retirement (M-048, issue #105): extensions.tsx used to be the standing
+  // B1 retirement (settings-providers-models-extensions, issue #105): extensions.tsx used to be the standing
   // cross-line mcp.list case; the target migration moved it to the data layer,
   // so the UI face is exactly the four files above + the data-layer accessor.
   // The tolerant scan stays (it is what proves the retirement); the page pins
   // its new data-layer shapes below.
   const extensionsRaw = await read(`${APP}src/settings/providers/extensions.tsx`)
   if (/api\s*\.\s*mcp\s*\.\s*list\s*\(/.test(extensionsRaw))
-    fail("1: extensions.tsx regained an api.mcp.list call — M-048 moved it to the data layer (retired B1 case); re-derive the set if intentional")
+    fail("1: extensions.tsx regained an api.mcp.list call — settings-providers-models-extensions moved it to the data layer (retired B1 case); re-derive the set if intentional")
   const extensionsSq = squash(extensionsRaw)
   if (!extensionsSq.includes("voiddata.location.mcp.server.sync(data.location.default()).catch(()=>undefined)"))
     fail("1: the extensions.tsx default-Location mcp sync anchor moved")
@@ -351,7 +351,7 @@ let mhFiles = 0
   // DEV HMR `import.meta.hot.accept("@opencode/gui-extensions/renderer",…)`
   // form (builtins.ts — the renderer count 2 includes that one HMR accept).
   // Issue #67: the app/src specifier graph moved to @opencode/plugin/gui* + gui-plugins/renderer.
-  // Measured (M-037 tree): plugin/gui x33, /builtin x9, /host x16, /browser x1, /file x1,
+  // Measured (gui-plugins-api-migration tree): plugin/gui x33, /builtin x9, /host x16, /browser x1, /file x1,
   // /main x1, /review x1, /updater x1, gui-plugins/renderer x2; main-process entries zero.
   const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\(|import\()\s*["']@opencode\/(plugin\/gui[^"']*|gui-plugins\/?[^"']*)["']/g
   const specifiers = new Map<string, number>([
@@ -397,18 +397,18 @@ let mhFiles = 0
     const got = specifiers.get(key) ?? -1
     if (got !== count) fail(`3: the @opencode plugin/gui specifier set changed: "${key}" expected ${count}, got ${got}`)
   }
-  // ④ settings entry (issue #101 / M-044 forms). The migrated (v2.2.1) shell REMOVED the
+  // ④ settings entry (issue #101 / settings-framework-mobile forms). The migrated (v2.2.1) shell REMOVED the
   // DEV-only lazy gate and the desktop-only gate (the DEV plugin face lives in
-  // PluginSettingsPages/settings-page-dev, carried by M-037), and the redirect guard
-  // collapsed to the single M-044 face form — SAME-FACE as verify-gui-plugins group 3/4
+  // PluginSettingsPages/settings-page-dev, carried by gui-plugins-api-migration), and the redirect guard
+  // collapsed to the single settings-framework-mobile face form — SAME-FACE as verify-gui-plugins group 3/4
   // (common witness, drift double-FAILs preserved).
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
   if (shell.includes("constGuiExtensionsSettings=import.meta.env.DEV"))
-    fail("3: shell.tsx still carries the pin DEV-only lazy gate (target-removed by the M-043 migration)")
+    fail("3: shell.tsx still carries the pin DEV-only lazy gate (target-removed by the settings-framework-migration migration)")
   if (shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
-    fail("3: shell.tsx still carries the pin guiExtensions desktop gate (target-removed by the M-043 migration)")
+    fail("3: shell.tsx still carries the pin guiExtensions desktop gate (target-removed by the settings-framework-migration migration)")
   if (!shell.includes('if(view.tab==="gui-extensions"&&!mobileGuiExtensions)surface.open("general")'))
-    fail("3: the gui-extensions redirect guard lost the M-044 single-face form (issue #101 re-anchor)")
+    fail("3: the gui-extensions redirect guard lost the settings-framework-mobile single-face form (issue #101 re-anchor)")
   // Anti-overclaim: renderer side DOES run on web (os filter + bridge-less
   // inertness), and the details mobile drawer chain stays in place.
   const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
@@ -484,7 +484,7 @@ let mhFiles = 0
 
 // --- 5. Error and recovery chain ---
 {
-  // catch→[] fallback comments (both variants). M-048 (issue #105): the target
+  // catch→[] fallback comments (both variants). settings-providers-models-extensions (issue #105): the target
   // extensions.tsx DELETES the "Reading `.latest` rethrows…" comment (its
   // mcpList resource is gone; only the pluginList `.catch(() => [])` shape
   // remains), so the comment pin narrows to project-extensions.tsx (zero-delta
@@ -553,7 +553,7 @@ let mhFiles = 0
     for (const key of enKeys) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
     for (const key of zhKeys) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
   }
-  // M-048 (issue #105): dialog.mcp and settings.plugins move from count pins to
+  // settings-providers-models-extensions (issue #105): dialog.mcp and settings.plugins move from count pins to
   // EXACT key-set pins, because `language.t` is untyped — tsc and count-only
   // pairing stay green while a consumed key goes missing (the MAJOR-2
   // silent-defect class). dialog.mcp en carries the target's 14 added keys PLUS
@@ -676,7 +676,7 @@ let mhFiles = 0
     if (checked === 0) fail(`5: the consumed-keys guard found no language.t literals in ${rel} — scan broke`)
   }
   // Issue #26 revision (deliberate, NOT a bypass): the en8/zh0 honest gap CLOSED —
-  // M-026 added settings.guiExtensions.mobile.description to en (8->9) and the full
+  // settings-mobile-gui-plugins added settings.guiExtensions.mobile.description to en (8->9) and the full
   // nine-key block to zh (0->9); both counts now assert 9 with full key-set pairing.
   const guiExtEn = keySet(en, "settings.guiExtensions")
   const guiExtZh = keySet(zh, "settings.guiExtensions")
@@ -827,13 +827,13 @@ let mhFiles = 0
 
 console.log(
   "verify-agent-capabilities: PASS (" +
-    "1: MCP start/stop call-face exhaustive sets — connect/disconnect EXACTLY {providers/connect/mcp.ts, runtime/server/sync.tsx, gui-ext details/server-panel.tsx}, mcp.list EXACTLY 5 (= 4 UI files + data.ts `api().mcp.list` N1 data-layer accessor; the extensions.tsx cross-line B1 case is RETIRED by M-048 — the page reads the data layer, its sync/list anchors pinned), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
+    "1: MCP start/stop call-face exhaustive sets — connect/disconnect EXACTLY {providers/connect/mcp.ts, runtime/server/sync.tsx, gui-ext details/server-panel.tsx}, mcp.list EXACTLY 5 (= 4 UI files + data.ts `api().mcp.list` N1 data-layer accessor; the extensions.tsx cross-line B1 case is RETIRED by settings-providers-models-extensions — the page reads the data layer, its sync/list anchors pinned), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
     fourPkgFiles +
     " four-package src files; " +
     "2: re-auth three-site chain (integration.get → oauth.connect → openExternal + interactiveForm anchors + failed-state terminal re-check verbatim), integration.get exactly 5, oauth.connect exactly 4 (source caliber, N2); " +
     "3: GUI-extension main-process zero-execution — web.ts no extensions field, Bridge/Ipc verbatim, zero electron imports, specifier set exactly {sdk:34, sdk/bridge:8, renderer:2, updater:1} zero main, DEV+desktop double gate + guard, anti-overclaim renderer/os/installed anchors, details drawer chain (order 50 kind drawer + MobileViewTabs), wsl os literal, 6 main: entries desktop-side; " +
     "4: data-face five events (mcp.status.changed verbatim push-back comment) + reconnect resync five directories + locationResource accessors + connection.ts zero capability calls (event.subscribe only); " +
-    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by M-048), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the five migrated files, manageConfig copy; " +
+    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by settings-providers-models-extensions), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the five migrated files, manageConfig copy; " +
     "6: config write boundary — updateConfig stub verbatim, mcp.add/remove + plugin.check/update + session.skill ZERO (receiver-tolerant), generated client anchors (PluginCheck/PluginUpdate/McpAdd/McpRemove/SessionSkill), Mcp.Server no-echo schema + five statuses, LocalConfig cwd verbatim, mobile-hosts " +
     mhFiles +
     " files capability-face-free, protocol descriptions verbatim; " +

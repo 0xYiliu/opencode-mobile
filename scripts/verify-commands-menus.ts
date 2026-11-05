@@ -1,7 +1,7 @@
 // verify-commands-menus.ts — static probe for issue #24 (Workbench navigation,
 // command menu, and Desktop host-action adaptation).
 //
-// Asserts, against the REAL sources (vendored pin b4525d79bf… + registered M-001..M-035
+// Asserts, against the REAL sources (vendored pin b4525d79bf… + registered gui-plugins-native-test-deps..appearance-motion-zoom
 // mobile patches, with M-019 reserved-absent) and
 // the commit-1 docs, the structural facts the commands-menus cross-cutting document
 // relies on: the DESKTOP_MENU pure-data desktop-host face (7 menus / 19 actions /
@@ -26,7 +26,7 @@
 //      — cross-reference against registered JSON IDs and vendor-manifest paths), the
 //      terminal.toggle keybind
 //      passthrough (verify-terminal.ts:428 — different anchors, same file declared),
-//      and M-020 readClipboardImage (first lock: verify-attachments-artifacts —
+//      and files-platform-bridge readClipboardImage (first lock: verify-attachments-artifacts —
 //      only the web.ts wiring anchor is asserted here).
 //   2. EXISTING READERS on files this probe also reads (per the plan §0.7② ledger,
 //      v1.1/R4 + v1.2/N1): verify-interaction-quality group 5 reads command.tsx
@@ -413,11 +413,11 @@ const PROJECT_OPEN_CONSUMERS = new Set([
 // --- 4. Edit / zoom / navigation families ---
 {
   // Cross-reference declarations (NOT re-locked): session.undo/redo slash pair first
-  // locks live in verify-diff group 3 + verify-interaction-quality group 5; M-020
+  // locks live in verify-diff group 3 + verify-interaction-quality group 5; files-platform-bridge
   // readClipboardImage first lock lives in verify-attachments-artifacts.
   const web = await read(WEB_TS)
   if (!web.includes("readClipboardImage: createPlatformClipboardReader(),"))
-    fail("4: web.ts lost the M-020 readClipboardImage wiring anchor")
+    fail("4: web.ts lost the files-platform-bridge readClipboardImage wiring anchor")
 
   const terminal = await read(TERMINAL_TSX)
   if (!terminal.includes('document.execCommand("copy")'))
@@ -514,7 +514,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   // category/section/keybind/slash/hidden + plugin/follows ONLY — no onSelect (upstream
   // command.test.ts block 1 locks this; the struct shape is anchored here; plugin/follows
   // are metadata for the Shortcuts page's plugin-filter/follower-collapse, issue #108 /
-  // M-051 target form un-exports the declaration).
+  // settings-keybinds-command-catalog target form un-exports the declaration).
   const structStart = command.indexOf("const CommandCatalogItem = Persistence.struct({")
   if (structStart < 0) fail("6: command.tsx lost the CommandCatalogItem struct declaration")
   const structEnd = command.indexOf("\n})", structStart)
@@ -541,7 +541,7 @@ const PROJECT_OPEN_CONSUMERS = new Set([
   if (!keybinds.includes('Pick<CommandContext, "catalog" | "options">'))
     fail("6: keybinds.tsx lost the catalog/options context pick anchor")
 
-  // Issue #108 / M-051: the Unbind face's i18n key is a positive pin (machine-checked,
+  // Issue #108 / settings-keybinds-command-catalog: the Unbind face's i18n key is a positive pin (machine-checked,
   // not only device-visible) — en-only by target parity, so only en.ts is asserted.
   const en = await read(EN_TS)
   if (!en.includes('"settings.shortcuts.unbind": "Unbind",'))
@@ -619,54 +619,22 @@ const PROJECT_OPEN_CONSUMERS = new Set([
 // --- 8. Build zero-touch declaration (mechanical witnesses; NO build inputs change) ---
 {
   // Current Vite output is an exact first-lock cross-reference to verify-notifications
-  // group 8. Earlier M-026/M-027/M-028 sizes remain historical measurements.
+  // group 8. Earlier settings-mobile-gui-plugins/connection-initial-ssh-entry/connection-method-layout sizes remain historical measurements.
   const distManifest = JSON.parse(await read(WEB_DIST_MANIFEST)) as { fileCount?: number; totalBytes?: number }
   if (distManifest.fileCount !== 3520 || distManifest.totalBytes !== 159558361)
-    fail(`8: current web-dist baseline drifted (expected 3520/159558361, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #109 measured (gui-extensions D4 resolution + label disambiguation M-052: same 3520 file count, +645 bytes — the two i18n label values "GUI extensions"/"GUI 扩展" + comment stripping ship inside existing chunks, zero new chunks); issue #108 measured (keybinds/command-catalog target form M-051: same 3520 file count, +7406 bytes — the Shortcuts unbind row + Unbind button + ghost-danger styles + command catalog/keymap core ship inside existing chunks, zero new chunks); issue #107 measured (notifications/sounds settings-page target form M-050: same 3520 file count, +1563 bytes — the sounds-interface row + catalog row restore + sound.ts export trim ship inside existing chunks, zero new chunks); issue #106 measured (projects/workspaces settings-page target form M-049: same 3520 file count, +97 bytes — the min-w-0/autofocus/registry-label page-form hunks ship inside existing chunks, zero new chunks); issue #105 measured (providers/models/extensions settings-page target migration M-048: +3 files = the mcp-dialog css chunk (search-list.css import) + the shared TruncatedText chunk (css/js/map netting out the removed panel.css); ExtensionPlugins ships in the renamed shell chunk, zero new files, +64134 bytes); issue #104 measured (ui theme component-family target-form trim M-047: the trimmed theme index barrel/loader/default-themes dead code previously only survived via tree-shaking, same 3517 file count, -1225 bytes); issue #103 measured (general/experimental preferences-page migration M-046: the new settings rows / i18n keys / timeline-width token block outweigh the removed terminalPlacement strings, same 3517 file count, +1994 bytes); issue #102 measured (servers-page target migration M-045: the servers.tsx/row.tsx target deletions outweigh the additions, same 3517 file count, -7497 bytes; prior 3517/159606524 = issue #101's settings-framework migration M-042..M-044, +1 chunk/+59859; prior 3516/159546665 = issue #96's first-party toggle-semantics fix rebuild, prior 3516/159545922); issue #76 measured (M-041 openExternal bridge call, prior 3516/159542455); issue #90 measured (amended M-037 + Fix B, prior 3516/159542120); issue #72 measured: the About version face + notices v2.2.1 line grow the payload (issue #70 measured 3516/159535257; issue #67 measured 3516/159532385 — historical)
-  // Cross-reference the exact registered JSON IDs and paths, not arbitrary M-### text in
-  // reasons/verification prose. verify-attachments-artifacts group 6 is the first lock.
+    fail(`8: current web-dist baseline drifted (expected 3520/159558361, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #109 measured (gui-extensions D4 resolution + label disambiguation settings-gui-plugins-tab-label: same 3520 file count, +645 bytes — the two i18n label values "GUI extensions"/"GUI 扩展" + comment stripping ship inside existing chunks, zero new chunks); issue #108 measured (keybinds/command-catalog target form settings-keybinds-command-catalog: same 3520 file count, +7406 bytes — the Shortcuts unbind row + Unbind button + ghost-danger styles + command catalog/keymap core ship inside existing chunks, zero new chunks); issue #107 measured (notifications/sounds settings-page target form settings-notifications-migration: same 3520 file count, +1563 bytes — the sounds-interface row + catalog row restore + sound.ts export trim ship inside existing chunks, zero new chunks); issue #106 measured (projects/workspaces settings-page target form settings-workspaces-migration: same 3520 file count, +97 bytes — the min-w-0/autofocus/registry-label page-form hunks ship inside existing chunks, zero new chunks); issue #105 measured (providers/models/extensions settings-page target migration settings-providers-models-extensions: +3 files = the mcp-dialog css chunk (search-list.css import) + the shared TruncatedText chunk (css/js/map netting out the removed panel.css); ExtensionPlugins ships in the renamed shell chunk, zero new files, +64134 bytes); issue #104 measured (ui theme component-family target-form trim theme-components-migration: the trimmed theme index barrel/loader/default-themes dead code previously only survived via tree-shaking, same 3517 file count, -1225 bytes); issue #103 measured (general/experimental preferences-page migration settings-general-experimental-migration: the new settings rows / i18n keys / timeline-width token block outweigh the removed terminalPlacement strings, same 3517 file count, +1994 bytes); issue #102 measured (servers-page target migration settings-servers-migration: the servers.tsx/row.tsx target deletions outweigh the additions, same 3517 file count, -7497 bytes; prior 3517/159606524 = issue #101's settings-framework migration settings-framework-dependencies..settings-framework-mobile, +1 chunk/+59859; prior 3516/159546665 = issue #96's first-party toggle-semantics fix rebuild, prior 3516/159545922); issue #76 measured (files-open-external openExternal bridge call, prior 3516/159542455); issue #90 measured (amended gui-plugins-api-migration + Fix B, prior 3516/159542120); issue #72 measured: the About version face + notices v2.2.1 line grow the payload (issue #70 measured 3516/159535257; issue #67 measured 3516/159532385 — historical)
+  // Registry-wide identity, status and order belong to the shared checker.
+  const registration = Bun.spawnSync(["python3", "scripts/mobile-patches.py"], { cwd: repoRoot.pathname })
+  if (registration.exitCode !== 0) fail(`patch registration: ${registration.stderr.toString()}`)
+  // Preserve this probe's source-metadata requirement independently of identity checks.
   const patchManifest = JSON.parse(await read(PATCHES_MANIFEST)) as {
-    patches?: Array<{ id?: unknown; patch?: unknown; upstreamBaseline?: unknown }>
+    patches?: Array<{ id?: unknown; upstreamBaseline?: unknown }>
   }
   const patchRows = patchManifest.patches ?? []
-  const registeredIds = patchRows.map((entry) => entry.id).filter((value): value is string => typeof value === "string")
-  const patchIds = new Set(registeredIds)
-  // Issue #102 / M-045: 43 registered = M-001..M-045 with M-019 and M-039 reserved-absent.
-  // Issue #103 / M-046 (general/experimental preferences-page target migration).
-  // Issue #104 / M-047 (ui theme component-family target-form trim). Issue #105:
-  // M-048 by the providers/models/extensions settings-page target migration. Issue #106:
-  // M-049 by the projects/workspaces settings-page target form. Issue #107:
-  // M-050 by the notifications/sounds settings-page target form (sounds-interface
-  // search row restored) -> 48. Issue #108: M-051 by the keybinds/command-catalog
-  // target form -> 49. Issue #109: M-052 by the gui-extensions D4 resolution (tab kept)
-  // and the label disambiguation -> 50.
-  const expectedPatches = new Set<string>()
-  // M-055 was present at the issue #124 baseline; M-056 is this change.
-  for (let i = 1; i <= 56; i++) {
-    // M-019 reserved-absent since issue #16. M-035 registered by #65, M-036 by #66,
-    // M-037 by #67, M-038 by #70, M-040 by #72, M-041 by #76; M-042..M-044 by #101,
-    // M-045 by #102, M-046 by #103, M-047 by #104, M-048 by #105, M-049 by #106,
-    // M-050 by #107 (count 48), M-051 by #108 (count 49), M-052 by #109 (count 50);
-    // M-039 reserved for the parallel issue #71 branch (hole tolerated at apply time,
-    // M-019/0031 precedent).
-    if (i === 19 || i === 39) continue
-    expectedPatches.add(`M-${String(i).padStart(3, "0")}`)
+  for (const entry of patchRows) {
+    if (typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline)
+      fail(`8: registered mobile patch ${String(entry.id)} must retain a non-empty string upstreamBaseline`)
   }
-  if (patchRows.length !== 54 || registeredIds.length !== patchRows.length || patchIds.size !== patchRows.length)
-    fail(`8: registered patch rows/IDs must be unique and exactly 54 (got rows=${patchRows.length}, IDs=${registeredIds.length}, unique=${patchIds.size})`)
-  setEq(patchIds, expectedPatches, "8: mobile patch id set (54 registered, M-019/M-039 reserved-absent)")
-  if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
-    fail("8: every registered mobile patch must retain its upstreamBaseline")
-  const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
-  const vendorPaths = Array.isArray(vendorManifest.mobilePatches)
-    ? vendorManifest.mobilePatches.filter((value): value is string => typeof value === "string")
-    : []
-  const patchPaths = patchRows.map((entry) => entry.patch).filter((value): value is string => typeof value === "string")
-  const sortedVendorPaths = vendorPaths.toSorted()
-  const sortedPatchPaths = patchPaths.toSorted()
-  if (vendorPaths.length !== 54 || new Set(vendorPaths).size !== 54 || patchPaths.length !== 54 ||
-      sortedVendorPaths.some((value, index) => value !== sortedPatchPaths[index]))
-    fail("8: vendor-manifest mobilePatches paths must equal the 54 unique registered patch paths")
 
   // bun.lock workspace registration anchor (zero-change itself is V-lock's git-diff
   // evidence in build-and-verify.md — this only proves the seam package is registered).
@@ -680,9 +648,10 @@ console.log(
     "1: DESKTOP_MENU data face — menu-id set {app,file,edit,view,go,window,help} + DesktopMenuAction 19-union + DesktopMenuRole 19-union + used-actions subset-of-union + href exactly-4 set + desktopMenuVisible/Key/WithPlugins helpers + app macos gate + settings.open windows gate (exactly-1) + logs.export desktop platform gate; " +
     "2: registration reconciliation — menu command refs exactly 15/unique 13 set + Registered 9 with per-file anchors (incl. terminal.toggle extension publish double anchor) + Unregistered 4 zero-registration negative + doc dangling-row one-to-one + command.project.open four-consumer file-set equality; " +
     "3: window.* single-window — window.* form scan exactly {desktop-menu.ts} + windows-menu.test.ts declared test-reference hit + web.ts zero runDesktopMenuAction negative + platform.tsx optional-member/webviewZoom anchors + titlebar windows()/linux() memos + mount gate + onMount accelerator scope; " +
-    "4: edit/zoom/nav families — M-020 wiring anchor + terminal execCommand copy + parent-toggle comment + selectAll form file-set exactly {desktop-menu, search-keydown} (i18n label-key domain excluded by declaration) + MainActivity zero zoom-configuration negative + viewport zero user-scalable negative (four-segment anchor cross-referenced to viq group 3) + common.goBack exactly-2 drift sentinel + history.ts three anchors; " +
+    "4: edit/zoom/nav families — files-platform-bridge wiring anchor + terminal execCommand copy + parent-toggle comment + selectAll form file-set exactly {desktop-menu, search-keydown} (i18n label-key domain excluded by declaration) + MainActivity zero zoom-configuration negative + viewport zero user-scalable negative (four-segment anchor cross-referenced to viq group 3) + common.goBack exactly-2 drift sentinel + history.ts three anchors; " +
     "5: enablement five layers — commandPaletteOptions filter + composer slash disabled filter + COMMON_COMMAND_IDS/order.has skip + extension enabled===false mapping + registries verbatim comment + windows-menu commandDisabled face + terminal/browser/debug enabled gates + never-on-the-web comment; " +
     "6: state restoration — command.catalog.v1 persisted store + keybindRenames cleanup + CommandCatalogItem metadata-only struct (no onSelect; plugin/follows metadata fields, issue #108) + keybinds.tsx catalog consumption (settings.v3 segment cross-referenced to viq group 6) + en.ts unbind key positive pin (issue #108); " +
     "7: docs closure — commands-menus.md ten sections + authority + four 不得声称 + 13-row table + four window.* rows + multi-window cross-reference, interaction.md G1–G35 + G34 row + twentieth wording + failure path, interaction-quality.md section-7 pointer, design README index, architecture flow row; " +
-     "8: build witnesses — current dist baseline 3520/159558361 (issue #124 M-056, previously 3520/159683681; older M-054 baseline, previously 3520/159673641; issue #109 gui-extensions D4 resolution + label disambiguation incl. M-052, +645 bytes at the same 3520 file count — the two tab-label i18n values 'GUI extensions'/'GUI 扩展' + comment stripping inside existing chunks; prior 3520/159672996 = issue #108 keybinds/command-catalog target form incl. M-051, +7406 bytes at the same 3520 file count — Shortcuts unbind key/Unbind button + ghost-danger ui variant + command catalog plugin/follows fields + commandKeymap custom-priority inside existing chunks; prior 3520/159665590 = issue #107 notifications/sounds settings-page target form incl. M-050, +1563 bytes at the same 3520 file count — sounds-interface row + catalog restore + sound.ts trim inside existing chunks; prior 3520/159664027 = issue #106 projects/workspaces settings-page target form incl. M-049, +97 bytes at the same 3520 file count — the page-form hunks ship inside existing chunks; prior 3520/159663930 = issue #105 providers/models/extensions settings-page target migration incl. M-048, +3 files/+64134 bytes — new lazy chunks from the migrated mcp-dialog/extension-plugins faces; prior 3517/159599796 = issue #104 ui theme component-family target-form trim incl. M-047, -1225 bytes at the same 3517 file count — dead code previously only survived via tree-shaking; prior 3517/159601021 = issue #103 general/experimental preferences-page migration incl. M-046, +1994 bytes at the same 3517 file count; prior 3517/159599027 = issue #102 servers-page target migration incl. M-045, prior 3517/159606524 = issue #101 settings-framework migration incl. M-042..M-044, prior 3516/159546665 = issue #96 toggle-semantics fix rebuild, prior 3516/159545922; issue #76 incl. M-041, prior 3516/159542455; issue #90 incl. amended M-037 + Fix B, prior 3516/159542120; issue #72 incl. M-040; cross-reference verify-notifications group 8; issue #70 incl. M-038 3516/159535257, issue #67 incl. M-037 3516/159532385, issue #66 incl. M-036 3493/153776571, issue #65 rebuild incl. M-035 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, M-028 3482/153447934, M-027 3482/153445727 and M-026 3480/153441733 remain historical) + exact registered patch set 54 with M-019/M-039 absent and vendor paths equal (cross-reference verify-attachments-artifacts; counts M-026=25, M-028=27, M-032=31, M-033=32, M-034=33, M-035=34, M-036=35, M-037=36, M-038=37, M-040=38, M-041=39, M-042=40, M-043=41, M-044=42, M-045=43, M-046=44, M-047=45, M-048=46, M-049=47, M-050=48, M-051=49, M-052=50, M-053=51, M-054=52, M-055=53, M-056=54) + bun.lock workspace anchor; " +    "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
+    "8: build witnesses — dist baseline 3520/159558361 (issue #124 settings-server-menu; earlier build and registration counts remain historical in docs/build-and-verify.md), shared semantic registration check and vendor path set agreement, every registered patch retains a non-empty string upstreamBaseline (cross-reference verify-attachments-artifacts), bun.lock workspace anchor; " +
+    "STATIC check - command discoverability, menu-face absence, window.* semantics, long-press edit menus, pinch zoom, back/forward layering, no-dangling behavior and state restoration on a device are G34; Windows runtime menu evidence belongs to issue #1)",
 )

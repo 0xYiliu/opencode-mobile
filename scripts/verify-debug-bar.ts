@@ -3,7 +3,7 @@
 // verification + registration only, no vendor/first-party/shell change).
 //
 // Asserts, against the REAL vendored sources (pin b4525d79bf… + packageSources
-// + M-001..M-040), the structural facts the W28 per-operation matrix
+// + gui-plugins-native-test-deps..settings-about-version), the structural facts the W28 per-operation matrix
 // (implementation.md E29 section, 13 rows) relies on:
 //
 //   1. Renderer gates (gui-plugins/src/debug/renderer.tsx): the motion build-time
@@ -48,7 +48,7 @@
 //      dropped the registration and v2.2.1 upstream deleted the ChannelIndicator
 //      consumer entirely (445510ce99), while this tree retains the
 //      pin-generation app consumer reading a field the migrated interface no
-//      longer declares → find() is permanently empty.  NOT an M-037 missed
+//      longer declares → find() is permanently empty.  NOT an gui-plugins-api-migration missed
 //      migration, NOT a first-party adaptation gap, and the S0 stop-line
 //      condition does NOT trigger: v2.2.1 upstream itself removed the channel
 //      contributor.
@@ -291,7 +291,7 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   // Mixed-generation drift witness: the pin generation had the field
   // (gui-extensions/src/sdk/registries.ts:522/:530) AND the registration
   // (gui-extensions debug/renderer.tsx:75-86); v2.2.1 dropped both. NOT an
-  // M-037 missed migration and NOT a first-party adaptation gap (registered in
+  // gui-plugins-api-migration missed migration and NOT a first-party adaptation gap (registered in
   // implementation.md E29; the S0 stop-line condition does not trigger).
   const registries = await read("vendor/upstream/packages/plugin/src/gui/registries.ts")
   const ifaceStart = registries.indexOf("export interface TitlebarItem {")

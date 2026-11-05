@@ -2,7 +2,7 @@
 
 Review hardening: unknown-key confirmation snapshots host ID + exact target + effective SSH/service ports + fingerprint. Any relevant registry edit cancels the pending verification and aborts an open signal; confirmation arguments are checked again before connect, and the captured record identity is rechecked after async resolution and immediately before `transport.open`. The initial-screen handoff predicate explicitly requires the add/edit form to be closed; a ready/authenticated connection cannot dismiss an open form. Changed-target saves invalidate the old connection and require a new connect. Android SW promotion is limited to START_URL's origin, exact root scope, and packaged `/sw.js`; each async callback rechecks current page and worker identity. Fake-origin/script/scope/redirect and deferred initial-health/edit tests cover refusal and lifecycle paths.
 
-状态：**issue #61（2026-10-30）已在 MatePad 真机完成 SSH 主链 E2E 与 G36 矩阵主体**：指纹根因闭环（提示==独立参考，历史不匹配=比对过程错位；历史重复提示=de27569 引入的 known_hosts 序列化缺陷，已由 5a46934 修复——`{ it.raw }` transform，基线内）、unknown/changed key 拒绝路径、两步危险确认+forget、SSH 认证失败 authRequired+可编辑重试、不可达/目标拒绝/服务不可达分类、信任→SSH 认证→隧道→服务认证→远端会话全链、断开红线（远端进程/端口存活+请求级日志零 stop/interrupt+重启重连后会话恢复）、3 轮信任稳定零 prompt；三模式草稿保持（#h）已以隔离诊断包（无记录初始态，C6 先例方法）补验 PASS——主应用有记录态连接屏不可达为 AppShell fallback 门设计实态注记（可选 UX 改进候选，非缺陷判定）。共享连接单元代码承载配对链接、服务地址/密码与 inline SSH 三种可切换模式；首次 SSH 配置复用 host registry、vault、host-key prompt 与 SSH runtime。M-029 修正连接方式按钮窄屏换行，M-030（issue #58）恢复 no-server/signed-out Settings guard，并由 AppShell 在发布主机前持有初始屏所有权，直到该次所有权对应的 exact host tunnel 与 `/api/info` 健康且认证 ready 才交接；SSH 成功只在 SSH 模式 active 时交接，离开 SSH 模式的迟到回调不会窃取 Pairing/HTTP 草稿。SSH 服务返回 401/403 时保留 tunnel、InitialSshSetup 与 Settings → Server 共用独立 service-auth-prompt；重新检查成功后将密码仅放在 runtime endpoint / upstream extension 的会话内存字段，并用 UTF-8 Basic 编码；不写注册表/持久层/日志。unknown-key prompt 绑定 exact host ID/fingerprint，同时展示 host name、完整 target、SSH port、remote service port 和完整可选择/换行 fingerprint；changed key 需两步 danger confirmation 后才调用 forget。key-only import 可在首主机表单保存到 vault；更换/解绑凭据保留旧密文为凭据管理器可见的 orphan；保存前同步锁定、snapshot/validate，vault await 期间锁定编辑/Cancel，dispose 时迟到 continuation 不 publish/connect。现有 SSH/TLS 安全边界、host-key fail-closed 与远程任务断开语义不变。此前旧 screen 根因及 worker 更新证据见 [build-and-verify.md](../../build-and-verify.md)。剩余未验：incompatible 真服务、重连换端口同身份真机（归 G17）、任务级存活（归 G20⑤/G12）、直连路径回归（另有门禁）——完整状态表见 [决策 0003 §9](../../decisions/0003-ssh-transport.md)。
+状态：**issue #61（2026-10-30）已在 MatePad 真机完成 SSH 主链 E2E 与 G36 矩阵主体**：指纹根因闭环（提示==独立参考，历史不匹配=比对过程错位；历史重复提示=de27569 引入的 known_hosts 序列化缺陷，已由 5a46934 修复——`{ it.raw }` transform，基线内）、unknown/changed key 拒绝路径、两步危险确认+forget、SSH 认证失败 authRequired+可编辑重试、不可达/目标拒绝/服务不可达分类、信任→SSH 认证→隧道→服务认证→远端会话全链、断开红线（远端进程/端口存活+请求级日志零 stop/interrupt+重启重连后会话恢复）、3 轮信任稳定零 prompt；三模式草稿保持（#h）已以隔离诊断包（无记录初始态，C6 先例方法）补验 PASS——主应用有记录态连接屏不可达为 AppShell fallback 门设计实态注记（可选 UX 改进候选，非缺陷判定）。共享连接单元代码承载配对链接、服务地址/密码与 inline SSH 三种可切换模式；首次 SSH 配置复用 host registry、vault、host-key prompt 与 SSH runtime。connection-label-nowrap 修正连接方式按钮窄屏换行，connection-inline-ssh（issue #58）恢复 no-server/signed-out Settings guard，并由 AppShell 在发布主机前持有初始屏所有权，直到该次所有权对应的 exact host tunnel 与 `/api/info` 健康且认证 ready 才交接；SSH 成功只在 SSH 模式 active 时交接，离开 SSH 模式的迟到回调不会窃取 Pairing/HTTP 草稿。SSH 服务返回 401/403 时保留 tunnel、InitialSshSetup 与 Settings → Server 共用独立 service-auth-prompt；重新检查成功后将密码仅放在 runtime endpoint / upstream extension 的会话内存字段，并用 UTF-8 Basic 编码；不写注册表/持久层/日志。unknown-key prompt 绑定 exact host ID/fingerprint，同时展示 host name、完整 target、SSH port、remote service port 和完整可选择/换行 fingerprint；changed key 需两步 danger confirmation 后才调用 forget。key-only import 可在首主机表单保存到 vault；更换/解绑凭据保留旧密文为凭据管理器可见的 orphan；保存前同步锁定、snapshot/validate，vault await 期间锁定编辑/Cancel，dispose 时迟到 continuation 不 publish/connect。现有 SSH/TLS 安全边界、host-key fail-closed 与远程任务断开语义不变。此前旧 screen 根因及 worker 更新证据见 [build-and-verify.md](../../build-and-verify.md)。剩余未验：incompatible 真服务、重连换端口同身份真机（归 G17）、任务级存活（归 G20⑤/G12）、直连路径回归（另有门禁）——完整状态表见 [决策 0003 §9](../../decisions/0003-ssh-transport.md)。
 
 2026-10-29 补充：SSH saved-host HostKeyPrompt 核验并 Trust 后，已实测 SSH+key 隧道到达 OpenCode 服务 authentication required。Settings → Server 与 InitialSshSetup 共用 `ServiceAuthPrompt`；密码输入空值、显式 Check again。真实 service password 未提供/未输入，故服务认证成功、上游会话与远端任务行为仍未验证。
 
@@ -10,12 +10,12 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 
 ## 字段契约（已实现）
 
-来源：`vendor/upstream/packages/app/src/runtime/server/persistence.ts`（M-002 预应用）。
+来源：`vendor/upstream/packages/app/src/runtime/server/persistence.ts`（connection-password-memory-only 预应用）。
 
 | 字段 | 类型 | 语义 | 状态 |
 | --- | --- | --- | --- |
 | `url` | String | 远程 OpenCode HTTP API 地址（含端口/协议） | 已实现（未验证） |
-| `password` | optional String | 服务密码，仅存内存 | 已实现（未验证）；encode 路径恒剥离（M-002），任何持久化后端收不到 |
+| `password` | optional String | 服务密码，仅存内存 | 已实现（未验证）；encode 路径恒剥离（connection-password-memory-only），任何持久化后端收不到 |
 | `type` | `"http"` | 连接类型字面量 | 已实现（未验证） |
 | `authToken` | optional Boolean | 布尔标志（是否携带 token），非机密 | 已实现（未验证） |
 | `displayName` / `label` | optional String | 展示元数据 | 已实现（未验证） |
@@ -24,12 +24,12 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 
 | 字段 | 类型 | 语义 | 状态 |
 | --- | --- | --- | --- |
-| `http.credentialRef` | optional String（位于 `ServerHttpBase` 内，即 `http.credentialRef` 层级） | 指向凭据条目的**非机密引用**（形如 `mobile-credential:<id>`），不是凭据本身 | 已实现（未验证）（M-005 字段 + M-006 对话框透传）；探针 `scripts/verify-credential-ref.ts` PASS |
+| `http.credentialRef` | optional String（位于 `ServerHttpBase` 内，即 `http.credentialRef` 层级） | 指向凭据条目的**非机密引用**（形如 `mobile-credential:<id>`），不是凭据本身 | 已实现（未验证）（connection-credential-reference 字段 + connection-dialog-credential-reference 对话框透传）；探针 `scripts/verify-credential-ref.ts` PASS |
 
-- 直连：M-005 在持久化 schema 增字段（encode 剥 password 的行为不变）；M-006 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
+- 直连：connection-credential-reference 在持久化 schema 增字段（encode 剥 password 的行为不变）；connection-dialog-credential-reference 保证连接对话框 add/replace 往返保留引用，否则编辑一次就丢引用。
 - SSH：主机记录原生持有 `credentialRef` 与 `servicePort`（载荷白名单字段，见 [server-list.md](server-list.md)）；credentialRef 编辑语义为「undefined=保留、空串=清空」，servicePort 为「undefined=保留、合法整数=设置」。target/身份变更裁定（issue #4，已定）：**保留 ref + 显式移除**——target 变更不清 ref，由用户在编辑表单取消勾选或经凭据管理器删除（见失效矩阵）。
 - 引用解析（已实现（未验证）：issue #4）：resolver 默认 fail-closed——未注入 vault 时为 NullResolver（恒 undefined），注入 vault 时默认经 `createVaultResolver` 走 vault（vault 级 unavailable 抛错 → 主机显式 failed；条目级 corrupt/missing → undefined → 服务端认证路径）；Android 桥握手 ack 后由 vault 支撑的 resolver 解析（见下节 vault 契约）。解析结果只注入内存连接对象，永不回写持久化。
-- 用户可见后果：未记住的密码重启后需重输（M-002）；已记住的凭据冷启动免重输——**M-061（写半）**在初始连接认证成功时经 vault put 持久化并写 `credentialRef`，**M-010 + M-062（读半）**在 hydration 中先有界等待 vault ready（默认 15s，超时按原行为显式重输）再注入内存；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接已实现（未验证）：issue #6）；引用本身随记录保留。
+- 用户可见后果：未记住的密码重启后需重输（connection-password-memory-only）；已记住的凭据冷启动免重输——**connection-initial-credential-persistence（写半）**在初始连接认证成功时经 vault put 持久化并写 `credentialRef`，**connection-credential-hydration + connection-vault-ready-wait（读半）**在 hydration 中先有界等待 vault ready（默认 15s，超时按原行为显式重输）再注入内存；SSH 主机凭据引用经 vault-backed resolver 解析（SSH 连接已实现（未验证）：issue #6）；引用本身随记录保留。
 
 ## 凭据保险库契约（已实现（未验证）：issue #4）
 
@@ -40,7 +40,7 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 | 成员 | 签名/语义 | 状态 |
 | --- | --- | --- |
 | `CredentialVault.status()` | `() => "unavailable" \| "available"`；握手捕获并回发 ack 前恒 `unavailable`（响应式读取，UI 据此禁用/呈现横幅） | 已实现（未验证） |
-| `CredentialVault.ready?(timeoutMs?)` | 可选**有界排序等待**（issue #128，M-062）：供 hydration 型读取者建立顺序——其自身微任务可能早于原生 ready 往返。已 available 即 fast-path 立返（零订阅零定时器）；否则单次 `onReady` 订阅对单期限（默认 15000ms，与传输超时同界）竞速，**仅** available===true 报告提前解析（订阅时传输同步重放的 false 是当前态而非翻转，忽略），期限到解析 `"unavailable"`；永不 reject、不重试、不发额外探测（ready 探测始终只有传输构造时那一次），settle 即退订+清定时器（含 `dispose()` 后 failAll 场景）。**不改 `get()/put()` 的显式不可用语义**（不可用仍立即抛错）；`UnavailableVault.ready` 立即解析 `"unavailable"` | 已实现（真机验证 2026-11-04，M-062 冷启动恢复链） |
+| `CredentialVault.ready?(timeoutMs?)` | 可选**有界排序等待**（issue #128，connection-vault-ready-wait）：供 hydration 型读取者建立顺序——其自身微任务可能早于原生 ready 往返。已 available 即 fast-path 立返（零订阅零定时器）；否则单次 `onReady` 订阅对单期限（默认 15000ms，与传输超时同界）竞速，**仅** available===true 报告提前解析（订阅时传输同步重放的 false 是当前态而非翻转，忽略），期限到解析 `"unavailable"`；永不 reject、不重试、不发额外探测（ready 探测始终只有传输构造时那一次），settle 即退订+清定时器（含 `dispose()` 后 failAll 场景）。**不改 `get()/put()` 的显式不可用语义**（不可用仍立即抛错）；`UnavailableVault.ready` 立即解析 `"unavailable"` | 已实现（真机验证 2026-11-04，connection-vault-ready-wait 冷启动恢复链） |
 | `put({ kind, value, label?, existingRef? })` | 加密写入并返回 `mobile-credential:<id>` 引用；`kind`: `password \| privateKey`；`existingRef` 提供时 **in-place**（保持原 id，ref 稳定）；空值/超 64KiB/私钥缺 BEGIN 头在客户端拒绝 | 已实现（未验证） |
 | `remove(ref)` | 删除条目（密文文件+索引行）；未知 id 静默成功（幂等，删除竞态无害） | 已实现（未验证） |
 | `get(ref)` | 解密取值（仅内存，供 resolver）；corrupt/unsupported/缺失条目返回 undefined（按条目惰性），vault 级 unavailable 抛 `VaultError("unavailable")` | 已实现（未验证） |
@@ -62,11 +62,11 @@ Review hardening: unknown-key confirmation snapshots host ID + exact target + ef
 
 trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/host/port + `isMainFrame` 重校验。它不是对恶意同源脚本的隔离，也不证明已加载 JS 的字节来源。
 
-协议 v2 使用 request/response JSON 与 request id，`ready` 只做非变更往返；JS 仅在收到 `vault-v2` readiness 回复后报告 available，并订阅时重放当前 ready 状态以覆盖响应先于 subscriber 的竞态。M-062（issue #128）后客户端在该订阅重放之上提供**有界排序等待** `ready(timeoutMs?)`：因为重放的 `false` 只是当前态，等待**仅**在收到 available===true 报告或期限（默认 15000ms）到时 settle——冷启动 hydration 在条目循环前特征检测等待它，消解「hydration 微任务早于原生 ready 往返 → get() 全部 unavailable」的竞态；超时路径与原行为一致。native 在回调线程做 envelope 上界/UTF-8 payload bound 预检，超限不入队；进程级单线程、8-entry 有界队列串行访问 `VaultStore`。navigation start/destroy 代际门使排队的陈旧请求跳过，运行中操作完成但不向旧页面回帖；每个闭包捕获原请求的 `JavaScriptReplyProxy`。put 在派发前生成并传输非秘密 candidate id；不支持自动重试。UNKNOWN response 可携带对应 credential ref，但不提供自动恢复/存储 journal。Same-origin script trust and lack of power-loss durability remain explicit limitations.
+协议 v2 使用 request/response JSON 与 request id，`ready` 只做非变更往返；JS 仅在收到 `vault-v2` readiness 回复后报告 available，并订阅时重放当前 ready 状态以覆盖响应先于 subscriber 的竞态。connection-vault-ready-wait（issue #128）后客户端在该订阅重放之上提供**有界排序等待** `ready(timeoutMs?)`：因为重放的 `false` 只是当前态，等待**仅**在收到 available===true 报告或期限（默认 15000ms）到时 settle——冷启动 hydration 在条目循环前特征检测等待它，消解「hydration 微任务早于原生 ready 往返 → get() 全部 unavailable」的竞态；超时路径与原行为一致。native 在回调线程做 envelope 上界/UTF-8 payload bound 预检，超限不入队；进程级单线程、8-entry 有界队列串行访问 `VaultStore`。navigation start/destroy 代际门使排队的陈旧请求跳过，运行中操作完成但不向旧页面回帖；每个闭包捕获原请求的 `JavaScriptReplyProxy`。put 在派发前生成并传输非秘密 candidate id；不支持自动重试。UNKNOWN response 可携带对应 credential ref，但不提供自动恢复/存储 journal。Same-origin script trust and lack of power-loss durability remain explicit limitations.
 
-### 可选记住真值表 v3（M-009，连接对话框）
+### 可选记住真值表 v3（connection-remember-credential，连接对话框）
 
-勾选框仅 `method=password` 渲染（link 流不渲染，行 6/11）；vault 不可用时禁用+说明（unavailable 显式呈现）。add 流的 prior 语义：保存时按规范化 URL 从 server.list 查既有 http 条目作为 ref 语义 prior（**password 与 link/redeem 流都套用，不区分 method**；否则 M-006 的 original 在 add 流为 undefined，覆盖后 ref 孤儿）。prior 仅承载 ref 字段。初始勾选值 = `Boolean(refOriginal?.http.credentialRef)`。SSH 主机表单（host-dialog）复用同一决策核心，装配时附传 `boundKind`（绑定条目的 kind，评审修复 B1）——决策核心 `packages/mobile-hosts/src/vault/remember.ts`，行 1–13 逐行单测+探针。
+勾选框仅 `method=password` 渲染（link 流不渲染，行 6/11）；vault 不可用时禁用+说明（unavailable 显式呈现）。add 流的 prior 语义：保存时按规范化 URL 从 server.list 查既有 http 条目作为 ref 语义 prior（**password 与 link/redeem 流都套用，不区分 method**；否则 connection-dialog-credential-reference 的 original 在 add 流为 undefined，覆盖后 ref 孤儿）。prior 仅承载 ref 字段。初始勾选值 = `Boolean(refOriginal?.http.credentialRef)`。SSH 主机表单（host-dialog）复用同一决策核心，装配时附传 `boundKind`（绑定条目的 kind，评审修复 B1）——决策核心 `packages/mobile-hosts/src/vault/remember.ts`，行 1–13 逐行单测+探针。
 
 | # | 场景 | 行为 |
 | --- | --- | --- |
@@ -75,17 +75,17 @@ trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/ho
 | 3 | add 有 prior(password) + 已勾 + 非空 | put(in-place) 写 ref |
 | 4 | add 有 prior(password) + 未勾 + 有 ref | 清 ref + vault.remove |
 | 5 | add 有 prior(password) + 未勾 + 无 ref | ref undefined，无 vault 操作 |
-| 6 | add 有 prior（link method） | 不渲染勾选框，prior ref 透传保留（M-006 语义扩展至 prior），零 vault 操作 |
+| 6 | add 有 prior（link method） | 不渲染勾选框，prior ref 透传保留（connection-dialog-credential-reference 语义扩展至 prior），零 vault 操作 |
 | 7 | edit + 已勾 + 非空 | put(in-place) 写 ref |
 | 8 | edit + 保持勾选 + 空 + 有 ref | 保留 ref；health check 用解析值（内存），不 put 不报错 |
-| 9 | edit + 未勾 + 非空（M-010 hydration 预填后可达） | 清 ref + vault.remove；密码仍用于本次保存授权 |
+| 9 | edit + 未勾 + 非空（connection-credential-hydration hydration 预填后可达） | 清 ref + vault.remove；密码仍用于本次保存授权 |
 | 10 | edit + 未勾 + 空 + 有 ref | 清 ref + vault.remove |
-| 11 | edit（link 模式） | 不渲染勾选框，M-006 透传保留，勾选框缺失≠删除意图，零 vault 操作 |
+| 11 | edit（link 模式） | 不渲染勾选框，connection-dialog-credential-reference 透传保留，勾选框缺失≠删除意图，零 vault 操作 |
 | 12 | add 有 prior + 已勾 + 空 | **按行 2 语义处理**（issue #4 评审补行）：保存中止、行内报错，不 put 不铸空值——「记住一个空凭据」不是合法意图，与行 2 同解 |
-| 13 | add/edit 有 prior(**privateKey**) + 已勾 + 空 | **保留绑定（passthrough）**（issue #4 评审修复，host-dialog 装配路径）：记住的凭据已存在——私钥绑定没有可输入的值，中止保存会把已导入条目变成孤儿；add 与 edit 同义。M-009（直连、password kind）不传 `boundKind`，不受影响 |
+| 13 | add/edit 有 prior(**privateKey**) + 已勾 + 空 | **保留绑定（passthrough）**（issue #4 评审修复，host-dialog 装配路径）：记住的凭据已存在——私钥绑定没有可输入的值，中止保存会把已导入条目变成孤儿；add 与 edit 同义。connection-remember-credential（直连、password kind）不传 `boundKind`，不受影响 |
 
 装配语义注记（issue #4 评审）：
-- 行 4/9/10 的 clear 与行 1/3/7 的 put 都发生在**健康检查通过之后**（M-009 装配顺序：决策 → 中止检查 → 早退检查 → 健康检查 → vault put/remove → 构造连接）。因此健康检查失败时 ref 与 vault 条目**原样保留**（按「保存失败」处理，行内报错、对话框保持打开）——行 10 的「清 ref+remove」以保存最终成功为前提。
+- 行 4/9/10 的 clear 与行 1/3/7 的 put 都发生在**健康检查通过之后**（connection-remember-credential 装配顺序：决策 → 中止检查 → 早退检查 → 健康检查 → vault put/remove → 构造连接）。因此健康检查失败时 ref 与 vault 条目**原样保留**（按「保存失败」处理，行内报错、对话框保持打开）——行 10 的「清 ref+remove」以保存最终成功为前提。
 - 私钥绑定期间的防覆盖：host-dialog 在 `boundMeta().kind === "privateKey"` 时**禁用密码输入位**（行内说明），密码不可能经表单 in-place 覆盖私钥条目（同 id 换 kind）；替换路径为取消勾选（清绑定+删条目）后重新绑定。
 - 早退强制条件：勾选框已渲染 && `remember !== Boolean(refOriginalRef)` 时**不早退**（覆盖「仅切换记住」与「预填后取消勾选」两种纯 ref 变更）。put 失败 → 不关对话框 + 行内报错，绝不静默。UX 附注：healthPreview（连接前探测）不解析、不读 vault；权威检查在保存时。
 
@@ -93,7 +93,7 @@ trust boundary 是 WebKit origin allowlist + callback 的精确 source scheme/ho
 
 | 状态 | 触发 | 用户可见行为 | 恢复路径 |
 | --- | --- | --- | --- |
-| unavailable | 握手未 ack / 重试耗尽 / 非 Android | remember 禁用+说明；横幅；显式状态非降级。hydration 侧（M-062）：冷启动恢复先有界等待 vault ready（15s），等待期内正常启动其余界面；超时后条目保持无密码 | 重载页面重握手；**不存在明文回退代码**；hydration 超时 → 该次会话显式重输（ref 保留，下次启动再试恢复） |
+| unavailable | 握手未 ack / 重试耗尽 / 非 Android | remember 禁用+说明；横幅；显式状态非降级。hydration 侧（connection-vault-ready-wait）：冷启动恢复先有界等待 vault ready（15s），等待期内正常启动其余界面；超时后条目保持无密码 | 重载页面重握手；**不存在明文回退代码**；hydration 超时 → 该次会话显式重输（ref 保留，下次启动再试恢复） |
 | corrupt | 密文损坏 / GCM 认证失败 / AAD 不匹配 / 换绑 | resolver 对该条目返回 undefined → 直连 unauthorized 重输 / SSH authRequired；凭据管理器标红 | 重输后重存（in-place，ref 稳定）或删除条目 |
 | unsupported | 信封版本不识别（未来版本） | 同 corrupt（按条目惰性） | 同 corrupt |
 | recovery-needed | TEE 重置等 Keystore 失效（不含锁屏凭据变更——设计免除） | 横幅提示 + 重输或一键清除 | 重存 in-place，ref 稳定 |
@@ -149,51 +149,51 @@ SSH 主机连接由第一方 `packages/mobile-hosts` 状态机驱动，映射到
 ### host-key 确认（已实现（未验证）：issue #6；真机核验 BLOCKED）
 
 - 状态机显式状态 `hostKeyUnverified` 已实现；确认 UI（HostKeyPrompt）**挂载点已建**（host-manager 行内渲染，`runtime.fingerprintOf(id)` 供数）与真实指纹数据源（SshBridgeHostKeyVerifier 经第三桥 `fetchHostKey`）一并交付（流程见[决策记录 0003 §3](../../decisions/0003-ssh-transport.md)：桥可用性先行 → 查 store → 未知走 fetchHostKey（仅 KEX scan、零认证材料）→ prompt(fingerprint) → 确认 → open(pinnedFingerprint) → Kotlin 权威比对并写入 known_hosts；变更=严格拒绝+显式恢复）。指纹只存内存。
-- `HostKeyVerifier` 端口默认仍为 stub：**对任何主机恒返回"拒绝"**（fail-closed），不存在"跳过校验"路径；测试断言 stub 永不放行。真实校验经 M-015 注入（stub 保留为包内无注入默认）。
+- `HostKeyVerifier` 端口默认仍为 stub：**对任何主机恒返回"拒绝"**（fail-closed），不存在"跳过校验"路径；测试断言 stub 永不放行。真实校验经 app-ssh-bridge 注入（stub 保留为包内无注入默认）。
 - 变更恢复：host-manager 失败行内危险按钮（红色警示文案）→ 一次显式危险确认 → `forgetHostKey`（无桥注入时 fail-closed 返回 false）→ 下次连接回未知指纹确认流，行内提示已移除；桥不可用绝不误报为 host-key 拒绝（`bridge-unavailable` 显式失败）。
 - 真机核验（未知/已知/变更三态、桥 bring-up）**BLOCKED**（归 G14/G17）。
 
 ## 凭据流（已实现（未验证））
 
 1. 用户输入密码 → 仅内存。
-2. 可选记住（issue #4）：保存时勾选「记住密码」且 vault available → 经桥 put 加密落盘（信封 v1，Keystore 密钥加密），连接记录持有 `credentialRef`；不勾选 → 密码仅内存（M-002 语义不变）。
+2. 可选记住（issue #4）：保存时勾选「记住密码」且 vault available → 经桥 put 加密落盘（信封 v1，Keystore 密钥加密），连接记录持有 `credentialRef`；不勾选 → 密码仅内存（connection-password-memory-only 语义不变）。
 3. `packages/app/src/runtime/server/api.ts` 的 `authTokenFromCredentials` 拼接 `Basic ${btoa("opencode:<password>")}` 进入 `Authorization` 请求头。
-4. 持久化编码路径（`persistence.ts` encode，`MemoryOnlyPassword` codec）恒将 password 重写为 `undefined`；解码容忍历史遗留值，缺失密码进入既有认证失败路径。M-010 hydration 注入的密码只写 solid store（内存），同一 encode 路径保证不落盘。
+4. 持久化编码路径（`persistence.ts` encode，`MemoryOnlyPassword` codec）恒将 password 重写为 `undefined`；解码容忍历史遗留值，缺失密码进入既有认证失败路径。connection-credential-hydration hydration 注入的密码只写 solid store（内存），同一 encode 路径保证不落盘。
 5. 交付态验证：构建产物中检索 `mobile(M-002)` 标记命中（见 [docs/build-and-verify.md](../../build-and-verify.md) V-cred）；localStorage 负例的真机复核归 G9；vault 落盘负例（index.json 无值、密文文件不进备份）归 C3/C4。
 
 ## 直连传输（已实现（未验证）：issue #5，裁定见[决策记录 0002](../../decisions/0002-direct-connection-transport.md)）
 
 已批准变更：Android 将允许远端 HTTP 直连；HTTP 不加密，Basic 凭据及通信内容可能被窃听或篡改，建议使用 HTTPS 或 SSH 隧道。TLS 证书及主机名校验不变；HTTP 直连与配对路径待真机验证。
 
-直连服务沿用上游原生注册表与连接对话框（M-005/M-006/M-009/M-010 已承载），issue #5 补齐传输卫生与错误分类：secure-fetch（M-011）、上传 XHR 校验（M-012）、probe 先行分类反馈（M-013）、probe 桥接线（M-014）。实现位置 `packages/mobile-hosts/src/transport/`、`src/probe.ts` 与 `android/app/src/main/java/ai/opencode/mobile/probe/`。
+直连服务沿用上游原生注册表与连接对话框（connection-credential-reference/connection-dialog-credential-reference/connection-remember-credential/connection-credential-hydration 已承载），issue #5 补齐传输卫生与错误分类：secure-fetch（connection-platform-fetch-policy）、上传 XHR 校验（attachments-upload-redirect-policy）、probe 先行分类反馈（connection-error-classification）、probe 桥接线（app-connection-probe-bridge）。实现位置 `packages/mobile-hosts/src/transport/`、`src/probe.ts` 与 `android/app/src/main/java/ai/opencode/mobile/probe/`。
 
-**issue #102 增补（M-045）**：连接对话框的新增/编辑条目现渲染目标形态行——servers 列表行委托共享 `ServerConnectionRow`（行内 Authenticate 入口、`entry.name` 行名），对话框本体（M-005 credentialRef 保留、M-009 记住分支、M-013 probe 分类错误、`onSave` 回传选中）全部保留不变；`servers/connect/redeem.ts` 的 `Redemption` 类型随目标**取消导出**（树内零消费者，纯收紧）。指纹/凭据契约本轮零改动（交叉引用见上）。
+**issue #102 增补（settings-servers-migration）**：连接对话框的新增/编辑条目现渲染目标形态行——servers 列表行委托共享 `ServerConnectionRow`（行内 Authenticate 入口、`entry.name` 行名），对话框本体（connection-credential-reference credentialRef 保留、connection-remember-credential 记住分支、connection-error-classification probe 分类错误、`onSave` 回传选中）全部保留不变；`servers/connect/redeem.ts` 的 `Redemption` 类型随目标**取消导出**（树内零消费者，纯收紧）。指纹/凭据契约本轮零改动（交叉引用见上）。
 
-### 四通道认证覆盖表（现状=上游已统一 Authorization 头；M-011 不触头语义）
+### 四通道认证覆盖表（现状=上游已统一 Authorization 头；connection-platform-fetch-policy 不触头语义）
 
 | 通道 | 载体 | 认证方式 | URL 中有无凭据 | 本轮动作 |
 | --- | --- | --- | --- | --- |
-| API | `api.ts createApiForServer`（Basic base64("opencode:<password>") 进 `Authorization` 头，经 `client.tsx` 的 `createServerTransport({fetch: platform.fetch})`） | 头 | 无 | M-011 注入 secure-fetch（重定向校验/userinfo 拒发），头语义不动 |
-| SSE | 生成客户端 `sse()` 为 fetch body 异步迭代器（非 EventSource），同一 fetch 封装同一头 | 头 | 无 | 同上（随 M-011 覆盖） |
+| API | `api.ts createApiForServer`（Basic base64("opencode:<password>") 进 `Authorization` 头，经 `client.tsx` 的 `createServerTransport({fetch: platform.fetch})`） | 头 | 无 | connection-platform-fetch-policy 注入 secure-fetch（重定向校验/userinfo 拒发），头语义不动 |
+| SSE | 生成客户端 `sse()` 为 fetch body 异步迭代器（非 EventSource），同一 fetch 封装同一头 | 头 | 无 | 同上（随 connection-platform-fetch-policy 覆盖） |
 | WS（PTY） | `client/solid/pty.ts` 先认证铸一次性 ticket（`Authorization`+`x-opencode-ticket` 头）再 `new WebSocket(url?ticket=…)`；服务端单次消费并校验 Origin 白名单 | 铸票（头）+ 单次能力票据（URL） | URL 携带短时效单次 ticket（**非凭据**，D5 裁定接受并文档化） | 无补丁；纪律=日志零 URL 参数 |
-| 文件上传 | `composer/attachments/destination.ts` XHR 显式 `setRequestHeader("authorization", …)` | 头 | 无 | M-012 load 后校验 `xhr.responseURL`（跨主机/降级 fail-closed） |
-| 二进制读 | `descriptor.binary` 带头 fetch | 头 | 无 | 随 M-011 覆盖 |
+| 文件上传 | `composer/attachments/destination.ts` XHR 显式 `setRequestHeader("authorization", …)` | 头 | 无 | attachments-upload-redirect-policy load 后校验 `xhr.responseURL`（跨主机/降级 fail-closed） |
+| 二进制读 | `descriptor.binary` 带头 fetch | 头 | 无 | 随 connection-platform-fetch-policy 覆盖 |
 
 URL 卫生：secure-fetch 对含 userinfo（`user:pass@host`）的请求 URL 拒发（`assertNoUrlCredentials`，纵深——对话框 link 流 `serverAddress` 已拒 userinfo，password 表单的 `normalizeServerUrl` 直存路径不拒，壳侧拒发兜底，错误呈现为 `dialog.server.error.credential-url`）。
 
-`authFromToken` 残留评估：上游 `api.ts` 的 `authFromToken`（`?auth_token` 直通铸头）唯一消费方已被 M-007 从 entry.tsx 移除，仅 `api.test.ts` 引用——运行期无可达的 URL 凭据通路，不加补丁，此处记录评估结论。
+`authFromToken` 残留评估：上游 `api.ts` 的 `authFromToken`（`?auth_token` 直通铸头）唯一消费方已被 app-mobile-hosts-bootstrap 从 entry.tsx 移除，仅 `api.test.ts` 引用——运行期无可达的 URL 凭据通路，不加补丁，此处记录评估结论。
 
-### probe 分类与反馈（M-013/M-014）
+### probe 分类与反馈（connection-error-classification/app-connection-probe-bridge）
 
 probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavailable`，绝不伪造分类）；Android 桥 ack 后由 `DirectEndpointProbe` 支撑。probe 是**分类器不是权威**：仅在保存路径健康检查失败时用于选择错误文案（`dialog.server.error.<code>`，app i18n en/zh；probe unavailable 显式退化为上游泛化文案 `dialog.server.add.error`）；分类与真实 fetch 冲突时以真实 fetch 为准。probe 凭据边界（带 Authorization 头的分类语义、头/URL/桥消息零日志值、不持久化、三层信任复用与协议隔离）见[决策记录 0002](../../decisions/0002-direct-connection-transport.md) probe 设计节。
 
 ### 错误分类×反馈×恢复矩阵（issue #5）
 
-保存路径的权威判定=上游健康检查（真实 fetch）；下表是健康检查**失败后**的错误反馈与恢复路径。错误文案优先级：mixedContent（上游结构信号）→ unauthorized（健康检查 unauthorized 标志）→ probe 分类 → 泛化文案（probe unavailable/`ok`/冲突时显式退化）。双键集口径（F5）：M-013 只消费 app i18n 键 `dialog.server.error.<code>`（en 基表 + zh 表，缺键回退 en 再回退键名）；mobile-hosts 自含键 `direct.error.<code>`（EN/ZH）用于第一方 UI 面（映射 `directErrorCodeMessageKey`，全集断言单测锁定）。
+保存路径的权威判定=上游健康检查（真实 fetch）；下表是健康检查**失败后**的错误反馈与恢复路径。错误文案优先级：mixedContent（上游结构信号）→ unauthorized（健康检查 unauthorized 标志）→ probe 分类 → 泛化文案（probe unavailable/`ok`/冲突时显式退化）。双键集口径（F5）：connection-error-classification 只消费 app i18n 键 `dialog.server.error.<code>`（en 基表 + zh 表，缺键回退 en 再回退键名）；mobile-hosts 自含键 `direct.error.<code>`（EN/ZH）用于第一方 UI 面（映射 `directErrorCodeMessageKey`，全集断言单测锁定）。
 
 | 分类码 | 触发（probe/secure-fetch/健康检查） | 用户可见反馈（app i18n 键） | 恢复路径 |
 | --- | --- | --- | --- |
-| `unauthorized` | probe 401 / 健康检查 unauthorized 标志（权威） | `dialog.server.error.unauthorized`（服务器拒绝凭据 401） | 检查密码重输；上游 unauthorized 流 + #4 M-009/M-010 链路 |
+| `unauthorized` | probe 401 / 健康检查 unauthorized 标志（权威） | `dialog.server.error.unauthorized`（服务器拒绝凭据 401） | 检查密码重输；上游 unauthorized 流 + #4 connection-remember-credential/connection-credential-hydration 链路 |
 | `forbidden` | probe 403 | `dialog.server.error.forbidden` | 检查账号与权限 |
 | `cert-expired` | probe TLS（证书过期） | `dialog.server.error.cert-expired`（续期证书/Let's Encrypt 或 SSH 隧道） | 换正规 CA 证书；SSH 隧道（#6） |
 | `cert-hostname` | probe TLS（主机名不符） | `dialog.server.error.cert-hostname` | 核对地址；为本主机签发证书 |
@@ -204,8 +204,8 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 | `dns` | probe DNS 解析失败 | `dialog.server.error.dns` | 检查主机名 |
 | `not-found` | probe 404 | `dialog.server.error.not-found` | 检查地址与端口 |
 | `html-response` | probe 命中 HTML（代理/门户页，任意状态码 + content-type/侦嗅） | `dialog.server.error.html-response` | 核对地址是否指向服务本体 |
-| `credential-url` | secure-fetch/userinfo 前置校验（M-011/M-012/M-013 三面一致） | `dialog.server.error.credential-url` | 从地址移除凭据，密码走密码栏 |
-| 重定向跨主机/降级 | secure-fetch（M-011 fetch 面）/M-012（XHR 面）fail-closed | 健康检查失败 → 泛化文案（分类错误被上游吞为 `{healthy:false}`；两端拒交付是行为保证，矩阵登记） | 服务端修正重定向；反代保持同源 |
+| `credential-url` | secure-fetch/userinfo 前置校验（connection-platform-fetch-policy/attachments-upload-redirect-policy/connection-error-classification 三面一致） | `dialog.server.error.credential-url` | 从地址移除凭据，密码走密码栏 |
+| 重定向跨主机/降级 | secure-fetch（connection-platform-fetch-policy fetch 面）/attachments-upload-redirect-policy（XHR 面）fail-closed | 健康检查失败 → 泛化文案（分类错误被上游吞为 `{healthy:false}`；两端拒交付是行为保证，矩阵登记） | 服务端修正重定向；反代保持同源 |
 | 地址格式 | 上游 `serverAddress`/`normalizeServerUrl`（不动） | 上游既有文案（`server.connect.link.invalid` 等，矩阵登记） | 修正地址 |
 | probe unavailable | stub 默认/桥未 ack/桥超时/畸形响应 | `dialog.server.add.error`（**显式退化**，不伪造分类） | 重载页面重握手（G16）；真机核对归 G16 |
 
@@ -217,7 +217,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 ## 配对与连接导入（已实现（未验证）：issue #22——上游闭包承载，零新建界面/零补丁/零运行时代码/零依赖变更；文档与静态探针收口，运行期归 G32）
 
-配对（pairing）是 connection 单元「建立认证连接」职责的导入面：桌面/CLI 发起端（`opencode pair`、桌面 app Pair 对话框）产出一次性配对链接/QR，移动端只承担**接收导入**——粘贴或扫描链接 → 语法与信任校验 → 向服务器兑换会话 token → 健康检查 → 写入 http 服务记录。上游拥有完整协议且已随闭包在本壳内（`platform: "web"`，M-007 entry 装配）功能完备；本期固化其安全语义与验证面，不新增任何传输面。本节三条安全红线逐条落字：**①scheme/host 校验不放宽**（四层校验见②）；**②秘密不经日志/剪贴板/历史**（token 纪律见④）；**③TLS/host-key 校验不绕过**（见⑤——零绕过负断言由 `scripts/verify-pairing.ts` 锁定）。
+配对（pairing）是 connection 单元「建立认证连接」职责的导入面：桌面/CLI 发起端（`opencode pair`、桌面 app Pair 对话框）产出一次性配对链接/QR，移动端只承担**接收导入**——粘贴或扫描链接 → 语法与信任校验 → 向服务器兑换会话 token → 健康检查 → 写入 http 服务记录。上游拥有完整协议且已随闭包在本壳内（`platform: "web"`，app-mobile-hosts-bootstrap entry 装配）功能完备；本期固化其安全语义与验证面，不新增任何传输面。本节三条安全红线逐条落字：**①scheme/host 校验不放宽**（四层校验见②）；**②秘密不经日志/剪贴板/历史**（token 纪律见④）；**③TLS/host-key 校验不绕过**（见⑤——零绕过负断言由 `scripts/verify-pairing.ts` 锁定）。
 
 ### ① 协议链路
 
@@ -232,7 +232,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 | 层 | 机制 | 拒绝结果 |
 | --- | --- | --- |
-| 地址层 `serverAddress` | 含 `://` 但非 `^https?://` → undefined（**scheme 白名单，`opencode-ios://` 类即拒**）；`new URL` 解析抛错 → undefined（M-053，不依赖 URL 静态方法）；非 http/https 协议 → undefined；**userinfo/search/hash 任一存在 → undefined**（凭据 URL 在解析层即拒） | 该地址不可用 |
+| 地址层 `serverAddress` | 含 `://` 但非 `^https?://` → undefined（**scheme 白名单，`opencode-ios://` 类即拒**）；`new URL` 解析抛错 → undefined（connection-pairing-url，不依赖 URL 静态方法）；非 http/https 协议 → undefined；**userinfo/search/hash 任一存在 → undefined**（凭据 URL 在解析层即拒） | 该地址不可用 |
 | 链接层 `pairingLink` | JSON 形 → `Schema.Struct({code, urls})` 解码 + `CODE = /^[A-Za-z0-9_-]+$/` 逐码校验 + urls 全过 serverAddress + 去重，任一非法整体 undefined；URL 形 → 仅 `/^\/auth\/connect\/([^/]+)$/` 路径命中取码（**路径即动作白名单**） | 非 legacy → `server.connect.link.invalid` 行内错误，零网络动作 |
 | 遗留流 `legacyPairingLink` | 识别旧 `/connect#<credentials>` 与 `/connect?data=<credentials>` 凭据链接 | **识别、报错（`server.connect.link.legacy`）、零兑换动作**——旧链接 fragment 内嵌凭据绝不执行 |
 | 误入判定 `bareServerAddress` | 无路径的裸服务器地址才转交密码表单（"a bare code or a cut-off link is not mistaken for a server"） | — |
@@ -253,13 +253,13 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 ### ④ token 秘密纪律（红线：秘密不经日志/剪贴板/历史）
 
-- **token 流向 memory-only**：兑换得 `session.token` → 以 `password` 形进入内存连接对象（`Pairing {url, password}`）→ **link 方法不渲染「记住」勾选框**（对话框渲染门 `checkboxRendered: store.method === "password" && vaultAvailable()`——link 流恒 false → `evaluateRemember` 走 passthrough，真值表行 6/11；决策核心首锁在 `scripts/verify-credential-vault.ts`，本期探针只锁 dialog 侧渲染门锚作交叉引用）→ **配对 token 永不经 vault 落盘** → 持久化 encode 恒剥 password（M-002）→ 重启后该服务 unauthorized → 重配对自愈（单次码设计内，非缺陷；**不得声称配对 token 持久化**）。
-- **prior `credentialRef` 语义分面（add 面两挂载面实态不同——上游实态例外句）**：**dialog 连接对话框面=passthrough 保 ref**（`credentialRef: decision.action === "passthrough" ? decision.ref : undefined`，M-006/M-009 prior 语义）；**screen 独立连接屏面=重配对丢弃 prior `http.credentialRef`**——机制=`servers.add(existing ? { ...existing, http } : { type: "http", http })` 的 shorthand `http`（`HttpBase {url, password}` 恒不含 ref）整体覆盖 `existing.http`，且注册表 `add()` 命中既有项时 `setStore("list", existing, conn)` 整体替换、不与旧条目合并 ref（顶层 displayName 经展开保留）；后果=该服务记录与 vault 条目的 ref 绑定静默丢失 → vault 条目转孤儿（凭据管理器孤儿区呈现）→ 重启后 unauthorized → 重配对自愈。**无安全泄漏**（ref 非机密、丢绑定只降级为重认证，不入日志不入剪贴板）；实态可接受性归 G32⑤ 双面核对，不预设行为变更补丁。
-- **剪贴板分域口径**：**配对/导入面零剪贴板写**——`servers/connect/` 全目录 + `packages/mobile-hosts/src` 域内 `navigator.clipboard.write|writeText` 零命中（探针组 5 锁定；mobile-hosts 的剪贴板接触是 issue #16 `clipboardImage` **读取**面）。**域外事实（上游 app 自有剪贴板写，均不在配对流，如实声明不进断言域；issue #105/M-048 起恰五写四文件）**：`providers/connect/dialog.tsx`（provider OAuth copy-link 回退）、`providers/connect/mcp-dialog.tsx`（MCP 错误详情 copy 回退，`platform.writeClipboardText ?? navigator.clipboard.writeText`，issue #105/M-048 新增——复制内容为错误详情文本，非凭据）、`runtime/extension/host-apis.tsx`（宿主 copy API）、`session/commands/use-session-commands.tsx`×2（sessionID/projectID 复制）。桌面 gui-ext 的「copy link」是发送端桌面自身剪贴板，不属本客户端面。TextInput 链接值仅存组件 store（`reset()` 即清），零持久化零草稿存储。
+- **token 流向 memory-only**：兑换得 `session.token` → 以 `password` 形进入内存连接对象（`Pairing {url, password}`）→ **link 方法不渲染「记住」勾选框**（对话框渲染门 `checkboxRendered: store.method === "password" && vaultAvailable()`——link 流恒 false → `evaluateRemember` 走 passthrough，真值表行 6/11；决策核心首锁在 `scripts/verify-credential-vault.ts`，本期探针只锁 dialog 侧渲染门锚作交叉引用）→ **配对 token 永不经 vault 落盘** → 持久化 encode 恒剥 password（connection-password-memory-only）→ 重启后该服务 unauthorized → 重配对自愈（单次码设计内，非缺陷；**不得声称配对 token 持久化**）。
+- **prior `credentialRef` 语义分面（add 面两挂载面实态不同——上游实态例外句）**：**dialog 连接对话框面=passthrough 保 ref**（`credentialRef: decision.action === "passthrough" ? decision.ref : undefined`，connection-dialog-credential-reference/connection-remember-credential prior 语义）；**screen 独立连接屏面=重配对丢弃 prior `http.credentialRef`**——机制=`servers.add(existing ? { ...existing, http } : { type: "http", http })` 的 shorthand `http`（`HttpBase {url, password}` 恒不含 ref）整体覆盖 `existing.http`，且注册表 `add()` 命中既有项时 `setStore("list", existing, conn)` 整体替换、不与旧条目合并 ref（顶层 displayName 经展开保留）；后果=该服务记录与 vault 条目的 ref 绑定静默丢失 → vault 条目转孤儿（凭据管理器孤儿区呈现）→ 重启后 unauthorized → 重配对自愈。**无安全泄漏**（ref 非机密、丢绑定只降级为重认证，不入日志不入剪贴板）；实态可接受性归 G32⑤ 双面核对，不预设行为变更补丁。
+- **剪贴板分域口径**：**配对/导入面零剪贴板写**——`servers/connect/` 全目录 + `packages/mobile-hosts/src` 域内 `navigator.clipboard.write|writeText` 零命中（探针组 5 锁定；mobile-hosts 的剪贴板接触是 issue #16 `clipboardImage` **读取**面）。**域外事实（上游 app 自有剪贴板写，均不在配对流，如实声明不进断言域；issue #105/settings-providers-models-extensions 起恰五写四文件）**：`providers/connect/dialog.tsx`（provider OAuth copy-link 回退）、`providers/connect/mcp-dialog.tsx`（MCP 错误详情 copy 回退，`platform.writeClipboardText ?? navigator.clipboard.writeText`，issue #105/settings-providers-models-extensions 新增——复制内容为错误详情文本，非凭据）、`runtime/extension/host-apis.tsx`（宿主 copy API）、`session/commands/use-session-commands.tsx`×2（sessionID/projectID 复制）。桌面 gui-ext 的「copy link」是发送端桌面自身剪贴板，不属本客户端面。TextInput 链接值仅存组件 store（`reset()` 即清），零持久化零草稿存储。
 - **日志零值**：pairing/redeem/scanner/camera 四文件零 `console.`/`Log.` 类调用（探针负断言）；壳层 `onReceivedSslError` 仅记错误类、console 仅 message+行号、`setSavePassword(false)`（MainActivity）既有锚在册。
 - **历史零渗漏**：兑换经 `fetch()` 非导航 → 零 WebView 历史/前进后退列表条目；链接输入 `spellcheck={false} autocapitalize="off"`；密码字段掩码 + 壳 `setSavePassword(false)`。首次连接密码栏的键盘例外见下文。
 
-**首次直连密码键盘（M-054 代码已实现，集成设备验证未执行）**：Android Gradle 属性 `passwordKeyboard` 默认 `false`（请求普通键盘），设置 `-PpasswordKeyboard=true` 选择密码输入法；其他值使配置失败。壳的回环资产服务通过不缓存的 `/mobile-keyboard-config.json` 仅提供该非秘密布尔值；读取失败或非 Android 响应时退回 `type=password`。普通键盘模式使用 `type=text` 和 `-webkit-text-security: disc` 保持视觉掩码，关闭自动填充提示（`autocomplete=off`）、拼写检查、自动纠正和首字母大写；密码输入法模式保留 `autocomplete=current-password`。不改变应用内密码的内存和持久化纪律。设备实验曾观察到普通键盘但 `dumpsys` inputType 为 `0x8c0a1`，WebView/输入法的实际识别和学习行为不能保证。仅首次直连屏受影响，其他密码框不变。
+**首次直连密码键盘（connection-password-keyboard 代码已实现，集成设备验证未执行）**：Android Gradle 属性 `passwordKeyboard` 默认 `false`（请求普通键盘），设置 `-PpasswordKeyboard=true` 选择密码输入法；其他值使配置失败。壳的回环资产服务通过不缓存的 `/mobile-keyboard-config.json` 仅提供该非秘密布尔值；读取失败或非 Android 响应时退回 `type=password`。普通键盘模式使用 `type=text` 和 `-webkit-text-security: disc` 保持视觉掩码，关闭自动填充提示（`autocomplete=off`）、拼写检查、自动纠正和首字母大写；密码输入法模式保留 `autocomplete=current-password`。不改变应用内密码的内存和持久化纪律。设备实验曾观察到普通键盘但 `dumpsys` inputType 为 `0x8c0a1`，WebView/输入法的实际识别和学习行为不能保证。仅首次直连屏受影响，其他密码框不变。
 
 设备冒烟（Android WebView，两个构建配置各一次；本次未执行）：打开首次连接，切换地址/密码，输入含大小写、符号和非 ASCII 的测试密码，确认字符掩码、键盘类型、提交及失败后重试；断网或配置读取失败时确认退回密码输入法且仍掩码。不得使用真实凭据或记录输入值。
 - **direct/SSH 二分**：配对只产 **http 身份**（上游 URL 键）；SSH 主机（`mobile-ssh:<uuid>`）有独立凭据流——`servers/connect/` 全域零 known_hosts/HostKeyVerifier/hostKey 命中（探针负断言，SSH 域零交）。
@@ -269,7 +269,7 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 - **host 路由**：兑换成功 → `target()`（screen）/`paired()`（dialog）——重签入保持既有地址（注释逐字 "A pairing token works on every address of its server. Signing in again to the server that signed out keeps its address"）；签出态 `shell/routes/routes.tsx` 以 `signedOut()?.http.url` 回连**同一服务器**。
 - **project/session 路由**：导入只建 http 服务器记录；项目/会话选择走既有 `ServerScope` 机制（权威见 [projects-sessions.md](projects-sessions.md)，同名项目/会话不混淆），本期引用不重裁定。
 - **`servers.add` 前置健康检查**：screen/dialog 四调用位均先 `check`/`checkServerHealth` 后 add——健康检查失败零注册表写入。
-- **TLS 校验不绕过**：导入路径**零新增传输面**——兑换/健康检查后的一切请求走既有通道（API/SSE=platform.fetch+M-011 secure-fetch、上传=M-012）；TLS=WebView system CA（netsec trust-anchors，`onReceivedSslError` 恒 CANCEL 在册）；远端 HTTP 将允许（明文风险与真机验证见 D3）；`servers/connect/` 域内零 `rejectUnauthorized|disableCert|insecure` 命中（探针负断言）。**host-key 校验属 SSH 域**（三态流，[决策 0003](../../decisions/0003-ssh-transport.md)），配对流零触碰；配对流不引入任何「跳过校验」选项。
+- **TLS 校验不绕过**：导入路径**零新增传输面**——兑换/健康检查后的一切请求走既有通道（API/SSE=platform.fetch+connection-platform-fetch-policy secure-fetch、上传=attachments-upload-redirect-policy）；TLS=WebView system CA（netsec trust-anchors，`onReceivedSslError` 恒 CANCEL 在册）；远端 HTTP 将允许（明文风险与真机验证见 D3）；`servers/connect/` 域内零 `rejectUnauthorized|disableCert|insecure` 命中（探针负断言）。**host-key 校验属 SSH 域**（三态流，[决策 0003](../../decisions/0003-ssh-transport.md)），配对流零触碰；配对流不引入任何「跳过校验」选项。
 - 残余面引用（#5 F2 两处 raw fetch，见上「残余 fetch 面」节）：引用其 out-of-scope 在册结论，不重裁定；真机负例核对归 G32⑦。
 
 ### ⑥ 取消与冷热启动
@@ -282,12 +282,12 @@ probe 端口（`getMobileHosts().probe`）默认 fail-closed stub（恒 `unavail
 
 ### ⑦ 能力边界与历史不支持流清单（验收 4 本体——如实登记，零 parity 声称）
 
-以下诸项为本壳配对流的能力边界，每项带机制原因与替代路径；运行期呈现归 G32 判定，不得静默声称对等。第 2 项（相机扫描）的「壳层能力缺席」边界已随 issue #71 解除（原 M-022+ 候选的落地，issue #71 验收 1 即其用户决策载体），其余项保持不支持：
+以下诸项为本壳配对流的能力边界，每项带机制原因与替代路径；运行期呈现归 G32 判定，不得静默声称对等。第 2 项（相机扫描）的「壳层能力缺席」边界已随 issue #71 解除（原 移动适配候选的落地，issue #71 验收 1 即其用户决策载体），其余项保持不支持：
 
 1. **LAN 明文配对链接**：历史上 netsec 禁止远端明文，局域网 HTTP 链接因此无法兑换。现已批准 Android 允许远端 HTTP（[决策 0002 D3](../../decisions/0002-direct-connection-transport.md)）；配对实际可用性仍待真机验证。明文可能暴露配对材料和后续凭据，优先使用 HTTPS OpenTunnel 或 SSH 隧道。
-2. **相机扫描——原「壳层能力缺席」不支持项，已随 issue #71 实现（设备 QA 子态回填见 build-and-verify #71 段）**：壳层接入 = manifest CAMERA 运行时权限（应用内 `onPermissionRequest` 授予，非安装即得）+ `WebChromeClient.onPermissionRequest`/`onPermissionRequestCanceled` 接线；授权策略由纯 JVM 类 `CameraGrantPolicy` 承载——origin 以 `java.net.URI` 解析后 scheme/host/port 三元组严格等于壳回环 origin（`http`/`127.0.0.1`/`WebAssetServer.DEFAULT_PORT`；解析失败、localhost 别名、127.0.0.2、端口漂移一律拒）、资源白名单恰 `RESOURCE_VIDEO_CAPTURE` 一元（audio 永不授，RECORD_AUDIO 不声明）；请求码 41004，单 pending 槽替换语义（旧请求先 deny），`onPermissionRequestCanceled` 清槽不应答（取消的请求对象不得再触达），destroy 兜底 deny——exactly-once 八路径（grant / deny×2 / 授权应答 / 拒绝应答 / supersede / canceled / destroy / 系统对话框丢失）。WebView 授权生效前提是 App 自身已持有 OS 级 CAMERA 运行时权限（Chromium 实现行为；先 OS 授权后 grant 的顺序设计，QA-1 实证背书）；WebView 不持久化站点级授权——每次 getUserMedia 重新触发 onPermissionRequest，OS 权限状态为唯一真源（已授权→静默 grant 零重复弹窗）。**相机帧不出页面**：零桥接、零采集、零值日志（logcat 固定 tag 零相机值）；相机使用指示灯=平台披露层。三态呈现全部复用共享前端既有 i18n（零新 shell 文案）：临时拒绝→`server.connect.camera.error` + Cancel（重开扫码可重试）；永久拒绝→deny 后页面 getUserMedia reject 走 error 文本，后续 `permissions.query` 报 denied 时门控早退走 `cameraHint()` hint 分支（`server.connect.camera.unavailable`）——两分支都诚实，实测归档生效形态；无相机/枚举不可信→hint（或点按后 `camera.error` 诚实报错）。**枚举门控实态（QA-0 已判定，2026-10-30，MatePad DBY2-AL00 / WebView 114.0.5735.196）**：Android WebView 预授权枚举受在册 Chromium 缺陷 [41288617](https://issues.chromium.org/41288617) 影响的风险（条目 kind/label 空白、甚至零条目）**在本机未成立**——CDP 探针实测 `enumerateDevices()` 返回 4 条目且 kind 完好（audioinput / **videoinput×2** / audiooutput；label 空=未授权前的 Chromium 标准行为，非缺陷信号），`isSecureContext=true`、`getUserMedia`/`enumerateDevices` 接口在位、`location.origin` 恰为壳回环形态（与 `CameraGrantPolicy` 解析路径匹配）。**上游门控 `devices.some(kind === "videoinput")` 原样成立 → 扫码入口原生可达，零 vendor 补丁**（条件补丁 M-039 留预留位不落地；若未来设备/WebView 版本呈现 blank-kind/零条目缺陷形态，按预起草规格另开登记面）。附带实态：本 WebView 无 `navigator.permissions` API——上游 `permissions?.query` 链按可选链语义短路为 undefined（不早退），永久拒绝的实际呈现走 OS deny→getUserMedia reject→`camera.error` 诚实报错路径。上游降级提示 `cameraHint()` 与 `scanner.start()` 失败分支原样保留。
+2. **相机扫描——原「壳层能力缺席」不支持项，已随 issue #71 实现（设备 QA 子态回填见 build-and-verify #71 段）**：壳层接入 = manifest CAMERA 运行时权限（应用内 `onPermissionRequest` 授予，非安装即得）+ `WebChromeClient.onPermissionRequest`/`onPermissionRequestCanceled` 接线；授权策略由纯 JVM 类 `CameraGrantPolicy` 承载——origin 以 `java.net.URI` 解析后 scheme/host/port 三元组严格等于壳回环 origin（`http`/`127.0.0.1`/`WebAssetServer.DEFAULT_PORT`；解析失败、localhost 别名、127.0.0.2、端口漂移一律拒）、资源白名单恰 `RESOURCE_VIDEO_CAPTURE` 一元（audio 永不授，RECORD_AUDIO 不声明）；请求码 41004，单 pending 槽替换语义（旧请求先 deny），`onPermissionRequestCanceled` 清槽不应答（取消的请求对象不得再触达），destroy 兜底 deny——exactly-once 八路径（grant / deny×2 / 授权应答 / 拒绝应答 / supersede / canceled / destroy / 系统对话框丢失）。WebView 授权生效前提是 App 自身已持有 OS 级 CAMERA 运行时权限（Chromium 实现行为；先 OS 授权后 grant 的顺序设计，QA-1 实证背书）；WebView 不持久化站点级授权——每次 getUserMedia 重新触发 onPermissionRequest，OS 权限状态为唯一真源（已授权→静默 grant 零重复弹窗）。**相机帧不出页面**：零桥接、零采集、零值日志（logcat 固定 tag 零相机值）；相机使用指示灯=平台披露层。三态呈现全部复用共享前端既有 i18n（零新 shell 文案）：临时拒绝→`server.connect.camera.error` + Cancel（重开扫码可重试）；永久拒绝→deny 后页面 getUserMedia reject 走 error 文本，后续 `permissions.query` 报 denied 时门控早退走 `cameraHint()` hint 分支（`server.connect.camera.unavailable`）——两分支都诚实，实测归档生效形态；无相机/枚举不可信→hint（或点按后 `camera.error` 诚实报错）。**枚举门控实态（QA-0 已判定，2026-10-30，MatePad DBY2-AL00 / WebView 114.0.5735.196）**：Android WebView 预授权枚举受在册 Chromium 缺陷 [41288617](https://issues.chromium.org/41288617) 影响的风险（条目 kind/label 空白、甚至零条目）**在本机未成立**——CDP 探针实测 `enumerateDevices()` 返回 4 条目且 kind 完好（audioinput / **videoinput×2** / audiooutput；label 空=未授权前的 Chromium 标准行为，非缺陷信号），`isSecureContext=true`、`getUserMedia`/`enumerateDevices` 接口在位、`location.origin` 恰为壳回环形态（与 `CameraGrantPolicy` 解析路径匹配）。**上游门控 `devices.some(kind === "videoinput")` 原样成立 → 扫码入口原生可达，零 vendor 补丁**（条件补丁 M-039 当时未落地，预留位现已失效；若未来设备/WebView 版本呈现 blank-kind/零条目缺陷形态，按预起草规格另开登记面）。附带实态：本 WebView 无 `navigator.permissions` API——上游 `permissions?.query` 链按可选链语义短路为 undefined（不早退），永久拒绝的实际呈现走 OS deny→getUserMedia reject→`camera.error` 诚实报错路径。上游降级提示 `cameraHint()` 与 `scanner.start()` 失败分支原样保留。
 3. **经隧道端点手工兑换不支持**：把 SSH 隧道回环端口当配对地址手工兑换属误用形态（隧道端口动态、身份键错配）——不支持，如实登记。
-4. **外部链接拉起 App 不支持**：零 VIEW intent-filter（manifest 唯一 LAUNCHER）——外部打开配对链接不会进入 App。**出/入站边界（issue #76 注记）**：本节三哨兵（零 VIEW intent-filter/零 scheme/恰三权限）锁的是**入站** deep-link 面（外部 VIEW intent → 本 App，决策 0007 已确认不实施、哨兵不变）；issue #76 的外跳面是**出站**（本 App ACTION_VIEW → 系统默认处理器，FilesBridge 第四 op openExternal + ExternalOpenPolicy 强制策略）——零 intent-filter/零 scheme/零新权限，出站改动不触碰本节哨兵，verify-pairing 组 3/4/6 原地保持为 0007 的回归守卫；需求与 #14 OAuth 回跳同族合并 M-022+ 候选，不新增独立候选。**评估完成（2026-10-30，issue #71 验收 2）；已确认不实施（决策 0007，2026-10-31）**：HTTPS App Links 对用户自管服务器域结构性不可适用、自定义 scheme 不实施（vendor 通道 + 壳 VIEW + 三哨兵反向 + 新门禁的成本与隐式唤起信任面评估在册）——三案对比、信任模型与激活条件见[决策记录 0007](../../decisions/0007-pairing-deep-link.md)。替代路径=App 内粘贴导入（扫码见第 2 项）。
+4. **外部链接拉起 App 不支持**：零 VIEW intent-filter（manifest 唯一 LAUNCHER）——外部打开配对链接不会进入 App。**出/入站边界（issue #76 注记）**：本节三哨兵（零 VIEW intent-filter/零 scheme/恰三权限）锁的是**入站** deep-link 面（外部 VIEW intent → 本 App，决策 0007 已确认不实施、哨兵不变）；issue #76 的外跳面是**出站**（本 App ACTION_VIEW → 系统默认处理器，FilesBridge 第四 op openExternal + ExternalOpenPolicy 强制策略）——零 intent-filter/零 scheme/零新权限，出站改动不触碰本节哨兵，verify-pairing 组 3/4/6 原地保持为 0007 的回归守卫；需求与 #14 OAuth 回跳同族合并 移动适配候选，不新增独立候选。**评估完成（2026-10-30，issue #71 验收 2）；已确认不实施（决策 0007，2026-10-31）**：HTTPS App Links 对用户自管服务器域结构性不可适用、自定义 scheme 不实施（vendor 通道 + 壳 VIEW + 三哨兵反向 + 新门禁的成本与隐式唤起信任面评估在册）——三案对比、信任模型与激活条件见[决策记录 0007](../../decisions/0007-pairing-deep-link.md)。替代路径=App 内粘贴导入（扫码见第 2 项）。
 5. **消息内点按配对链接=同窗导航至远端 web app**：WebView 同窗导航类既有行为（G25③ 类，见 [interaction-quality.md](../interaction-quality.md) §一）——点按消息内的配对链接导航到远端 web app 而非本壳导入流。引导口径=粘贴导入，不新增断言；实态归 G32⑨。
 6. **旧版 `/connect#<credentials>` 凭据链接导入=识别即拒绝**：`legacyPairingLink` 检测 → `server.connect.link.legacy` 文案（"Update OpenCode on the server, then run opencode pair again"），零兑换动作——本客户端不承接旧流。
 
@@ -354,9 +354,9 @@ SSH 连接由第三座协议隔离桥承载：JS 侧 `ssh/bridge.ts`（`SSH_HAND
 | 空态 | 已确认未实现：无任何服务记录时的引导形态待真机核对 |
 | 错误态 | 已确认未实现（目标行为已存在）：认证失败、证书错误、CORS 失败、断网的反馈与恢复归 G4/G5/G11；缺失密码进入上游既有认证失败路径；SSH：failed/offline 呈现已实现（未验证），真机归 G14 |
 | 边界态 | 已确认未实现：不兼容 server——直连不展示（上游 web 原生行为，补齐归 #5）；SSH 由状态机判定（规则见上），真机归 G14；host-key 三态确认与变更恢复已实现（未验证），真机归 G14/G17（BLOCKED）；权限边界不适用（无角色体系） |
-| 过程态 | 已实现（未验证）：host-key 确认（host-key-prompt，host-manager 挂载）是唯一多步交互；M-015 注入后可达，真机归 G14/G17（BLOCKED） |
+| 过程态 | 已实现（未验证）：host-key 确认（host-key-prompt，host-manager 挂载）是唯一多步交互；app-ssh-bridge 注入后可达，真机归 G14/G17（BLOCKED） |
 | 恢复口径 | memory-only 基线 + 可选记住（issue #4）：未记住的密码刷新/重启需重输；已记住的凭据经 vault 解析自动恢复（unavailable/corrupt 时按上方失效矩阵呈现，无明文回退）；SSH 凭据引用重启后经 vault-backed resolver 解析（默认 UnavailableVault fail-closed）；Keystore 持久化已实现（未验证），真机归 C1–C5 |
 
 ## 文案口径
 
-连接相关文案由上游 i18n 体系（`packages/app/src/runtime/i18n`）承载；SSH 主机管理与 host-key 确认文案由 `packages/mobile-hosts` 自含 EN/ZH 字典承载（已实现（未验证），`src/i18n.ts`）；凭据管理器与 vault 状态文案同由该字典承载（issue #4 新键，EN/ZH 成对）。M-009 的「记住密码」勾选框文案随上游字典补丁登记（EN/ZH 同步，含行 2/12「需要密码才能记住」措辞）。memory-only 行为的 App 内提示随 vault 交付为「可选记住」口径（见 [../interaction.md](../interaction.md) notice 修订）。
+连接相关文案由上游 i18n 体系（`packages/app/src/runtime/i18n`）承载；SSH 主机管理与 host-key 确认文案由 `packages/mobile-hosts` 自含 EN/ZH 字典承载（已实现（未验证），`src/i18n.ts`）；凭据管理器与 vault 状态文案同由该字典承载（issue #4 新键，EN/ZH 成对）。connection-remember-credential 的「记住密码」勾选框文案随上游字典补丁登记（EN/ZH 同步，含行 2/12「需要密码才能记住」措辞）。memory-only 行为的 App 内提示随 vault 交付为「可选记住」口径（见 [../interaction.md](../interaction.md) notice 修订）。

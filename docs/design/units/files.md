@@ -28,7 +28,7 @@
 | `/api/fs/read/${encodePath(path)}`（client.ts:1702，`binary: true`） | GET | 「Stream one file relative to the requested location with ETag, Last-Modified, and single-range HTTP Range support (206 Partial Content, 416 Range Not Satisfiable, and 304 Not Modified; multi-range and malformed Range headers fall back to 200)」（fs.read OpenAPI 描述 @ 缓存逐字） |
 | `/api/fs/list`（client.ts:1715） | GET | 「List direct children using an absolute path or a path relative to the requested location, **including parents and siblings outside its directory**. Entry paths remain relative to the requested location; listing does not switch locations.」（fs.list OpenAPI 描述 @ 缓存逐字；**上游有意设计**，见安全专节） |
 | `/api/fs/find`（client.ts:1727） | GET | 「Find recursively ranked filesystem entries relative to the requested location.」；location 作用域索引（ripgrep/fff 二选一 @ 缓存），无已声明错误类型（fff 初始化失败降级恒空结果）；home 目录扫描排除 `Protected.names()`（`filesystem/protected.ts` @ 缓存） |
-| `/api/experimental/fs/write`（client.ts:1739） | POST | 「Unlike read, the target is not confined to the location.」——**文件浏览/搜索/查看路径零调用**；vendored app+gui-extensions 源码唯一线级调用点=`composer/attachments/destination.ts`（附件上传，M-012 校验面），归 #16（见边界专节） |
+| `/api/experimental/fs/write`（client.ts:1739） | POST | 「Unlike read, the target is not confined to the location.」——**文件浏览/搜索/查看路径零调用**；vendored app+gui-extensions 源码唯一线级调用点=`composer/attachments/destination.ts`（附件上传，attachments-upload-redirect-policy 校验面），归 #16（见边界专节） |
 
 ### 类型与事件（生成面，不另行定义）
 
@@ -95,13 +95,13 @@ HTTP 文件 API **不经** `Permission.assert`——agent 工具侧文件访问�
 
 ### #16 边界声明（只声明不实现）
 
-Android 文件导入（附件上传 `composer/attachments/*` + `onShowFileChooser`/`ACTION_OPEN_DOCUMENT` 面，M-012 在位）、导出/分享（`platform.saveFile` 契约在位、`openExternal`/下载链路面）**本期零改动**，归 issue #16 交付；本期交付的 `fs.write` 穷举断言同时是 #16 的起点基线（集合当前恰一处）。IDE/Explorer launch（`open-in-app` 全家）按验收 4 排除——其桌面门槛由探针锁定，移动面结构性不存在。**client exit 零副作用**沿 #9/#10 口径=文件面只读（写面穷举即证明）+ G22⑧ 机械核对（查看文件杀 App→远端零影响→重开 tab/选择恢复）。
+Android 文件导入（附件上传 `composer/attachments/*` + `onShowFileChooser`/`ACTION_OPEN_DOCUMENT` 面，attachments-upload-redirect-policy 在位）、导出/分享（`platform.saveFile` 契约在位、`openExternal`/下载链路面）**本期零改动**，归 issue #16 交付；本期交付的 `fs.write` 穷举断言同时是 #16 的起点基线（集合当前恰一处）。IDE/Explorer launch（`open-in-app` 全家）按验收 4 排除——其桌面门槛由探针锁定，移动面结构性不存在。**client exit 零副作用**沿 #9/#10 口径=文件面只读（写面穷举即证明）+ G22⑧ 机械核对（查看文件杀 App→远端零影响→重开 tab/选择恢复）。
 
 ## 移动面与无障碍现状与缺口（如实；G22⑨ 首项核对，不预设补丁）
 
 **已成立**：树/列表行均为真 `<button>`（可聚焦可激活）；目录行 `aria-expanded`；搜索过滤 `role="combobox"` + `aria-controls`/`aria-activedescendant`/`aria-expanded`；搜索结果 `role="listbox"`/`option`/`aria-selected`；loading/空态 `role="status"`；移动 tab 条与关闭按钮 `aria-label`；`tree.all` 按钮 `aria-pressed`；i18n 双字典齐备（gui-extensions `file/i18n` 实测 **63** 个语言文件（61 locale + en/zh），`mobile.title`（「Files」/「文件」）/`mobile.openTabs`（「Open files」/「打开文件」）/`tree.all`/`tab.notFound`/`selectToOpen` en+zh 在册；app `toast.file.*`/`command.file.open`/`session.files.selectToOpen` en+zh 在册）。
 
-**缺口（如实登记，归 G22⑨）**：①树/列表虚拟行高 28px（+2 gap=30px，`estimateSize: () => 28`）与移动打开文件 tab 条（`!h-10`≈40px 头部、tab 关闭按钮为小尺寸图标位）低于 48dp 触摸目标推荐——与 #10 permission 按钮 28/32px 同型事实；②树为扁平虚拟按钮列表，无 `role="tree"/"treeitem"/aria-level` 层级语义（目录展开态有 aria-expanded 但无树角色）；③移动过滤清除无触屏等价——`browser.tsx` Esc 清除过滤为唯一清除路径（`onFilterKeyDown` Esc 分支），过滤输入无自带清除钮（实测）；④读屏焦点顺序/焦点陷阱未核验。**均归 G22⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 M-022+），本期不预设。
+**缺口（如实登记，归 G22⑨）**：①树/列表虚拟行高 28px（+2 gap=30px，`estimateSize: () => 28`）与移动打开文件 tab 条（`!h-10`≈40px 头部、tab 关闭按钮为小尺寸图标位）低于 48dp 触摸目标推荐——与 #10 permission 按钮 28/32px 同型事实；②树为扁平虚拟按钮列表，无 `role="tree"/"treeitem"/aria-level` 层级语义（目录展开态有 aria-expanded 但无树角色）；③移动过滤清除无触屏等价——`browser.tsx` Esc 清除过滤为唯一清除路径（`onFilterKeyDown` Esc 分支），过滤输入无自带清除钮（实测）；④读屏焦点顺序/焦点陷阱未核验。**均归 G22⑨ 首项核对**，不足按失败路径四步协议交用户决策（候选含 移动适配候选），本期不预设。
 
 ## 门禁与验证
 

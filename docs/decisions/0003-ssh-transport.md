@@ -156,6 +156,6 @@ hostId 单例：同一主机同时至多一个活跃 Session；新连接先拆�
 
 | 条目 | 状态 |
 | --- | --- |
-| 选型/桥架构/host-key/认证/四层分类/线程契约 代码承载 | `packages/mobile-hosts/src/ssh|transport/*` + `android/.../ssh/*` + M-015（**已实现（未验证）**；本机验证=V-mh 212 单测（含 runtime-ssh 全流）、V-ssh 探针全模式 PASS、V2/V3/V-conn PASS；Kotlin 编译 BLOCKED 无 SDK） |
+| 选型/桥架构/host-key/认证/四层分类/线程契约 代码承载 | `packages/mobile-hosts/src/ssh|transport/*` + `android/.../ssh/*` + app-ssh-bridge（**已实现（未验证）**；本机验证=V-mh 212 单测（含 runtime-ssh 全流）、V-ssh 探针全模式 PASS、V2/V3/V-conn PASS；Kotlin 编译 BLOCKED 无 SDK） |
 | 设备级验证（G17 三桥 bring-up、SSH E2E：auth 成败/未知/已知/变更三态/目标拒绝/服务不可达/incompatible 真服务/重连/远程任务存活） | **部分完成（issue #61，2026-10-30，MatePad 真机）**：SSH E2E 主链（信任→SSH 认证→隧道→服务认证→远端会话）、auth 成败、未知/已知/变更三态、目标拒绝（`target-refused`）、服务不可达（`service-unreachable`，哑监听）、断开红线（传输层拆除+远端进程/端口存活+请求级日志零 stop/interrupt+重启重连后会话恢复）、信任稳定性 3 轮零 prompt、G36 #h 三模式草稿保持（以临时 isolated applicationId 隔离包补验 PASS——无记录初始态连接屏可达，example.invalid 草稿两轮全往复三模式各自保留、零连接动作；主应用有记录态连接屏不可达为门设计实态注记、UX 候选留档）——见 `docs/build-and-verify.md` issue #61 段（value-free 台账）。**仍未验**：G17 三桥并存 bring-up 复测（保持 BLOCKED/未复测，本表不写成通过）、incompatible 真服务、重连换端口同身份真机、任务级存活（归 G20⑤/G12） |
 | 敏感信息 | 本文不含凭据、令牌、私钥或真实连接配置（issue #61 台账同口径：地址以「bastion」指代，仅指纹入账） |

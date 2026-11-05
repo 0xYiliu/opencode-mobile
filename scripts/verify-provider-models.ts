@@ -307,7 +307,7 @@ let osScanFiles = 0
   // unreachable fact are unchanged (the client never throws).
   const web = squash(await read(`${APP}src/runtime/platform/web.ts`))
   if (!web.includes('voidactiveFilesPort().openExternal(url.href)'))
-    fail("3: the web openExternal bridge-call shape changed (M-041, issue #76)")
+    fail("3: the web openExternal bridge-call shape changed (files-open-external, issue #76)")
   if (!web.includes("mobile(M-041)"))
     fail("3: web.ts lost the mobile(M-041) outbound-face marker")
   if (web.includes("window.open("))
@@ -391,15 +391,15 @@ let osScanFiles = 0
   if (!runtime.includes('persisted(Persist.global("model"),ModelState,{'))
     fail("5: the createGlobalModels Persist.global(\"model\") preference EXCEPTION moved (anti-overclaim anchor — preferences are cross-server global upstream)")
 
-  // Migrated (v2.2.1) single-layout mounts (issue #101 / M-043): the pin's dual layout is
+  // Migrated (v2.2.1) single-layout mounts (issue #101 / settings-framework-migration): the pin's dual layout is
   // gone — the five-tab redirect guard and the nestedServerTabs composition are
   // target-REMOVED (absence assertions), and providers/models each mount exactly ONCE in
   // the single RootSettings layout.
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
   if (shell.includes('if(["projects","workspaces","providers","models","extensions"].includes(view.tab))surface.open("general")'))
-    fail("5: the pin five-tab redirect guard came back (target-removed by the M-043 migration)")
+    fail("5: the pin five-tab redirect guard came back (target-removed by the settings-framework-migration migration)")
   if (shell.includes("constnestedServerTabs=[") || shell.includes("...serverTabs,"))
-    fail("5: the pin per-server nested tabs composition came back (target-removed by the M-043 migration)")
+    fail("5: the pin per-server nested tabs composition came back (target-removed by the settings-framework-migration migration)")
   if (!shell.includes("constserverTabs=[") || !shell.includes('{value:"providers",icon:pageIcons.providers,label:"settings.providers.title"},') || !shell.includes('{value:"models",icon:pageIcons.models,label:"settings.models.title"},'))
     fail("5: the serverTabs providers/models registration changed")
   const providersTabs = shell.match(/<Tabs\.Contentvalue="providers"/g) ?? []
@@ -520,5 +520,5 @@ console.log(
     "7: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted code files (.ts/.tsx caliber; 49 measured); " +
-    "STATIC check — OAuth round-trip, the outbound authorize hand-off inside the Android WebView shell (G25 first item; M-041 routes it over the files-bridge external-open face, issue #76), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
+    "STATIC check — OAuth round-trip, the outbound authorize hand-off inside the Android WebView shell (G25 first item; files-open-external routes it over the files-bridge external-open face, issue #76), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
 )

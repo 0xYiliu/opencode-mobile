@@ -1,7 +1,7 @@
 // verify-goal-sources.ts — static probe for issue #66 (W22+W23: register the Goal and
 // Sources panels, the v2.2.1 delta).
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + M-001..M-036),
+// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + gui-plugins-native-test-deps..session-goal-sources-panels),
 // the structural facts the issue #66 alignment record relies on:
 //
 //   1. Registration face: renderer.ts carries exactly 15 compose entries with sources and
@@ -9,7 +9,7 @@
 //      then goal); main.ts carries the same 15-id table with the six lazy main entries
 //      unchanged (sources/goal are renderer-only, ids reserved); the mobile face order set
 //      is exactly {10,20,30,40,50,60,70,80} — no duplicates (sources 60 menu, goal 70 menu,
-//      btw 80 menu registered by issue #70/M-038: the btw FACE belongs to that issue, but the
+//      btw 80 menu registered by issue #70/session-btw-narrow-entry: the btw FACE belongs to that issue, but the
 //      order-set equality is locked here — same cross-probe convention as the #66 round).
 //   2. #67 host boundary (issue #67 revision): the OLD host tokens (`@opencode/gui-extensions`
 //      specifier, `Extension.define`, `useExtension`) have ZERO hits across the four vendored
@@ -37,7 +37,7 @@
 //      narrow-screen branch (panel id path -> most recent turn with sources, empty states).
 //      session-ui exports, ui en 9 keys, app en 2 keys (en-only; sampled locales stay
 //      key-free), the Experimental tab row, the app SourcesProvider wrapper, and the three
-//      timeline hook increments — with the M-034 fold anchors still in place (layering
+//      timeline hook increments — with the settings-experimental fold anchors still in place (layering
 //      witness).
 //   5. Gate shim: ui/src/motion-tuning.ts implements ONLY the four faces experiment.ts
 //      consumes (toggle/choice/spring/subscribe) over the upstream `opencode.motion.v2`
@@ -54,15 +54,15 @@
 //      @media prefers-reduced-motion); among the new motion surface only reduced.ts
 //      mentions prefers-reduced-motion (its query constant). The whole-tree three-file
 //      whitelist set-equality is verify-appearance-settings' (#65) lock and is NOT
-//      re-asserted here — this branch predates the M-035 tree conversion (rebase round
+//      re-asserted here — this branch predates the appearance-motion-zoom tree conversion (rebase round
 //      re-checks).
 //   8. Icons + patch registration: outline-steer is the verbatim v2.2.1 artwork (the only
 //      catalog addition; removed from the #64 probe's rejected list in the same commit);
-//      M-036 is registered in BOTH manifests with the exact 33-file patch face (post-rebase:
-//      reduced.ts and the './motion' export returned to M-035). No dist
+//      session-goal-sources-panels is registered in BOTH manifests with the exact 33-file patch face (post-rebase:
+//      reduced.ts and the './motion' export returned to appearance-motion-zoom). No dist
 //      marker is staged for this patch: it carries no credential/security semantics — the
 //      gate shim stores a non-sensitive, device-local UI preference (an experiment gate),
-//      so the M-002 marker precedent does not apply; recorded here deliberately.
+//      so the connection-password-memory-only marker precedent does not apply; recorded here deliberately.
 //
 // NEGATIVE EXAMPLES (run at verification time by injecting/reverting mutations;
 // inject -> FAIL rc=1 -> restore -> PASS rc=0, logs kept):
@@ -171,7 +171,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy mainEntry set (sources/goal are renderer-only)")
 
   // Mobile face orders across the eight registered faces: no duplicates, exact set.
-  // (btw 80 belongs to issue #70/M-038; the set equality lives here — declared cross-reference.)
+  // (btw 80 belongs to issue #70/session-btw-narrow-entry; the set equality lives here — declared cross-reference.)
   const faces: Array<[string, number, string]> = [
     ["review/renderer.tsx", 10, "tab"],
     ["file/renderer.tsx", 20, "menu"],
@@ -507,18 +507,18 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     if (!content.includes(anchor)) fail(`4: message-content.tsx lost the anchor ${anchor.slice(0, 60)}`)
   }
 
-  // Layering witness: the M-034 fold anchors stay in place (first lock: the #64 probe).
+  // Layering witness: the settings-experimental fold anchors stay in place (first lock: the #64 probe).
   for (const anchor of ["foldUserMessages?: Accessor<boolean>", "fold={input.foldUserMessages?.()}"]) {
-    if (!row.includes(anchor)) fail(`4: session-timeline-row.tsx lost the M-034 fold witness ${anchor.trim()}`)
+    if (!row.includes(anchor)) fail(`4: session-timeline-row.tsx lost the settings-experimental fold witness ${anchor.trim()}`)
   }
   if (!content.includes("const USER_MESSAGE_FOLD = { over: 12, show: 8 }"))
-    fail("4: message-content.tsx lost the M-034 USER_MESSAGE_FOLD witness")
+    fail("4: message-content.tsx lost the settings-experimental USER_MESSAGE_FOLD witness")
 }
 
 // --- 5. Gate shim (upstream storage format, default false, minimal face) ---
 {
   const shim = await read(`${UI}src/motion-tuning.ts`)
-  // Issue #67 (ruling 4): the real v2.2.1 module replaces the shim; the M-036 gate helpers
+  // Issue #67 (ruling 4): the real v2.2.1 module replaces the shim; the session-goal-sources-panels gate helpers
   // are merged at the tail with their marker. Faces keep the same storage record.
   for (const anchor of [
     'const key = "opencode.motion.v2"',
@@ -588,7 +588,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   const catalog = await read(`${UI}src/icons/catalog.ts`)
   // Issue #67: the EIGHT KEPT rejections (outline-steer left at #66; the six gui-plugins-domain
   // icons — outline-expand/outline-code-brackets/outline-quote/comment/file-document/
-  // outline-console — left with the M-037 adoption; file-tree was never on the list, D5).
+  // outline-console — left with the gui-plugins-api-migration adoption; file-tree was never on the list, D5).
   const rejected = [
     "outline-magnifier-minus",
     "outline-magnifier-plus",
@@ -639,13 +639,13 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     if (!index.includes(anchor)) fail(`7: motion/index.ts lost ${anchor}`)
   }
   if (!index.includes("M-035") || !index.includes("mobile(M-036)"))
-    fail("7: motion/index.ts lost the M-035 ownership / M-036 rebase provenance comment")
+    fail("7: motion/index.ts lost the appearance-motion-zoom ownership / session-goal-sources-panels rebase provenance comment")
 
   const css = await read(`${SUI}src/sources/sources.css`)
   const reduceBlocks = [...css.matchAll(/:root\[data-motion="reduce"\]/g)].length
   if (reduceBlocks !== 3) fail(`7: sources.css must carry exactly three :root[data-motion="reduce"] blocks, got ${reduceBlocks}`)
   if (css.includes("prefers-reduced-motion") || css.includes("@media"))
-    fail("7: sources.css must use the data-motion attribute face only (M-035 mechanism)")
+    fail("7: sources.css must use the data-motion attribute face only (appearance-motion-zoom mechanism)")
 
   // Among the new motion surface, only reduced.ts mentions the media query (its constant).
   const motionFiles = [
@@ -676,16 +676,16 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     fail("8: outline-steer must sit after waveform (v2.2.1 catalog position)")
 
   const manifest = await read(`${PATCHES}manifest.json`)
-  if (!manifest.includes('"id": "M-036"') || !manifest.includes("patches/mobile/0036-M-036-goal-sources-panels.patch"))
-    fail("8: patches/mobile/manifest.json does not register M-036")
+  if (!manifest.includes('"id": "session-goal-sources-panels"') || !manifest.includes("patches/mobile/session-goal-sources-panels.patch"))
+    fail("8: patches/mobile/manifest.json does not register session-goal-sources-panels")
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
-  if (!vendorManifest.includes("patches/mobile/0036-M-036-goal-sources-panels.patch"))
-    fail("8: vendor-manifest.json does not register M-036 (verify-closure reads only this list)")
-  const patch = await read(`${PATCHES}0036-M-036-goal-sources-panels.patch`)
+  if (!vendorManifest.includes("patches/mobile/session-goal-sources-panels.patch"))
+    fail("8: vendor-manifest.json does not register session-goal-sources-panels (verify-closure reads only this list)")
+  const patch = await read(`${PATCHES}session-goal-sources-panels.patch`)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
-  // Issue #67 (M-036'): the gui-extensions face (9 files), the render.tsx SourcesProvider
-  // hunk and the motion-tuning shim returned to history/M-037 — the patch face is 22 files.
-  if (touched.length !== 22) fail(`8: M-036 patch face drifted: ${touched.length} files (expected exactly 22 post-M-036')`)
+  // Issue #67 (session-goal-sources-panels'): the gui-extensions face (9 files), the render.tsx SourcesProvider
+  // hunk and the motion-tuning shim returned to history/gui-plugins-api-migration — the patch face is 22 files.
+  if (touched.length !== 22) fail(`8: session-goal-sources-panels patch face drifted: ${touched.length} files (expected exactly 22 post-session-goal-sources-panels')`)
   for (const required of [
     "packages/schema/src/goal.ts",
     "packages/session-ui/src/sources/sources.test.ts",
@@ -695,33 +695,33 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     "packages/ui/src/motion/loop.ts",
     "packages/ui/src/icons/catalog.ts",
   ]) {
-    if (!touched.includes(required)) fail(`8: M-036 patch lost the target ${required}`)
+    if (!touched.includes(required)) fail(`8: session-goal-sources-panels patch lost the target ${required}`)
   }
   for (const gone of ["packages/gui-extensions/src/sources/renderer.tsx", "packages/app/src/runtime/extension/render.tsx", "packages/ui/src/motion-tuning.ts"]) {
-    if (touched.includes(gone)) fail(`8: M-036 still carries the re-tabled target ${gone}`)
+    if (touched.includes(gone)) fail(`8: session-goal-sources-panels still carries the re-tabled target ${gone}`)
   }
-  // M-037 is registered in both manifests (the #67 migration patch).
-  if (!manifest.includes('"id": "M-037"') || !manifest.includes("patches/mobile/0037-M-037-gui-plugins-migration.patch"))
-    fail("8: patches/mobile/manifest.json does not register M-037")
-  if (!vendorManifest.includes("patches/mobile/0037-M-037-gui-plugins-migration.patch"))
-    fail("8: vendor-manifest.json does not register M-037")
+  // gui-plugins-api-migration is registered in both manifests (the #67 migration patch).
+  if (!manifest.includes('"id": "gui-plugins-api-migration"') || !manifest.includes("patches/mobile/gui-plugins-api-migration.patch"))
+    fail("8: patches/mobile/manifest.json does not register gui-plugins-api-migration")
+  if (!vendorManifest.includes("patches/mobile/gui-plugins-api-migration.patch"))
+    fail("8: vendor-manifest.json does not register gui-plugins-api-migration")
 
   console.log(
-    "verify-goal-sources: dist marker NOT staged for M-036 — the patch carries no credential/security " +
+    "verify-goal-sources: dist marker NOT staged for session-goal-sources-panels — the patch carries no credential/security " +
       "semantics; the gate shim stores a non-sensitive device-local UI preference (an experiment gate) in " +
-      "the upstream opencode.motion.v2 record, so the M-002 marker precedent does not apply (deliberate note).",
+      "the upstream opencode.motion.v2 record, so the connection-password-memory-only marker precedent does not apply (deliberate note).",
   )
 }
 
 console.log(
   "verify-goal-sources: PASS (" +
-    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal, v2.2.1 order), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,70,80} no duplicates (sources 60 menu, goal 70 menu, btw 80 menu by issue #70/M-038 — face owned there, set equality locked here); " +
+    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal, v2.2.1 order), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,70,80} no duplicates (sources 60 menu, goal 70 menu, btw 80 menu by issue #70/session-btw-narrow-entry — face owned there, set equality locked here); " +
     "2: #67 boundary — four new-host tokens zero-hit across the four vendored domains + the two new builtin directories double-checked; " +
     "3: goal — schema/opencode.goal verbatim incl. the three toStandardSchemaV1 wrappers (implementation note: the closure's effect@4.0.1 exports the API and PortableDefinition requires it — the plan's strip step proven unnecessary, verbatim form locked), data layer store/key/createKeyed/heard/error-swallow verbatim, status three-state map verbatim, session.command pause/resume/clear + error toast verbatim, Panel re-shell (pinned/transient/side + mobile 70 menu, D1 marker), no server plugin vendored, no session.metadata.updated adoption; " +
-    "4: sources — 0f379f0a33 four files verbatim anchors (uses/LinkHandler/transient/tab.count/uses.browser/openExternal), registered narrow-screen branch + gate-off honest empty states, session-ui exports 4, ui en 9 keys in v2.2.1 position, app en 2 keys en-only, Experimental row (storedToggle/setStoredToggle, default false), SourcesProvider inside MarkdownProvider, three hook increments, M-034 fold witnesses intact; " +
+    "4: sources — 0f379f0a33 four files verbatim anchors (uses/LinkHandler/transient/tab.count/uses.browser/openExternal), registered narrow-screen branch + gate-off honest empty states, session-ui exports 4, ui en 9 keys in v2.2.1 position, app en 2 keys en-only, Experimental row (storedToggle/setStoredToggle, default false), SourcesProvider inside MarkdownProvider, three hook increments, settings-experimental fold witnesses intact; " +
     "5: gate shim — opencode.motion.v2 record format, four consumed faces only, zero runtime imports, no Knobs console/settings.v3/auto-enable face, knob default false (NEGATIVE 1 target); " +
     "6: user-runs/quote negatives — eight-token message-content scan (= revised #64 kept set), current-message UserRun/run? boundaries, timeline-row run={joined()} boundary, 14 kept catalog rejections, new session-ui directories clean; " +
-    "7: motion — spring/loop zero-import verbatim, motion entry three exports with M-035 ownership note, sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the new surface exactly {motion/reduced.ts}; " +
-    "8: outline-steer verbatim artwork after waveform, M-036 in BOTH manifests with the exact 22-file patch face (post-M-036' re-table), M-037 in BOTH manifests, dist-marker absence recorded deliberately; " +
+    "7: motion — spring/loop zero-import verbatim, motion entry three exports with appearance-motion-zoom ownership note, sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the new surface exactly {motion/reduced.ts}; " +
+    "8: outline-steer verbatim artwork after waveform, session-goal-sources-panels in BOTH manifests with the exact 22-file patch face (post-session-goal-sources-panels' re-table), gui-plugins-api-migration in BOTH manifests, dist-marker absence recorded deliberately; " +
     "STATIC check - tab reachability, gate restart persistence, chip/panel presentation, goal command round-trips, toast rendering, empty states and TalkBack are device QA items registered in docs/build-and-verify.md)",
 )

@@ -7,16 +7,16 @@
 //   1. fs.write exhaustive-set baseline (the #11 starting baseline, re-verified): the
 //      normalized `api.file.write(` / `/api/experimental/fs/write` call-site set over
 //      app + gui-extensions `src/**` is STILL exactly {composer/attachments/destination.ts}
-//      — M-021 adds no write call and the files bridge never touches the upload endpoint.
-//   2. M-020 anchors: the entry wires the fifth bridge through the module-level files seam
-//      (registration shape equal to the M-016 svcops block); web.ts completes the two
+//      — attachments-share-bridge adds no write call and the files bridge never touches the upload endpoint.
+//   2. files-platform-bridge anchors: the entry wires the fifth bridge through the module-level files seam
+//      (registration shape equal to the app-service-operations-bridge svcops block); web.ts completes the two
 //      pre-existing optional Platform fields through the two seam-reading factories with
 //      their dist-marker strings; platform.tsx still carries the UNCHANGED optional
 //      declarations (zero Platform type change).
-//   3. M-021 anchors: the openAttachment data: branch is the ONLY bridge share call site
+//   3. attachments-share-bridge anchors: the openAttachment data: branch is the ONLY bridge share call site
 //      (exactly one `shareDataUrl(` in region.tsx), the passed name is the same source as
 //      the anchor.download (getFilename(file.name) || "attachment"), the seam import is the
-//      M-012 first-party import shape, and the file:// (uri) branch faces are intact
+//      attachments-upload-redirect-policy first-party import shape, and the file:// (uri) branch faces are intact
 //      (identity separation: no device-side share for remote artifacts).
 //   4. B2 two-layer name sanitization: the JS layer (sanitizeFilename whitelist, no-strip
 //      discipline, 128-char bound) and the Kotlin mirror (FILENAME regex + native
@@ -29,9 +29,9 @@
 //      exported=false + grantUriPermissions=true).
 //   6. Handshake isolation: the five bridge handshake strings are pairwise distinct
 //      (extracted from the five transport sources); the mobile patch registration carries
-//      M-020/M-021 and exactly the registered ID set M-001..M-044 except reserved M-019/M-039
-//      (43 patches total; issue #65 registered M-035, #66 M-036, #67 M-037, #70 M-038,
-//      #72 M-040, #76 M-041, #101 M-042..M-044, #102 M-045 in
+//      files-platform-bridge/attachments-share-bridge and the shared semantic registration check
+//      (43 patches total; issue #65 registered appearance-motion-zoom, #66 session-goal-sources-panels, #67 gui-plugins-api-migration, #70 session-btw-narrow-entry,
+//      #72 settings-about-version, #76 files-open-external, #101 settings-framework-dependencies..settings-framework-mobile, #102 settings-servers-migration in
 //      respective same-commit revisions; issue #23/#26/#55/#63/#64/#65/#66/#67 count revisions
 //      remain documented history —
 //      exact JSON set/path checks prevent an added or missing patch from passing); dist markers
@@ -106,7 +106,7 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   }
 }
 
-// --- 2. M-020 anchors (entry seam registration + web platform completion, types untouched) ---
+// --- 2. files-platform-bridge anchors (entry seam registration + web platform completion, types untouched) ---
 {
   const entry = squash(await read(`${APP}src/entry.tsx`))
   if (!entry.includes('import{createFilesClient,createMobileHosts,'))
@@ -116,7 +116,7 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!entry.includes("opencode-mobile-files-handshake"))
     fail("2: entry.tsx lost the files handshake comment anchor")
   if (!entry.includes("setActiveFilesPort(createFilesClient(createWebMessageFilesTransport({"))
-    fail("2: entry.tsx must register the files client through setActiveFilesPort over the web message transport (M-016 shape)")
+    fail("2: entry.tsx must register the files client through setActiveFilesPort over the web message transport (app-service-operations-bridge shape)")
   // Registration sits directly above the createMobileHosts call (rebase target discipline).
   const registrationAt = entry.indexOf("setActiveFilesPort(createFilesClient(")
   const hostsAt = entry.indexOf("consthosts=createMobileHosts({")
@@ -135,7 +135,7 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!web.includes("mobile(M-020): platform file saver over the files bridge seam (issue #16)"))
     fail("2: web.ts lost the saveFile dist marker string")
   if (!web.includes('import { activeFilesPort, createSecureFetch } from "@opencode-mobile/mobile-hosts"'))
-    fail("2: web.ts must import the seam from the first-party package (M-011 import line extended)")
+    fail("2: web.ts must import the seam from the first-party package (connection-platform-fetch-policy import line extended)")
   // Fail-closed stub semantics registered in the patch (M1: saveFile false = silent cancel,
   // an intentional behavior change over the absent-field fake-success anchor).
   if (!web.includes("fail-closed") || !web.includes("G27⑧"))
@@ -153,7 +153,7 @@ const squash = (source: string) => source.replace(/\s+/g, "")
     fail("2: platform.tsx SaveFilePickerOptions changed shape (no mime field — L5 derivation lives in the client)")
 }
 
-// --- 3. M-021 anchors (data:-only branch, same-source name, file:// branch untouched) ---
+// --- 3. attachments-share-bridge anchors (data:-only branch, same-source name, file:// branch untouched) ---
 {
   const region = await read(`${APP}src/session/composer/region.tsx`)
   const shareCalls = [...region.matchAll(/\bshareDataUrl\s*\(/g)].length
@@ -164,9 +164,9 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!region.includes('shareDataUrl(url, getFilename(file.name) || "attachment", file.mime)'))
     fail("3: the share call must pass the SAME name source as anchor.download (getFilename(file.name) || \"attachment\")")
   if (!region.includes('import { activeFilesPort } from "@opencode-mobile/mobile-hosts"'))
-    fail("3: region.tsx must import the seam from the first-party package (M-012 import shape)")
+    fail("3: region.tsx must import the seam from the first-party package (attachments-upload-redirect-policy import shape)")
   if (!region.includes("mobile(M-021): timeline attachment share over the files bridge (issue #16)"))
-    fail("3: region.tsx lost the M-021 dist marker string")
+    fail("3: region.tsx lost the attachments-share-bridge dist marker string")
   // file:// (uri) branch faces intact — the upstream reveal/download logic stands verbatim.
   const squashedRegion = squash(region)
   if (!squashedRegion.includes('consturl=file.source.type==="uri"?file.source.uri:`data:${file.mime};base64,${file.data}`'))
@@ -234,7 +234,7 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!client.includes("NOT equivalent, and this is an INTENTIONAL behavior change"))
     fail("5: client.ts lost the M1 per-field semantics header (saveFile stub inequivalence)")
   if (!client.includes("export function setActiveFilesPort(") || !client.includes("export function activeFilesPort("))
-    fail("5: the module-level seam accessors changed shape (M-016 precedent)")
+    fail("5: the module-level seam accessors changed shape (app-service-operations-bridge precedent)")
   if (!client.includes("export function mimeFromFilename("))
     fail("5: the L5 mime derivation helper is gone")
   if (!client.includes('"application/octet-stream"'))
@@ -340,44 +340,18 @@ let distAssetCount = 0
     patches?: Array<{ id?: unknown; patch?: unknown; upstreamBaseline?: unknown }>
   }
   const patchRows = patchManifest.patches ?? []
-  const patchIds = patchRows.map((entry) => entry.id).filter((id): id is string => typeof id === "string")
-  // Issue #102: 43 registered = M-001..M-045 with M-019 and M-039 reserved-absent (M-038
-  // registered by the btw narrow-screen entry; M-039 reserved for the parallel issue #71
-  // branch, a hole at apply time tolerated like M-019/0031; M-041 registered by the N08
-  // external-open bridge face; M-042..M-044 by the settings-framework migration; M-045 by
-  // the servers-page target migration). Issue #103: M-046 by the general/experimental
-  // preferences-page target migration. Issue #104: M-047 by the ui theme component-family
-  // target-form trim (dead-export convergence). Issue #105: M-048 by the
-  // providers/models/extensions settings-page target migration. Issue #106: M-049 by the
-  // projects/workspaces settings-page target form (FU-3 runtime persistence deferred). Issue #107: M-050 by the
-  // notifications/sounds settings-page target form (sounds-interface search row restored) -> 48.
-  // Issue #108: M-051 by the keybinds/command-catalog target form -> 49. Issue #109:
-  // M-052 by the gui-extensions D4 resolution (tab kept) and the label disambiguation -> 50.
-  const expectedPatchIds = new Set(
-    Array.from({ length: 54 }, (_, index) => `M-${String(index + 1).padStart(3, "0")}`).filter((id) => id !== "M-019" && id !== "M-039"),
-  )
-  const actualPatchIds = new Set(patchIds)
-  if (patchRows.length !== 52 || patchIds.length !== patchRows.length || actualPatchIds.size !== patchRows.length)
-    fail(`6: registered patch rows/IDs must be unique and exactly 52 (got rows=${patchRows.length}, valid IDs=${patchIds.length}, unique IDs=${actualPatchIds.size})`)
-  for (const id of expectedPatchIds) if (!actualPatchIds.has(id)) fail(`6: registered mobile patch ID set is missing ${id}`)
-  for (const id of actualPatchIds) if (!expectedPatchIds.has(id)) fail(`6: registered mobile patch ID set has unexpected ${id}`)
-  if (patchRows.some((entry) => typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline))
-    fail("6: every registered mobile patch must retain its upstreamBaseline")
-  if (!actualPatchIds.has("M-020") || !actualPatchIds.has("M-021"))
-    fail("6: the patch manifest lost the M-020/M-021 registrations")
-  const vendorManifest = JSON.parse(await read("vendor/upstream/vendor-manifest.json")) as { mobilePatches?: unknown }
-  const vendorPatchPaths = Array.isArray(vendorManifest.mobilePatches)
-    ? vendorManifest.mobilePatches.filter((path): path is string => typeof path === "string")
-    : []
-  const registeredPatchPaths = patchRows.map((entry) => entry.patch).filter((path): path is string => typeof path === "string")
-  if (vendorPatchPaths.length !== patchRows.length || new Set(vendorPatchPaths).size !== patchRows.length ||
-      registeredPatchPaths.length !== patchRows.length || vendorPatchPaths.toSorted().some((path, index) => path !== registeredPatchPaths.toSorted()[index]))
-    fail("6: vendor-manifest mobilePatches paths must equal the registered patch paths (52 unique, path-for-path)")
-  for (const patch of [
-    "patches/mobile/0019-M-020-files-bridge-platform-capabilities.patch",
-    "patches/mobile/0020-M-021-attachment-share-bridge-branch.patch",
-  ]) {
-    if (!vendorPatchPaths.includes(patch)) fail(`6: vendor-manifest.json lost ${patch}`)
+  // Registry-wide identity, status and order belong to the shared checker.
+  const registration = Bun.spawnSync(["python3", "scripts/mobile-patches.py"], { cwd: repoRoot.pathname })
+  if (registration.exitCode !== 0) fail(`patch registration: ${registration.stderr.toString()}`)
+  // Preserve this probe's source-metadata requirement independently of identity checks.
+  for (const entry of patchRows) {
+    if (typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline)
+      fail(`6: registered mobile patch ${String(entry.id)} must retain a non-empty string upstreamBaseline`)
+  }
+  for (const id of ["files-platform-bridge", "attachments-share-bridge"]) {
+    const entry = patchRows.find((entry) => entry.id === id)
+    if (!entry || entry.patch !== `patches/mobile/${id}.patch` || !entry.upstreamBaseline)
+      fail(`6: missing file-bridge patch registration/baseline: ${id}`)
   }
 
   // Dist markers (only when a build exists — staged like verify-direct-connection full mode).
@@ -448,11 +422,11 @@ let filesModuleCount = 0
 console.log(
   "verify-attachments-artifacts: PASS (" +
     "1: fs.write call sites still form exactly the closed 1-file set {composer/attachments/destination.ts} (#11 baseline re-verified; the files bridge never references the upload endpoint); " +
-    "2: M-020 entry seam registration (M-016 shape, above createMobileHosts) + web.ts readClipboardImage/saveFile completion through per-call seam readers with both mobile(M-020) markers + platform.tsx optional declarations verbatim (zero Platform type change); " +
-    "3: M-021 exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
+    "2: files-platform-bridge entry seam registration (app-service-operations-bridge shape, above createMobileHosts) + web.ts readClipboardImage/saveFile completion through per-call seam readers with both mobile(M-020) markers + platform.tsx optional declarations verbatim (zero Platform type change); " +
+    "3: attachments-share-bridge exactly-one shareDataUrl call in the data:-only branch with the getFilename same-source name and L6 false-falls-back shape; uri-branch faces intact; " +
     "4: B2 two-layer sanitization (JS whitelist + no-strip discipline; Kotlin FILENAME mirror + native re-check anchors); " +
     "5: six-code taxonomy, fail-closed per-field stub semantics (saveFile false single-listed, M1), 32 MiB bound, SAF save face (41002 + EXTRA_TITLE + openOutputStream + busy), share grant flags on BOTH intents + generational cleanup + read-only provider + manifest exported=false/grantUriPermissions=true + B1 sentinels (decoded-bytes slot, no zero-byte placeholder, onActivityResult consumes the payload) + F2 sentinel (background dispatch hop); " +
-     "6: five handshakes pairwise distinct, M-020/M-021 registered in the exact registered ID set (52 = M-001..M-054 minus reserved M-019/M-039; M-042..M-044 by issue #101, M-045 by issue #102, M-046 by issue #103, M-047 by issue #104, M-048 by issue #105, M-049 by issue #106, M-050 by issue #107, M-051 by issue #108), vendor path set equal; historical issue #23/#26/#55/#63/#64/#65/#66/#67/#72/#76 count revisions retained in build records" +    (distAssetCount > 0
+     "6: five handshakes pairwise distinct, files-platform-bridge/attachments-share-bridge registered, shared semantic registration check and vendor path set agreement, every registered patch retains a non-empty string upstreamBaseline; historical count revisions retained in build records" +    (distAssetCount > 0
       ? `, dist markers verified across ${distAssetCount} built assets`
       : ", dist markers SKIPPED (no built dist present)") +
     "; 7: zero server-path/OS/credential shapes in the new faces (" +

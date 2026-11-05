@@ -23,11 +23,13 @@ OpenCode 移动端客户端。目标平台是 Android（APK），以固定上游
 
 - SSH 私钥和服务凭据可以保存在用户设备上，不嵌入 APK，也不上传到本仓库。
 - 设备侧加密存储已实现（未验证，issue #4）：Android Keystore（AES-256-GCM）加密的信封文件落盘，元数据索引永不存值；无额外解锁（不绑定生物识别/锁屏凭据）；vault 不可用是显式状态，不存在明文回退。SSH 密钥解析格式支持范围随 issue #6 交付（支持矩阵见 [docs/design/units/connection.md](docs/design/units/connection.md) 与 [docs/decisions/0003](docs/decisions/0003-ssh-transport.md)，真机协商核对 BLOCKED）。
-- 服务密码默认 memory-only（M-002）；「记住」为可选项（勾选后经 vault 加密落盘，重启自动恢复）。
+- 服务密码默认 memory-only（connection-password-memory-only）；「记住」为可选项（勾选后经 vault 加密落盘，重启自动恢复）。
 - SSH 主机指纹必须校验；不得通过全局关闭 TLS 校验来兼容服务证书。
 - 日志、备份和诊断导出必须避免泄露密码、令牌、私钥与私钥口令；备份排除（allowBackup=false + data extraction rules）已实现（未验证）。
 
 ## 文档
+
+移动补丁已统一为语义 ID 与同名 `.patch` 文件（65 active、0 deferred）；唯一重放顺序为 `vendor-manifest.json#mobilePatches`，见[维护协议](vendor/upstream/patches/mobile/README.md)。[身份映射](vendor/upstream/patches/mobile/identity-migration.json)解释原编号、旧路径与保留的源码/产物 `mobile(M-xxx)` marker。本文档体系的有效身份与路径按该映射对齐；历史日期、commit、hash、PASS/FAIL/BLOCKED 仍仅证明各自轮次，不因改名成为当前验收结果。
 
 - [项目范围与开发前待确认项](docs/project-scope.md)
 - [Windows Desktop v2.2.1 功能矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)

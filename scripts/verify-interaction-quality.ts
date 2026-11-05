@@ -330,7 +330,7 @@ function walk(dir: string, out: string[] = []): string[] {
     }
   }
 
-  // 9 min-768 hits in 7 app files (issue #101: M-042 adds shell/sidebar-toggle.tsx, the
+  // 9 min-768 hits in 7 app files (issue #101: settings-framework-dependencies adds shell/sidebar-toggle.tsx, the
   // settings framework's CollapsedSidebarToggleSpace dependency, with the useCollapsedSlot
   // desktop breakpoint — interaction-quality.md §4 recounted 23/21 -> 24/22);
   // 14 max-767 hits (13 app files + 1 gui-ext); plus the host-apis.ts comment anchor.

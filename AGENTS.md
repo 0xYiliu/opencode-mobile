@@ -15,7 +15,7 @@
 - 设备端凭据使用平台安全能力保护；不得放入 WebView 的普通 localStorage 或编译进安装包。
 - 校验 SSH 主机指纹和 TLS 证书，不用关闭校验来规避错误。
 - 复用 OpenCode 代码前确定来源版本和更新策略，保留相应许可证及版权声明。
-- 移动补丁按 `vendor/upstream/patches/mobile/README.md` 维护：新命名不抢全局编号、不要求 Issue，历史名称保留；`mobilePatches` 数组是唯一重放顺序，hash 与机器镜像使用 `bun run patches:refresh` 更新。
+- 移动补丁按 `vendor/upstream/patches/mobile/README.md` 维护：全部登记 ID 与文件名 stem 使用语义名称，不抢全局编号、不要求 Issue；历史身份由 `identity-migration.json` 映射，源码/产物历史 marker 原文保留，不作为当前 ID；`mobilePatches` 数组是唯一重放顺序，hash 与机器镜像使用 `bun run patches:refresh` 更新。
 
 ## 交付
 

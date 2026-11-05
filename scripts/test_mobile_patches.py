@@ -73,6 +73,8 @@ class MobilePatchesTest(unittest.TestCase):
     def test_structural_errors_fail_before_refresh_writes(self):
         original = copy.deepcopy(self.entries)
         cases = {
+            "invalid semantic patch ID": lambda e: e[0].update(id="M-001"),
+            "patch filename must match ID": lambda e: e[0].update(id="other-purpose"),
             "duplicate ID": lambda e: e[1].update(id=e[0]["id"]),
             "duplicate patch path": lambda e: e[1].update(patch=e[0]["patch"]),
             "invalid patch path": lambda e: e[0].update(patch="patches/mobile/../escape.patch"),

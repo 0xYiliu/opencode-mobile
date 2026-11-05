@@ -1,8 +1,8 @@
 // verify-appearance-settings.ts — static probe for issue #65 (S17+S42: the v2.2.1
-// reduced-motion three-state setting and the interface zoom setting, mobile patch M-035).
+// reduced-motion three-state setting and the interface zoom setting, mobile patch appearance-motion-zoom).
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patches
-// M-001..M-035), the structural facts the S17/S42 alignment record relies on:
+// gui-plugins-native-test-deps..appearance-motion-zoom), the structural facts the S17/S42 alignment record relies on:
 //
 //   1. Three-state enum + arbiter (settings/model.tsx): appearance.reduceMotion is the
 //      v2.2.1 three-value literal (system/on/off) with default "system"; the read path is
@@ -10,10 +10,10 @@
 //      dataset.motion effect is verbatim (system mirrors the media query, on/off override
 //      it). Layering: the W05/S11/sounds faces of the same v2.2.1 file
 //      (backgroundActivity/timelineWidth/interfaceEnabled) left the negative list at issue
-//      #103 — M-046 lands them with the General/Experimental preferences-page migration
-//      (positive anchors below), while the M-033 tabLayout three-value line and
+//      #103 — settings-general-experimental-migration lands them with the General/Experimental preferences-page migration
+//      (positive anchors below), while the settings-interface-mode tabLayout three-value line and
 //      mobileTitlebarPosition remain. (sidebarOpen left the negative list at issue #101:
-//      M-043 carries it as the framework dep of shell/sidebar-toggle.tsx — schema field +
+//      settings-framework-migration carries it as the framework dep of shell/sidebar-toggle.tsx — schema field +
 //      accessor only, marker-commented; the page faces stay with the owning issues.)
 //   2. Controllers (settings/general/controllers.ts): the zoom block (available via
 //      platform.zoomLevel presence, options [...desktopZoomLevels], current ?? 1, Intl
@@ -26,9 +26,9 @@
 //      with the Slack comment; nextDesktopZoomLevel (pinch, S12/#74) NOT ported; the
 //      DESKTOP_MENU data face is untouched (commands/menus probe cross-locks this).
 //   5. Web platform faces (runtime/platform/web.ts): zoomLevel/setZoomLevel implemented
-//      per the M-020 precedent (CSS zoom + localStorage opencode-ui-zoom-level, validated
+//      per the files-platform-bridge precedent (CSS zoom + localStorage opencode-ui-zoom-level, validated
 //      against desktopZoomLevels, mobile(M-035) marker); platform.tsx (the TYPE file)
-//      carries zero zoom content — the M-035 patch face must not touch it either.
+//      carries zero zoom content — the appearance-motion-zoom patch face must not touch it either.
 //   6. Motion consumption chain — PER-FILE enumeration (BLOCKER-2 discipline: no count
 //      assertions). 25 CSS files / 31 blocks: each file contains :root[data-motion="reduce"]
 //      and no longer contains @media (prefers-reduced-motion: reduce). 3 TS consumers
@@ -54,9 +54,9 @@
 //      before the notifications block; zh (and sampled locales) stay key-free; language.tsx
 //      still spreads the en base first (fallback chain intact).
 //  11. model.test.ts: both reduceMotion expectations present; the showFileTree/
-//      terminalPlacement rows remain as issue #103 retained deviations; M-034's
+//      terminalPlacement rows remain as issue #103 retained deviations; settings-experimental's
 //      newIcons/foldUserMessages rows stay (flipped at the #64 rebase round).
-//  12. Patch/manifest face: M-035 registered in BOTH manifests; the patch file touches
+//  12. Patch/manifest face: appearance-motion-zoom registered in BOTH manifests; the patch file touches
 //      exactly the 41 registered targets; platform.tsx is not among them (5).
 //  13. First-party negative: packages/mobile-hosts carries ZERO reduceMotion / zoomLevel /
 //      opencode-ui-zoom references (S17+S42 are vendor-side only).
@@ -89,7 +89,7 @@ const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const HOSTS = "packages/mobile-hosts/"
 const PATCHES = "vendor/upstream/patches/mobile/"
-const M035_PATCH = `${PATCHES}0035-M-035-appearance-motion-zoom.patch`
+const M035_PATCH = `${PATCHES}appearance-motion-zoom.patch`
 
 const CSS_CONVERTED: [string, number][] = [
   // [file, blocks converted in this file]
@@ -130,11 +130,11 @@ const WHITELIST = new Set([
   `${APP}src/settings/model.tsx`,
   `${APP}src/providers/connect/go-upsell-hero-art.ts`,
   `${UI}src/motion/reduced.ts`,
-  // Issue #67 M-037 drag-ins: v2.2.1-native files that carry their own
+  // Issue #67 gui-plugins-api-migration drag-ins: v2.2.1-native files that carry their own
   // prefers-reduced-motion blocks (upstream never data-motion-converted them).
   `${APP}src/shell/palette-menu.css`,
   `${UI}src/forms/search-list/search-list.css`,
-  // Issue #105 M-048 drag-in: v2.2.1-native file (same class as palette-menu.css)
+  // Issue #105 settings-providers-models-extensions drag-in: v2.2.1-native file (same class as palette-menu.css)
   // — its pending-dot guard is `@media (prefers-reduced-motion: reduce)`.
   `${APP}src/shell/search-list.css`,
 ])
@@ -168,9 +168,9 @@ const WHITELIST = new Set([
   if (!model.includes(effect)) fail("1: model.tsx dataset.motion arbiter effect is not verbatim")
 
   // Layering: same-file v2.2.1 faces owned by OTHER matrix rows moved onto the positive
-  // side as their owning issues landed them (sidebarOpen at issue #101 / M-043 — the
+  // side as their owning issues landed them (sidebarOpen at issue #101 / settings-framework-migration — the
   // collapsed-sidebar toggle's framework dep; backgroundActivity/timelineWidth/
-  // interfaceEnabled at issue #103 / M-046 with the preferences-page migration).
+  // interfaceEnabled at issue #103 / settings-general-experimental-migration with the preferences-page migration).
   if (!model.includes('  backgroundActivity: Schema.Literals(["off", "left", "center", "right"]),'))
     fail("1: model.tsx lost the backgroundActivity schema literal (issue #103)")
   if (!model.includes('  timelineWidth: Schema.Literals(["focused", "comfortable", "wide"]),'))
@@ -178,7 +178,7 @@ const WHITELIST = new Set([
   if (!model.includes("  interfaceEnabled: Schema.optional(Schema.Boolean),"))
     fail("1: model.tsx lost the sounds.interfaceEnabled schema field (issue #103)")
   if (!model.includes('tabLayout: Schema.Literals(["horizontal", "vertical", "inbox"]),'))
-    fail("1: model.tsx lost the M-033 three-value tabLayout (layering broken)")
+    fail("1: model.tsx lost the settings-interface-mode three-value tabLayout (layering broken)")
   if (!model.includes('mobileTitlebarPosition: Schema.Literals(["top", "bottom"]),'))
     fail("1: model.tsx lost the mobileTitlebarPosition literal (pin face must stay)")
   if (!model.includes("setReduceMotion(value: ReduceMotion) {"))
@@ -327,8 +327,8 @@ const WHITELIST = new Set([
   }
   const index = await read(`${UI}src/motion/index.ts`)
   if (!index.includes('export * from "./reduced"')) fail("6: ui/src/motion/index.ts lost the reduced re-export")
-  // Issue #67 revision: ./waapi is vendored by M-037 (shell/panel-motion.ts reads `ease`);
-  // ./velocity and ./slider remain un-vendored. ./spring and ./loop stay M-036's.
+  // Issue #67 revision: ./waapi is vendored by gui-plugins-api-migration (shell/panel-motion.ts reads `ease`);
+  // ./velocity and ./slider remain un-vendored. ./spring and ./loop stay session-goal-sources-panels's.
   if (index.includes('from "./velocity"') || index.includes('from "./slider"'))
     fail("6: ui/src/motion/index.ts re-exports submodules this closure does not vendor (minimization drift)")
   for (const required of ['export * from "./spring"', 'export * from "./loop"', 'export * from "./waapi"']) {
@@ -341,7 +341,7 @@ const WHITELIST = new Set([
   // Issue #67: ./motion/solid ships with the real motion-tuning modules (ruling 4), so the
   // old "companion not vendored" negative flips into positive anchors for the new exports.
   for (const required of ['"./motion/solid": "./src/motion/solid.ts"', '"./motion-tuning-features": "./src/motion-tuning-features.ts"', '"./motion-tuning-fields": "./src/motion-tuning-fields.ts"']) {
-    if (!uiPkg.includes(required)) fail(`6: ui package.json lost the M-037 export ${required}`)
+    if (!uiPkg.includes(required)) fail(`6: ui package.json lost the gui-plugins-api-migration export ${required}`)
   }
 }
 
@@ -385,12 +385,12 @@ const WHITELIST = new Set([
   // Issue #67: the @source scan root follows the package replacement (the vendored dir is
   // gui-plugins now); the stories dir remains non-existent, so that half stays negative.
   if (!tailwind.includes('@source "../../../../gui-plugins/src";'))
-    fail("8: tailwind/index.css lost the @source gui-plugins scan root (M-037 rename)")
+    fail("8: tailwind/index.css lost the @source gui-plugins scan root (gui-plugins-api-migration rename)")
   if (tailwind.includes('"../../../../stories"'))
     fail("8: tailwind/index.css mixed in the @source stories rename (pin has no such dir — build breakage)")
   if (tailwind.includes("gui-extensions"))
     fail("8: tailwind/index.css still references gui-extensions")
-  // Issue #103 / M-046: the timeline-width token block leaves the negative list — the
+  // Issue #103 / settings-general-experimental-migration: the timeline-width token block leaves the negative list — the
   // --container-session overrides land with the S11 width consumption chain (the
   // vendored tree already carries the seven md:max-w-session consumer sites).
   const timelineWidthBlock = [
@@ -413,7 +413,7 @@ const WHITELIST = new Set([
 // --- 9. Search catalog + A2 test face ---
 {
   const catalog = await read(`${APP}src/settings/search-catalog.ts`)
-  // Issue #101 / M-044 form: the migrated catalog keeps the A2 fields and the M-035 gate
+  // Issue #101 / settings-framework-mobile form: the migrated catalog keeps the A2 fields and the appearance-motion-zoom gate
   // drop as a marker comment (no `available` line).
   const zoomEntry = [
     "  {",
@@ -426,7 +426,7 @@ const WHITELIST = new Set([
     "  },",
   ].join("\n")
   if (!catalog.includes(zoomEntry))
-    fail("9: search-catalog.ts zoom entry is not the M-044 form (A2 fields + mobile(M-035) gate-drop marker)")
+    fail("9: search-catalog.ts zoom entry is not the settings-framework-mobile form (A2 fields + mobile(M-035) gate-drop marker)")
   const motionEntry = [
     "  {",
     '    tab: "appearance",',
@@ -443,18 +443,18 @@ const WHITELIST = new Set([
     fail("9: search-catalog.ts appearance entries are not after the terminalFont entry")
 
   const searchTest = await read(`${APP}src/settings/search-results.test.ts`)
-  // Issue #101 / M-044 form: the migrated test uses the target 2-arg rankSettings and the
-  // zoom row joins the query (gate dropped by M-035). Issue #103 / M-046: the restored
-  // rows flip the M-044 absence locks to the target shape — the capsule query resolves to
+  // Issue #101 / settings-framework-mobile form: the migrated test uses the target 2-arg rankSettings and the
+  // zoom row joins the query (gate dropped by appearance-motion-zoom). Issue #103 / settings-general-experimental-migration: the restored
+  // rows flip the settings-framework-mobile absence locks to the target shape — the capsule query resolves to
   // settings-background-activity and the timeline-width row is present. Issue #107 /
-  // M-050: the sounds-interface assertion is flipped to the positive .toBe(true) form too
+  // settings-notifications-migration: the sounds-interface assertion is flipped to the positive .toBe(true) form too
   // (row restored with its real page anchor in the notifications page).
   if (!searchTest.includes("expect(rankSettings(\"font\", items)).toHaveLength(4)"))
-    fail("9: search-results.test.ts 'font' expectation is not the M-044 2-arg length 4")
+    fail("9: search-results.test.ts 'font' expectation is not the settings-framework-mobile 2-arg length 4")
   if (!searchTest.includes("mobile(M-035)"))
     fail("9: search-results.test.ts lost the mobile(M-035) rationale comment on the length change")
   if (searchTest.includes('not.toContain("settings-zoom")'))
-    fail("9: search-results.test.ts carried the target not.toContain(\"settings-zoom\") line (false under the M-035 web-availability ruling)")
+    fail("9: search-results.test.ts carried the target not.toContain(\"settings-zoom\") line (false under the appearance-motion-zoom web-availability ruling)")
   if (!searchTest.includes('expect(rankSettings("capsule", items)[0].view).toMatchObject({'))
     fail("9: search-results.test.ts lost the target capsule assertion (issue #103 restored the row)")
   if (!searchTest.includes('item.view.target === "settings-timeline-width")).toBe(true)'))
@@ -508,31 +508,31 @@ const WHITELIST = new Set([
   for (const row of ["showFileTree: false,", 'terminalPlacement: "side",']) {
     if (!test.includes(row)) fail(`11: model.test.ts lost the retained general row ${row} (issue #103 registered deviation)`)
   }
-  // M-034 rows (flipped at the rebase round onto #64 — the earlier "must be absent"
+  // settings-experimental rows (flipped at the rebase round onto #64 — the earlier "must be absent"
   // negative is retired with the rebase; both faces now coexist in the defaults row).
   for (const row of ["newIcons: false,", "foldUserMessages: false,"]) {
-    if (!test.includes(row)) fail(`11: model.test.ts lost the M-034 defaults row ${row} (#64 face must stay)`)
+    if (!test.includes(row)) fail(`11: model.test.ts lost the settings-experimental defaults row ${row} (#64 face must stay)`)
   }
 }
 
 // --- 12. Patch/manifest face ---
 {
   const manifest = await read(`${PATCHES}manifest.json`)
-  if (!manifest.includes('"id": "M-035"') || !manifest.includes("patches/mobile/0035-M-035-appearance-motion-zoom.patch"))
-    fail("12: patches/mobile/manifest.json does not register M-035")
+  if (!manifest.includes('"id": "appearance-motion-zoom"') || !manifest.includes("patches/mobile/appearance-motion-zoom.patch"))
+    fail("12: patches/mobile/manifest.json does not register appearance-motion-zoom")
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
-  if (!vendorManifest.includes("patches/mobile/0035-M-035-appearance-motion-zoom.patch"))
-    fail("12: vendor-manifest.json does not register M-035 (verify-closure reads only this list)")
+  if (!vendorManifest.includes("patches/mobile/appearance-motion-zoom.patch"))
+    fail("12: vendor-manifest.json does not register appearance-motion-zoom (verify-closure reads only this list)")
 
   const patch = await read(M035_PATCH)
   const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
-  const manifestTargets = JSON.parse(manifest).patches.find((p: { id: string }) => p.id === "M-035").targets as string[]
+  const manifestTargets = JSON.parse(manifest).patches.find((p: { id: string }) => p.id === "appearance-motion-zoom").targets as string[]
   if (JSON.stringify([...touched].sort()) !== JSON.stringify([...manifestTargets].sort()))
-    fail("12: M-035 patch face does not equal its manifest targets (41 files)")
+    fail("12: appearance-motion-zoom patch face does not equal its manifest targets (41 files)")
   if (touched.includes("packages/app/src/runtime/platform/platform.tsx"))
-    fail("12: M-035 patch face touches platform.tsx (type file must stay pin-identical)")
+    fail("12: appearance-motion-zoom patch face touches platform.tsx (type file must stay pin-identical)")
   if (touched.includes("packages/app/src/providers/connect/go-upsell-hero-art.ts"))
-    fail("12: M-035 patch face touches go-upsell-hero-art.ts (registered non-converted boundary)")
+    fail("12: appearance-motion-zoom patch face touches go-upsell-hero-art.ts (registered non-converted boundary)")
 }
 
 // --- 13. First-party negative ---
@@ -559,18 +559,18 @@ const WHITELIST = new Set([
 
 console.log(
   "verify-appearance-settings: PASS (" +
-    "1: reduceMotion three-value literal + system default + withFallback + createMediaQuery + verbatim dataset.motion arbiter, backgroundActivity/timelineWidth/interfaceEnabled schema anchors in place (off the negative list since issue #103/M-046; sidebarOpen carried by issue #101/M-043 as the sidebar-toggle framework dep), M-033 tabLayout + mobileTitlebarPosition retained; " +
+    "1: reduceMotion three-value literal + system default + withFallback + createMediaQuery + verbatim dataset.motion arbiter, backgroundActivity/timelineWidth/interfaceEnabled schema anchors in place (off the negative list since issue #103/settings-general-experimental-migration; sidebarOpen carried by issue #101/settings-framework-migration as the sidebar-toggle framework dep), settings-interface-mode tabLayout + mobileTitlebarPosition retained; " +
     "2: verbatim zoom/reduceMotion controller blocks, no experimental.config.update, pin config.update + behavior re-exports retained; " +
     "3: reduceMotionOptions three items, zoom row Show-gated before reduceMotion row, no sidebarOpen row; " +
     "4: desktopZoomLevels six levels + type, no nextDesktopZoomLevel, DESKTOP_MENU intact; " +
     "5: web.ts zoom faces (CSS zoom + opencode-ui-zoom-level localStorage + desktopZoomLevels validation + mobile(M-035) marker) via spread, platform.tsx type file zero zoom content; " +
     "6: 25 CSS files / 31 blocks + 3 TS consumers converted per-file (no bare @media reduce block, no bare matchMedia reduce read), motion/reduced.ts verbatim + minimized index + ./motion export only; " +
-    "7: whole-tree prefers-reduced-motion file set EXACTLY the six-file WHITELIST {settings/model.tsx, go-upsell-hero-art.ts, motion/reduced.ts, shell/palette-menu.css, ui forms/search-list.css, shell/search-list.css (issue #105 M-048 drag-in)} (app+ui subscan identical); " +
-    "8: tailwind comment + two custom variants + @source gui-plugins root (stories rename still out — vendored tree has no stories dir), verbatim timeline-width token block + --container-session comment sentence (issue #103/M-046); " +
+    "7: whole-tree prefers-reduced-motion file set EXACTLY the six-file WHITELIST {settings/model.tsx, go-upsell-hero-art.ts, motion/reduced.ts, shell/palette-menu.css, ui forms/search-list.css, shell/search-list.css (issue #105 settings-providers-models-extensions drag-in)} (app+ui subscan identical); " +
+    "8: tailwind comment + two custom variants + @source gui-plugins root (stories rename still out — vendored tree has no stories dir), verbatim timeline-width token block + --container-session comment sentence (issue #103/settings-general-experimental-migration); " +
     "9: A2 zoom entry without available line + reduceMotion entry, search-results 'font' length 4 with mobile(M-035) comment, no not.toContain settings-zoom line, target capsule toMatchObject + timeline-width positive anchor (issue #103) + sounds-interface positive assertion (issue #107 restored the row); " +
     "10: seven en keys between interfaceMode.experimental and notifications block, zero keys in zh/zht/ko/de/fr, en base-first merge intact; " +
-    "11: both model.test.ts reduceMotion expectations + showFileTree/terminalPlacement rows kept as issue #103 retained deviations + M-034 newIcons/foldUserMessages rows (rebase round onto #64); " +
-    "12: M-035 in BOTH manifests, patch face == manifest targets (41 files), platform.tsx and go-upsell-hero-art.ts absent; " +
+    "11: both model.test.ts reduceMotion expectations + showFileTree/terminalPlacement rows kept as issue #103 retained deviations + settings-experimental newIcons/foldUserMessages rows (rebase round onto #64); " +
+    "12: appearance-motion-zoom in BOTH manifests, patch face == manifest targets (41 files), platform.tsx and go-upsell-hero-art.ts absent; " +
     "13: packages/mobile-hosts zero reduceMotion/prefers-reduced-motion/zoomLevel/opencode-ui-zoom references; " +
     "STATIC check — system-mapping on WebView, first-frame gap, zoom × system font-size (Chromium 41297766), KeyboardInsets at zoom>1 and the go-upsell hero boundary are device-QA items registered in docs/build-and-verify.md)",
 )

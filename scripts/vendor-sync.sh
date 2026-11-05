@@ -99,7 +99,7 @@ PY
 
 # 3. Apply the registered mobile patches in manifest order, checking each patch right
 #    before applying it. The chain is order-dependent (later patches anchor on earlier
-#    hunks, e.g. M-005 anchors on M-002's MemoryOnlyPassword field), so a check-all-then-
+#    hunks, e.g. connection-credential-reference anchors on connection-password-memory-only's MemoryOnlyPassword field), so a check-all-then-
 #    apply-all sweep would reject order-dependent patches against the pristine tree.
 #    (Issue #67 fix: the previous two-loop form only passed when the tree it ran against
 #    was already fully patched; verify-closure.sh has always checked per patch.)

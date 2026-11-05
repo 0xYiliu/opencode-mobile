@@ -7,8 +7,14 @@ Current mobile patch maintenance: [protocol and commands](patches/mobile/README.
 `vendor-manifest.json#mobilePatches` alone determines replay order. The patch registry
 owns IDs, paths, status and hashes; `bun run patches:refresh` generates the registry
 mirrors in both machine-readable provenance files. Historical narrative inventories
-below are not additional live registries. Existing names remain unchanged; new names
-use semantic domain/purpose identities without global numbers or mandatory Issues.
+below are not additional live registries. As of 2026-11-05 all 65 registered patches
+are active (zero deferred), with semantic IDs equal to filename stems. This supersedes
+the earlier policy of retaining legacy names. See [identity-migration.json](patches/mobile/identity-migration.json)
+for all 65 identities (64 file renames; extensions-flyout-webview was already semantic).
+Payload bytes and source/artifact markers such as `mobile(M-002)` are unchanged;
+markers are historical evidence, not current IDs. Historical ranges below denote
+replay-order intervals at the stated revision, never lexical name ordering.
+Historical hashes and PASS/FAIL/BLOCKED results retain their original revision/date scope.
 
 ## Pin
 
@@ -59,58 +65,59 @@ tree `3ebcf9a32c7b28f658cfee80775448929361727a`; every other closure package sti
 - File-level exclusion: `packages/ai/test/fixtures/recordings/` (274 files, ~13.7 MiB,
   HTTP recorder test fixtures) — dropped during extraction and registered in the manifest.
 
-## Mobile patch inventory (active baseline plus source-only deferred P126 candidates)
+## Current mobile patch inventory (65 active, 0 deferred; 2026-11-05)
 
 | ID | Target | Change | Why |
 | --- | --- | --- | --- |
-| M-001 | `packages/gui-plugins/package.json` | drop `electron`, `@lydell/node-pty`, `devtools-protocol` devDeps | Electron-only test tooling; electron postinstall ≈110 MB, never needed by the web build. M-001' (issue #67): retargeted from the replaced gui-extensions package; same three removals, hunk re-derived against the v2.2.1 gui-plugins block |
-| M-002 | `packages/app/src/runtime/server/persistence.ts` | encode path strips `password` (memory-only); embeds marker `mobile(M-002): password stripped at encode (memory-only)` | Web default storage is localStorage; persisting credentials violates AGENTS.md. Decode tolerates legacy values; Keystore is issue #4 |
-| M-003 | `packages/{client,plugin,ai}/package.json` | strip three dangling workspace refs (`@opencode/httpapi-codegen`, `@opencode/theme` ×3 spots, `@opencode/http-recorder`) | Targets are excluded packages; Bun 1.4.2 hard-errors on dangling workspace devDeps and unsatisfied optional workspace peerDeps |
+| gui-plugins-native-test-deps | `packages/gui-plugins/package.json` | drop `electron`, `@lydell/node-pty`, `devtools-protocol` devDeps | Electron-only test tooling; electron postinstall ≈110 MB, never needed by the web build. gui-plugins-native-test-deps' (issue #67): retargeted from the replaced gui-extensions package; same three removals, hunk re-derived against the v2.2.1 gui-plugins block |
+| connection-password-memory-only | `packages/app/src/runtime/server/persistence.ts` | encode path strips `password` (memory-only); embeds marker `mobile(M-002): password stripped at encode (memory-only)` | Web default storage is localStorage; persisting credentials violates AGENTS.md. Decode tolerates legacy values; Keystore is issue #4 |
+| workspace-dependency-closure | `packages/{client,plugin,ai}/package.json` | strip three dangling workspace refs (`@opencode/httpapi-codegen`, `@opencode/theme` ×3 spots, `@opencode/http-recorder`) | Targets are excluded packages; Bun 1.4.2 hard-errors on dangling workspace devDeps and unsatisfied optional workspace peerDeps |
 
-Runtime seam patches beyond the closure set — M-004…M-015 (issues #3/#4/#5/#6) — are registered with
+Runtime seam patches beyond the closure set — app-mobile-hosts-alias…app-ssh-bridge (issues #3/#4/#5/#6) — are registered with
 owner/reason/upstreamBaseline/verification/rebase in `patches/mobile/manifest.json` (mirrored in
-`vendor-manifest.json#mobilePatches`, 36 registered mobile patches at this revision); the table above lists only the
-three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itself. In one line:
+`vendor-manifest.json#mobilePatches`, currently 65 active patches); the table above lists only the
+three original closure-acquisition patches. `scripts/vendor-sync.sh` replays the entire active
+array, not just those three. The following narrative records their historical introduction:
 
-- M-004–M-008 (issue #3): app vite alias to the first-party package, credentialRef field, dialog
+- app-mobile-hosts-alias–settings-mobile-host-manager (issue #3): app vite alias to the first-party package, credentialRef field, dialog
   reference passthrough, entry bootstrap of the host registry, settings mount of the host manager.
-- M-009/M-010 + M-007 amendment (issue #4): optional "remember credential" branch over the device
+- connection-remember-credential/connection-credential-hydration + app-mobile-hosts-bootstrap amendment (issue #4): optional "remember credential" branch over the device
   vault, hydration credential resolution into memory only, vault handshake listener before first render.
-- M-011–M-014 (issue #5): platform fetch injection with the validated-follow redirect policy
+- connection-platform-fetch-policy–app-connection-probe-bridge (issue #5): platform fetch injection with the validated-follow redirect policy
   (marker `mobile(M-011)`), upload XHR responseURL validation, probe-classified connect errors in the
   server dialog (`dialog.server.error.<code>`), and the endpoint-probe bridge wiring in the web entry
   (independent `opencode-mobile-probe-handshake` string, protocol-isolated from the vault bridge).
   Rationale and trust design: `docs/decisions/0002-direct-connection-transport.md`.
-- M-015 (issue #6): the ssh tunnel bridge wiring in the web entry. Its listener subscribes
+- app-ssh-bridge (issue #6): the ssh tunnel bridge wiring in the web entry. Its listener subscribes
   synchronously before asynchronous locale loading and requests the existing port channel through a
   strict-origin/main-frame AndroidX bootstrap; the channel retains its `opencode-mobile-ssh-handshake`
   protocol and ack-gated bridge-backed host-key verifier/tunnel transport. Rationale and trust design:
   `docs/decisions/0003-ssh-transport.md`.
-- M-027 (issue #55, historical and superseded by M-030): originally introduced the mobile
+- connection-initial-ssh-entry (issue #55, historical and superseded by connection-inline-ssh): originally introduced the mobile
   `/settings?tab=servers` SSH hosts detour and special empty/signed-out guard exception.
-  M-030 removes the exception and the navigation helper/test; only the historical patch remains
+  connection-inline-ssh removes the exception and the navigation helper/test; only the historical patch remains
   in the chain to preserve rebase provenance.
-- M-028 (issue #55, historical layout layer): centered `No pairing link?` and put password/SSH
-  controls on a row. The new three-mode screen from M-030 revises that row; its no-wrap intent is
-  carried forward in M-029 (`0028-M-029-connection-label-nowrap.patch`).
-- M-029 (carried forward from the uncommitted issue-55-layout worktree): preserve the
+- connection-method-layout (issue #55, historical layout layer): centered `No pairing link?` and put password/SSH
+  controls on a row. The new three-mode screen from connection-inline-ssh revises that row; its no-wrap intent is
+  carried forward in connection-label-nowrap (`connection-label-nowrap.patch`).
+- connection-label-nowrap (carried forward from the uncommitted issue-55-layout worktree): preserve the
   single-line mobile method actions with `whitespace-nowrap`; no source was changed in that
-  worktree. Registered as `0028-M-029-connection-label-nowrap.patch` after M-028.
-- M-030 (issue #58): replace the Settings detour with in-place Pairing/address/SSH modes on
+  worktree. Registered as `connection-label-nowrap.patch` after connection-method-layout.
+- connection-inline-ssh (issue #58): replace the Settings detour with in-place Pairing/address/SSH modes on
   `ConnectServerScreen`, restore the original no-server/signed-out Settings guard, and let
   AppShell retain the initial connection surface while a specifically owned SSH host is
   connecting. The first-party runtime claims ownership before host publication and hands off
   only after tunnel readiness plus authenticated `/api/info` health; unknown/changed host-key
   and service-auth paths reuse existing security components. Registered as
-  `0029-M-030-inline-ssh-setup.patch`, layered after M-029. The implementation does not alter
+  `connection-inline-ssh.patch`, layered after connection-label-nowrap. The implementation does not alter
   SSH transport or permit auto-connect on restart.
-- M-031 (issue #58 review): encode upstream Basic-auth username/password as UTF-8 bytes before
+- connection-utf8-basic-auth (issue #58 review): encode upstream Basic-auth username/password as UTF-8 bytes before
   base64, so Unicode service passwords survive both the SSH `/api/info` recheck and subsequent
   upstream API/SSE requests. Existing ASCII behavior is unchanged. The layered patch is
-  `0030-M-031-utf8-basic-auth.patch`; `api.test.ts` verifies UTF-8 byte vectors and a mapped
+  `connection-utf8-basic-auth.patch`; `api.test.ts` verifies UTF-8 byte vectors and a mapped
   SSH API request, while `client.test.ts` verifies that `transport.update` carries a Unicode
   service password into the subsequent API request.
-- M-032 (issue #58): replace only the credential vault's bespoke window-message channel
+- vault-androidx-listener (issue #58): replace only the credential vault's bespoke window-message channel
   handshake with the native AndroidX WebKit origin/frame-bound listener and v2 readiness;
   other five bridge protocols remain unchanged. The bridge sends a non-secret candidate id
   before put. Existing `<id>.bin`, metadata index and envelope formats remain unchanged;
@@ -118,7 +125,7 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
   remove outcomes are reported as `UNKNOWN` with a non-secret credential reference.
   Serialized JSON is bounded for worst-case escaping and independently checks UTF-8 secret
   bytes before queueing.
-  Registered layered patch `0032-M-032-vault-androidx-listener.patch`; AndroidX WebKit 1.14.0
+  Registered layered patch `vault-androidx-listener.patch`; AndroidX WebKit 1.14.0
   is Apache-2.0. JS tests, Android JVM unit tests, web build, and V3 closure pass. An
   isolated ephemeral build exercised synthetic AndroidX-listener/Keystore CRUD and reload
   on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
@@ -126,8 +133,8 @@ three closure-acquisition patches that `scripts/vendor-sync.sh` re-applies itsel
 
 The active vendor tree invariant: **tree == pin tree + the active mobile patches listed in
 `vendor-manifest.json#mobilePatches`**, byte-identical, zero other diff (checked by
-`scripts/verify-closure.sh`). Deferred source candidates are registered separately and are not
-applied by active closure replay.
+`scripts/verify-closure.sh`, with registered per-package source overrides and patch-created packages).
+There are currently no deferred entries; the candidate snapshot below is historical only.
 
 ## Upstream update exercise (issue #27 lifecycle, S3)
 
@@ -136,16 +143,16 @@ v2.0.32) to `b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43` (2026-10-23, v2.1.4 cycle
 
 - **Selection**: app/client-touching fix (#57025 session transcript retention); all 9
   carried patch keys verified present in the candidate lock segment with identical
-  versions; M-002 target file unchanged; 241 candidate commits considered on origin/dev.
+  versions; connection-password-memory-only target file unchanged; 241 candidate commits considered on origin/dev.
 - **Closure refresh**: 289 closure files changed; root catalog/overrides re-synced
   (@pierre/highlights 0.2.0 new, @pierre/diffs 1.6.1, @opentui 0.6.8, bun-types 1.4.4
   override); candidate `[install]` bunfig mirrored (upstream itself added
   `@pierre/highlights`, `bun-types`, `typescript@7.1.0-beta` to the release-age excludes;
   `minimumReleaseAge` unchanged at 259200). First install attempt failed on
   `@pierre/highlights@0.2.0` (<3 days old) until the candidate bunfig was mirrored.
-- **Patch lifecycle**: M-001/M-003 regenerated at the candidate (electron version bump
+- **Patch lifecycle**: gui-plugins-native-test-deps/workspace-dependency-closure regenerated at the candidate (electron version bump
   and hunk line shifts; semantics unchanged, conflict resolutions recorded in
-  `patches/mobile/manifest.json`); M-002 applied verbatim (target unchanged). Carried
+  `patches/mobile/manifest.json`); connection-password-memory-only applied verbatim (target unchanged). Carried
   upstream patch files are byte-identical between pins; upstream's
   `@modelcontextprotocol/client` patch move (2.0.0→2.3.1) and photon-node patch change
   affect only our explicit not-carried set.
@@ -218,50 +225,56 @@ Not carried, with reasons (explicit deviation protocol — no silent dead entrie
 - Pin updates are a maintainer decision (issue #27); this file and `provenance.json` must
   record the selection rationale whenever the pin moves.
 
-## P126 Block 1 candidate inventory (2026-11-04)
+## Historical P126 Block 1 candidate inventory (2026-11-04; superseded)
 
-This isolated Block 1 candidate is based on repository commit `d37260c002b4390060f7d6cd78ffe6a11e9e1012`.
-The current closure remains the exact 56-entry active mobile-patch set and order from that base.
-Six P126 source files are registered as `deferred-source-only`; none is applied to vendor runtime.
-`p126-replay-order.json` is a future-order contract only, not a successful replay record.
+This isolated Block 1 candidate was based on repository commit `d37260c002b4390060f7d6cd78ffe6a11e9e1012`.
+At that time the closure retained the 56-entry active set from that base, and six candidate
+source files were `deferred-source-only`. The historical `p126-replay-order.json` was a
+future-order contract, not a successful replay record. The table preserves original candidate
+hashes; surviving files are cross-referenced by current semantic name, not claimed to retain
+these hashes today. Current hashes/status are exclusively in the registry and generated mirrors.
 
 | ID | Source patch | SHA-256 | Status |
 | --- | --- | --- | --- |
-| `M-057` | `patches/mobile/P126-U-session-workbench.patch` | `999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1` | `deferred-source-only` |
-| `M-058` | `patches/mobile/P126-C-client-compat.patch` | `f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359` | `deferred-source-only` |
-| `M-059` | `patches/mobile/P126-S-media-source-safety.patch` | `384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2` | `deferred-source-only` |
-| `M-060` | `patches/mobile/P126-A-android-adaptation.patch` | `1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73` | `deferred-source-only` |
-| `M-063` | `patches/mobile/P126-A-agent-selector.patch` | `f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b` | `active` (since session runtime cleanup follow-up) |
-| `M-064` | `patches/mobile/P126-S-session-ownership-whitespace.patch` | `8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c` | `deferred-source-only` |
+| `session-workbench-upstream` | `patches/mobile/session-workbench-upstream.patch` | `999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1` | `deferred-source-only` |
+| `session-client-compatibility` | `patches/mobile/session-client-compatibility.patch` | `f32f9e6289d97c2a3e8b965e9d0ddfc41283bb48105827f57b9b5c79a3e5e359` | `deferred-source-only` |
+| `session-media-source-safety` | `patches/mobile/session-media-source-safety.patch` | `384326345d18cc9e0822a2abaa7ace24e1bf4fbee759cc5fe22aa73f73fb48c2` | `deferred-source-only` |
+| `session-android-adaptation` | `patches/mobile/session-android-adaptation.patch` | `1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73` | `deferred-source-only` |
+| `session-agent-selector` | `patches/mobile/session-agent-selector.patch` | `f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b` | historical `deferred-source-only`; subsequently active |
+| historical `M-064` (removed) | Historical file named P126-S-session-ownership-whitespace.patch; removed during runtime cleanup, no current file or registry entry | `8291ac3b2706058702587750e73d47b5f299eb54736087652e1f3b4d2063ab5c` | historical `deferred-source-only` |
 
-The future ordering contract is base M-001…M-056 excluding the later-positioned M-061/M-062, then
-P126 U/C/S/A, then M-061/M-062, then agent-selector and session-ownership-whitespace. It does not
-authorize applying these patches in this block. Active replay and tree checks consume only
-`vendor-manifest.json#mobilePatches` (56 base entries).
+The historical future ordering contract was base gui-plugins-native-test-deps…settings-server-menu excluding the later-positioned connection-initial-credential-persistence/connection-vault-ready-wait, then
+P126 U/C/S/A, then connection-initial-credential-persistence/connection-vault-ready-wait, then agent-selector and session-ownership-whitespace. It does not
+authorize applying these patches in that block. Current replay and tree checks consume only
+`vendor-manifest.json#mobilePatches` (now 65 active entries).
 
-## P126 session runtime source cleanup (2026-11-05)
+## P126 session runtime source cleanup snapshot (2026-11-05)
+
+The following hashes and verification claims belong to that cleanup delivery, before the
+identity migration; they are not a new verification of the current tree. Current status/count
+is given above, and current hashes are in `patches/mobile/manifest.json`.
 
 The current source overlay targets upstream `v2.2.1` commit
 `3ebcf9a32c7b28f658cfee80775448929361727a`; active replay order is the `mobilePatches` array in
-`vendor-manifest.json`. M-063 is active at the replay tail after M-068. Its Android marker only
+`vendor-manifest.json`. session-agent-selector is active at the replay tail after session-composer-test-fixture. Its Android marker only
 exposes the existing server-provided Agent selector; an empty catalog stays hidden and the original
 Desktop preference/custom-Agent condition and selection fallback remain unchanged. The previously
-deferred test hunk is excluded. M-065 retains only the production
+deferred test hunk is excluded. session-project-open-compatibility retains only the production
 `projects.add` → `projects.open(directory)` host API adaptation. The `patchmark` workspace is added
 by the client-compat source patch and is registered as patch-created, not extracted as a package at
 the older pin.
 
 | ID | Source patch | SHA-256 | Status |
 | --- | --- | --- | --- |
-| `M-065` | `patches/mobile/P126-C-project-open-compat.patch` | `afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db` | `active` |
-| `M-067` | `patches/mobile/P126-B-e2e-runtime-compat.patch` | `aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc` | `active` |
-| `M-068` | `patches/mobile/P126-C-composer-test-fixture-compat.patch` | `666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe` | `active` |
+| `session-project-open-compatibility` | `patches/mobile/session-project-open-compatibility.patch` | `afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db` | `active` |
+| `session-e2e-runtime-compatibility` | `patches/mobile/session-e2e-runtime-compatibility.patch` | `aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc` | `active` |
+| `session-composer-test-fixture` | `patches/mobile/session-composer-test-fixture.patch` | `666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe` | `active` |
 
-M-067 carries only the exact target `mockPluginsActivating` helper; M-068 carries only the exact target
+session-e2e-runtime-compatibility carries only the exact target `mockPluginsActivating` helper; session-composer-test-fixture carries only the exact target
 `app-direction.fixture.tsx` copy. Both copies were byte-compared with the fixed release tree. The
 Composer E2E suite is restored byte-for-byte to that target, without local server-seed edits. The M-066
 matcher patch, standalone host API test, three client-compat tests absent from the fixed target,
 optimizer-only Vite override, and whitespace-only M-064 patch were removed; the whitespace line is
-kept in the owning M-059 source patch rather than as a separate registry entry.
+kept in the owning session-media-source-safety source patch rather than as a separate registry entry.
 `verify-closure.sh` is restored to the generic implementation from
 `d37260c002b4390060f7d6cd78ffe6a11e9e1012`.

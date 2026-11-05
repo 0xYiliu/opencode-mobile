@@ -30,7 +30,7 @@
 1. **壳层零 deep link 面**：`AndroidManifest.xml` 唯一 LAUNCHER intent-filter（注释在册）；`MainActivity.kt` 头注 TODO「deep links (no VIEW intent-filter is registered)」与 `onNewIntent` 注释「never an external deep link」在册；零自定义 scheme 处理。三座在册哨兵把这一状态锁为回归守卫：`verify-pairing.ts` 组 3（manifest 零 VIEW intent-filter + onNewIntent 仅允许 pendingRoute 内部路由锚）、组 4（六包 src `opencode://` 双零）、`verify-notifications.ts` 组 6（零 VIEW + deep-links 注释锚）。**外链唤起不实施，这些哨兵原地保持为守卫（改语义不改断言）**。
 2. **上游零 scheme、零 deep link**：六包 src `opencode://` 零命中（哨兵即证）；上游配对流以 QR + 复制链接为形态，桌面侧点按消息内链接的行为是「同窗导航至远端 web app」（connection.md ⑦-5），不是导入流。
 3. **替代路径已全功能在册**：粘贴导入（issue #22 收口）+ 相机扫码（issue #71 接入，qr-scanner 扫描同一 QR 载荷）。两者终点都是同一兑换链（四层校验 → 有界兑换 → 健康检查 → 注册表写入）。
-4. **#14 OAuth 回跳同族**：providers-models.md 在册的 OAuth 回跳（M-022+ 候选）与外链唤起共享「壳层 VIEW 基建」这一前置——若该族获批实施，VIEW 基建可复用，本文 (B) 的边际成本下降（§4.2 激活条件之一）。
+4. **#14 OAuth 回跳同族**：providers-models.md 在册的 OAuth 回跳（移动适配候选）与外链唤起共享「壳层 VIEW 基建」这一前置——若该族获批实施，VIEW 基建可复用，本文 (B) 的边际成本下降（§4.2 激活条件之一）。
 
 ## 3. 三案对比
 
@@ -57,7 +57,7 @@
 满足任一条即按 §5 前提清单以**新工作单元**开工（本文不再重评审）：
 
 1. 用户确认要「聊天 App 里点链接直达导入表单」的产品形态（拍板 (B)）。
-2. #14 OAuth 回跳族（M-022+ 候选）获批实施——同壳层 VIEW 基建届时已存在，(B) 的壳面边际成本降为 intent-filter 声明 + payload 白名单；但 vendor 通道与哨兵反向仍按 §3 独立核算。
+2. #14 OAuth 回跳族（移动适配候选）获批实施——同壳层 VIEW 基建届时已存在，(B) 的壳面边际成本降为 intent-filter 声明 + payload 白名单；但 vendor 通道与哨兵反向仍按 §3 独立核算。
 
 ## 5. 最小安全形态设计草图（若用户批准实施 (B)；本模块不实施）
 

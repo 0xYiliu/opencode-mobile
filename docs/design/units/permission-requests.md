@@ -113,7 +113,7 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 
 1. **无键盘默认审批**：`DockPrompt` 无内建按键语义（仅透传 `onKeyDown`，permission dock **不传**）；`requests/` 目录零 `autoFocus`——焦点不会自动落在任何决策按钮上，回车/物理键盘无法触发 approve。
 2. **`variant="submit"` 仅视觉样式**（`ui/src/actions/button/button.tsx` data-variant 属性 + css），无表单 submit/默认按钮行为；三按钮均为 `onClick` 显式动作（Deny `variant="ghost"` | Allow Always `variant="neutral"` | Allow Once `variant="submit"`）。
-3. **自动批准默认关闭且显式 opt-in**：settings 默认 `permissions: { autoApprove: false, autoApproveProjects: {} }`（`settings/model.tsx:289`）；开启路径 = 会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页，开启/关闭均有 toast 明示（`toast.permissions.autoaccept.on.description`「Permission requests will be automatically approved」）；开启时以 `decision: "once"` 代答。 项目级逐项目覆写行 = `settings/workspaces/project.tsx` `AutoAcceptPermissionsSetting`（`settings-project-auto-accept-permissions` 锚，default/on/off 三值 Select 写服务端项目配置；**#106 M-049 后行代码为 target 形**：`<Show when={key()}>` 由 `projectSettingsKey(scope, project.id)` 门控——pin 形运行期项目无 `id`，行在设备上呈潜伏面，数据供给随 FU-3（运行期项目持久层目标形）落地；决策三值/auto-approve 执行语义仍归本单元，零契约变更）。
+3. **自动批准默认关闭且显式 opt-in**：settings 默认 `permissions: { autoApprove: false, autoApproveProjects: {} }`（`settings/model.tsx:289`）；开启路径 = 会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页，开启/关闭均有 toast 明示（`toast.permissions.autoaccept.on.description`「Permission requests will be automatically approved」）；开启时以 `decision: "once"` 代答。 项目级逐项目覆写行 = `settings/workspaces/project.tsx` `AutoAcceptPermissionsSetting`（`settings-project-auto-accept-permissions` 锚，default/on/off 三值 Select 写服务端项目配置；**#106 settings-workspaces-migration 后行代码为 target 形**：`<Show when={key()}>` 由 `projectSettingsKey(scope, project.id)` 门控——pin 形运行期项目无 `id`，行在设备上呈潜伏面，数据供给随 FU-3（运行期项目持久层目标形）落地；决策三值/auto-approve 执行语义仍归本单元，零契约变更）。
 4. **服务端无静默批准路径**：规则缺省 effect=`ask`（`evaluate` 回退 `{action, resource:"*", effect:"ask"}`）、agent 未配置权限=deny-all（`missingAgentPermissions`）、服务关闭 close finalizer 全部 pending 以 reject 结案（core @ 缓存）。
 
 移动端**不改变**该语义的声明：本期零补丁、零运行时代码——auto-approve opt-in 语义、决策三值、服务端缺省 ask/shutdown 全拒在移动构建与桌面构建同源。请求上下文呈现（标题/操作说明/resources/决策集）与 composer 阻断共同保证「display request context, affected operation and available decisions」；运行期呈现归 G21①②。
@@ -121,14 +121,14 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 ## 触摸目标与无障碍现状（缺口如实，G21⑧ 首项核对）
 
 - **已成立（结构面）**：in-flight 全按钮 disabled + 幂等早退；Deny 排首位（ghost 弱化）；无键盘默认审批、无 autoFocus；question dock 完整 role/aria-checked/aria-keyshortcuts/aria-label（minimize/restore、progress segments）；permission 按钮文本标签。
-- **缺口（如实，不预设补丁）**：①按钮高度 `normal=28px`（permission dock）/`large=32px`（question dock）（`ui/src/actions/button/button.css`），低于移动端 48dp 触摸目标推荐；②三按钮横排 gap 仅 8px（`session-ui/src/components/message-part.css` `[data-slot="permission-footer-actions"]`），Allow Once（submit 视觉强调）居最右，与高频滑动区重叠；③permission 三按钮无 `aria-keyshortcuts`（question dock 有）；④DockPrompt 无焦点陷阱（页面其余部分仍可聚焦）。**是否构成真机不可用需 G21⑧ 首项核对判定**；不足则按 [interaction.md](../interaction.md) 失败路径四步协议交用户决策（候选含上游 Button/dock 无障碍强化补丁 M-022+ vs 接受上游桌面语义），决策前不产品化。
+- **缺口（如实，不预设补丁）**：①按钮高度 `normal=28px`（permission dock）/`large=32px`（question dock）（`ui/src/actions/button/button.css`），低于移动端 48dp 触摸目标推荐；②三按钮横排 gap 仅 8px（`session-ui/src/components/message-part.css` `[data-slot="permission-footer-actions"]`），Allow Once（submit 视觉强调）居最右，与高频滑动区重叠；③permission 三按钮无 `aria-keyshortcuts`（question dock 有）；④DockPrompt 无焦点陷阱（页面其余部分仍可聚焦）。**是否构成真机不可用需 G21⑧ 首项核对判定**；不足则按 [interaction.md](../interaction.md) 失败路径四步协议交用户决策（候选含上游 Button/dock 无障碍强化补丁 移动适配候选 vs 接受上游桌面语义），决策前不产品化。
 
 ## 门禁与验证
 
 - **G21**（[interaction.md](../interaction.md) 新设）：权限/提问运行期真机清单九项（呈现充分性、三决策、duplicate/stale/expired 三态、断连恢复、client exit 红线机械核对、auto-approve opt-in、通知设置呈现、窄屏/读屏/焦点/触摸目标首项核对、SSH/直连双路由）。G21 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
 - **V-probe**：`scripts/verify-permission-requests.ts`（静态结构检查，对运行时行为零证明力）——断言组 1 决策调用面穷举集合（含 F1 两包零命中负断言）、组 2 duplicate/stale/expired 分层锚、组 3 恢复链四处触发、组 4 无歧义默认审批四锚、组 5 事件与端点契约抽样；负例控制演示留档。
 - **V-upstream**：app 子集追加 3 文件（`session/requests/websearch.test.ts`、`settings/model.test.ts`、`runtime/server/global-sync/utils.test.ts`）首跑逐例归因门；既有三包子集（app 46 + client 8 + session-ui 6）回归——client 的 `solid-eviction`（permission store 家族存活于 eviction）/`shared-events`（permission.asked fan-out）覆盖事件层语义。
-- **覆盖口径**：`requests/model.ts`/`auto-approve.ts`/三个 dock 组件上游**无单测**（装配层）——覆盖 = 探针（结构）+ V2（构建）+ G21（真机）三层，与 #8 M-017 覆盖口径同型。
+- **覆盖口径**：`requests/model.ts`/`auto-approve.ts`/三个 dock 组件上游**无单测**（装配层）——覆盖 = 探针（结构）+ V2（构建）+ G21（真机）三层，与 #8 session-home-archive 覆盖口径同型。
 
 ## 诚实边界
 

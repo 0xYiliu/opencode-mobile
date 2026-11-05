@@ -15,7 +15,7 @@
 | 关联 ID | 对照路径与检查 | 当前结论 |
 | --- | --- | --- |
 | S02 | `packages/app/src/settings/search.tsx` 两侧实读及 pin→目标 diff；本树 `surface.plugins.items()` | #90 已修复插件索引崩溃；目标改用 SearchList/SearchHighlight、分组与聚焦行为，本树仍是旧搜索实现加消费点修补。搜索能用不代表目标搜索交互已全部移植。 |
-| S04/W05 | 目标 `packages/app/src/shell/titlebar/inbox.tsx`、`inbox-model.ts`；本树两文件不存在；shell 的模式判断与 M-033 | 设置三模式已落地，但 Inbox 仍复用 Side rail；缺少目标 Inbox 列表、跨服务聚合与相应未读/注意状态。此结论不否认旧会话 tab 已有 unread/attention。历史设备观察 E19 与源码一致。 |
+| S04/W05 | 目标 `packages/app/src/shell/titlebar/inbox.tsx`、`inbox-model.ts`；本树两文件不存在；shell 的模式判断与 settings-interface-mode | 设置三模式已落地，但 Inbox 仍复用 Side rail；缺少目标 Inbox 列表、跨服务聚合与相应未读/注意状态。此结论不否认旧会话 tab 已有 unread/attention。历史设备观察 E19 与源码一致。 |
 | S09/W15/W06/W08 | `packages/app/src/session/composer/queue.ts`：本树逐字节等于 pin、不同于 v2.2.1；目标新增 `composer/media.ts`，本树无此文件 | 缺目标 `SentEdit`、按 session mutation scope 串行、乐观重排/隐藏、失败恢复编辑草稿、已接纳后不重发与 `pinPromptMedia` 媒体保留链。旧 queue/steer 已存在；这是已定位的行为增量，不再只写“待核对”。是否在真实服务组合中出错仍需运行验证。 |
 | W13 | `packages/app/src/session/commands/export.ts`：本树逐字节等于 pin；目标两处 `message.list` 加 `{ mediaRefs: false }` | 导出媒体读取参数未迁移；不据此断言当前服务一定导出损坏文件。目标语义需连同 client/media 契约评估。 |
 | W13/N08 | `use-session-commands.tsx` 的 `saveSessionExport` → `runtime/platform/web.ts` 的 `createPlatformFileSaver` → 第一方 `files/client.ts` → Android `files/FilesBridge.kt` 的 `ACTION_CREATE_DOCUMENT` 与 `openOutputStream` | 导出到 Android 保存的源码链已接通，不是“只有两个孤立端点”。桥不可用时返回 false（静默取消），真机保存、产物完整性、取消/失败仍归 G27；复制 ID 命令亦已存在。 |
