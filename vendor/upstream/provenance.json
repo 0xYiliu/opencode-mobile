@@ -783,6 +783,12 @@
       "path": "patches/mobile/extensions-flyout-webview.patch",
       "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
       "status": "active"
+    },
+    {
+      "id": "provider-connect-flow-redesign",
+      "path": "patches/mobile/provider-connect-flow-redesign.patch",
+      "sha256": "244bfc6609bbd8864e17bd54e5e05ff4b5f3786c92f529c0f668cb25b410c916",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [],
