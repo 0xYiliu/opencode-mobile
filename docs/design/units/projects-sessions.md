@@ -1,14 +1,14 @@
 # 单元：projects-sessions（远程项目、工作区与会话生命周期）
 
-状态：**已实现（未验证）**（issue #8）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库增量仅两个最小 vendor 补丁：**session-home-archive**（home 会话行归档接线，替换上游 stub）与 **settings-ssh-entry-guard**（多服务器设置布局的 SSH hosts 入口 + 重定向守卫修订——此项是 [server-list.md](server-list.md) 预登记「已知入口缺口（settings-mobile-host-manager）」债务的承接，**不是 issue #8 的验收项本身**）。issue #55 的 connection-initial-ssh-entry 只补齐空/签出连接屏的首个 SSH hosts 入口，未改变项目/会话生命周期或 SSH 传输。全部能力未经设备运行验证；真机门禁见 **G19/G36**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
+状态：**已实现（未验证）**（issue #8；项目身份与 home/new-session 目标形收口于 issue #140）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库增量以移动补丁承载：**session-home-archive**（home 会话行归档接线，替换上游 stub；issue #140 起随目标 controller 重写携带）、**project-identity-migration**（FU-3 项目身份目标形，详见下「项目身份（FU-3，issue #140）」节）、**home-new-session-parity**（home/new-session/location/pin 目标形 + en 7 键 + 图标接缝）与 **settings-ssh-entry-guard**（多服务器设置布局的 SSH hosts 入口 + 重定向守卫修订——此项是 [server-list.md](server-list.md) 预登记「已知入口缺口（settings-mobile-host-manager）」债务的承接，**不是 issue #8 的验收项本身**）。issue #55 的 connection-initial-ssh-entry 只补齐空/签出连接屏的首个 SSH hosts 入口，未改变项目/会话生命周期或 SSH 传输。全部能力未经设备运行验证；真机门禁见 **G19/G36**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
 
 ## 能力来源（复用面，无新建第一方会话逻辑）
 
 | 操作 | 上游实现（`vendor/upstream/packages/app`） | 服务 API（生成客户端 `packages/client/src/promise/generated/client.ts`） | 状态 |
 | --- | --- | --- | --- |
 | 浏览/选择远程目录 | `workspaces/selection/picker.tsx` `useDirectoryPicker`（server 模式对远端 `file.list`/`file.find` 浏览、`~` 展开远端 home、`normalizePickerDrive` 兼容 Windows 盘符输入、手输绝对路径兜底） | `file.list` / `file.find` | 已实现（未验证） |
-| 添加项目 | `home/projects/controller.tsx` `pickDirectory` → `home/projects/add.ts`（`file.list` 校验 + `location.get` 取 project + `sync.child`）；settings 页入口 `settings/workspaces/projects.tsx` addProject（settings-workspaces-migration 后保持 vendored 同步守卫形，settings-framework-migration 注释行在册） | `file.list` / `location.get` | 已实现（未验证）；`add.ts` 的校验失败被 `catch(() => undefined)` 吞掉且 `projects.open` 无条件执行——不可访问目录加入列表的真实反馈形态待 G19 首项核对；**该缺口与目标异步 add 链（add.ts async + `ctx.projects.add` + home/model.ts 消费）的收敛归属 = FU-3（运行期项目持久层目标形，[settings.md](settings.md)「登记为 Milestone 1 后续工作」块；原「预留 M-019」无主表述由 #106 起改指 FU-3）** |
-| 设置层项目/工作区页（S27/S30/S32 页面） | `settings/workspaces/projects.tsx` / `workspaces.tsx` / `project.tsx`（**settings-workspaces-migration**，v2.2.1 目标形：workspaces.tsx 目标逐字含删除确认 Cancel `autofocus`；projects.tsx min-w-0 页头 + vendored addProject hunks；project.tsx `registry.label` 服务器标签 + settings-framework-migration onClose；S29 auto-accept 行 `<Show when={key()}>` 由 pin 形项目无 `id` 门控为潜伏面，数据供给随 FU-3） | `project.list` / `project.update` / `worktree.*` / `vcs.*` | 页面目标形已实现；settings-workspaces-migration 在册（双 manifest 第 47 补丁）；运行期面（编辑保存/删除确认链全流程/逐字段实态）BLOCKED——需授权测试项目与可达服务器，见 build-and-verify.md issue #106 段 |
+| 添加项目 | `home/projects/controller.tsx` `pickDirectory` → `home/projects/add.ts`（目标异步链：`ctx.projects.add(directory)` = `location.get` 解析 → `sync.project.refresh()` → `projects.touch(id)`，失败 toast 并返回 undefined）；settings 页入口 `settings/workspaces/projects.tsx` addProject 消费同一异步链（`addProjects(...).then(project => 单目录时 onOpenProject)`） | `file.list` / `location.get` | 已实现（未验证）；**目标异步 add 链已随 issue #140 落地**（FU-3 收口，[settings.md](settings.md) 的 Milestone 登记随之关闭）；不可访问目录的真实反馈形态仍待 G19 首项核对 |
+| 设置层项目/工作区页（S27/S30/S32 页面） | `settings/workspaces/projects.tsx` / `workspaces.tsx` / `project.tsx`（**settings-workspaces-migration**，v2.2.1 目标形：workspaces.tsx 目标逐字含删除确认 Cancel `autofocus`；projects.tsx min-w-0 页头 + vendored addProject hunks；project.tsx `registry.label` 服务器标签 + settings-framework-migration onClose；S29 auto-accept 行 `<Show when={key()}>` 的项目 `id` 数据供给已随 issue #140 落地（运行实态归 G21/G19）） | `project.list` / `project.update` / `worktree.*` / `vcs.*` | 页面目标形已实现；settings-workspaces-migration 在册（双 manifest 第 47 补丁）；运行期面（编辑保存/删除确认链全流程/逐字段实态）BLOCKED——需授权测试项目与可达服务器，见 build-and-verify.md issue #106 段 |
 | 新会话项目选择 | `new-session/project/selector.tsx`（同一 picker） | 同上 | 已实现（未验证） |
 | 创建会话 | `new-session/` 流 | `session.create` | 已实现（未验证） |
 | 打开会话 | home 行（`home/sessions/controller.tsx` `open`）→ 会话 tab | `session.get`（`time.archived` 随 info 返回） | 已实现（未验证） |
@@ -37,6 +37,13 @@
 - **会话状态**：`sessionTabs`/`sessionView`（滚动）按 `SessionStateKey` 记录（`shell/state/layout.tsx`）；`Persist.serverGlobal/serverSession/serverWorkspace` 按 scope 隔离（`runtime/persistence/storage.ts`）。
 - **草稿**：`Persist.draft` → web 平台 `createBrowserDraftStore()`（IndexedDB，`runtime/platform/web.ts`；内容分块 + blob 引用完整性，`runtime/persistence/drafts.ts`）。
 - **并发**：`runtime/persistence/namespace.ts` 主机 revision 单调序 + 本地 seq 未落盘保护；`persist.ts` 本地脏值优先。
+
+## 项目身份（FU-3，issue #140 收口）
+
+- **存储模型**：每服务器 scope 下记录 `usedProjectIDs`（本客户端用过、按服务端顺序）与 `lastProjectID`（最后 touch 的项目 id），另存服务器自报 `hostnames`（健康检查首答前显示服务器名）；旧目录键 `projects` 桶在服务端列表就绪后由 `registry.projects.migrate()` 按目录解析成 id 回填 `usedProjectIDs` 并删除桶，目录键 `lastProject` 与 `recentlyClosed` 载荷解码即弃（上游同形）。
+- **迁移轮默认落点缺口（如实登记）**：目标 `migrate()` 只回填 `usedProjectIDs` 不回填 `lastProjectID`——覆盖升级后默认落点回落 `used[0]`，直至用户首次 touch 写入 `lastProjectID`。
+- **ctx.projects 面**（runtime/server/runtime.tsx，目标形）：`list/unique/used/add/forDirectory/forSession/last/touch/hide`；`add` = 异步 `location.get` → 刷新 → touch；`touch(directory)` = `forDirectory(directory).id` → `registry.projects.touch(id)`（写 lastProjectID+usedProjectIDs）；`hide(project)` = 该路径的项目 id 从 used 移除（服务端保留项目）。settings 项目菜单的移动「关闭」面（settings-framework-migration 在册）映射为同一 hide 语义。
+- **恢复守卫**：home 恢复选择清除需 `servers.hydrated()` 且 `ctx.sync.project.ready()`（目标守卫照抄）——远端列表未就绪不得清掉恢复的项目选择；不同服务器同名目录由 ServerScope+project id 双键天然隔离（身份键见下节）。
 
 ## 路径边界（手机路径 vs 远程路径）
 

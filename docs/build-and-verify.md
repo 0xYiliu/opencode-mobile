@@ -14,6 +14,39 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 - 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节 65 active / 0 deferred 的历史重放 PASS 不能作为发布通过。
 - 用户已授权先文档、后总 Issue/详细子 Issue/并行首批；已创建 [总任务 #139](https://github.com/0xYiliu/opencode-mobile/issues/139) 和 #140–#149 十个子项，API 回读确认全部正文、10 条原生子关系、26 条 blocked-by 与规划一致且无依赖环。首批 #140/#141/#143，完整分工回填 [矩阵](alignment/windows-desktop/v2.2.1/matrix.md)，实时状态以 GitHub 为准。子 Issue 边界经独立检查和定向复审通过，补齐 W12 压缩验收、明确纯验收零源码/零补丁，不新增功能完成声明。
 
+### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-home-projects`，分支 `feat/221-home-projects`，base `3310b80`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d0ea30e`（feat FU-3 数据层迁移）→ `0a60814`（feat Home 页目标形 + M-017 重锚）→ `58f448b`（feat new-session/location/pin）→ `52b94cc`（feat project-icon generated 面 + location re-export 退役）→ `f109d12`（chore 补丁登记 65→67）→ `ec34aec`（chore 凭据探针 retarget + dist manifest 刷新），未 push。**源码对齐目标 = `3ebcf9a32c7b28f658cfee80775448929361727a`**（copy 优先，逐文件目标形核对），移动补丁语义经三条新补丁 + 存量补丁修剪重放。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（67 补丁字节级重放：65→67 = 退役 `session-project-open-compatibility` + 新增 `project-identity-migration`/`home-new-session-parity`/`ui-typeahead-export`；DANGLING=0；类型/执行位/symlink/LICENSE 全等） |
+| 补丁登记 | `bun run verify:patches` / `patches:refresh` | **PASS**（67 registered；refresh 幂等 updated: none；`mobilePatches` 为唯一顺序） |
+| 冻结安装幂等 | `bun install --frozen-lockfile`（前后 md5 对照） | **PASS**（`bun.lock` md5 `6589b95967a0293cc81094d58ffae76f` 前后一致，git diff 为空——零漂移负证） |
+| app 受影响定向单测（P0 基线→终跑同口径） | `bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts <14 文件>`（vendor/upstream/packages/app 下；**加 `--conditions=browser` 为本仓在册组件测试口径**——`--conditions=solid` 下 solid-js/web 解析到 server 构建（台账 #66 段 harness 注记①），本批迁移后 registry/runtime 等经 `@opencode/ui/context` 模级拉入 JSX 模块，solid 条件单独跑会在导入期 notSup 终止） | 基线（改动前同 14 文件）**88 pass/0 fail**（含 consumers icon-cache/workspace-tip 两例）→ 终跑 **84 pass / 0 fail / 247 expect**；4 例差额 = 目标形自身删除的 IconState/workspace-tip schema 用例（随目标收敛），零新增失败 |
+| typecheck | `bun run typecheck:tsc`（清 tsbuildinfo；与 3310b80 基线同法双跑对账） | 基线去重错误集 **171 行**（420 条原始输出，含 TS6307 路径噪声）→ 本轮 **169 行**（417 条）：**零新增错误类**，净消除 2 条基线既有错误（host-apis `notifications` 属性、mounted-session 形状——随目标形 runtime 修复）；i18n 完备性闸通过（en.ts +7 键后复制面无键错误） |
+| Web 构建 | `bun run build:web` | rc=0；5159 modules transformed；**dist 5616 files / 149,860,431 bytes**（本代构建产物；在册 3520 为上一代构建陈旧值——对 base `3310b80` 全新构建实测 **5617 files / 149,635,570 bytes**，差异即本任务源码净增量，见台账勘误注） |
+| dist 复制 | `bash scripts/copy-web-dist.sh` | rc=0；5616 files / 149,860,486 bytes（verified）；`web-dist/manifest.json` 随本轮刷新提交 |
+| 凭据探针 V-cred | `bun run scripts/audit-secret-persistence.ts` | **PASS**（探针随 ServerState 目标形 retarget：B 键清单/C encode 剥密码+credentialRef 保留+legacy 容忍/D ServerEntry 形状/E 草稿边界/F **dist 标记 `mobile(M-002)`+`mobile(vault-v1)` 命中**/G vault 元数据零值） |
+| 凭据探针 vault | `bun run scripts/verify-credential-vault.ts` | **PASS**（truth table v3 13 行 + M-010 hydration setStore-only 注入 + AndroidX origin/frame 门） |
+| 许可审计 | `bun run scripts/license-audit.ts` | rc=1 为**基线既有**：对 base 同跑同败，12 项 STOP/UNRECOGNIZED 集合逐条相同（lightningcss MPL×6、axe-core、dompurify、sentry FSL 等），零新增 |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 为**基线既有**：对 base 同跑同败，命中集逐条相同（mobile-hosts 测试合成 fixture + 探针脚本合成值），零新增 |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**；APK SHA-256 **`4b27f3df64d89cf39e88607f7d3e6472d0367b6ba54b33abc71eebe0d6cba179`**（64,388,525 bytes；未安装设备） |
+| mobile-hosts 回归 | `bun test --conditions=browser packages/mobile-hosts` | **438 pass / 0 fail / 2937 expect（39 文件）**（与在册终态同数） |
+| client 触碰面 | `bun test --timeout 5000 test/solid-connection.test.ts … test/solid-eviction.test.ts`（packages/client 下，8 文件） | **98 pass / 0 fail / 427 expect**（与在册同数） |
+| session-ui 触碰面 | `bun test src/timeline/projection.test.ts … src/components/markdown-stream.test.ts`（packages/session-ui 下，6 文件） | **125 pass / 1 fail / 369 expect**；该 1 fail 对 base 全新树同跑同败同文（`rows-current` grouped reasoning-only 用例，基线既有，非本轮引入） |
+| 静态探针 | `bun run scripts/verify-projects-sessions.ts` | **PASS rc=0**（M-017 锚点在目标 controller 上全部命中：stub 消失、`archived:true` 调用形、helper+cache row removal+invalidate/resync 保留；settings-ssh-entry-guard、路径边界、#106 四锚、N-5 零 OS 分支 28 文件） |
+
+**勘误注（dist 代际）**：`web-dist/manifest.json` 在册 3520 files 来自更早的构建代际；本轮对 base 全新构建 5617 files，证明文件数跃迁为构建代际而非本任务源码（本任务净差 −1 file/+224,861 bytes）。后续轮次以此代际为新基线。
+
+**补丁治理（vendor/upstream/patches/mobile/README.md 程序）**：源码改定→按链重放重建残差→三条新补丁登记（targets/reason/verification/upstreamBaseline，sha256 由 `patches:refresh` 生成）→`patches:refresh` PASS→`verify:patches` PASS→`verify:closure` PASS。修剪明细：`session-client-compatibility` 退役 11 个文件节/槽（registry.test/persistence.ts/persistence.test/identity-header/session-search/helpers/titlebar/home 两 command-palette 整节 + runtime 的 modelState/catalog/import 三槽 + palette/composer 的 catalog 单槽），其余 session/composer/api hunk 不动；`session-project-open-compatibility` 整补丁退役（projects.add 目标形使其变空）；`settings-framework-migration` projects.tsx M-043 注释行退役（hunk 头计数同步修正）；`settings-servers-migration` 的 M-002 剥密码断言 hunk **保持链位**（其锚为 pin 形测试），断言语义由 `project-identity-migration` 在链末以目标形测试重写携带——两处 manifest 条目的 rebase 注记均已登记。identity-migration.json 无需新增映射（新补丁直接使用语义 ID）。**接缝**：`vendor/upstream/packages/ui/node_modules/@opencode-mobile/mobile-hosts`（既有）与新增 `vendor/upstream/packages/ui/node_modules/@opencode/util → ../../../util`（目标 ui 自声明 `@opencode/util` devDependency，vendored ui 无该依赖且 lockfile 零漂移红线禁止补声明——typeahead 消费 `@opencode/util/abort` 需要该软链，登记于 `ui-typeahead-export` 条目 reason；与 app 侧 seam 同为测试/构建期重建、不入 git）。
+
+**行为登记（如实）**：迁移轮默认落点缺口 = 目标 `migrate()` 只把旧目录键桶回填进 `usedProjectIDs`，不回填 `lastProjectID`——升级后默认落点回落 `projects()[0]`（used 首项）直至用户首次 touch；目录键 `lastProject` 与 `recentlyClosed` 载荷解码即弃（上游同形，如实登记不私自回填）。`ready()` 守卫照抄目标：server store 水合且 `sync.project.ready()` 之前不清恢复选择。
+
+**未验证项**：真机/模拟器安装与 G19 运行面（两台服务器同名目录隔离、location 弹窗开/选/取消、新建→进入→返回、超长名称、减少动效、宽窄屏入口可见可触摸）本轮未执行——实施环境无授权设备操作；issue #140 验收清单相应项保持 OPEN，由协调者/后续轮次按 G19 执行。远端归档 API 语义（服务端 `time.archived` 盖章/列表过滤）仍归 G19/live E2E。
+
 ### PR #135 最终交付补录（2026-11-06 读取 GitHub；设备证据为既有轮次）
 
 - [PR #135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已 **MERGED**；最终修复提交 `813e68d`，GitHub merge commit `bbd0b488efb5a654ce55cbde30661d5287bc4381`。正文和较早评论的 Draft/待安装状态、旧 APK 仅为历史。
