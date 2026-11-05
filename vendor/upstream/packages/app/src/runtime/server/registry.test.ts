@@ -1,17 +1,18 @@
 import { expect, test } from "bun:test"
 import { canRemoveServer, createServerProjects, resolveServerList, ServerConnection, serverLabel } from "./registry"
 import { Schema } from "effect"
-import { serverState } from "./persistence"
+import { ServerState } from "./persistence"
 import { createStore } from "solid-js/store"
 import { ServerScope } from "./scope"
 import { Persistence } from "@/runtime/persistence/schema"
 
 function serverSchema() {
-  return Persistence.withInitial(serverState(), {
+  return Persistence.withInitial(ServerState, {
     list: [],
     hidden: {},
-    lastProject: {},
-    recentlyClosed: {},
+    lastProjectID: {},
+    usedProjectIDs: {},
+    hostnames: {},
     projects: {},
   })
 }
@@ -101,8 +102,12 @@ test("keeps exact persisted server identities and prevents removing provided ser
 /** The server props a project store follows, which the test changes. */
 type ProjectScopeProps = { server: ServerConnection.Key; canonicalLocalServer?: ServerConnection.Key }
 
-test("project actions update schema-derived state and follow dynamic server scopes", () => {
-  const [store, setStore] = createStore(Schema.decodeUnknownSync(serverSchema())({}))
+test("used and last projects follow dynamic server scopes, and migration consumes only its scope", () => {
+  const [store, setStore] = createStore(
+    Schema.decodeUnknownSync(serverSchema())({
+      projects: { local: [{ worktree: "/a" }], other: [{ worktree: "/b" }] },
+    }),
+  )
 
   const props: ProjectScopeProps = { server: ServerConnection.Key.make("https://remote.example") }
 
@@ -112,29 +117,18 @@ test("project actions update schema-derived state and follow dynamic server scop
     scope: () => ServerScope.fromServerKey(props.server, props.canonicalLocalServer),
   })
 
-  projects.open("/remote")
-  projects.collapse("/remote")
-  projects.touch("/remote")
-  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
-  expect(projects.last()).toBe("/remote")
+  projects.touch("remote-project")
+  expect(projects.last()).toBe("remote-project")
+  expect(projects.used()).toEqual(["remote-project"])
+  expect(projects.legacy()).toBeUndefined()
   props.canonicalLocalServer = props.server
-  expect(projects.list()).toEqual([])
   expect(projects.last()).toBeUndefined()
-  projects.open("/local")
-  projects.close("/local")
-  expect(projects.recentlyClosed()).toEqual(["/local"])
-  projects.open("/local")
-  expect(projects.recentlyClosed()).toEqual([])
-  projects.collapse("/local")
-  projects.expand("/local")
-  projects.open("/second")
-  projects.move("/second", 0)
-  expect(projects.list()).toEqual([{ worktree: "/second", expanded: true }, { worktree: "/local", expanded: true }])
-  projects.remove("/second")
-  expect(projects.recentlyClosed()).toEqual([])
-  expect(store.projects.local).toEqual([{ worktree: "/local", expanded: true }])
-  expect(store.projects[props.server]).toEqual([{ worktree: "/remote", expanded: false }])
-  props.canonicalLocalServer = undefined
-  expect(projects.last()).toBe("/remote")
-  expect(projects.list()).toEqual([{ worktree: "/remote", expanded: false }])
+  expect(projects.legacy()).toEqual(["/a"])
+  projects.migrate(["a", "b"])
+  projects.touch("a")
+  projects.hide(["b"])
+  expect(projects.legacy()).toBeUndefined()
+  expect(store.projects).toEqual({ other: [{ worktree: "/b" }] })
+  expect(store.lastProjectID).toEqual({ local: "a", [props.server]: "remote-project" })
+  expect(store.usedProjectIDs).toEqual({ local: ["a"], [props.server]: ["remote-project"] })
 })

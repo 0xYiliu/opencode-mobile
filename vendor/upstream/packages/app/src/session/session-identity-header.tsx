@@ -34,7 +34,8 @@ import { errorMessage } from "@/shell/layout/helpers"
 import { useLayout, type LocalProject } from "@/shell/state/layout"
 import { tabKey, useTabs } from "@/shell/tabs/tabs"
 import { useSettingsSurface } from "@/settings/surface"
-import { workspaceDirectories } from "@/workspaces/paths"
+import { isProjectDirectory, workspaceDirectories } from "@/workspaces/paths"
+import { pathKey } from "@/workspaces/path-key"
 import { sessionHref } from "@/shell/routes/session"
 import { showToast } from "@/shell/notifications/toast"
 import { sessionTitle } from "./title"
@@ -581,11 +582,18 @@ export function SessionIdentityHeader(props: { sessionID: string; session?: Sess
   )
 
   const project = createMemo(() => {
-    if (props.session) return server.ctx.projects.catalog.forSession(props.session)
+    if (props.session) return server.ctx.projects.forSession(props.session)
+    const projects = server.ctx.projects.list()
     const value = directory()
 
     if (!value) return undefined
-    return server.ctx.projects.forDirectory(value)
+    const key = pathKey(value)
+
+    return (
+      projects.find(
+        (item) => pathKey(item.worktree) === key || item.sandboxes?.some((sandbox) => pathKey(sandbox) === key),
+      ) ?? server.ctx.sync.data.project.find((item) => isProjectDirectory(item, value))
+    )
   })
 
   return (

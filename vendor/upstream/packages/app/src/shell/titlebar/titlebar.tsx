@@ -399,12 +399,9 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
 
                   const projects = conn ? global.ensureServerCtx(conn).projects : undefined
 
-                  // mobile(C): the retained facade keeps the directory-valued lastProject, so resolve the
-                  // fallback through the project list instead of the target's project-ID lookup.
-                  const lastDirectory = projects?.last()
                   const project =
                     projects?.list().find((item) => item.worktree === selection.directory) ??
-                    projects?.list().find((item) => item.worktree === lastDirectory) ??
+                    projects?.last() ??
                     projects?.list()[0]
 
                   if (conn && project) {

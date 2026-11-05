@@ -1,7 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
-import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, onCleanup, on, untrack } from "solid-js"
-import { useQuery, useQueryClient } from "@tanstack/solid-query"
-import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
+import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
+import { createServerProjects, ServerConnection, useServers } from "./registry"
 import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
 import { createServerSdkContext } from "./client"
@@ -15,18 +14,16 @@ import { useCurrentRoute } from "@/shell/state/layout"
 import { useTabs } from "@/shell/tabs/tabs"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createDesktopData } from "./data"
-import { modelState } from "./persistence"
+import { ModelState } from "./persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "./errors"
 import { useSettings } from "@/settings/model"
 import { timelinePreset } from "@opencode/session-ui/timeline/detail"
 import type { SessionInfo } from "@opencode/client/promise"
-import { projectForSession, resolveProjectForSession, resolveSessionDetailsProject } from "@/shell/layout/helpers"
-import { normalizeProjectInfo } from "./global-sync/utils"
-import { containsDirectory } from "@opencode/util/path"
-
-let nextCatalogGeneration = 0
+import { projectForSession } from "@/shell/layout/helpers"
+import { isProjectDirectory } from "@/workspaces/paths"
+import type { Project } from "@/runtime/server/types"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -92,6 +89,15 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
     })
 
     createEffect(() => {
+      for (const conn of server.list) {
+        const key = ServerConnection.key(conn)
+        const hostname = serverHealth.status[key]?.hostname
+
+        if (hostname) server.setHostname(key, hostname)
+      }
+    })
+
+    createEffect(() => {
       for (const [key] of serverCtxs) {
         if (serverHealth.status[key]?.unauthorized || !server.list.find((conn) => ServerConnection.key(conn) === key))
           disposeServerCtx(key)
@@ -105,6 +111,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
         retry: serverHealth.retry,
       },
       models,
+      /** Runs each keyed sound and system notification once across windows; notifications only while none has focus. */
+      notifications: notificationCoordinator,
       ensureServerCtx(conn: ServerConnection.Any) {
         return ensureServerCtx(conn)
       },
@@ -121,10 +129,10 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
 })
 
 function createGlobalModels() {
-  const [store, setStore, _, ready] = persisted(Persist.global("model"), modelState, {
-    favorite: [],
+  const [store, setStore, _, ready] = persisted(Persist.global("model"), ModelState, {
     user: [],
     recent: [],
+    favorite: [],
     variant: {},
   })
 
@@ -140,14 +148,15 @@ function createGlobalModels() {
     store,
     set: setStore,
     ready,
-    favorite: () => {
-      loaded()
-      return store.favorite
-    },
     recent: () => {
       loaded()
 
       return store.recent
+    },
+    favorite: () => {
+      loaded()
+
+      return store.favorite
     },
     // Marks models visible in the picker regardless of the "latest per family" default.
     show(models: ReadonlyArray<{ providerID: string; modelID: string }>) {
@@ -187,6 +196,8 @@ function createServerController(
   const sdk = createServerSdkContext(conn, scope)
 
   const source = createData({
+    // mobile: the vendored data layer consumes the media-aware client wrapper (the pin client
+    // has no inlined media surface), so the controller reads through `sdk.mediaApi`.
     api: () => sdk.mediaApi,
     initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
     event: {
@@ -209,6 +220,8 @@ function createServerController(
     remove: (sessionID) => sdk.api.session.remove({ sessionID }),
   })
 
+  // Transcripts otherwise stay loaded for every session this window ever opened. Open tabs and the three most
+  // recently viewed sessions keep theirs; any other session reloads its transcript when it is opened again.
   createSessionRetention({
     session: data.session,
     current: () => {
@@ -216,12 +229,15 @@ function createServerController(
 
       return route.type === "session" && route.server === connKey ? route.sessionId : undefined
     },
+    // Until the stored tabs load, keep every transcript so startup never evicts a tab's session.
     keep: () =>
-      tabs.store.flatMap((tab) =>
-        tab.type === "session" && tab.server === connKey
-          ? [tab.sessionId, ...(tab.routeSessionId ? [tab.routeSessionId] : [])]
-          : [],
-      ),
+      tabs.ready()
+        ? tabs.store.flatMap((tab) =>
+            tab.type === "session" && tab.server === connKey
+              ? [tab.sessionId, ...(tab.routeSessionId ? [tab.routeSessionId] : [])]
+              : [],
+          )
+        : data.session.list().map((session) => session.id),
     limit: 3,
   })
 
@@ -229,108 +245,81 @@ function createServerController(
   createPermissionAutoApprover({ sdk, data })
   const notification = createServerNotificationState({ sdk, data, key: connKey, coordinator: notificationCoordinator })
 
-  function enrich(project: { worktree: string; expanded: boolean }) {
-    const [childStore] = sync.child(project.worktree, { bootstrap: false })
-    const projectID = childStore.project
+  // Projects whose repository has no root commit share the `global` ID; their name and icon stay local to the
+  // directory because the server cannot tell them apart.
+  function withLocalMeta(project: Project): Project {
+    if (project.id !== "global") return project
 
-    const metadata = projectID
-      ? sync.data.project.find((x) => x.id === projectID)
-      : sync.data.project.find((x) => x.worktree === project.worktree)
-
-    // Preserve local icon override from per-workspace localStorage cache (childStore.icon).
-    // Without this, different subdirectories of the same git repo would share the same
-    // icon from the database instead of using their individual overrides.
-    const base = {
-      ...metadata,
-      ...(!metadata || metadata.id === "global" ? childStore.projectMeta : undefined),
-      ...project,
-    }
-
-    if (childStore.icon) {
-      return { ...base, icon: { ...base.icon, override: childStore.icon } }
-    }
-
-    return base
+    return { ...project, ...sync.child(project.worktree, { bootstrap: false })[0].projectMeta }
   }
 
-  const projectsList = createMemo(() => projects.list().map(enrich))
+  const list = createMemo(() => sync.data.project.map(withLocalMeta))
 
-  // This independent inventory deliberately does not reuse the filtered sync/bootstrap query.
-  // Every controller (including a same-key reauthentication) owns a distinct cache generation.
-  const queryClient = useQueryClient()
-  const catalogKey = [scope, connKey, "session-project-catalog", ++nextCatalogGeneration] as const
-  let catalogActive = true
-  const catalogQuery = useQuery(() => ({
-    queryKey: [...catalogKey, sdk.generation],
-    enabled: sdk.connection.status() === "connected",
-    retry: false,
-    queryFn: async ({ signal }) => {
-      const api = sdk.api
-      const items = await api.project.list(undefined, { signal })
-      if (!catalogActive || signal.aborted || sdk.api !== api) throw new DOMException("Aborted", "AbortError")
-      return items.map(normalizeProjectInfo)
-    },
-  }))
-  const refreshCatalog = () => {
-    if (catalogActive && sdk.connection.status() === "connected")
-      void queryClient.invalidateQueries({ queryKey: catalogKey })
+  // One directory can belong to several project IDs, for example a folder resolved before `.git` existed and again
+  // after a remote was added. The list is most recent first, so the first project per path is the current one.
+  const unique = createMemo(() => {
+    const seen = new Set<string>()
+
+    return list().filter((project) => {
+      const key = pathKey(project.worktree)
+
+      if (seen.has(key)) return false
+      seen.add(key)
+
+      return true
+    })
+  })
+
+  // The projects this client has used, in server order. Using any ID of a path shows that path's current project.
+  const used = createMemo(() => {
+    const ids = new Set(projects.used())
+    const paths = new Set(list().flatMap((project) => (ids.has(project.id) ? [pathKey(project.worktree)] : [])))
+
+    return unique().filter((project) => paths.has(pathKey(project.worktree)))
+  })
+
+  const forDirectory = (directory: string): Project | undefined => {
+    const key = pathKey(directory)
+
+    return (
+      list().find(
+        (project) => pathKey(project.worktree) === key || project.sandboxes.some((sandbox) => pathKey(sandbox) === key),
+      ) ??
+      list()
+        .filter((project) => isProjectDirectory(project, directory))
+        .toSorted((a, b) => b.worktree.length - a.worktree.length)[0]
+    )
   }
-  const unsubscribeCatalog = sdk.event.on("project.updated", refreshCatalog)
-  createEffect(on(sdk.connection.status, (status, previous) => {
-    if (previous && previous !== "connected" && status === "connected") refreshCatalog()
-  }))
+
+  // Older builds kept opened directories locally; once the server's list loads they become used project IDs.
   createEffect(() => {
-    if (!catalogQuery.isError) return
-    showToast({ variant: "error", title: language.t("common.requestFailed"), description: formatServerError(catalogQuery.error, language.t) })
+    const legacy = projects.legacy()
+
+    if (!legacy || !sync.project.ready()) return
+    untrack(() => projects.migrate(legacy.flatMap((directory) => forDirectory(directory)?.id ?? [])))
   })
-  onCleanup(() => {
-    catalogActive = false
-    unsubscribeCatalog()
-    void queryClient.cancelQueries({ queryKey: catalogKey })
-    queryClient.removeQueries({ queryKey: catalogKey })
-  })
-  const catalogList = () => catalogQuery.data ?? []
-  const catalogAppearance = (project: ReturnType<typeof catalogList>[number] | undefined, directory: string) => {
-    if (!project) return
-    const local = projectsList().find((item) => pathKey(item.worktree) === pathKey(directory)) ??
-      projectsList().find((item) => pathKey(item.worktree) === pathKey(project.worktree))
-    if (!local) return project
-    return { ...project, name: local.name ?? project.name, icon: local.icon ?? project.icon }
+
+  // Resolving a directory registers its project on the server; the list then reloads to include it, and the
+  // project becomes this client's last used one.
+  function add(directory: string) {
+    return sdk.api.location
+      .get({ location: { directory } })
+      .then(async (location) => {
+        await sync.project.refresh()
+        projects.touch(location.project.id)
+
+        return list().find((project) => project.id === location.project.id)
+      })
+      .catch((error) => {
+        showToast({
+          variant: "error",
+          title: language.t("common.requestFailed"),
+          description: formatServerError(error, language.t),
+        })
+
+        return undefined
+      })
   }
-  const catalogForDirectory = (directory: string) => {
-    const normalized = pathKey(directory)
-    const list = catalogList()
-    const exact = list.find((item) => pathKey(item.worktree) === normalized) ??
-      list.find((item) => item.sandboxes?.some((sandbox) => pathKey(sandbox) === normalized) ||
-        item.worktrees?.some((worktree) => pathKey(worktree.directory) === normalized))
-    const closest = exact ?? list.flatMap((project, order) =>
-      [project.worktree, ...(project.sandboxes ?? []), ...(project.worktrees ?? []).map((item) => item.directory)]
-        .filter((root) => containsDirectory(root, directory))
-        .map((root) => ({ project, length: pathKey(root).length, order })))
-      .sort((a, b) => b.length - a.length || a.order - b.order)[0]?.project
-    return catalogAppearance(closest, directory)
-  }
-
-  const forSession = (session: SessionInfo) => {
-    const project = resolveProjectForSession(session, projectsList(), sync.data.project)
-
-    if (!project) return
-
-    return "expanded" in project ? project : { ...project, expanded: false }
-  }
-
-  const detailsForSession = (session: SessionInfo) =>
-    resolveSessionDetailsProject(session, projectsList(), sync.data.project)
-
-  const recentlyClosedList = createMemo(() => {
-    const known = new Set(sync.data.project.map((project) => pathKey(project.worktree)))
-
-    return projects
-      .recentlyClosed()
-      .filter((worktree) => known.has(pathKey(worktree)))
-      .slice(0, RECENTLY_CLOSED_DISPLAY_LIMIT)
-      .map((worktree) => enrich({ worktree, expanded: false }))
-  })
 
   const isLocal =
     (conn?.type === "sidecar" && conn.variant === "base") || (conn?.type === "http" && isLocalHost(conn.http.url))
@@ -341,20 +330,24 @@ function createServerController(
     sync,
     isLocal,
     projects: {
-      ...projects,
-      list: projectsList,
-      catalog: {
-        list: catalogList,
-        ready: () => catalogQuery.data !== undefined,
-        status: () => catalogQuery.status,
-        error: () => catalogQuery.error,
-        forSession: (session: SessionInfo) => catalogAppearance(projectForSession(session, catalogList()), session.location.directory),
+      list,
+      unique,
+      used,
+      add,
+      forDirectory,
+      forSession: (session: SessionInfo): Project | undefined => projectForSession(session, list()),
+      last: () => list().find((project) => project.id === projects.last()),
+      // Marks the project of a directory as used from this client, and as the last one.
+      touch(directory: string) {
+        const id = forDirectory(directory)?.id
+
+        if (id) projects.touch(id)
       },
-      forDirectory: catalogForDirectory,
-      forSession,
-      detailsForSession,
-      resolve: enrich,
-      recentlyClosed: recentlyClosedList,
+      // Removes a project from this client's used projects until it is used again; the server keeps it.
+      hide(project: Pick<Project, "worktree">) {
+        const key = pathKey(project.worktree)
+        projects.hide(list().flatMap((item) => (pathKey(item.worktree) === key ? [item.id] : [])))
+      },
     },
     notification,
   }
