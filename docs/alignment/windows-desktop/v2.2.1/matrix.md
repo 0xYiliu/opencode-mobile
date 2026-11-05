@@ -82,7 +82,7 @@
 | --- | --- | --- | --- | --- |
 | W01 | 项目/位置选择、创建并进入会话 | 部分实现 | home/new-session 仍旧结构，location/dialog、pin-board/pin-sound 缺失；FU-3 registry 仍目录型 projects/lastProject，目标 usedProjectIDs/lastProjectID 未迁入。#61 既有会话历史证据不覆盖新建/完整生命周期与当前双路由 | E03/E18/E35，G19 |
 | W02 | 发送、流式输出、权限交互 | 已有代码 | 对齐；工作台/审批链已存在，真实模型发送→流式→工具/权限闭环未完成 | E03，G20/G21 |
-| W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；workspaces/files/model.tsx 缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅；触屏选择/评论、真实仓库、文件刷新与失败恢复待验 | E05/E35，G22/G23 |
+| W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；#143 迁入目标 stream HEAD（fileStreamUrl+HEAD 失败回退下载）、watch/unwatch 与 reconnect 重订阅（files-stream-watch.patch，mobilePatches 0-based 58；typecheck 净 −2、探针组 9 过；v2.2.1 服务 watch 路由实测存在）；触屏选择/评论、真实仓库、文件刷新/订阅生命周期与失败恢复待真机验（#143 轮设备 adb 不可达 BLOCKED） | E05/E35，G22/G23 |
 | W04 | 多终端创建、显示、关闭 | 已有代码 | 适配；PTY/重连链已有；WebView WASM、IME/尺寸、控制键软输入与三远端 OS 验收未完成 | E05，G24；不能由旧 dock 文档推定当前 side panel 运行通过 |
 | W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；聚合、分组与活动实际呈现待完整验收 | E03/E19/E35 |
 | W06 | 附件选择与上传 | 已有代码 | Android FilesBridge、上传、composer/media.ts 与队列/fork/revert 媒体保留链已有；真实上传、取消/失败与跨服务归属待验 | E06/E35，G27 |
@@ -95,11 +95,11 @@
 | W13 | 导出会话、复制 ID | 已有代码 | export.ts 逐字目标，含两处 `mediaRefs: false`；导出→Platform.saveFile→FilesBridge→SAF 已接通；真实保存/产物完整性、取消/失败仍待验，桥降级静默取消 | E03/E06/E35，G27 |
 | W14 | 问题、多步回答与结构化表单 | 已有代码 | 适配；请求契约已有，逐类目标差异及真实并发/过期响应待验 | E03，G21 |
 | W15 | 后续消息和队列 | 已有代码 | 目标串行、乐观编辑/重排、失败草稿恢复、已接纳不重发与媒体 pin 链已迁入；额外 server+session mutation scope、capture/current 保护归属；真实竞态及切服务/会话恢复待验 | E35；源码存在不等于运行通过 |
-| W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验 | E05，G22 |
+| W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验（#143 轮无代码变更；设备 adb 不可达，真机核对 BLOCKED，需用户授权触摸选区→真实模型读取） | E05，G22 |
 | W17 | Agent、模型与变体切换 | 部分实现 | #135 最终 Agent 用户确认正常；模型/变体开合有局部记录，实际切换未全验。FU-2 select-dialog 旧形、details/manage.css 缺失，继续迁移选择器族 | E04/E35；#135 最终记录 |
 | W18 | 用量与上下文面板 | 部分实现 | context 已注册；明确子能力 **usage.view**：app/src/usage 缺失且 composer commands 未注册 usage.view，需迁移用量入口/数据/状态并验收；保留本 ID 不新增行 | E03/E23/E35 |
-| W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对 | E07，G28；不是计划在手机复制 Electron 浏览器 |
-| W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制 | E06/E33，G29 |
+| W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对（#143 轮无代码变更；设备 adb 不可达 BLOCKED） | E07，G28；不是计划在手机复制 Electron 浏览器 |
+| W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制（#143 轮无代码变更；设备 adb 不可达，G29 含 WebView 68 module-worker 结构性受限复现项 BLOCKED） | E06/E33，G29 |
 | W21 | /btw 侧问 | 已有代码 | 适配；session-btw-narrow-entry 放宽窄屏命令门并加 More 入口，呈最近 chat；不自动跳面，窄屏无 close 通道；真实会话与 <768px QA 阻塞 | E26/E34；不是上游本来已有的窄屏入口 |
 | W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；真实服务往返、菜单与降级待验 | E22/E23 历史；E35 当前 |
 | W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验 | E22/E23/E34 |
