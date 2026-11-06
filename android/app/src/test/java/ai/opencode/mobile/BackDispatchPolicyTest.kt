@@ -67,4 +67,27 @@ class BackDispatchPolicyTest {
         assertEquals("true", BackDispatchPolicy.CONSUMED_RESULT)
         assertEquals(BackDispatchPolicy.Outcome.CONSUMED, BackDispatchPolicy.decide(BackDispatchPolicy.CONSUMED_RESULT))
     }
+
+    @Test
+    fun declinedChainFallsBackToNativeWebViewHistoryFirst() {
+        // Stage 2 (review B1 fix): the chain declines, then non-SPA document history
+        // (native goBack) still applies before the Android default finish. SPA route
+        // entries never drive this branch: in-app history is a chain layer and answers
+        // CONSUMED in stage 1 before stage 2 is ever consulted.
+        assertEquals(BackDispatchPolicy.Outcome.WEBVIEW_BACK, BackDispatchPolicy.historyFallback(true))
+        assertEquals(BackDispatchPolicy.Outcome.DEFAULT, BackDispatchPolicy.historyFallback(false))
+    }
+
+    @Test
+    fun declinedChainRootStillFinishesWhileConsumedNeverReachesStageTwo() {
+        // Dispatch-order truth table (the B1 regression): the chain consumes "true" and
+        // stage 2 is never consulted; every decline payload that reaches stage 2 with no
+        // native history finishes — the root behavior is unchanged whether the bridge
+        // answers false, is missing, or times out (null).
+        assertEquals(BackDispatchPolicy.Outcome.CONSUMED, BackDispatchPolicy.decide("true"))
+        for (answer in listOf("false", null, "\"true\"", "garbage")) {
+            assertEquals(BackDispatchPolicy.Outcome.DEFAULT, BackDispatchPolicy.decide(answer))
+            assertEquals(BackDispatchPolicy.Outcome.DEFAULT, BackDispatchPolicy.historyFallback(false))
+        }
+    }
 }
