@@ -104,7 +104,7 @@
 | W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；#145 QA：/goal 命令在真实服务 slash 面板在册可见（goal 能力服务前提成立），三操作（暂停/恢复/清除）真实往返未执行（PARTIAL） | E22/E23 历史；E35 当前；#145 QA（build-and-verify.md #145 段） |
 | W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验；#145 QA 本轮未执行（需实验 gate+带来源 turn 的真实会话，未构造） | E22/E23/E34；#145 未验登记（build-and-verify.md #145 段） |
 | W24 | 非 prod 实验语音通话 | 未实现（已确认暂缓） | 当前暂缓；上游受 desktop/非 prod/实验开关/服务凭据门控，不是生产默认能力；满足 ADR 激活条件再重启 | E25；[ADR 0006](../../../decisions/0006-voice-call.md)；非待用户决策 |
-| W25 | 会话详情、工作区位置菜单 | 已有代码（源码目标形） | #135 Details 的 MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见、切换 hidden/inert 与关闭通过；目标 location/dialog 已随 issue #140 迁入（session.location.toggle 等键入册）；#145 QA：Extensions flyout 行面复验（MCP 2 / Skills 11 / Plugins / LSP 真实可见，Skills 计数 10→11 为服务端内容演化非回归），会话 "…" 菜单（Rename/Export/Delete）实态可见+返回键 FAIL 候选在案；工作区操作/失败路径运行验收待 G19 | E03/E23/E35；issue #140；#145 QA（build-and-verify.md #145 段） |
+| W25 | 会话详情、工作区位置菜单 | 已有代码（源码目标形） | #135 Details 的 MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见、切换 hidden/inert 与关闭通过；目标 location/dialog 已随 issue #140 迁入（session.location.toggle 等键入册）；#145 QA：Extensions flyout 行面复验（MCP 2 / Skills 11 / Plugins / LSP 真实可见，Skills 计数 10→11 为服务端内容演化非回归），会话 "…" 菜单（Rename/Export/Delete）实态可见；首轮返回键 FAIL 候选已随 `37ebda2` 修复并复测 PASS（菜单/popover back 只关自身，r12→r17）；工作区操作/失败路径运行验收待 G19 | E03/E23/E35；issue #140；#145 QA 复测（build-and-verify.md #145 段） |
 | W26 | 命令面板统一检索 | 已有代码 | palette.ts 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；#145 QA：composer slash 触屏入口实态 PASS（"/" 触发面板，/init /review /rea:* ×5 /goal /new /undo 行可见可触发，触屏软键盘路径）；palette mod+k 外接键盘路径与命令执行仍待验；usage.view 缺口明确归 W18，不能以面板存在关闭 | E11/E29/E35；issue #140；G34；#145 QA（build-and-verify.md #145 段） |
 | W27 | 会话内容搜索与高亮 | 已有代码 | 适配；WebView CSS highlights 与长历史定位未验；#145 QA BLOCKED 维持（无可丢弃 ≥200 行长历史会话；用户真实会话不动；解除条件=授权生成一次性长历史测试会话） | E03；#145 未验登记（build-and-verify.md #145 段） |
 | W28 | Debug bar、堆快照、动效诊断 | 部分实现（web 子集） | 适配；宽屏 debug.toggle 三元素及持久化已验；heap/主进程诊断/DEV 调参缺席符合宿主边界，窄屏 bar 隐藏；#145 QA：面板 dock 开合实态复见（Review/Terminal/Open file 入口，宽屏分栏），禁用→撤除链仍未复验 | E29/E34；#96 仅解除管理开关阻塞；#145 QA（build-and-verify.md #145 段） |
@@ -122,7 +122,7 @@
 | N07 | 服务提供方配对页屏幕常亮 | 不实现 | 排除；属于 N06 主机侧流程 | E01 |
 | N08 | 文件保存/分享/选择、剪贴板和外部打开 | 已有代码及局部运行证据 | 适配；FilesBridge/SAF/分享已有；#76 openExternal 原生 http/https 外跳有模拟器验证；mailto 拒绝、原始锚链接及真实 OAuth 回流仍有边界，完整文件交互待验 | E06/E33/E34，G27；不搬 Windows 本地路径/Explorer 语义 |
 | N09 | Windows 安装更新及 beta notes | 不实现（APK 等价流程暂缓） | 与 S40 同一决定；远程服务升级是另一能力，不代表 APK 更新完成 | E24；ADR 0005 |
-| N10 | 平台快捷键与窗口控制 | 部分实现 | 适配；单窗口 Android/返回逻辑已有（#145 返回桥实现事实见 interaction.md），不复制 Windows 窗口控件；#145 QA：返回键核心链真机分层验证（根=结束默认/设置/对话框/键盘/抽屉/面板各层可见结果，FAIL 候选两处在案），触摸核心动作部分采样（会话/tab/菜单/设置触屏可达）；外接键盘仍待验 | E11/E32，G34；#145 QA（build-and-verify.md #145 段） |
+| N10 | 平台快捷键与窗口控制 | 部分实现 | 适配；单窗口 Android/返回逻辑已有（#145 返回桥实现事实见 interaction.md），不复制 Windows 窗口控件；#145 QA 两轮：返回键核心链真机分层验证全 PASS（根=结束默认/设置/对话框/键盘/抽屉/面板 dock/popover 各层可见结果；首轮 FAIL 候选两处已随 `37ebda2` 修复复测 PASS），触摸核心动作部分采样（会话/tab/菜单/设置/外链触屏可达）；外接键盘仍待验 | E11/E32，G34；#145 QA 复测（build-and-verify.md #145 段） |
 | N11 | GUI 宿主、注册与 OS 过滤 | 已有代码及局部运行证据 | 对齐/适配；#109 设备轮新增：15 行呈现 DOM 复验（14 宿主定义 + 1 静态排除）、三集映射与 VGP 组 7 锁定集合逐 id 一致、#96 开关持久化双向复验；会话面板/生命周期全链未验 | E23/E34；web 10、desktop-host 4、WSL 排除行 1；issue #109 |
 | N12 | Android WSL 入口可见但禁用 | 已有代码及局部呈现证据 | 适配；#109 设备轮零操作专项实测：wsl 行零控件（零 button/switch/alert/可聚焦元素）、id dir=ltr、决策 0001 原因文案在视口内；完整读屏走查仍登记（TalkBack 未走查，行语义 DOM 级已核） | E09/E23/E34，G35⑦；issue #109 |
 
@@ -142,7 +142,7 @@
 | --- | --- | --- | --- | --- |
 | M01 | APK 安装与启动 | 已有代码及历史运行证据 | 新增；APK 打包/安装、inline SSH 与 worker 更新修复已有；不同构建证据分别记录，不推定全部设备适用 | E11–E13/E17；当前轮未构建 |
 | M02 | 安全凭据存储 | 已有代码 | 适配；AndroidX origin/main-frame listener、代际/队列限制及 Keystore/OPMV1 已有；C1–C6 设备失败/升级门禁未全部通过 | E15；不将 SSH 能读取一个密钥视为保险库全验收 |
-| M03 | 返回、安全区与软键盘 | 部分实现（#145 返回桥落地） | 适配；**in-app 分层返回已实现并真机采证**（链序 IME→对话框→面板抽屉→goBack→根默认结束；SPA 导航后对话框优先于路由回退 PASS；popover/面板层 FAIL 候选在案，见 interaction.md 实现事实段）；hwschromium 会话面返回链 PASS；根层结束 Activity 默认保持；原生窗口 resize/输入避让局部已验（键盘收起草稿保持），Android 15+ 与 predictive back 边界仍待验 | E32，G31②③⑦；#145 QA（build-and-verify.md #145 段） |
+| M03 | 返回、安全区与软键盘 | 部分实现（#145 返回桥落地+复测） | 适配；**in-app 分层返回已实现并两轮真机采证**（canonical 链序 IME→对话框 10→popover 15→panelDrawer 20→dockPanel 30→titlebarMore 40→goBack 90→根默认结束；SPA 导航后对话框/popover 优先于路由回退 PASS；首轮 popover/面板层 FAIL 已随 `37ebda2` 修复、三族哨兵复测全 PASS；M3 交接窗口事实在案=过快返回根层退出，判定交实施/评审；B1 非 SPA 整页导航 goBack 兜底采样 PASS，见 interaction.md 实现事实段）；hwschromium 会话面返回链 PASS；根层结束 Activity 默认保持；原生窗口 resize/输入避让局部已验（键盘收起草稿保持），Android 15+ 与 predictive back 边界仍待验 | E32，G31②③⑦；#145 QA 复测（build-and-verify.md #145 段） |
 | M04 | 网络变化与前台恢复 | 已有代码及局部运行证据 | 适配；代际/取消保护、重新 health 后发布 endpoint 已有；同进程重连及杀进程后重新认证有历史记录，真实切网/任务补齐未验 | E14/E18，G30 |
 | M05 | 通知渠道与系统权限 | 已有代码 | 适配；NotificationsBridge 与授权入口已有，真实后台到达/点击/权限矩阵未验全 | E08，G33 |
 
