@@ -3213,3 +3213,47 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - 本轮交付声称范围：**vendored copy 逐字性（六文件 diff 复核）+ typecheck 总数对账（419→417）+ 补丁链 66 全重放字节一致 + 单测/探针/构建门禁**——运行期行为零声称；G22/G28/G29 真机面全部 BLOCKED（设备不可达），不因「工程侧全绿」宣称任何运行通过。
 - 服务侧核对仅到「路由存在 + 版本 2.2.1」层；watch 事件真实推送、`filesystem.changed` 消费链与流式 HEAD 的真实服务行为未经端到端验证（需无密码实例+设备）。
 - 预存基线失败（非本轮引入，stash 对照实测）：verify-files 组 2 destination.ts anchors（M-012 被 session-workbench-upstream 迁移移除，探针未随修）；verify-artifacts.ts、verify-browser.ts 各 1 锚；mobile-hosts 428/10（计划所引 434/0 为旧基线）。三项均已在本段与 files.md 注记，**修复归属各自域（附件上传/工件/浏览器/移动宿主），不属 #143 范围**。
+
+## issue #144 段（S01–S43+N12：Settings 整体对照——M-035 契约-树偏差恢复 + settings 域探针刷新）——2026-11-06 实测记录
+
+**分支与基线**：worktree `feat--221-settings-acceptance`，分支 `feat/221-settings-acceptance`，base/开工 HEAD `c6a31fd1489b901c22b8cf4523ad1e74c89c0802`（实测核对，工作区干净）；上游目标 `3ebcf9a32c7b28f658cfee80775448929361727a`；补丁链 **69 active**。**唯一推进记录 = [settings-acceptance.md](alignment/windows-desktop/v2.2.1/settings-acceptance.md)**（执行卡/参考条件/逐页状态表 S01–S43+N12/普查结论/F1-F2/真机窗口）——本段只记工程门禁实跑与设备窗口，不重复其内容。
+
+### F1（M-035 恢复，唯一契约-树偏差）
+
+- **事实链**：#65 裁定 A2 的登记偏离（搜索目录 zoom 行去 `available:"desktop"` + `mobile(M-035)` 注释、测试 font 3→4 与 zoom toContain）被 #140 时代 `session-workbench-upstream.patch`（mobilePatches 0-based 54）与 `session-client-compatibility.patch`（0-based 55）静默退役——开工普查实测 `search-catalog.ts`/`search-results.test.ts` 与目标 **cmp 逐字节相同**（树正确、契约丢失）。
+- **修复**：两文件恢复「目标形 + 在册 M-035 偏离」（与 403eefb 时代逐字同形）；补丁治理按 README 程序——session-client-compatibility **仅修剪** search-catalog.ts 文件段（targets 同步移除该文件，其余 hunk 含 desktop-menu/select-dialog 接线零触碰）；session-workbench-upstream 的 search-results.test.ts 段**仅修剪 hunk 1**（M-035 翻回，原 `@@ -45,16`）、**保留 hunk 2**（改号 `@@ -82,10 +82,6`：timeline-width/sounds-interface 两条 #103/#107 时代第一方断言收敛目标形删除）；两 manifest `rebase` 补 #144 归因与修剪理由；`bun run patches:refresh` 重算 sha256（session-workbench-upstream `e532b2c8…`、session-client-compatibility `8ae7f5a9…`）并幂等复跑 `updated: none`。**不新增补丁、不改 mobilePatches 顺序。**
+- **普查结论（MAJOR-1 两陈述）**：①74 个共享 settings 文件中 **14 个文件级 delta 全部归因**在册补丁/登记偏离（逐文件清单见 settings-acceptance.md §三）；②F1 为**唯一契约-树偏差**，修复后两文件重新成为差异文件（全域 14→16），目录级「唯一偏离 = appearance-motion-zoom zoom 行」表述恢复成立。
+
+### F2（探针刷新，第一方脚本，vendored 源码零改动）
+
+基线（c6a31fd 同法同态）8 探针 6 rc=1 / 2 rc=0；刷新后 **6 rc=0 + 2 rc=1（R2 在册）**：verify-experimental-settings（组 3/4 退役块形 + 组 5/6/7/9 目标毕业形锚）、verify-notifications（组 2 permissions 引用集收窄 notifications.tsx 单文件——notification.tsx 目标形；组 3/7 同步；组 8 dist 常量）、verify-about-version（组 5 btw/goal 目标形重锚）、verify-settings-framework（组 7 测试面钉随保留 hunk 2 退役；组 5 随 F1 自然转绿）、verify-interface-mode / verify-projects-sessions 基线 rc=0 维持未触；**R2 保持 rc=1 并登记归属**：verify-appearance-settings 组 4 / verify-pinch-shell-settings 组 1（desktop-menu 由补丁 54 翻入 .ts、补丁 55 带入 `nextDesktopZoomLevel`，违反 #74/S12 负锁）——不修复、不重剪 overlay，探针头注 + settings-acceptance.md §六登记归属（#145/N10）与解除条件。**M-023 投递面退役缺口（新登记）**：notification.tsx 目标形后 `activeNotificationsPort().notify` 在 vendored 树零消费者（现仅 settings 页 requestPermission 一处 seam 消费），系统投递退经 web `platform.notify`（在册结构死点）——归 #148/G33，verify-notifications 负锚钉定。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V-patches | `bun run verify:patches` | PASS（69 registered；refresh 幂等复跑 `updated: none`） |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（69 补丁字节级重放，DANGLING=0；两修剪补丁重放后与工作树逐字节一致；基线 c6a31fd 同 PASS） |
+| settings 域探针 | 8 个 | **6 rc=0 + 2 rc=1（R2 在册）**；其余探针预存 rc=1 对 base stash 复测**同败同文**：verify-commands-menus 组 1（desktop-menu R2 同域）、verify-gui-plugins 组 2（btw 预存）、verify-pairing 组 5、verify-interaction-quality 组 3——#141 轮已登记的 main 预存漂移型，本轮零新增（rc=0 集合 ⊇ 基线 rc=0 集合） |
+| dist 检索（F1 面） | chunk 实索 | `settings.appearance.row.zoom.title` 命中且**无 available 字段**；`available:`desktop`` 全 chunk 恰 1 次（pinch 行）+ `available:`mobile`` 1 次（titlebar 行）；`opencode-ui-zoom-level`/`settings-pinch-zoom` 命中在册 |
+| dist 常量 | verify-notifications 组 8 | **5616 files / 149,754,033 bytes**（#144 实测；prior 5616/149,831,838 = #140/#143 时代 committed manifest；prior 5617/149,595,730 = #141）；verify-commands-menus / verify-gui-plugins 组 8 同步回填 5616/149754033（probe 各自 rc 受组 1/组 2 预存失败先行拦截，常量断言位已就位） |
+| settings 单测 | `bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/settings/`（app 包内） | **86 pass / 1 fail / 252 expect()（87 tests/16 files）**——唯一 fail = `settings search plugin catalog > mounts the search over the real surface plugin handle…`（#105/#107/#108 在册 seam 口径预存项同名同位）；F1 断言面（font→4、zoom toContain）全过 |
+| typecheck | `cd vendor/upstream/packages/app && bun run typecheck:tsc`（清 tsbuildinfo 纯净口径） | **415 errors / 50 文件**；base c6a31fd stash 双跑**逐文件分布全等**（uniq 计数 diff 为空）——零新增 |
+| 构建 | `bun install --linker=hoisted`（worktree 环境重建，见环境注记）+ `bun run build:web` + `bash scripts/copy-web-dist.sh` | build rc=0（5156 modules）；dist **5616/149,754,033**（web-dist/manifest.json 刷新提交）；Android assets staged（`assets/web/_assets` 5592 项；旧树 retained `.web-stage-*`） |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | PASS rc=0（A–G 七段，dist 标记命中） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰 5 条预存** host-credential.test.ts synthetic fixture 高置信行（:22/:44/:51/:59/:78）+ 7 条文档化 example 过滤——与在册基线同文同数，零新增 |
+| Android | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL（42 tasks）**；单测 **31 tests / 0 failures（8 文件 XML 汇总）**；APK SHA-256 = **`9ed89389d06900d3dd7752fb0f2c617470be908fe8df42846fec3f05c4910757`**（64,362,631 bytes） |
+
+**环境注记（如实）**：全新 worktree 无 node_modules，`bun install` 默认 isolated 布局下 ui 包对 `@opencode/util/abort`（wildcard export）不可解析 → 首次 `build:web` 失败；`bun install --linker=hoisted` 重建解决（机器本地，不入 git）；测试期 seam 软链 `vendor/upstream/packages/app/node_modules/@opencode-mobile/mobile-hosts` → 仓库 packages/mobile-hosts 按在册口径重建；packages/mobile-hosts/node_modules 内 isolated 相对链接随 hoisted 重装失效，手工改指根 node_modules（不入 git）。
+
+### 设备 QA（**交互面 BLOCKED：物理 Smart Cover 合盖**；窗口 2026-11-06 08:10–08:40）
+
+- 已完成（零 uninstall/零 pm clear/零数据清除/零远端触碰）：`adb devices` 确认 .145 在场（DBY2-AL00）；`adb install -r` **Success**（数据保留升级，lastUpdateTime 2026-11-06 08:23:20；装机 md5 `f1802f66…` 与本地构建 APK md5 逐字一致——构建身份链闭合）；冷启动 `ResumedActivity=ai.opencode.mobile/.MainActivity` 零崩溃；设备态复原（cover_enabled 复原 1、adb forwards 全部移除）。
+- **BLOCKED 判定**：Hall 传感器最后事件 **1.00（wall 01:22:10，合盖态持续）** → 系统 `ShowTpMsgActivity` 全屏覆盖阻断触控（mFocusedWindow 恒为该 sysui 窗口）且 WebView `visible:false` 保持 paused（CDP /json 无响应）。已尝试：WAKEUP/KEYCODE 82/swipe、`cover_enabled` 0/1 双向切换、force-stop systemui、localabstract forward 重绑、应用重启——均无效（#110 的设置解除路径在物理合盖下不复现；物理磁吸优先）。
+- **未验收（逐条 BLOCKED，不写通过）**：九页逐页走查 + 单/多服务器两布局；F1 后 `zoom`/`font` 搜索复测（源码/单测/dist 三层已证命中形恢复，设备面待开盖）；issue 清单运行面（浅深对照/键盘遮挡/末行可达/切换保页/偏好即时消费/快捷键外接键盘链等——映射表见 settings-acceptance.md §四）；**QA 前后 localStorage 全量 dump 18/18 逐键红线**——本轮零交互，文件级证据 = `app_hws_webview/Default/Local Storage` mtime 保持 2026-11-02（数据保留）+ 键族抽验（settings.v3/hosts.probe/tabs 等 ASCII 键在册），红线语义未被行使，如实登记 BLOCKED。
+- **解除条件**：物理开盖/移除 Smart Cover 后，以同 APK（SHA-256 `9ed89389…`）重开 QA 窗口，按 settings-acceptance.md §四映射表逐页执行并完成 18/18 红线比对。
+- **历史证据适用性**：#101–#110 各页设备记录描述其当轮 APK 与树态；本轮树在其后有 F1 与 #140 系迁移，矩阵各行「已实现（未验证/局部验证）」口径维持，未复验前不外推。
+
+### 文档同步
+
+`docs/alignment/windows-desktop/v2.2.1/settings-acceptance.md`（新增，#144 唯一推进记录）；`matrix.md`（S02/S42 M-035 退役-恢复 + S12 R2 登记 + #144 工作计划行状态）；`docs/design/units/settings.md`（移动面挂载 M-035 登记 + 偏好页保留偏离两行退役块形更新 + 搜索目录段 #144 注）；`docs/design/architecture.md`（settings-framework-mobile 行 #144 注）；`implementation.md`（裁定 A2 注记 #144 履行登记）；补丁 manifest 两条目 `rebase` 字段即修剪归因登记。
