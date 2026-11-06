@@ -278,6 +278,8 @@ import type {
   WebsearchProvidersOutput,
   WebsearchQueryInput,
   WebsearchQueryOutput,
+  ExperimentalUsageLimitsInput,
+  ExperimentalUsageLimitsOutput,
   ConfigGetInput,
   ConfigGetOutput,
   ConfigShellsOutput,
@@ -2035,6 +2037,20 @@ export function make(options: ClientOptions) {
             },
             requestOptions,
           ).then((value) => value.data),
+      },
+      usage: {
+        limits: (input?: ExperimentalUsageLimitsInput, requestOptions?: RequestOptions) =>
+          request<ExperimentalUsageLimitsOutput>(
+            {
+              method: "GET",
+              path: `/api/experimental/usage/limits`,
+              query: { location: input?.["location"] },
+              successStatus: 200,
+              declaredStatuses: [400, 401, 404, 503],
+              empty: false,
+            },
+            requestOptions,
+          ),
       },
     },
     shell: {

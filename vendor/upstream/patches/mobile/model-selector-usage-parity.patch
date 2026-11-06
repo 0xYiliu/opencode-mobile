@@ -1,0 +1,3459 @@
+diff --git a/packages/app/src/providers/models/details.tsx b/packages/app/src/providers/models/details.tsx
+new file mode 100644
+index 0000000..bb84cf6
+--- /dev/null
++++ b/packages/app/src/providers/models/details.tsx
+@@ -0,0 +1,175 @@
++import { For, Show } from "solid-js"
++import { Icon } from "@opencode/ui/icon"
++import type { IconName } from "@opencode/ui/icons/catalog"
++import { useLanguage } from "@/runtime/i18n/language"
++import type { ModelUsageLabel } from "@/usage/model"
++import type { ModelSelection } from "./selection"
++import { ProviderModelIcon } from "./provider-group"
++
++type ModelInfo = NonNullable<ReturnType<ModelSelection["current"]>>
++
++type Input = keyof ModelInfo["capabilities"]["input"]
++
++const inputs: Input[] = ["text", "image", "pdf", "audio", "video"]
++
++const inputIcons: Record<Input, IconName> = {
++  text: "outline-text",
++  image: "outline-photo",
++  pdf: "file-document",
++  audio: "outline-audio",
++  video: "outline-video",
++}
++
++export function ModelDetails(props: {
++  model: ModelInfo
++  provider: string
++  compact?: boolean
++  standalone?: boolean
++  /** What the member's Console budgets leave for the model. */
++  usage?: ModelUsageLabel
++}) {
++  const language = useLanguage()
++  const input = () => inputs.filter((type) => props.model.capabilities.input[type])
++
++  const modalities = () =>
++    inputs.filter((type) => props.model.capabilities.input[type] || props.model.capabilities.output[type])
++
++  const label = (type: Input) => language.t(`model.details.input.${type}`)
++
++  const summary = () =>
++    new Intl.ListFormat(language.intl(), { style: "short", type: "unit" }).format([
++      ...input().map(label),
++      ...(props.model.capabilities.toolcall ? [language.t("model.details.tools")] : []),
++    ])
++
++  return (
++    <Show
++      when={props.compact}
++      fallback={
++        <div class="w-[188px] max-w-[calc(100vw-24px)] font-[440] text-v2-text-text-muted">
++          <div class="border-b-[0.5px] border-v2-border-border-base py-0.5">
++            <div class="flex h-6 min-w-0 items-center gap-1.5 px-2">
++              <ProviderModelIcon provider={props.model.provider} class="!size-3.5 shrink-0" />
++              <bdi class="min-w-0 truncate font-[530]">{props.model.name}</bdi>
++            </div>
++          </div>
++          <div class="flex flex-col gap-1.5 py-1">
++            <dl>
++              <div class="flex h-6 min-w-0 items-center gap-2 px-2">
++                <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                  {language.t("model.tooltip.provider")}
++                </dt>
++                <dd class="min-w-0 truncate text-end">
++                  <bdi>{props.provider}</bdi>
++                </dd>
++              </div>
++              <div class="flex h-6 min-w-0 items-center gap-2 px-2">
++                <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                  {language.t("model.tooltip.context.label")}
++                </dt>
++                <dd class="shrink-0">{props.model.limit.context.toLocaleString(language.intl())}</dd>
++              </div>
++            </dl>
++            <Show when={props.usage}>
++              {(usage) => (
++                <>
++                  <div class="mx-2 border-t-[0.5px] border-v2-border-border-base" />
++                  <dl>
++                    <div class="flex h-6 min-w-0 items-center gap-2 px-2">
++                      <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                        {language.t("model.details.left")}
++                      </dt>
++                      <dd class="shrink-0 tabular-nums" classList={{ "text-v2-state-fg-danger": usage().reached }}>
++                        {usage().reached ? usage().label : usage().left}
++                      </dd>
++                    </div>
++                    <div class="flex h-6 min-w-0 items-center gap-2 px-2">
++                      <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                        {language.t("model.details.resets")}
++                      </dt>
++                      <dd class="min-w-0 truncate text-end">{usage().resets}</dd>
++                    </div>
++                  </dl>
++                </>
++              )}
++            </Show>
++            <div class="mx-2 border-t-[0.5px] border-v2-border-border-base" />
++            <dl>
++              <For each={modalities()}>
++                {(type) => (
++                  <div class="flex h-6 min-w-0 items-center gap-1.5 px-2">
++                    <Icon name={inputIcons[type]} size="small" class="shrink-0 text-v2-icon-icon-muted" />
++                    <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">{label(type)}</dt>
++                    <dd class="shrink-0">
++                      {props.model.capabilities.input[type] && props.model.capabilities.output[type]
++                        ? language.t("model.details.inputOutput")
++                        : props.model.capabilities.input[type]
++                          ? language.t("model.details.input")
++                          : language.t("model.details.output")}
++                    </dd>
++                  </div>
++                )}
++              </For>
++              <Show when={props.model.capabilities.reasoning}>
++                <div class="flex h-6 min-w-0 items-center gap-1.5 px-2">
++                  <Icon name="outline-brain" size="small" class="shrink-0 text-v2-icon-icon-muted" />
++                  <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                    {language.t("model.tooltip.reasoning")}
++                  </dt>
++                  <dd class="flex shrink-0">
++                    <Icon
++                      name="check"
++                      class="text-v2-icon-icon-muted"
++                      aria-label={language.t("model.details.supported")}
++                      aria-hidden={false}
++                    />
++                  </dd>
++                </div>
++              </Show>
++              <Show when={props.model.capabilities.toolcall}>
++                <div class="flex h-6 min-w-0 items-center gap-1.5 px-2">
++                  <Icon name="outline-console" size="small" class="shrink-0 text-v2-icon-icon-muted" />
++                  <dt class="min-w-0 flex-1 truncate font-[530] text-v2-text-text-faint">
++                    {language.t("model.details.tools")}
++                  </dt>
++                  <dd class="flex shrink-0">
++                    <Icon
++                      name="check"
++                      class="text-v2-icon-icon-muted"
++                      aria-label={language.t("model.details.supported")}
++                      aria-hidden={false}
++                    />
++                  </dd>
++                </div>
++              </Show>
++            </dl>
++          </div>
++        </div>
++      }
++    >
++      <div
++        class="px-3 py-2 text-[12px] font-[440] leading-5 text-v2-text-text-muted"
++        classList={{ "border-t border-v2-border-border-muted": !props.standalone }}
++      >
++        <bdi class="block">
++          {language.t("model.details.summary", {
++            provider: props.provider,
++            context: new Intl.NumberFormat(language.intl(), {
++              notation: "compact",
++              maximumFractionDigits: 0,
++              roundingMode: "trunc",
++            }).format(props.model.limit.context),
++          })}
++        </bdi>
++        <Show when={summary()}>{(value) => <div>{value()}</div>}</Show>
++        <Show when={props.usage}>
++          {(usage) => (
++            <div classList={{ "text-v2-state-fg-danger": usage().reached }}>
++              {language.t("model.details.usage", { label: usage().label, time: usage().resets })}
++            </div>
++          )}
++        </Show>
++      </div>
++    </Show>
++  )
++}
+diff --git a/packages/app/src/providers/models/manage.css b/packages/app/src/providers/models/manage.css
+new file mode 100644
+index 0000000..3e2f97e
+--- /dev/null
++++ b/packages/app/src/providers/models/manage.css
+@@ -0,0 +1,108 @@
++.manage-models-search {
++  flex-shrink: 0;
++  padding: 0 6px 8px;
++}
++
++.settings-manage-models-dialog .settings-panel.settings-models {
++  height: 100%;
++  gap: 0;
++  padding: 0 8px 8px;
++}
++
++.settings-manage-models-dialog .settings-models .settings-section {
++  gap: 4px;
++  padding-block: 8px;
++}
++
++.settings-manage-models-dialog .settings-models .settings-section[data-expanded] {
++  padding-bottom: 8px;
++}
++
++.settings-manage-models-dialog .settings-models .settings-section + .settings-section {
++  border-top: 0.5px solid var(--v2-border-border-base);
++}
++
++.settings-manage-models-dialog .provider-model-groups {
++  gap: 8px;
++}
++
++.settings-manage-models-dialog .provider-model-group-header {
++  padding: 4px;
++  border-radius: 0;
++}
++
++.settings-manage-models-dialog .provider-model-group-header:has(:focus-visible) {
++  background: transparent;
++}
++
++.settings-manage-models-dialog .provider-model-group-trigger {
++  min-height: 36px;
++  padding-block: 0;
++  padding-inline: 12px 40px;
++  border-radius: 6px;
++}
++
++.settings-manage-models-dialog .provider-model-group-header:has(:focus-visible) .provider-model-group-trigger {
++  background: var(--v2-overlay-simple-overlay-hover);
++}
++
++.settings-manage-models-dialog .provider-model-group-actions {
++  position: absolute;
++  top: 50%;
++  inset-inline-end: 16px;
++  padding: 0;
++  transform: translateY(-50%);
++}
++
++@media (hover: hover) {
++  .settings-manage-models-dialog .provider-model-group-header:hover {
++    background: transparent;
++  }
++
++  .settings-manage-models-dialog .provider-model-group-header:hover .provider-model-group-trigger:not(:disabled) {
++    background: var(--v2-overlay-simple-overlay-hover);
++  }
++}
++
++.settings-manage-models-dialog .provider-model-group-models {
++  padding: 0 8px 8px;
++}
++
++.settings-manage-models-dialog .provider-model-group-models > .manage-models-rows {
++  padding-top: 4px;
++  border-top: 0.5px solid var(--v2-border-border-base);
++}
++
++.manage-models-rows {
++  display: flex;
++  flex-direction: column;
++  gap: 1px;
++}
++
++.manage-models-rows .search-list-row {
++  position: relative;
++  height: 36px;
++  padding-inline: 8px;
++  border-radius: 6px;
++}
++
++.manage-models-rows .search-list-row:not(:last-child)::after {
++  content: "";
++  position: absolute;
++  inset-inline: 8px;
++  bottom: -0.75px;
++  height: 0.5px;
++  background: var(--v2-border-border-base);
++  pointer-events: none;
++}
++
++@media (hover: hover) {
++  .manage-models-rows .search-list-row:hover {
++    background: var(--v2-overlay-simple-overlay-hover);
++  }
++
++  .manage-models-rows .search-list-row:hover::after,
++  .manage-models-rows .search-list-row:has(+ .search-list-row:hover)::after {
++    opacity: 0;
++  }
++}
+diff --git a/packages/app/src/providers/models/manage.tsx b/packages/app/src/providers/models/manage.tsx
+index 74cf546..90d3c48 100644
+--- a/packages/app/src/providers/models/manage.tsx
++++ b/packages/app/src/providers/models/manage.tsx
+@@ -1,5 +1,6 @@
+ import { Button } from "@opencode/ui/button"
+ import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
++import { Icon } from "@opencode/ui/icon"
+ import { Switch } from "@opencode/ui/switch"
+ import { TextInput } from "@opencode/ui/text-input"
+ import { useFilteredList } from "@opencode/ui/hooks"
+@@ -11,10 +12,10 @@ import { useLanguage } from "@/runtime/i18n/language"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { DialogConnectProvider } from "@/providers/connect/dialog"
+ import { decode64 } from "@/runtime/persistence/base64"
+-import { SettingsList } from "@/settings/list"
+-import { SettingsRow } from "@/settings/row"
+ import { consoleModelGroup, ProviderModelSections } from "@/providers/models/provider-group"
+ import "@/settings/settings.css"
++import "@/shell/search-list.css"
++import "./manage.css"
+ 
+ type ModelItem = ReturnType<ReturnType<typeof useLocal>["model"]["list"]>[number]
+ 
+@@ -71,47 +72,53 @@ export const DialogManageModels: Component = () => {
+   const expanded = (key: string) => searching() || !store.collapsed[key]
+ 
+   function ModelRows(props: { items: ModelItem[] }) {
++    const visible = (item: ModelItem) => local.model.visible({ modelID: item.id, providerID: item.provider.id })
++
+     return (
+-      <SettingsList variant="catalog">
++      <div class="manage-models-rows">
+         <For each={props.items}>
+           {(item) => (
+-            <SettingsRow title={item.name} description="">
+-              <div>
+-                <Switch
+-                  checked={local.model.visible({ modelID: item.id, providerID: item.provider.id })}
+-                  onChange={(checked) => setModelVisibility(item, checked)}
+-                  hideLabel
+-                >
++            <div
++              class="search-list-row"
++              onMouseDown={(event) => event.preventDefault()}
++              onClick={() => setModelVisibility(item, !visible(item))}
++            >
++              <div class="search-list-row-text">
++                <span class="search-list-title">{item.name}</span>
++              </div>
++              <div class="search-list-trailing" onClick={(event) => event.stopPropagation()}>
++                <Switch checked={visible(item)} onChange={(checked) => setModelVisibility(item, checked)} hideLabel>
+                   {item.name}
+                 </Switch>
+               </div>
+-            </SettingsRow>
++            </div>
+           )}
+         </For>
+-      </SettingsList>
++      </div>
+     )
+   }
+ 
+   return (
+-    <Dialog size="large" variant="settings" class="settings-manage-models-dialog">
++    <Dialog size="large" variant="settings" class="settings-manage-models-dialog search-dialog">
+       <DialogHeader hideClose={true} closeLabel={language.t("common.close")}>
+         <DialogTitleGroup
+           title={language.t("dialog.model.manage")}
+           description={language.t("dialog.model.manage.description")}
+         />
+-        <Button variant="neutral" icon="plus" onClick={handleConnectProvider}>
++        <Button variant="neutral" size="small" icon="plus" onClick={handleConnectProvider}>
+           {language.t("command.provider.connect")}
+         </Button>
+       </DialogHeader>
+       <DialogBody class="flex min-h-0 flex-1 flex-col">
+-        <div class="px-4 pt-px pb-3">
++        <div class="manage-models-search search-dialog-search">
+           <TextInput
+             type="search"
+             appearance="base"
+             class="!w-full self-stretch"
++            leadingIcon={<Icon name="magnifying-glass" />}
+             value={list.filter()}
+             onInput={(event) => list.onInput(event.currentTarget.value)}
+-            placeholder={language.t("dialog.model.search.placeholder")}
++            placeholder={language.t("common.search.placeholder")}
+             spellcheck={false}
+             autocorrect="off"
+             autocomplete="off"
+@@ -125,7 +132,7 @@ export const DialogManageModels: Component = () => {
+           />
+         </div>
+         <div data-slot="manage-models-scroll" class="relative min-h-0 flex-1">
+-          <div class="settings-panel settings-models h-full px-4 pt-1 pb-4">
++          <div class="settings-panel settings-models">
+             <Show
+               when={!list.grouped.loading}
+               fallback={
+diff --git a/packages/app/src/providers/models/provider-group.tsx b/packages/app/src/providers/models/provider-group.tsx
+index e90c37e..3429e0b 100644
+--- a/packages/app/src/providers/models/provider-group.tsx
++++ b/packages/app/src/providers/models/provider-group.tsx
+@@ -20,7 +20,7 @@ type ModelGroup<T> = { category: string; items: T[] }
+ 
+ export const CONSOLE_GROUP_KEY = "console:opencode"
+ 
+-export function CustomManagedProviderIcon(props: { class?: string }) {
++function CustomManagedProviderIcon(props: { class?: string }) {
+   return <img data-component="custom-managed-provider-icon" src={customManagedProvider} alt="" class={props.class} />
+ }
+ 
+@@ -239,7 +239,9 @@ export function ProviderModelGroup(props: {
+                 />
+                 <Menu.Portal>
+                   <Menu.Content>
+-                    <Menu.Item onSelect={() => setVisibility(true)}>{language.t("settings.models.enableAll")}</Menu.Item>
++                    <Menu.Item onSelect={() => setVisibility(true)}>
++                      {language.t("settings.models.enableAll")}
++                    </Menu.Item>
+                     <Menu.Item onSelect={() => setVisibility(false)}>
+                       {language.t("settings.models.disableAll")}
+                     </Menu.Item>
+diff --git a/packages/app/src/providers/models/search.ts b/packages/app/src/providers/models/search.ts
+index 40d0ae1..a3f37c1 100644
+--- a/packages/app/src/providers/models/search.ts
++++ b/packages/app/src/providers/models/search.ts
+@@ -1,11 +1,11 @@
+-export const normalizeModelSearch = (value: string) =>
++const normalizeModelSearch = (value: string) =>
+   value
+     .toLowerCase()
+     .replace(/[^\p{Letter}\p{Number}]+/gu, " ")
+     .trim()
+     .replace(/\s+/g, " ")
+ 
+-export const compactModelSearch = (value: string) => normalizeModelSearch(value).replaceAll(" ", "")
++const compactModelSearch = (value: string) => normalizeModelSearch(value).replaceAll(" ", "")
+ 
+ export const matchesModelSearch = (query: string, values: string[]) => {
+   const search = normalizeModelSearch(query)
+diff --git a/packages/app/src/providers/models/select-dialog.css b/packages/app/src/providers/models/select-dialog.css
+index bfd9e84..b0d7a4d 100644
+--- a/packages/app/src/providers/models/select-dialog.css
++++ b/packages/app/src/providers/models/select-dialog.css
+@@ -36,3 +36,206 @@
+     padding-inline: 0;
+   }
+ }
++
++[data-component="dialog-v2"]:has(.model-dialog) [data-slot="dialog-container"] {
++  width: min(calc(100vw - 24px), 480px);
++  min-height: 0;
++  border-radius: 10px;
++  background: var(--v2-background-bg-base);
++}
++
++.model-dialog {
++  /* The inset lives on the field and the rows, so the scroll area and its scrollbar reach the dialog's edges. */
++  [data-component="search-list"] {
++    padding-top: 6px;
++  }
++
++  [data-component="search-list"] [data-slot="search-list-search"] {
++    display: flex;
++    flex-direction: column;
++    gap: 6px;
++    padding: 0 6px;
++
++    /* Full width across the list's padding, and a hairline on any display. */
++    &::after {
++      height: 1px;
++      margin-inline: -6px;
++      background: var(--v2-border-border-muted);
++      content: "";
++      transform: scaleY(0.5);
++    }
++  }
++
++  [data-component="search-list"] [data-slot="search-list-search"] [data-component="text-input-v2"],
++  [data-component="search-list"]
++    [data-slot="search-list-search"]
++    [data-component="text-input-v2"]:where(:hover, :focus-within):not([data-disabled], [data-invalid]) {
++    height: 28px;
++    padding-inline-end: 2px;
++    border-radius: 0;
++    background: transparent;
++  }
++
++  /* The 24px buttons sit 2px from every edge of the 28px row. */
++  [data-component="search-list"] [data-slot="text-input-v2-trailing"] {
++    margin-inline-end: 0;
++
++    [data-component="icon-button-v2"] [data-slot="icon-svg"] {
++      color: var(--v2-icon-icon-muted);
++    }
++  }
++
++  /* Like a model row: 6px inset, a 16px icon slot and a 6px gap, so the query starts where the model names do. */
++  [data-component="search-list"] [data-slot="search-list-search"] [data-slot="text-input-v2-value"] {
++    gap: 6px;
++  }
++
++  [data-component="search-list"] [data-slot="search-list-search"] [data-slot="text-input-v2-leading-icon"] {
++    width: 22px;
++    padding-inline-start: 6px;
++  }
++
++  /* The stuck header's gradient replaces it; the list measures sections for it, and here they have no box. */
++  [data-component="search-list"] [data-slot="search-list-fade"] {
++    display: none;
++  }
++
++  /* Arrow keys keep the active row clear of the stuck header. */
++  [data-component="search-list"] [data-slot="search-list-scroll"] {
++    scroll-padding-top: 36px;
++  }
++
++  [data-component="search-list"] [data-slot="search-list-results"] {
++    gap: 4px;
++    padding: 0 6px 6px;
++  }
++
++  /*
++   * Without a box, a section no longer bounds its header, so every header sticks for the whole list and the next one
++   * slides over it, as on the home page, instead of pushing it away.
++   */
++  [data-component="search-list"] [data-slot="search-list-section"] {
++    display: contents;
++  }
++
++  /*
++   * The header bleeds across the list's 6px inset so rows scroll under an opaque band; its text lines up with the
++   * model names. It starts right under the divider, so it rests where it sticks.
++   */
++  [data-component="search-list"] [data-slot="search-list-header"] {
++    height: auto;
++    padding-block: 16px 2px;
++    padding-inline: 34px 6px;
++    background: var(--v2-background-bg-base);
++    color: var(--v2-text-text-faint);
++    font-size: 12px;
++    line-height: 18px;
++
++    /* The home page's sticky header fade, faded in by how far rows have scrolled beneath the stuck header. */
++    &::after {
++      position: absolute;
++      top: 100%;
++      inset-inline: 0;
++      height: 16px;
++      background: linear-gradient(
++        180deg,
++        var(--v2-background-bg-base) 0%,
++        color-mix(in srgb, var(--v2-background-bg-base) 92.0456%, transparent) 7.93%,
++        color-mix(in srgb, var(--v2-background-bg-base) 84.9947%, transparent) 14.14%,
++        color-mix(in srgb, var(--v2-background-bg-base) 78.6813%, transparent) 19%,
++        color-mix(in srgb, var(--v2-background-bg-base) 72.9394%, transparent) 22.85%,
++        color-mix(in srgb, var(--v2-background-bg-base) 67.6028%, transparent) 26.05%,
++        color-mix(in srgb, var(--v2-background-bg-base) 62.5055%, transparent) 28.95%,
++        color-mix(in srgb, var(--v2-background-bg-base) 57.4815%, transparent) 31.91%,
++        color-mix(in srgb, var(--v2-background-bg-base) 52.3647%, transparent) 35.27%,
++        color-mix(in srgb, var(--v2-background-bg-base) 46.989%, transparent) 39.4%,
++        color-mix(in srgb, var(--v2-background-bg-base) 41.1884%, transparent) 44.65%,
++        color-mix(in srgb, var(--v2-background-bg-base) 34.7969%, transparent) 51.36%,
++        color-mix(in srgb, var(--v2-background-bg-base) 27.6484%, transparent) 59.9%,
++        color-mix(in srgb, var(--v2-background-bg-base) 19.5767%, transparent) 70.62%,
++        color-mix(in srgb, var(--v2-background-bg-base) 10.416%, transparent) 83.87%,
++        transparent 100%
++      );
++      content: "";
++      opacity: 0;
++      pointer-events: none;
++    }
++
++    &[data-stuck]::after {
++      opacity: var(--model-dialog-header-fade, 0);
++    }
++
++    /*
++     * A header sliding up over the stuck one paints only behind its own text, so its padding never covers the stuck
++     * label as it fades. Once stuck, it fills its whole band again to hide the rows scrolling beneath.
++     */
++    &:not([data-stuck]) {
++      background-clip: content-box;
++    }
++  }
++
++  [data-component="search-list"] [data-slot="search-list-row"] {
++    justify-content: flex-start;
++    gap: 6px;
++    height: 28px;
++    padding-inline: 6px 3px;
++    border-radius: 6px;
++    font-size: 13px;
++    font-weight: 440;
++    line-height: var(--line-height-base);
++    letter-spacing: -0.04px;
++  }
++
++  [data-slot="model-dialog-check"] {
++    display: flex;
++    width: 16px;
++    flex-shrink: 0;
++    align-items: center;
++    justify-content: center;
++    color: var(--v2-icon-icon-base);
++  }
++
++  [data-slot="model-dialog-name"] {
++    display: flex;
++    min-width: 0;
++    flex: 1;
++    align-items: center;
++    gap: 6px;
++  }
++
++  [data-slot="model-dialog-variant"] {
++    display: flex;
++    min-width: 0;
++    max-width: 120px;
++    flex-shrink: 0;
++    align-items: center;
++    color: var(--v2-text-text-muted);
++
++    [data-slot="icon-svg"] {
++      color: var(--v2-icon-icon-muted);
++      translate: 0 0.5px;
++    }
++  }
++}
++
++/* Outranks the list's dark-scheme highlight, which uses a lighter alpha. */
++[data-component="dialog-v2"] .model-dialog [data-component="search-list"] [data-slot="search-list-row"][data-active] {
++  background: var(--v2-overlay-simple-overlay-hover);
++}
++
++[data-component="menu-v2-content"][data-slot="model-dialog-flyout"] {
++  position: fixed;
++  /* One width for every model, matching the 160px its placement assumes. */
++  width: 160px;
++  max-height: 400px;
++  overflow-y: auto;
++  animation: none;
++
++  /* The model stats that close the flyout. */
++  > :last-child {
++    font-size: 11px;
++    line-height: 16px;
++    cursor: default;
++    user-select: none;
++  }
++}
+diff --git a/packages/app/src/providers/models/select-dialog.stories.tsx b/packages/app/src/providers/models/select-dialog.stories.tsx
+index 3701ddc..65085a5 100644
+--- a/packages/app/src/providers/models/select-dialog.stories.tsx
++++ b/packages/app/src/providers/models/select-dialog.stories.tsx
+@@ -1,7 +1,9 @@
+ import { Button } from "@opencode/ui/button"
+-import { createSignal } from "solid-js"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { onMount } from "solid-js"
++import { createStore } from "solid-js/store"
+ import type { ModelSelection } from "./selection"
+-import { ModelSelectorPopoverView } from "./select-dialog"
++import { DialogSelectModel } from "./select-dialog"
+ 
+ const chatgpt = {
+   id: "gpt-5.6-sol",
+@@ -47,26 +49,52 @@ const models = [
+   },
+ ]
+ 
+-function SelectorStory(props: { plan: boolean }) {
+-  const [current, setCurrent] = createSignal(models[0].id)
++function SelectorStory(props: { favorite?: boolean }) {
++  const dialog = useDialog()
++
++  const [store, setStore] = createStore<{ current: string; favorite: string[]; variant?: string }>({
++    current: models[0].id,
++    favorite: props.favorite ? [models[1].id] : [],
++  })
++
++  const find = (id: string) => models.find((model) => model.id === id)
++
++  const selection = {
++    ready: Object.assign(() => true, { promise: undefined }),
++    key: () => ({ providerID: "openai", modelID: store.current }),
++    current: () => find(store.current),
++    recent: () => [find(store.current)].filter((model) => !!model),
++    favorite: {
++      list: () => store.favorite.flatMap((id) => find(id) ?? []),
++      toggle: (key: { modelID: string }) =>
++        setStore("favorite", (ids) =>
++          ids.includes(key.modelID) ? ids.filter((id) => id !== key.modelID) : [key.modelID, ...ids],
++        ),
++    },
++    list: () => models,
++    cycle() {},
++    set: (key: { modelID: string } | undefined) => key && setStore("current", key.modelID),
++    visible: () => true,
++    setVisibility() {},
++    variant: {
++      configured: () => undefined,
++      selected: () => store.variant,
++      current: () => store.variant,
++      list: () => [],
++      set: (variant: string | undefined) => setStore("variant", variant),
++      cycle() {},
++    },
++  } satisfies ModelSelection
++
++  const open = () => dialog.show(() => <DialogSelectModel model={selection} />)
++
++  onMount(open)
+ 
+   return (
+     <div class="flex min-h-[280px] items-end justify-center">
+-      <ModelSelectorPopoverView
+-        trigger={(trigger) => (
+-          <Button {...trigger} variant="ghost-muted">
+-            {models.find((model) => model.id === current())?.name}
+-          </Button>
+-        )}
+-        all={() => models}
+-        models={(search) => models.filter((model) => model.name.toLowerCase().includes(search.toLowerCase()))}
+-        groups={(items) => [{ category: "openai", items }]}
+-        current={`openai:${current()}`}
+-        chatgptPlan={props.plan}
+-        select={(item) => setCurrent(item.id)}
+-        onManage={() => undefined}
+-        onClose={() => undefined}
+-      />
++      <Button variant="ghost-muted" onClick={open}>
++        {find(store.current)?.name}
++      </Button>
+     </div>
+   )
+ }
+@@ -76,6 +104,6 @@ export default {
+   id: "app-dialog-model-selector",
+ }
+ 
+-export const ChatGPTPlan = { render: () => <SelectorStory plan /> }
++export const Dialog = { render: () => <SelectorStory /> }
+ 
+-export const ApiKey = { render: () => <SelectorStory plan={false} /> }
++export const Favorites = { render: () => <SelectorStory favorite /> }
+diff --git a/packages/app/src/providers/models/select-dialog.tsx b/packages/app/src/providers/models/select-dialog.tsx
+index aaad7bc..5330783 100644
+--- a/packages/app/src/providers/models/select-dialog.tsx
++++ b/packages/app/src/providers/models/select-dialog.tsx
+@@ -1,27 +1,40 @@
+ import { Popover } from "@kobalte/core/popover"
+-import { Component, ComponentProps, createEffect, createMemo, For, JSX, Show, Suspense, lazy, on } from "solid-js"
++import {
++  Component,
++  ComponentProps,
++  createEffect,
++  createMemo,
++  For,
++  JSX,
++  Show,
++  Suspense,
++  lazy,
++  on,
++  onCleanup,
++} from "solid-js"
+ import { createStore } from "solid-js/store"
+-import { createMediaQuery } from "@solid-primitives/media"
+ import { useLocal, type ModelSelection } from "@/providers/models/selection"
+ import { isFreeModel } from "@/providers/models/models"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { popularProviders } from "@/providers/catalog/providers"
+ import { Button } from "@opencode/ui/button"
+ import { Badge } from "@opencode/ui/badge"
+-import { Dialog, DialogBody, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
++import { Dialog, DialogBody, DialogTitle } from "@opencode/ui/dialog"
+ import { Icon } from "@opencode/ui/icon"
+-import { ScrollView } from "@opencode/ui/scroll-view"
++import { IconButton } from "@opencode/ui/icon-button"
++import { Keybind } from "@opencode/ui/keybind"
++import { SearchHighlight, SearchList, type SearchListHandle, type SearchListRow } from "@opencode/ui/search-list"
+ import { Tooltip } from "@opencode/ui/tooltip"
+-import { Menu } from "@opencode/ui/menu"
+ import { TextInput } from "@opencode/ui/text-input"
+ import { ModelTooltip } from "./tooltip"
++import { ModelDetails } from "./details"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ExternalLink } from "@/runtime/platform/external-link"
+ import { useData } from "@/runtime/server/current"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+-import { decode64 } from "@/runtime/persistence/base64"
+-import { handleDocumentSearchKeydown } from "@/shell/commands/search-keydown"
+-import { createMenuDismissController } from "@/shell/commands/menu-dismiss"
++import { createModelUsage, ModelUsageTag } from "@/usage/model"
++import { createSafeTriangle } from "@/shell/commands/safe-triangle"
++import { formatKeybindParts, matchKeybind, parseKeybind } from "@/shell/commands/command"
+ import { createEventListener } from "@solid-primitives/event-listener"
+ import { matchesModelSearch } from "./search"
+ import { SettingsList } from "@/settings/list"
+@@ -33,6 +46,7 @@ import {
+ } from "@/providers/models/provider-group"
+ import { consoleProviderName } from "@/providers/catalog/console"
+ import "@/settings/settings.css"
++import "@/shell/commands/dialog.css"
+ import "./select-dialog.css"
+ 
+ const MobilePanelDrawer = lazy(async () => {
+@@ -45,9 +59,9 @@ type ModelState = ModelSelection
+ 
+ type ModelItem = ReturnType<ModelState["list"]>[number]
+ 
+-const modelKey = (model: ModelItem) => `${model.provider.id}:${model.id}`
++const favoriteKeybind = parseKeybind("mod+f")
+ 
+-const manageKey = "action:manage"
++const modelKey = (model: ModelItem) => `${model.provider.id}:${model.id}`
+ 
+ const sortModelGroups = (a: { category: string; items: ModelItem[] }, b: { category: string; items: ModelItem[] }) => {
+   const aIndex = popularProviders.indexOf(a.category)
+@@ -72,6 +86,7 @@ const ModelList: Component<{
+   model?: ModelState
+ }> = (props) => {
+   const language = useLanguage()
++  const usage = createModelUsage({ refresh: true })
+ 
+   const controller = createModelSelectorController({
+     model: props.model,
+@@ -79,39 +94,57 @@ const ModelList: Component<{
+     onSelect: props.onSelect,
+   })
+ 
+-  const [store, setStore] = createStore<{ search: string; active: string; collapsed: Record<string, boolean> }>({
++  const [store, setStore] = createStore<{
++    search: string
++    active: string
++    collapsed: Record<string, boolean>
++  }>({
+     search: "",
+-    active: props.mobile ? (controller.current() ?? "") : "",
++    active: "",
+     collapsed: {},
+   })
+ 
+-  createEffect(
+-    on(
+-      () => props.open,
+-      (open) => {
+-        if (!props.mobile || !open) return
+-        setStore({ search: "", active: controller.current() ?? "" })
+-      },
+-    ),
+-  )
+   const models = createMemo(() => controller.models(store.search))
+   const modelGroups = createMemo(() => controller.groups(models()))
+   const managed = createMemo(() => consoleModelGroup(controller.all()))
+   const expanded = (provider: string) => store.search.length > 0 || !store.collapsed[provider]
+   const managedIDs = createMemo(() => new Set(managed()?.providers.map((provider) => provider.id) ?? []))
+ 
+-  const visibleModels = () =>
+-    models().filter(
+-      (item) => expanded(item.provider.id) && (!managedIDs().has(item.provider.id) || expanded(CONSOLE_GROUP_KEY)),
+-    )
++  // Rows in display order: ProviderModelSections nests every managed provider at the first one's position.
++  const visibleModels = () => {
++    const groups = modelGroups()
++    const first = groups.findIndex((group) => managedIDs().has(group.category))
++
++    return groups.flatMap((group, index) => {
++      if (!managedIDs().has(group.category)) return expanded(group.category) ? group.items : []
++
++      if (index !== first || !expanded(CONSOLE_GROUP_KEY)) return []
++
++      return groups
++        .filter((item) => managedIDs().has(item.category) && expanded(item.category))
++        .flatMap((item) => item.items)
++    })
++  }
+ 
+   let scrollRef: HTMLDivElement | undefined
+ 
+   const setSearch = (value: string) => {
+-    const first = controller.models(value).find((item) => value.length > 0 || !store.collapsed[item.provider.id])
+-    setStore({ search: value, active: first ? modelKey(first) : "" })
++    setStore("search", value)
++    const first = visibleModels()[0]
++    setStore("active", first ? modelKey(first) : "")
+   }
+ 
++  createEffect(
++    on(
++      () => props.open,
++      (open) => {
++        if (!open) return
++        setSearch("")
++        scrollRef?.scrollTo(0, 0)
++      },
++    ),
++  )
++
+   const moveActive = (delta: number) => {
+     const keys = visibleModels().map(modelKey)
+ 
+@@ -155,9 +188,7 @@ const ModelList: Component<{
+                     placement="right-start"
+                     gutter={12}
+                     openDelay={0}
+-                    value={
+-                      <ModelTooltip model={item} latest={item.latest} free={isFreeModel(item)} v2 />
+-                    }
++                    value={<ModelTooltip model={item} latest={item.latest} free={isFreeModel(item)} v2 />}
+                   >
+                     <span class="min-w-0 truncate">{item.name}</span>
+                   </Tooltip>
+@@ -167,6 +198,7 @@ const ModelList: Component<{
+                   <Show when={item.latest}>
+                     <Badge class="shrink-0">{language.t("model.tag.latest")}</Badge>
+                   </Show>
++                  <Show when={usage(item)}>{(value) => <ModelUsageTag usage={value()} />}</Show>
+                 </div>
+               </div>
+               <div data-slot="settings-row-control" class="size-4">
+@@ -254,16 +286,14 @@ type ModelSelectorTriggerProps = Omit<ComponentProps<typeof Popover.Trigger>, "a
+ 
+ type ModelSelectorTrigger = (props: ModelSelectorTriggerProps) => JSX.Element
+ 
+-export function ModelSelectorPopover(props: {
++// Phones pick models from a drawer; wider screens use DialogSelectModel.
++export function ModelSelectorDrawer(props: {
+   provider?: string
+   model?: ModelState
+-  unpaid?: boolean
+   trigger: ModelSelectorTrigger
+   onClose?: () => void
+ }) {
+   const dialog = useDialog()
+-  const mobile = createMediaQuery("(max-width: 767px)")
+-  const data = useData()
+   const location = useWorkspaceLocation()
+ 
+   const controller = createModelSelectorController({
+@@ -272,15 +302,7 @@ export function ModelSelectorPopover(props: {
+     onSelect: () => props.onClose?.(),
+   })
+ 
+-  const chatgptPlan = () => {
+-    if (!controller.current()?.startsWith("openai:")) return false
+-
+-    const connection = data.location.integration
+-      .list(location().ref)
+-      ?.find((integration) => integration.id === "openai")?.connections[0]
+-
+-    return connection?.type === "credential" && connection.method === "oauth"
+-  }
++  const chatgptPlan = createChatgptPlan(controller.current)
+ 
+   const manage = async () => {
+     const { DialogManageModels } = await import("./manage")
+@@ -289,40 +311,23 @@ export function ModelSelectorPopover(props: {
+ 
+   const connect = async () => {
+     const { DialogConnectProvider } = await import("@/providers/connect/dialog")
+-    void dialog.show(() => <DialogConnectProvider directory={location().directory} />)
++    void dialog.show(() => <DialogConnectProvider directory={location().directory} selection={props.model} />)
+   }
+ 
+   return (
+-    <Show
+-      when={mobile()}
+-      fallback={
+-        <ModelSelectorPopoverView
+-          trigger={props.trigger}
+-          all={controller.all}
+-          models={controller.models}
+-          groups={controller.groups}
+-          current={controller.current()}
+-          chatgptPlan={chatgptPlan()}
+-          select={controller.select}
+-          onManage={manage}
+-          onClose={() => props.onClose?.()}
+-        />
+-      }
+-    >
+-      <ModelSelectorDrawer
+-        trigger={props.trigger}
+-        model={props.model}
+-        provider={props.provider}
+-        onConnect={props.unpaid ? connect : undefined}
+-        chatgptPlan={chatgptPlan()}
+-        onClose={() => props.onClose?.()}
+-        onManage={manage}
+-      />
+-    </Show>
++    <ModelDrawer
++      trigger={props.trigger}
++      onManage={manage}
++      model={props.model}
++      provider={props.provider}
++      onConnect={connect}
++      chatgptPlan={chatgptPlan()}
++      onClose={() => props.onClose?.()}
++    />
+   )
+ }
+ 
+-function ModelSelectorDrawer(props: {
++function ModelDrawer(props: {
+   trigger: ModelSelectorTrigger
+   model?: ModelState
+   provider?: string
+@@ -485,356 +490,605 @@ function createModelSelectorController(input: {
+ 
+       return value ? modelKey(value) : undefined
+     },
+-    select: (item: ModelItem) => {
++    select: (item: ModelItem, variant?: string | null) => {
+       model.set({ modelID: item.id, providerID: item.provider.id }, { recent: true })
++
++      if (variant !== undefined) model.variant.set(variant ?? undefined)
+       input.onSelect()
+     },
++    variant: (item: ModelItem) => model.variant.current({ providerID: item.provider.id, modelID: item.id }),
++    favorites: () => model.favorite.list().filter((item) => !input.provider() || item.provider.id === input.provider()),
++    recent: () =>
++      model
++        .recent()
++        .flatMap((item) => (item && (!input.provider() || item.provider.id === input.provider()) ? [item] : [])),
++    toggleFavorite: (item: ModelItem) => model.favorite.toggle({ providerID: item.provider.id, modelID: item.id }),
+   }
+ }
+ 
+-export function ModelSelectorPopoverView(props: {
+-  trigger: ModelSelectorTrigger
+-  all: () => ModelItem[]
+-  models: (search: string) => ModelItem[]
+-  groups: (models: ModelItem[]) => { category: string; items: ModelItem[] }[]
+-  current: string | undefined
+-  chatgptPlan?: boolean
+-  select: (item: ModelItem) => void
+-  onManage: () => void
+-  onClose: () => void
+-}) {
+-  const language = useLanguage()
+-  const [store, setStore] = createStore({ open: false, search: "", active: "" })
+-  let searchRef: HTMLInputElement | undefined
+-  let contentRef: HTMLDivElement | undefined
+-  const dismiss = createMenuDismissController(() => contentRef)
+-
+-  const models = createMemo(() => props.models(store.search))
+-  const groups = createMemo(() => props.groups(models()))
+-  const keys = () => [...groups().flatMap((group) => group.items.map(modelKey)), manageKey]
+-
+-  const managed = createMemo(() => consoleModelGroup(props.all()))
++function createProviderLabels(all: () => ModelItem[]) {
++  const managed = createMemo(() => consoleModelGroup(all()))
+   const managedIDs = createMemo(() => new Set(managed()?.providers.map((provider) => provider.id)))
+   const canonical = (provider: ModelItem["provider"]) => provider.canonical ?? provider.id.replace(/^console-/, "")
+ 
+-  // The workspace badge only disambiguates a managed provider that is also connected directly.
+   const direct = createMemo(
+     () =>
+       new Set(
+-        props
+-          .all()
++        all()
+           .filter((item) => !managedIDs().has(item.provider.id))
+           .map((item) => canonical(item.provider)),
+       ),
+   )
+ 
+-  const initialActive = () => {
+-    const selected = props.current
+-    const options = keys()
++  return {
++    name: (provider: ModelItem["provider"]) => {
++      const group = managed()
++
++      return group && managedIDs().has(provider.id) ? consoleProviderName(group, provider.name) : provider.name
++    },
++    // The workspace badge only disambiguates a managed provider that is also connected directly.
++    workspace: (provider: ModelItem["provider"]) => {
++      const group = managed()
+ 
+-    if (selected && options.includes(selected)) return selected
++      if (!group || !managedIDs().has(provider.id) || !direct().has(canonical(provider))) return
+ 
+-    return options[0] ?? ""
++      return group.workspace
++    },
+   }
++}
+ 
+-  const activeItem = () =>
+-    store.active ? contentRef?.querySelector<HTMLElement>(`[data-option-key="${CSS.escape(store.active)}"]`) : undefined
++type ModelGroup = { category: string; items: ModelItem[]; title?: string }
++
++// Favorites and recent models lead the list until a search narrows it. As in the TUI, they then leave their provider
++// group, so no model is listed twice.
++function withSections(input: {
++  groups: ModelGroup[]
++  favorites: ModelItem[]
++  recent: ModelItem[]
++  titles: { favorite: string; recent: string }
++}): ModelGroup[] {
++  const favorites = new Set(input.favorites.map(modelKey))
++
++  const recent = input.recent.filter((item) => !favorites.has(modelKey(item)))
++  const listed = new Set([...favorites, ...recent.map(modelKey)])
++
++  return [
++    ...(input.favorites.length > 0
++      ? [{ category: "favorite", title: input.titles.favorite, items: input.favorites }]
++      : []),
++    ...(recent.length > 0 ? [{ category: "recent", title: input.titles.recent, items: recent }] : []),
++    ...input.groups.flatMap((group) => {
++      const items = group.items.filter((item) => !listed.has(modelKey(item)))
++
++      return items.length > 0 ? [{ ...group, items }] : []
++    }),
++  ]
++}
+ 
+-  const setOpen = (open: boolean) => {
+-    if (open) {
+-      dismiss.allowTriggerRestore()
+-      setStore({ open: true, active: initialActive() })
+-      setTimeout(() =>
+-        requestAnimationFrame(() => {
+-          searchRef?.focus()
+-          activeItem()?.scrollIntoView({ block: "nearest" })
+-        }),
+-      )
++const clamp = (value: number) => Math.max(0, Math.min(1, value))
+ 
+-      return
+-    }
++const round = (value: number) => Math.round(value * 1000) / 1000
++
++type ModelRow = { id: string; item: ModelItem; group: ModelGroup }
++
++function createChatgptPlan(current: () => string | undefined) {
++  const data = useData()
++  const location = useWorkspaceLocation()
++
++  return () => {
++    if (!current()?.startsWith("openai:")) return false
+ 
+-    setStore({ open: false, search: "", active: "" })
++    const connection = data.location.integration
++      .list(location().ref)
++      ?.find((integration) => integration.id === "openai")?.connections[0]
++
++    return connection?.type === "credential" && connection.method === "oauth"
+   }
++}
++
++function ChatgptPlanFooter() {
++  const language = useLanguage()
++
++  return (
++    <>
++      <div class="h-px bg-v2-border-border-muted" />
++      <div class="flex min-h-10 items-center gap-2 px-3 py-2 text-[13px] leading-5 text-v2-text-text-base">
++        <ProviderModelIcon provider={{ id: "openai", name: "OpenAI" }} class="shrink-0" />
++        <span class="min-w-0 flex-1 truncate">{language.t("dialog.model.chatgptPlan")}</span>
++        <ExternalLink
++          href="https://chatgpt.com/settings/usage"
++          class="flex shrink-0 items-center gap-1 rounded-sm text-v2-text-text-muted no-underline hover:text-v2-text-text-base focus-visible:outline focus-visible:outline-2"
++        >
++          {language.t("dialog.model.chatgptManageUsage")}
++          <Icon name="arrow-up-right" size="small" />
++        </ExternalLink>
++      </div>
++    </>
++  )
++}
++
++export function DialogSelectModel(props: { provider?: string; model?: ModelState }) {
++  const dialog = useDialog()
++  const language = useLanguage()
++
++  const controller = createModelSelectorController({
++    model: props.model,
++    provider: () => props.provider,
++    onSelect: () => dialog.close(),
++  })
++
++  const labels = createProviderLabels(controller.all)
++  const chatgptPlan = createChatgptPlan(controller.current)
++  const usage = createModelUsage({ refresh: true })
++
++  const [store, setStore] = createStore({
++    search: "",
++    flyout: "",
++    keyboard: true,
++    navigated: false,
++    warm: false,
++    position: { left: 0, top: 0 },
++  })
++
++  const [staged, setStaged] = createStore<Record<string, string | null>>({})
++
++  let list: SearchListHandle<ModelRow> | undefined
++  let flyoutRef: HTMLDivElement | undefined
++  let timer: ReturnType<typeof setTimeout> | undefined
++  onCleanup(() => clearTimeout(timer))
++
++  const groups = createMemo((): ModelGroup[] => {
++    const providers = controller.groups(controller.models(store.search))
+ 
+-  const selectModel = (item: ModelItem) => {
+-    dismiss.preventTriggerRestore()
+-    setOpen(false)
+-    dismiss.afterClose(() => props.select(item))
++    if (store.search.trim()) return providers
++
++    return withSections({
++      groups: providers,
++      favorites: controller.favorites(),
++      recent: controller.recent(),
++      titles: { favorite: language.t("dialog.model.favorites"), recent: language.t("dialog.model.recent") },
++    })
++  })
++
++  const rows = createMemo(() =>
++    groups().flatMap((group) => group.items.map((item): ModelRow => ({ id: modelKey(item), item, group }))),
++  )
++
++  const rowItem = (id: string) => rows().find((row) => row.id === id)?.item
++  const flyoutItem = () => (store.flyout ? rowItem(store.flyout) : undefined)
++  const variantsOf = (item: ModelItem) => Object.keys(item.variants ?? {})
++  const favorite = (item: ModelItem) => controller.favorites().some((entry) => modelKey(entry) === modelKey(item))
++
++  const variant = (item: ModelItem) =>
++    modelKey(item) in staged ? (staged[modelKey(item)] ?? undefined) : controller.variant(item)
++
++  const choose = (item: ModelItem, value?: string | null) =>
++    controller.select(item, value === undefined ? staged[modelKey(item)] : value)
++
++  const setSearch = (value: string) => setStore({ search: value, flyout: "", keyboard: true, navigated: false })
++
++  const manage = async () => {
++    const { DialogManageModels } = await import("./manage")
++    void dialog.show(() => <DialogManageModels />)
+   }
+ 
+-  const manage = () => {
+-    dismiss.preventTriggerRestore()
+-    setOpen(false)
+-    dismiss.afterClose(props.onManage)
++  const location = useWorkspaceLocation()
++
++  const connect = async () => {
++    const { DialogConnectProvider } = await import("@/providers/connect/dialog")
++    // The model chosen after connecting applies to this composer.
++    void dialog.show(() => <DialogConnectProvider directory={location().directory} selection={props.model} />)
+   }
+ 
+-  const selectActive = () => {
+-    const item = models().find((item) => modelKey(item) === store.active)
++  const triangle = createSafeTriangle({
++    flyout: () => (flyoutItem() && flyoutRef?.isConnected ? flyoutRef : undefined),
++  })
+ 
+-    if (item) {
+-      selectModel(item)
++  const openFlyout = (id: string, row: HTMLElement) => {
++    if (!row.closest('[data-slot="dialog-container"]')) return
++    const box = row.getBoundingClientRect()
++    // 6px beside the row's end edge, else its start edge, else over the dialog: always inside the layer that holds it.
++    const bounds = row.closest("[data-dialog-layer]")?.getBoundingClientRect()
++    const fits = (x: number) => !bounds || (x >= bounds.left && x + 160 <= bounds.right)
++    const end = language.direction() === "rtl" ? box.left - 6 - 160 : box.right + 6
++    const start = language.direction() === "rtl" ? box.right + 6 : box.left - 6 - 160
++    const over = bounds ? Math.max(bounds.left, Math.min(end, bounds.right - 160)) : end
++    const left = fits(end) ? end : fits(start) ? start : over
++    const top = box.top - 2
++    setStore({ flyout: id, warm: true, position: { left, top } })
++
++    // A fixed element is placed against the viewport unless an ancestor contains it, as a component preview that holds
++    // its dialogs does. Correct by where it landed, before it paints.
++    const placed = flyoutRef?.isConnected ? flyoutRef.getBoundingClientRect() : undefined
++
++    if (placed && (placed.left !== left || placed.top !== top))
++      setStore("position", { left: left * 2 - placed.left, top: top * 2 - placed.top })
++  }
+ 
+-      return
+-    }
++  // The row whose flyout is waiting on the open delay.
++  let pending = ""
++
++  const hover = (id: string, row: HTMLElement) => {
++    // A row highlighted by a scroll has no flyout yet, so moving on it still opens one.
++    if (list?.active()?.id === id && !store.keyboard && (store.flyout === id || pending === id)) return
++    list?.setActive(id)
++    setStore("keyboard", false)
++    clearTimeout(timer)
++    pending = ""
++    const item = rowItem(id)
++
++    if (!item) return setStore("flyout", "")
++
++    if (store.warm) return openFlyout(id, row)
+ 
+-    if (store.active === manageKey) manage()
++    setStore("flyout", "")
++    pending = id
++    timer = setTimeout(() => {
++      pending = ""
++      openFlyout(id, row)
++    }, 100)
+   }
+ 
+-  const moveActive = (delta: number) => {
+-    const options = keys()
++  // Rows the pointer crosses on its way into the open flyout leave it alone.
++  const move = (id: string, event: MouseEvent & { currentTarget: HTMLElement }) => {
++    // A still cursor must not take the highlight while the arrow keys scroll rows beneath it.
++    if (event.movementX === 0 && event.movementY === 0) return
++    const row = event.currentTarget
++    const point = { x: event.clientX, y: event.clientY }
+ 
+-    if (options.length === 0) return
+-    const index = options.indexOf(store.active)
+-    const start = index === -1 ? 0 : index
+-    setStore("active", options[(start + delta + options.length) % options.length])
+-    queueMicrotask(() => activeItem()?.scrollIntoView({ block: "nearest" }))
++    if (flyoutItem() && store.flyout !== id && triangle.hold(point, () => hover(id, row))) return
++    triangle.anchor(point)
++    hover(id, row)
+   }
+ 
+-  const setSearch = (value: string) => {
+-    const first = props.models(value)[0]
+-    setStore({ search: value, active: first ? modelKey(first) : manageKey })
++  const close = () => setStore("flyout", "")
++
++  let pointer: { x: number; y: number } | undefined
++  createEventListener(document, "pointermove", (event: PointerEvent) => {
++    pointer = { x: event.clientX, y: event.clientY }
++  })
++
++  // Scrolling moves rows under a still cursor without a pointer event. A wheel scroll highlights the row that lands
++  // under the cursor and moves the flyout beside it; a keyboard scroll keeps its highlight and closes the flyout,
++  // which would otherwise be left beside a row that moved away.
++  const follow = () => {
++    clearTimeout(timer)
++    pending = ""
++
++    if (store.keyboard || !pointer) return close()
++    const row = document.elementFromPoint(pointer.x, pointer.y)?.closest<HTMLElement>('[data-slot="search-list-row"]')
++    const id = row?.dataset.optionKey
++
++    if (!row || !id || !scroller?.contains(row)) return close()
++    list?.setActive(id)
++    triangle.anchor(pointer)
++    openFlyout(id, row)
++  }
++
++  let scroller: HTMLDivElement | undefined
++
++  // As on the home page, every header sticks for the whole list, so the next one slides over the stuck one while the
++  // stuck label fades out over 16px. The topmost stuck header also fades a gradient in as rows scroll beneath it.
++  const fadeHeaders = () => {
++    const viewport = scroller?.querySelector<HTMLElement>('[data-slot="search-list-scroll"]')
++
++    if (!viewport) return
++    const origin = viewport.getBoundingClientRect().top
++    const headers = [...viewport.querySelectorAll<HTMLElement>('[data-slot="search-list-header"]')]
++
++    // Every read before any write, so the scroll lays out once.
++    const tops = headers.map((header) => header.getBoundingClientRect().top - origin)
++    const stuck = tops.findLastIndex((top) => top < 0.5)
++
++    const labelOf = (header: HTMLElement | undefined) =>
++      header?.querySelector<HTMLElement>('[data-slot="model-dialog-header-label"]') ?? undefined
++
++    const labels = headers.map((header, index) => {
++      const label = labelOf(header)
++      const next = tops[index + 1]
++      const nextLabel = labelOf(headers[index + 1])
++
++      if (!label || next === undefined || !nextLabel) return { label, opacity: 1 }
++
++      // Fades out as the next label comes up, gone just as it would touch this one.
++      return { label, opacity: clamp((next + nextLabel.offsetTop - label.offsetTop - label.offsetHeight) / 16) }
++    })
++
++    const header = headers[stuck]
++    const row = header?.nextElementSibling
++    // How far the rows under the stuck header have scrolled beneath it, from where its first row rests.
++    const hidden = header && row ? header.offsetHeight + 4 - (row.getBoundingClientRect().top - origin) : 0
++
++    labels.forEach((item) => item.label?.style.setProperty("opacity", String(round(item.opacity))))
++    headers.forEach((item, index) => item.toggleAttribute("data-stuck", index === stuck))
++    header?.style.setProperty("--model-dialog-header-fade", String(round(clamp(hidden / 16))))
+   }
+ 
++  // Results that change without a scroll, such as a narrower search, move the headers too.
++  createEffect(
++    on(rows, () => {
++      const frame = requestAnimationFrame(fadeHeaders)
++      onCleanup(() => cancelAnimationFrame(frame))
++    }),
++  )
++
+   createEffect(() => {
+-    if (!store.open) return
+-    createEventListener(
+-      document,
+-      "keydown",
+-      (event: KeyboardEvent) => handleDocumentSearchKeydown(searchRef, event, store.search, setSearch),
+-      true,
+-    )
++    if (!flyoutItem()) {
++      triangle.reset()
++
++      return
++    }
++    // Outside the rows, such as the gap before the flyout, leaving the triangle closes it.
++
++    createEventListener(document, "pointermove", (event: PointerEvent) => {
++      const target = event.target
++
++      if (target instanceof Element && target.closest('[data-slot="search-list-row"]')) return
++
++      if (target instanceof Node && flyoutRef?.contains(target)) return
++
++      if (!triangle.contains({ x: event.clientX, y: event.clientY })) close()
++    })
+   })
+ 
+-  return (
+-    <Menu open={store.open} modal={false} placement="top-start" gutter={6} onOpenChange={setOpen}>
+-      <Menu.Trigger as={props.trigger} />
+-      <Menu.Portal>
+-        <Menu.Content
+-          ref={(element: HTMLDivElement) => (contentRef = element)}
+-          class="w-[284px] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none"
+-          classList={{ "!w-[320px]": props.chatgptPlan }}
+-          onPointerDownOutside={dismiss.preventTriggerRestore}
+-          onFocusOutside={dismiss.preventTriggerRestore}
+-          onCloseAutoFocus={dismiss.onCloseAutoFocus}
+-        >
+-          <div class="flex flex-col p-0.5">
+-            <div class="flex h-7 items-center gap-2 rounded-sm pl-3 pr-1 text-v2-icon-icon-muted">
+-              <Icon name="magnifying-glass" size="small" class="shrink-0" />
+-              <input
+-                ref={(el) => (searchRef = el)}
+-                value={store.search}
+-                placeholder={language.t("dialog.model.search.placeholder")}
+-                class="h-7 min-w-0 flex-1 border-0 bg-transparent text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+-                spellcheck={false}
+-                autocorrect="off"
+-                autocomplete="off"
+-                autocapitalize="off"
+-                onInput={(event) => setSearch(event.currentTarget.value)}
+-                onKeyDown={(event) => {
+-                  if (event.key === "Tab") return
+-                  event.stopPropagation()
+-
+-                  if (event.key === "Escape") {
+-                    event.preventDefault()
+-                    dismiss.preventTriggerRestore()
+-                    setOpen(false)
+-                    dismiss.afterClose(props.onClose)
+-
+-                    return
+-                  }
+-
+-                  if (event.altKey || event.metaKey) return
+-
+-                  if (event.key === "ArrowDown") {
+-                    event.preventDefault()
+-                    moveActive(1)
+-
+-                    return
+-                  }
+-
+-                  if (event.key === "ArrowUp") {
+-                    event.preventDefault()
+-                    moveActive(-1)
+-
+-                    return
+-                  }
+-
+-                  if (event.key === "Enter" && !event.isComposing) {
+-                    event.preventDefault()
+-                    selectActive()
+-                  }
+-                }}
+-              />
+-              <Show when={store.search.trim()}>
+-                <button
+-                  type="button"
+-                  class="flex size-5 items-center justify-center rounded-sm bg-transparent text-v2-icon-icon-faint transition-colors hover:text-v2-icon-icon-base focus-visible:text-v2-icon-icon-base active:text-v2-icon-icon-base"
+-                  onPointerDown={(event) => event.preventDefault()}
+-                  onClick={() => setSearch("")}
+-                  aria-label={language.t("common.clear")}
+-                >
+-                  <Icon name="circle-xmark" />
+-                </button>
+-              </Show>
+-            </div>
+-          </div>
+-          <div class="h-px bg-v2-border-border-muted" />
+-          <ScrollView data-slot="model-selector-scroll" class="max-h-[220px] min-h-0">
+-            <div class="flex flex-col p-0.5 pt-0">
+-              <Show
+-                when={models().length > 0}
+-                fallback={
+-                  <div class="flex h-12 items-center px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint">
+-                    {language.t("dialog.model.empty")}
+-                  </div>
+-                }
+-              >
+-                <For each={groups()}>
+-                  {(group) => (
+-                    <Menu.Group>
+-                      <Menu.GroupLabel
+-                        class="gap-1.5 pe-3"
+-                        style={{ "padding-inline-start": group.items[0].provider.id === "opencode" ? "10px" : "12px" }}
+-                      >
+-                        <ProviderModelIcon provider={group.items[0].provider} class="shrink-0" />
+-                        <Show
+-                          when={managedIDs().has(group.category) ? managed() : undefined}
+-                          fallback={<span class="min-w-0 truncate">{group.items[0].provider.name}</span>}
+-                        >
+-                          {(workspace) => (
+-                            <>
+-                              <span class="min-w-0 truncate">
+-                                {consoleProviderName(workspace(), group.items[0].provider.name)}
+-                              </span>
+-                              <Show when={direct().has(canonical(group.items[0].provider))}>
+-                                <Badge class="shrink-0">{workspace().workspace}</Badge>
+-                              </Show>
+-                            </>
+-                          )}
+-                        </Show>
+-                      </Menu.GroupLabel>
+-                      <Menu.RadioGroup value={props.current}>
+-                        <For each={group.items}>
+-                          {(item) => (
+-                            <Tooltip
+-                              class="w-full"
+-                              placement="right-start"
+-                              gutter={6}
+-                              openDelay={0}
+-                              value={
+-                                <ModelTooltip
+-                                  model={item}
+-                                  latest={item.latest}
+-                                  free={isFreeModel(item)}
+-                                  v2
+-                                />
+-                              }
+-                            >
+-                              <Menu.RadioItem
+-                                value={modelKey(item)}
+-                                data-option-key={modelKey(item)}
+-                                data-selected-model={props.current === modelKey(item) ? true : undefined}
+-                                class="scroll-my-6 w-full"
+-                                classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === modelKey(item) }}
+-                                onMouseEnter={() => {
+-                                  setStore("active", modelKey(item))
+-                                  setTimeout(() => searchRef?.focus())
+-                                }}
+-                                onSelect={() => selectModel(item)}
+-                              >
+-                                <span class="min-w-0 truncate leading-5">{item.name}</span>
+-                                <Show when={isFreeModel(item)}>
+-                                  <Badge class="shrink-0">{language.t("model.tag.free")}</Badge>
+-                                </Show>
+-                                <Show when={item.latest}>
+-                                  <Badge class="shrink-0">{language.t("model.tag.latest")}</Badge>
+-                                </Show>
+-                              </Menu.RadioItem>
+-                            </Tooltip>
+-                          )}
+-                        </For>
+-                      </Menu.RadioGroup>
+-                    </Menu.Group>
+-                  )}
+-                </For>
+-              </Show>
+-            </div>
+-          </ScrollView>
+-          <div class="h-px bg-v2-border-border-muted" />
+-          <div class="flex flex-col p-0.5">
+-            <Menu.Item
+-              data-option-key={manageKey}
+-              classList={{ "!bg-v2-overlay-simple-overlay-hover": store.active === manageKey }}
+-              onMouseEnter={() => {
+-                setStore("active", manageKey)
+-                setTimeout(() => searchRef?.focus())
+-              }}
+-              onSelect={manage}
+-            >
+-              <Icon name="outline-sliders" size="small" />
+-              <span class="min-w-0 flex-1 truncate leading-5">{language.t("dialog.model.manage")}</span>
+-            </Menu.Item>
+-          </div>
+-          <Show when={props.chatgptPlan}>
+-            <div class="h-px bg-v2-border-border-muted" />
+-            <div class="flex min-h-10 items-center gap-2 px-3 py-2 text-[13px] leading-5 text-v2-text-text-base">
+-              <ProviderModelIcon provider={{ id: "openai", name: "OpenAI" }} class="shrink-0" />
+-              <span class="min-w-0 flex-1 truncate">{language.t("dialog.model.chatgptPlan")}</span>
+-              <ExternalLink
+-                href="https://chatgpt.com/settings/usage"
+-                class="flex shrink-0 items-center gap-1 rounded-sm text-v2-text-text-muted no-underline hover:text-v2-text-text-base focus-visible:outline focus-visible:outline-2"
+-              >
+-                {language.t("dialog.model.chatgptManageUsage")}
+-                <Icon name="arrow-up-right" size="small" />
+-              </ExternalLink>
+-            </div>
+-          </Show>
+-        </Menu.Content>
+-      </Menu.Portal>
+-    </Menu>
++  // The search field keeps focus for the dialog's life: a click anywhere else in the dialog, the rows, the scroll area
++  // or the flyout, leaves it there, so the arrow keys always move the highlight instead of scrolling a container.
++  // Tab still reaches the search row's buttons, so Add provider and Manage models stay keyboard accessible.
++  const field = () => scroller?.querySelector<HTMLInputElement>('[data-slot="text-input-v2-input"]') ?? undefined
++
++  const searchButton = (target: EventTarget | null) =>
++    target instanceof Element && !!scroller?.contains(target.closest('[data-slot="text-input-v2-trailing"]'))
++
++  const inDialog = (target: EventTarget | null) =>
++    target instanceof Node &&
++    (!!scroller?.closest('[data-slot="dialog-container"]')?.contains(target) || !!flyoutRef?.contains(target))
++
++  createEventListener(
++    document,
++    "mousedown",
++    (event: MouseEvent) => {
++      if (inDialog(event.target) && event.target !== field()) event.preventDefault()
++    },
++    { capture: true },
+   )
+-}
+ 
+-export const DialogSelectModel: Component<{ provider?: string; model?: ModelState }> = (props) => {
+-  const dialog = useDialog()
+-  const language = useLanguage()
+-  const local = useLocal()
+-  const directory = () => decode64(local.slug())
++  createEventListener(document, "focusin", (event: FocusEvent) => {
++    if (inDialog(event.target) && event.target !== field() && !searchButton(event.target))
++      field()?.focus({ preventScroll: true })
++  })
+ 
+-  const provider = () => {
+-    void import("@/providers/connect/dialog").then((x) => {
+-      void dialog.show(() => <x.DialogConnectProvider directory={directory()} />)
+-    })
++  // The flyout is placed once when it opens, so moving the rows under it closes it instead.
++  createEventListener(window, "resize", close)
++
++  const onKeyDown = (event: KeyboardEvent, active: ModelRow | undefined) => {
++    if (matchKeybind(favoriteKeybind, event)) {
++      if (!active) return
++      event.preventDefault()
++      controller.toggleFavorite(active.item)
++      // The model moves between Favorites and its group under the same key, so the highlight follows it.
++      list?.setActive(active.id)
++      setStore({ flyout: "", keyboard: true })
++
++      return
++    }
++
++    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") {
++      setStore({ keyboard: true, navigated: true, flyout: "" })
++
++      return
++    }
++
++    if (event.metaKey || event.altKey || event.ctrlKey) return
++
++    // While searching, left and right edit the query until the arrows have moved through the results.
++    if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && (!store.search || store.navigated)) {
++      const item = active?.item
++
++      if (!item || variantsOf(item).length === 0) return
++      event.preventDefault()
++      const options = [undefined, ...variantsOf(item)]
++      const direction = (event.key === "ArrowRight") !== (language.direction() === "rtl") ? 1 : -1
++      const index = options.indexOf(variant(item))
++      setStaged(modelKey(item), options[(index + direction + options.length) % options.length] ?? null)
++      setStore({ keyboard: true, flyout: "" })
++    }
+   }
+ 
+-  const manage = () => {
+-    void import("./manage").then((x) => {
+-      dialog.show(() => <x.DialogManageModels />)
+-    })
++  const Row = (row: { model: ModelRow; attrs: SearchListRow }) => {
++    const item = () => row.model.item
++    const selected = () => controller.current() === modelKey(item())
++    const active = () => row.attrs["data-active"] !== undefined
++
++    return (
++      <button
++        type="button"
++        {...row.attrs}
++        data-option-key={row.model.id}
++        aria-current={selected() ? "true" : undefined}
++        onMouseMove={(event) => move(row.model.id, event)}
++        onMouseLeave={(event) => {
++          clearTimeout(timer)
++          pending = ""
++          const target = event.relatedTarget
++
++          if (target instanceof Element && target.closest('[data-slot="search-list-row"]')) return
++
++          if (target instanceof Node && flyoutRef?.contains(target)) return
++
++          if (flyoutItem() && triangle.contains({ x: event.clientX, y: event.clientY })) return
++          close()
++        }}
++      >
++        <span data-slot="model-dialog-check">
++          <Show when={selected()}>
++            <Icon name="check" size="small" />
++          </Show>
++        </span>
++        <span data-slot="model-dialog-name">
++          <span class="min-w-0 truncate">
++            <SearchHighlight text={item().name} />
++          </span>
++          {/* Favorites and Recent mix providers, so their rows name one, with its workspace when its header has one. */}
++          <Show when={row.model.group.title}>
++            <span class="min-w-0 shrink-[999] truncate text-v2-text-text-faint">{labels.name(item().provider)}</span>
++            <Show when={labels.workspace(item().provider)}>
++              {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
++            </Show>
++          </Show>
++          <Show when={isFreeModel(item())}>
++            <Badge class="shrink-0">{language.t("model.tag.free")}</Badge>
++          </Show>
++          <Show when={item().latest}>
++            <Badge class="shrink-0">{language.t("model.tag.latest")}</Badge>
++          </Show>
++        </span>
++        <Show when={usage(item())}>{(value) => <ModelUsageTag usage={value()} />}</Show>
++        <Show when={active()}>
++          <span data-slot="model-dialog-variant">
++            <span class="truncate capitalize">{variant(item()) ?? language.t("common.default")}</span>
++            <Icon name="chevron-right" size="small" />
++          </span>
++        </Show>
++      </button>
++    )
+   }
+ 
+   return (
+-    <Dialog size="large" variant="settings">
+-      <DialogHeader hideClose closeLabel={language.t("common.close")}>
+-        <DialogTitleGroup title={language.t("dialog.model.select.title")} />
+-        <Button icon="plus" onClick={provider}>
+-          {language.t("command.provider.connect")}
+-        </Button>
+-      </DialogHeader>
+-      <DialogBody class="flex min-h-0 flex-1 flex-col">
+-        <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
+-        <div class="shrink-0 border-t border-v2-border-border-muted px-4 py-3">
+-          <button
+-            type="button"
+-            class="flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-[13px] font-[530] leading-text-compact tracking-[-0.04px] text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+-            onClick={manage}
++    <Dialog class="command-palette model-dialog" size="large">
++      <div class="sr-only">
++        <DialogTitle>{language.t("dialog.model.select.title")}</DialogTitle>
++      </div>
++      <DialogBody class="command-palette-body">
++        {/* Scrolling moves the flyout's row away without a pointer event, which would leave it detached. */}
++        <div
++          class="contents"
++          ref={(element) => {
++            scroller = element
++            createEventListener(
++              element,
++              "scroll",
++              () => {
++                follow()
++                fadeHeaders()
++              },
++              { capture: true },
++            )
++            // A wheel scroll is the pointer's, so the highlight and flyout follow the row under it.
++            createEventListener(element, "wheel", () => setStore("keyboard", false), { passive: true })
++          }}
++        >
++          <SearchList
++            ref={(handle) => (list = handle)}
++            query={store.search}
++            onQuery={setSearch}
++            placeholder={language.t("dialog.model.search.placeholder")}
++            trailing={
++              <>
++                <Tooltip
++                  placement="top"
++                  gutter={4}
++                  value={language.t("command.provider.connect")}
++                  ignoreSafeArea={false}
++                >
++                  <IconButton
++                    variant="ghost-muted"
++                    icon={<Icon name="plus" size="small" />}
++                    aria-label={language.t("command.provider.connect")}
++                    onClick={connect}
++                  />
++                </Tooltip>
++                <Tooltip placement="top" gutter={4} value={language.t("dialog.model.manage")} ignoreSafeArea={false}>
++                  <IconButton
++                    variant="ghost-muted"
++                    icon={<Icon name="outline-sliders" size="small" />}
++                    aria-label={language.t("dialog.model.manage")}
++                    onClick={manage}
++                  />
++                </Tooltip>
++              </>
++            }
++            items={rows()}
++            key={(row) => row.id}
++            section={(row) => row.group.category}
++            header={(row) => (
++              <span data-slot="model-dialog-header-label" class="flex min-w-0 items-center gap-1.5">
++                <span class="min-w-0 truncate">{row.group.title ?? labels.name(row.item.provider)}</span>
++                <Show when={!row.group.title && labels.workspace(row.item.provider)}>
++                  {(workspace) => <Badge class="shrink-0">{workspace()}</Badge>}
++                </Show>
++              </span>
++            )}
++            empty={language.t("dialog.model.empty")}
++            onSelect={(row) => choose(row.item)}
++            onKeyDown={onKeyDown}
+           >
+-            <Icon name="outline-sliders" size="small" />
+-            <span class="min-w-0 flex-1 truncate">{language.t("dialog.model.manage")}</span>
+-          </button>
++            {(row, attrs) => <Row model={row()} attrs={attrs} />}
++          </SearchList>
+         </div>
++        <Show when={chatgptPlan()}>
++          <ChatgptPlanFooter />
++        </Show>
+       </DialogBody>
++      <Show when={flyoutItem()}>
++        {(item) => (
++          // Inside the dialog content, so clicks here are not outside clicks that dismiss the dialog.
++          <div
++            ref={(element) => (flyoutRef = element)}
++            data-component="menu-v2-content"
++            data-slot="model-dialog-flyout"
++            style={{ left: `${store.position.left}px`, top: `${store.position.top}px` }}
++            onMouseEnter={() => triangle.cancel()}
++          >
++            {/* A model without variants still lists Default, its only option. */}
++            <For each={[undefined, ...variantsOf(item())]}>
++              {(value) => (
++                <div
++                  data-component="menu-v2-item"
++                  role="menuitemradio"
++                  aria-checked={variant(item()) === value}
++                  data-checked={variant(item()) === value ? "" : undefined}
++                  onMouseEnter={(event) => event.currentTarget.setAttribute("data-highlighted", "")}
++                  onMouseLeave={(event) => event.currentTarget.removeAttribute("data-highlighted")}
++                  onClick={() => choose(item(), value ?? null)}
++                >
++                  <span data-slot="menu-v2-item-content" class="capitalize">
++                    {value ?? language.t("common.default")}
++                  </span>
++                  <span data-slot="menu-v2-item-indicator" data-checked={variant(item()) === value ? "" : undefined}>
++                    <Icon name="check" size="small" />
++                  </span>
++                </div>
++              )}
++            </For>
++            <div data-slot="menu-v2-separator" role="separator" />
++            <div
++              data-component="menu-v2-item"
++              role="menuitem"
++              onMouseEnter={(event) => event.currentTarget.setAttribute("data-highlighted", "")}
++              onMouseLeave={(event) => event.currentTarget.removeAttribute("data-highlighted")}
++              onClick={() => {
++                // The row moves between Favorites and its group, so the flyout would be left beside nothing.
++                controller.toggleFavorite(item())
++                close()
++              }}
++            >
++              <span data-slot="menu-v2-item-content">
++                {favorite(item()) ? language.t("dialog.model.unfavorite") : language.t("dialog.model.favorite")}
++              </span>
++              <Keybind keys={formatKeybindParts("mod+f", language.t)} variant="neutral" class="shrink-0" />
++            </div>
++            <div data-slot="menu-v2-separator" role="separator" />
++            {/* The full name, "Workspace / Provider", where a workspace badge tells the connections apart. */}
++            <ModelDetails
++              model={item()}
++              provider={labels.workspace(item().provider) ? item().provider.name : labels.name(item().provider)}
++              compact
++              standalone
++              usage={usage(item())}
++            />
++          </div>
++        )}
++      </Show>
+     </Dialog>
+   )
+ }
+diff --git a/packages/app/src/providers/models/unpaid.stories.tsx b/packages/app/src/providers/models/unpaid.stories.tsx
+index ba98b6c..fe51f96 100644
+--- a/packages/app/src/providers/models/unpaid.stories.tsx
++++ b/packages/app/src/providers/models/unpaid.stories.tsx
+@@ -13,7 +13,7 @@ const names = [
+   "Big Pickle",
+ ]
+ 
+-function SelectModelWithoutProviders() {
++function SelectModelWithoutProviders(props) {
+   const dialog = useDialog()
+ 
+   const models = names.map((name, index) => ({
+@@ -31,7 +31,7 @@ function SelectModelWithoutProviders() {
+   const [current, setCurrent] = createSignal(models[2])
+ 
+   const model = {
+-    list: () => models,
++    list: () => models.slice(0, props.count),
+     current,
+     set(value) {
+       setCurrent(models.find((item) => item.id === value?.modelID))
+@@ -52,8 +52,10 @@ function SelectModelWithoutProviders() {
+ export default {
+   title: "App/Dialogs/Select Model",
+   id: "app-dialog-select-model",
++  args: { count: names.length },
++  argTypes: { count: { control: { type: "range", min: 1, max: names.length, step: 1 } } },
+ }
+ 
+ export const WithoutProviders = {
+-  render: () => <SelectModelWithoutProviders />,
++  render: (args) => <SelectModelWithoutProviders count={args.count} />,
+ }
+diff --git a/packages/app/src/providers/models/unpaid.tsx b/packages/app/src/providers/models/unpaid.tsx
+index ed011c1..2d45d19 100644
+--- a/packages/app/src/providers/models/unpaid.tsx
++++ b/packages/app/src/providers/models/unpaid.tsx
+@@ -44,7 +44,9 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
+     void import("@/providers/connect/dialog").then((x) => {
+       const controller = x.useProviderConnectController()
+       controller.select(provider)
+-      void dialog.show(() => <x.DialogConnectProvider controller={controller} directory={directory()} />)
++      void dialog.show(() => (
++        <x.DialogConnectProvider controller={controller} directory={directory()} selection={model} />
++      ))
+     })
+   }
+ 
+@@ -53,7 +55,7 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
+     dialog.close()
+   }
+ 
+-  // Focus starts on the dialog's close button, outside the list, so listen at the
++  // Focus starts on the dialog itself, outside the list, so listen at the
+   // document level while the dialog is mounted instead of on the list container.
+   let listEl: HTMLDivElement | undefined
+   onMount(() => {
+diff --git a/packages/app/src/session/usage-exceeded-dialogs.tsx b/packages/app/src/session/usage-exceeded-dialogs.tsx
+index 38519da..d9280be 100644
+--- a/packages/app/src/session/usage-exceeded-dialogs.tsx
++++ b/packages/app/src/session/usage-exceeded-dialogs.tsx
+@@ -140,6 +140,7 @@ export function useUsageExceededDialogs(input?: {
+                 <x.DialogConnectProvider
+                   directory={sdk().directory}
+                   controller={controller}
++                  standalone
+                   selection={input?.selection?.() ?? local.model}
+                   onDone={input?.onDone}
+                 />
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 13266d0..fcd85c8 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -8,6 +8,8 @@ export const dict = {
+   "command.config.reload.pending": "Reloading configuration…",
+   "command.config.reload.done": "Configuration reloaded",
+   "command.config.reload.failed": "Couldn't reload configuration",
++  "command.usage.view": "View usage",
++  "command.usage.view.description": "See your OpenCode Go allowance and Console budgets",
+   "command.commands.search": "Search commands",
+   "command.session.search": "Search sessions",
+   "command.sidebar.toggle": "Toggle sidebar",
+@@ -196,6 +198,12 @@ export const dict = {
+   "dialog.model.manage.description": "Customize which models appear in the model selector.",
+   "dialog.model.chatgptPlan": "Using ChatGPT plan",
+   "dialog.model.chatgptManageUsage": "Manage usage",
++  "dialog.model.favorites": "Favorites",
++  "dialog.model.recent": "Recent",
++  "dialog.model.hint.navigate": "Navigate",
++  "dialog.model.hint.select": "Select",
++  "dialog.model.favorite": "Favorite",
++  "dialog.model.unfavorite": "Unfavorite",
+ 
+   "dialog.model.unpaid.freeModels.title": "Free models provided by OpenCode",
+   "dialog.model.unpaid.addMore.title": "Add more models from popular providers",
+@@ -369,6 +377,20 @@ export const dict = {
+   "model.tooltip.reasoning.allowed": "Allows reasoning",
+   "model.tooltip.reasoning.none": "No reasoning",
+   "model.tooltip.context": "Context limit {{limit}}",
++  "model.details.input.text": "Text",
++  "model.details.input.image": "Image",
++  "model.details.input.audio": "Audio",
++  "model.details.input.video": "Video",
++  "model.details.input.pdf": "PDF",
++  "model.details.input": "Input",
++  "model.details.output": "Output",
++  "model.details.inputOutput": "Input & Output",
++  "model.details.tools": "Tools",
++  "model.details.supported": "Supported",
++  "model.details.summary": "{{provider}} · {{context}} context",
++  "model.details.left": "Left",
++  "model.details.resets": "Resets",
++  "model.details.usage": "{{label}} · resets {{time}}",
+ 
+   "common.search.placeholder": "Search",
+   "common.goBack": "Navigate back",
+@@ -1260,6 +1282,75 @@ export const dict = {
+   "workspace.delete.confirm": "Delete “{{name}}”?",
+   "workspace.delete.location": "Location",
+   "workspace.delete.button": "Delete worktree",
++
++  "usage.title": "Usage",
++  "usage.section.go": "OpenCode Go",
++  "usage.section.console": "OpenCode Console",
++  "usage.workspace.fallback": "your workspace",
++  "usage.time": "{{date}} at {{time}} ({{zone}})",
++  "usage.go.rolling": "Rolling",
++  "usage.go.weekly": "Weekly",
++  "usage.go.monthly": "Monthly",
++  "usage.go.used": "{{percent}}% used",
++  "usage.go.resetsIn": "Resets in {{duration}}",
++  "usage.duration.days": "{{days}}d {{hours}}h",
++  "usage.duration.hours": "{{hours}}h {{minutes}}m",
++  "usage.duration.minutes": "{{minutes}}m",
++  "usage.budget.all": "All spend",
++  "usage.budget.each": "Each model",
++  "usage.budget.vendors": "{{vendors}} models",
++  "usage.budget.vendorsEach": "Each {{vendors}} model",
++  "usage.budget.vendorsPrice": "{{vendors}} models from {{price}} per 1M input",
++  "usage.budget.vendorsPriceEach": "Each {{vendors}} model from {{price}} per 1M input",
++  "usage.budget.price": "Models from {{price}} per 1M input",
++  "usage.budget.priceEach": "Each model from {{price}} per 1M input",
++  "usage.budget.modelsMore.one": "{{first}}, {{second}} +{{count}} more",
++  "usage.budget.modelsMore.other": "{{first}}, {{second}} +{{count}} more",
++  "usage.budget.modelsEach": "Each of {{models}}",
++  "usage.budget.you": "{{limit}} a month, just you",
++  "usage.budget.youEach": "{{limit}} a month per model, just you",
++  "usage.budget.everyone": "{{limit}} a month, shared by everyone in {{workspace}}",
++  "usage.budget.everyoneEach": "{{limit}} a month per model, shared by everyone in {{workspace}}",
++  "usage.budget.group": "{{limit}} a month, shared with your group",
++  "usage.budget.groupEach": "{{limit}} a month per model, shared with your group",
++  "usage.budget.left": "{{amount}} left",
++  "usage.budget.of": "of {{limit}}",
++  "usage.budget.reached": "Budget reached",
++  "usage.budget.spentOf": "{{spent}} of {{limit}}",
++  "usage.note.runsOutFirst": "runs out first",
++  "usage.note.paused": "{{label}} paused",
++  "usage.note.webSearch": "includes web search",
++  "usage.note.pausedByWorkspace": "paused by workspace budget",
++  "usage.note.pausedByBudget": "paused by monthly budget",
++  "usage.note.currentModel": "this is {{model}}",
++  "usage.callout.workspace.title": "Workspace budget reached",
++  "usage.callout.workspace.body":
++    "Paid models and web search are paused for everyone in {{workspace}} until {{time}}. Free models still work.",
++  "usage.callout.personal.title": "Monthly budget reached",
++  "usage.callout.personal.body":
++    "Paid models and web search are paused for you until {{time}}. Free models still work.",
++  "usage.callout.credits.title": "{{workspace}} is out of credits",
++  "usage.callout.credits.body":
++    "Paid models are paused for everyone until an admin adds credits in Console. Your budgets still have room. Free models still work.",
++  "usage.action.otherModels.title": "Other models still have room",
++  "usage.action.otherModels.vendors": "Switch to a non-{{vendors}} model. Only workspace admins can change budgets.",
++  "usage.action.otherModels.body":
++    "Switch to a model this budget doesn't cover. Only workspace admins can change budgets.",
++  "usage.action.each.title": "Other models still work",
++  "usage.action.each.titleVendors": "Other {{vendors}} models still work",
++  "usage.action.each.suggestion": "Each model has its own {{limit}}. {{model}} has {{left}} left.",
++  "usage.action.each.body": "Each model has its own {{limit}}.",
++  "usage.action.switch": "Switch model",
++  "usage.empty.title": "No budgets apply to you",
++  "usage.empty.body": "Paid models stop only if {{workspace}} runs out of credits.",
++  "usage.footer.resets": "Resets {{time}}",
++  "usage.footer.budgetsReset": "Budgets reset {{time}}",
++  "usage.footer.creditsOnly": "Spend is limited only by {{workspace}}'s credits",
++  "usage.footer.details": "View details",
++  "usage.signedOut.title": "Not signed in to OpenCode Console",
++  "usage.signedOut.body": "Connect OpenCode Console to see your workspace's budgets and Go usage.",
++  "usage.error": "Usage limits couldn't be loaded.",
++  "usage.retry": "Try again",
+ }
+ 
+ export default dict
+diff --git a/packages/app/src/usage/dialog.css b/packages/app/src/usage/dialog.css
+new file mode 100644
+index 0000000..a36d458
+--- /dev/null
++++ b/packages/app/src/usage/dialog.css
+@@ -0,0 +1,8 @@
++/* Reached budgets use the design's deep red; it is too dark to read on dark surfaces, where the danger foreground is. */
++[data-component="usage-dialog"] {
++  --usage-reached: var(--v2-red-900);
++}
++
++[data-color-scheme="dark"] [data-component="usage-dialog"] {
++  --usage-reached: var(--v2-state-fg-danger);
++}
+diff --git a/packages/app/src/usage/dialog.stories.tsx b/packages/app/src/usage/dialog.stories.tsx
+new file mode 100644
+index 0000000..f09f75a
+--- /dev/null
++++ b/packages/app/src/usage/dialog.stories.tsx
+@@ -0,0 +1,99 @@
++import type { UsageLimitsBudget, UsageLimitsInfo } from "@opencode/client/promise"
++import { Button } from "@opencode/ui/button"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { onMount } from "solid-js"
++import { UsageDialogContent } from "./dialog"
++import type { CurrentModel } from "./limits"
++
++const resetsAt = Date.UTC(2026, 10, 1)
++const hour = 3_600_000
++
++const opus = { providerID: "opencode", modelID: "claude-opus-5", name: "Claude Opus 5" }
++const sonnet = { providerID: "opencode", modelID: "claude-sonnet-5", name: "Claude Sonnet 5" }
++
++const budget = (input: Partial<UsageLimitsBudget> & Pick<UsageLimitsBudget, "id">): UsageLimitsBudget => ({
++  limit: 150,
++  spent: 0,
++  scope: "each",
++  per: "set",
++  coverage: "all",
++  models: [],
++  vendors: [],
++  picked: false,
++  shared: false,
++  resetsAt,
++  ...input,
++})
++
++const anthropic = (spent: number) =>
++  budget({ id: "anthropic", coverage: "models", vendors: ["Anthropic"], models: [opus, sonnet], spent })
++
++const pool = (spent: number) => budget({ id: "pool", scope: "combined", shared: true, limit: 1_000, spent })
++
++const info = (budgets: UsageLimitsBudget[], go = false): UsageLimitsInfo => ({
++  workspace: { id: "wrk_1", name: "Acme", usageURL: "https://opencode.ai/wrk_1/activity/overview" },
++  ...(go
++    ? {
++        go: {
++          rolling: { percent: 42, limited: false, resetsAt: Date.now() + 3 * hour },
++          weekly: { percent: 18, limited: false, resetsAt: Date.now() + 100 * hour },
++          monthly: { percent: 7, limited: false, resetsAt: Date.now() + 500 * hour },
++        },
++      }
++    : {}),
++  budgets,
++})
++
++function UsageStory(props: { info: UsageLimitsInfo; model?: CurrentModel; credits?: boolean }) {
++  const dialog = useDialog()
++  const open = () => dialog.show(() => <UsageDialogContent {...props} onSwitchModel={() => {}} />)
++
++  onMount(open)
++
++  return (
++    <div class="flex min-h-[560px] items-end justify-center">
++      <Button variant="ghost-muted" onClick={open}>
++        Usage
++      </Button>
++    </div>
++  )
++}
++
++export default {
++  title: "App/Dialogs/Usage",
++  id: "app-dialog-usage",
++}
++
++export const Default = { render: () => <UsageStory info={info([anthropic(123.14), pool(394.57)], true)} /> }
++
++export const PerModel = {
++  render: () => (
++    <UsageStory
++      model={opus}
++      info={info([
++        budget({
++          id: "each",
++          coverage: "models",
++          per: "model",
++          limit: 20,
++          spent: 20,
++          picked: true,
++          models: [
++            { ...opus, spent: 20 },
++            { ...sonnet, spent: 4.5 },
++          ],
++        }),
++      ])}
++    />
++  ),
++}
++
++export const ModelBudgetReached = {
++  render: () => <UsageStory model={opus} info={info([anthropic(150.42), pool(394.57)])} />,
++}
++
++export const WorkspaceBudgetReached = { render: () => <UsageStory info={info([anthropic(80), pool(1_000.12)])} /> }
++
++export const OutOfCredits = { render: () => <UsageStory credits info={info([anthropic(80), pool(394.57)])} /> }
++
++export const NoBudgets = { render: () => <UsageStory info={info([])} /> }
+diff --git a/packages/app/src/usage/dialog.tsx b/packages/app/src/usage/dialog.tsx
+new file mode 100644
+index 0000000..bb94788
+--- /dev/null
++++ b/packages/app/src/usage/dialog.tsx
+@@ -0,0 +1,443 @@
++import type { LocationRef, UsageLimitsInfo } from "@opencode/client/promise"
++import { Button } from "@opencode/ui/button"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { Dialog, DialogBody, DialogFooter, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
++import { Loader } from "@opencode/ui/loader"
++import { createStore } from "solid-js/store"
++import { For, type JSX, Match, onMount, Show, Switch } from "solid-js"
++import { useLanguage } from "@/runtime/i18n/language"
++import { usePlatform } from "@/runtime/platform/platform"
++import { useData } from "@/runtime/server/current"
++import { useUsageFormat } from "./format"
++import {
++  type BudgetLabel,
++  type BudgetNote,
++  type BudgetRow,
++  type Callout,
++  type CurrentModel,
++  type GoRow,
++  type LimitAction,
++  usageView,
++} from "./limits"
++import "./dialog.css"
++
++/** The Usage dialog: the location's OpenCode Go allowance and Console budgets, refreshed when it opens. */
++export function DialogUsage(props: {
++  location: LocationRef
++  /** The model in use, so a per-model budget shows this model's counter. */
++  model?: CurrentModel
++  /** The last request was refused because the workspace is out of credits. */
++  credits?: boolean
++  onSwitchModel?: () => void
++}) {
++  const data = useData()
++  const language = useLanguage()
++  const [state, setState] = createStore({ loading: true, failed: false })
++  const load = () => {
++    setState({ loading: true, failed: false })
++    data.location.usage.invalidate(props.location)
++    data.location.usage
++      .sync(props.location)
++      .then(() => setState({ loading: false, failed: false }))
++      .catch(() => setState({ loading: false, failed: true }))
++  }
++  onMount(load)
++  const info = () => data.location.usage.limits(props.location)
++
++  return (
++    <Switch>
++      <Match when={info()}>
++        {(value) => (
++          <UsageDialogContent
++            info={value()}
++            model={props.model}
++            credits={props.credits}
++            onSwitchModel={props.onSwitchModel}
++          />
++        )}
++      </Match>
++      <Match when={true}>
++        <UsageFrame>
++          <div class="flex min-h-[120px] items-center justify-center px-4 pb-4">
++            <Switch>
++              <Match when={state.loading}>
++                <Loader />
++              </Match>
++              <Match when={state.failed}>
++                <div class="flex flex-col items-center gap-3">
++                  <span class="text-[13px] leading-text-compact font-[440] tracking-[-0.04px] text-v2-text-text-muted">
++                    {language.t("usage.error")}
++                  </span>
++                  <Button variant="neutral" onClick={load}>
++                    {language.t("usage.retry")}
++                  </Button>
++                </div>
++              </Match>
++              <Match when={true}>
++                <Panel gap={8}>
++                  <Item>
++                    <Line class="font-[530] text-v2-text-text-base">{language.t("usage.signedOut.title")}</Line>
++                    <Line class="text-v2-text-text-muted">{language.t("usage.signedOut.body")}</Line>
++                  </Item>
++                </Panel>
++              </Match>
++            </Switch>
++          </div>
++        </UsageFrame>
++      </Match>
++    </Switch>
++  )
++}
++
++/** The dialog for usage limits already loaded. */
++export function UsageDialogContent(props: {
++  info: UsageLimitsInfo
++  model?: CurrentModel
++  credits?: boolean
++  onSwitchModel?: () => void
++}) {
++  const language = useLanguage()
++  const platform = usePlatform()
++  const dialog = useDialog()
++  const format = useUsageFormat()
++  const view = () => usageView(props.info, { model: props.model, credits: props.credits })
++  const workspace = () => view().workspace ?? language.t("usage.workspace.fallback")
++  const vendors = (list: readonly string[]) =>
++    new Intl.ListFormat(language.intl(), { style: "long", type: "conjunction" }).format(list)
++  const duration = (until: number) => {
++    const minutes = Math.max(1, Math.floor((until - Date.now()) / 60_000))
++    if (minutes >= 1_440)
++      return language.t("usage.duration.days", {
++        days: Math.floor(minutes / 1_440),
++        hours: Math.floor((minutes % 1_440) / 60),
++      })
++    if (minutes >= 60)
++      return language.t("usage.duration.hours", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
++    return language.t("usage.duration.minutes", { minutes })
++  }
++  const label = (value: BudgetLabel): string => {
++    if (value.kind === "all") return language.t("usage.budget.all")
++    if (value.kind === "each") return language.t("usage.budget.each")
++    if (value.kind === "vendors") {
++      const params = {
++        vendors: vendors(value.vendors),
++        price: value.price === undefined ? "" : format.money(value.price, "auto"),
++      }
++      if (value.price !== undefined)
++        return language.t(value.each ? "usage.budget.vendorsPriceEach" : "usage.budget.vendorsPrice", params)
++      return language.t(value.each ? "usage.budget.vendorsEach" : "usage.budget.vendors", params)
++    }
++    if (value.kind === "price")
++      return language.t(value.each ? "usage.budget.priceEach" : "usage.budget.price", {
++        price: format.money(value.price, "auto"),
++      })
++    const models =
++      value.names.length > 2
++        ? language.plural("usage.budget.modelsMore", value.names.length - 2, {
++            first: value.names[0],
++            second: value.names[1],
++          })
++        : vendors(value.names)
++    return value.each ? language.t("usage.budget.modelsEach", { models }) : models
++  }
++  const scope = (row: BudgetRow) => {
++    const params = { limit: format.money(row.limit, "auto"), workspace: workspace() }
++    const amount = {
++      you: row.perModel ? "usage.budget.youEach" : "usage.budget.you",
++      everyone: row.perModel ? "usage.budget.everyoneEach" : "usage.budget.everyone",
++      group: row.perModel ? "usage.budget.groupEach" : "usage.budget.group",
++    } as const
++    return [language.t(amount[row.sharing], params), ...row.notes.map((value) => note(value, row))].join(" · ")
++  }
++  const note = (value: BudgetNote, row: BudgetRow) => {
++    if (value.kind === "runs-out-first") return language.t("usage.note.runsOutFirst")
++    if (value.kind === "paused") return language.t("usage.note.paused", { label: label(row.label) })
++    if (value.kind === "includes-web-search") return language.t("usage.note.webSearch")
++    if (value.kind === "paused-by")
++      return language.t(value.shared ? "usage.note.pausedByWorkspace" : "usage.note.pausedByBudget")
++    return language.t("usage.note.currentModel", { model: value.name })
++  }
++  const footer = () => {
++    const value = view().footer
++    if (value.kind === "credits-only") return language.t("usage.footer.creditsOnly", { workspace: workspace() })
++    return language.t(value.kind === "budgets-reset" ? "usage.footer.budgetsReset" : "usage.footer.resets", {
++      time: format.time(value.resetsAt),
++    })
++  }
++  const callout = (value: Callout) => {
++    if (value.kind === "credits")
++      return {
++        title: language.t("usage.callout.credits.title", { workspace: workspace() }),
++        body: language.t("usage.callout.credits.body"),
++      }
++    const params = { workspace: workspace(), time: format.time(value.resetsAt) }
++    if (value.kind === "workspace")
++      return {
++        title: language.t("usage.callout.workspace.title"),
++        body: language.t("usage.callout.workspace.body", params),
++      }
++    return {
++      title: language.t("usage.callout.personal.title"),
++      body: language.t("usage.callout.personal.body", params),
++    }
++  }
++  const action = (value: LimitAction) => {
++    if (value.kind === "other-models")
++      return {
++        title: language.t("usage.action.otherModels.title"),
++        body:
++          value.vendors.length > 0
++            ? language.t("usage.action.otherModels.vendors", { vendors: vendors(value.vendors) })
++            : language.t("usage.action.otherModels.body"),
++      }
++    const limit = format.money(value.limit, "auto")
++    return {
++      title:
++        value.vendors.length > 0
++          ? language.t("usage.action.each.titleVendors", { vendors: vendors(value.vendors) })
++          : language.t("usage.action.each.title"),
++      body: value.suggestion
++        ? language.t("usage.action.each.suggestion", {
++            limit,
++            model: value.suggestion.name,
++            left: format.money(value.suggestion.left),
++          })
++        : language.t("usage.action.each.body", { limit }),
++    }
++  }
++  const switchModel = () => {
++    dialog.close()
++    props.onSwitchModel?.()
++  }
++
++  return (
++    <UsageFrame
++      footer={
++        <>
++          <span class="flex h-7 min-w-0 flex-1 items-center">
++            <Line class="text-v2-text-text-faint">{footer()}</Line>
++          </span>
++          <Button
++            variant="ghost"
++            class="text-v2-text-text-muted!"
++            onClick={() => platform.openExternal(props.info.workspace.usageURL)}
++          >
++            {language.t("usage.footer.details")}
++          </Button>
++        </>
++      }
++    >
++      <Show when={view().callout}>
++        {(value) => (
++          <div data-slot="usage-callout" class="flex items-stretch gap-0.5 px-4">
++            <div class="w-0.5 shrink-0 bg-v2-state-fg-danger" />
++            <div class="flex flex-1 flex-col gap-1.5 rounded-r-md bg-v2-state-bg-danger p-3">
++              <Line class="font-[530] text-[var(--usage-reached)]">{callout(value()).title}</Line>
++              <p class="m-0 text-[13px] leading-text-base font-[440] tracking-[-0.04px] text-[var(--usage-reached)]">
++                {callout(value()).body}
++              </p>
++            </div>
++          </div>
++        )}
++      </Show>
++      <Show when={view().go}>
++        {(rows) => (
++          <Section label={language.t("usage.section.go")}>
++            <Panel>
++              <For each={rows()}>
++                {(row, index) => (
++                  <>
++                    <Show when={index() > 0}>
++                      <Divider />
++                    </Show>
++                    <GoItem row={row} used={language.t("usage.go.used", { percent: Math.round(row.percent) })}>
++                      {language.t("usage.go.resetsIn", { duration: duration(row.resetsAt) })}
++                    </GoItem>
++                  </>
++                )}
++              </For>
++            </Panel>
++          </Section>
++        )}
++      </Show>
++      <Section label={language.t("usage.section.console")} badge={view().workspace} dimmed={view().dimmed}>
++        <Show
++          when={view().budgets.length > 0}
++          fallback={
++            <Panel gap={8}>
++              <Item>
++                <Line class="font-[530] text-v2-text-text-base">{language.t("usage.empty.title")}</Line>
++                <Line class="text-v2-text-text-muted">
++                  {language.t("usage.empty.body", { workspace: workspace() })}
++                </Line>
++              </Item>
++            </Panel>
++          }
++        >
++          <Panel>
++            <For each={view().budgets}>
++              {(row, index) => (
++                <>
++                  <Show when={index() > 0}>
++                    <Divider />
++                  </Show>
++                  <Item>
++                    <div class="flex items-start justify-between self-stretch">
++                      <div class="flex min-w-0 flex-1 flex-col gap-0.5">
++                        <Line class="font-[530] text-v2-text-text-base">{label(row.label)}</Line>
++                        <p class="m-0 text-[13px] leading-text-compact font-[440] tracking-[-0.04px] text-v2-text-text-muted">
++                          {scope(row)}
++                        </p>
++                      </div>
++                      <Spend
++                        status={
++                          row.reached
++                            ? language.t("usage.budget.reached")
++                            : language.t("usage.budget.left", { amount: format.money(row.left) })
++                        }
++                        reached={row.reached}
++                      >
++                        {row.reached
++                          ? language.t("usage.budget.spentOf", {
++                              spent: format.money(row.spent),
++                              limit: format.money(row.limit, "auto"),
++                            })
++                          : language.t("usage.budget.of", { limit: format.money(row.limit, "auto") })}
++                      </Spend>
++                    </div>
++                    <Track fill={row.fill} reached={row.reached} />
++                  </Item>
++                </>
++              )}
++            </For>
++            <Show when={view().action}>
++              {(value) => (
++                <div class="flex items-center gap-4 self-stretch px-4">
++                  <div class="flex min-w-0 flex-1 flex-col gap-1">
++                    <Line class="font-[530] text-v2-text-text-base">{action(value()).title}</Line>
++                    <p class="m-0 text-[13px] leading-text-base font-[440] tracking-[-0.04px] text-v2-text-text-muted">
++                      {action(value()).body}
++                    </p>
++                  </div>
++                  <Button variant="neutral" onClick={switchModel}>
++                    {language.t("usage.action.switch")}
++                  </Button>
++                </div>
++              )}
++            </Show>
++          </Panel>
++        </Show>
++      </Section>
++    </UsageFrame>
++  )
++}
++
++function UsageFrame(props: { children: JSX.Element; footer?: JSX.Element }) {
++  const language = useLanguage()
++  return (
++    <Dialog fit containerClass="w-[min(calc(100vw-32px),512px)]!">
++      <div data-component="usage-dialog" class="flex flex-col self-stretch">
++        <DialogHeader>
++          <DialogTitleGroup title={language.t("usage.title")} />
++        </DialogHeader>
++        <DialogBody>
++          <div class="flex flex-col gap-4">{props.children}</div>
++        </DialogBody>
++        <Show when={props.footer}>
++          <DialogFooter>{props.footer}</DialogFooter>
++        </Show>
++      </div>
++    </Dialog>
++  )
++}
++
++function Section(props: { label: string; badge?: string; dimmed?: boolean; children: JSX.Element }) {
++  return (
++    <div class="flex flex-col gap-3" classList={{ "opacity-60": props.dimmed }}>
++      <div class="flex items-center gap-2 pr-5 pl-4">
++        <Line class="text-v2-text-text-muted">{props.label}</Line>
++        <Show when={props.badge}>
++          {(badge) => (
++            <span class="flex h-4 items-center rounded-[2px] bg-v2-background-bg-layer-03 px-1 text-[11px] leading-text-tight font-[530] tracking-[0.05px] text-v2-text-text-muted">
++              {badge()}
++            </span>
++          )}
++        </Show>
++      </div>
++      <div class="flex flex-col px-3">{props.children}</div>
++    </div>
++  )
++}
++
++function Panel(props: { gap?: 8 | 16; children: JSX.Element }) {
++  return (
++    <div
++      class="flex flex-col self-stretch rounded-lg border-[0.5px] border-v2-border-border-base bg-v2-background-bg-base py-4"
++      classList={{ "gap-2": props.gap === 8, "gap-4": props.gap !== 8 }}
++    >
++      {props.children}
++    </div>
++  )
++}
++
++function Item(props: { children: JSX.Element }) {
++  return <div class="flex flex-col gap-4 self-stretch px-4">{props.children}</div>
++}
++
++function Divider() {
++  return <div class="h-[0.5px] shrink-0 self-stretch bg-v2-border-border-base" />
++}
++
++/** One line of 13px text that truncates rather than wraps. */
++function Line(props: { class?: string; children: JSX.Element }) {
++  return (
++    <span
++      class={`min-w-0 truncate text-[13px] leading-text-compact font-[440] tracking-[-0.04px] ${props.class ?? ""}`}
++    >
++      {props.children}
++    </span>
++  )
++}
++
++function GoItem(props: { row: GoRow; used: string; children: JSX.Element }) {
++  const language = useLanguage()
++  return (
++    <Item>
++      <div class="flex items-center justify-between self-stretch">
++        <Line class="font-[530] text-v2-text-text-base">{language.t(`usage.go.${props.row.window}`)}</Line>
++        <Spend status={props.used} reached={props.row.limited}>
++          {props.children}
++        </Spend>
++      </div>
++      <Track fill={props.row.percent / 100} reached={props.row.limited} />
++    </Item>
++  )
++}
++
++function Spend(props: { status: string; reached: boolean; children: JSX.Element }) {
++  return (
++    <div class="flex shrink-0 items-center gap-1.5">
++      <Line
++        class={`font-[530] tabular-nums ${props.reached ? "text-[var(--usage-reached)]" : "text-v2-text-text-base"}`}
++      >
++        {props.status}
++      </Line>
++      <svg width="3" height="3" viewBox="0 0 3 3" aria-hidden="true" class="shrink-0 text-v2-icon-icon-muted">
++        <circle cx="1.5" cy="1.5" r="0.5625" fill="currentColor" />
++      </svg>
++      <Line class="text-v2-text-text-muted">{props.children}</Line>
++    </div>
++  )
++}
++
++function Track(props: { fill: number; reached: boolean }) {
++  return (
++    <div class="flex h-2 items-center self-stretch overflow-hidden rounded-[2px] bg-v2-background-bg-layer-03">
++      <div
++        class="h-2"
++        classList={{ "bg-v2-background-bg-inverse": !props.reached, "bg-[var(--usage-reached)]": props.reached }}
++        style={{ width: `${Math.max(0, Math.min(1, props.fill)) * 100}%` }}
++      />
++    </div>
++  )
++}
+diff --git a/packages/app/src/usage/format.ts b/packages/app/src/usage/format.ts
+new file mode 100644
+index 0000000..c8c101a
+--- /dev/null
++++ b/packages/app/src/usage/format.ts
+@@ -0,0 +1,33 @@
++import { useLanguage } from "@/runtime/i18n/language"
++
++/** Dollar amounts and reset times as the usage surfaces write them. */
++export function useUsageFormat() {
++  const language = useLanguage()
++  return {
++    /** `auto` drops the cents of a whole amount, the way limits are set. */
++    money: (value: number, cents: "always" | "auto" = "always") =>
++      new Intl.NumberFormat(language.intl(), {
++        style: "currency",
++        currency: "USD",
++        minimumFractionDigits: cents === "auto" && Number.isInteger(value) ? 0 : 2,
++        maximumFractionDigits: 2,
++      }).format(value),
++    time: (at: number) =>
++      language.t("usage.time", {
++        date: new Intl.DateTimeFormat(language.intl(), { month: "short", day: "numeric" }).format(at),
++        time: new Intl.DateTimeFormat(language.intl(), { timeStyle: "short" }).format(at),
++        zone:
++          new Intl.DateTimeFormat(language.intl(), { timeZoneName: "shortOffset" })
++            .formatToParts(at)
++            .find((part) => part.type === "timeZoneName")?.value ?? "",
++      }),
++    /** A reset time where there is no room for its time zone. */
++    shortTime: (at: number) =>
++      new Intl.DateTimeFormat(language.intl(), {
++        month: "short",
++        day: "numeric",
++        hour: "numeric",
++        minute: "2-digit",
++      }).format(at),
++  }
++}
+diff --git a/packages/app/src/usage/limits.test.ts b/packages/app/src/usage/limits.test.ts
+new file mode 100644
+index 0000000..833c3b9
+--- /dev/null
++++ b/packages/app/src/usage/limits.test.ts
+@@ -0,0 +1,141 @@
++import { describe, expect, test } from "bun:test"
++import type { UsageLimitsBudget, UsageLimitsInfo } from "@opencode/client/promise"
++import { modelUsage, usageView } from "./limits"
++
++const RESET = Date.UTC(2026, 10, 1)
++
++const budget = (input: Partial<UsageLimitsBudget> & Pick<UsageLimitsBudget, "id">): UsageLimitsBudget => ({
++  limit: 100,
++  spent: 0,
++  scope: "each",
++  per: "set",
++  coverage: "all",
++  models: [],
++  vendors: [],
++  picked: false,
++  shared: false,
++  resetsAt: RESET,
++  ...input,
++})
++
++const info = (...budgets: UsageLimitsBudget[]): UsageLimitsInfo => ({
++  workspace: { id: "wrk_1", name: "Acme", usageURL: "https://opencode.ai/wrk_1/activity/overview" },
++  budgets,
++})
++
++const opus = { providerID: "opencode", modelID: "claude-opus-5", name: "Claude Opus 5" }
++const sonnet = { providerID: "opencode", modelID: "claude-sonnet-5", name: "Claude Sonnet 5" }
++const served = (id: string, provider = "opencode") => ({ id, provider: { id: provider, integrationID: "opencode" } })
++
++describe("modelUsage", () => {
++  test("covers a model by every budget that counts it and keeps the least left", () => {
++    const limits = info(
++      budget({ id: "all", limit: 500, spent: 100 }),
++      budget({
++        id: "anthropic",
++        coverage: "models",
++        per: "model",
++        limit: 50,
++        spent: 50,
++        vendors: ["Anthropic"],
++        models: [
++          { ...opus, spent: 50 },
++          { ...sonnet, spent: 20 },
++        ],
++      }),
++    )
++
++    expect(modelUsage(limits, served("claude-sonnet-5"))).toEqual({ left: 30, reached: false, resetsAt: RESET })
++    expect(modelUsage(limits, served("claude-opus-5"))).toEqual({ left: 0, reached: true, resetsAt: RESET })
++    // A budget on all spend covers models served through the workspace, but not OpenCode Go or a direct provider.
++    expect(modelUsage(limits, served("gpt-6-sol", "console-openai"))).toEqual({
++      left: 400,
++      reached: false,
++      resetsAt: RESET,
++    })
++    expect(modelUsage(limits, served("glm-5.3", "opencode-go"))).toBeUndefined()
++    expect(modelUsage(limits, { id: "claude-opus-5", provider: { id: "anthropic" } })).toBeUndefined()
++  })
++})
++
++describe("usageView", () => {
++  test("orders budgets by what stops the member first", () => {
++    const view = usageView(
++      info(budget({ id: "roomy", limit: 500, spent: 10 }), budget({ id: "tight", limit: 150, spent: 123.14 })),
++    )
++
++    expect(view.budgets.map((row) => [row.id, row.notes])).toEqual([
++      ["tight", [{ kind: "runs-out-first" }]],
++      ["roomy", []],
++    ])
++    expect(view.budgets[0]).toMatchObject({ left: 26.86, reached: false })
++    expect(view.footer).toEqual({ kind: "resets", resetsAt: RESET })
++    expect(view.callout).toBeUndefined()
++  })
++
++  test("explains a reached budget on all spend and pauses the rest", () => {
++    const view = usageView(
++      info(
++        budget({ id: "models", coverage: "models", limit: 50, spent: 5, vendors: ["Anthropic"], models: [opus] }),
++        budget({ id: "pool", scope: "combined", shared: true, limit: 150, spent: 150.42 }),
++      ),
++    )
++
++    expect(view.callout).toEqual({ kind: "workspace", resetsAt: RESET })
++    expect(view.dimmed).toBe(true)
++    expect(view.action).toBeUndefined()
++    expect(view.budgets.map((row) => [row.id, row.sharing, row.notes])).toEqual([
++      ["pool", "everyone", [{ kind: "includes-web-search" }]],
++      ["models", "you", [{ kind: "paused-by", shared: true }]],
++    ])
++  })
++
++  test("offers other models when a budget on some models is reached", () => {
++    const vendors = usageView(
++      info(budget({ id: "anthropic", coverage: "models", limit: 50, spent: 50, vendors: ["Anthropic"] })),
++    )
++
++    expect(vendors.callout).toBeUndefined()
++    expect(vendors.budgets[0].notes).toEqual([{ kind: "paused" }])
++    expect(vendors.action).toEqual({ kind: "other-models", vendors: ["Anthropic"] })
++
++    // A budget per model counts the model in use, and suggests the covered model with the most room.
++    const each = usageView(
++      info(
++        budget({
++          id: "each",
++          coverage: "models",
++          per: "model",
++          limit: 20,
++          spent: 20,
++          picked: true,
++          models: [
++            { ...opus, spent: 20 },
++            { ...sonnet, spent: 5 },
++          ],
++        }),
++      ),
++      { model: opus },
++    )
++
++    expect(each.budgets[0]).toMatchObject({
++      label: { kind: "models", names: ["Claude Opus 5", "Claude Sonnet 5"], each: true },
++      reached: true,
++      notes: [{ kind: "current-model", name: "Claude Opus 5" }],
++    })
++    expect(each.action).toEqual({
++      kind: "other-models-each",
++      vendors: [],
++      limit: 20,
++      suggestion: { name: "Claude Sonnet 5", left: 15 },
++    })
++  })
++
++  test("blames the workspace's credits over its budgets", () => {
++    const view = usageView(info(budget({ id: "all", limit: 100, spent: 10 })), { credits: true })
++
++    expect(view.callout).toEqual({ kind: "credits" })
++    expect(view.footer).toEqual({ kind: "budgets-reset", resetsAt: RESET })
++    expect(usageView(info(), { credits: true }).footer).toEqual({ kind: "credits-only" })
++  })
++})
+diff --git a/packages/app/src/usage/limits.ts b/packages/app/src/usage/limits.ts
+new file mode 100644
+index 0000000..aba16c1
+--- /dev/null
++++ b/packages/app/src/usage/limits.ts
+@@ -0,0 +1,189 @@
++import type { UsageLimitsBudget, UsageLimitsInfo } from "@opencode/client/promise"
++
++/** The model the member is using, so a per-model budget shows this model's own counter. */
++export type CurrentModel = { readonly providerID: string; readonly modelID: string; readonly name: string }
++
++/** What a budget counts, before it is put into words. */
++export type BudgetLabel =
++  | { readonly kind: "all" }
++  | { readonly kind: "vendors"; readonly vendors: readonly string[]; readonly each: boolean; readonly price?: number }
++  | { readonly kind: "price"; readonly price: number; readonly each: boolean }
++  | { readonly kind: "models"; readonly names: readonly string[]; readonly each: boolean }
++  | { readonly kind: "each" }
++
++export type BudgetNote =
++  | { readonly kind: "runs-out-first" }
++  | { readonly kind: "paused" }
++  | { readonly kind: "includes-web-search" }
++  | { readonly kind: "paused-by"; readonly shared: boolean }
++  | { readonly kind: "current-model"; readonly name: string }
++
++export type BudgetRow = {
++  readonly id: string
++  readonly label: BudgetLabel
++  readonly limit: number
++  readonly perModel: boolean
++  /** Who spends against it: the member alone, everyone in the workspace, or a group of members. */
++  readonly sharing: "you" | "everyone" | "group"
++  readonly notes: readonly BudgetNote[]
++  readonly reached: boolean
++  readonly spent: number
++  readonly left: number
++  /** How much of the limit is spent, from 0 to 1. */
++  readonly fill: number
++}
++
++export type Callout =
++  | { readonly kind: "credits" }
++  | { readonly kind: "workspace" | "personal"; readonly resetsAt: number }
++
++export type LimitAction =
++  | { readonly kind: "other-models"; readonly vendors: readonly string[] }
++  | {
++      readonly kind: "other-models-each"
++      readonly vendors: readonly string[]
++      readonly limit: number
++      /** The covered model with the most room left, to switch to. */
++      readonly suggestion?: { readonly name: string; readonly left: number }
++    }
++
++export type Footer =
++  | { readonly kind: "resets" | "budgets-reset"; readonly resetsAt: number }
++  | { readonly kind: "credits-only" }
++
++export type GoRow = {
++  readonly window: "rolling" | "weekly" | "monthly"
++  readonly percent: number
++  readonly limited: boolean
++  readonly resetsAt: number
++}
++
++export type UsageView = {
++  readonly workspace: string | undefined
++  readonly callout?: Callout
++  readonly go?: readonly GoRow[]
++  readonly budgets: readonly BudgetRow[]
++  /** A callout explains why paid models are paused, so the budgets are shown as context. */
++  readonly dimmed: boolean
++  readonly action?: LimitAction
++  readonly footer: Footer
++}
++
++/**
++ * What the Usage dialog shows for a workspace's usage limits. Budgets are ordered by what stops the member first, the
++ * least left. `credits` marks a workspace whose credits ran out.
++ */
++export function usageView(
++  info: UsageLimitsInfo,
++  context: { readonly model?: CurrentModel; readonly credits?: boolean } = {},
++): UsageView {
++  const budgets = info.budgets
++    .map((budget) => ({ budget, ...spend(budget, context.model) }))
++    .toSorted((a, b) => a.left - b.left)
++  const blocking = budgets.find((entry) => entry.reached && entry.budget.coverage === "all")
++  const callout: Callout | undefined = context.credits
++    ? { kind: "credits" }
++    : blocking && { kind: blocking.budget.shared ? "workspace" : "personal", resetsAt: blocking.budget.resetsAt }
++  const anyReached = budgets.some((entry) => entry.reached)
++  const reachedModels = budgets.find((entry) => entry.reached && entry.budget.coverage === "models")
++  const resetsAt = Math.min(...info.budgets.map((budget) => budget.resetsAt))
++  const go = info.go
++  return {
++    workspace: info.workspace.name,
++    callout,
++    go: go && (["rolling", "weekly", "monthly"] as const).map((window) => ({ window, ...go[window] })),
++    budgets: budgets.map((entry, index) => ({
++      id: entry.budget.id,
++      label: label(entry.budget),
++      limit: entry.budget.limit,
++      perModel: entry.budget.per === "model",
++      sharing: entry.budget.scope === "each" ? "you" : entry.budget.shared ? "everyone" : "group",
++      notes: [
++        ...(index === 0 && !callout && !anyReached && budgets.length > 1 ? [{ kind: "runs-out-first" as const }] : []),
++        ...(entry.reached && entry.budget.coverage === "all" ? [{ kind: "includes-web-search" as const }] : []),
++        // A budget per model names the model it paused instead.
++        ...(entry.reached && entry.budget.coverage === "models" && entry.budget.per === "set"
++          ? [{ kind: "paused" as const }]
++          : []),
++        ...(!entry.reached && blocking ? [{ kind: "paused-by" as const, shared: blocking.budget.shared }] : []),
++        ...(entry.current ? [{ kind: "current-model" as const, name: entry.current.name }] : []),
++      ],
++      reached: entry.reached,
++      spent: entry.spent,
++      left: entry.left,
++      fill: entry.budget.limit > 0 ? Math.min(1, entry.spent / entry.budget.limit) : 1,
++    })),
++    dimmed: callout !== undefined,
++    action: callout || !reachedModels ? undefined : action(reachedModels.budget),
++    footer:
++      info.budgets.length === 0
++        ? { kind: "credits-only" }
++        : { kind: context.credits ? "budgets-reset" : "resets", resetsAt },
++  }
++}
++
++/** What the member's budgets leave for one model: the least any budget covering it has left. */
++export type ModelUsage = { readonly left: number; readonly reached: boolean; readonly resetsAt: number }
++
++/**
++ * What the Console budgets leave for a model, when any covers it. A budget on all spend covers every model the
++ * workspace serves; OpenCode Go bills its own allowance instead.
++ */
++export function modelUsage(
++  info: UsageLimitsInfo,
++  model: { readonly id: string; readonly provider: { readonly id: string; readonly integrationID?: string } },
++): ModelUsage | undefined {
++  const served = model.provider.integrationID === "opencode" && model.provider.id !== "opencode-go"
++  const covering = info.budgets.flatMap((budget) => {
++    if (budget.coverage === "all") return served ? [{ budget, spent: budget.spent }] : []
++    const entry = budget.models.find((item) => item.providerID === model.provider.id && item.modelID === model.id)
++    if (!entry) return []
++    return [{ budget, spent: budget.per === "model" ? (entry.spent ?? 0) : budget.spent }]
++  })
++  if (covering.length === 0) return undefined
++  return {
++    left: Math.min(...covering.map((entry) => Math.max(0, entry.budget.limit - entry.spent))),
++    reached: covering.some((entry) => entry.spent >= entry.budget.limit),
++    resetsAt: Math.min(...covering.map((entry) => entry.budget.resetsAt)),
++  }
++}
++
++/** The spend a budget's cap compares against: a per-model budget's counter for the current model, when it covers it. */
++function spend(budget: UsageLimitsBudget, model: CurrentModel | undefined) {
++  const current =
++    budget.per === "model" && model
++      ? budget.models.find((entry) => entry.providerID === model.providerID && entry.modelID === model.modelID)
++      : undefined
++  const spent = current?.spent ?? budget.spent
++  return { current: current && model, spent, reached: spent >= budget.limit, left: Math.max(0, budget.limit - spent) }
++}
++
++function label(budget: UsageLimitsBudget): BudgetLabel {
++  const each = budget.per === "model"
++  if (budget.coverage === "all") return { kind: "all" }
++  if (budget.vendors.length > 0)
++    return {
++      kind: "vendors",
++      vendors: budget.vendors,
++      each,
++      ...(budget.inputPriceAtLeast === undefined ? {} : { price: budget.inputPriceAtLeast }),
++    }
++  if (budget.inputPriceAtLeast !== undefined) return { kind: "price", price: budget.inputPriceAtLeast, each }
++  if (budget.picked) return { kind: "models", names: budget.models.map((model) => model.name), each }
++  return { kind: "each" }
++}
++
++// A per-model budget counts as reached by the model in use, so the model in use never has room to suggest.
++function action(budget: UsageLimitsBudget): LimitAction {
++  if (budget.per !== "model") return { kind: "other-models", vendors: budget.vendors }
++  const room = budget.models
++    .map((entry) => ({ name: entry.name, left: Math.max(0, budget.limit - (entry.spent ?? 0)) }))
++    .filter((entry) => entry.left > 0)
++    .toSorted((a, b) => b.left - a.left)[0]
++  return {
++    kind: "other-models-each",
++    vendors: budget.vendors,
++    limit: budget.limit,
++    ...(room ? { suggestion: room } : {}),
++  }
++}
+diff --git a/packages/app/src/usage/model.tsx b/packages/app/src/usage/model.tsx
+new file mode 100644
+index 0000000..33c2a28
+--- /dev/null
++++ b/packages/app/src/usage/model.tsx
+@@ -0,0 +1,55 @@
++import { onMount } from "solid-js"
++import { isFreeModel } from "@/providers/models/models"
++import { useLanguage } from "@/runtime/i18n/language"
++import { useData } from "@/runtime/server/current"
++import { useWorkspaceLocation } from "@/workspaces/location"
++import { useUsageFormat } from "./format"
++import { modelUsage } from "./limits"
++
++/** What a paid model has left under the member's Console budgets, written for the model picker. */
++export type ModelUsageLabel = {
++  /** The row's label: the dollars left, or that a budget is reached. */
++  readonly label: string
++  readonly reached: boolean
++  readonly left: string
++  readonly resets: string
++}
++
++/**
++ * Labels models with what the member's Console budgets leave for them, loading the budgets once. Spend moves with every
++ * request, so `refresh` reloads them on mount, showing the ones already loaded meanwhile.
++ */
++export function createModelUsage(options: { refresh?: boolean } = {}) {
++  const data = useData()
++  const location = useWorkspaceLocation()
++  const language = useLanguage()
++  const format = useUsageFormat()
++  onMount(() => {
++    if (options.refresh) data.location.usage.invalidate(location().ref)
++    void data.location.usage.sync(location().ref).catch(() => undefined)
++  })
++  return (model: Parameters<typeof modelUsage>[1] & Parameters<typeof isFreeModel>[0]): ModelUsageLabel | undefined => {
++    const info = data.location.usage.limits(location().ref)
++    const usage = info && !isFreeModel(model) ? modelUsage(info, model) : undefined
++    if (!usage) return
++    return {
++      label: usage.reached
++        ? language.t("usage.budget.reached")
++        : language.t("usage.budget.left", { amount: format.money(usage.left) }),
++      reached: usage.reached,
++      left: format.money(usage.left),
++      resets: format.shortTime(usage.resetsAt),
++    }
++  }
++}
++
++/** What the member's Console budgets leave for a paid model, always shown on its row in the model picker. */
++export function ModelUsageTag(props: { usage: ModelUsageLabel }) {
++  return (
++    <span
++      class={`shrink-0 tabular-nums ${props.usage.reached ? "text-v2-state-fg-danger" : "text-v2-text-text-faint"}`}
++    >
++      {props.usage.label}
++    </span>
++  )
++}
+diff --git a/packages/client/src/promise/generated/client.ts b/packages/client/src/promise/generated/client.ts
+index e63a15d..a2af319 100644
+--- a/packages/client/src/promise/generated/client.ts
++++ b/packages/client/src/promise/generated/client.ts
+@@ -278,6 +278,8 @@ import type {
+   WebsearchProvidersOutput,
+   WebsearchQueryInput,
+   WebsearchQueryOutput,
++  ExperimentalUsageLimitsInput,
++  ExperimentalUsageLimitsOutput,
+   ConfigGetInput,
+   ConfigGetOutput,
+   ConfigShellsOutput,
+@@ -2036,6 +2038,20 @@ export function make(options: ClientOptions) {
+             requestOptions,
+           ).then((value) => value.data),
+       },
++      usage: {
++        limits: (input?: ExperimentalUsageLimitsInput, requestOptions?: RequestOptions) =>
++          request<ExperimentalUsageLimitsOutput>(
++            {
++              method: "GET",
++              path: `/api/experimental/usage/limits`,
++              query: { location: input?.["location"] },
++              successStatus: 200,
++              declaredStatuses: [400, 401, 404, 503],
++              empty: false,
++            },
++            requestOptions,
++          ),
++      },
+     },
+     shell: {
+       list: (input?: ShellListInput, requestOptions?: RequestOptions) =>
+diff --git a/packages/client/src/promise/generated/types.ts b/packages/client/src/promise/generated/types.ts
+index 3157b21..34c9dab 100644
+--- a/packages/client/src/promise/generated/types.ts
++++ b/packages/client/src/promise/generated/types.ts
+@@ -312,6 +312,8 @@ export type WebSearchID = string
+ 
+ export type WebSearchResult = { url: string; title?: string; content?: string; time: { published?: number } }
+ 
++export type UsageLimitsMeter = { percent: number; limited: boolean; resetsAt: number }
++
+ export type McpProtocol = "legacy" | "auto" | "2026-07-28"
+ 
+ export type ConfigWorktree = { directory: string }
+@@ -408,6 +410,8 @@ export type SessionMessageCompactionRunning = {
+   summary: string
+ }
+ 
++export type UsageLimitsBudgetModel = { providerID: ProviderID; modelID: string; name: string; spent?: MoneyUSD }
++
+ export type FileSystemEntry = { path: RelativePath; type: "file" | "directory" }
+ 
+ export type SessionRevert = {
+@@ -869,6 +873,8 @@ export type VcsInfo = { provider?: string; branch: VcsBranch }
+ 
+ export type WebSearchProvider = { id: WebSearchID; name: string }
+ 
++export type UsageLimitsGo = { rolling: UsageLimitsMeter; weekly: UsageLimitsMeter; monthly: UsageLimitsMeter }
++
+ export type ConfigModelCapabilities = {
+   tools?: boolean
+   input?: Array<string>
+@@ -951,6 +957,21 @@ export type ModelVariant = {
+ 
+ export type PermissionRuleset = Array<PermissionRule>
+ 
++export type UsageLimitsBudget = {
++  id: string
++  limit: MoneyUSD
++  spent: MoneyUSD
++  scope: "each" | "combined"
++  per: "set" | "model"
++  coverage: "all" | "models"
++  models: Array<UsageLimitsBudgetModel>
++  vendors: Array<string>
++  inputPriceAtLeast?: MoneyUSDPerMillionTokens
++  picked: boolean
++  shared: boolean
++  resetsAt: number
++}
++
+ export type SessionMessageUser = {
+   id: SessionMessageID
+   metadata?: { [x: string]: JsonValue }
+@@ -2366,6 +2387,12 @@ export type ConfigEntry =
+     }
+   | { type: "directory"; path: AbsolutePath }
+ 
++export type UsageLimitsInfo = {
++  workspace: { id: string; name?: string; usageURL: string }
++  go?: UsageLimitsGo
++  budgets: Array<UsageLimitsBudget>
++}
++
+ export type SessionInboxUser = {
+   id: SessionMessageID
+   sessionID: SessionID
+@@ -6075,6 +6102,18 @@ export type WebsearchQueryOutput = {
+   data: { providerID: WebSearchID; results: Array<WebSearchResult> }
+ }
+ 
++export type ExperimentalUsageLimitsInput = {
++  readonly location?: { readonly directory?: string | undefined } | undefined
++}
++
++export type ExperimentalUsageLimitsOutput = { location: LocationPublicRef; data: UsageLimitsInfo | null }
++
++/** @deprecated Use `ExperimentalUsageLimitsInput`. Removed in the next minor. */
++export type UsageLimitsInput = ExperimentalUsageLimitsInput
++
++/** @deprecated Use `ExperimentalUsageLimitsOutput`. Removed in the next minor. */
++export type UsageLimitsOutput = ExperimentalUsageLimitsOutput
++
+ export type ConfigGetInput = {
+   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+ }
+diff --git a/packages/client/src/solid/data.ts b/packages/client/src/solid/data.ts
+index 05c4669..a25c8f6 100644
+--- a/packages/client/src/solid/data.ts
++++ b/packages/client/src/solid/data.ts
+@@ -35,6 +35,7 @@ import type {
+   SessionInboxCompaction,
+   ShellInfo,
+   SkillInfo,
++  UsageLimitsInfo,
+   VcsInfo,
+   OpenCodeEvent,
+   OpenCodeClient,
+@@ -128,6 +129,9 @@ type LocationData = {
+   provider?: ProviderInfo[]
+   reference?: ReferenceInfo[]
+   websearch?: WebSearchProvider[]
++  // The Go allowance and Console budgets of the OpenCode Console workspace the location is signed in to; null when it
++  // isn't signed in.
++  usageLimits?: UsageLimitsInfo | null
+   // Currently running shell commands for this location, keyed by shell id. Entries are removed
+   // once the command exits or is deleted, so this only ever holds in-flight shells.
+   shell?: Record<string, ShellWithLocation>
+@@ -965,6 +969,12 @@ export function createData(config: CreateDataInput) {
+         return
+       }
+       case "session.step.failed":
++        // A budget refusal means the cached usage limits are out of date, which is what the refusal sends people to.
++        if (
++          event.location &&
++          (event.data.error.type === "provider.budget-limit" || event.data.error.type === "provider.model-budget-limit")
++        )
++          refreshUsageLimits(event.location)
+         message.editAssistant(event.data.sessionID, event.data.assistantMessageID, (assistant) => {
+           assistant.time.completed = event.created
+           assistant.finish = event.data.finish ?? "error"
+@@ -1249,6 +1259,7 @@ export function createData(config: CreateDataInput) {
+       Object.keys(store.location).forEach((key) => {
+         const ref = JSON.parse(key) as [string, string | null]
+         const location = { directory: ref[0], workspaceID: ref[1] ?? undefined }
++        refreshUsageLimits(location)
+         if (event.type === "credential.updated") {
+           result.location.integration.invalidate(location)
+           refresh(() => result.location.integration.sync(location))
+@@ -1333,6 +1344,7 @@ export function createData(config: CreateDataInput) {
+         refresh(() => result.location.reference.sync(location))
+         break
+       case "integration.updated":
++        refreshUsageLimits(location)
+         result.location.integration.invalidate(location)
+         result.location.model.invalidate(location)
+         result.location.provider.invalidate(location)
+@@ -1370,6 +1382,14 @@ export function createData(config: CreateDataInput) {
+   // A cached per-location catalog. `sync` loads once per invalidation, keyed by the
+   // effective location, and publishes under the server's canonical location; `alias`
+   // also publishes under the requested key when the two differ.
++  // Reloads usage limits only where something has read them, since each load asks OpenCode Console.
++  function refreshUsageLimits(location: LocationRef) {
++    const loaded =
++      store.location[locationKey(location)]?.usageLimits !== undefined ||
++      sync.has(`location.usageLimits:${locationKey(location)}`)
++    usageLimits.invalidate(location)
++    if (loaded) refresh(() => usageLimits.sync(location))
++  }
+   function locationResource<Field extends keyof LocationData>(
+     field: Field,
+     load: (location: ReturnType<typeof locationQuery>) => Promise<{ location: LocationRef; data: LocationData[Field] }>,
+@@ -1393,6 +1413,7 @@ export function createData(config: CreateDataInput) {
+   }
+ 
+   const vcs = locationResource("vcs", (location) => api().vcs.get({ location }))
++  const usageLimits = locationResource("usageLimits", (location) => api().experimental.usage.limits({ location }))
+   const shells = locationResource("shell", async (location) => {
+     const response = await api().shell.list({ location })
+     const ref = { directory: response.location.directory }
+@@ -1994,6 +2015,7 @@ export function createData(config: CreateDataInput) {
+         result.session.form.invalidate("global", location)
+       },
+       vcs: { info: vcs.list, sync: vcs.sync, invalidate: vcs.invalidate },
++      usage: { limits: usageLimits.list, sync: usageLimits.sync, invalidate: usageLimits.invalidate },
+       agent: locationResource("agent", (location) => api().agent.list({ location })),
+       command: locationResource("command", (location) => api().command.list({ location })),
+       config: locationResource("config", async (location) => ({
+diff --git a/packages/protocol/src/api.ts b/packages/protocol/src/api.ts
+index 4a7d793..0ca19e8 100644
+--- a/packages/protocol/src/api.ts
++++ b/packages/protocol/src/api.ts
+@@ -27,6 +27,7 @@ import { Authorization } from "./middleware/authorization.js"
+ import { makeLocationGroup } from "./groups/location.js"
+ import { IntegrationGroup } from "./groups/integration.js"
+ import { WebSearchGroup } from "./groups/websearch.js"
++import { UsageGroup } from "./groups/usage.js"
+ import { makeMcpGroup } from "./groups/mcp.js"
+ import { CredentialGroup } from "./groups/credential.js"
+ import { ProjectGroup } from "./groups/project.js"
+@@ -42,6 +43,7 @@ type LocationGroups<LocationId extends HttpApiMiddleware.AnyId> =
+   | HttpApiGroup.AddMiddleware<typeof ProviderGroup, LocationId>
+   | HttpApiGroup.AddMiddleware<typeof IntegrationGroup, LocationId>
+   | HttpApiGroup.AddMiddleware<typeof WebSearchGroup, LocationId>
++  | HttpApiGroup.AddMiddleware<typeof UsageGroup, LocationId>
+   | HttpApiGroup.AddMiddleware<typeof ProjectGroup, LocationId>
+   | HttpApiGroup.AddMiddleware<typeof FileSystemGroup, LocationId>
+   | HttpApiGroup.AddMiddleware<typeof CommandGroup, LocationId>
+@@ -193,6 +195,7 @@ const makeApiFromGroup = <
+     .add(DebugGroup)
+     .add(MigrationGroup)
+     .add(WebSearchGroup.middleware(locationMiddleware))
++    .add(UsageGroup.middleware(locationMiddleware))
+     .add(ConfigGroup.middleware(locationMiddleware))
+     .annotateMerge(
+       OpenApi.annotations({
+diff --git a/packages/protocol/src/groups/usage.ts b/packages/protocol/src/groups/usage.ts
+new file mode 100644
+index 0000000..5c0528d
+--- /dev/null
++++ b/packages/protocol/src/groups/usage.ts
+@@ -0,0 +1,30 @@
++import { Location } from "@opencode/schema/location"
++import { UsageLimits } from "@opencode/schema/usage-limits"
++import { Schema } from "effect"
++import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
++import { ServiceUnavailableError } from "../errors.js"
++import { LocationQuery, locationQueryOpenApi } from "./location.js"
++
++export const UsageGroup = HttpApiGroup.make("server.usage")
++  .add(
++    HttpApiEndpoint.get("usage.limits", "/api/experimental/usage/limits", {
++      query: LocationQuery,
++      success: Location.response(Schema.NullOr(UsageLimits.Info)),
++      error: ServiceUnavailableError,
++    })
++      .annotateMerge(locationQueryOpenApi)
++      .annotateMerge(
++        OpenApi.annotations({
++          identifier: "experimental.usage.limits",
++          summary: "Get usage limits",
++          description:
++            "Return the OpenCode Go allowance and Console budgets of the OpenCode Console workspace the location is signed in to, or null when it isn't signed in.",
++        }),
++      ),
++  )
++  .annotateMerge(
++    OpenApi.annotations({
++      title: "usage",
++      description: "Experimental usage limit routes.",
++    }),
++  )
+diff --git a/packages/schema/src/usage-limits.ts b/packages/schema/src/usage-limits.ts
+new file mode 100644
+index 0000000..c8b6566
+--- /dev/null
++++ b/packages/schema/src/usage-limits.ts
+@@ -0,0 +1,76 @@
++export * as UsageLimits from "./usage-limits.js"
++
++import { Schema } from "effect"
++import { Model } from "./model.js"
++import { Money } from "./money.js"
++import { Provider } from "./provider.js"
++import { optional } from "./schema.js"
++
++const Percent = Schema.Finite.check(Schema.isBetween({ minimum: 0, maximum: 100 }))
++const Instant = Schema.Finite.annotate({ description: "Milliseconds since the Unix epoch" })
++
++/** One window of the OpenCode Go allowance. */
++export interface Meter extends Schema.Schema.Type<typeof Meter> {}
++export const Meter = Schema.Struct({
++  /** How much of the window's allowance is used. */
++  percent: Percent,
++  /** Go refuses requests until the window resets. */
++  limited: Schema.Boolean,
++  resetsAt: Instant,
++}).annotate({ identifier: "UsageLimits.Meter" })
++
++/** The OpenCode Go allowance of a workspace the member subscribes to Go in. */
++export interface Go extends Schema.Schema.Type<typeof Go> {}
++export const Go = Schema.Struct({
++  rolling: Meter,
++  weekly: Meter,
++  monthly: Meter,
++}).annotate({ identifier: "UsageLimits.Go" })
++
++/** A model a budget covers, by the IDs OpenCode knows it by. */
++export interface BudgetModel extends Schema.Schema.Type<typeof BudgetModel> {}
++export const BudgetModel = Schema.Struct({
++  providerID: Provider.ID,
++  modelID: Model.ID,
++  name: Schema.String,
++  /** What a per-model budget's member has spent on this model this month. */
++  spent: Money.USD.pipe(optional),
++}).annotate({ identifier: "UsageLimits.BudgetModel" })
++
++/** A monthly spend limit the OpenCode Console workspace sets on the member. */
++export interface Budget extends Schema.Schema.Type<typeof Budget> {}
++export const Budget = Schema.Struct({
++  id: Schema.String,
++  limit: Money.USD,
++  /** The member's spend this month, or the pooled spend of a combined budget; per model, the most on one model. */
++  spent: Money.USD,
++  /** `each` limits every member separately; `combined` pools everyone's spend against one limit. */
++  scope: Schema.Literals(["each", "combined"]),
++  /** `set` counts spend across the budget's models; `model` limits each model separately. */
++  per: Schema.Literals(["set", "model"]),
++  /** `all` covers every model and billable service; `models` covers only `models`. */
++  coverage: Schema.Literals(["all", "models"]),
++  models: Schema.Array(BudgetModel),
++  /** The vendors whose models the budget counts, by name; empty when it doesn't count by vendor. */
++  vendors: Schema.Array(Schema.String),
++  /** The input price per 1M tokens from which the budget counts a model, when it sets one. */
++  inputPriceAtLeast: Money.USDPerMillionTokens.pipe(optional),
++  /** The budget counts models picked one by one, rather than by vendor or price. */
++  picked: Schema.Boolean,
++  /** Everyone in the workspace pools spend against it, so reaching it pauses model use for all of them. */
++  shared: Schema.Boolean,
++  resetsAt: Instant,
++}).annotate({ identifier: "UsageLimits.Budget" })
++
++/** The usage limits of the OpenCode Console workspace a location is signed in to. */
++export interface Info extends Schema.Schema.Type<typeof Info> {}
++export const Info = Schema.Struct({
++  workspace: Schema.Struct({
++    id: Schema.String,
++    name: Schema.String.pipe(optional),
++    /** The member's usage page in OpenCode Console. */
++    usageURL: Schema.String,
++  }),
++  go: Go.pipe(optional),
++  budgets: Schema.Array(Budget),
++}).annotate({ identifier: "UsageLimits.Info" })

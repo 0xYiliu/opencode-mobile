@@ -117,7 +117,8 @@
     "patches/mobile/provider-connect-flow-redesign.patch",
     "patches/mobile/project-identity-migration.patch",
     "patches/mobile/home-new-session-parity.patch",
-    "patches/mobile/ui-typeahead-export.patch"
+    "patches/mobile/ui-typeahead-export.patch",
+    "patches/mobile/model-selector-usage-parity.patch"
   ],
   "excluded": {
     "packages": [
@@ -492,7 +493,7 @@
     {
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
-      "sha256": "8ae7f5a945f7f3fe413e4b7f95978008669e8fb3bb1e0f590cffe094b817981f",
+      "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
       "status": "active"
     },
     {
@@ -571,6 +572,12 @@
       "id": "ui-typeahead-export",
       "path": "patches/mobile/ui-typeahead-export.patch",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
+      "status": "active"
+    },
+    {
+      "id": "model-selector-usage-parity",
+      "path": "patches/mobile/model-selector-usage-parity.patch",
+      "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
       "status": "active"
     }
   ],

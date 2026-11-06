@@ -3214,6 +3214,47 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - 服务侧核对仅到「路由存在 + 版本 2.2.1」层；watch 事件真实推送、`filesystem.changed` 消费链与流式 HEAD 的真实服务行为未经端到端验证（需无密码实例+设备）。
 - 预存基线失败（非本轮引入，stash 对照实测）：verify-files 组 2 destination.ts anchors（M-012 被 session-workbench-upstream 迁移移除，探针未随修）；verify-artifacts.ts、verify-browser.ts 各 1 锚；mobile-hosts 428/10（计划所引 434/0 为旧基线）。三项均已在本段与 files.md 注记，**修复归属各自域（附件上传/工件/浏览器/移动宿主），不属 #143 范围**。
 
+## issue #142 段（feat(parity): 对齐模型选择、管理与用量查看——model-selector-usage-parity）——2026-11-06 实测记录
+
+**分支与基线**：worktree `feat--221-models-usage`，base `c6a31fd1489b901c22b8cf4523ad1e74c89c0802`（origin/main，#140/#141/#143/#150–#153 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1 `3ebcf9a32c7b…`，本地 `/home/peterhan/repository/opencode` 对象只读复制）+ 69 移动补丁（开工）→ 70（交付）；实施提交链 `db40ab7 feat(parity): copy v2.2.1 model selector family and usage flow (#142)` → `31f3617 chore(verify): align provider-models and dist-constant probes with #142 (#142)`，未 push。计划 `/home/peterhan/worktrees/opencode-mobile/issue-142-plan-v1.md`（v2，对抗评审 PASS）绑定实施。**提交切分注记**：计划的 `feat(vendor)`/`feat(parity)` 两段示例在本补丁登记设计（单语义 ID 承载全部 25 targets）下无法在中间提交保持 verify:closure PASS（登记表/顺序数组/补丁载荷三者必须同提交一致），故合并为一个 feat 提交——每个提交点均为闭包绿。
+
+**交付面**：`app/src/usage/**` 7 文件（dialog.tsx/dialog.css/dialog.stories.tsx/format.ts/limits.ts/limits.test.ts/model.tsx）**目标逐字**（逐文件 cmp 同一）；选择器族 `details.tsx`/`manage.css` **NEW** + `select-dialog.tsx/.css/.stories/manage.tsx/unpaid.tsx/.stories/provider-group.tsx/search.ts` 目标逐字（与 3ebcf9a cmp 同一）；`agent.ts`/`selection.tsx` 零触碰（session-agent-selector 双 hunk 保留，diff 实测恰为该补丁 hunks）；已目标形八件（models.tsx/models.test.ts/tooltip.tsx/configured.ts/variant.ts/variant.test.ts/search.test.ts/agent.test.ts）零 delta 复验；`composer/commands.tsx` 采纳目标形（diff = 恰 usage 接线 5 段，改后与目标逐字节同一）；`session/usage-exceeded-dialogs.tsx` +1 行 `standalone`（改后与目标逐字节同一）；en.ts +86 键（2 command.usage.view + 6 dialog.model.* + 14 model.details.* + 64 usage.*，值逐字、en-only、zh 与 ~60 locale 零触碰，20 个在册补丁触 en.ts 面定向插入）；依赖闭包 `schema/src/usage-limits.ts` NEW、`protocol/src/groups/usage.ts` NEW + `api.ts` 三处（import/union 成员/`.add(UsageGroup.middleware(locationMiddleware))`——`ExperimentalGroup`/`ProjectGroup` 去 middleware/`PersistentPtyGroup` 移除等目标其余 delta 明确不采纳）、client `generated/types.ts` 全部 UsageLimits* 类型 + `generated/client.ts` import 与 `experimental:` 块 `usage.limits` 方法（`file:` 块零触碰）、`solid/data.ts` 六处（type import/location store `usageLimits?`/`refreshUsageLimits` 只读位刷新门/`usageLimits` locationResource/location 返回值 `usage.limits`/三处事件刷新：`session.step.failed` budget-limit 对、credential.updated|switched、integration.updated）。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| 开工基线 | `verify:patches` / `verify:closure` / `test:unit` / `typecheck:tsc` / 探针普查 | PASS（69 补丁）；app 单测 **636 pass/5 skip/46 fail/44 errors/1965 expect()（687 tests/129 files）**；tsc **416**/83 文件；探针 **7 rc=0 / 28 rc=1**（verify-provider-models rc=0）——当期实测为对账基准 |
+| V3 闭包 | `bun run verify:closure` | **PASS**（70 补丁字节级重放，DANGLING=0，双 manifest 70=70，`git diff --check` clean；V3(a) file types/executable bits/symlinks OK、LICENSE byte-identical） |
+| 补丁生成方法 | scratch checkpoint（#143 口径） | 缓存 pin `b4525d79bf` + packageSources 重建 pristine → 依序 apply 0..68（含修订后的 session-client-compatibility）→ checkpoint 树逐文件 `git diff --no-index` a/ b/ 前缀生成 25-target 补丁（3480 行）。**首版以 `git diff HEAD` 为前像在 select-dialog.tsx:289 apply 失败**（退役 hunk 的后像不再存在于重放树）——改以 checkpoint 重放形态为前像重生成后全链 PASS（计划 §9.2「前像 = 重放后形态」的实证落地） |
+| session-client-compatibility 修订 | 删 2 hunk | `composer/commands.tsx` hunk（移除 usage 接线——本任务后为过时适配）与 `providers/models/select-dialog.tsx` hunk（drawer 导出/manage 回退——被目标形原生吸收）整文件段删除（110 行）；其余 hunks（happydom/api.ts/runtime.tsx/en.ts 顶部 mobile 键族等）原样保留；manifest targets 45→43 + reason 注记 #142 归因 |
+| 负例演练（patch 载荷可证伪） | deferred + 摘除 mobilePatches → closure → 还原 | 摘除后 closure **FAIL**：`V3(a) FAIL … Only in …/models: details.tsx`、`Only in …/models: manage.css`（+ file types 差异）→ 还原 active + refresh + closure **PASS**——补丁载荷真实承载 25 路径差异 |
+| R2 正例（usage.view 存活） | checkpoint cmp | 重放树 `composer/commands.tsx` 与工作树 **cmp 逐字节一致**，`usage.view`/`viewUsage` 5 处命中——两 hunk 退役后无静默再移除 |
+| app 全量单测（无 seam） | `cd vendor/upstream/packages/app && bun run test:unit` | 基线 **636/5/46/44/1965（687 tests/129 files）** → 交付 **641/5/46/44/1986（692 tests/130 files）**；**+5 pass = `usage/limits.test.ts` 新增 5 例全绿**；fail/error 集与基线**逐项全等**（2 显式 (fail) 同名 + 10 errors 全为预存 solid server Client-only API 族——stash 双跑 grep 对照恒同） |
+| 受影响子集 | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/providers/models src/usage src/session src/composer` | 基线 **207 pass/10 fail/10 errors/415 expect/217 tests/38 files** → 交付 **212/10/10/436/222/39**（+5 pass/+1 文件/+21 expect；fail/error 集恒同） |
+| typecheck | `rm -f …/*.tsbuildinfo && bun run --cwd vendor/upstream/packages/app typecheck:tsc` | **416 errors**，逐文件分布与基线**全等**（83 文件 uniq diff 为空；触碰域零新增——R6 预期 delta≈0 兑现）；计数口径：`grep -ci error`=416（含 bun runner 末行 `error: script "typecheck:tsc" exited with code 1`）= 415 条实际 `error TS` 诊断 + 1，`grep -c "error TS"` 直数即 415；2026-11-06 fix 轮同法复现同值（50 文件 uniq——seam 在场口径，总数复现） |
+| 探针修订 | `verify-provider-models` | 组 4 锚随目标形修订：integration.updated 现以目标逐字 `refreshUsageLimits(location)` 开头（三目录 invalidate 相邻保持），断言改含该前缀 + #142 归因注释；**rc=1 → rc=0**（其余组锚零回退）；探针普查 rc=0 集**不缩小**（pre-build 7→7 恒同；post-build 7→**10**：direct-connection/service-ops/ssh 随 dist 重建恢复，#141 同型） |
+| 探针 dist 常量回填 | commands-menus/gui-plugins/notifications | **5617/149595730 → 5620/149993084**（#142 归因注释 + 历史链保留）；三探针 rc=1 的**其余失败组在基线 c6a31fd 即预存**（stash 对照同文：DesktopMenuRole 缺 resetZoom / btw narrow-entry 门注释 / notifications permissions 引用集）——#140 域预存漂移，非本期引入、不属本期修复范围 |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行 + 7 条 AWS docs example 过滤 + 低置信审阅行集合与基线同族；新增/修改文件零命中 |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | **PASS rc=0**（A–G 七段；F 段 dist 标记命中新 dist——首跑因 dist 未建 ENOENT，build 后重跑 PASS） |
+| 构建 | `bun run build:web` + `bash scripts/copy-web-dist.sh` | rc=0（✓ built in 15.18s）；**dist 5620 files / 149,993,084 bytes**（vs #141 5617/149,595,730：+3 files/+397,354 bytes——usage dialog chunk + 选择器族入包）。dist 正例检索：`usage.title`/`command.usage.view`/`model.details.usage` 命中 `_assets/language-B5AMOyyY.js`，`/api/experimental/usage/limits` 命中 `_assets/effect-c_4pNOUl.js` + `_assets/promise-Bac4wMkG.js`。**环境注记（seam，本机不入 git）**：fresh worktree 的 `bun install` 不创建 `vendor/upstream/packages/ui/node_modules/@opencode/util` 工作区符号链接（ui 未声明 util 依赖而 typeahead.tsx 传递 import `@opencode/util/abort`）——首跑 build FAIL `Rolldown failed to resolve "@opencode/util/abort"`；按 #140 worktree 在盘实态补建该 seam 符号链接后 build PASS（与既有 mobile-hosts seam 同类，建议后续轮次在本文档工具链节登记） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk ~/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 12s**（42 tasks）；单测 **31 tests / 0 failures / 0 errors**（worktree `android/app/build/test-results/testDebugUnitTest/` 8 XML 汇总）；APK **`6b08ee7b554c0896485f1e46c89c3d8fe404c47a27b726dbeafc90e78937dd13`**（绝对路径 `/home/peterhan/worktrees/opencode-mobile/feat--221-models-usage/android/app/build/outputs/apk/debug/app-debug.apk`，**64,431,345 bytes**——#141 r1 教训：以 worktree 在盘产物绝对路径实测）；web-dist 已随 copy 进 APK assets |
+
+### 设备 QA（§4 ①–⑥；**本轮 BLOCKED：设备 Smart Cover 物理锁触**）
+
+- 设备 MatePad DBY2-AL00 @ `192.168.3.145:5555`（adb 已连接，单操作者本轮实施者）。**已成功步骤**：`adb install -r` 覆盖安装（`Success`；`lastUpdateTime=2026-11-06 08:33:49` = 本轮 APK；`firstInstallTime=2026-10-28 03:10:15` 保持——数据保留、未清数据/未卸载）；`am start` 启动（MainActivity focused）；webview_devtools_remote socket 存在。
+- **BLOCKED 证据链**：屏显系统浮层「Smart Cover is enabled. Please adjust your cover to operate the screen」（systemui `ShowTpMsgActivity` 持焦）——盖态（hall 传感）下触屏输入被锁死：KEYCODE_WAKEUP/POWER（屏可点亮但随即回灭，screencap 全黑 24,695 bytes）、`wm dismiss-keyguard`、KEYCODE_BACK、`input tap` 均无效；`settings put secure cover_enabled 0` 临时切换无效（传感驱动，非纯设置面；**已还原为 1**）；CDP `GET /json/version|list` 恒超时（rc=28，WebView paused）。物理盖的调整/取下超出 adb 可达范围。
+- **未执行的验收项（对应 issue 清单 ①–⑥ 全部）**：①搜索/分组/无结果/显示隐藏/默认当前/变体/重启恢复；②模型详情与 usage 命令触屏可达、五态呈现、不伪造额度（空态/错误态截图证据未取得）；③用量面切模型出口与跨服务器作用域机械核对（localStorage dump 未执行）；④菜单/Esc/back 关闭与外接键盘检索（`dumpsys input` IsExternal 集未执行）；⑤选择与实际发送对象一致（需模型授权）；⑥目录未就绪不误报成功。**不得以 DOM 存在、探针、单测或构建证据替代上述运行验收**；对应 checklist 项保持 BLOCKED。
+- **解除条件**：物理调整/取下 MatePad 智能盖（触屏恢复）后，由操作者按本轮 APK SHA `6b08ee7b…` 复测——入口导航（composer 模型抽屉/`/`→usage.view）、五态走查（可对 v2.2.1 LAN 实例 192.168.3.152:49374 测 signed-out/服务不支持/断网重试）、localStorage 红线、`dumpsys input` 键盘项；「有数据/402/实际发送一致」仍需已授权 Console 账号与模型授权（沿用 #105/#141 忠实登记口径）。
+
+### 诚实边界（本轮新增/继承）
+
+- 本轮交付声称范围：**vendored copy 逐字性（25 文件 cmp/diff 复核）+ 70 补丁全链字节级重放 + 负例/R2 双证 + 单测/类型/探针/泄漏/审计/构建/Gradle 门禁**——运行期行为零声称；①–⑥ 真机面全部 BLOCKED（Smart Cover 物理锁），不因「工程侧全绿」宣称任何运行通过。
+- **提交切分偏离（计划步骤 10）**：`feat(vendor)`/`feat(parity)` 两段示例 → 单个 `feat(parity)` 提交（理由见分支与基线段；登记一致性要求），`chore(verify)` 探针轮保留。
+- **计划外文件触碰**：无（`scripts/verify-*.ts` 四件的修订/回填属计划门禁 4/6 的「域内回归即修 + dist 常量如漂移则同提交回填」授权内）。
+- **ui→util 工作区 seam 发现**（见构建行）：属 fresh worktree 本机环境修复（gitignored），随本轮记录；主检出实态同（无该链接而 #140 worktree 有手工链接）——历史轮未登记该 seam，本轮补记。
+- 继承：usage「有数据/402」与「实际发送一致」需已授权 Console 账号/模型授权（BLOCKED 登记，不 mock）；stories 浏览器环境 BLOCKED（#105/#141 同口径）；G25 运行期清单全部继承。
+
 ## issue #144 段（S01–S43+N12：Settings 整体对照——M-035 契约-树偏差恢复 + settings 域探针刷新）——2026-11-06 实测记录
 
 **分支与基线**：worktree `feat--221-settings-acceptance`，分支 `feat/221-settings-acceptance`，base/开工 HEAD `c6a31fd1489b901c22b8cf4523ad1e74c89c0802`（实测核对，工作区干净）；上游目标 `3ebcf9a32c7b28f658cfee80775448929361727a`；补丁链 **69 active**。**唯一推进记录 = [settings-acceptance.md](alignment/windows-desktop/v2.2.1/settings-acceptance.md)**（执行卡/参考条件/逐页状态表 S01–S43+N12/普查结论/F1-F2/真机窗口）——本段只记工程门禁实跑与设备窗口，不重复其内容。
@@ -3257,3 +3298,36 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### 文档同步
 
 `docs/alignment/windows-desktop/v2.2.1/settings-acceptance.md`（新增，#144 唯一推进记录）；`matrix.md`（S02/S42 M-035 退役-恢复 + S12 R2 登记 + #144 工作计划行状态）；`docs/design/units/settings.md`（移动面挂载 M-035 登记 + 偏好页保留偏离两行退役块形更新 + 搜索目录段 #144 注）；`docs/design/architecture.md`（settings-framework-mobile 行 #144 注）；`implementation.md`（裁定 A2 注记 #144 履行登记）；补丁 manifest 两条目 `rebase` 字段即修剪归因登记。
+
+## issue #142 合并解决段（origin/main #154 并入 feat/221-models-usage）——2026-11-06 实测记录
+
+**合并与冲突**：`git merge origin/main`（`9bf2f60`，PR #154/#144 settings acceptance）并入 `feat/221-models-usage`（`2a46625`，#142 四提交链），基 `c6a31fd`。冲突 8 文件，全部定向合并、零整文件 ours/theirs：
+
+1. **`session-client-compatibility.patch`（自动合并，语义核验）**：两侧退役 hunk 不相交——#142 退役 `composer/commands.tsx` usage.view 移除 hunk 与 `providers/models/select-dialog.tsx` 抽屉/manage 回退 hunk（33→31）；#144 退役 `settings/search-catalog.ts` zoom 门 hunk（33→32）；合并文件 31 hunk，两文件均不再出现（union 正确）。合并树 `verify:closure` V3(a) 字节级重放 PASS 为语义证明。
+2. **`patches/mobile/manifest.json`**：保留双方——targets 三文件（composer/commands.tsx、select-dialog.tsx、search-catalog.ts）均退役；`reason` 取 #142 文本 + 补 #144 search-catalog 修剪一句；`rebase` 取 #144 追加文本（自动合并已含）；sha256 由 `bun run patches:refresh` 对合并后 31-hunk 补丁文件重算（`9f34fbe5…`）。登记 70 条、`mobilePatches` 顺序数组 = main 69 + model-selector-usage-parity 末位 = 70。
+3. **`vendor-manifest.json`/`provenance.json`**：镜像冲突（session-client-compatibility sha256 行）按生成字段处理——以刷新输出为准（`patches:refresh` PASS 70 registered；`verify:patches` PASS 幂等 `updated: none`）。
+4. **scripts/verify-commands-menus / verify-gui-plugins / verify-notifications**：并集——#144 的组 2/7 语义刷新（permissions 引用集收窄、coordinator once-call faces exactly-4）原样保留；#142 的 dist 常量断言 + 归因注释保留；测量叙事串联 #142（合并树实测）→#144→#141→历史链。
+5. **`web-dist/manifest.json`**：先取 #144 侧，随后以合并树重建覆盖（最终提交值为合并树构建输出）。
+6. **`docs/build-and-verify.md`**：两轮记录（#142 段 + #144 段）各自完整保留、各带工程门禁表；本段为合并解决记录。
+
+### 合并树工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| V-patches | `bun run patches:refresh` + `bun run verify:patches` | PASS（**70 registered**，refresh 幂等 `updated: none`；manifest/vendor-manifest/provenance 三镜像 70=70） |
+| V3 闭包 | `bash scripts/verify-closure.sh` | **PASS**（V3(a) 70 补丁字节级重放、file types/exec bits/symlinks OK、LICENSE byte-identical；V3(b) DANGLING=0；V3(c) OK） |
+| 负例演练 | model-selector-usage-parity deferred + 摘除 mobilePatches → refresh → closure → 还原 | 摘除后 closure **FAIL**：`Only in …/providers/models: details.tsx`、`manage.css` + file types 差异 → 还原 active + refresh + closure **PASS** |
+| app 全量单测 | `cd vendor/upstream/packages/app && bun run test:unit`（合并树 vs origin/main scratch `/tmp/issue142-mainref`@`9bf2f60` 双跑） | main **636 pass/5 skip/46 fail/44 errors/1965 expect（687 tests/129 files）** → 合并 **641/5/46/44/1986（692 tests/130 files）**；**+5 pass = `usage/limits.test.ts` 新增 5 例全绿（+1 文件/+21 expect）**；fail/error 集**逐文件分布全等**（47 文件对照零差异；2 显式 (fail) 同名同位，仅时序后缀不同）——零新失败归因合并 |
+| typecheck | 清 tsbuildinfo 后 `bun run --cwd vendor/upstream/packages/app typecheck:tsc`（两树同法） | **415 `error TS` / 50 文件，两树逐文件分布全等**（uniq diff 为空）——零新增 |
+| 探针普查 | 33 探针 `bun scripts/verify-*.ts`（两树 build+copy 后同态） | 合并 **14 rc=0** = main-scratch **14 rc=0**（集合恒同，零缩小）；rc=1 全部为两轮在册预存（appearance/pinch R2、commands-menus 组 1 desktop-menu、gui-plugins 组 2 btw、files 组 2 M-012、goal-sources、pairing 组 5、interaction-quality 组 3 等，两树同文同位） |
+| dist 常量回填 | 合并树 `bun run build:web`（5164 modules，14.08s）+ `bash scripts/copy-web-dist.sh` | **5620 files / 149,993,193 bytes**（vs #144 5616/149,754,033：**+4 files/+239,160 bytes**；fileCount 与 #142 自建 dist 5620 持平）；dist 正例：`usage.title`/`command.usage.view`/`settings.appearance.row.zoom.title` 命中 `language-B5AMOyyY.js`，`/api/experimental/usage/limits` 命中 `effect-c_4pNOUl.js` + `promise-Bac4wMkG.js`；三探针常量回填 5620/149993193（#144 语义刷新原样保留；commands-menus/gui-plugins rc=1 仍由组 1/组 2 预存失败先行拦截，常量断言位已就位——#144 同口径） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | rc=1 = **恰既有 5 条** host-credential.test.ts synthetic fixture 高置信行（:22/:44/:51/:59/:78）+ 7 条 AWS docs example 过滤——与 #142/#144 在册基线同文同数，零新增 |
+| V-secret | `bun run scripts/audit-secret-persistence.ts` | **PASS rc=0**（A–G 七段，dist 标记命中新 dist） |
+| Android | `ANDROID_HOME=$HOME/.android-sdk ~/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**（42 tasks）；单测重跑（清 results 后执行）**31 tests / 0 failures / 0 errors / 0 skipped**（8 XML 汇总）；APK **`b12322883f023c46104cb511f79c4c4222c7a58019beb5440112fa5f3df0c635`**（64,989,111 bytes；绝对路径 `/home/peterhan/worktrees/opencode-mobile/feat--221-models-usage/android/app/build/outputs/apk/debug/app-debug.apk`）；APK 内 `assets/web` **5620 项**，`index.html`/`sw.js` 与 staged 树哈希一致（新 dist 已进包） |
+
+**环境注记**：合并树沿用本轮既有 node_modules 与 ui→util 工作区符号链接（`vendor/upstream/packages/ui/node_modules/@opencode/util`，见 #142 段构建行）；origin/main scratch 树按同法 `bun install` + 补建 ui→util 与 mobile-hosts 两个 seam 后双跑（两树环境同构，对照有效）。
+
+### 合并解决诚实边界
+
+- 本段声称范围：**冲突定向合并 + 70 补丁链字节级重放 + 负例演练 + 单测/类型/探针/泄漏/审计/构建/Gradle 全门禁两树对照**——运行期行为零新增声称；#142 段与 #144 段登记的真机 BLOCKED 项（Smart Cover 物理锁、设备无线 ADB 不可达）在合并树上**维持原状**，解除条件不变。
+- 合并未触碰 #144 的语义内容（组 2/7 探针刷新、M-035 恢复、R2 登记原样）；#144 对 dist 常量的 5616 断言被合并树重建的新实测（5620/149993193）接替，其测量叙事保留为 prior 链。

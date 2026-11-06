@@ -1530,12 +1530,10 @@
       "targets": [
         "packages/app/component-tests/timeline-virtualizer.fixture.tsx",
         "packages/app/happydom.ts",
-        "packages/app/src/composer/commands.tsx",
         "packages/app/src/composer/model.ts",
         "packages/app/src/composer/composer.stories.tsx",
         "packages/app/src/home/sessions/command-palette.tsx",
         "packages/app/src/home/start/command-palette.tsx",
-        "packages/app/src/providers/models/select-dialog.tsx",
         "packages/app/src/runtime/i18n/en.ts",
         "packages/app/src/runtime/i18n/language.tsx",
         "packages/app/src/runtime/platform/platform.tsx",
@@ -1573,8 +1571,8 @@
         "packages/app/src/runtime/server/media-generated/index.ts",
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
-      "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded.",
-      "sha256": "8ae7f5a945f7f3fe413e4b7f95978008669e8fb3bb1e0f590cffe094b817981f",
+      "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded. Issue #142: the composer/commands.tsx usage.view removal hunk (workaround for the then-missing usage module) and the providers/models/select-dialog.tsx drawer/manage fallback hunk (absorbed by the v2.2.1 target form) are retired; both hunks' purpose now lives in the target form carried by model-selector-usage-parity. Issue #144: the settings/search-catalog.ts zoom-gate hunk is pruned (see rebase); the M-035 catalog deviation lives directly in the vendored source.",
+      "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
       "status": "active",
       "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
       "rebase": "Layered directly after session-workbench-upstream U and before session-project-open-compatibility host project compatibility. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #144: the search-catalog.ts zoom-gate hunk is pruned - the M-035 catalog deviation (zoom row without the desktop availability gate + mobile(M-035) note) is restored as the sole registered catalog-level deviation; the file is no longer touched by this patch (dropped from targets). All other hunks (incl. desktop-menu.ts/composer wiring) are unchanged."
@@ -1850,6 +1848,42 @@
       "rebase": "New patch (issue #140); single export-map entry.",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
       "status": "active"
+    },
+    {
+      "id": "model-selector-usage-parity",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/model-selector-usage-parity.patch",
+      "targets": [
+        "packages/app/src/providers/models/details.tsx",
+        "packages/app/src/providers/models/manage.css",
+        "packages/app/src/providers/models/manage.tsx",
+        "packages/app/src/providers/models/provider-group.tsx",
+        "packages/app/src/providers/models/search.ts",
+        "packages/app/src/providers/models/select-dialog.css",
+        "packages/app/src/providers/models/select-dialog.stories.tsx",
+        "packages/app/src/providers/models/select-dialog.tsx",
+        "packages/app/src/providers/models/unpaid.stories.tsx",
+        "packages/app/src/providers/models/unpaid.tsx",
+        "packages/app/src/session/usage-exceeded-dialogs.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/usage/dialog.css",
+        "packages/app/src/usage/dialog.stories.tsx",
+        "packages/app/src/usage/dialog.tsx",
+        "packages/app/src/usage/format.ts",
+        "packages/app/src/usage/limits.test.ts",
+        "packages/app/src/usage/limits.ts",
+        "packages/app/src/usage/model.tsx",
+        "packages/client/src/promise/generated/client.ts",
+        "packages/client/src/promise/generated/types.ts",
+        "packages/client/src/solid/data.ts",
+        "packages/protocol/src/api.ts",
+        "packages/protocol/src/groups/usage.ts",
+        "packages/schema/src/usage-limits.ts"
+      ],
+      "reason": "v2.2.1 parity for the model selector family and usage viewing: usage/** (dialog/format/limits/model + tests + stories), selector target forms (details/manage.css new; select-dialog/manage/unpaid/provider-group/search rewritten to target), usage.limits schema/protocol/client closure (UsageGroup registration, generated types+client, solid data usageLimits resource and budget-refusal refresh wiring), usage.view composer registration, usage-exceeded standalone connect, en.ts 86 usage/model-details keys. Issue #142.",
+      "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
+      "status": "active",
+      "verification": "verify:closure byte-identical replay (70 patches), negative drill (deferred + removed from mobilePatches -> closure FAIL with Only-in usage/ files -> restored PASS), app unit tests + typecheck distribution, web dist positive retrieval and Android build recorded in docs/build-and-verify.md issue #142 section."
     }
   ]
 }
