@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import org.json.JSONObject
 import android.webkit.ConsoleMessage
@@ -61,6 +63,22 @@ class MainActivity : Activity() {
      */
     @Volatile
     private var pendingRoute: String? = null
+    /**
+     * The one in-flight in-app back dispatch (issue #145): the WebView evaluation callback
+     * is asynchronous on the main looper, so a second press arriving inside the window is
+     * DROPPED — the pending dispatch decides, and the dropped press can simply be repeated.
+     * Main-thread confined exactly like pendingCameraRequest (both callbacks arrive on the
+     * main looper).
+     */
+    private var backConsumePending = false
+    /**
+     * Dispatch generation guard (issue #145 review M1): the bounded timeout releases a
+     * window whose evaluation reply never arrives (WebView teardown, renderer death);
+     * the guard turns a LATE reply after that release into a no-op, so exactly one
+     * fallback application happens per accepted press.
+     */
+    private var backConsumeDispatchId = 0
+    private val backConsumeTimeout = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -550,11 +568,65 @@ class MainActivity : Activity() {
         // predictive back ON for targetSdk >= 36 apps, which would make this callback dead
         // code. Migrating to the platform OnBackInvokedCallback needs a minSdk guard
         // (API 33+) — follow-up issue.
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
+        if (!::webView.isInitialized) {
             super.onBackPressed()
+            return
         }
+        // Issue #145 (review B1 fix): the in-app back chain is asked FIRST — dialogs,
+        // drawers/panels, then in-app history. The WebView history gate must NOT precede
+        // the chain: the vendored SPA runs on @solidjs/router pushState, whose entries
+        // count into webView.canGoBack(), so after any in-app navigation the gate is
+        // permanently true and a history-gate-first dispatch would never reach the chain
+        // (the exact G31② state this bridge replaces). In-app history rides the chain as
+        // its last layer (common.goBack semantics); the WebView history gate now serves
+        // only as the post-decline fallback for non-SPA document navigations.
+        // The reply races a double press, so exactly one dispatch is in flight at a time
+        // and a second press inside the window is dropped; a reply that never arrives is
+        // released by a bounded timeout (issue #145 review M1) so back can never wedge.
+        // No binding yet / JS exception / false / timeout all decline the chain — the
+        // fallback then decides, and the root keeps the exact pre-#145 finish behavior.
+        if (backConsumePending) return
+        backConsumePending = true
+        val dispatchId = ++backConsumeDispatchId
+        backConsumeTimeout.postDelayed({ onBackConsumeTimeout(dispatchId) }, BACK_CONSUME_TIMEOUT_MS)
+        webView.evaluateJavascript(BACK_CONSUME_SCRIPT) { result ->
+            onBackConsumeResult(dispatchId, result)
+        }
+    }
+
+    /**
+     * Applies the serialized chain answer (issue #145): CONSUMED keeps the activity; a
+     * decline runs the WebView history fallback (non-SPA document navigation), whose
+     * decline is the Android default. Stale replies (timeout already released the window)
+     * are ignored. Private members so the super call stays in method scope.
+     */
+    private fun onBackConsumeResult(dispatchId: Int, result: String?) {
+        if (dispatchId != backConsumeDispatchId || !backConsumePending) return
+        backConsumePending = false
+        backConsumeTimeout.removeCallbacksAndMessages(null)
+        if (BackDispatchPolicy.decide(result) == BackDispatchPolicy.Outcome.CONSUMED) return
+        applyWebViewHistoryFallback()
+    }
+
+    /**
+     * Releases a window whose evaluation reply never arrived (issue #145 review M1) and
+     * runs the same fallback a declined chain would: WebView history first, then the
+     * Android default. Stale timeouts (reply already applied) are ignored.
+     */
+    private fun onBackConsumeTimeout(dispatchId: Int) {
+        if (dispatchId != backConsumeDispatchId || !backConsumePending) return
+        backConsumePending = false
+        applyWebViewHistoryFallback()
+    }
+
+    private fun applyWebViewHistoryFallback() {
+        if (BackDispatchPolicy.historyFallback(::webView.isInitialized && webView.canGoBack()) ==
+            BackDispatchPolicy.Outcome.WEBVIEW_BACK
+        ) {
+            webView.goBack()
+            return
+        }
+        super.onBackPressed()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -599,6 +671,10 @@ class MainActivity : Activity() {
         // services/tasks are never touched by this teardown (AGENTS.md red line).
         notificationsBridge?.destroy()
         notificationsBridge = null
+        // Issue #145 review M1: a back dispatch pending at destroy time has no callee left
+        // — release the timeout window so it can never leak past the activity's death.
+        backConsumeTimeout.removeCallbacksAndMessages(null)
+        backConsumePending = false
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {
@@ -617,6 +693,24 @@ class MainActivity : Activity() {
         /** The WebView grant payload — exactly the policy's video whitelist (issue #71). */
         private val CAMERA_GRANT = CameraGrantPolicy.grantableResources().toTypedArray()
         private val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
+
+        /**
+         * The in-app back chain probe (issue #145): completes to a bare JSON boolean —
+         * "true" when a chain layer consumed the press, "false" when the binding is absent,
+         * the chain declines, or the evaluation throws. No side effects; the chain walk in
+         * the shell is synchronous.
+         */
+        private const val BACK_CONSUME_SCRIPT =
+            "(function () { try { return window.opencodeMobileBack && " +
+                "typeof window.opencodeMobileBack.consume === 'function' ? " +
+                "window.opencodeMobileBack.consume() === true : false } catch (_) { return false } })()"
+
+        /**
+         * Bound on the in-app back dispatch window (issue #145 review M1): well above a
+         * healthy WebView round trip, short enough that a wedged evaluation cannot eat
+         * more than this one press.
+         */
+        private const val BACK_CONSUME_TIMEOUT_MS = 500L
 
         /**
          * acceptTypes extension mapping (issue #16 plan L3): small built-in table, caliber

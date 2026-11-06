@@ -118,7 +118,11 @@
     "patches/mobile/project-identity-migration.patch",
     "patches/mobile/home-new-session-parity.patch",
     "patches/mobile/ui-typeahead-export.patch",
-    "patches/mobile/model-selector-usage-parity.patch"
+    "patches/mobile/model-selector-usage-parity.patch",
+    "patches/mobile/shell-titlebar-project-icons.patch",
+    "patches/mobile/ui-pin-target-residual.patch",
+    "patches/mobile/session-ui-rows-current-target.patch",
+    "patches/mobile/session-android-back-bridge.patch"
   ],
   "excluded": {
     "packages": [
@@ -578,6 +582,30 @@
       "id": "model-selector-usage-parity",
       "path": "patches/mobile/model-selector-usage-parity.patch",
       "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
+      "status": "active"
+    },
+    {
+      "id": "shell-titlebar-project-icons",
+      "path": "patches/mobile/shell-titlebar-project-icons.patch",
+      "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
+      "status": "active"
+    },
+    {
+      "id": "ui-pin-target-residual",
+      "path": "patches/mobile/ui-pin-target-residual.patch",
+      "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
+      "status": "active"
+    },
+    {
+      "id": "session-ui-rows-current-target",
+      "path": "patches/mobile/session-ui-rows-current-target.patch",
+      "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922",
+      "status": "active"
+    },
+    {
+      "id": "session-android-back-bridge",
+      "path": "patches/mobile/session-android-back-bridge.patch",
+      "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
       "status": "active"
     }
   ],

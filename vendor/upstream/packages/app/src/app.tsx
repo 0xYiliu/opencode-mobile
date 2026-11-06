@@ -1,15 +1,17 @@
 import "@/index.css"
-import { DialogProvider } from "@opencode/ui/context/dialog"
+import { DialogProvider, useDialog } from "@opencode/ui/context/dialog"
 import { FileComponentProvider } from "@opencode/ui/context/file"
 import { Font } from "@opencode/ui/font"
 import { ThemeProvider } from "@opencode/ui/theme/context"
-import { MetaProvider } from "@solidjs/meta"
+import { MetaProvider, Title } from "@solidjs/meta"
 import { type BaseRouterProps, Router } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
-import { type Component, createRenderEffect, ErrorBoundary, type JSX, type ParentProps } from "solid-js"
+import { type Component, createRenderEffect, ErrorBoundary, type JSX, onCleanup, type ParentProps } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/shell/commands/command"
 import { DesktopCommands } from "@/shell/commands/desktop"
+import { BACK_LAYER_ORDER, consumePopoverSurface, registerBackLayer } from "@/shell/back-chain"
+import { ProjectIconsProvider } from "@/shell/layout/project-icons"
 import { GlobalProvider } from "@/runtime/server/runtime"
 import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/language"
 import { ServerConnection, ServersProvider } from "@/runtime/server/registry"
@@ -45,6 +47,36 @@ function BodyTypography() {
   return null
 }
 
+// mobile(android-back-bridge): the dialog back layer (issue #145) — the Android system
+// back key closes the topmost dialog instead of leaving the activity. Mounted inside the
+// DialogProvider so the layer exists exactly while the provider does.
+function DialogBackLayer() {
+  const dialog = useDialog()
+
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.dialog, () => {
+      if (!dialog.active) return false
+      dialog.close()
+      return true
+    }),
+  )
+
+  return null
+}
+
+// mobile(android-back-bridge): the popover back layer (issue #145 QA FAIL-A) — an open
+// menu / Kobalte popover / details flyout closes on back before the press reaches the
+// drawers or history (without this layer the navigation underneath closed the popover
+// AND routed back in one press). One DOM open-state sentinel covers every popover face
+// in the shell — no per-site registration, no touching the faces themselves.
+function PopoverBackLayer() {
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.popover, () => consumePopoverSurface(document)),
+  )
+
+  return null
+}
+
 export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
@@ -54,6 +86,7 @@ export function AppBaseProviders(
 ) {
   return (
     <MetaProvider>
+      <Title>OpenCode</Title>
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode, scheme) => {
@@ -71,6 +104,8 @@ export function AppBaseProviders(
             >
               <QueryProvider>
                 <DialogProvider>
+                  <DialogBackLayer />
+                  <PopoverBackLayer />
                   <PluginRoot>
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </PluginRoot>
@@ -96,12 +131,14 @@ export function AppInterface(props: {
   const Root = (rootProps: ParentProps) => (
     <TabsProvider>
       <GlobalProvider>
-        <BodyTypography />
-        <CommandProvider>
-          <DesktopCommands />
-          {props.children}
-          {rootProps.children}
-        </CommandProvider>
+        <ProjectIconsProvider>
+          <BodyTypography />
+          <CommandProvider>
+            <DesktopCommands />
+            {props.children}
+            {rootProps.children}
+          </CommandProvider>
+        </ProjectIconsProvider>
       </GlobalProvider>
     </TabsProvider>
   )

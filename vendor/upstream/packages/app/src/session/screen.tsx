@@ -24,6 +24,7 @@ import { SESSION_PANEL_WIDTH_MIN } from "@/session/session-panel-width"
 import { SessionPanelFrame } from "@/session/session-frame"
 import { PluginLinks } from "@/runtime/plugin/render"
 import { createPanelSidebar, createRegion, MobilePanel } from "@/runtime/plugin/panels"
+import { BACK_LAYER_ORDER, consumeDockPanel, registerBackLayer } from "@/shell/back-chain"
 import { createMobileViews, MobileViewTabs } from "@/runtime/plugin/mobile"
 import { usePluginAttachment } from "@/runtime/plugin/host-apis"
 import { createMountedSession } from "@/runtime/plugin/mounted-session"
@@ -107,6 +108,21 @@ function SessionScreenContent(props: {
 
   const bottomTabs = createMemo(() => region.pane("bottom").keys().length > 0)
   const bottomOpen = createMemo(() => bottomTabs() && session.layout.view().bottom.opened())
+
+  // mobile(android-back-bridge): the wide-screen panel dock back layer (issue #145 QA
+  // FAIL-B) — an open dock surface (the side region with its Review/Open file tabs, then
+  // the bottom terminal pane) closes on back with exactly one surface per press; with
+  // neither open the layer declines. Scoped to the desktop layout: the dock faces are
+  // wide-screen surfaces (their narrow counterparts are the drawer layers).
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.dockPanel, () =>
+      consumeDockPanel({
+        desktop: isDesktop(),
+        side: session.layout.view().side,
+        bottom: session.layout.view().bottom,
+      }),
+    ),
+  )
 
   const drag = createPaneDrag({
     shown: (pane) => (pane === "bottom" ? bottomOpen() : region.pane(pane).keys().length > 0),

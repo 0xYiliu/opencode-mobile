@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, Match, Show, Switch, untrack } from "solid-js"
+import { createEffect, createMemo, createResource, Match, onCleanup, Show, Switch, untrack } from "solid-js"
 import { createStore, unwrap } from "solid-js/store"
 import { Portal } from "solid-js/web"
 import { useLocation, useNavigate } from "@solidjs/router"
@@ -15,6 +15,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useSettings } from "@/settings/model"
 import { WindowsAppMenu } from "./windows-menu"
 import { applyPath, backPath, forwardPath, type HistoryLocation } from "./history"
+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
 import { TitlebarTabStrip } from "@/shell/titlebar/tab-strip"
 import { macVerticalTrafficLights, SidebarToggle } from "@/shell/sidebar-toggle"
 import { SidebarInbox } from "@/shell/titlebar/inbox"
@@ -137,6 +138,20 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
     setHistory(next.state)
     navigate(next.to.url, { state: unwrap(next.to.state) })
   }
+
+  // mobile(android-back-bridge): in-app history as the back chain's last layer (issue #145).
+  // Same semantics as the common.goBack command: declines when there is no back path, so
+  // the Android default (finish the activity) applies at the root.
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.goBack, () => {
+      const next = backPath(history)
+
+      if (!next) return false
+      setHistory(next.state)
+      navigate(next.to.url, { state: unwrap(next.to.state) })
+      return true
+    }),
+  )
 
   const forward = () => {
     const next = forwardPath(history)
@@ -582,6 +597,21 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
             ])
 
             const [mobileTabs, setMobileTabs] = createStore({ open: false, settings: false })
+
+            // mobile(android-back-bridge): the narrow-screen More drawer (issue #145) — the
+            // system back closes it before touching in-app history; an armed settings
+            // handoff rewinds first (the settings surface then never opens).
+            onCleanup(
+              registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
+                if (!mobileTabs.open) return false
+                if (mobileTabs.settings) {
+                  setMobileTabs("settings", false)
+                  return true
+                }
+                setMobileTabs("open", false)
+                return true
+              }),
+            )
 
             const currentProject = createMemo(() => {
               const tab = currentTab()

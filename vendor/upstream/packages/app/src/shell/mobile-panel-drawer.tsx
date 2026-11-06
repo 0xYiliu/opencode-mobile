@@ -1,8 +1,9 @@
-import { createEffect, on, Show, type JSX, type ParentProps } from "solid-js"
+import { createEffect, on, onCleanup, Show, type JSX, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode/ui/button"
 import { DrawerContext } from "@opencode/plugin/gui/host"
 import { useLanguage } from "@/runtime/i18n/language"
+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
 import { MobileDrawer, MobileDrawerClose, MobileDrawerContent, MobileDrawerLabel } from "./mobile-drawer"
 import "./mobile-panel-drawer.css"
 
@@ -40,6 +41,25 @@ export function MobilePanelDrawer(
       trigger?.focus()
     },
   }
+
+  // mobile(android-back-bridge): while this drawer is open, the Android system back first
+  // pops its inner sub-view (navigation.back), then closes the drawer itself (issue #145).
+  // One registration covers every panel drawer instance (composer attachments, view
+  // options, model selection) without each consumer needing its own layer.
+  createEffect(() => {
+    if (!props.open) return
+    onCleanup(
+      registerBackLayer(BACK_LAYER_ORDER.panelDrawer, () => {
+        if (store.view) {
+          navigation.back()
+          return true
+        }
+        if (!props.open) return false
+        props.onOpenChange(false)
+        return true
+      }),
+    )
+  })
 
   return (
     <DrawerContext.Provider value={navigation}>
