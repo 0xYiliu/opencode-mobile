@@ -168,35 +168,47 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     const content = await read(file)
     if (content.includes("settings.notifications.permissions")) consumers.push(file)
   }
-  const expected = [NOTIFICATION_TSX, SETTINGS_NOTIF_TSX].sort()
+  // Issue #144 refresh: notification.tsx is byte-identical to the v2.2.1 target (the
+  // session-workbench overlay retired the #23-era M-023 delivery face — the bridge
+  // reroute, the permission listener and its guard chain). The reference set narrows to
+  // the settings page alone; the retired delivery face and its anchors are registered in
+  // docs/alignment/windows-desktop/v2.2.1/settings-acceptance.md and re-wiring the
+  // Android bridge delivery belongs to the notifications owner (#148/G33 direction).
+  const expected = [SETTINGS_NOTIF_TSX]
   if (consumers.length !== expected.length || consumers.some((file, i) => file !== expected[i]))
     fail(`2: settings.notifications.permissions reference set changed (expected exactly ${expected.join(", ")}; got ${consumers.join(", ")})`)
   const model = await read(MODEL_TSX)
   if (!model.includes("permissions: withFallback(() => store.notifications?.permissions, defaultSettings.notifications.permissions)"))
     fail("2: settings/model.tsx lost the notifications.permissions accessor definition face")
 
-  // The notifications-platform-delivery fourth listener + its guard chain (hasOpenTab × auto-approve guard ×
-  // independent sound/system gates, mirroring the agent/error branches).
+  // The CURRENT (target-form) delivery face: two event branches with hasOpenTab ×
+  // notification/sound gates, the hasRunningChild subagent guard, coordinator sound/system
+  // pairs and platform.notify delivery. The Android bridge seam has NO consumer here
+  // (negative anchor) — the registered delivery-face retirement.
   const notification = await read(NOTIFICATION_TSX)
   for (const anchor of [
-    'if (event.type === "permission.asked") handlePermissionAsked(event.data.sessionID, event.data.id)',
-    "const handlePermissionAsked = (sessionID: string, eventID: string) => {",
-    "if (settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session?.projectID))) return",
-    "if (settings.sounds.permissionsEnabled()) {",
-    "settings.notifications.permissions()",
-    'category: "permissions"',
-    'title: language.t("notification.permission.title")',
-    "body: session?.title ?? sessionID",
+    "hasOpenTab && settings.notifications.agent()",
+    "hasOpenTab && settings.notifications.errors()",
+    "function hasRunningChild(data: Data, sessionID: string) {",
+    "if (hasRunningChild(input.data, sessionID)) return",
+    'language.t("notification.session.responseReady.title")',
+    'language.t("notification.session.error.title")',
   ]) {
-    if (!notification.includes(anchor)) fail(`2: notification.tsx lost the notifications-platform-delivery permission-face anchor ${JSON.stringify(anchor)}`)
+    if (!notification.includes(anchor)) fail(`2: notification.tsx lost the target-form delivery anchor ${JSON.stringify(anchor)}`)
   }
-  // The trigger-face count: exactly ONE permission notify call in the file (the fourth
-  // listener); a second would be an unreviewed delivery face.
-  if ((notification.match(/activeNotificationsPort\(\)\.notify\(/g) ?? []).length !== 3)
-    fail("2: notification.tsx notify call faces changed (expected exactly 3 = agent + errors + permissions; a new face needs a mechanical review of the guard chain first)")
+  if (notification.includes("activeNotificationsPort") || notification.includes("sessionHref"))
+    fail("2: notification.tsx carries the retired M-023 bridge-delivery face (issue #144: the target form has no bridge consumer; re-wiring belongs to the notifications owner)")
+  if ((notification.match(/input\.coordinator\.sound\(/g) ?? []).length !== 2)
+    fail("2: notification.tsx coordinator sound faces changed (expected exactly 2 = agent + errors on the target form)")
+  if ((notification.match(/input\.coordinator\.system\(/g) ?? []).length !== 2)
+    fail("2: notification.tsx coordinator system faces changed (expected exactly 2 = agent + errors on the target form)")
 
   // The approval-path exhaustion (#10 authoritative): wire-level api.permission.reply is
   // EXACTLY the two call sites — the notification face must never become a third.
+  // (The target Inbox adds a THIRD UI reply caller in inbox-model.ts, but it goes through
+  // the client data store's session.permission.reply wrapper, not the wire-level API —
+  // outside this lock's receiver; group 4's notification .reply( negative keeps the
+  // notification face navigation-only either way. Issue #144 note.)
   const replyHits: Record<string, number> = {}
   for (const file of appFiles) {
     const hits = (raw(await read(file)).match(/api\.permission\.reply\(/g) ?? []).length
@@ -207,10 +219,11 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
       Object.values(replyHits).reduce((a, b) => a + b, 0) !== 2)
     fail(`2: the wire-level api.permission.reply exhaustion changed (expected exactly {auto-approve.ts:1, model.ts:1}; got ${JSON.stringify(replyHits)})`)
 
-  // The permission sound event face: notification.tsx carries exactly the three event
-  // faces; the settings preview in controllers.ts is the declared non-event face.
-  if ((notification.match(/playSoundById\(/g) ?? []).length !== 3)
-    fail("2: notification.tsx playSoundById event faces changed (expected exactly 3 = agent + errors + permissions after notifications-platform-delivery)")
+  // The permission sound event face: notification.tsx carries exactly the two event
+  // faces on the target form (the permissions sound face retired with the listener);
+  // the settings preview in controllers.ts is the declared non-event face.
+  if ((notification.match(/playSoundById\(/g) ?? []).length !== 2)
+    fail("2: notification.tsx playSoundById event faces changed (expected exactly 2 = agent + errors on the target form; issue #144)")
   const soundWriters: string[] = []
   for (const file of appFiles) {
     if ((await read(file)).includes("playSoundById")) soundWriters.push(file)
@@ -221,7 +234,9 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   if (soundWriters.length !== soundExpected.length || soundWriters.some((file, i) => file !== soundExpected[i]))
     fail(`2: playSoundById file set changed (expected exactly ${soundExpected.join(", ")}; got ${soundWriters.join(", ")})`)
 
-  // The dock title i18n key consumer set: exactly the dock + the notifications-platform-delivery notification face.
+  // The dock title i18n key consumer set: exactly the dock on the current form (the
+  // notification permission title retired with the M-023 listener); the session event
+  // titles are notification.tsx-exclusive.
   // The runtime/i18n/ definition domain (en/zh + ~40 locales carrying the key STRING as a
   // definition) is outside this consumption set by design.
   const titleConsumers: string[] = []
@@ -229,19 +244,23 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     if (file.includes("runtime/i18n/")) continue
     if ((await read(file)).includes("notification.permission.title")) titleConsumers.push(file)
   }
-  const titleExpected = [DOCK_TSX, NOTIFICATION_TSX].sort()
+  const titleExpected = [DOCK_TSX]
   if (titleConsumers.length !== titleExpected.length || titleConsumers.some((file, i) => file !== titleExpected[i]))
     fail(`2: notification.permission.title consumer set changed (expected exactly ${titleExpected.join(", ")}; got ${titleConsumers.join(", ")})`)
-
-  // The notifications-platform-delivery import additions (seam + sessionHref) and the auto-approve guard precedent
-  // import face.
-  for (const anchor of [
-    'import { projectSettingsKey, useSettings } from "@/settings/model"',
-    'import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"',
-    'import { sessionHref } from "@/shell/routes/session"',
-  ]) {
-    if (!notification.includes(anchor)) fail(`2: notification.tsx lost the notifications-platform-delivery import ${JSON.stringify(anchor)}`)
+  for (const key of ["notification.session.responseReady.title", "notification.session.error.title"]) {
+    const keyConsumers: string[] = []
+    for (const file of appFiles) {
+      if (file.includes("runtime/i18n/")) continue
+      if ((await read(file)).includes(key)) keyConsumers.push(file)
+    }
+    if (keyConsumers.length !== 1 || keyConsumers[0] !== NOTIFICATION_TSX)
+      fail(`2: ${key} consumer set changed (expected exactly notification.tsx; got ${keyConsumers.join(", ")})`)
   }
+
+  // The target import face: the settings import narrows back (no projectSettingsKey — the
+  // auto-approve guard retired with the listener).
+  if (!notification.includes('import { useSettings } from "@/settings/model"'))
+    fail(`2: notification.tsx lost the target settings import ${JSON.stringify('import { useSettings } from "@/settings/model"')}`)
 }
 
 // --- 3. Bridge contract (the sixth protocol-isolated sibling) ---
@@ -339,10 +358,11 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
     fail("3: entry.tsx lost the mobile(M-022) source marker comment")
   if (!entry.includes("setActiveNotificationsPort(\n      createNotificationsClient(\n        createWebMessageNotificationsTransport({"))
     fail("3: entry.tsx lost the app-notifications-bridge seam registration shape")
-  if (!notificationSource.includes("// mobile(M-023): deliver through the notifications bridge (issue #23)"))
-    fail("3: notification.tsx lost the mobile(M-023) source marker comment")
-  if (!notificationSource.includes("// mobile(M-023): the permission notification face (issue #23)"))
-    fail("3: notification.tsx lost the mobile(M-023) permission-face marker comment")
+  // Issue #144: notification.tsx is target-form — the M-023 source markers retired with
+  // the bridge-delivery face (registered retirement; the seam itself stays wired in
+  // entry.tsx above and consumed by the settings permission request, group 5).
+  if (notificationSource.includes("// mobile(M-023)"))
+    fail("3: notification.tsx still carries the retired M-023 source markers (issue #144: target form)")
 }
 
 // --- 4. Safety negatives (no notification may approve a permission or stop a task) ---
@@ -503,9 +523,11 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // (this probe) and the claim-key template's writer list lives in
   // audit-secret-persistence.ts:73-76 — no new writer, no re-lock here.
   const notification = await read(NOTIFICATION_TSX)
+  // Issue #144: the target form carries exactly 4 once-call faces (sound+system ×
+  // agent/errors); the permissions pair retired with the M-023 listener.
   const onceCalls = (notification.match(/input\.coordinator\.(sound|system)\(/g) ?? []).length
-  if (onceCalls !== 6)
-    fail(`7: notification.tsx coordinator once-call faces changed (expected exactly 6 = sound+system x agent/errors/permissions; got ${onceCalls})`)
+  if (onceCalls !== 4)
+    fail(`7: notification.tsx coordinator once-call faces changed (expected exactly 4 = sound+system x agent/errors on the target form; got ${onceCalls})`)
 
   // The upstream best-effort truth, verbatim (the honest-boundary quote source; the
   // comment wraps across two lines upstream — the second line is the anchor).
@@ -577,10 +599,17 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // payload to 3520/159672996 (+7406 bytes at the same 3520 file count — the Shortcuts
   // unbind key + Unbind button + ghost-danger variant + command catalog/keymap core ship
   // inside existing chunks, zero new chunks; cross-reference verify-commands-menus group 8).
-  if (distManifest.fileCount !== 3520)
-    fail(`8: current web-dist fileCount drifted (expected 3520, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 149595730) // issue #141 measured (provider connect flow redesign provider-connect-flow-redesign: first dist rebuild since the #110-era committed manifest — the 3520->5617 file / 159564015->149595730 delta is dominated by accumulated vendor drift chunking at the current vendor state, plus the connect dialog/controller/i18n key family; connect positives: dialog.provider.connected + provider.connect.form.selectOne in the language chunk, provider-connect-command-output in the dialog chunk)
-    fail(`8: current web-dist totalBytes drifted (expected 149595730, got ${String(distManifest.totalBytes)})`)
+  // Issue #144 measured: the settings acceptance round (M-035 zoom-row restore + pruned
+  // session-client-compatibility/session-workbench hunks) rebuilt the payload to
+  // 5616/149754033 (same 5616 file count as the #140/#143-era committed manifest
+  // 5616/149831838 — the settings/catalog/test hunks ship inside existing chunks; the byte
+  // delta vs that committed manifest includes this round's source delta plus rebuild
+  // churn; prior 5617/149595730 = issue #141 provider-connect-flow-redesign, whose
+  // fileCount moved with the pre-#140 vendor state).
+  if (distManifest.fileCount !== 5616)
+    fail(`8: current web-dist fileCount drifted (expected 5616, got ${String(distManifest.fileCount)})`)
+  if (distManifest.totalBytes !== 149754033)
+    fail(`8: current web-dist totalBytes drifted (expected 149754033, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
@@ -681,12 +710,12 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
 console.log(
   "verify-notifications: PASS (" +
     "1: upstream face anchors (two event branches + guard chain + openNotificationSession three-call sequence + unread watermark + session.view) + coordinator once/claim-500/locks/hasFocus + claim-key template cross-reference (audit-secret-persistence.ts:73-76) + web.ts Notification dead-point early return + platform.tsx notify signature + sound.ts Audio path; " +
-    "2: permission dead switch + notifications-platform-delivery completion (settings.notifications.permissions 2-file reference set + model.tsx definition face + fourth listener + auto-approve guard chain + exactly-3 notify faces + exactly-3 sound faces) + api.permission.reply wire-level exhaustion {auto-approve, model} + playSoundById file set + notification.permission.title consumer set {dock, notification}; " +
+    "2: permission reference set narrowed to the settings page (issue #144: notification.tsx target-form, M-023 delivery face + permission listener retired — re-wiring is the notifications owner, #148/G33 direction) + model.tsx definition face + target-form delivery anchors (hasRunningChild, 2 sound + 2 system faces, zero activeNotificationsPort/sessionHref) + api.permission.reply wire-level exhaustion {auto-approve, model, inbox-model} + playSoundById file set + notification.permission.title consumer {dock} + session event titles notification-exclusive; " +
     "3: six handshakes pairwise distinct + op whitelist exactly two + notify param set exactly {category,title,body,route} (normalized anchor) + four-code taxonomy both sides + route regex + 128/256 bounds + exactly-three categories + fail-closed stub semantics + three-function seam + silent channels + VISIBILITY_PRIVATE + setAutoCancel + mobile(notifications-v1) marker; " +
     "4: NEGATIVE zero addAction/RemoteViews + zero .reply( in the notification domain (both faces) + zero task-control identifiers + zero-value logging anchor + zero credential-shaped identifiers in client.ts/bridge; " +
     "5: POST_NOTIFICATIONS manifest line + exactly-3 permissions (INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71) + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + settings-notification-permission switch wiring + explicit status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
-    "7: exactly-6 coordinator once-call faces + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5617/149595730; issue #141 provider-connect-flow-redesign rebuild; prior 3520/159558361 = issue #124 settings-server-menu; previous manifest 3520/159683681; older connection-password-keyboard baseline; previously 3520/159673641; issue #109 gui-extensions D4 resolution + label disambiguation incl. settings-gui-plugins-tab-label, +645 bytes at the same 3520 file count — two tab-label i18n values + comment stripping inside existing chunks; prior 3520/159672996 = issue #108 keybinds/command-catalog target form incl. settings-keybinds-command-catalog, +7406 bytes at the same 3520 file count — unbind key + Unbind button + ghost-danger variant + command catalog/keymap core inside existing chunks, constants updated and label segment missed at #108 — corrected during the #109 revision; prior 3520/159665590 = issue #107 notifications/sounds settings-page target form incl. settings-notifications-migration, +1563 bytes at the same 3520 file count — sounds-interface row + catalog restore + sound.ts trim inside existing chunks; prior 3520/159664027 = issue #106 projects/workspaces settings-page target form incl. settings-workspaces-migration, +97 bytes at the same 3520 file count; prior 3520/159663930 = issue #105 providers/models/extensions settings-page target migration incl. settings-providers-models-extensions, +3 files/+64134 bytes; prior 3517/159599796 = issue #104 ui theme trim, prior 3517/159601021 = issue #103 general/experimental preferences-page migration incl. settings-general-experimental-migration, +1994 bytes at the same file count; prior 3517/159599027 = issue #102 servers-page target migration incl. settings-servers-migration, prior 3517/159606524 = issue #101 settings-framework migration incl. settings-framework-dependencies..settings-framework-mobile, prior 3516/159546665 = issue #96 toggle-semantics fix rebuild, prior 3516/159545922; issue #76 incl. files-open-external, prior 3516/159542455; issue #90 incl. amended gui-plugins-api-migration + Fix B, prior 3516/159542120; issue #72 incl. settings-about-version; issue #70 incl. session-btw-narrow-entry 3516/159535257, issue #67 incl. gui-plugins-api-migration 3516/159532385, issue #66 incl. session-goal-sources-panels 3493/153776571, issue #65 rebuild incl. appearance-motion-zoom 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, connection-method-layout 3482/153447934, connection-initial-ssh-entry 3482/153445727, settings-mobile-gui-plugins 3480/153441733 remain historical) + staged dist markers; " +     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + app-notifications-bridge/notifications-platform-delivery/settings-notification-permission, design README index + baseline; " +
+    "7: exactly-4 coordinator once-call faces on the target form (issue #144: permissions pair retired with the M-023 listener) + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5616/149754033; issue #144 settings acceptance rebuild incl. the M-035 restore; prior 5616/149831838 = #140/#143-era committed manifest; prior 5617/149595730 = issue #141 provider-connect-flow-redesign rebuild; prior 3520/159558361 = issue #124 settings-server-menu; previous manifest 3520/159683681; older connection-password-keyboard baseline; previously 3520/159673641; issue #109 gui-extensions D4 resolution + label disambiguation incl. settings-gui-plugins-tab-label, +645 bytes at the same 3520 file count — two tab-label i18n values + comment stripping inside existing chunks; prior 3520/159672996 = issue #108 keybinds/command-catalog target form incl. settings-keybinds-command-catalog, +7406 bytes at the same 3520 file count — unbind key + Unbind button + ghost-danger variant + command catalog/keymap core inside existing chunks, constants updated and label segment missed at #108 — corrected during the #109 revision; prior 3520/159665590 = issue #107 notifications/sounds settings-page target form incl. settings-notifications-migration, +1563 bytes at the same 3520 file count — sounds-interface row + catalog restore + sound.ts trim inside existing chunks; prior 3520/159664027 = issue #106 projects/workspaces settings-page target form incl. settings-workspaces-migration, +97 bytes at the same 3520 file count; prior 3520/159663930 = issue #105 providers/models/extensions settings-page target migration incl. settings-providers-models-extensions, +3 files/+64134 bytes; prior 3517/159599796 = issue #104 ui theme trim, prior 3517/159601021 = issue #103 general/experimental preferences-page migration incl. settings-general-experimental-migration, +1994 bytes at the same file count; prior 3517/159599027 = issue #102 servers-page target migration incl. settings-servers-migration, prior 3517/159606524 = issue #101 settings-framework migration incl. settings-framework-dependencies..settings-framework-mobile, prior 3516/159546665 = issue #96 toggle-semantics fix rebuild, prior 3516/159545922; issue #76 incl. files-open-external, prior 3516/159542455; issue #90 incl. amended gui-plugins-api-migration + Fix B, prior 3516/159542120; issue #72 incl. settings-about-version; issue #70 incl. session-btw-narrow-entry 3516/159535257, issue #67 incl. gui-plugins-api-migration 3516/159532385, issue #66 incl. session-goal-sources-panels 3493/153776571, issue #65 rebuild incl. appearance-motion-zoom 3482/153654746, issue #64 fix round 153638138 (first build 153638140), issue #63 baseline 153581483, issue #62 rebuild 153563460, connection-method-layout 3482/153447934, connection-initial-ssh-entry 3482/153445727, settings-mobile-gui-plugins 3480/153441733 remain historical) + staged dist markers; " +     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + app-notifications-bridge/notifications-platform-delivery/settings-notification-permission, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )

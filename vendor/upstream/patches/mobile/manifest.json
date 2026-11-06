@@ -1518,10 +1518,10 @@
         "packages/util/src/session-mention.ts"
       ],
       "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
+      "sha256": "e532b2c8c38b52d3ee399835b7cfbf264ae6f93cbe9d8ffb979f90079cb139db",
       "status": "active",
       "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a."
+      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a. Issue #144: of the search-results.test.ts section only hunk 1 (the M-035 flip-back, @@ -45,16) is pruned - the M-035 zoom/font assertions stay restored; hunk 2 (@@ -82,10) is RETAINED (the timeline-width/sounds-interface first-party assertions converge to the target form), so the file stays a patch target."
     },
     {
       "id": "session-client-compatibility",
@@ -1550,7 +1550,6 @@
         "packages/app/src/session/story-model.tsx",
         "packages/app/src/session/timeline/voice-delegation.ts",
         "packages/app/src/settings/model.tsx",
-        "packages/app/src/settings/search-catalog.ts",
         "packages/app/src/shell/commands/desktop-menu.ts",
         "packages/app/src/shell/commands/desktop.tsx",
         "packages/app/src/shell/commands/palette.ts",
@@ -1575,10 +1574,10 @@
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
       "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded.",
-      "sha256": "3b9ebe74cd40555605fd227e077ea047f0eb9f19911aa0078658cdd7308e0be1",
+      "sha256": "8ae7f5a945f7f3fe413e4b7f95978008669e8fb3bb1e0f590cffe094b817981f",
       "status": "active",
       "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Layered directly after session-workbench-upstream U and before session-project-open-compatibility host project compatibility. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain."
+      "rebase": "Layered directly after session-workbench-upstream U and before session-project-open-compatibility host project compatibility. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #140: project-domain compat hunks retired (registry/persistence test downgrades, runtime modelState+catalog layer, identity-header catalog face, palette/session-search/composer catalog.list, titlebar mobile(C) lastDirectory, helpers closeHomeProject family, home command-palette hunks); surviving hunks are outside the project domain. Issue #144: the search-catalog.ts zoom-gate hunk is pruned - the M-035 catalog deviation (zoom row without the desktop availability gate + mobile(M-035) note) is restored as the sole registered catalog-level deviation; the file is no longer touched by this patch (dropped from targets). All other hunks (incl. desktop-menu.ts/composer wiring) are unchanged."
     },
     {
       "id": "session-media-source-safety",

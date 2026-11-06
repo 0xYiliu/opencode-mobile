@@ -255,17 +255,24 @@ const M040_TARGETS = [
     fail("5: settings-about-version patch must NOT touch search-catalog.ts (MINOR-1 condition b)")
 
   // session-goal-sources-panels..session-btw-narrow-entry faces show zero spill from this unit.
+  // Issue #144 refresh: the btw renderer converged to the v2.2.1 target form via the session
+  // overlay — the session-btw-narrow-entry mobile face (mobile.title/mobile.none references,
+  // enabled: mounted() gate) retired with it, so those renderer anchors are retired here
+  // (owner of the btw narrow-screen face: the session/Android interaction unit, #145 direction).
+  // The M-038 i18n remnant keys remain pinned (the en.ts delta vs target is still in place);
+  // the goal renderer is likewise target-form (ComposerPill), so its old "mobile face" pin
+  // is retired with the same attribution.
   const btwRenderer = await read("vendor/upstream/packages/gui-plugins/src/btw/renderer.tsx")
-  if (!btwRenderer.includes('"mobile.title"') || !btwRenderer.includes('"mobile.none"'))
-    fail("5: btw renderer.tsx lost the session-btw-narrow-entry mobile face anchors (zero-spill negative)")
-  if (!btwRenderer.includes("enabled: mounted()"))
-    fail("5: btw renderer.tsx lost the session-btw-narrow-entry D3 gate anchor (zero-spill negative)")
+  if (btwRenderer.includes('"mobile.title"'))
+    fail("5: btw renderer.tsx resurrected the retired session-btw-narrow-entry mobile.title reference (issue #144: target form has none; the narrow-screen face belongs to the session unit)")
+  if (!btwRenderer.includes("enabled: !layout.narrow() && mounted()"))
+    fail("5: btw renderer.tsx lost the target command gate anchor (issue #144 target form)")
   const btwEn = await read("vendor/upstream/packages/gui-plugins/src/btw/i18n/en.ts")
   if (!btwEn.includes('"mobile.title": "Side question"'))
-    fail("5: btw i18n/en.ts lost the session-btw-narrow-entry keys (zero-spill negative)")
+    fail("5: btw i18n/en.ts lost the M-038 remnant keys (registered delta still in place)")
   const guiPluginsRenderer = await read("vendor/upstream/packages/gui-plugins/src/goal/renderer.tsx")
-  if (!guiPluginsRenderer.includes("mobile"))
-    fail("5: goal renderer.tsx lost its mobile face (session-goal-sources-panels zero-spill negative)")
+  if (!guiPluginsRenderer.includes("ComposerPill"))
+    fail("5: goal renderer.tsx lost the target ComposerPill face (issue #144 target form)")
 }
 
 // --- 6. Semantic identity and About patch registration ---

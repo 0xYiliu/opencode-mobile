@@ -20,9 +20,10 @@
 //      face legitimately lands with the General/Experimental preferences-page
 //      target migration (Literals schema + defaults; the sidebarOpen face went
 //      legitimate with settings-framework-migration, reduceMotion with appearance-motion-zoom's rebase round, issue #65).
-//      The showFileTree/terminalPlacement anchors stay — issue #103 RETAINS them
-//      as registered mobile deviations (their session screen/dock consumers are
-//      outside this issue's scope).
+//      The showFileTree/terminalPlacement anchors moved to the retired-block decode-stub
+//      form (issue #144): the #103 retained deviations were retired by the #140-era
+//      session rework (their screen-layout/use-session-commands consumers are gone) and
+//      the schema survives only so old stored values still decode.
 //   4. Test sync (settings/model.test.ts): the defaults full-object assertion
 //      carries the two new lines (without them the upstream subset fails);
 //      negative boundary keeps the showFileTree/terminalPlacement lines
@@ -186,11 +187,15 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     fail("3: model.tsx lost the backgroundActivity/timelineWidth schema Literals (issue #103)")
   if (!model.includes('    backgroundActivity: "left",\n    timelineWidth: "comfortable",'))
     fail("3: model.tsx lost the backgroundActivity/timelineWidth defaults (issue #103)")
-  // Retained-deviation anchors survive (issue #103): the session screen/dock consumers
-  // (screen-layout.ts, use-session-commands.tsx) keep their preference faces until the
-  // W04/W05 session rework retires them.
-  if (!model.includes("  showFileTree: Schema.Boolean,")) fail("3: model.tsx showFileTree is no longer Schema.Boolean (issue #103 retained deviation — retirement belongs to the session screen rework)")
-  if (!model.includes('  terminalPlacement: Schema.Literals(["side", "bottom"]),')) fail("3: model.tsx lost terminalPlacement (issue #103 retained deviation — retirement belongs to the session dock rework)")
+  // Issue #144 refresh: the #103 retained deviations are RETIRED — the #140-era session
+  // rework removed their consumers (screen-layout.ts / use-session-commands.tsx references
+  // are gone), so showFileTree/terminalPlacement moved into the target's retired-preferences
+  // block (Persistence.optional decode stubs). The schema lines stay pinned in their retired
+  // form: old stored values must still decode and round-trip (no readers).
+  if (!model.includes("  showFileTree: Persistence.optional(Schema.Boolean),"))
+    fail("3: model.tsx showFileTree is not the retired-block Persistence.optional decode form (issue #144: consumers retired by the session rework, schema kept for old-storage decode)")
+  if (!model.includes("  // Mobile-only placement preference without a remaining reader; kept so stored values still decode.\n  terminalPlacement: Persistence.optional(Schema.Literals([\"side\", \"bottom\"])),"))
+    fail("3: model.tsx lost the terminalPlacement decode stub with its mobile-only comment (issue #144 retired-block form)")
 }
 
 // --- 4. Test sync (settings/model.test.ts) ---
@@ -200,9 +205,12 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!test.includes("        newIcons: false,\n        foldUserMessages: false,"))
     fail("4: model.test.ts defaults assertion does not carry the two new lines (upstream subset would fail)")
 
-  // Negative boundary: the issue-#103 retained-deviation lines and the target test name stay.
-  if (!test.includes("        showFileTree: false,")) fail("4: model.test.ts lost the retained showFileTree: false line")
-  if (!test.includes('        terminalPlacement: "side",')) fail("4: model.test.ts lost the retained terminalPlacement line")
+  // Issue #144 refresh: the test file is the target form (byte-identical to v2.2.1) — the
+  // #103 retained-deviation decode lines (showFileTree: false / terminalPlacement: "side")
+  // left with the retired deviations, and the "discards retired preferences" target test
+  // pins the retirement semantics instead.
+  if (!test.includes('expect(settings.general).not.toHaveProperty("showStatus")'))
+    fail("4: model.test.ts lost the target discards-retired-preferences assertion (issue #144 target form)")
   if (!test.includes('test("keeps the values plugins copy out once and discards retired preferences"'))
     fail("4: model.test.ts test name is not the issue #103 target form (extensions→plugins)")
 }
@@ -227,16 +235,21 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!row.includes(anchor)) fail(`5: session-timeline-row.tsx lost the anchor ${anchor.trim()}`)
   }
-  if (row.includes("run={joined()}")) fail("5: session-timeline-row.tsx adopted the user-runs run={joined()} (not S38)")
+  // Issue #144: the session timeline files converged to the v2.2.1 target form via the
+  // session-workbench overlay — the target's own user-runs face (run={joined()}, UserRun,
+  // link segments) is the CURRENT form, so the S38-era rewrite negatives flip into
+  // positive target-form anchors; the fold chain rides the target's graduated
+  // implementation (the fold slice itself is unchanged).
+  if (!row.includes("run={joined()}")) fail("5: session-timeline-row.tsx lost the target user-runs run={joined()} face (issue #144 target form)")
 
   const current = await read(`${SUI}src/message/current-message.tsx`)
   for (const anchor of [
     "  fold?: boolean\n  expanded?: boolean\n  onExpandedChange?: (expanded: boolean) => void",
     "      fold={props.fold}\n      expanded={props.expanded}\n      onExpandedChange={props.onExpandedChange}",
   ]) {
-    if (!current.includes(anchor)) fail("5: current-message.tsx lost the fold prop plumbing")
+    if (!current.includes(anchor)) fail(`5: current-message.tsx lost the fold prop plumbing`)
   }
-  if (current.includes("run?") || current.includes("run={props.run}")) fail("5: current-message.tsx adopted the run prop (not S38)")
+  if (!current.includes("run?: UserRun")) fail("5: current-message.tsx lost the target run prop (issue #144 target form)")
 
   const content = await read(`${SUI}src/message/message-content.tsx`)
   // The fold slice, verbatim anchors.
@@ -267,14 +280,11 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!content.includes(anchor)) fail(`5: message-content.tsx lost the plumbing anchor ${anchor.trim().slice(0, 60)}`)
   }
-  // Negative boundary: rewrite content must not leak. Issue #66 revision: useSources /
-  // SourcesChip leave the table (the sources chain registers under session-goal-sources-panels from that issue on)
-  // and the "run?: UserRun" entry is dropped as redundant under the kept "UserRun" substring;
-  // the remaining eight tokens still fence the user-runs/quote/link-rewrites domain (the
-  // sources side of the boundary is now ALSO locked from inside by verify-goal-sources.ts).
-  for (const token of ["linkSegments", "UserRun", "commentCardTarget", "quoteTooltip", "springStyle", "userRunSpring", "agentLabel", "useNow"]) {
-    if (content.includes(token)) fail(`5: message-content.tsx adopted v2.2.1 rewrite content outside S38 (${token})`)
-  }
+  // Issue #144: the S38-era "rewrite content must not leak" negatives are retired — the
+  // v2.2.1 user-runs/link rewrite IS the current (target byte-identical) form of
+  // message-content.tsx, and the sources boundary it used to fence is owned by
+  // session-goal-sources-panels / verify-goal-sources.ts. The fold slice positives above
+  // carry the S38 contract on the target form.
 }
 
 // --- 6. New icons chain (ui: new-icons.ts, icon.tsx, catalog.ts) ---
@@ -322,42 +332,27 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     if (!icon.includes(anchor)) fail(`6: icon.tsx lost the anchor ${anchor.trim().slice(0, 60)}`)
   }
 
-  // catalog.ts: the two adopted entries, sidebar-right retained, 15 rejections, artwork locks.
-  for (const adopted of ["  minus: {", '  "outline-chevron-right": {']) {
-    if (!catalog.includes(adopted)) fail(`6: catalog.ts lost the adopted entry ${adopted.trim()}`)
+  // Issue #144: catalog.ts is byte-identical to the v2.2.1 target — the experiment
+  // GRADUATED upstream. The S38-era "rejections stay out / sidebar-right retained / pin
+  // artwork bodies" negatives described the pre-graduation pin state and are retired;
+  // the current pins are the target graduated form: all 17 v2.2.1 additions adopted,
+  // sidebar-right deleted, trash/copy carrying the new (graduated) bodies that equal the
+  // new-icons table's artwork.
+  for (const adopted of [
+    "  minus: {",
+    '  "outline-chevron-right": {',
+    '  "outline-steer": {',
+    '  "outline-expand": {',
+    '  "outline-magnifier-minus": {',
+    '  "outline-brain": {',
+  ]) {
+    if (!catalog.includes(adopted)) fail(`6: catalog.ts lost the graduated adopted entry ${adopted.trim()} (issue #144 target form)`)
   }
-  if (!catalog.includes('  "sidebar-right": {'))
-    fail("6: catalog.ts lost sidebar-right (the v2.2.1 deletion must NOT be adopted — pin keeps the icon)")
-
-  // Issue #67 revision: the six gui-plugins-domain icons (outline-expand,
-  // outline-code-brackets, outline-quote, comment, file-document, outline-console) are
-  // adopted by gui-plugins-api-migration and leave this rejection list; file-tree was never on it (pin has the
-  // artwork + alias — D5). All EIGHT remaining rejected v2.2.1 additions stay out
-  // (17 additions − 9 adopted: minus, outline-chevron-right, outline-steer since #66/session-goal-sources-panels,
-  // plus the six gui-plugins-api-migration adoptions).
-  const rejected = [
-    "outline-magnifier-minus",
-    "outline-magnifier-plus",
-    "outline-wave-audio",
-    "outline-text",
-    "outline-photo",
-    "outline-audio",
-    "outline-video",
-    "outline-brain",
-  ]
-  for (const name of rejected) {
-    const asEntry = new RegExp(`^  "?${name}"?: \\{`, "m")
-    if (asEntry.test(catalog)) fail(`6: catalog.ts adopted the rejected v2.2.1 icon "${name}"`)
-  }
-
-  // Artwork locks: pin trash/copy bodies must remain verbatim (v2.2.1 rewrote
-  // them as the "graduated" new-icons defaults — adopting that would erase the
-  // experiment's visible delta).
-  if (!catalog.includes("M2.44434 4.22224H13.5554M5.99994 4.22224V2.44446"))
-    fail("6: catalog.ts outline-trash body is no longer the pin artwork (v2.2.1's rewrite leaked in)")
-  if (!catalog.includes("M4.14908 11.0081H1.76282V1.51758H9.1038V2.55588"))
-    fail("6: catalog.ts outline-copy body is no longer the pin artwork (v2.2.1's rewrite leaked in)")
-  // And the rewritten bodies are exactly what the experiment maps TO.
+  if (catalog.includes('  "sidebar-right": {'))
+    fail("6: catalog.ts resurrected sidebar-right (the v2.2.1 target deletes it — issue #144 graduated form)")
+  if (!catalog.includes("M5.5 4.5H2.5L4 14.5H12L13.5 4.5H10.5"))
+    fail("6: catalog.ts outline-trash body is not the graduated v2.2.1 artwork (issue #144 target form)")
+  // And the new-icons table still carries the same artwork the graduated catalog maps from.
   if (!newIcons.includes("M5.5 4.5H2.5L4 14.5H12L13.5 4.5H10.5")) fail("6: new-icons.ts trash artwork lost the v2.2.1 new body")
   if (!newIcons.includes('copy: `<path d="M9.5 3.5V1.5H1.5V10.5H4.5"')) fail("6: new-icons.ts copy artwork lost the v2.2.1 new body")
 }
@@ -376,10 +371,10 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!css.includes(anchor)) fail(`7: message-part.css lost the fold CSS anchor ${anchor.trim().slice(0, 50)}`)
   }
-  // Negative boundary: the rewrite companions stay out.
-  for (const token of ["data-run-folded", "user-message-run-actions", "user-message-link", "border-start-end-radius"]) {
-    if (css.includes(token)) fail(`7: message-part.css adopted v2.2.1 rewrite CSS outside S38 (${token})`)
-  }
+  // Issue #144: the S38-era "rewrite companions stay out" negative is retired — the file
+  // is byte-identical to the v2.2.1 target, whose run-folded/run-actions/user-message-link
+  // blocks are the CURRENT form (the fold blocks above remain pinned on it).
+  if (!css.includes("data-run-folded")) fail("7: message-part.css lost the target data-run-folded block (issue #144 target form)")
 }
 
 // --- 8. i18n: six en keys, en-only fallback on both packages ---
@@ -480,6 +475,14 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // Issue #67: gui-plugins@v2.2.1's browser panel legitimately reads the newIcons
   // experiment (newIcons() icon-artifact pick) — registered as an in-set exception.
   m034Files.add("vendor/upstream/packages/gui-plugins/src/browser/panel.tsx")
+  // Issue #144: the session timeline converged to the v2.2.1 target form, whose own
+  // disclosure/virtualization machinery shares the S38 disclosure vocabulary —
+  // in-set exceptions (target byte-identical files): search-controller.ts,
+  // virtualizer.tsx, session-timeline-row.tsx, message-content.tsx.
+  m034Files.add("vendor/upstream/packages/app/src/session/timeline/search-controller.ts")
+  m034Files.add("vendor/upstream/packages/app/src/session/timeline/virtualizer.tsx")
+  m034Files.add("vendor/upstream/packages/session-ui/src/timeline/session-timeline-row.tsx")
+  m034Files.add("vendor/upstream/packages/session-ui/src/message/message-content.tsx")
   const skipDirs = new Set(["node_modules", "dist", ".vite", ".turbo"])
   async function scan(dir: string): Promise<void> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -523,11 +526,11 @@ console.log(
   "verify-experimental-settings: PASS (" +
     "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
-    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree+terminalPlacement kept as issue #103 retained deviations; " +
-    "4: model.test.ts defaults +2 lines, retained showFileTree/terminalPlacement lines kept, plugins copy-out test name (issue #103 target form); " +
-    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), zero run=/linkSegments/quote/spring leak (the useSources/SourcesChip tokens moved to the session-goal-sources-panels boundary, issue #66); " +
-    "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog minus/outline-chevron-right/outline-steer only (issue #66), sidebar-right kept, 14 rejections out, pin trash/copy artwork bodies locked; " +
-    "7: fold CSS two selector blocks in, data-run-folded/run-actions/user-message-link out; " +
+    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree+terminalPlacement pinned at the retired-block Persistence.optional decode-stub form (issue #144: consumers retired by the session rework, schema kept for old-storage decode); " +
+    "4: model.test.ts defaults +2 lines, the target discards-retired-preferences assertion pinned (issue #144: the #103 retained decode lines left with the retired deviations), plugins copy-out test name (issue #103 target form); " +
+    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), the target user-runs faces (run={joined()}/UserRun/link segments) pinned positive — the S38-era rewrite negatives retired with the target convergence, issue #144; " +
+    "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog at the graduated v2.2.1 form (all 17 additions adopted, sidebar-right deleted, graduated trash/copy bodies) — the pre-graduation rejection negatives retired, issue #144; " +
+    "7: fold CSS two selector blocks in on the target form (data-run-folded block pinned positive — rewrite-companion negative retired, issue #144); " +
     "8: six en keys (app 4 after settings.experimental.description, ui 2 after ui.message.collapse), zh/zht/ko/de/fr key-free, both fallback anchors verbatim; " +
     "9: settings-experimental in BOTH manifests, patch face exactly the fourteen S38 files, no other patch references the face, no vendor source outside the set mentions it; " +
     "10: packages/mobile-hosts zero newIcons/foldUserMessages/experimental references; " +

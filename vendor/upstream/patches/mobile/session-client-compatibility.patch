@@ -949,24 +949,6 @@ index e35c085..1d26e7c 100644
 
 
 
-diff --git aa/packages/app/src/settings/search-catalog.ts bb/packages/app/src/settings/search-catalog.ts
-index 154f1f6..1d52195 100644
---- aa/packages/app/src/settings/search-catalog.ts
-+++ bb/packages/app/src/settings/search-catalog.ts
-@@ -141,8 +141,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
-     label: "settings.appearance.row.zoom.title",
-     target: "settings-zoom",
-     keywords: "scale size text font larger bigger accessibility",
--    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
--    // on this mobile client (the target row gates it desktop-only).
-+    available: "desktop",
-   },
-   {
-     tab: "appearance",
-
-
-
-
 diff --git aa/packages/app/src/shell/commands/desktop-menu.ts bb/packages/app/src/shell/commands/desktop-menu.ts
 index 8f9f681..d256a42 100644
 --- aa/packages/app/src/shell/commands/desktop-menu.ts
