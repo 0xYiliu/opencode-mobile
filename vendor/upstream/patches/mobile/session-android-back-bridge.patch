@@ -1,0 +1,369 @@
+diff --git a/packages/app/src/app.tsx b/packages/app/src/app.tsx
+index 00b26f7..71c738e 100644
+--- a/packages/app/src/app.tsx
++++ b/packages/app/src/app.tsx
+@@ -1,15 +1,16 @@
+ import "@/index.css"
+-import { DialogProvider } from "@opencode/ui/context/dialog"
++import { DialogProvider, useDialog } from "@opencode/ui/context/dialog"
+ import { FileComponentProvider } from "@opencode/ui/context/file"
+ import { Font } from "@opencode/ui/font"
+ import { ThemeProvider } from "@opencode/ui/theme/context"
+ import { MetaProvider, Title } from "@solidjs/meta"
+ import { type BaseRouterProps, Router } from "@solidjs/router"
+ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
+-import { type Component, createRenderEffect, ErrorBoundary, type JSX, type ParentProps } from "solid-js"
++import { type Component, createRenderEffect, ErrorBoundary, type JSX, onCleanup, type ParentProps } from "solid-js"
+ import { Dynamic } from "solid-js/web"
+ import { CommandProvider } from "@/shell/commands/command"
+ import { DesktopCommands } from "@/shell/commands/desktop"
++import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+ import { ProjectIconsProvider } from "@/shell/layout/project-icons"
+ import { GlobalProvider } from "@/runtime/server/runtime"
+ import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/language"
+@@ -46,6 +47,23 @@ function BodyTypography() {
+   return null
+ }
+ 
++// mobile(android-back-bridge): the dialog back layer (issue #145) — the Android system
++// back key closes the topmost dialog instead of leaving the activity. Mounted inside the
++// DialogProvider so the layer exists exactly while the provider does.
++function DialogBackLayer() {
++  const dialog = useDialog()
++
++  onCleanup(
++    registerBackLayer(BACK_LAYER_ORDER.dialog, () => {
++      if (!dialog.active) return false
++      dialog.close()
++      return true
++    }),
++  )
++
++  return null
++}
++
+ export function AppBaseProviders(
+   props: ParentProps<{
+     locale?: Locale
+@@ -73,6 +91,7 @@ export function AppBaseProviders(
+             >
+               <QueryProvider>
+                 <DialogProvider>
++                  <DialogBackLayer />
+                   <PluginRoot>
+                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
+                   </PluginRoot>
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 6245e91..6dd82b8 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -30,10 +30,13 @@ import {
+   createWebMessageProbeTransport,
+   createWebMessageServiceOpsTransport,
+   createWebMessageSshTransport,
++  activeBackHandlerPort,
++  setActiveBackHandlerPort,
+   setActiveFilesPort,
+   setActiveNotificationsPort,
+   setActiveServiceOpsPort,
+ } from "@opencode-mobile/mobile-hosts"
++import { consumeBackChain } from "@/shell/back-chain"
+ 
+ const getLocale = () => {
+   if (typeof navigator === "undefined") return "en" as const
+@@ -86,6 +89,19 @@ const ssh = createWebMessageSshTransport({
+   },
+ })
+ 
++// mobile(android-back-bridge): the Android system back dispatch (issue #145, plan T12).
++// MainActivity's deprecated onBackPressed face (zero-androidx constraint, API 31 device)
++// evaluates window.opencodeMobileBack.consume() through the WebView and finishes only on
++// false — or when this binding does not exist yet, which is exactly today's behavior.
++// The chain walk is synchronous (dialog close / store flags / router navigate), so the
++// answer rides the WebView evaluation callback; the mobile-hosts port seam keeps the
++// contract (the fail-closed stub consumes nothing), and the chain layers themselves
++// register from the mounted shell components (dialog provider, panel drawer, titlebar).
++setActiveBackHandlerPort({ consume: () => consumeBackChain() })
++;(window as any).opencodeMobileBack = {
++  consume: () => activeBackHandlerPort().consume(),
++}
++
+ if (import.meta.env.PROD && "serviceWorker" in navigator) {
+   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
+ }
+diff --git a/packages/app/src/shell/back-chain.test.ts b/packages/app/src/shell/back-chain.test.ts
+new file mode 100644
+index 0000000..0416578
+--- /dev/null
++++ b/packages/app/src/shell/back-chain.test.ts
+@@ -0,0 +1,92 @@
++import { describe, expect, test } from "bun:test"
++import { BACK_LAYER_ORDER, backLayerOrders, consumeBackChain, registerBackLayer } from "./back-chain"
++
++// mobile(android-back-bridge): the chain walk semantics (issue #145, plan T12). Locked
++// here because the walk is the contract the native back dispatch relies on: only an
++// explicit true from a layer suppresses the activity finish; an empty or all-declining
++// chain (and a throwing layer) falls through to the Android default.
++
++describe("back chain", () => {
++  test("an empty chain declines the press (the Android default proceeds)", () => {
++    expect(consumeBackChain()).toBe(false)
++  })
++
++  test("the first layer that answers true consumes the press and stops the walk", () => {
++    const visited: string[] = []
++    const unregisterLow = registerBackLayer(10, () => {
++      visited.push("high")
++      return true
++    })
++    const unregisterHigh = registerBackLayer(90, () => {
++      visited.push("low")
++      return true
++    })
++
++    expect(consumeBackChain()).toBe(true)
++    expect(visited).toEqual(["high"])
++
++    unregisterLow()
++    unregisterHigh()
++  })
++
++  test("declining layers pass the press down the chain", () => {
++    const unregisterDecline = registerBackLayer(10, () => false)
++    const unregisterConsume = registerBackLayer(90, () => true)
++
++    expect(consumeBackChain()).toBe(true)
++
++    unregisterConsume()
++    unregisterDecline()
++    expect(consumeBackChain()).toBe(false)
++  })
++
++  test("layer order breaks registration sequence (order 40 mounted before order 10 still tries 10 first)", () => {
++    const visited: string[] = []
++    const unregisterLate = registerBackLayer(BACK_LAYER_ORDER.dialog, () => {
++      visited.push("dialog")
++      return true
++    })
++    const unregisterEarly = registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
++      visited.push("titlebar")
++      return true
++    })
++
++    expect(backLayerOrders()).toEqual([BACK_LAYER_ORDER.dialog, BACK_LAYER_ORDER.titlebarMore])
++    expect(consumeBackChain()).toBe(true)
++    expect(visited).toEqual(["dialog"])
++
++    unregisterEarly()
++    unregisterLate()
++  })
++
++  test("unregister removes exactly the layer it returned for", () => {
++    const unregisterKeep = registerBackLayer(10, () => false)
++    const unregisterDrop = registerBackLayer(20, () => true)
++
++    unregisterDrop()
++    expect(backLayerOrders()).toEqual([10])
++    expect(consumeBackChain()).toBe(false)
++
++    unregisterKeep()
++    expect(backLayerOrders()).toEqual([])
++  })
++
++  test("a throwing layer declines the press and the chain continues", () => {
++    const unregisterThrowing = registerBackLayer(10, () => {
++      throw new Error("layer state error")
++    })
++    const unregisterFallback = registerBackLayer(BACK_LAYER_ORDER.goBack, () => true)
++
++    expect(consumeBackChain()).toBe(true)
++
++    unregisterFallback()
++    unregisterThrowing()
++    expect(consumeBackChain()).toBe(false)
++  })
++
++  test("canonical order: dialog < panelDrawer < titlebarMore < goBack", () => {
++    expect(BACK_LAYER_ORDER.dialog).toBeLessThan(BACK_LAYER_ORDER.panelDrawer)
++    expect(BACK_LAYER_ORDER.panelDrawer).toBeLessThan(BACK_LAYER_ORDER.titlebarMore)
++    expect(BACK_LAYER_ORDER.titlebarMore).toBeLessThan(BACK_LAYER_ORDER.goBack)
++  })
++})
+diff --git a/packages/app/src/shell/back-chain.ts b/packages/app/src/shell/back-chain.ts
+new file mode 100644
+index 0000000..000d47a
+--- /dev/null
++++ b/packages/app/src/shell/back-chain.ts
+@@ -0,0 +1,70 @@
++// mobile(android-back-bridge): the in-app back chain registry (issue #145, plan T12).
++//
++// Android's system back asks the WebView whether the app consumed the press; this module
++// is the aggregating registry the layers (dialog stack, panel drawers, the narrow-screen
++// More drawer, in-app history) register into. Layers are tried in ascending `order`;
++// the first layer that answers true has consumed the press. When every layer declines
++// the Android default (finish the activity) applies — the exact pre-bridge behavior.
++//
++// The soft keyboard (IME) is deliberately absent: the system consumes back for the IME
++// before this face is reached. The registry is a plain module (no UI framework imports)
++// so the walk is synchronous and unit-testable; the layers themselves are registered
++// from the mounted components that own their state (dialog context, drawer stores,
++// titlebar history) and deregister on cleanup.
++
++/** One in-app back layer: return true when this layer consumed the press, false to pass it down the chain. */
++export type BackLayer = () => boolean
++
++/** Canonical layer order (ascending; lower tries first). Kept here so registration sites stay declarative. */
++export const BACK_LAYER_ORDER = {
++  /** Topmost dialog closes first (dialogs render above every other surface). */
++  dialog: 10,
++  /** A mobile panel drawer: pop its inner sub-view first, then close the drawer. */
++  panelDrawer: 20,
++  /** The narrow-screen titlebar More drawer. */
++  titlebarMore: 40,
++  /** In-app history back (`common.goBack`); declines when there is no back path. */
++  goBack: 90,
++} as const
++
++const layers: Array<{ order: number; consume: BackLayer }> = []
++
++/**
++ * Register one layer. Returns the unregister function — call it from `onCleanup` so an
++ * unmounted surface (closed panel instance, torn-down provider) leaves the chain.
++ * `order` breaks ties for simultaneously-mounted surfaces (e.g. several panel drawer
++ * instances); registration sequence keeps it stable within one order value.
++ */
++export function registerBackLayer(order: number, consume: BackLayer): () => void {
++  const entry = { order, consume }
++  layers.push(entry)
++  layers.sort((a, b) => a.order - b.order)
++  return () => {
++    const at = layers.indexOf(entry)
++    if (at !== -1) layers.splice(at, 1)
++  }
++}
++
++/**
++ * Walk the chain in layer order; the first layer that answers true consumed the press.
++ * False means nobody handled it — the caller (the native back bridge) falls through to
++ * the Android default.
++ */
++export function consumeBackChain(): boolean {
++  for (const layer of layers) {
++    let consumed = false
++    try {
++      consumed = layer.consume()
++    } catch {
++      // A throwing layer has not consumed the press; the chain continues.
++      consumed = false
++    }
++    if (consumed) return true
++  }
++  return false
++}
++
++/** Current chain shape (order values, lowest first) — diagnostics for tests and probes. */
++export function backLayerOrders(): number[] {
++  return layers.map((layer) => layer.order)
++}
+diff --git a/packages/app/src/shell/mobile-panel-drawer.tsx b/packages/app/src/shell/mobile-panel-drawer.tsx
+index 8f8a93f..7b858e1 100644
+--- a/packages/app/src/shell/mobile-panel-drawer.tsx
++++ b/packages/app/src/shell/mobile-panel-drawer.tsx
+@@ -1,8 +1,9 @@
+-import { createEffect, on, Show, type JSX, type ParentProps } from "solid-js"
++import { createEffect, on, onCleanup, Show, type JSX, type ParentProps } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { Button } from "@opencode/ui/button"
+ import { DrawerContext } from "@opencode/plugin/gui/host"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+ import { MobileDrawer, MobileDrawerClose, MobileDrawerContent, MobileDrawerLabel } from "./mobile-drawer"
+ import "./mobile-panel-drawer.css"
+ 
+@@ -41,6 +42,25 @@ export function MobilePanelDrawer(
+     },
+   }
+ 
++  // mobile(android-back-bridge): while this drawer is open, the Android system back first
++  // pops its inner sub-view (navigation.back), then closes the drawer itself (issue #145).
++  // One registration covers every panel drawer instance (composer attachments, view
++  // options, model selection) without each consumer needing its own layer.
++  createEffect(() => {
++    if (!props.open) return
++    onCleanup(
++      registerBackLayer(BACK_LAYER_ORDER.panelDrawer, () => {
++        if (store.view) {
++          navigation.back()
++          return true
++        }
++        if (!props.open) return false
++        props.onOpenChange(false)
++        return true
++      }),
++    )
++  })
++
+   return (
+     <DrawerContext.Provider value={navigation}>
+       <MobileDrawer
+diff --git a/packages/app/src/shell/titlebar/titlebar.tsx b/packages/app/src/shell/titlebar/titlebar.tsx
+index 7ac8d8b..f6fac66 100644
+--- a/packages/app/src/shell/titlebar/titlebar.tsx
++++ b/packages/app/src/shell/titlebar/titlebar.tsx
+@@ -1,4 +1,4 @@
+-import { createEffect, createMemo, createResource, Match, Show, Switch, untrack } from "solid-js"
++import { createEffect, createMemo, createResource, Match, onCleanup, Show, Switch, untrack } from "solid-js"
+ import { createStore, unwrap } from "solid-js/store"
+ import { Portal } from "solid-js/web"
+ import { useLocation, useNavigate } from "@solidjs/router"
+@@ -15,6 +15,7 @@ import { useLanguage } from "@/runtime/i18n/language"
+ import { useSettings } from "@/settings/model"
+ import { WindowsAppMenu } from "./windows-menu"
+ import { applyPath, backPath, forwardPath, type HistoryLocation } from "./history"
++import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+ import { TitlebarTabStrip } from "@/shell/titlebar/tab-strip"
+ import { macVerticalTrafficLights, SidebarToggle } from "@/shell/sidebar-toggle"
+ import { SidebarInbox } from "@/shell/titlebar/inbox"
+@@ -138,6 +139,20 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
+     navigate(next.to.url, { state: unwrap(next.to.state) })
+   }
+ 
++  // mobile(android-back-bridge): in-app history as the back chain's last layer (issue #145).
++  // Same semantics as the common.goBack command: declines when there is no back path, so
++  // the Android default (finish the activity) applies at the root.
++  onCleanup(
++    registerBackLayer(BACK_LAYER_ORDER.goBack, () => {
++      const next = backPath(history)
++
++      if (!next) return false
++      setHistory(next.state)
++      navigate(next.to.url, { state: unwrap(next.to.state) })
++      return true
++    }),
++  )
++
+   const forward = () => {
+     const next = forwardPath(history)
+ 
+@@ -583,6 +598,21 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
+ 
+             const [mobileTabs, setMobileTabs] = createStore({ open: false, settings: false })
+ 
++            // mobile(android-back-bridge): the narrow-screen More drawer (issue #145) — the
++            // system back closes it before touching in-app history; an armed settings
++            // handoff rewinds first (the settings surface then never opens).
++            onCleanup(
++              registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
++                if (!mobileTabs.open) return false
++                if (mobileTabs.settings) {
++                  setMobileTabs("settings", false)
++                  return true
++                }
++                setMobileTabs("open", false)
++                return true
++              }),
++            )
++
+             const currentProject = createMemo(() => {
+               const tab = currentTab()
+               const value = session()

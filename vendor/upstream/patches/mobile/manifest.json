@@ -1851,6 +1851,65 @@
       "rebase": "New patch (issue #140); single export-map entry.",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
       "status": "active"
+    },
+    {
+      "id": "shell-titlebar-project-icons",
+      "patch": "patches/mobile/shell-titlebar-project-icons.patch",
+      "targets": [
+        "packages/app/index.html",
+        "packages/app/src/app.tsx",
+        "packages/app/src/shell/layout/project-icons.tsx",
+        "packages/app/src/shell/notifications/toast.tsx"
+      ],
+      "reason": "Issue #145 G1 + the shell-domain pin->target residual: adopt the fixed target 3ebcf9a session-title and project-icon faces. index.html gains the data-sm title (MetaProvider replaces the pre-load title via the <Title>OpenCode</Title> tag); app.tsx imports Title from @solidjs/meta, mounts ProjectIconsProvider around the root typography/commands tree and gains the <Title> element — VoiceProvider/VoiceOverlay stay excluded (ADR 0006, session-android-adaptation comment remains the registered adaptation). project-icons.tsx is copied byte-for-byte from the target (per-avatar generated icon persistence store over runtime/persistence storage; consumes the vendored @opencode/ui/project-avatar which is already byte-identical to the target — #140 carried only the component, not the provider; no exclusion was ever registered). toast.tsx is copied byte-for-byte from the target: the vendored extra dismissToast/toaster import dead export is deleted (zero production consumers repo-wide; the #107 no-owner-gap rider). app.tsx remains held by gui-plugins-api-migration for its registered hunks; this patch layers after it and registers its own app.tsx delta.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Post-copy app directed subset (registry/registry-hydration/persistence consumers+storage/notification/helpers/composer queue/session-ownership/panel-motion) 58 pass / 0 fail — identical counts to the pre-change baseline; app.tsx delta vs target reduces to the two excluded Voice import lines plus the VoiceProvider subtree; session tab avatar persistence face re-verified on the device QA round.",
+      "status": "active",
+      "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e"
+    },
+    {
+      "id": "ui-pin-target-residual",
+      "patch": "patches/mobile/ui-pin-target-residual.patch",
+      "targets": [
+        "packages/ui/src/components/list.tsx",
+        "packages/ui/src/components/motion-spring.tsx",
+        "packages/ui/src/components/text-field.tsx",
+        "packages/app/test-browser/motion-spring.test.ts"
+      ],
+      "reason": "Issue #145 §1.2: the four pin->target evolution residuals (files sit in NO earlier patch targets — the pin predates 776 commits of target drift), adopted to the fixed target 3ebcf9a byte-for-byte. list.tsx drops the vendored current-item scrollIntoView(\"center\") effect (the @opencode/ui/list export has zero production consumers; the auto-centering behavior is the target's removed semantics). motion-spring.tsx adopts the @kitlangton/solid-motion form (declared 0.2.2 in vendored ui dependencies and locked in bun.lock since before this round — lockfile untouched) with the spring.set(source.get()) resync and spring.stop() cleanup; the `motion` import it replaces becomes an unused-but-declared dependency BY DECISION (lockfile frozen zero-drift, registered here). text-field.tsx flips the copyable tooltip appearance standard->compact (one line). test-browser/motion-spring.test.ts is the target's three-case form, adopted in the same patch as its impl (test+impl one piece) and passing against the adopted impl (3/0).",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "Post-copy app directed subset 58 pass / 0 fail (zero new failures vs the recorded baseline, motion-spring.test.ts included in the run and also run standalone 3 pass / 0 fail); list.tsx zero-consumer fact re-checked (no @opencode/ui/list import in app/session-ui/gui-plugins); motion dependency left declared-unused (registered decision, no package.json/lockfile edit); device motion faces ride the T5/QA round.",
+      "status": "active",
+      "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2"
+    },
+    {
+      "id": "session-ui-rows-current-target",
+      "patch": "patches/mobile/session-ui-rows-current-target.patch",
+      "targets": [
+        "packages/session-ui/src/timeline/rows-current.test.ts"
+      ],
+      "reason": "Issue #145 §1.2 rows-current resolution: adopt the fixed target 3ebcf9a timeline rows test byte-for-byte (1777 lines, upstream-original) so the vendored timeline impl is verified against the target's own assertions instead of the stale pin-era suite. Two-state outcome recorded: the target form runs GREEN against the vendored impl (83 tests / 0 fail / rc=0 under the registered session-ui subset caliber), and the baseline's single registered failure (grouped reasoning-only row while busy, vendored-suite era) disappears — no impl defect was exposed, so the G3/repair path of the plan's fallback never opened. Pure test-file adoption: zero production imports.",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "bun test --conditions=solid --conditions=browser --isolate (session-ui, bunfig preload) src/timeline/rows-current.test.ts src/timeline/projection.test.ts -> 83 tests / 0 fail / 278 expect / rc=0; baseline before adoption was 72 pass / 1 fail (the registered grouped-reasoning-only baseline failure).",
+      "status": "active",
+      "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922"
+    },
+    {
+      "id": "session-android-back-bridge",
+      "patch": "patches/mobile/session-android-back-bridge.patch",
+      "targets": [
+        "packages/app/src/entry.tsx",
+        "packages/app/src/app.tsx",
+        "packages/app/src/shell/back-chain.ts",
+        "packages/app/src/shell/back-chain.test.ts",
+        "packages/app/src/shell/mobile-panel-drawer.tsx",
+        "packages/app/src/shell/titlebar/titlebar.tsx"
+      ],
+      "reason": "Issue #145 G2/T12: the in-app back chain for the Android system key (G31(2) candidate activated by the issue's explicit step-4 scope). back-chain.ts is a new framework-free ordered registry (dialog < panelDrawer < titlebarMore < goBack; first true consumes; a throwing layer declines); the registrations: app.tsx mounts DialogBackLayer inside DialogProvider (top dialog closes); mobile-panel-drawer.tsx registers while open (inner sub-view first via the existing DrawerContext navigation.back, then onOpenChange(false) — one registration covers every panel drawer instance including the composer and the narrow view-options drawer, so runtime/plugin/mobile.tsx and the #142-frozen providers/models select-dialog stay untouched); titlebar.tsx registers the narrow-screen More drawer (armed settings handoff rewinds first) and in-app history as the last layer with the exact common.goBack semantics (empty backPath declines, so the root keeps the Android default finish). entry.tsx registers the chain as the mobile-hosts back-handler port (module-level seam, the M-016/M-022 precedent; the fail-closed stub consumes nothing) and installs the window.opencodeMobileBack binding MainActivity evaluates — synchronous chain walk, the answer rides the WebView evaluation callback. The port and the Android side are first-party (packages/mobile-hosts/src/back-handler.ts, android BackDispatchPolicy — never enter patches).",
+      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
+      "verification": "back-chain.test.ts 7 pass / 0 fail (chain walk, order precedence, unregister, throwing-layer decline); mobile-hosts back-handler port tests 4 pass / 0 fail; app directed subset 58 pass / 0 fail post-registration; titlebar G2 regression set (titlebar/history, routes/session, settings/surface) 13 pass / 0 fail; Kotlin BackDispatchPolicyTest truth table 6/0 + :app:testDebugUnitTest 37/0 + :app:assembleDebug BUILD SUCCESSFUL; device back-matrix QA rides the T14 round.",
+      "status": "active",
+      "sha256": "ca647875f4b52b9c74941b167c0953c3e1e057a4833248cb8ae2535416ad79ca"
     }
   ]
 }

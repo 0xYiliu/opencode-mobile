@@ -1,0 +1,138 @@
+diff --git a/packages/app/test-browser/motion-spring.test.ts b/packages/app/test-browser/motion-spring.test.ts
+index b70015a..f3828ee 100644
+--- a/packages/app/test-browser/motion-spring.test.ts
++++ b/packages/app/test-browser/motion-spring.test.ts
+@@ -1,6 +1,60 @@
+ import { expect, test } from "bun:test"
+ import { useSpring } from "@opencode/ui/motion-spring"
+-import { createRoot, createSignal } from "solid-js"
++import { createEffect, createRoot, createSignal } from "solid-js"
++
++// Records every value the spring emits and resolves once it reaches `settled`.
++function watch(progress: () => number, settled: number) {
++  const seen: number[] = []
++  const { promise, resolve } = Promise.withResolvers<void>()
++
++  createEffect(() => {
++    const value = progress()
++
++    seen.push(value)
++
++    if (value === settled) resolve()
++  })
++
++  return { seen, settled: promise }
++}
++
++test("springs progress to its target", async () => {
++  const state = createRoot((dispose) => {
++    const [target, setTarget] = createSignal(0)
++    const progress = useSpring(target, { visualDuration: 0.3, bounce: 0 })
++
++    return { dispose, progress, setTarget, ...watch(progress, 1) }
++  })
++
++  state.setTarget(1)
++  await Promise.race([state.settled, Bun.sleep(2000)])
++
++  expect(state.progress()).toBe(1)
++  expect(state.seen.some((value) => value > 0 && value < 1)).toBe(true)
++  expect(state.seen.every((value) => value <= 1)).toBe(true)
++  state.dispose()
++})
++
++test("new spring options replace the running spring", async () => {
++  const state = createRoot((dispose) => {
++    const [target, setTarget] = createSignal(0)
++    const [duration, setDuration] = createSignal(4)
++    const progress = useSpring(target, () => ({ visualDuration: duration(), bounce: 0 }))
++
++    return { dispose, progress, setTarget, setDuration, ...watch(progress, 1) }
++  })
++
++  state.setTarget(1)
++  await Bun.sleep(100)
++  expect(state.progress()).toBeLessThan(0.5)
++
++  // The old four-second spring would still be far from its target after a second.
++  state.setDuration(0.1)
++  await Promise.race([state.settled, Bun.sleep(1000)])
++
++  expect(state.progress()).toBe(1)
++  state.dispose()
++})
+ 
+ test("snaps spring progress when the session changes", async () => {
+   const state = createRoot((dispose) => {
+diff --git a/packages/ui/src/components/list.tsx b/packages/ui/src/components/list.tsx
+index 0fa520c..e40c328 100644
+--- a/packages/ui/src/components/list.tsx
++++ b/packages/ui/src/components/list.tsx
+@@ -138,21 +138,6 @@ export function List<T>(props: ListProps<T> & { ref?: (ref: ListRef) => void })
+     ),
+   )
+ 
+-  createEffect(() => {
+-    const scroll = scrollRef()
+-
+-    if (!scroll) return
+-
+-    if (!props.current) return
+-    const key = props.key(props.current)
+-    requestAnimationFrame(() => {
+-      const element = findByKey(scroll, key)
+-
+-      if (!element) return
+-      scrollIntoView(scroll, element, "center")
+-    })
+-  })
+-
+   createEffect(() => {
+     const all = flat()
+ 
+diff --git a/packages/ui/src/components/motion-spring.tsx b/packages/ui/src/components/motion-spring.tsx
+index e1de1c9..c4466d8 100644
+--- a/packages/ui/src/components/motion-spring.tsx
++++ b/packages/ui/src/components/motion-spring.tsx
+@@ -1,5 +1,4 @@
+-import { attachSpring, motionValue } from "motion"
+-import type { SpringOptions } from "motion"
++import { attachSpring, motionValue, type SpringOptions } from "@kitlangton/solid-motion"
+ import { createComputed, createEffect, createSignal, onCleanup } from "solid-js"
+ 
+ type Opt = Partial<Pick<SpringOptions, "visualDuration" | "bounce" | "stiffness" | "damping" | "mass" | "velocity">>
+@@ -12,8 +11,8 @@ const eq = (a: Opt | undefined, b: Opt | undefined) =>
+   a?.mass === b?.mass &&
+   a?.velocity === b?.velocity
+ 
+-export function useSpring(target: () => number, options?: Opt | (() => Opt), snapKey?: () => unknown) {
+-  const read = () => (typeof options === "function" ? options() : options)
++export function useSpring<K>(target: () => number, options?: Opt | (() => Opt), snapKey?: () => K) {
++  const read = () => (options instanceof Function ? options() : options)
+   const [value, setValue] = createSignal(target())
+   const source = motionValue(value())
+   const spring = motionValue(value())
+@@ -48,7 +47,10 @@ export function useSpring(target: () => number, options?: Opt | (() => Opt), sna
+     if (eq(config, next)) return
+     config = next
+     stop()
++    // attachSpring's cleanup only unsubscribes from the source; the running animation keeps ticking until stopped.
++    spring.stop()
+     stop = attachSpring(spring, source, next)
++    spring.set(source.get())
+     setValue(spring.get())
+   })
+ 
+diff --git a/packages/ui/src/components/text-field.tsx b/packages/ui/src/components/text-field.tsx
+index 7c77066..dbe6571 100644
+--- a/packages/ui/src/components/text-field.tsx
++++ b/packages/ui/src/components/text-field.tsx
+@@ -114,7 +114,7 @@ export function TextField(props: TextFieldProps) {
+         </Show>
+         <Show when={local.copyable}>
+           <Tooltip
+-            appearance="standard"
++            appearance="compact"
+             value={label()}
+             placement="top"
+             gutter={4}

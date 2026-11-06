@@ -801,6 +801,30 @@
       "path": "patches/mobile/ui-typeahead-export.patch",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
       "status": "active"
+    },
+    {
+      "id": "shell-titlebar-project-icons",
+      "path": "patches/mobile/shell-titlebar-project-icons.patch",
+      "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
+      "status": "active"
+    },
+    {
+      "id": "ui-pin-target-residual",
+      "path": "patches/mobile/ui-pin-target-residual.patch",
+      "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
+      "status": "active"
+    },
+    {
+      "id": "session-ui-rows-current-target",
+      "path": "patches/mobile/session-ui-rows-current-target.patch",
+      "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922",
+      "status": "active"
+    },
+    {
+      "id": "session-android-back-bridge",
+      "path": "patches/mobile/session-android-back-bridge.patch",
+      "sha256": "ca647875f4b52b9c74941b167c0953c3e1e057a4833248cb8ae2535416ad79ca",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [],

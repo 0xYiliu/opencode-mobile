@@ -1,0 +1,125 @@
+diff --git a/packages/app/index.html b/packages/app/index.html
+index 336cf81..1cec152 100644
+--- a/packages/app/index.html
++++ b/packages/app/index.html
+@@ -6,7 +6,8 @@
+       name="viewport"
+       content="width=device-width, initial-scale=1, interactive-widget=resizes-content, viewport-fit=cover"
+     />
+-    <title>OpenCode</title>
++    <!-- data-sm lets the MetaProvider replace this pre-load title with the app's <Title> tags. -->
++    <title data-sm>OpenCode</title>
+     <link rel="icon" type="image/x-icon" href="%OPENCODE_FAVICON%" />
+     <link rel="apple-touch-icon" sizes="180x180" href="%OPENCODE_APPLE_TOUCH_ICON%" />
+     <link rel="manifest" href="/site.webmanifest" crossorigin="use-credentials" />
+diff --git a/packages/app/src/app.tsx b/packages/app/src/app.tsx
+index 9226b80..00b26f7 100644
+--- a/packages/app/src/app.tsx
++++ b/packages/app/src/app.tsx
+@@ -3,13 +3,14 @@ import { DialogProvider } from "@opencode/ui/context/dialog"
+ import { FileComponentProvider } from "@opencode/ui/context/file"
+ import { Font } from "@opencode/ui/font"
+ import { ThemeProvider } from "@opencode/ui/theme/context"
+-import { MetaProvider } from "@solidjs/meta"
++import { MetaProvider, Title } from "@solidjs/meta"
+ import { type BaseRouterProps, Router } from "@solidjs/router"
+ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
+ import { type Component, createRenderEffect, ErrorBoundary, type JSX, type ParentProps } from "solid-js"
+ import { Dynamic } from "solid-js/web"
+ import { CommandProvider } from "@/shell/commands/command"
+ import { DesktopCommands } from "@/shell/commands/desktop"
++import { ProjectIconsProvider } from "@/shell/layout/project-icons"
+ import { GlobalProvider } from "@/runtime/server/runtime"
+ import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/language"
+ import { ServerConnection, ServersProvider } from "@/runtime/server/registry"
+@@ -54,6 +55,7 @@ export function AppBaseProviders(
+ ) {
+   return (
+     <MetaProvider>
++      <Title>OpenCode</Title>
+       <Font />
+       <ThemeProvider
+         onThemeApplied={(_, mode, scheme) => {
+@@ -96,12 +98,14 @@ export function AppInterface(props: {
+   const Root = (rootProps: ParentProps) => (
+     <TabsProvider>
+       <GlobalProvider>
+-        <BodyTypography />
+-        <CommandProvider>
+-          <DesktopCommands />
+-          {props.children}
+-          {rootProps.children}
+-        </CommandProvider>
++        <ProjectIconsProvider>
++          <BodyTypography />
++          <CommandProvider>
++            <DesktopCommands />
++            {props.children}
++            {rootProps.children}
++          </CommandProvider>
++        </ProjectIconsProvider>
+       </GlobalProvider>
+     </TabsProvider>
+   )
+diff --git a/packages/app/src/shell/layout/project-icons.tsx b/packages/app/src/shell/layout/project-icons.tsx
+new file mode 100644
+index 0000000..1e6ddb3
+--- /dev/null
++++ b/packages/app/src/shell/layout/project-icons.tsx
+@@ -0,0 +1,34 @@
++import { ProjectIconStoreProvider, type GeneratedProjectIcon } from "@opencode/ui/project-avatar"
++import { Schema } from "effect"
++import type { ParentProps } from "solid-js"
++import { Persist, persisted } from "@/runtime/persistence/storage"
++import { Persistence } from "@/runtime/persistence/schema"
++
++const ProjectIconState = Persistence.struct({
++  icons: Persistence.record(
++    Persistence.struct({
++      style: Schema.String,
++      version: Schema.Finite,
++      params: Schema.Record(Schema.String, Schema.Finite),
++    }),
++  ),
++})
++
++// Generated default avatars are kept on this client, keyed by the project ID (or the directory for projects without
++// one), so each icon stays identical after restarts and after the generator's defaults change. Project IDs derive from
++// the repository, so the same repository shows the same icon on every server.
++export function ProjectIconsProvider(props: ParentProps) {
++  const [store, setStore] = persisted(Persist.global("project-icons"), ProjectIconState, { icons: {} })
++
++  return (
++    <ProjectIconStoreProvider
++      value={{
++        get: (key) => store.icons[key],
++        remember: (key: string, icon: GeneratedProjectIcon) =>
++          setStore("icons", key, { style: icon.style, version: icon.version, params: { ...icon.params } }),
++      }}
++    >
++      {props.children}
++    </ProjectIconStoreProvider>
++  )
++}
+diff --git a/packages/app/src/shell/notifications/toast.tsx b/packages/app/src/shell/notifications/toast.tsx
+index 0b64235..a583128 100644
+--- a/packages/app/src/shell/notifications/toast.tsx
++++ b/packages/app/src/shell/notifications/toast.tsx
+@@ -1,5 +1,5 @@
+ import { Icon, type IconProps } from "@opencode/ui/icon"
+-import { Toast, showToast, toaster, type ToastOptions } from "@opencode/ui/toast"
++import { Toast, showToast, type ToastOptions } from "@opencode/ui/toast"
+ import type { JSX } from "solid-js"
+ 
+ type AppToastOptions = Omit<ToastOptions, "icon"> & {
+@@ -25,10 +25,6 @@ function showAppToast(options: AppToastOptions | string) {
+ 
+ export { showAppToast as showToast }
+ 
+-export function dismissToast(toastId: number) {
+-  return toaster.dismiss(toastId)
+-}
+-
+ function resolveIcon(icon: IconProps["name"] | undefined, variant: ToastOptions["variant"]) {
+   const name = icon ?? (variant === "success" ? "check" : undefined)
+ 
