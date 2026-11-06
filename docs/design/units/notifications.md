@@ -1,6 +1,6 @@
 # 通知面（Task completion, permission, and error notifications）
 
-**状态：issue #23 通知面已实现（未验证）**——文档/探针/单测/编译层已验证；全部运行期行为（系统通知到达/前台抑制实态/tap 路由/权限请求/声音/锁屏呈现/进程死亡边界）归 **G33** 真机门禁（[interaction.md](../interaction.md)），G33 未过前不得声称任何运行期通知行为已验证。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
+**状态：issue #148 M-023 投递面恢复后通知面已实现（未验证）**——文档/探针/单测/编译层已验证；投递面历史：#23 交付 → #140 时代 session-workbench-upstream 补丁以目标形覆盖将其退役（#144 登记缺口、探针负锚钉定）→ #148 修剪该补丁 retirement hunks 恢复（notifications-platform-delivery 补丁字节不动）。全部运行期行为（系统通知到达/前台抑制实态/tap 路由/权限请求/声音/锁屏呈现/进程死亡边界）归 **G33** 真机门禁（[interaction.md](../interaction.md)），G33 未过前不得声称任何运行期通知行为已验证。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
 
 ## ① 上游通知面全景（已随闭包进入移动壳）
 
@@ -53,6 +53,8 @@
 | agent | `session.execution.succeeded` | `hasOpenTab` × `settings.notifications.agent()` | `settings.sounds.agentEnabled()` → coordinator.sound → playSoundById(sounds.agent()) | coordinator.system（内含 `document.hasFocus()` 前台早退+去重）→ 桥 notify(category="agent") |
 | errors | `session.execution.failed` | `hasOpenTab` × `settings.notifications.errors()` | `settings.sounds.errorsEnabled()` → 同上 | 同上（category="errors"） |
 | permissions | `permission.asked`（notifications-platform-delivery 新增第四支） | `hasOpenTab` × `settings.notifications.permissions()` × **`!settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session?.projectID))`**（project-avatar-state 逐字先例镜像——已覆盖项目不通知，auto-approve 面守卫抑制） | `settings.sounds.permissionsEnabled()` → playSoundById(sounds.permissions())（死开关的声音面一并补全） | coordinator.system → 桥 notify(category="permissions") |
+
+**恢复登记（issue #148）**：本表四支触发面随 #23 交付；#140 时代 session-workbench-upstream 补丁的 v2.2.1 目标形覆盖将投递面退役（#144 登记为 M-023 缺口、verify-notifications 组 2/3 负锚钉定）；#148 修剪该补丁 notification.tsx 段的四个 retirement hunks（仅保留 hasRunningChild 助手与 handleSessionIdle 守卫两个目标形 hunk 并改号），notifications-platform-delivery 补丁字节不动——其 post-image（宽形 imports + 三类桥投递 + `handlePermissionAsked` + `permission.asked` 派发）即恢复面本体，与目标形 hasRunningChild 守卫合成现树形态；verify-notifications 组 2/3/7 已随恢复转正（桥投递正锚、M-023 源注释必需、once-call 6）。
 
 **通知内容最小化**：标题=i18n 泛化文案（`notification.session.responseReady.title`/`notification.session.error.title`/`notification.permission.title`，全在册零新增）；正文=会话标题或泛化 fallback（上游实态）。**`permission.asked` 载荷中的 `action`（工具动作名）与 `resources`（资源路径数组）不进通知文案**——notifications-platform-delivery 只消费 sessionID/id 与 `lookup` 的 `session.title`；通知文本零 URL/零 token/零凭据/零消息内容/零 action/resources。app-notifications-bridge 装配（entry.tsx 第六传输+seam 注册，app-service-operations-bridge/files-platform-bridge 单文件先例）。settings-notification-permission 设置面（settings/notifications/notifications.tsx + en/zh 三文件）：开关开启时用户在场的 POST_NOTIFICATIONS 请求 + 拒绝显态描述行（新键 `settings.general.notifications.android.*`，缺失回退 en 在册）——**后台永不弹权限对话框**。
 
