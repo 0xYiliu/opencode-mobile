@@ -721,7 +721,7 @@
     {
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
-      "sha256": "3b9ebe74cd40555605fd227e077ea047f0eb9f19911aa0078658cdd7308e0be1",
+      "sha256": "41bc652e0bde83414877e4bf28f1b8c8cae3afdf8daf2067e2c4759a6dd0b847",
       "status": "active"
     },
     {
@@ -800,6 +800,12 @@
       "id": "ui-typeahead-export",
       "path": "patches/mobile/ui-typeahead-export.patch",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
+      "status": "active"
+    },
+    {
+      "id": "model-selector-usage-parity",
+      "path": "patches/mobile/model-selector-usage-parity.patch",
+      "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
       "status": "active"
     }
   ],
