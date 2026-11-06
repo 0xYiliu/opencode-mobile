@@ -1518,10 +1518,10 @@
         "packages/util/src/session-mention.ts"
       ],
       "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
-      "sha256": "e532b2c8c38b52d3ee399835b7cfbf264ae6f93cbe9d8ffb979f90079cb139db",
+      "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",
       "status": "active",
       "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
-      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a. Issue #144: of the search-results.test.ts section only hunk 1 (the M-035 flip-back, @@ -45,16) is pruned - the M-035 zoom/font assertions stay restored; hunk 2 (@@ -82,10) is RETAINED (the timeline-width/sounds-interface first-party assertions converge to the target form), so the file stays a patch target."
+      "rebase": "Layered after the original mobile patch chain; the applied order is recorded in vendor-manifest.json#mobilePatches. Fixed target is 3ebcf9a32c7b28f658cfee80775448929361727a. Issue #144: of the search-results.test.ts section only hunk 1 (the M-035 flip-back, @@ -45,16) is pruned - the M-035 zoom/font assertions stay restored; hunk 2 (@@ -82,10) is RETAINED (the timeline-width/sounds-interface first-party assertions converge to the target form),  Issue #148: of the notification.tsx section only the two target-form hunks are RETAINED (renumbered @@ -29,6 +29,19 the hasRunningChild helper and @@ -221,6 +234,9 the handleSessionIdle guard) - the four M-023 retirement hunks (the import narrowing, both platform.notify flips, the handlePermissionAsked removal and the permission.asked dispatch removal) are pruned so the M-023 delivery face carried by notifications-platform-delivery (byte-untouched; its post-image 04ae5ea is the pre-image of the retained hunks) survives the v2.2.1 resync; the file stays a patch target with post-image ca0f1797."
     },
     {
       "id": "session-client-compatibility",
