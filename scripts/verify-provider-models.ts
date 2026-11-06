@@ -419,8 +419,10 @@ let osScanFiles = 0
     fail("4: credential.updated must invalidate+resync the integration catalog (adjacent pair)")
   if (!data.includes("connections:[active,...integration.connections.filter((connection)=>connection!==active)]"))
     fail("4: credential.switched must reorder connections (active first)")
-  if (!data.includes('case"integration.updated":result.location.integration.invalidate(location)result.location.model.invalidate(location)result.location.provider.invalidate(location)'))
-    fail("4: integration.updated must invalidate the three catalogs (adjacent block)")
+  // Issue #142: the integration.updated case now opens with the usage-limits refresh
+  // (target-verbatim first statement); the three catalog invalidations stay adjacent.
+  if (!data.includes('case"integration.updated":refreshUsageLimits(location)result.location.integration.invalidate(location)result.location.model.invalidate(location)result.location.provider.invalidate(location)'))
+    fail("4: integration.updated must refresh usage limits and invalidate the three catalogs (adjacent block)")
 
   const connection = squash(await read(`${SCHEMA}src/connection.ts`))
   if (!connection.includes("`needs_auth`askstheusertosigninagain:*at`url`whenset(thecredentialitselfstaysvalid),otherwisebyreconnectingtheintegration"))
