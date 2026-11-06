@@ -246,6 +246,12 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
   // tree (complementary lock: verify-appearance-settings group 4 first-locks
   // the desktop-menu.ts-scoped negative — drift double-FAIL by design there;
   // this guard catches a future zoom.ts port landing in ANY other file).
+  // REGISTERED rc=1 (issue #144): the session-workbench overlay (patch 54) flipped
+  // desktop-menu.ts into the tree as a target-form .ts and session-client-compatibility
+  // (patch 55) brought `nextDesktopZoomLevel` with it — the R2 out-of-scope item. Issue
+  // #144 does NOT fix or re-prune the overlay (owner: the session/Android interaction
+  // unit, #145/N10 direction). Discharge condition: the owner round re-prunes the hunk
+  // (this group returns to rc=0) or re-registers the lock with the new owner contract.
   const appFiles = readdirSync(new URL(`${APP}src`, repoRoot).pathname, { recursive: true }) as string[]
   let zoomLevelHits = 0
   for (const file of appFiles) {
@@ -254,7 +260,7 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     if (text.includes("nextDesktopZoomLevel")) zoomLevelHits++
   }
   if (zoomLevelHits !== 0)
-    fail(`1: vendored app/src carries ${zoomLevelHits} file(s) with nextDesktopZoomLevel — the desktop pinch/zoom chain must stay unported (S12/#74 ruling; scoped first lock: verify-appearance-settings group 4)`)
+    fail(`1: vendored app/src carries ${zoomLevelHits} file(s) with nextDesktopZoomLevel — the desktop pinch/zoom chain must stay unported (S12/#74 ruling; scoped first lock: verify-appearance-settings group 4; registered rc=1 by issue #144 — R2, owner #145/N10)`)
 }
 
 // --- 2. S37 shell contract face (+ wire-protocol anchors, MAJOR-2 merged) ---
