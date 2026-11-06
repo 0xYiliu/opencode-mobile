@@ -598,7 +598,7 @@
     {
       "id": "session-android-back-bridge",
       "path": "patches/mobile/session-android-back-bridge.patch",
-      "sha256": "ca647875f4b52b9c74941b167c0953c3e1e057a4833248cb8ae2535416ad79ca",
+      "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
       "status": "active"
     }
   ],

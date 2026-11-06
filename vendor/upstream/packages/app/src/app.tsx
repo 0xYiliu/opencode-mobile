@@ -10,7 +10,7 @@ import { type Component, createRenderEffect, ErrorBoundary, type JSX, onCleanup,
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/shell/commands/command"
 import { DesktopCommands } from "@/shell/commands/desktop"
-import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+import { BACK_LAYER_ORDER, consumePopoverSurface, registerBackLayer } from "@/shell/back-chain"
 import { ProjectIconsProvider } from "@/shell/layout/project-icons"
 import { GlobalProvider } from "@/runtime/server/runtime"
 import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/language"
@@ -64,6 +64,19 @@ function DialogBackLayer() {
   return null
 }
 
+// mobile(android-back-bridge): the popover back layer (issue #145 QA FAIL-A) — an open
+// menu / Kobalte popover / details flyout closes on back before the press reaches the
+// drawers or history (without this layer the navigation underneath closed the popover
+// AND routed back in one press). One DOM open-state sentinel covers every popover face
+// in the shell — no per-site registration, no touching the faces themselves.
+function PopoverBackLayer() {
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.popover, () => consumePopoverSurface(document)),
+  )
+
+  return null
+}
+
 export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
@@ -92,6 +105,7 @@ export function AppBaseProviders(
               <QueryProvider>
                 <DialogProvider>
                   <DialogBackLayer />
+                  <PopoverBackLayer />
                   <PluginRoot>
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </PluginRoot>
