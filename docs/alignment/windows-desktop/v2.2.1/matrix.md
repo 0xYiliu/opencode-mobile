@@ -67,7 +67,7 @@
 | S33 | 项目专有/共享 MCP、Plugins、Skills | **已实现（页面零 delta 复验；issue #106）** | project-extensions.tsx 等八文件对 target 3ebcf9a 逐字节零 delta（settings-workspaces-migration 不触及，复用条款）；.145 QA：四子 tab 渲染 + MCPs 空态 + Manage in opencode.json PASS；作用域差集实态 BLOCKED（需带项目级 opencode.json 的测试项目） | E02/E04；#106 复验 |
 | S34 | 项目 LSP 配置列表与状态 | **已实现（只读零 delta 复验；issue #106）** | project-lsp.ts/project-extensions.tsx LSP 子面对 target 零 delta（只读呈现 + loadFailed retry 按钮，零新增配置编辑器）；.145 QA：LSPs 子 tab + 「Auto-detected from file types」渲染 PASS，列表内容 BLOCKED（远端查询挂起——环境），失败重试实态随之 BLOCKED | E02/E04；#106 复验 |
 | S35 | HTTP 服务管理、认证与健康状态 | 已有代码及局部运行证据 | 适配；#102 服务器页已迁移至 v2.2.1 目标（settings-servers-migration）：目标行组件/健康门/`settings-shell:<key>` 搜索命名/`entry.name` 行名已落地，DBY2-AL00 复核三 SSH 主机独立呈列、切换器双向切换与 Manage servers… 可达；一次性记录经存储注入后真 401 响应映射为红点健康门（Shell 段隐藏），但行内 Authenticate 子面未呈现、对话框保存路径自动化未通（见 #102 段），认证/编辑面动态证据 PARTIAL；UTF-8 Basic auth、当前活服务全链、非 ASCII 密码仍未验 | E14/E18/E31/E34；settings-servers-migration；#102 |
-| S36 | SSH 连接、认证、隧道与恢复 | 已有代码及历史主链证据 | 适配；#102 构建上以开发机辅助 sshd 复验指纹两径：未知键（Verify host 面显示真实指纹 SHA256 与本机密钥逐字一致）→ Reject → Failed + known_hosts 零新增；变更键（:2222 旧信任 vs 新密钥）→ DANGER 面拒绝连接、明示未发凭据未建隧道，known_hosts 原条目零改动（forget 步骤在册未执行——不改动用户信任态）；SSH 后服务认证/隧道全链在 #102 构建的复验仍未完成，incompatible、换端口/任务存活仍有缺口 | E13–E18/E34；#102 |
+| S36 | SSH 连接、认证、隧道与恢复 | 部分验证 + 已复现缺陷（#146） | 适配；#146 真机全链推进至服务认证：添加表单/registry 持久化、unknown 指纹挑战（呈现值与独立参考相等）→Trust→Sign-in required→SAF 密钥导入（vault 封装）→密钥认证 Connected（信任命中无重复提示）→ServiceAuthPrompt 呈现与密码提交全部 PASS；**隧道数据面 BLOCKED**：JSch 本地转发在设备绑定但每连接挂起（设备 curl 000/服务端日志零到达；主机同密钥 OpenSSH 转发 200/401 正常；主机 JVM 同 jsch 2.28.8 同序列正常）——隧道依赖项（SSH 向发送/流式/红线/队列/compact 复测）继承 BLOCKED，其余负例（TLS/非 ASCII/端口变化/incompatible/changed 键/vault 门禁）为本轮未跑（见未验收清单）；另登记：冷启动 ssh 桥握手竞态一次（reload 后 acked）、idle SSH 主机无可用重连入口（settings 行按阶段 inert + 单 plugin 条目死壳，G30④ 判定点交用户决策） | E13–E18/E34；#102；#146（build-and-verify.md #146 段） |
 | S37 | 每服务器 Shell 选择 | 已有代码 | 对齐；#102 服务器页已迁移至 v2.2.1 目标（settings-servers-migration）：servers.tsx/row.tsx 目标逐字，ShellSetting action 搜索命名线程接通，Shell 段随服务器健康门显隐；候选/读写/回滚线协议已核等价，保留 pin 的 config.update 命名；写入成功/失败回滚有单测与探针回滚序锚，真服务动态往返仍未验 | E30/E31/E34；settings-servers-migration；#102 |
 | S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；#145 QA：G1 项目图标生成/跨重启保持实测 PASS（D/O/N/X/P 字母块多次冷重启一致），motion-spring 目标采纳后动效面无回归（Reduce motion On/Off 各一遍）；长消息折叠展开与性能仍阻塞（无长历史会话）；#103/settings-general-experimental-migration 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认；#145 QA（build-and-verify.md #145 段） |
 | S39 | About、版本、许可与声明 | **已实现（复验收口；issue #110）** | 对齐/适配；notices 滚动目标差异已补齐（`data-scrollable` 目标形，#110 复验 scrollH 5327/clientH 404 滚动不回退）；另显示移动版本与基座，服务版本取排序首项为移动边界；#110 新基线复验：三行实显 + 搜索命中 PASS、服务行诚实降级串实测（checking 恒驻与 #72 同形）、zh 回退不回退；链接实测为**目标形 plain `target=_blank` 原位打开**（非 files-open-external 消费者——计划前提经设备实测更正，链接可打开 + 返回复原成立；显式失败半边继承 #76 JVM/AVD 证据）；服务行真服务展示 BLOCKED 维持（需可达服务） | E28/E34；#72 补验；#110 复验；完整许可审计另见台账 V4 |
@@ -81,20 +81,20 @@
 | ID | 功能/Windows v2.2.1 目标 | 本项目实现 | 策略与当前差距 | 证据/验证 |
 | --- | --- | --- | --- | --- |
 | W01 | 项目/位置选择、创建并进入会话 | 已有代码（源码目标形；issue #140） | home/new-session/location/dialog、pin-board/pin-sound/brick-breaker 已迁入目标形；FU-3 registry usedProjectIDs/lastProjectID + ctx.projects 新面已落地（迁移轮默认落点缺口见台账 issue #140 段）。#61 既有会话历史证据不覆盖新建/完整生命周期与当前双路由；运行验收归 G19 | E03/E18/E35；issue #140；G19 |
-| W02 | 发送、流式输出、权限交互 | 已有代码 | 对齐；工作台/审批链已存在，真实模型发送→流式→工具/权限闭环未完成 | E03，G20/G21 |
+| W02 | 发送、流式输出、权限交互 | 直连已验证（#146）；SSH 向 BLOCKED | 对齐；#146 直连真实模型闭环 PASS：发送→流式→Write 工具（服务端产物逐字节核对）→完成；权限 dock 三决策（once 重弹/always 落盘服务端 DB+命令粒度免批/deny Interrupted）与默认不批准均实测；SSH 向同链依赖隧道数据面修复 | E03，G20/G21；#146 |
 | W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；#143 迁入目标 stream HEAD（fileStreamUrl+HEAD 失败回退下载）、watch/unwatch 与 reconnect 重订阅（files-stream-watch.patch，mobilePatches 0-based 58；typecheck 净 −2、探针组 9 过；v2.2.1 服务 watch 路由实测存在）；触屏选择/评论、真实仓库、文件刷新/订阅生命周期与失败恢复待真机验（#143 轮设备 adb 不可达 BLOCKED） | E05/E35，G22/G23 |
 | W04 | 多终端创建、显示、关闭 | 已有代码 | 适配；PTY/重连链已有；WebView WASM、IME/尺寸、控制键软输入与三远端 OS 验收未完成 | E05，G24；不能由旧 dock 文档推定当前 side panel 运行通过 |
 | W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；#145 QA：会话 tab 多开/切换/命名实态运行采样（QA 会话 tab 真实呈现与切换）；Inbox 聚合/分组/跨服务 BLOCKED（设备仅配置 1 台服务，解除条件=授权第二台测试实例） | E03/E19/E35；#145 QA（build-and-verify.md #145 段） |
 | W06 | 附件选择与上传 | 已有代码 | Android FilesBridge、上传、composer/media.ts 与队列/fork/revert 媒体保留链已有；真实上传、取消/失败与跨服务归属待验 | E06/E35，G27 |
-| W07 | 断开客户端不停止远程任务 | 已有代码/约束 | 对齐；#61 断开后进程/端口/会话恢复有历史证据；真实长任务存活、直连与进程死亡路径未验全 | E18/E34，G20⑤/G12/G30 |
+| W07 | 断开客户端不停止远程任务 | 直连已验证（#146）；SSH 向 BLOCKED | 对齐；#146 直连红线 PASS：count-300 流式中 force-stop 杀 App → 服务端继续完成至 300（客户端死亡期零 interrupt 可达）→ 重启后快照补齐完整时间线；SSH 向待隧道修复后复测 | E18/E34，G20⑤/G12/G30；#146 |
 | W08 | 偏好、草稿与导航恢复 | 部分实现 | 队列失败草稿恢复及 server/session 归属保护已有；FU-3 项目身份/最近使用持久层已随 issue #140 落地目标形（usedProjectIDs/lastProjectID；迁移轮默认落点缺口如实登记）。#145 QA：composer 草稿跨键盘收起/对话框开关保持实测（41.png），偏好（Reduce motion/外观）切换与复位即时生效；完整进程/切网恢复未验；凭据生命周期另验 | E11/E14/E18/E35；issue #140；G30；#145 QA（build-and-verify.md #145 段） |
 | W09 | 会话搜索与列表筛选 | 已有代码 | shell/commands/session-search.tsx 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；#145 QA：会话列表搜索框实态可见（横屏/窄屏两态截图）；输入筛选与跨服务搜索、失败路径待运行验证 | E03/E35；issue #140；#145 QA（build-and-verify.md #145 段） |
 | W10 | 重命名、归档、删除 | 已有代码 | 对齐；session-home-archive 归档接线已有，运行失败路径未验全 | E03，G19 |
 | W11 | Undo / Redo / Fork | 已有代码 | 对齐；命令存在，文件与消息真实回退未验全 | E03/E11，G23 |
-| W12 | 上下文压缩 | 已有代码 | 对齐；当前模型、禁用态及失败提示待真服务验证；压缩消费的「当前模型关联」面（选择器/变体/选择持久化）已随 #142 源码级收敛（W12 注记归属，见工作计划 #142 行） | E03/E11 |
+| W12 | 上下文压缩 | 已验证（#146） | 对齐；#146 真服务 /compact PASS：命令菜单→执行→摘要准确→`Session compacted · 9.6K in · 1.2K out`→压缩后继续发送正常（模型/服务归属不变）；禁用态与失败提示仍未验 | E03/E11；#146 |
 | W13 | 导出会话、复制 ID | 已有代码 | export.ts 逐字目标，含两处 `mediaRefs: false`；导出→Platform.saveFile→FilesBridge→SAF 已接通；真实保存/产物完整性、取消/失败仍待验，桥降级静默取消 | E03/E06/E35，G27 |
 | W14 | 问题、多步回答与结构化表单 | 已有代码 | 适配；请求契约已有，逐类目标差异及真实并发/过期响应待验 | E03，G21 |
-| W15 | 后续消息和队列 | 已有代码 | 目标串行、乐观编辑/重排、失败草稿恢复、已接纳不重发与媒体 pin 链已迁入；额外 server+session mutation scope、capture/current 保护归属；真实竞态及切服务/会话恢复待验 | E35；源码存在不等于运行通过 |
+| W15 | 后续消息和队列 | 部分验证（#146） | 对齐；#146 真服务：busy 期追加即时入队、Pending 呈现、按序消费 8 条零丢失零重复零重发 PASS，权限待决 composer 阻断与 G21① 一致；**乐观编辑/重排/撤回未验收**（测试模型即时 steer 消费+后台 shell 使 pending 窗口不可稳定建立；控件存在性 DOM 核对在册）；切服务/会话恢复待验 | E35；#146 |
 | W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验（#143 轮无代码变更；设备 adb 不可达，真机核对 BLOCKED，需用户授权触摸选区→真实模型读取） | E05，G22 |
 | W17 | Agent、模型与变体切换 | 部分实现 | #135 最终 Agent 用户确认正常；模型/变体开合有局部记录，实际切换未全验。选择器族目标形（含 details/manage.css）已随 #142 源码级收敛，Agent Android 可达性修复 hunks 原样保留；实际切换/变体运行验收待真机（#142 设备 BLOCKED 登记） | E04/E35；#135 最终记录；#142 |
 | W18 | 用量与上下文面板 | 部分实现 | context 已注册；#145 QA：titlebar context 指示器实态可见（会话内 ◯ 179k 实时值），context 面板点击打开未成功（PARTIAL 待验）；子能力 **usage.view** 已随 #142 源码级迁移（app/src/usage 全量 + composer 命令注册 + usage.limits schema/protocol/client 闭合 + 402/预算拒绝刷新接线）；有数据/402 态需已授权 Console 账号、其余态真机走查 BLOCKED（设备 Smart Cover 物理锁）；保留本 ID 不新增行 | E03/E23/E35；#145 QA（build-and-verify.md #145 段）；#142 |
@@ -116,7 +116,7 @@
 | N01 | 本机服务与 CLI 引导 | 不实现 | 排除；手机只作为远程客户端 | E01 |
 | N02 | 本机 WSL 发现、安装及启动 | 不实现 | 排除执行；显示禁用行另见 N12 | E01 |
 | N03 | 手机管理远端 Windows 的 WSL | 不实现 | 排除发现/启停/管理；可访问已暴露的远程服务，不等于管理 WSL | E01；ADR 0001 |
-| N04 | SSH 认证与主机指纹挑战 | 已有代码及设备运行证据 | 适配；pending target/端口/指纹绑定及 known_hosts 修复已有；#61 unknown/changed 拒绝、信任落盘与比对闭环通过 | E16/E18；历史不匹配已裁定为比对错位 |
+| N04 | SSH 认证与主机指纹挑战 | 已验证（#61+#146） | 适配；#61 unknown/changed 拒绝、信任落盘与比对闭环通过；#146 真机 unknown→Verify host（指纹与独立参考相等）→Trust→密钥认证→重连信任命中（零重复提示）再次通过 | E16/E18；历史不匹配已裁定为比对错位；#146 |
 | N05 | SSH 服务发现、安装、启动及不兼容处理 | 已有代码 | 适配；白名单命令与显式授权流已有；三 OS 服务操作、回滚与 incompatible 真服务未验全 | E10，G18 |
 | N06 | 手机作为配对服务提供方 | 不实现 | 排除；手机连接方见 D03 | E01 |
 | N07 | 服务提供方配对页屏幕常亮 | 不实现 | 排除；属于 N06 主机侧流程 | E01 |
