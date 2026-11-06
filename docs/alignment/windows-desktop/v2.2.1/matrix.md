@@ -35,16 +35,16 @@
 | S01 | 设置导航、进入/退出与返回上下文 | 已实现（未验证） | 对齐；**框架已迁移至 v2.2.1（issue #101/settings-framework-migration/settings-framework-mobile）**：单一 RootSettings 布局 + CollapsedSidebarToggleSpace 48px 返回行 + view 模型（root{server?}/project，pin 嵌套 server 视图移除）+ settingsViewRedirect 出口表；返回链（search.back→clear→surface.back→common.goBack）与键盘避让设备冒烟 PASS（DBY2-AL00）；宽窄导航一致性的 Desktop 对照仍 BLOCKED（无 Windows 参考端） | E13/E31/E34；#90 补验 Settings 可达 PASS |
 | S02 | 搜索设置并定位设置行 | 已实现（未验证） | 对齐；**目标 SearchList/SearchHighlight/Slash 分组搜索已迁移（issue #101/settings-framework-migration）**，聚焦定位（searchActivation→revealSettingsSearch，anchor 缺失 no-op 不崩）与命令面板桥（≤5 条 setting 行）；mobile(M-044) 剪除的**三悬挂目录行已全部恢复**：background-activity/timeline-width 随 #103/settings-general-experimental-migration 连同 general.tsx 页 anchor 恢复（设备实测 capsule/timeline width 命中→定位→行可见）；`settings-sounds-interface` 随 **issue #107/settings-notifications-migration** 连同 notifications 页真实 anchor 恢复（catalog 行 + `data-action="settings-sounds-interface"` Switch 双正锚；search-catalog.ts 的 settings-framework-mobile 剪除注记随之移除，route.ts 自有 settings-framework-mobile 注记归 #109；设备实测 `interface`/`sound` 查询命中「Interface｜Sound effects」→ 定位真实行在视口内）；#90 回归不复现（源断言+设备实测）；设备冒烟 font→4 结果含 Zoom→定位→返回 PASS；分组/聚焦 Desktop 对照 BLOCKED | E02/E31/E34；#90 搜索命中 PASS；#103 搜索复验 PASS |
 | S03 | 设置中的服务器选择与数据隔离 | 已实现（未验证） | 对齐；**server scope 单一事实来源已迁移（issue #101/settings-framework-migration/settings-framework-mobile）**：surface.server() 解析序（视图 server→source→本地连接→第一台）、selectServer/openServers、目标 SettingsServerSwitcher（≤1 不渲染，RadioGroup+健康点+Manage 出口）与 SettingsServerUnavailable（Retry/Edit 出口）；设备冒烟：三服务器 switcher 换选保页 PASS（authorized-bastion→bastion-main）；**真服务隔离（项目列表归属核对）仍待真服务验证**；Unavailable 整页态未在冒烟中捕获（服务器停留 Loading 态）——结构+单测锁定，实态归 G 门禁 | E02/E04，G13 |
-| S04 | Top / Side / Inbox 模式 | 已有代码 | 设置面已有；Inbox 两文件逐字目标且 titlebar 已接入，分组/聚合/徽标不再是未迁移缺口；当前各模式与窄屏实态未全验，旧 Side rail 观察仅属历史 | E19/E34 历史；E35 当前源码 |
+| S04 | Top / Side / Inbox 模式 | 已有代码 | 设置面已有；Inbox 两文件逐字目标且 titlebar 已接入，分组/聚合/徽标不再是未迁移缺口。#145 QA：当前构建实态 Top tabs 模式运行验证（MatePad 1245×786 全链路会话/设置/tab 切换）；窄屏 393px 实态侧栏被「All projects ⌄」选择器与底部导航抽屉替代（AVD 实测）；Inbox 模式卡片在设置页可见（Experimental 标注），Inbox 模式本身未切换运行 | E19/E34 历史；E35 当前源码；#145 QA（build-and-verify.md #145 段） |
 | S05 | 语言切换 | 已实现（未验证） | 对齐；#103 新增 13 键 en-only（backgroundActivity 6/width 5/sounds.interface 2），回退英文为上游 v2.2.1 实态，不能宣称全量中文覆盖；被移除的 terminalPlacement 4 键只清 en 与 9 个 typed locale 字典（其余 53 个无类型 locale 的滞留键惰性保留） | E02/E20–E23 |
 | S06 | 默认工作区目的地 | 已实现（未验证） | 对齐；WorkspaceDestinationSetting 行经 #103 逐字核对=目标形（默认 last-used、三选项序）；远程目录执行语义仍归 G 运行面 | E02/E03 |
 | S07 | 默认自动批准权限 | 已实现（未验证） | 对齐；AutoApprovePermissionsSetting 行经 #103 逐字核对=目标形，**默认关（opt-in）保持**；代答执行面（once/always 落盘/批量扩散）归属 permission-requests 单元契约，真服务审批门禁归 G21 | E02/E03，G21 |
 | S08 | 显示自定义 Agent | 已实现（未验证） | 对齐；行经 #103 逐字核对=目标形（默认 false），开关/能力契约已有，新增行为待核 | E02/E04 |
 | S09 | 后续消息 queue / steer | 已有代码 | 设置行与目标 queue 执行链均已迁入，并增加 server/session 归属保护；真服务竞态与失败恢复待验，见 W15 | E03/E35 |
-| S10 | 时间线详情分类与预设 | 已有代码 | timeline/detail.ts 逐字目标，categories 已含 commentary，compact/quiet 的 subagents 已为 separate，settings schema 已含 commentary；旧“不采纳/解码丢槽”结论失效。类别与实际呈现仍未逐项运行验收 | E02/E03/E35 |
-| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已有代码及局部运行证据 | 设置/schema/宽度 token 已有；composer-lane 已消费 backgroundActivity，region 已接入。#103 偏好与 token 局部验证保留；消息列三档实际宽度、活动位置、每轮 Diff 与重启组合仍需当前构建验收 | E02/E03/E35；#103 历史局部记录；#135 整体列宽未验收 |
+| S10 | 时间线详情分类与预设 | 已有代码 | timeline/detail.ts 逐字目标，categories 已含 commentary，compact/quiet 的 subagents 已为 separate，settings schema 已含 commentary；旧“不采纳/解码丢槽”结论失效。#145 QA：真实 agent 回合时间线呈现采样一条（消息+工具聚合+回复完整回显），分类预设逐项切换仍未运行验收 | E02/E03/E35；#145 QA 单回合采样 |
+| S11 | 时间线宽度、后台活动位置、每轮 Diff | 已有代码及局部运行证据 | 设置/schema/宽度 token 已有；composer-lane 已消费 backgroundActivity，region 已接入。#103 偏好与 token 局部验证保留；#145 QA：MatePad 1245×786/DPR 2.25 视口在册复验（CDP 实测横竖屏双记），单会话消息列默认档呈现采样成立；三档宽度切换、每轮 Diff、重启组合与 Desktop 对照仍缺参考端/长历史会话，保持未验收 | E02/E03/E35；#103 历史局部记录；#135 整体列宽未验收；#145 QA 视口与单回合采样 |
 | S12 | 捏合缩放 | 已有代码（平台默认态） | 适配；保持 WebView 默认，不移植 desktop-only 捏合开关；MatePad 主页捏合/双击无缩放且无布局破损；#102 服务器页迁移未触及捏合行（General 页逐字保留）；#103 General 页目标迁移后捏合行与 desktop 条件门在目标形中原样保留（桌面平台条件可见）；#104 换壳复验：新设置壳下 General 页 data-action 全集零 pinch/zoom 行（desktop 门控行 mobile 不渲染）+ viewport meta 无 user-scalable 负锚复验 + 工作台 zoom=2 交叉场景双击观察（visualViewport.scale 恒 1、零横向溢出、零布局破损——双指捏合注入未执行，#74 WebView 默认裁定与代码负锚为准） | E30；界面放大另见 S42 |
-| S13 | 窄屏标题栏顶部/底部 | 已实现（未验证） | **设置面无增量**（mobile() 标题栏行目标原生含于 settings-general-experimental-migration 迁移的 general.tsx）；返回键、安全区、软键盘及 <768px 实态仍需联验——设备 DPR 2.25 下最小原生 CSS 宽 ≈818px>768，物理达不到窄断点；CDP `Emulation.setDeviceMetricsOverride` 路径可用则实测，否则 BLOCKED 并记录 DPR 依据 | E02/E32；#103 按可做/阻塞口径记录 |
+| S13 | 窄屏标题栏顶部/底部 | 已实现（局部验证） | **设置面无增量**（mobile() 标题栏行目标原生含于 settings-general-experimental-migration 迁移的 general.tsx）。#145 QA：<768 条件以手机 AVD 实测达成（Android 14 原生 440dpi → CSS 393×782 @ DPR 2.75，无需 CDP 仿真）；窄屏实态=顶栏+底部导航抽屉+设置页下拉选择器+mobile-only「Bottom navigation」行可见（mobileTitlebarPosition 设置面窄屏呈现成立）；标题栏实际切换到底部未完成（注入触点未命中开关，PARTIAL）；CDP 仿真路径本轮未使用 | E02/E32；#103 按可做/阻塞口径记录；#145 QA（build-and-verify.md #145 段） |
 | S14 | Diff 换行 | 已有代码及局部运行证据 | 对齐；review 贡献设置已有且经 #109 宿主承载核验（PluginSettingsSections general/general 挂载 + 搜索揭示 target=settings-mobile-diff-wrap、节标签=宿主 Preferences/General 实测命中）+ wrap 偏好跨重启保持实测通过；真实长 Diff overflow 翻转待验（无可达服务会话面，如实登记） | E05/E23，G23；issue #109 |
 | S15 | 主题与系统/浅色/深色 | 已有代码及运行证据（issue #104） | 对齐；外观页内面目标形（appearance.tsx byte-identical + context.tsx 438 行 byte-identical + themes/*.json 36 文件集合全等 + theme-components-migration 死代码收敛）；设备 DBY2-AL00 复验：system/light/dark 即时生效（data-color-scheme+背景+style color-scheme 三通道）、Dark 跨重启保持、Theme 名下拉 36 选项集呈现、Dracula 选择即时生效并跨重启保持；Windows Desktop 实机对照保持 BLOCKED（无参考端） | E02；#104 补验 |
 | S16 | 界面/代码/终端字体 | 已有代码及运行证据（issue #104） | 对齐；外观页内面三类 TextInput 行目标形（settings-ui-font/settings-code-font/settings-terminal-font）；设备复验：UI=--font-family-sans、code=--font-family-mono+document.fonts.load 即时生效，terminal 经 appearance accessor 消费（target 形，终端面呈现归 terminal 单元），自定义值跨重启保持、清空回落默认（Inter/IBM Plex Mono 栈）；CJK 内容回退栅格化观察本轮 en-locale 设置页无 CJK 内容不可采，栅格化差异按文档口径不算布局偏差，运行期核对保持 G31 | E02，G31；#104 补验 |
@@ -69,10 +69,10 @@
 | S35 | HTTP 服务管理、认证与健康状态 | 已有代码及局部运行证据 | 适配；#102 服务器页已迁移至 v2.2.1 目标（settings-servers-migration）：目标行组件/健康门/`settings-shell:<key>` 搜索命名/`entry.name` 行名已落地，DBY2-AL00 复核三 SSH 主机独立呈列、切换器双向切换与 Manage servers… 可达；一次性记录经存储注入后真 401 响应映射为红点健康门（Shell 段隐藏），但行内 Authenticate 子面未呈现、对话框保存路径自动化未通（见 #102 段），认证/编辑面动态证据 PARTIAL；UTF-8 Basic auth、当前活服务全链、非 ASCII 密码仍未验 | E14/E18/E31/E34；settings-servers-migration；#102 |
 | S36 | SSH 连接、认证、隧道与恢复 | 已有代码及历史主链证据 | 适配；#102 构建上以开发机辅助 sshd 复验指纹两径：未知键（Verify host 面显示真实指纹 SHA256 与本机密钥逐字一致）→ Reject → Failed + known_hosts 零新增；变更键（:2222 旧信任 vs 新密钥）→ DANGER 面拒绝连接、明示未发凭据未建隧道，known_hosts 原条目零改动（forget 步骤在册未执行——不改动用户信任态）；SSH 后服务认证/隧道全链在 #102 构建的复验仍未完成，incompatible、换端口/任务存活仍有缺口 | E13–E18/E34；#102 |
 | S37 | 每服务器 Shell 选择 | 已有代码 | 对齐；#102 服务器页已迁移至 v2.2.1 目标（settings-servers-migration）：servers.tsx/row.tsx 目标逐字，ShellSetting action 搜索命名线程接通，Shell 段随服务器健康门显隐；候选/读写/回滚线协议已核等价，保留 pin 的 config.update 命名；写入成功/失败回滚有单测与探针回滚序锚，真服务动态往返仍未验 | E30/E31/E34；settings-servers-migration；#102 |
-| S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；长消息折叠展开与性能仍阻塞；#103/settings-general-experimental-migration 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认 |
+| S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；#145 QA：G1 项目图标生成/跨重启保持实测 PASS（D/O/N/X/P 字母块多次冷重启一致），motion-spring 目标采纳后动效面无回归（Reduce motion On/Off 各一遍）；长消息折叠展开与性能仍阻塞（无长历史会话）；#103/settings-general-experimental-migration 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认；#145 QA（build-and-verify.md #145 段） |
 | S39 | About、版本、许可与声明 | **已实现（复验收口；issue #110）** | 对齐/适配；notices 滚动目标差异已补齐（`data-scrollable` 目标形，#110 复验 scrollH 5327/clientH 404 滚动不回退）；另显示移动版本与基座，服务版本取排序首项为移动边界；#110 新基线复验：三行实显 + 搜索命中 PASS、服务行诚实降级串实测（checking 恒驻与 #72 同形）、zh 回退不回退；链接实测为**目标形 plain `target=_blank` 原位打开**（非 files-open-external 消费者——计划前提经设备实测更正，链接可打开 + 返回复原成立；显式失败半边继承 #76 JVM/AVD 证据）；服务行真服务展示 BLOCKED 维持（需可达服务） | E28/E34；#72 补验；#110 复验；完整许可审计另见台账 V4 |
 | S40 | 更新检查、安装与发行说明 | 不实现（当前暂缓） | 已确认暂缓；当前只保留已有 What's New 外联面，APK 更新待已签名 release 与版本清单等激活条件；上游 external 契约不等于已有生产实现；**#110 复核：暂缓维持、呈现不误导已验**（更新操作三负例成立——updater=desktop-host 禁用行、零 Updates 页、About 零更新控件；冷启动无伪弹窗，seen 水位 = 0.1.0；真实跃迁触发路径 BLOCKED，激活条件不变） | E24；[ADR 0005](../../../decisions/0005-apk-update.md)；#110 复核 |
-| S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | #109 宿主设置挂载、review wrap 行和 GUI tab 标签已局部验证；pairing/updater 桌面守卫保留。Goal 已目标 ComposerPill，不再沿用旧 Panel 断言；当前会话贡献面与生命周期回归未全验 | E23/E34 历史；E35 当前；#109 |
+| S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | #109 宿主设置挂载、review wrap 行和 GUI tab 标签已局部验证；pairing/updater 桌面守卫保留。Goal 已目标 ComposerPill，不再沿用旧 Panel 断言；#145 QA（评审 MINOR 吸收项）：Extensions flyout 实际可见复验（MCP 2 / Skills 11 / Plugins / LSP 行真实呈现，#135 判据口径）；当前会话贡献面生命周期（面板启停撤除恢复/goal/sources 渲染回归）未全验 | E23/E34 历史；E35 当前；#109；#145 QA（build-and-verify.md #145 段） |
 | S42 | 界面缩放比例 | 已有代码及运行证据（issue #104 复验） | 适配；100%–200% 六档，以 CSS zoom 实现并持久化；#104 换壳复验：六档逐档 documentElement.style.zoom 生效（100% 档属性移除）、`opencode-ui-zoom-level` 逐档持久、零横向溢出、200% 跨重启保持；系统字号 1.3 × zoom 200% 组合下设置页可垂直滚动（scrollHeight 898 > clientHeight 644）、末行可达无遮挡、软键盘避让正常（聚焦输入全程可见）、恢复默认可逆；非法存储值回退 1（属性移除）实态复验；非 Desktop 原生窗口缩放机制 | E21/E34；#65/#104 补验 |
 | S43 | GUI 启停、状态、失败与 Reload | 已有代码及局部运行证据 | 适配；#109 设备轮：D4 契约已决（专用 tab 保留）、管理面 15 行三集分类 DOM 实测（web 10 可启停/desktop-host 4 禁用+桌面专属/excluded 1 零控件）、review+terminal 双向启停存储逐步实测、禁用跨 force-stop 重启存活双向实测、Reload 活性行零崩溃；会话面板撤除/恢复与失败注入全链仍待验（无可达服务，如实登记） | E09/E23/E34；G35；issue #109 |
 
@@ -84,11 +84,11 @@
 | W02 | 发送、流式输出、权限交互 | 已有代码 | 对齐；工作台/审批链已存在，真实模型发送→流式→工具/权限闭环未完成 | E03，G20/G21 |
 | W03 | 文件浏览与 Diff | 部分实现 | file/review 已有；#143 迁入目标 stream HEAD（fileStreamUrl+HEAD 失败回退下载）、watch/unwatch 与 reconnect 重订阅（files-stream-watch.patch，mobilePatches 0-based 58；typecheck 净 −2、探针组 9 过；v2.2.1 服务 watch 路由实测存在）；触屏选择/评论、真实仓库、文件刷新/订阅生命周期与失败恢复待真机验（#143 轮设备 adb 不可达 BLOCKED） | E05/E35，G22/G23 |
 | W04 | 多终端创建、显示、关闭 | 已有代码 | 适配；PTY/重连链已有；WebView WASM、IME/尺寸、控制键软输入与三远端 OS 验收未完成 | E05，G24；不能由旧 dock 文档推定当前 side panel 运行通过 |
-| W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；聚合、分组与活动实际呈现待完整验收 | E03/E19/E35 |
+| W05 | 会话标签与后台活动 | 已有代码 | Inbox 两文件逐字目标且 titlebar 接入，backgroundActivity composer 消费已有；#145 QA：会话 tab 多开/切换/命名实态运行采样（QA 会话 tab 真实呈现与切换）；Inbox 聚合/分组/跨服务 BLOCKED（设备仅配置 1 台服务，解除条件=授权第二台测试实例） | E03/E19/E35；#145 QA（build-and-verify.md #145 段） |
 | W06 | 附件选择与上传 | 已有代码 | Android FilesBridge、上传、composer/media.ts 与队列/fork/revert 媒体保留链已有；真实上传、取消/失败与跨服务归属待验 | E06/E35，G27 |
 | W07 | 断开客户端不停止远程任务 | 已有代码/约束 | 对齐；#61 断开后进程/端口/会话恢复有历史证据；真实长任务存活、直连与进程死亡路径未验全 | E18/E34，G20⑤/G12/G30 |
-| W08 | 偏好、草稿与导航恢复 | 部分实现 | 队列失败草稿恢复及 server/session 归属保护已有；FU-3 项目身份/最近使用持久层已随 issue #140 落地目标形（usedProjectIDs/lastProjectID；迁移轮默认落点缺口如实登记），完整进程/切网恢复未验；凭据生命周期另验 | E11/E14/E18/E35；issue #140；G30 |
-| W09 | 会话搜索与列表筛选 | 已有代码 | shell/commands/session-search.tsx 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；跨服务搜索、筛选和失败路径待运行验证 | E03/E35；issue #140 |
+| W08 | 偏好、草稿与导航恢复 | 部分实现 | 队列失败草稿恢复及 server/session 归属保护已有；FU-3 项目身份/最近使用持久层已随 issue #140 落地目标形（usedProjectIDs/lastProjectID；迁移轮默认落点缺口如实登记）。#145 QA：composer 草稿跨键盘收起/对话框开关保持实测（41.png），偏好（Reduce motion/外观）切换与复位即时生效；完整进程/切网恢复未验；凭据生命周期另验 | E11/E14/E18/E35；issue #140；G30；#145 QA（build-and-verify.md #145 段） |
+| W09 | 会话搜索与列表筛选 | 已有代码 | shell/commands/session-search.tsx 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；#145 QA：会话列表搜索框实态可见（横屏/窄屏两态截图）；输入筛选与跨服务搜索、失败路径待运行验证 | E03/E35；issue #140；#145 QA（build-and-verify.md #145 段） |
 | W10 | 重命名、归档、删除 | 已有代码 | 对齐；session-home-archive 归档接线已有，运行失败路径未验全 | E03，G19 |
 | W11 | Undo / Redo / Fork | 已有代码 | 对齐；命令存在，文件与消息真实回退未验全 | E03/E11，G23 |
 | W12 | 上下文压缩 | 已有代码 | 对齐；当前模型、禁用态及失败提示待真服务验证 | E03/E11 |
@@ -97,17 +97,17 @@
 | W15 | 后续消息和队列 | 已有代码 | 目标串行、乐观编辑/重排、失败草稿恢复、已接纳不重发与媒体 pin 链已迁入；额外 server+session mutation scope、capture/current 保护归属；真实竞态及切服务/会话恢复待验 | E35；源码存在不等于运行通过 |
 | W16 | 文件选区加入上下文 | 已有代码 | 适配；引用契约已有，触摸选区与真实模型上下文路径未验（#143 轮无代码变更；设备 adb 不可达，真机核对 BLOCKED，需用户授权触摸选区→真实模型读取） | E05，G22 |
 | W17 | Agent、模型与变体切换 | 部分实现 | #135 最终 Agent 用户确认正常；模型/变体开合有局部记录，实际切换未全验。FU-2 select-dialog 旧形、details/manage.css 缺失，继续迁移选择器族 | E04/E35；#135 最终记录 |
-| W18 | 用量与上下文面板 | 部分实现 | context 已注册；明确子能力 **usage.view**：app/src/usage 缺失且 composer commands 未注册 usage.view，需迁移用量入口/数据/状态并验收；保留本 ID 不新增行 | E03/E23/E35 |
+| W18 | 用量与上下文面板 | 部分实现 | context 已注册；#145 QA：titlebar context 指示器实态可见（会话内 ◯ 179k 实时值），context 面板点击打开未成功（PARTIAL 待验）；明确子能力 **usage.view**：app/src/usage 缺失且 composer commands 未注册 usage.view，需迁移用量入口/数据/状态并验收（归 #142）；保留本 ID 不新增行 | E03/E23/E35；#145 QA（build-and-verify.md #145 段） |
 | W19 | Desktop 内置浏览器面板 | 部分实现（远程输出链） | 适配；手机不作浏览器宿主，原生 pane 禁用；远程文本/preview 回退已有；工具 file 截图消费链的缺口与真实呈现仍需 G28 核对（#143 轮无代码变更；设备 adb 不可达 BLOCKED） | E07，G28；不是计划在手机复制 Electron 浏览器 |
 | W20 | Office 文档预览 | 已有代码 | 适配；renderer/资产已有；PDF/WebView、CJK、大文件与失败样本未验，mailto 外跳受原生 http/https 策略限制（#143 轮无代码变更；设备 adb 不可达，G29 含 WebView 68 module-worker 结构性受限复现项 BLOCKED） | E06/E33，G29 |
-| W21 | /btw 侧问 | 已有代码 | 适配；session-btw-narrow-entry 放宽窄屏命令门并加 More 入口，呈最近 chat；不自动跳面，窄屏无 close 通道；真实会话与 <768px QA 阻塞 | E26/E34；不是上游本来已有的窄屏入口 |
-| W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；真实服务往返、菜单与降级待验 | E22/E23 历史；E35 当前 |
-| W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验 | E22/E23/E34 |
+| W21 | /btw 侧问 | 已有代码 | 适配；session-btw-narrow-entry 放宽窄屏命令门并加 More 入口，呈最近 chat；不自动跳面，窄屏无 close 通道；#145 QA：<768 窄屏条件已达成（AVD 393px）但 AVD 无已配置服务会话（凭据边界），真实会话 btw 触发仍阻塞；解除条件=窄屏设备配对授权测试服务 | E26/E34；不是上游本来已有的窄屏入口；#145 QA（build-and-verify.md #145 段） |
+| W22 | Goal 状态/暂停/继续/清除 | 已有代码 | renderer.tsx 逐字目标 ComposerPill，composer region 消费 SessionPluginPills；不再是 Panel 呈现差异；#145 QA：/goal 命令在真实服务 slash 面板在册可见（goal 能力服务前提成立），三操作（暂停/恢复/清除）真实往返未执行（PARTIAL） | E22/E23 历史；E35 当前；#145 QA（build-and-verify.md #145 段） |
+| W23 | Sources 来源面板 | 已有代码（移动适配） | 适配；实验 gate、时间线来源钩子、窄屏最近 turn 面已有；gate 持久化已验，chip→面板/关闭收回未验；#145 QA 本轮未执行（需实验 gate+带来源 turn 的真实会话，未构造） | E22/E23/E34；#145 未验登记（build-and-verify.md #145 段） |
 | W24 | 非 prod 实验语音通话 | 未实现（已确认暂缓） | 当前暂缓；上游受 desktop/非 prod/实验开关/服务凭据门控，不是生产默认能力；满足 ADR 激活条件再重启 | E25；[ADR 0006](../../../decisions/0006-voice-call.md)；非待用户决策 |
-| W25 | 会话详情、工作区位置菜单 | 已有代码（源码目标形） | #135 Details 的 MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见、切换 hidden/inert 与关闭通过；目标 location/dialog 已随 issue #140 迁入（session.location.toggle 等键入册），工作区操作/失败路径运行验收待 G19 | E03/E23/E35；issue #140 |
-| W26 | 命令面板统一检索 | 已有代码 | palette.ts 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；触屏入口覆盖、外接键盘及命令执行待验；usage.view 缺口明确归 W18，不能以面板存在关闭 | E11/E29/E35；issue #140；G34 |
-| W27 | 会话内容搜索与高亮 | 已有代码 | 适配；WebView CSS highlights 与长历史定位未验 | E03 |
-| W28 | Debug bar、堆快照、动效诊断 | 部分实现（web 子集） | 适配；宽屏 debug.toggle 三元素及持久化已验；heap/主进程诊断/DEV 调参缺席符合宿主边界，窄屏 bar 隐藏；禁用→撤除链仍待复验 | E29/E34；#96 仅解除管理开关阻塞 |
+| W25 | 会话详情、工作区位置菜单 | 已有代码（源码目标形） | #135 Details 的 MCP 2 行、Skills 10 行、Plugins/LSP 空态实际可见、切换 hidden/inert 与关闭通过；目标 location/dialog 已随 issue #140 迁入（session.location.toggle 等键入册）；#145 QA：Extensions flyout 行面复验（MCP 2 / Skills 11 / Plugins / LSP 真实可见，Skills 计数 10→11 为服务端内容演化非回归），会话 "…" 菜单（Rename/Export/Delete）实态可见+返回键 FAIL 候选在案；工作区操作/失败路径运行验收待 G19 | E03/E23/E35；issue #140；#145 QA（build-and-verify.md #145 段） |
+| W26 | 命令面板统一检索 | 已有代码 | palette.ts 为目标形（issue #140 退役 catalog 兼容，直读 ctx.projects.list）；#145 QA：composer slash 触屏入口实态 PASS（"/" 触发面板，/init /review /rea:* ×5 /goal /new /undo 行可见可触发，触屏软键盘路径）；palette mod+k 外接键盘路径与命令执行仍待验；usage.view 缺口明确归 W18，不能以面板存在关闭 | E11/E29/E35；issue #140；G34；#145 QA（build-and-verify.md #145 段） |
+| W27 | 会话内容搜索与高亮 | 已有代码 | 适配；WebView CSS highlights 与长历史定位未验；#145 QA BLOCKED 维持（无可丢弃 ≥200 行长历史会话；用户真实会话不动；解除条件=授权生成一次性长历史测试会话） | E03；#145 未验登记（build-and-verify.md #145 段） |
+| W28 | Debug bar、堆快照、动效诊断 | 部分实现（web 子集） | 适配；宽屏 debug.toggle 三元素及持久化已验；heap/主进程诊断/DEV 调参缺席符合宿主边界，窄屏 bar 隐藏；#145 QA：面板 dock 开合实态复见（Review/Terminal/Open file 入口，宽屏分栏），禁用→撤除链仍未复验 | E29/E34；#96 仅解除管理开关阻塞；#145 QA（build-and-verify.md #145 段） |
 
 ## C. Windows 宿主与连接
 
@@ -122,7 +122,7 @@
 | N07 | 服务提供方配对页屏幕常亮 | 不实现 | 排除；属于 N06 主机侧流程 | E01 |
 | N08 | 文件保存/分享/选择、剪贴板和外部打开 | 已有代码及局部运行证据 | 适配；FilesBridge/SAF/分享已有；#76 openExternal 原生 http/https 外跳有模拟器验证；mailto 拒绝、原始锚链接及真实 OAuth 回流仍有边界，完整文件交互待验 | E06/E33/E34，G27；不搬 Windows 本地路径/Explorer 语义 |
 | N09 | Windows 安装更新及 beta notes | 不实现（APK 等价流程暂缓） | 与 S40 同一决定；远程服务升级是另一能力，不代表 APK 更新完成 | E24；ADR 0005 |
-| N10 | 平台快捷键与窗口控制 | 部分实现 | 适配；单窗口 Android/返回逻辑已有，不复制 Windows 窗口控件；核心动作触摸/外接键盘仍待验 | E11/E32，G34 |
+| N10 | 平台快捷键与窗口控制 | 部分实现 | 适配；单窗口 Android/返回逻辑已有（#145 返回桥实现事实见 interaction.md），不复制 Windows 窗口控件；#145 QA：返回键核心链真机分层验证（根=结束默认/设置/对话框/键盘/抽屉/面板各层可见结果，FAIL 候选两处在案），触摸核心动作部分采样（会话/tab/菜单/设置触屏可达）；外接键盘仍待验 | E11/E32，G34；#145 QA（build-and-verify.md #145 段） |
 | N11 | GUI 宿主、注册与 OS 过滤 | 已有代码及局部运行证据 | 对齐/适配；#109 设备轮新增：15 行呈现 DOM 复验（14 宿主定义 + 1 静态排除）、三集映射与 VGP 组 7 锁定集合逐 id 一致、#96 开关持久化双向复验；会话面板/生命周期全链未验 | E23/E34；web 10、desktop-host 4、WSL 排除行 1；issue #109 |
 | N12 | Android WSL 入口可见但禁用 | 已有代码及局部呈现证据 | 适配；#109 设备轮零操作专项实测：wsl 行零控件（零 button/switch/alert/可聚焦元素）、id dir=ltr、决策 0001 原因文案在视口内；完整读屏走查仍登记（TalkBack 未走查，行语义 DOM 级已核） | E09/E23/E34，G35⑦；issue #109 |
 
@@ -142,7 +142,7 @@
 | --- | --- | --- | --- | --- |
 | M01 | APK 安装与启动 | 已有代码及历史运行证据 | 新增；APK 打包/安装、inline SSH 与 worker 更新修复已有；不同构建证据分别记录，不推定全部设备适用 | E11–E13/E17；当前轮未构建 |
 | M02 | 安全凭据存储 | 已有代码 | 适配；AndroidX origin/main-frame listener、代际/队列限制及 Keystore/OPMV1 已有；C1–C6 设备失败/升级门禁未全部通过 | E15；不将 SSH 能读取一个密钥视为保险库全验收 |
-| M03 | 返回、安全区与软键盘 | 部分实现 | 适配；模拟器返回键通常结束 Activity（SPA 历史不入 canGoBack），不是应用内分层返回；原生窗口 resize/输入避让局部已验，hwschromium、会话面、Android 15+ 仍待验 | E32，G31②③⑦ |
+| M03 | 返回、安全区与软键盘 | 部分实现（#145 返回桥落地） | 适配；**in-app 分层返回已实现并真机采证**（链序 IME→对话框→面板抽屉→goBack→根默认结束；SPA 导航后对话框优先于路由回退 PASS；popover/面板层 FAIL 候选在案，见 interaction.md 实现事实段）；hwschromium 会话面返回链 PASS；根层结束 Activity 默认保持；原生窗口 resize/输入避让局部已验（键盘收起草稿保持），Android 15+ 与 predictive back 边界仍待验 | E32，G31②③⑦；#145 QA（build-and-verify.md #145 段） |
 | M04 | 网络变化与前台恢复 | 已有代码及局部运行证据 | 适配；代际/取消保护、重新 health 后发布 endpoint 已有；同进程重连及杀进程后重新认证有历史记录，真实切网/任务补齐未验 | E14/E18，G30 |
 | M05 | 通知渠道与系统权限 | 已有代码 | 适配；NotificationsBridge 与授权入口已有，真实后台到达/点击/权限矩阵未验全 | E08，G33 |
 

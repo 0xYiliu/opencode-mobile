@@ -152,7 +152,15 @@ provider/model 配置面的失败反馈**全部复用上游既有通道**，不�
 
 ### 移动交互质量失败路径（issue #20）
 
-移动交互质量面（窗口形态/返回键/键盘/viewport/响应式/读屏/触摸目标/偏好恢复/平台映射，收口文档见 [interaction-quality.md](interaction-quality.md)）的失败反馈**全部复用上游与第一方既有通道**，本期零运行时代码、零新增机制与错误分类——收口期交付为文档、静态探针与 G31 门禁设定。G31 三个**判定点**按上述四步协议处置：②返回键实态可接受性（不可接受→候选 移动适配候选 back 键集成：OnBackInvokedCallback 迁移+minSdk 33+ 守卫+in-app 返回桥接）；⑤命令可发现性充分性（不足→候选 移动适配候选 命令面板移动入口）；⑨触摸目标是否构成不可用（不足→候选 移动适配候选 Button/触摸目标强化）。三项候选与 #18 三候选、#19 两候选**同池共七项+触摸目标类，候选按用途去重，用户决定实施时采用语义名称**，本期不预设、不阻塞；交互质量收口文档与单元文档冲突时以单元文档为准并按双向变更协议回修。
+移动交互质量面（窗口形态/返回键/键盘/viewport/响应式/读屏/触摸目标/偏好恢复/平台映射，收口文档见 [interaction-quality.md](interaction-quality.md)）的失败反馈**全部复用上游与第一方既有通道**，本期零运行时代码、零新增机制与错误分类——收口期交付为文档、静态探针与 G31 门禁设定。G31 三个**判定点**按上述四步协议处置：②返回键实态可接受性（**候选已由 issue #145 执行规则步骤 4 显式激活并实施，见下段实现事实**；候选池条目保留作为历史来源记录）；⑤命令可发现性充分性（不足→候选 移动适配候选 命令面板移动入口）；⑨触摸目标是否构成不可用（不足→候选 移动适配候选 Button/触摸目标强化）。三项候选与 #18 三候选、#19 两候选**同池共七项+触摸目标类，候选按用途去重，用户决定实施时采用语义名称**，本期不预设、不阻塞；交互质量收口文档与单元文档冲突时以单元文档为准并按双向变更协议回修。
+
+#### in-app 返回键集成实现事实（issue #145，2026-11-06 真机采证）
+
+**授权来源**：issue #145 执行规则步骤 4「处理窄屏标题栏/安全区/竖屏输入与返回层级」显式激活候选池「in-app 返回桥接」；候选条目本身保留于本段上方原文，不删除。
+
+**实现形态**（提交 `828eb93` + `75ee3e9`，分支 `feat/221-session-experience`）：Android `MainActivity.onBackPressed` 经 `BackDispatchPolicy`（纯 Kotlin 判定类，零 androidx；API 31 实机走 deprecated `onBackPressed`，manifest `enableOnBackInvokedCallback="false"` 维持在册）先询问 in-app 返回链，再落到 WebView 历史门作 stage 2 兜底（`historyFallback`/`WEBVIEW_BACK`——非 SPA 整页导航类历史项走 `goBack`），根层保持 Android 默认结束 Activity。vendored 侧 `back-chain.ts` 有序注册表，链序 **键盘（系统 IME 先吃）→ 对话框（DialogBackLayer，DialogProvider 内注册）→ 面板/抽屉（mobile-panel-drawer 开启时注册：子视图先收起、再关层）→ 窄屏 More 抽屉 + 会话内历史（titlebar.tsx，精确 `common.goBack` 语义，`backPath` 空时 decline）→ 根**；首层返回 true 即消费，抛错层按 decline 处理；移动端桥为 `mobile-hosts` 新 `BackHandlerPort`（fail-closed 空实现不消费任何返回），`entry.tsx` 注册链并安装 `window.opencodeMobileBack` 绑定；异步回复期间重复按键去重。
+
+**真机采证**（MatePad DBY2-AL00 / Android 12 / hwschromium 114，APK `7b4a3b0d…`，证据 `/tmp/opencode-qa-145/`）：根层 back=结束 Activity（默认不变，21.png）；设置→back→home（27→31）；SPA 会话+对话框 back=只关对话框、路由不回退（39→41，B1 核心可见结果）；键盘 back=只关键盘（35→37）；链中 home→back→回会话（44→45）；对话框退出动画窗口内连按=逐层顺滑无泄漏（M2，42→43）；键盘+对话框叠开每按恰关一层（M4 子集）；窄屏 AVD（393 CSS px）底部抽屉 back=只关抽屉（108→109）。**FAIL 候选在案（交实施者，QA 不修码）**：①titlebar "…" 会话菜单与 Extensions 浮层等 popover 层未入链——back 一次同时关层+路由回退（双消费，复现 ×3：50/51、53/54、86/87）；②宽屏面板 dock（Review/Terminal/Open file）back 无可见结果、第二次 back 直接路由回退（88→90）。More 抽屉→设置交接微窗口（M3）与非 SPA 整页导航 goBack 兜底的运行证据本轮未采样，保持待验。
 
 ### 配对/链接导入失败路径（issue #22）
 

@@ -47,6 +47,22 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 
 **未验证项**：真机/模拟器安装与 G19 运行面（两台服务器同名目录隔离、location 弹窗开/选/取消、新建→进入→返回、超长名称、减少动效、宽窄屏入口可见可触摸）本轮未执行——实施环境无授权设备操作；issue #140 验收清单相应项保持 OPEN，由协调者/后续轮次按 G19 执行。远端归档 API 语义（服务端 `time.archived` 盖章/列表过滤）仍归 G19/live E2E。
 
+### issue #145 段（Session 整体布局与 Android 操作体验）——2026-11-06 QA 轮真机/模拟器采证（纯验收轮：零源码、零补丁）
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-session-experience`，分支 `feat/221-session-experience`，实施 HEAD `75ee3e9`（提交链 `5866eff` feat project-icons + 残差采纳 → `828eb93` feat 返回桥 → `f15c19c` chore 补丁登记 → `75ee3e9` fix 返回链先于 WebView 历史门）。本轮为 QA 操作者角色采证，不改源码/补丁；工程检查（verify-closure/单测/typecheck/build）未在本轮重跑——QA 轮边界如实登记，M5 类探针缺口由实施轮台账覆盖。
+
+**安装与身份**：APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 `7b4a3b0d280b42874324fd585b1eefbfed809cc61b89e18e6cdad493c4e613dd`（64,432,295 bytes），安装前 sha256sum 与给定值一致，`adb install -r` Streamed Install Success（保留数据），versionName 0.1.0。真机 MatePad DBY2-AL00 / Android 12（API 31）/ WebView Chrome/114.0.5735.196（hwschromium；`com.google.android.webview` 114.0.5.302）。实际加载资源身份三重一致：页面 `http://127.0.0.1:18090/` 经 CDP `performance.resource` 读得 `/_assets/index-CxO5aKyx.js` + `/_assets/index-vI6XClKe.css`；APK 内嵌 `assets/web/index.html` 引用同名入口；`web-dist/manifest.json` 同名条目 hash `a8df79ab…`、fileCount 5616 = APK 内 assets/web/ 文件数——**本次新构建确认，非缓存**。CSS 视口（CDP 实测）：横屏 vv/layout 1245×786、竖屏 818×1213，DPR 2.25（wm 1840×2800 @360dpi），与矩阵 S11/S13 在册口径一致；竖屏最小宽 818px>768，窄断点物理不可达在册复验。
+
+**返回矩阵（T14，核心新代码面）**——主键 `input keyevent 4`；真机导航条/手势对照因皮套 Smart Cover 触摸拦截环境受限未采样（如实登记）。PASS：根层 back=结束 Activity 回桌面（默认不变）；设置→back→回 home；**SPA 会话+对话框 back=只关对话框、路由不回退、会话保持**（B1 修复核心可见结果）；键盘 back=只关键盘；链中 home→back→回会话（`common.goBack` 层）；**M2** 对话框退出动画窗口内连按=逐层顺滑消费、无泄漏；**M4 子集** 键盘+对话框叠开每按恰关一层；窄屏 AVD 底部抽屉 back=只关抽屉、页面保持。**FAIL 候选（交实施者）**：①titlebar "…" 会话菜单与 Extensions 浮层等 popover 层 back 一次=关层+路由回退双消费（×3 复现）；②宽屏面板 dock back 无可见结果（面板不关），二次 back 直接路由回退。More 抽屉→设置交接微窗口（M3）与非 SPA 整页导航 goBack 兜底运行证据未采样，待验。证据截图 `/tmp/opencode-qa-145/20–45、50–54、86–91、108–109`。
+
+**源码采纳项**：G1 项目图标（D/O/N/X/P 字母块）与会话 tab 头像跨多次冷重启保持（多帧截图一致）PASS；motion-spring 回归面=Reduce motion System→Off→System 切换生效、下拉/面板动画无回归 PASS；text-field copyable tooltip compact 形态 PARTIAL（空字段长按=系统 PASTE 菜单；compact 需非空可复制字段，API key 类字段按凭据红线不触碰）；toast 本轮未触发 showToast 场景，未采样不声称。
+
+**服务组**：设备已配置单台 `100.87.216.92:49374`（app 内健康绿点；主机侧只读可达，桌面 web bundle `index-DaYSjyXi.js`；精确服务版本 API 需鉴权未读出）。QA 会话一条真实消息全链路可见（composer→远端 agent 执行 106 工具→时间线回显，85.png）——消息列/工具卡片/时间线呈现采样成立；W26 slash 命令面板 composer "/" 触屏可达（/init /review /rea:* ×5 /goal /new /undo，99.png）PASS；/goal 命令在册=goal 能力服务，Goal pill 三操作未执行（PARTIAL）。**BLOCKED**：Inbox 跨服务聚合（仅 1 台服务，解除条件=授权第二台测试实例并配置）；Sources chip→面板→关闭（需实验 gate+带来源 turn，未执行）；btw 窄屏开关（需窄屏+已配置服务的真实会话，AVD 无服务凭据边界）；W27 搜索高亮+长历史定位（无可丢弃 ≥200 行长历史会话，用户真实会话不动，解除条件=授权生成一次性长历史测试会话）；T4 性能基线（依赖长历史会话，同左）。W18 context 面板 PARTIAL（◯ 179k 指示器可见，面板打开未成功）；usage 全族按 #142 边界未触碰。Agent/Extensions 回归：Extensions flyout 实际可见（MCP 2 / Skills 11 / Plugins / LSP，86.png）按 #135 判据复验 PASS。G3 五项（列宽三档/密度/Composer/工具卡片）参考端 Windows Desktop 不在场——源码级对照口径下本轮仅短历史样本，不构成逐项三态结论，整体保持未完成并遵守「不凭截图盲改 CSS」；视口七要素已记录。G4 键盘：composer 聚焦键盘弹出 resize 实态（layout viewport 高度收缩、composer 无遮挡）、收起后草稿保持（37/41.png）初步 PASS（完整竖屏矩阵待窄屏服务会话）。
+
+**窄屏 <768**：AVD issue75api34（Android 14 / API 34）原生 440dpi 实测 CSS **393×782 @ DPR 2.75**（<768 成立；AVD 原有 override density 213 已复位）。窄屏实态：顶栏 Home+「All projects ⌄」选择器替代桌面侧栏（101.png）、底部导航抽屉（New session/Home/Settings/Help，103.png）、设置页「Preferences ⌄」下拉选择器替代侧栏（104.png）、S13 mobile-only 行 **Bottom navigation**（=mobileTitlebarPosition）窄屏可见（105.png）；标题栏实际切换到底部未完成（触点注入未命中开关，PARTIAL 如实登记）。composer 键盘/中文组串/草稿在窄屏需要已配置服务会话——BLOCKED（凭据边界）。S13 的 CDP `Emulation.setDeviceMetricsOverride` 仿真路径本轮未使用（AVD 已实测达标，无需仿真）。
+
+**环境与副作用记录**：华为 PG_ash 灭屏休眠冻结 app 全部 socket（devtools/asset server 转发间歇失败）+ 皮套 Smart Cover 触摸拦截层 + EMUI 悬浮窗几何漂移（注入触点 0.712 缩放偏移）三轮环境对抗均有定位与绕过（wake 循环+pointer_location 标定+冷重启窗口批量采集）；结束时已恢复 `cover_enabled=1`、`screen_off_timeout=60000`、`pointer_location=0` 原值。测试副作用：QA 会话 "QA4 5"（non-workspace 项目，非用户真实任务）一条探针消息触发 agent 106 次工具调用后自行完成并留在会话内；未动用户真实会话、未停远端服务、未清数据、未卸载。日志 `/tmp/opencode-qa-145/logcat-full.log`（归档前去敏），脚本 `cdp.py/collect.py/cdp_bridge.py/keepalive2.sh` 同目录。
+
 ### PR #135 最终交付补录（2026-11-06 读取 GitHub；设备证据为既有轮次）
 
 - [PR #135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已 **MERGED**；最终修复提交 `813e68d`，GitHub merge commit `bbd0b488efb5a654ce55cbde30661d5287bc4381`。正文和较早评论的 Draft/待安装状态、旧 APK 仅为历史。
