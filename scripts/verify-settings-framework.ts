@@ -262,16 +262,15 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   if (!searchTest.includes('expect(targets({})).toContain("settings-zoom")')) fail("7: the zoom toContain flip is missing (settings-framework-mobile)")
   if (!searchTest.includes("mobile(M-035)")) fail("7: search-results.test.ts lost the mobile(M-035) comment")
   // Issue #103 / settings-general-experimental-migration: the target capsule assertion is back with the restored rows.
-  // Issue #107 / settings-notifications-migration: the sounds-interface assertion is flipped positive (row restored
-  // with its real page anchor; deliberate first-party extension, timeline-width precedent).
   if (!searchTest.includes('expect(rankSettings("capsule", items)[0].view).toMatchObject({'))
     fail("7: search-results.test.ts lost the target capsule assertion (issue #103 restored the rows)")
-  if (
-    !searchTest.includes(
-      'expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)',
-    )
-  )
-    fail("7: search-results.test.ts lost the sounds-interface positive assertion (issue #107 restored the row)")
+  // Issue #144: the timeline-width/sounds-interface first-party positive assertions were
+  // deliberately retired (session-workbench-upstream keeps only its @@ -82,10 hunk — the
+  // #103/#107-era first-party test extensions converge to the target form, which has no
+  // such assertions). The catalog ROWS stay pinned above (group 5); the retired test-face
+  // pins here would otherwise contradict the retained hunk.
+  if (searchTest.includes('expect(items.some((item) => item.view.target === "settings-sounds-interface")).toBe(true)'))
+    fail("7: search-results.test.ts resurrected the retired sounds-interface test assertion (issue #144 retired it with the retained session-workbench hunk)")
 
   const pluginTest = await read(`${APP}src/settings/settings-search-plugin.test.tsx`)
   if (!pluginTest.includes('toContain("plugins: surface.plugins.items()")')) fail("7: the search-plugin test lost the target source assertion")
@@ -429,7 +428,7 @@ console.log(
     "4: server scope — resolution order, selectServer/openServers, settingsServerReachable, settingsProjects gone, retry exit; " +
     "5: search — SearchList/Slash catalog factory, 2-arg rankSettings, zoom row present without the desktop gate (mobile(M-035)), the general-page pair restored by issue #103/settings-general-experimental-migration (catalog rows + general.tsx data-action anchors) and settings-sounds-interface restored by issue #107/settings-notifications-migration (catalog row + notifications.tsx anchor, catalog mobile(M-044) register gone; route.ts note resolved as KEEP by #109), target plugins consumer form; " +
     "6: command-palette bridge — setting entry type + createSettingsPaletteEntries + select branch + dialog Match/items; " +
-    "7: tests — settings-framework-mobile keyed/search-results/search-plugin forms (capsule + sounds-interface assertions at the issue #103/#107 restored-row shapes) + three new first-party test files; " +
+    "7: tests — settings-framework-mobile keyed/search-results/search-plugin forms (M-035 zoom/font assertions restored by issue #144; capsule assertion at the issue #103 restored-row shape; the #107-era timeline-width/sounds-interface test-face pins retired with the retained session-workbench hunk) + three new first-party test files; " +
     "8: page glue — headerAction rendered in all five pages + projects accessor swap; " +
     "9: i18n — nine en.ts keys (plan's 8 + server.thisComputer), sshHosts retained; " +
     "10: settings-framework-dependencies dep closure files + ./slash export + registry label/hint + css markers + health/runtime shapes; " +

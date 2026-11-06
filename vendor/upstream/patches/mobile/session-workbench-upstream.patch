@@ -45395,26 +45395,7 @@ diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src
 index ac29580..abd1f55 100644
 --- a/packages/app/src/settings/search-results.test.ts
 +++ b/packages/app/src/settings/search-results.test.ts
-@@ -45,16 +45,13 @@ describe("settings search index", () => {
-       target: undefined,
-       subtab: undefined,
-     })
--    // mobile(M-035): the zoom row drops the target's desktop gate, so it joins the "font"
--    // query (4 results instead of the target's 3).
--    expect(rankSettings("font", items)).toHaveLength(4)
-+    expect(rankSettings("font", items)).toHaveLength(3)
-   })
- 
-   test("only advertises settings supported by this platform", () => {
-     const targets = (input: Parameters<typeof index>[0]) => index(input).map((item) => item.view.target)
-     expect(targets({})).not.toContain("settings-pinch-zoom")
--    // mobile(M-035): the zoom row is web-available on this client (gate dropped).
--    expect(targets({})).toContain("settings-zoom")
-+    expect(targets({})).not.toContain("settings-zoom")
-     expect(targets({})).not.toContain("settings-experimental-browser")
-     expect(targets({})).not.toContain("settings-show-project-icon")
-     expect(targets({})).toContain("settings-tab-layout")
-@@ -82,10 +79,6 @@ describe("settings search index", () => {
+@@ -82,10 +82,6 @@ describe("settings search index", () => {
        tab: "general",
        target: "settings-background-activity",
      })
