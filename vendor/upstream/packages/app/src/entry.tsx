@@ -30,10 +30,13 @@ import {
   createWebMessageProbeTransport,
   createWebMessageServiceOpsTransport,
   createWebMessageSshTransport,
+  activeBackHandlerPort,
+  setActiveBackHandlerPort,
   setActiveFilesPort,
   setActiveNotificationsPort,
   setActiveServiceOpsPort,
 } from "@opencode-mobile/mobile-hosts"
+import { consumeBackChain } from "@/shell/back-chain"
 
 const getLocale = () => {
   if (typeof navigator === "undefined") return "en" as const
@@ -85,6 +88,19 @@ const ssh = createWebMessageSshTransport({
     if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
   },
 })
+
+// mobile(android-back-bridge): the Android system back dispatch (issue #145, plan T12).
+// MainActivity's deprecated onBackPressed face (zero-androidx constraint, API 31 device)
+// evaluates window.opencodeMobileBack.consume() through the WebView and finishes only on
+// false — or when this binding does not exist yet, which is exactly today's behavior.
+// The chain walk is synchronous (dialog close / store flags / router navigate), so the
+// answer rides the WebView evaluation callback; the mobile-hosts port seam keeps the
+// contract (the fail-closed stub consumes nothing), and the chain layers themselves
+// register from the mounted shell components (dialog provider, panel drawer, titlebar).
+setActiveBackHandlerPort({ consume: () => consumeBackChain() })
+;(window as any).opencodeMobileBack = {
+  consume: () => activeBackHandlerPort().consume(),
+}
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })

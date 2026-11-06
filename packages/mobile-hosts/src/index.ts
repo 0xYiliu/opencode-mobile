@@ -321,6 +321,16 @@ export {
   type NotificationsPort,
   type PermissionOutcome,
 } from "./notifications/client"
+// issue #145: in-app back dispatch — the port seam the vendored entry registers the chain
+// implementation through; the fail-closed stub consumes nothing (the Android default
+// finish proceeds, the pre-#145 behavior).
+export {
+  StubBackHandlerPort,
+  activeBackHandlerPort,
+  backHandlerInjected,
+  setActiveBackHandlerPort,
+  type BackHandlerPort,
+} from "./back-handler"
 // issue #26: GUI extension management — device-local disable records (`guiext.v1`) and the
 // settings manager face. The reactive records instance is created once by the vendored shell
 // bootstrap (root.tsx, M-025) and read by the manager UI through the shared accessor; the

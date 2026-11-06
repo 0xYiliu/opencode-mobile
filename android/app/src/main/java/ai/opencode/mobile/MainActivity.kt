@@ -61,6 +61,14 @@ class MainActivity : Activity() {
      */
     @Volatile
     private var pendingRoute: String? = null
+    /**
+     * The one in-flight in-app back dispatch (issue #145): the WebView evaluation callback
+     * is asynchronous on the main looper, so a second press arriving inside the window is
+     * DROPPED — the pending dispatch decides, and the dropped press can simply be repeated.
+     * Main-thread confined exactly like pendingCameraRequest (both callbacks arrive on the
+     * main looper).
+     */
+    private var backConsumePending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -550,11 +558,34 @@ class MainActivity : Activity() {
         // predictive back ON for targetSdk >= 36 apps, which would make this callback dead
         // code. Migrating to the platform OnBackInvokedCallback needs a minSdk guard
         // (API 33+) — follow-up issue.
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
+        if (!::webView.isInitialized) {
             super.onBackPressed()
+            return
         }
+        if (webView.canGoBack()) {
+            webView.goBack()
+            return
+        }
+        // Issue #145: offer the press to the in-app back chain (topmost dialog, open
+        // drawer/panel, in-app history) before finishing. The reply races a double press,
+        // so exactly one dispatch is in flight at a time and a second press inside the
+        // window is dropped. No binding yet / JS exception / false all land on
+        // BackDispatchPolicy.DEFAULT — the exact pre-#145 finish behavior.
+        if (backConsumePending) return
+        backConsumePending = true
+        webView.evaluateJavascript(BACK_CONSUME_SCRIPT) { result ->
+            backConsumePending = false
+            applyBackDispatch(result)
+        }
+    }
+
+    /**
+     * Applies the serialized chain answer (issue #145): CONSUMED keeps the activity, the
+     * Android default finishes it. Separate member so the super call stays in method scope.
+     */
+    private fun applyBackDispatch(result: String?) {
+        if (BackDispatchPolicy.decide(result) == BackDispatchPolicy.Outcome.CONSUMED) return
+        super.onBackPressed()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -617,6 +648,17 @@ class MainActivity : Activity() {
         /** The WebView grant payload — exactly the policy's video whitelist (issue #71). */
         private val CAMERA_GRANT = CameraGrantPolicy.grantableResources().toTypedArray()
         private val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
+
+        /**
+         * The in-app back chain probe (issue #145): completes to a bare JSON boolean —
+         * "true" when a chain layer consumed the press, "false" when the binding is absent,
+         * the chain declines, or the evaluation throws. No side effects; the chain walk in
+         * the shell is synchronous.
+         */
+        private const val BACK_CONSUME_SCRIPT =
+            "(function () { try { return window.opencodeMobileBack && " +
+                "typeof window.opencodeMobileBack.consume === 'function' ? " +
+                "window.opencodeMobileBack.consume() === true : false } catch (_) { return false } })()"
 
         /**
          * acceptTypes extension mapping (issue #16 plan L3): small built-in table, caliber

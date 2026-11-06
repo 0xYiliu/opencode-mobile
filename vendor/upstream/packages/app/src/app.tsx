@@ -1,15 +1,16 @@
 import "@/index.css"
-import { DialogProvider } from "@opencode/ui/context/dialog"
+import { DialogProvider, useDialog } from "@opencode/ui/context/dialog"
 import { FileComponentProvider } from "@opencode/ui/context/file"
 import { Font } from "@opencode/ui/font"
 import { ThemeProvider } from "@opencode/ui/theme/context"
 import { MetaProvider, Title } from "@solidjs/meta"
 import { type BaseRouterProps, Router } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
-import { type Component, createRenderEffect, ErrorBoundary, type JSX, type ParentProps } from "solid-js"
+import { type Component, createRenderEffect, ErrorBoundary, type JSX, onCleanup, type ParentProps } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/shell/commands/command"
 import { DesktopCommands } from "@/shell/commands/desktop"
+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
 import { ProjectIconsProvider } from "@/shell/layout/project-icons"
 import { GlobalProvider } from "@/runtime/server/runtime"
 import { LanguageProvider, UiI18nBridge, type Locale } from "@/runtime/i18n/language"
@@ -46,6 +47,23 @@ function BodyTypography() {
   return null
 }
 
+// mobile(android-back-bridge): the dialog back layer (issue #145) — the Android system
+// back key closes the topmost dialog instead of leaving the activity. Mounted inside the
+// DialogProvider so the layer exists exactly while the provider does.
+function DialogBackLayer() {
+  const dialog = useDialog()
+
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.dialog, () => {
+      if (!dialog.active) return false
+      dialog.close()
+      return true
+    }),
+  )
+
+  return null
+}
+
 export function AppBaseProviders(
   props: ParentProps<{
     locale?: Locale
@@ -73,6 +91,7 @@ export function AppBaseProviders(
             >
               <QueryProvider>
                 <DialogProvider>
+                  <DialogBackLayer />
                   <PluginRoot>
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </PluginRoot>
