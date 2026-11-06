@@ -715,13 +715,13 @@
     {
       "id": "session-workbench-upstream",
       "path": "patches/mobile/session-workbench-upstream.patch",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1",
+      "sha256": "e532b2c8c38b52d3ee399835b7cfbf264ae6f93cbe9d8ffb979f90079cb139db",
       "status": "active"
     },
     {
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
-      "sha256": "3b9ebe74cd40555605fd227e077ea047f0eb9f19911aa0078658cdd7308e0be1",
+      "sha256": "8ae7f5a945f7f3fe413e4b7f95978008669e8fb3bb1e0f590cffe094b817981f",
       "status": "active"
     },
     {
