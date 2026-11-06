@@ -250,6 +250,16 @@ const WHITELIST = new Set([
 }
 
 // --- 4. Zoom levels ---
+// REGISTERED rc=1 (issue #144): this group fails on the R2 out-of-scope item —
+// desktop-menu.ts was flipped INTO the vendored tree as a target-form .ts by the
+// session-workbench overlay (patch 54) and session-client-compatibility (patch 55)
+// brought `nextDesktopZoomLevel` with it, violating the #74/S12 negative lock. Issue
+// #144 does NOT fix or re-prune the overlay (the desktop-menu chain belongs to the
+// session/Android interaction unit, #145/N10 direction). Discharge condition: the
+// owner round either re-prunes the nextDesktopZoomLevel hunk from the chain (restoring
+// this group to rc=0 with the pin-era menu face) or re-registers the lock with the
+// new owner contract. The remaining groups of this probe stay accurate; groups after
+// this one are unreachable while group 4 holds.
 {
   const menu = await read(`${APP}src/shell/commands/desktop-menu.ts`)
 
