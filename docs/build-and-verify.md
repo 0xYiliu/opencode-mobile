@@ -3351,3 +3351,79 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 
 - 本段声称范围：**冲突定向合并 + 70 补丁链字节级重放 + 负例演练 + 单测/类型/探针/泄漏/审计/构建/Gradle 全门禁两树对照**——运行期行为零新增声称；#142 段与 #144 段登记的真机 BLOCKED 项（Smart Cover 物理锁、设备无线 ADB 不可达）在合并树上**维持原状**，解除条件不变。
 - 合并未触碰 #144 的语义内容（组 2/7 探针刷新、M-035 恢复、R2 登记原样）；#144 对 dist 常量的 5616 断言被合并树重建的新实测（5620/149993193）接替，其测量叙事保留为 prior 链。
+
+## issue #146 段（test(android): 闭环 SSH/直连真实任务、权限与恢复——feat/221-core-recovery 首轮真实验收）——2026-11-06 实测记录
+
+### 构建身份与验证环境
+
+- 分支 `feat/221-core-recovery`；worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-core-recovery`；base = main `1059377a851189b3d79bb1541dc7376594d7a243`（含 #140/#141/#142/#143/#144/#145 全部前置）。零源码、零补丁变更（纯验收轮）。
+- Web 构建 `bun run build:web` PASS（rolldown-vite）；`copy-web-dist.sh` PASS（5622 files / 150,016,113 bytes verified）。注：新 worktree 需手工补 `vendor/upstream/packages/{ui,session-ui}/node_modules/@opencode/*` 工作区符号链接（`bun install` 不为 ui 未声明依赖生成；ui→util、session-ui→{client,patchmark,ui,util}，与 feat--221-session-experience 工作树现存链接一致）。
+- Gradle：`:app:testDebugUnitTest` 9 suites / 39 tests / 0 failures / 0 errors + `:app:assembleDebug` BUILD SUCCESSFUL（36s）。**APK SHA-256 `42d4b47effa5b0bf0f0e5eef015fd5b4cf9ea0391a2dcf8574bc295e813804e3`**（64,445,779 bytes）；`adb install -r` Success；设备回读 base.apk SHA-256 与本地相等布尔 true。
+- 设备：MatePad DBY2-AL00，Android 12，无线 ADB（端点地址按 #61 段先例不入台账）；屏幕由 ADB 唤醒（keyguard 无安全锁，无需人工）。验收操作全程 adb input tap/swipe/text + CDP（webview_devtools Remote debugging：`/json/list` page target `http://127.0.0.1:18090/`，viewport 1245×786 css / dpr 2.25 / 截图 2802×1769；输入坐标换算 input=(css×2.249, css×2.249+72)——72 为状态栏 inset，经页面 pointer 探针实测校准）。
+- 服务：直连 `192.168.3.152:49374`（`~/.opencode/desktop-ssh/2.2.1/opencode serve --service`，PID 1574186，2026-10-31 起），`/api/info` Basic 认证返回 version **2.2.1**（与上游目标一致）；provider 配置 zai-coding-plan/opencode/new-api。SSH 路由：本机 sshd :22（ED25519 指纹 `SHA256:wVefJdE2n4bxhqelix7jEAt7qywNZThxgKXV0F5P2uU`，`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` 独立参考，与 #61 段审计值相等）。测试项目 `/home/peterhan/qa-tmp/oc-146`（可丢弃，服务端注册 id `8eded3097f9b8daa07dfb135f17e3c92ee8a937f`）；QA 一次性 ed25519 密钥仅授权该用途（`oc146-qa-device-key`），全程零凭据入台账。
+
+### ① 直连基线全链（W01/W02/S03/S07/S09 关联）——PASS
+
+- 连接恢复：冷启动（install -r 后首启）自动水合已存凭据直连成功，Home 呈现真实远端会话列表；本直连条目此后被验收流程删除后，经连接屏「Use password」（地址+密码）重连成功并再次水合恢复（两径均有证据）。服务器页健康点绿色（S35 健康门）。
+- 项目：New session → 项目 chip → Add project → 目录浏览（路径输入+建议行+Select folder）→ oc-146 注册成功（服务端 `/api/project` 计数 +1 且 id 相等布尔 true），composer 归属 footer 显示 `oc-146 /home/peterhan/qa-tmp/oc-146`（项目归属正确，生产项目零触碰——全程仅该可丢弃项目收发）。
+- 发送→流式→工具→完成：composer 文本输入（execCommand 编辑路径）→ Enter 发送 → 会话创建（标题自动生成）→ Working shimmer → Write 工具执行 1 次 → 服务端核对 `/home/peterhan/qa-tmp/oc-146/hello.txt` 内容 = `hi-146`（逐字节）→ 最终回复呈现、时长/上下文计量呈现（9s / 8k）。模型归属：选择器 `new-api / GLM-5.3 Flash`，时间线每条消息标注 GLM-5.3 Flash · Max；服务版本 2.2.1（见上）。流式过程可见（Working 态 → 增量文本 → 最终文本三态均有截图/文本证据）。
+- 键盘发送路径：Enter 键发送实测通过；Send 按钮 adb tap 因按钮 DOM rect 与绘制位置瞬时错位一次落空（重排瞬态；不判缺陷，交互后 rect 重测即命中）。
+
+### ①b 权限交互矩阵（W02/G21②③/S07）——PASS
+
+- 触发：项目级 `opencode.json` `{permission:{edit:"ask",bash:"ask"}}` 写入测试项目后，bash 工具调用呈现 Permission dock：说明文本 + 命令预览（`echo perm-146-probe`）+ **Deny / Allow always / Allow once** 三决策（+ Move to background CTRL B）。
+- Allow once → 命令执行（输出 `perm-146-probe` 呈现于 Shell 卡）；随后第二条新命令**再次弹窗**（once 不记忆 ✓）。
+- Deny → 工具调用 Interrupted、命令未执行、无输出 ✓（另一次 sleep-300 的 Deny 同样 Interrupted ✓）。
+- Allow always → 命令执行；第四条**同形命令免批直接执行**（`perm-146-fourth-noprompt`，6s 完成，无 dock）✓；always 规则落盘于服务端 opencode.db（SQLite WAL 活跃，项目文件未被改写）；但**命令粒度**成立：新命令（`sleep 45…`）再次弹窗（非全局放行，未经同意不默认批准 ✓）。
+- 默认 opt-in：未开启任何 auto-approve 设置时全部 bash 首次均弹窗 ✓（S07 默认关保持）。
+
+### ② 队列（S09/W15）——部分 PASS + 未验收项
+
+- busy 期间追加：assistant 忙时连续追加 follow-up 立即入队，Q-ONE/Q-TWO 曾以 Pending 组呈现（`Pending · GLM-5.3 Flash Max`）。
+- 消费语义：全部排队消息按序消费、逐条恰好一次回答（QUEUE-ALPHA/QUEUE-BETA、Q-ONE/Q-TWO/Q-THREE、R-ONE/R-TWO/R-THREE 共 8 条零丢失零重复零重发，时间线+服务端摘要双重核对）✓。
+- 权限待决时 composer 阻断（insertText 目标不存在，消息未误入未误发）——与 G21① 契约一致 ✓。
+- **未验收**：queued 乐观编辑/重排/撤回三项交互。原因（环境如实记录）：测试模型把阻塞 bash 移入后台（`Move to background`/`Shell finished` 通知链），turn 即时完成使排队项被即时 steer 消费，无法建立稳定 Pending 窗口；权限待决窗口 composer 又被阻断。UI 控件存在性经 DOM 核对（`session-queue-row` 行 + reorder 把手 + `session-queue-edit` + steer/delete 按钮），运行交互留待后续轮（纯 sleep 阻塞会话+秒级操作）。
+
+### ③ 断连红线与恢复（W07/W08/M04/G20⑤/G30②⑥ 直连）——PASS
+
+- 红线机械核对（直连）：count-300 长流式任务进行中（客户端可见 ~228/300）→ `am force-stop` 杀 App（22:14:58）→ 客户端死亡期服务端流继续（无任何客户端可发 interrupt）→ 重启 App 后服务端时间线呈现 **1→300 完整计数与完成态**（快照补齐 ✓）——断开客户端未停止远端任务 ✓，零隐式 interrupt ✓。
+- 进程重建恢复：杀 App → 重启 → 直连凭据水合自动重连 ✓（M04/G30⑥ 免重输），Home/项目/会话列表恢复，QA 会话时间线完整（50+ 条服务端消息含压缩摘要）✓。
+- 压缩恢复关联：/compact 后会话可继续（见⑤）。
+
+### ⑤ /compact（W12）——PASS
+
+- 授权测试会话内键入 `/compact` → 命令菜单呈现（`Summarize the session to reduce context size`）→ Enter 执行 → `Session compaction started / Compacting` → 完成后摘要呈现且**内容准确**（逐项列出 hello.txt 创建、各 echo 探测、计数任务、全部 say-only 应答、后台 sleep 完成）→ 元数据 `Session compacted · 9.6K in · 1.2K out`（上下文缩减 ✓）→ 压缩后继续发送正常（follow-up 正常应答 `GLM-5.3 Flash by Z.ai.`，模型/服务归属不变）✓。
+
+### ①c SSH 路由（S36/N04/N05/M02）——至服务认证 PASS，隧道数据面 BLOCKED（已复现缺陷）
+
+- 添加链（#61 同径）：连接屏 SSH hosts → Add SSH host 表单（Name/Host/Service port 49374）→ Save → registry 持久化（`opencode-mobile.hosts.v1` localStorage；跨 reload/重启保留）→ 自动连接。
+- 指纹挑战（N04 unknown 路径）：Verify host 面呈现 SSH target/port/服务端口 + **指纹 `SHA256:wVefJdE2n4bxhqelix7jEAt7qywNZThxgKXV0F5P2uU` 与本机独立参考相等布尔 true**（ED25519）→ Trust and connect → 已知主机写入。
+- 无凭据 → `Sign-in required`（authRequired）✓；Credentials 管理器呈现（含 2 条历史未引用 Password 条目）；Edit SSH host → 勾选 Remember credential → **Import private key file** 经 SAF 原生文件选择器选择 `/sdcard/Download/oc146-qa.key`（凭据经 vault 封装，明文不入 registry/localStorage）→ Save → Connect → **密钥认证通过，`Connected`**（已知主机信任命中，无重复指纹提示 ✓ N04 信任稳定性）。
+- 服务认证 UI：ServiceAuthPrompt 呈现（`The SSH tunnel is reachable, but the OpenCode service requires its own sign-in` + Password + Check again + Disconnect this device）✓；密码输入（值经 CDP 相等布尔核对该次为 true）→ Check again → `still asking`。
+- **BLOCKED 根因（隧道数据面缺陷，四通道证据）**：
+  1. 设备侧 `curl http://127.0.0.1:58619/api/info`（隧道监听端口，`ss -tln` 实测 JSch 绑定）→ **000 无响应**（挂起，8s 超时）；主机经 adb forward 同样挂起。
+  2. 服务端请求日志：验收窗口内**零**来自隧道的 `/api/info` 到达（日志内 1s/10s 间隔的 401 轮询经时间戳核实始于 2026-11-02，为另一长期在线客户端，非本应用）。
+  3. 主机侧独立 OpenSSH 转发（同密钥/sshd/服务端口）`curl` 立即 **401（无凭据）/200（凭据）**——远端 sshd direct-tcpip 数据面与服务均正常。
+  4. 主机 JVM 以**同版本 mwiede jsch 2.28.8 复现同一调用序列**（connect → direct-tcpip probe → setPortForwardingL → socket 读写）→ 立即收到 401 响应——库在标准 JVM 正常。
+  - **裁定**：`SshTunnelManager.kt` 依赖的 JSch 本地转发在 Android 12（DBY2-AL00）上监听绑定成功但每连接转发挂起；连接/认证/指纹/隧道建立/服务认证 UI 全部已验证，仅数据面阻断。SSH 路由的发送/流式/队列/红线与安全负例全部继承 BLOCKED，解除条件=修复隧道转发（候选最小修复：以显式 accept-loop + 每连接 `ChannelDirectTCPIP` 替代内置 `setPortForwardingL`，probe 通道已证明 direct-tcpip 在设备可开启；修复后按本轮已建记录直接续测）。
+
+### ④ 发现与登记（非阻断即登记）
+
+1. **SSH 桥冷启动竞态（一次复现）**：首次安装后冷启动，Add SSH server 表单提交报 `SSH is unavailable / Request failed`（settings 阶段表单按源码注释「intentionally fails mutations」属 UI-parity 设计，但随后 InitialSshSetup 的 runtime.connect 亦失败：`The SSH bridge is unavailable right now`，state Failed）；CDP 强制 reload 后 logcat 显示 `ssh: handshake retry (no ack yet) → ssh: channel acked`，此后每次冷启动均正常 acked（含再次冷启动验证）。判定：握手时序竞态存在一次实绩，复发条件未定；登记观察，未改码。
+2. **idle SSH 主机恢复路径缺口（G30④ 判定点）**：SSH 主机存在而无已连接 HTTP 服务时，App 落入空壳（骨架屏，无任何连接入口）；Settings 服务器页该行 Connect/Delete 按源码注释在本阶段有意失败（toast `SSH is unavailable`）；完整连接流仅存在于连接屏（`servers.list=0` 才可达，而 idle plugin 条目自身占据 servers.list → 连接屏不可达）。**本机当前状态即死锁态**：判定恢复路径不可接受，按失败路径四步协议交用户决策（候选：settings 行接通 runtime.connect 或连接屏可达性修正）；本轮零源码变更，仅在 Issue 记录。验收期间的绕行（删除测试主机的 localStorage 手术）仅作用于本轮自建的无凭据测试条目，未触碰用户数据。
+3. **对话框溢出需内部滚动**：Edit SSH host 勾选 Remember credential 后 Save 按钮越出视口（DOM rect y>innerHeight），scrollIntoView 后可达（触摸可滚动，非阻断）。
+
+### 未验收清单（如实保留 BLOCKED/未验证）
+
+- SSH 路由发送→流式→工具→完成、断连红线（SSH 向）、队列与 /compact 于 SSH 路由复测 —— 依赖隧道数据面缺陷修复。
+- 切服务丢弃旧异步结果、附件跨重试/Fork/Undo 保留、失败草稿恢复 —— 本轮未构建稳定场景（附件路径未跑）。
+- TLS/401/非 ASCII 认证、Shell 写回滚、SSH 端口变化、不兼容服务/显式安装启动失败、指纹 changed 拒绝（known_hosts 变更路径）、vault C1–C6 门禁 —— 未跑。
+- W14 结构化多步问题、S29 项目继承写盘、网络切换（wifi↔蜂窝）恢复、后台≥20s resync —— 未跑。
+- 三 OS 矩阵：本轮仅 Linux（服务 OS = Linux）；不以 Linux 冒充其他支持平台。
+
+### 证据索引
+
+- 截图序列 `/tmp/oc146-*.png`（设备 screencap 2802×1769，时间戳对应上述各步骤；不融入库，本段为文字台账）。
+- 服务端核对：hello.txt 逐字节、`/api/project` 计数与 id、`/api/info` version、服务请求日志时间戳分析。
+- logcat 关键行：`ssh: handshake retry (no ack yet)`/`ssh: channel acked`/`vault: protocol v2 ready`（桥握手时序）。
+- 全程未向生产项目/会话发送任何消息；未 clear 应用数据；未卸载；未重启/停止远端服务；known_hosts 仅新增本轮自建测试主机信任（Trust and connect 明示路径）。

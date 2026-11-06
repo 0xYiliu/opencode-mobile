@@ -34,6 +34,13 @@
 - 基线：worktree `feat--221-file-viewing`，分支 `feat/221-file-viewing`，base `3310b808c27ddb4b5f861912081e4f10ef652f75`；上游目标仍 `3ebcf9a32c7b28f658cfee80775448929361727a`。
 - W03/W16/M04 行增量：E35 所列「缺目标 stream HEAD、watch/unwatch 与 reconnect 重订阅」已按目标 copy 迁入——`model.tsx`/`artifact.ts`（gui-plugins-api-migration hunks 重生成）+ `protocol/fs.ts`、`client.ts`、`types.ts`、`api.ts`（新 files-stream-watch.patch，0-based 58）；model.tsx 仅 2 行调用点适配（`api.experimental.file.*` → `api.file.*`，vendored 生成面命名，mobile 注记在位）。vendored `api.ts` 为移动适配形态（connection-utf8-basic-auth/session-client-compatibility 在先），`fileStreamUrl` 以追加 hunk 落位。typecheck 总数 419→417（mounted-session watch/unwatch TS2339 对闭合）；watch 路由在 v2.2.1 服务（desktop-ssh 2.2.1 实例）实测存在（POST/DELETE 204，未知路由 404 负例）。**运行验收未闭合**：本轮设备 adb 不可达，G22①–⑨/G22⑤/G29/G28 全部 BLOCKED，解除条件=恢复设备无线 ADB（设备屏物理操作）后按本轮 APK（SHA-256 `1c8c440ab868555051338a16a987974dc2675443e58308963bc233f8825e6d6f`）复测。
 
+## E37 增量核实（2026-11-06，issue #146 验收轮）
+
+- 基线：worktree `feat--221-core-recovery`，分支 `feat/221-core-recovery`，base/HEAD `1059377a851189b3d79bb1541dc7376594d7a243`（= origin/main，含 #140–#145 前置）；零源码、零补丁变更（纯验收轮）；APK SHA-256 `42d4b47effa5b0bf0f0e5eef015fd5b4cf9ea0391a2dcf8574bc295e813804e3`（安装回读相等）。
+- 直连路由（LAN 实例 2.2.1）：真实模型闭环（发送→流式→Write 工具→完成，产物服务端逐字节核对）、权限三决策矩阵（once/always 落盘+命令粒度/deny）、队列按序消费零丢失零重发、/compact（9.6K→1.2K、摘要准确、压缩后可继续）、断连红线（杀 App → 服务端完成 → 快照补齐）全部 PASS——G20⑤/G21②③ 的直连子集首次以当前集成版闭环。
+- SSH 路由：添加/持久化/指纹挑战（=独立参考）/Trust/密钥认证/服务认证 UI 全链 PASS 至服务认证；**隧道数据面复现阻断缺陷**（JSch 2.28.8 本地转发在 Android 12 设备监听绑定但每连接挂起；同密钥 OpenSSH 主机转发与主机 JVM 同库同序列均正常）——SSH 向全部下游验收继承 BLOCKED，修复候选与四通道证据见 build-and-verify.md #146 段。
+- 结构性发现：idle SSH 主机在无已连接 HTTP 服务时无任何可达重连入口（settings 行 Connect/Delete 按源码注释本阶段有意失败、连接屏因 idle plugin 条目占据 servers.list 不可达）——G30④ 恢复路径判定为不可接受，待用户决策修复取向；SSH 桥冷启动握手竞态一次复现（reload 后 acked，后续冷启动正常）。
+
 ## E35 已有运行证据与发布边界
 
 - PR [#135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已合并；GitHub merge commit 为 `bbd0b488efb5a654ce55cbde30661d5287bc4381`，最终 Agent/Extensions 修复提交为 `813e68d`。PR 正文的 Draft、旧 APK 和较早评论不是最终状态。
