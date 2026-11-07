@@ -3713,3 +3713,34 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - 真机 Phase D 证据：`/home/peterhan/release-staging/issue-149/qa-phase-d/`（22 截图 + 基线 JSON / install 结果 / 9.1MB logcat 去敏审计件）。
 - 模拟器截图（本轮会话 /tmp 下，关键形态已文字录入）：首装连接面 e34-first/home、配对连接后会话列表 e34-paired、覆盖升级后抽屉 e34-drawer、About 三行 e34-about、语言选择器 e34-lang。
 - 签名材料路径（值零入）：`~/.config/opencode-mobile-signing/`（方案与保管见 `docs/release-runbook.md`）。
+
+## issue #166 段（fix(pairing): link/QR 重配对丢失保存身份——priorRef 从保存时解析目标 URL 解析）——2026-11-07 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/fix--166-pairing-credential-ref`，分支 `fix/166-pairing-credential-ref`，base `6b90c1e`（`6b90c1e5a2826908f5224d4511f27002da8bca8a`，origin/main）。改动范围：vendored `packages/app/src/servers/connect/dialog.tsx`（`priorRef` 增 `resolvedUrl` 可选参、add 流 `store.method` 门控传解析后 URL，password 面调用形态逐字节不变）+ 补丁 #8 `connection-remember-credential.patch` 镜像同改（hunk 行数不变，后续偏移字节稳定）+ 登记条目 reason/verification 增补 #166 句 + 文档（connection.md ④/A3/G32⑤）。displayName 重置（`displayName: name`）=上游 v2.2.1 行为，保持不改。**真机 QA 待真机轮（另行协调，本轮零 adb/零设备触碰）。**
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| 补丁刷新与登记 | `bun run patches:refresh` → `bun run verify:patches` | refresh **PASS（75 registered; updated: manifest.json, vendor-manifest.json, provenance.json）**；verify:patches **PASS（75 registered; updated: none）**——补丁数保持 **75**，仅 `connection-remember-credential` sha256 变更（`7ac107c7…e6ed41d` → `94042dcd…7db55`），后续补丁（含 #12 connection-error-classification）偏移未动，hunk 行数逐字节稳定 |
+| V3 闭包 | `bun run verify:closure` | **PASS**：V3(a) 树 == pin `b4525d79bf` + packageSources + 75 补丁字节级重放、文件类型/可执行位/symlink 一致、LICENSE 字节一致；**DANGLING=0**；V3(b)(c) 过 |
+| mobile-hosts 单测 | `bun test --conditions=browser packages/mobile-hosts` | **442 pass / 0 fail / 2946 expect（40 文件）** = #148/#149 在册基线恒同 |
+| 凭据探针 | `bun run scripts/verify-credential-vault.ts` | **PASS**（真值表 v3 行 1-12+评审修复行 13、早退强制、初始值、host-dialog 装配、hydration 注入、AndroidX 源门） |
+| app 子集（台账 #55 期命令） | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/routes/connection-route.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts`（vendor/upstream/packages/app 下） | **按原样不可复现（预存，非本轮回归）**：`connection-route.test.ts` 已在 v2.2.1 resync 删除（`8b4a676`/`5a46934` 链，路由覆盖移交 `session.test.ts`，本树 `git ls-files` 无此文件）；实跑仅匹配 2 文件，且 solid-only 触发台账 #28 行/#66 注记① 的 solid-js/web server 构建 notSup 导入期终止：**10 pass / 1 fail / 1 error / 25 expect**。git stash 对照：改动前同命令同结果（10/1/1/25），**零差** |
+| app 子集（本仓在册口径，docs L28：加 `--conditions=browser`；当前树文件集） | 同上 preload/参数，文件换 `src/shell/routes/session.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts` | 改动前 **21 pass / 0 fail / 69 expect（3 文件）** = 改动后 **21 pass / 0 fail / 69 expect**——**零差**；其余两文件（settings route / pairing link）与台账历史覆盖保持 |
+| Web 构建 | `bun run build:web` → `bun run copy:web-dist` | 均 rc=0；copy 核验 **5622 files / 150,022,409 bytes（verified）**（#149 钉值 5622/150,022,223，同文件数 +186 bytes=chunk 指纹/机器路径 churn；本轮提交含 `web-dist/manifest.json` 回填；android staged assets 为 gitignore 面不入境） |
+| Android 构建 | `ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 37s（42 tasks）**；单测 **9 suites / 39 tests / 0 failures** = 基线恒同；debug APK `android/app/build/outputs/apk/debug/app-debug.apk` **64,448,047 bytes，SHA-256 `0269b4ad4d69b8e211642905f07f7c38d448d9da311896db10a275f5034d736a`**（未安装任何设备） |
+
+**环境修补登记（零 git 跟踪面）**：本 worktree `vendor/upstream/packages/app/node_modules/@opencode-mobile/mobile-hosts` 测试期 seam 软链缺失（主工作树在册、worktree 初始化只建了 `@opencode` scope），按在册口径补建相对本 worktree `packages/mobile-hosts` 的软链后 app 子集方可加载；node_modules 不入库。
+
+### 行为变更口径（#166 修复后）
+
+- **link/QR 重配对（dialog add 流）**：prior 改从 `await target()` 兑换/解析产物 `http.url` 规范化查找（`priorRef(normalized)`，`store.method` 门控）→ 真值表行 6/11 passthrough 恢复透传既有 ref → 同服务重配对不再丢 `http.credentialRef`，重启后保存凭据存活；勾选框仍不渲染、零 vault 操作。
+- **password 面**：`priorRef()` 无参调用与 `initialRemember(priorRef())` 基座逐字节不变——checkboxRendered=true 时（含「地址栏粘贴配对链接」兑换成功边缘）行为与改前恒同，无门控的无条件解析反会以未触勾选框基座查到 prior、引入行 4/9/10 vault.clear 破坏性回归（方法门控即防此）。
+- **已知残余透传边缘**：地址栏粘贴配对链接（password 方法、`redeem(store.values.url)` 成功路径）prior 落空 → ref=undefined 透传——零 vault 操作、无破坏（条目转孤儿非删除，重配对自愈）；本轮不改。
+- **验收对照（待真机轮闭环）**：同服务 link/QR 重配对 → 重启 → 保存凭据存活；取消/失败路径不破坏旧连接；跨服务不继承（URL 规范化相等才命中 prior）。
+
+### 未验收清单（如实保留 BLOCKED + 解除条件）
+
+1. **真机行为验收**（重配对保 ref 重启存活 / 取消不破坏 / 跨服务不继承 / 地址栏粘贴边缘实态复核）：**待真机轮**（另行协调；本轮零 adb、零设备触碰，占位不预填结果）。
+2. **G32⑤ 运行期复核**：代码修复已落地（已修复（未验证）），解除条件 = 真机轮 ref 双面核对 PASS 后在 connection.md G32⑤ 与本段回填。
