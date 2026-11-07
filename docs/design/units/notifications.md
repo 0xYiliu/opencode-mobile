@@ -1,6 +1,6 @@
 # 通知面（Task completion, permission, and error notifications）
 
-**状态：issue #148 M-023 投递面恢复后通知面已实现（未验证）**——文档/探针/单测/编译层已验证；投递面历史：#23 交付 → #140 时代 session-workbench-upstream 补丁以目标形覆盖将其退役（#144 登记缺口、探针负锚钉定）→ #148 修剪该补丁 retirement hunks 恢复（notifications-platform-delivery 补丁字节不动）。全部运行期行为（系统通知到达/前台抑制实态/tap 路由/权限请求/声音/锁屏呈现/进程死亡边界）归 **G33** 真机门禁（[interaction.md](../interaction.md)），G33 未过前不得声称任何运行期通知行为已验证。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
+**状态：issue #148 M-023 投递面恢复后通知面已实现；#148 G33 真机轮已核验可达层（①前台抑制/门控/dock 链/进程死亡边界；②后台全链按已登记 socket 死亡 PASS 形态记录——本机 WebView 挂起即冻结，五样本零后台事件派发）**——文档/探针/单测/编译层已验证；投递面历史：#23 交付 → #140 时代 session-workbench-upstream 补丁以目标形覆盖将其退役（#144 登记缺口、探针负锚钉定）→ #148 修剪该补丁 retirement hunks 恢复（notifications-platform-delivery 补丁字节不动）；G33① 判定产出 notifications-webview-focus-gate 补丁（hasFocus 前后台恒 true 实测 → 门与锁跟随 visibilityState）。运行期行为收口归 **G33** 真机门禁（[interaction.md](../interaction.md)），本轮未达层（后台系统通知到达/tap 路由/锁屏呈现/双路由）仍以 G33 记录为准。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
 
 ## ① 上游通知面全景（已随闭包进入移动壳）
 
@@ -68,7 +68,7 @@
 
 ## ⑥ 前台抑制双层与后台尽力边界
 
-- **JS 层**：`coordinator.system` 内 `document.hasFocus()` 早退（coordinator.ts 在册）——前台事件只响铃不出系统通知（上游设计实态）。`document.hasFocus()` 在 WebView 前后台转换的实态静态不可证，归 G33① 判定。
+- **JS 层**：`coordinator.system` 内 `document.hasFocus()`+`document.visibilityState` 双条件早退（coordinator.ts 在册，notifications-webview-focus-gate 补丁）——前台事件只响铃不出系统通知（上游设计实态）。`document.hasFocus()` 在 WebView 前后台转换的实态已真机测定（issue #148 G33①，MatePad DBY2-AL00/Android 12：hasFocus 恒 true、visibilitychange 正常触发且带 `focus=true`，共享 FOCUS_LOCK 随 hidden 释放/visible 重取），上游纯 hasFocus 早退在壳内后台永不开启 → 补丁令门与锁跟随 visibilityState（hidden=后台）；前台抑制实态经 CDP 锁请求轨迹核验（前台 completion/permission/error 事件：sound 面 granted、system 面 granted 后被门抑制、系统通知零弹出——G33① 判定收口）。
 - **native 层**：`notify` op 处理时 `activity.hasWindowFocus()` 为真 → 不投 `{posted:false, code:"foreground"}`——**不依赖 JS 层假设的兜底**（files 桥 native re-check 先例同型）。双重失效才误报，残余登记 G33① 观察。
 - **后台可达性真相（上游原文）**：`packages/client/src/solid/connection.ts:222-223` 注释逐字「Locking a phone or switching apps hides the document without a pagehide; the socket usually dies while the page is suspended, and the browser may never report that on the hung read.」——锁屏/切走不触发 pagehide（SSE 不主动停），但 socket 通常在挂起期死于平台侧且僵读不报错 → **后台通知是尽力而为**：事件到达且 socket 活着才可能响；回前台 visibilitychange+静默阈值 → resync 快照补齐（recovery.md 场景②权威）。
 
