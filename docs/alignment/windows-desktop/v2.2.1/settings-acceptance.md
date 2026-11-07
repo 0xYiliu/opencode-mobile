@@ -87,7 +87,7 @@
 | S15 | 主题 | appearance.tsx/theme 族 byte-identical（本轮零触碰） | #104 设备复验（system/light/dark、36 主题、Dracula） | BLOCKED（设备） |
 | S16 | 三类字体 | appearance.tsx byte-identical | #104 设备复验（三输入即时生效/跨重启） | BLOCKED（设备） |
 | S17 | 减少动效 | 目标形 + dataset.motion 链在册 | #104 复验（On/Off/持久化；system 档 WebView 114 映射 full 在册环境差） | BLOCKED（设备） |
-| S18 | 系统通知开关 | 通知页目标形 + settings-notification-permission 残留在册；notification.tsx **目标逐字**（M-023 投递面退役 → **#148/G33 登记**，§七） | #107 深浅 sweep/持久化记录 | BLOCKED（设备）+ G33 |
+| S18 | 系统通知开关 | 通知页目标形 + settings-notification-permission 残留在册；notification.tsx **目标逐字**（M-023 投递面退役 → **#148/G33 登记**，§七；**该退役已被 #148 恢复**——本段为 #144 轮冻结记录，现状见 build-and-verify.md #148 段与 units/notifications.md） | #107 深浅 sweep/持久化记录 | BLOCKED（设备）+ G33 |
 | S19 | 声音选择/界面音效 | 通知页目标形（11 行 sounds-interface 在册）；播放消费者已随 #140 迁入 | #107 机证记录（play-resolved 双形态） | BLOCKED（设备）+ G19/G33 |
 | S20 | 快捷键 | keybinds.tsx/migration.ts/command.tsx 目标逐字（本轮零触碰） | #108 触摸可达面 PASS；外接键盘 BLOCKED 继承 | BLOCKED（设备+外接键盘） |
 | S21 | 供应商列表/连接 | providers.tsx 目标逐字；#141 对话框族目标逐字 | #105 设备 QA + #141 源码收敛 | BLOCKED（设备+凭据） |
