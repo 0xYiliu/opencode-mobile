@@ -41,6 +41,14 @@
 - SSH 路由：添加/持久化/指纹挑战（=独立参考）/Trust/密钥认证/服务认证 UI 全链 PASS 至服务认证；**隧道数据面复现阻断缺陷**（JSch 2.28.8 本地转发在 Android 12 设备监听绑定但每连接挂起；同密钥 OpenSSH 主机转发与主机 JVM 同库同序列均正常）——SSH 向全部下游验收继承 BLOCKED，修复候选与四通道证据见 build-and-verify.md #146 段。
 - 结构性发现：idle SSH 主机在无已连接 HTTP 服务时无任何可达重连入口（settings 行 Connect/Delete 按源码注释本阶段有意失败、连接屏因 idle plugin 条目占据 servers.list 不可达）——G30④ 恢复路径判定为不可接受，待用户决策修复取向；SSH 桥冷启动握手竞态一次复现（reload 后 acked，后续冷启动正常）。
 
+## E38 增量核实（2026-11-07，issue #148 实施轮）
+
+- 基线：worktree `feat--221-platform-events`，分支 `feat/221-platform-events`，base `24f5547`（= origin/main，含 #140–#146 前置）；提交链 `87a5da2`→`d7b9e78`→`4a4af28`→`0bd5ff8`→`0f4cc0f`→`d923276`+文档回填；补丁 **74→75 active**；APK SHA-256 `b94e9d87db0f1c1a355f74831d880767955f7cf4049418c28def0b011390ebd1`（设备 payload 身份经 CDP 回读核对）。设备/服务：MatePad DBY2-AL00（Android 12/API 31/WebView Chrome/114）+ LAN 直连 2.2.1 实服务 + 可丢弃项目 oc-148（MCP/Plugins/Skills/LSP 测试数据）。
+- **B0+G33① 源码阶段**：M-023 通知投递面恢复（#144 F2 登记缺口收口——notifications-platform-delivery 字节不动为恢复面本体、session-workbench-upstream 修剪 6→2 目标形 hunks，verify:closure 字节级重放 PASS）；探针重锚（组 2/3/7/8/9 + 三发负例演练）；**G33① 真实缺陷修复**：WebView `document.hasFocus()` 前后台恒 true（CDP 轨迹实测）→ 前台门与共享 FOCUS_LOCK 卡抑制态，补丁 notifications-webview-focus-gate 令门与锁跟随 visibilityState，修复后前台抑制复验 PASS（dumpsys 0×三类别）。工程基线全轮恒同（app 子集 119/7/6err、mobile-hosts 442/0、gradle 9/39/0）。
+- **分阶段判定**：Stage A——粘贴导入全链（对话框面）PASS、失败分支全 PASS 零残留、**扫码物理解码 BLOCKED**（相机平放无法入画）；Stage B——前台抑制/权限 dock 真触点/错误面/类别开关门控/force-stop 边界（D05 形）PASS，**后台到达 PLATFORM-BLOCKED**（渲染器失焦 ≤2.6s 冻结、五样本零事件派发；resync 补齐已证，按在册 G33② PASS 形记录）；Stage C——GUI 扩展开关链/远端 PTY 红线/Reload/force-stop 持久化/覆盖升级存活 PASS（关闭 #109 会话面残项），goal pill BLOCKED（环境）；sources gate PASS；Stage D——MCP connected/failed/disabled+状态推送回流 PASS、pending 不可捕获（诚实）、needs_auth/OAuth BLOCKED、Plugins/Skills 真实非空列表与项目作用域差集 PASS、LSP 空态归因 PASS。逐项证据见 build-and-verify.md #148 段。
+- **结构性发现（登记）**：① **G32⑤ ref 语义实态为方法门控**——link/QR 方法重配对即使在对话框面也丢 `credentialRef`+重置 displayName（`priorRef()` 按密码表单地址字段查 prior、link 方法恒空；文件内注释声称覆盖 link 流与实现不符）——connection.md 已按双向变更协议更正为「dialog+password 保 / dialog+link 丢 / screen 丢」，上游修复决策待定（候选=移动补丁从解析链接 URL 解析 prior）；② **goal 贡献在 WebView 114 结构性失败**——`AbortSignal.any is not a function`（vendored `plugin/src/promise/adapter.ts:110`，Chrome <116 缺该 API；git log 空=预存非 #148 归因；宿主 containment 成立），解除条件=WebView ≥116 或 polyfill 决策；③ **后台渲染器冻结为平台实态**——EMUI Android 12 cached-app freezer 使 WebView 失焦 ≤2.6s 即冻结（电池白名单/standby-bucket 不豁免），后台通知到达与 tap 路由在该设备结构性不可达；④ **LAN 明文兑换可达**——G32④ 预声明 HTTPS 隧道前提本轮不适用，按现产品实态记录（明文 LAN 直连可完成兑换全链）。
+- **维持 OPEN**：扫码物理解码（物理协助）、后台到达/tap 路由（G33②④⑦）、G33⑥⑧⑩、MCP needs_auth/OAuth 完整回流、goal pill、TalkBack 走查（G35⑨）、G32⑤ 上游修复决策、连接屏粘贴链残面——解除条件逐条在 build-and-verify.md #148 段未验收清单。
+
 ## E35 已有运行证据与发布边界
 
 - PR [#135](https://github.com/0xYiliu/opencode-mobile/pull/135) 已合并；GitHub merge commit 为 `bbd0b488efb5a654ce55cbde30661d5287bc4381`，最终 Agent/Extensions 修复提交为 `813e68d`。PR 正文的 Draft、旧 APK 和较早评论不是最终状态。
