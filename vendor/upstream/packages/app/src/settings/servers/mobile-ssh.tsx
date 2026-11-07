@@ -1,6 +1,7 @@
 /** Settings-only presentation adapter. The existing mobile runtime remains the sole owner.
- * No desktop renderer, IPC, restore, resolve or remote bootstrap is installed here.
- * This UI-parity phase intentionally fails mutations before reaching any runtime port.
+ * No desktop renderer, IPC, restore or remote bootstrap is installed here. Row Connect
+ * and Delete drive that runtime directly (issue #161); the challenge dialog path is the
+ * only UI-local flow.
  */
 import { getMobileHosts, parseHostKey, type MobileHosts } from "@opencode-mobile/mobile-hosts"
 import { Menu } from "@opencode/ui/menu"
@@ -77,16 +78,23 @@ export function MobileSshSettingsRow(props: { server: string; health: () => Serv
   const item = () => mobileSshItems(runtime).find((entry) => entry.config.id === id())
   const connect = (config: SshConfig) => {
     // Only an existing challenge/incompatibility has a dialog to present. Ordinary
-    // row Connect follows upstream's immediate attempt (and immediate unavailable error).
+    // rows drive the shared runtime directly (issue #161): offline re-enters through
+    // the T10 retry path, every other state starts a fresh attempt (T1 sources
+    // idle/failed/incompatible/authRequired, so a failed row is actionable again).
     if (item()?.prompt || item()?.stage === "incompatible") { void ui.open(config); return }
-    ui.unavailable()
+    if (runtime.stateOf(id()) === "offline") runtime.retry(id())
+    else runtime.connect(id())
   }
   const row: ServerRow = {
     get key() { return props.server },
     health: props.health,
     Indicator: (indicator) => <ServerHealthIndicator health={indicator.health} connecting={indicator.connecting} authenticationRequired={indicator.auth} />,
-    // Delete is intentionally not wired in this phase. Do not hide a saved host or touch credentials.
-    remove: async () => { throw new Error(ui.translate("error.unavailable")) },
+    // Delete is a local-only registry removal (T14, issue #161): zero transport calls,
+    // the remote host keeps running. A bound vault credential stays as an explicit
+    // orphan for the user to review in Credentials (runtime remove contract).
+    remove: async () => {
+      if (!(await runtime.remove(id()))) throw new Error(ui.translate("error.unavailable"))
+    },
     Items: () => <Show when={item()?.stage !== "ready"}>
       <Menu.Item disabled={item()?.stage === "connecting"} onSelect={() => { const config = item()?.config; if (config) connect(config) }}>
         {ui.translate(item()?.stage === "authentication" ? "authenticate" : "connect")}

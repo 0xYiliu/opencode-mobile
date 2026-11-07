@@ -123,7 +123,8 @@
     "patches/mobile/shell-titlebar-project-icons.patch",
     "patches/mobile/ui-pin-target-residual.patch",
     "patches/mobile/session-ui-rows-current-target.patch",
-    "patches/mobile/session-android-back-bridge.patch"
+    "patches/mobile/session-android-back-bridge.patch",
+    "patches/mobile/settings-ssh-row-runtime-actions.patch"
   ],
   "excluded": {
     "packages": [
@@ -613,6 +614,12 @@
       "id": "session-android-back-bridge",
       "path": "patches/mobile/session-android-back-bridge.patch",
       "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
+      "status": "active"
+    },
+    {
+      "id": "settings-ssh-row-runtime-actions",
+      "path": "patches/mobile/settings-ssh-row-runtime-actions.patch",
+      "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
       "status": "active"
     }
   ],
