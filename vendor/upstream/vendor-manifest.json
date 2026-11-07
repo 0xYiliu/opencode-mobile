@@ -216,7 +216,7 @@
     {
       "id": "connection-remember-credential",
       "path": "patches/mobile/connection-remember-credential.patch",
-      "sha256": "7ac107c76535efa7985cd868431944f1e4d04fa55fcbc9277151eeb74e6ed41d",
+      "sha256": "94042dcde4f084751aee0265c6446bdb50e655f091b42a3547fbefc00b47db55",
       "status": "active"
     },
     {

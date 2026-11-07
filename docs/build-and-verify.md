@@ -3713,3 +3713,60 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - 真机 Phase D 证据：`/home/peterhan/release-staging/issue-149/qa-phase-d/`（22 截图 + 基线 JSON / install 结果 / 9.1MB logcat 去敏审计件）。
 - 模拟器截图（本轮会话 /tmp 下，关键形态已文字录入）：首装连接面 e34-first/home、配对连接后会话列表 e34-paired、覆盖升级后抽屉 e34-drawer、About 三行 e34-about、语言选择器 e34-lang。
 - 签名材料路径（值零入）：`~/.config/opencode-mobile-signing/`（方案与保管见 `docs/release-runbook.md`）。
+
+## issue #166 段（fix(pairing): link/QR 重配对丢失保存身份——priorRef 从保存时解析目标 URL 解析）——2026-11-07 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/fix--166-pairing-credential-ref`，分支 `fix/166-pairing-credential-ref`，base `6b90c1e`（`6b90c1e5a2826908f5224d4511f27002da8bca8a`，origin/main）。改动范围：vendored `packages/app/src/servers/connect/dialog.tsx`（`priorRef` 增 `resolvedUrl` 可选参、add 流 `store.method` 门控传解析后 URL，password 面调用形态逐字节不变）+ 补丁 #8 `connection-remember-credential.patch` 镜像同改（hunk 行数不变，后续偏移字节稳定）+ 登记条目 reason/verification 增补 #166 句 + 文档（connection.md ④/A3/G32⑤）。displayName 重置（`displayName: name`）=上游 v2.2.1 行为，保持不改。**真机轮已于 2026-11-07 完成（见下「真机轮」节），全部步骤 PASS。**
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| 补丁刷新与登记 | `bun run patches:refresh` → `bun run verify:patches` | refresh **PASS（75 registered; updated: manifest.json, vendor-manifest.json, provenance.json）**；verify:patches **PASS（75 registered; updated: none）**——补丁数保持 **75**，仅 `connection-remember-credential` sha256 变更（`7ac107c7…e6ed41d` → `94042dcd…7db55`），后续补丁（含 #12 connection-error-classification）偏移未动，hunk 行数逐字节稳定 |
+| V3 闭包 | `bun run verify:closure` | **PASS**：V3(a) 树 == pin `b4525d79bf` + packageSources + 75 补丁字节级重放、文件类型/可执行位/symlink 一致、LICENSE 字节一致；**DANGLING=0**；V3(b)(c) 过 |
+| mobile-hosts 单测 | `bun test --conditions=browser packages/mobile-hosts` | **442 pass / 0 fail / 2946 expect（40 文件）** = #148/#149 在册基线恒同 |
+| 凭据探针 | `bun run scripts/verify-credential-vault.ts` | **PASS**（真值表 v3 行 1-12+评审修复行 13、早退强制、初始值、host-dialog 装配、hydration 注入、AndroidX 源门） |
+| app 子集（台账 #55 期命令） | `bun test --conditions=solid --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/shell/routes/connection-route.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts`（vendor/upstream/packages/app 下） | **按原样不可复现（预存，非本轮回归）**：`connection-route.test.ts` 已在 v2.2.1 resync 删除（`8b4a676`/`5a46934` 链，路由覆盖移交 `session.test.ts`，本树 `git ls-files` 无此文件）；实跑仅匹配 2 文件，且 solid-only 触发台账 #28 行/#66 注记① 的 solid-js/web server 构建 notSup 导入期终止：**10 pass / 1 fail / 1 error / 25 expect**。git stash 对照：改动前同命令同结果（10/1/1/25），**零差** |
+| app 子集（本仓在册口径，docs L28：加 `--conditions=browser`；当前树文件集） | 同上 preload/参数，文件换 `src/shell/routes/session.test.ts src/settings/route.test.ts src/servers/connect/pairing.test.ts` | 改动前 **21 pass / 0 fail / 69 expect（3 文件）** = 改动后 **21 pass / 0 fail / 69 expect**——**零差**；其余两文件（settings route / pairing link）与台账历史覆盖保持 |
+| Web 构建 | `bun run build:web` → `bun run copy:web-dist` | 均 rc=0；copy 核验 **5622 files / 150,022,409 bytes（verified）**（#149 钉值 5622/150,022,223，同文件数 +186 bytes=chunk 指纹/机器路径 churn；本轮提交含 `web-dist/manifest.json` 回填；android staged assets 为 gitignore 面不入境） |
+| Android 构建 | `ANDROID_HOME="$HOME/.android-sdk" /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL in 37s（42 tasks）**；单测 **9 suites / 39 tests / 0 failures** = 基线恒同；debug APK `android/app/build/outputs/apk/debug/app-debug.apk` **64,448,047 bytes，SHA-256 `0269b4ad4d69b8e211642905f07f7c38d448d9da311896db10a275f5034d736a`**（未安装任何设备） |
+
+**环境修补登记（零 git 跟踪面）**：本 worktree `vendor/upstream/packages/app/node_modules/@opencode-mobile/mobile-hosts` 测试期 seam 软链缺失（主工作树在册、worktree 初始化只建了 `@opencode` scope），按在册口径补建相对本 worktree `packages/mobile-hosts` 的软链后 app 子集方可加载；node_modules 不入库。
+
+### 行为变更口径（#166 修复后）
+
+- **link/QR 重配对（dialog add 流）**：prior 改从 `await target()` 兑换/解析产物 `http.url` 规范化查找（`priorRef(normalized)`，`store.method` 门控）→ 真值表行 6/11 passthrough 恢复透传既有 ref → 同服务重配对不再丢 `http.credentialRef`，重启后保存凭据存活；勾选框仍不渲染、零 vault 操作。
+- **password 面**：`priorRef()` 无参调用与 `initialRemember(priorRef())` 基座逐字节不变——checkboxRendered=true 时（含「地址栏粘贴配对链接」兑换成功边缘）行为与改前恒同，无门控的无条件解析反会以未触勾选框基座查到 prior、引入行 4/9/10 vault.clear 破坏性回归（方法门控即防此）。
+- **已知残余透传边缘**：地址栏粘贴配对链接（password 方法、`redeem(store.values.url)` 成功路径）prior 落空 → ref=undefined 透传——零 vault 操作、无破坏（条目转孤儿非删除，重配对自愈）；本轮不改。
+- **验收对照（待真机轮闭环）**：同服务 link/QR 重配对 → 重启 → 保存凭据存活；取消/失败路径不破坏旧连接；跨服务不继承（URL 规范化相等才命中 prior）。
+
+### 真机轮（2026-11-07，单操作者本地轮；MatePad DBY2-AL00 / Android 12 / 无线 adb）
+
+**环境与数据边界**：worktree debug APK `0269b4ad…736a`（本轮构建）`adb install -r` 覆盖升级 **Success**（firstInstallTime 2026-10-28 03:10:15 不变；on-device base.apk SHA-256 == 本地 == `0269b4ad…`）。升级前后 registry 对照 **3/3**（bastion/tvps 有 ref 绿点、`100.87.216.92:49374` 无 ref 锁定）逐条一致，会话/项目/偏好/标签条全恢复。全程未清数据、未卸载、未触碰用户三条既有条目（只读 control，逐步 registry dump 逐字节对照）；未停止任何用户远端服务/任务（bastion 服务 PID 1574186 全程存活，:49374 未认证探测恒 401）。
+
+**QA 服务面（受控可丢弃实例；:3683 边界披露）**：对用户 bastion 服务直接铸码需 Basic 认证（`POST /api/pair` 无凭据实测 401），且同 URL QA 条目会按 registry `add()` 同 URL 整体替换语义覆盖用户 bastion 条目——为守住「不改用户条目」硬约束，QA 基线条目绑定**第二受控实例** `192.168.3.152:4599`（同机另一端口、隔离 XDG 目录、一次性码经 Basic 认证铸出、值零入台账），跨服务负例另用第三实例 `:4598`。两实例轮末停止并删除数据目录；设备侧两个 QA 条目经 UI Remove 清除。
+
+**步骤与结果**：
+
+| 步骤 | 操作 | 结果 |
+| --- | --- | --- |
+| S1 基线 | `dumpsys package` + CDP registry dump（devtools 经 `localabstract:` 前缀转发；裸 socket 名转发实测空响应） | PASS：2.2.1(20201) DEBUGGABLE；3 条目与 #149 Phase D 记录恒同 |
+| S2 升级 | `adb install -r`；两侧 SHA-256；registry 复读 | PASS：Success；两端哈希一致；3/3 条目保序保 ref；首启自动重连双绿（hydration 存活） |
+| S3 基线条目 | Settings→Servers→Add server→Use password→地址 `192.168.3.152:4599`、名 `qa166-a1`、Remember 真点选勾选→提交；密码=一次性码 curl 兑换所得 token（CDP insertText 输入，值零入台账与命令行） | PASS：条目绿点入列；registry `credentialRef` 命中（`mobile-credential:…`，sha256 前16 `df44446ef9d1e6a4`）；password 持久化面=false（M-002 剥离保持）。首试 insertText 误投 JSON 全文（66 字符 `{"token":…}`）被健康检查 401 行内拒绝、注册表零写入——拒绝路径顺带成立，修正输入后成功 |
+| S4 link 重配对（核心修复） | 新码铸出（300s TTL）→链接粘贴入对话框链接字段→提交 | **PASS（#148 A3 失败形态消失）**：兑换+健康检查通过；4599 条目 `credentialRef` **字节级不变**（前后 sha256 同为 `df44446e…`）；displayName 重置（qa166-a1→null，列表行 URL fallback）=上游行为按预期记录，非失败 |
+| S5 QR 载荷粘贴 | `{"code":…,"urls":[…]}` 粘贴入链接字段→提交（#148 A2 口径=与扫描同一 redeem 面） | PASS：ref 仍 `df44446e…`；健康绿 |
+| S6 重启 | `am force-stop`+重启（#148 A3 失败步骤原文） | **PASS**：4599 条目开机即绿、无重输（hydration 解析 ref）；同屏对照无 ref 的 100.87.216.92:49374 仍锁+Authenticate（`s10-after-restart.png`） |
+| S7 取消负例 | 新码链接粘贴后直接 Cancel | PASS：registry 零变化；该码事后 curl 兑换仍成功=App 兑换零发生（零网络/零 vault 副作用直接证明） |
+| S8 跨服务负例 | 第三实例 :4598 铸码、链接解析到**不同 URL**→提交（成功兑换变体，非仅语法失败回退；brief 回退项如实登记未使用） | PASS：新建 4598 条目 **ref=undefined**（normalizeServerUrl 相等才命中 prior=零跨服务继承）；4599 条目 ref `df44446e…` 恒同；用户条目不变。轮末 UI Remove 清除 4598 条目 |
+| S10 地址栏粘贴残余 | 链接全形粘入**地址字段**（password 面，勾选框初始=未勾）→提交 | PASS（残余如实复现）：条目名 qa166-edge、**ref=undefined**（passthrough prior 落空）；保存零 vault 操作（vault 条目转孤儿非删除）——与 connection.md ④ 在册残余口径一致 |
+| S9 logcat | `logcat -d`（S1 前 clear，覆盖全程 5,765 行） | PASS：FATAL=0；App 进程（前后两代 pid）E 级=0（全部 E 行为华为系统噪声：Booster_BroadcastProxy/Thermal-daemon/SELinux 等）；token/一次性码/`/auth/connect` URL 逐一 count 全 **0** 命中（11 个秘密值） |
+
+**证据**：`/home/peterhan/qa-tmp/issue166/`（pre/post-install-registry.json、step3…step10 registry dumps、`ref-comparison-step4.txt`、`step8-assert.txt`、`leak-scan-summary.txt`、`logcat-full.txt`/`logcat-threadtime.txt`、截图 `s1`–`s13`）。秘密值文件（token/一次性码/两实例密码）轮末已删除，仅存非秘密摘要。
+
+**轮末设备状态**：registry 恰为用户原 3 条（逐字段对照 = S1 基线）；无卸载、无清数据、无用户服务触碰。
+
+**QA 残余（如实）**：qa166-a1 的 vault 凭据（S3 put、S10 ref 丢弃后转孤儿；条目 Remove 不级联 vault——servers 域无 `vault.remove` 代码路径）仍在设备 vault 内为孤儿条目（信封加密、设备密钥保护，凭据管理器孤儿区可见）；孤儿清理由 vault 生命周期轮承载（本轮范围外，同 #148 A3 先例）。两台受控实例及其会话/已兑换 token 已随实例停止消灭。
+
+### 未验收清单（如实保留 BLOCKED + 解除条件）
+
+1. **G32⑤**：真机轮 ref 双面核对 **PASS**（S4/S5/S6/S8/S10），connection.md G32⑤ 行与本段已同步回填——**本项解除**。G32 其余九项维持各自在册状态（本轮不扩范围）。

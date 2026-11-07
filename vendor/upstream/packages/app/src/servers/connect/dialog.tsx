@@ -378,14 +378,14 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
   // that it follows the prior's remembered flag (truth-table "initial value").
   const [rememberOverride, setRememberOverride] = createSignal<boolean | undefined>(undefined)
 
-  // The prior carrying the ref semantics: the edited original, or — on add, regardless of
-  // the connect method (password AND link/redeem) — the stored http record with the same
-  // normalized URL. Only the reference field is taken from it. Without the URL lookup, the
-  // M-006 `original` would be undefined on add and re-adding a remembered server would
-  // orphan its credential reference.
-  const priorRef = (): string | undefined => {
+  // The prior carrying the ref semantics: the edited original, or — on add — the stored
+  // http record with the same normalized URL as the save-time resolved target (the
+  // link/QR redemption result when provided, else the password-form address field).
+  // Only the reference field is taken from it. Without the URL lookup, re-adding a
+  // remembered server would orphan its credential reference.
+  const priorRef = (resolvedUrl?: string): string | undefined => {
     if (store.mode === "edit") return editing()?.http.credentialRef
-    const normalized = normalizeServerUrl(store.values.url)
+    const normalized = normalizeServerUrl(resolvedUrl ?? store.values.url)
     if (!normalized) return undefined
     const prior = server.list.find((item) => item.type === "http" && item.http.url === normalized)
     return prior?.type === "http" ? prior.http.credentialRef : undefined
@@ -504,7 +504,7 @@ function createFormController(options: { onSelect?: (server: ServerConnection.Ht
         checkboxRendered: store.method === "password" && vaultAvailable(),
         remember: remember(),
         valueEmpty: !password,
-        priorRef: priorRef(),
+        priorRef: store.method === "password" ? priorRef() : priorRef(normalized),
       })
 
       // Truth-table rows 2/12: remembering an EMPTY credential stops the save with an inline
