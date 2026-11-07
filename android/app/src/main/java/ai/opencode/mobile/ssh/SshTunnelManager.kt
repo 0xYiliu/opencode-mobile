@@ -9,6 +9,8 @@ import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import com.jcraft.jsch.UIKeyboardInteractive
 import com.jcraft.jsch.UserInfo
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import org.json.JSONObject
@@ -36,8 +38,10 @@ import org.json.JSONObject
  *      publickey, password, keyboard-interactive (same password as the challenge answer).
  *      The forward target is FIXED to the remote loopback `localhost:<servicePort>` (F7,
  *      single hop): a bounded direct-tcpip probe channel decides TARGET_REFUSED, then the
- *      local listener binds 127.0.0.1:0 (kernel-assigned) and the endpoint is
- *      `http://127.0.0.1:<assignedPort>`.
+ *      app-owned local listener [SshLocalForwarder] binds 127.0.0.1:0 (kernel-assigned;
+ *      issue #161 — it replaces JSch's internal PortWatcher listener, whose accept loop
+ *      never serviced accepted connections on the affected Android 12 device) and the
+ *      endpoint is `http://127.0.0.1:<assignedPort>`.
  *
  * Threading contract (F6):
  * - connect/scan run on the single work executor (never the main thread), all bounded:
@@ -84,7 +88,7 @@ class SshTunnelManager(context: android.content.Context) {
         Thread(r, "opencode-mobile-ssh-teardown").apply { isDaemon = true }
     }
 
-    private class LiveSession(val session: Session, val host: String, val port: Int, val listenerPort: Int)
+    private class LiveSession(val session: Session, val host: String, val port: Int, val forwarder: SshLocalForwarder)
 
     /** Sessions with an established tunnel, keyed `host:port` (at most one per host). */
     private val live = HashMap<String, LiveSession>()
@@ -99,11 +103,22 @@ class SshTunnelManager(context: android.content.Context) {
         synchronized(lock) {
             destroyed = true
             val all = ArrayList<Session>()
-            for (entry in live.values) all.add(entry.session)
+            val forwarders = ArrayList<SshLocalForwarder>()
+            for (entry in live.values) {
+                all.add(entry.session)
+                forwarders.add(entry.forwarder)
+            }
             for (session in pending.values) all.add(session)
             live.clear()
             pending.clear()
             teardownThread.execute {
+                for (forwarder in forwarders) {
+                    try {
+                        forwarder.close() // releases the local listener + live connections
+                    } catch (e: Exception) {
+                        // A dead listener must never break the destroy path.
+                    }
+                }
                 for (session in all) {
                     try {
                         session.disconnect()
@@ -272,6 +287,10 @@ class SshTunnelManager(context: android.content.Context) {
             pending[sessionKey(host, port)] = session
         }
 
+        // Set as soon as the local listener exists so the catch below can release it —
+        // every failure after the bind is a local teardown of BOTH the session and the
+        // forwarder (F8①: the remote keeps running either way).
+        var forwarder: SshLocalForwarder? = null
         try {
             try {
                 session.connect(CONNECT_TIMEOUT_MS)
@@ -302,27 +321,73 @@ class SshTunnelManager(context: android.content.Context) {
                 }
             }
 
-            // 5. The local listener: 127.0.0.1:0 (kernel-assigned; never a fixed port).
-            val assigned = try {
-                session.setPortForwardingL("127.0.0.1", 0, "localhost", servicePort)
+            // 5. The local listener (issue #161): the app-owned accept loop binds
+            //    127.0.0.1:0 (kernel-assigned; never a fixed port) and bridges every
+            //    accepted connection over a FRESH direct-tcpip channel to the FIXED
+            //    remote loopback target (F7). The per-connection channel open mirrors
+            //    the bounded probe above: an open/connect failure is the REMOTE refusing
+            //    the target, the affected connection dies and the loop keeps serving.
+            val listener = try {
+                SshLocalForwarder(
+                    remoteHost = "localhost",
+                    remotePort = servicePort,
+                    channelConnectTimeoutMs = FORWARD_PROBE_TIMEOUT_MS,
+                    bridge = { input, output, remoteHost, remotePort, timeoutMs ->
+                        bridgeConnection(session, input, output, remoteHost, remotePort, timeoutMs)
+                    },
+                )
             } catch (e: Exception) {
                 throw SshException(SshErrorCode.FORWARD_FAILED, "local forwarding could not be established")
             }
+            forwarder = listener
 
-            val entry = LiveSession(session, host, port, assigned)
+            val entry = LiveSession(session, host, port, listener)
             synchronized(lock) {
                 if (destroyed) throw SshException(SshErrorCode.BRIDGE_UNAVAILABLE, "manager destroyed")
                 pending.remove(key)
                 live[key] = entry
             }
             scheduleWatchdog()
-            return "http://127.0.0.1:$assigned"
+            return "http://127.0.0.1:${listener.port}"
         } catch (e: SshException) {
             synchronized(lock) { pending.remove(key) }
             // Local teardown of the failed attempt (F8①: the remote keeps running).
-            teardownThread.execute { try { session.disconnect() } catch (ignored: Exception) {} }
+            val created = forwarder
+            teardownThread.execute {
+                try { created?.close() } catch (ignored: Exception) {}
+                try { session.disconnect() } catch (ignored: Exception) {}
+            }
             throw e
         }
+    }
+
+    /**
+     * Bridge ONE accepted connection (the [SshLocalForwarder] accept loop, issue #161)
+     * over a FRESH direct-tcpip channel on [session] to the fixed remote loopback target
+     * (F7). The channel's internal pumps move the bytes between the socket streams and
+     * the SSH channel (setInputStream/setOutputStream); when the channel dies, JSch
+     * closes the provided streams — and each stream's close releases the socket, so the
+     * connection tears down completely on channel EOF. The open/connect failure mapping
+     * mirrors the connect-time probe above: TARGET_REFUSED for the refused target; the
+     * forwarder closes only that connection's socket and keeps serving.
+     */
+    private fun bridgeConnection(session: Session, input: InputStream, output: OutputStream, remoteHost: String, remotePort: Int, timeoutMs: Int): AutoCloseable {
+        val channel = try {
+            session.openChannel("direct-tcpip") as ChannelDirectTCPIP
+        } catch (e: Exception) {
+            throw SshException(SshErrorCode.TARGET_REFUSED, "the remote refused the forward target")
+        }
+        channel.setHost(remoteHost)
+        channel.setPort(remotePort)
+        channel.setInputStream(input)
+        channel.setOutputStream(output)
+        try {
+            channel.connect(timeoutMs)
+        } catch (e: Exception) {
+            try { channel.disconnect() } catch (ignored: Exception) {}
+            throw SshException(SshErrorCode.TARGET_REFUSED, "the remote refused the forward target")
+        }
+        return AutoCloseable { try { channel.disconnect() } catch (ignored: Exception) {} }
     }
 
     /**
@@ -394,11 +459,9 @@ class SshTunnelManager(context: android.content.Context) {
         if (entry != null) {
             teardownThread.execute {
                 try {
-                    try {
-                        entry.session.delPortForwardingL("127.0.0.1", entry.listenerPort)
-                    } catch (ignored: Exception) {
-                        // session.disconnect() below releases the listener anyway.
-                    }
+                    // The forwarder close releases the LOCAL listener and its live
+                    // connections; session.disconnect() then tears the SSH transport down.
+                    try { entry.forwarder.close() } catch (ignored: Exception) {}
                     entry.session.disconnect()
                 } catch (ignored: Exception) {}
             }
@@ -419,9 +482,7 @@ class SshTunnelManager(context: android.content.Context) {
         if (liveEntry != null) {
             teardownThread.execute {
                 try {
-                    try {
-                        liveEntry.session.delPortForwardingL("127.0.0.1", liveEntry.listenerPort)
-                    } catch (ignored: Exception) {}
+                    try { liveEntry.forwarder.close() } catch (ignored: Exception) {}
                     liveEntry.session.disconnect()
                 } catch (ignored: Exception) {}
             }
@@ -458,7 +519,12 @@ class SshTunnelManager(context: android.content.Context) {
                     }
                     for (key in lost) {
                         live.remove(sessionKey(key.first, key.second))?.let {
-                            teardownThread.execute { try { it.session.disconnect() } catch (ignored: Exception) {} }
+                            teardownThread.execute {
+                                try {
+                                    try { it.forwarder.close() } catch (ignored: Exception) {}
+                                    it.session.disconnect()
+                                } catch (ignored: Exception) {}
+                            }
                         }
                     }
                     if (live.isNotEmpty()) scheduleWatchdog()
