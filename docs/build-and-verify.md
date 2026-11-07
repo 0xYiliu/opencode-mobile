@@ -3714,6 +3714,49 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - 模拟器截图（本轮会话 /tmp 下，关键形态已文字录入）：首装连接面 e34-first/home、配对连接后会话列表 e34-paired、覆盖升级后抽屉 e34-drawer、About 三行 e34-about、语言选择器 e34-lang。
 - 签名材料路径（值零入）：`~/.config/opencode-mobile-signing/`（方案与保管见 `docs/release-runbook.md`）。
 
+## issue #161 段（fix: SSH 转发挂起与失效后无法重连——Step 0 根因门 + 设备 QA）——2026-11-07 实测记录
+
+分支 `fix/161-ssh-tunnel-data-plane`（base 6b90c1e5a2826908f5224d4511f27002da8bca8a）。工程轮（设备前）两提交：`3fd71b6` fix(settings)（Settings SSH row Connect/Delete 直驱共享 runtime：offline→retry/T10、其余→connect/T1；Delete=runtime.remove/T14 本地删除；mobile patch `settings-ssh-row-runtime-actions` 登记于 mobilePatches 末位，dependsOn settings-server-menu）与 `c6362a9` fix(ssh)（隧道数据面从 JSch setPortForwardingL/PortWatcher 换为 app 侧 SshLocalForwarder：纯 loopback bind、单 daemon accept-loop、每连接新开 direct-tcpip 桥到固定远端 loopback target；close 幂等且吞异常；五条 teardown 路径全部随 session.disconnect() 关 forwarder）。工程验证：patches:refresh/verify:patches PASS（76 registered）、verify:closure byte-identical DANGLING=0、app targeted subset 46/0/176 expect（基线 46/0/174，+2 来自修订 row test）、mobile-hosts 442/0（不变）、verify-ssh --pre-native --pre-vendor PASS（F8① 红线在册锁定保持）、build:web + copy:web-dist PASS。
+
+### Step 0 根因门（一次性插桩构建，未提交；按批准计划与实施者 readiness plan 执行）
+
+- 插桩构建：`git checkout 6b90c1e -- android/app/src/main/java`（回到 setPortForwardingL 原路径）+ JSch.setLogger 全级别（isEnabled 恒 true，log 经 Log.i 固定 tag 前缀 `jsch[<level>]:`）+ 一次性 `window.__qaMobileHosts` 句柄（仅用于在「已有 http 服务器」的设备上到达 SSH onboarding 面——该面在本构建的可达性缺口见下文 QA 结论；两处插桩均在 QA 后 `git checkout HEAD` 还原，零提交）。web dist 重建（150023284 bytes）+ `install -r`（同签名覆盖升级，数据保留布尔 true）。插桩 APK SHA-256 `0033380bb36d6935f6dbd5d3b0a482f8195bf19f5d3d58d6a4f8df8b7f044c8a`。
+- SSH 主机记录经真实 Add 表单创建（onboarding 面 HostDialog：target/name/servicePort 填写 + input[type=file] SAF 选入既有 QA 测试密钥 /sdcard/Download/oc146-qa.key，密钥值零过账本；vault 信封数 8→9，registry 持久化含 credentialRef）→ Save 即 owner 驱动 runtime.connect → 原路径（scan→store hit→auth→probe→setPortForwardingL bind）。
+- **阳性对照 PASS**：logcat 出现 INFO `Connecting to <host> port 22` 与 `Authentication succeeded (publickey)`（106 条 jsch 行全录 `/home/peterhan/qa-tmp/issue161/logcat-step0-full.txt`；含主机详情，零入册）。
+- **判别矩阵（计划原文两判别）**：挂起前提未成立——(i) 第二次 curl **非 REFUSED**：HTTP 401 正常返回（exit=0）；(ii) 挂起窗内主机侧 `ss -tn` 虽见 localhost:<servicePort> ESTAB 对，但该窗内请求**已完成**（401），不存在「服务零接收」挂起；任一窗口内 jsch 行数 = 0（HALT 条件未触发）。**矩阵行裁定：NO-REPRO / PROCEED**（两 HALT 前提均缺）。
+- 定量：隧道 ready 后 adb shell curl 与 WebView-origin fetch（真实使用路径）均毫秒级——6 连发 18–30ms、WebView fetch 37ms；断开重连后的全新隧道首两请求 18–20ms。**单次异常如实登记**：该隧道有史以来第一个请求曾耗 ~7.9s 后正常完成（exit=0，未越过 -m 8 上限），此后 8 连发未再现；不构成计划所述「无限挂起、服务零接收」。
+- 结论：原 setPortForwardingL 路径在本设备（Android 12/SDK 31 在册机型）+ 当前 jsch 2.28.8 + 主机 OpenSSH 10.2p1 组合下数据面工作正常；#161 报告的挂起未能在本环境复现。Step B 的 app 侧 forwarder 设计未被该门证伪（其语义=PortWatcher 平价 + 每连接桥），继续进入修复构建的设备 QA（即下节）；其设备级证据以本节 QA 为准。
+
+### 还原与干净构建
+
+`git checkout HEAD -- android/ vendor/upstream/packages/app/src/entry.tsx web-dist/` 还原后 build:web + copy:web-dist（5622 files / 150022882 bytes，与工程轮登记值一致；web-dist/manifest.json 23 处 **.js.map hash 漂移为同源非确定序列化，全部出货 JS/资源 hash 不变，随 docs 提交刷新登记）→ `:app:assembleDebug` PASS，干净 APK SHA-256 `a630b2285a5ee0a3b7e331a6b21960440582c08bbc299a5dc46bfa4abb48414a`（与工程轮 32bbb41f… 非逐字节相等=APK zip 时间戳非确定性；dex 无 `__qaMobileHosts`/jsch-插桩残留、含 SshLocalForwarder 类，web-dist manifest 逐文件校验由 copy 脚本完成）。`install -r` Success → `logcat -c`。
+
+### 设备 QA（干净构建 c6362a9；操作窗口 2026-11-07 19:52–20:12 +0800）
+
+| 步骤 | 命令/动作 | 结果 |
+| --- | --- | --- |
+| QA2 隧道 curl（原挂起点） | Settings SSH 行更多菜单 → **Connect（新接线）** → 观察端点 → 设备 curl `/api/info` | PASS：行菜单 ready 态隐藏 Connect（仅 Delete=按设计）；新 listener 出现；curl **401 / 32ms** exit=0（服务存活 401 门；曾为挂起症状的路径） |
+| QA3 SSH 路由消息往返（oc-146 项目 composer） | composer 发送→流式回复 | **BLOCKED（UI 可达性缺口，非传输缺陷）**：隧道 ready 后服务认证密码入口（ServiceAuthPrompt）仅存在于 onboarding 面；该面在本设备（已有 3 个 http 服务器、非 signed-out、无 ownership）不可达（routes 条件闭合圈）。旁证如实登记：home 侧 Authenticate 打开的是通用 http 添加 dialog（对 SSH 路由无效）；workbench 数据面 401。解除条件 = 服务认证重入口（或 onboarding 可达性）产品决策 |
+| QA4 断开→行 Connect→ready；offline/failed→行 retry(T10)→ready | 前半：行 Disconnect 入口；后半：真实断流（设备侧短暂 wifi off）→ watchdog T9 → 行恢复 Connect 项 → 行 Connect（T10 retry） | 前半 **BLOCKED（同一可达性缺口）**：ready 态行菜单仅 Delete，无 Disconnect 项（T14 Delete 是断开+删除合一，已在清理步实测）；后半 **PASS**：行 faded→Connect→新隧道（端口换新）→ curl 401 / 28ms exit=0 |
+| QA5 红线（长任务流中 force-stop 不停远端）+ 重启重连 | `am force-stop` → 主机侧核对 → 重启 → 行 Connect | composer/任务段 **BLOCKED（同 QA3 因）**；**传输级红线 PASS（替代证据）**：force-stop 后 app 的 SSH 会话即刻本地拆除（主机侧该连接消失）、用户服务 PID/etime 持续增长、端口仍 LISTEN、服务请求日志该窗口 0 条 stop/interrupt/abort/cancel（仅事件流 GET 随进程死亡自然关闭）→ 重启 → 行 Connect → 新隧道 → curl 401 / 83ms exit=0 |
+| QA6 MINOR 快速失效可观察 | 一次性主机侧 loopback 监听（临时 python http.server，QA 后已停）+ 经 registry 级写入创建一次性 SSH 记录 #2（见下方偏离注记）→ 行 Connect → 隧道 curl → 仅停该监听 → curl -m 8 -v | PASS：隧道 #2 curl **HTTP 200 / 0.39s** exit=0；停监听后 curl **19ms**、**exit 56**（Recv failure: Connection reset by peer）、非 28 挂起；隧道 listener 本身保持（每连接隔离）；监听进程已停并核对 0 残留 |
+| QA7 G30④ SSH-only 行连接入口（无 HTTP 服务场景） | 记录 #2 servicePort 改指无监听端口 → 行 Connect → 探测拒绝 → 分类失败 | PASS：行指示 critical（failed）、菜单 Connect 项回归且可点（不再死锁）——「失败行仍可操作」成立；失败原因文案不在此行呈现（仅 onboarding 面呈现 reason，如实登记为呈现缺口） |
+| 清理与端态 | 行 Delete 记录 #2（T14）→ registry/持久化收缩核对 → 用户 3 条 http 记录前后逐字节比对 | PASS：Delete 后行消失、持久化仅剩 QA 记录 #1（按计划保留）、无错误 toast；**用户 3 条 http registry 记录前后逐字节相等布尔 true**；known_hosts 行数与 host 字段前后一致（1 行）；vault 9 = 8 原有 + 1 个 QA 密钥信封（随记录 #1 保留）；用户服务 PID 不变、etime 连续增长 |
+
+**偏离注记（如实）**：QA6/QA7 的一次性记录 #2 未经 Add 表单（表单在 onboarding 面，本设备不可达，同 QA3 缺口），改为按 runtime 持久化白名单形状直接写入 registry 存储后重载引导（字段形状=saveHosts 白名单；credentialRef 复用记录 #1 的 vault 引用，零新增密钥值）；其效果等价于表单保存的持久化结果，差异仅为入口。首次注入因 createdAt/updatedAt 形状（须字符串）被 sanitize 丢弃一次，修正后成功（丢弃行为本身即 sanitize 在册防护的正例）。
+
+**本轮新登记缺口（供范围裁定，不在本分支修）**：(a) 服务认证密码重入口（ServiceAuthPrompt）与 SSH 断开（Disconnect）、失败原因文案均只在 onboarding 面存在，多服务器设备上不可达——QA3/QA4 前半/QA5 composer 段的共同根因；(b) Settings SSH 行 ready 态无 Disconnect 项。
+
+### 未验收清单（如实保留 BLOCKED + 解除条件）
+
+1. QA3/QA5 的 composer 段（真实消息往返、count-300 长任务流中 force-stop）：BLOCKED——同上根因；解除条件 = 服务认证重入口产品决策后按原步骤重跑。
+2. QA4 前半（行 Disconnect → 行 Connect）：BLOCKED——行无 Disconnect 项；解除条件 = 行 Disconnect 入口决策后重跑。
+3. Step 0 的挂起复现：本环境未复现（NO-REPRO/PROCEED 如实登记）；若他机复现，判别矩阵与插桩方案（本节 + 实施者 readiness plan）可复用。
+
+### 证据索引
+
+- Step 0 + QA 全部捕获（含 jsch 全录、前后 registry 快照、known_hosts 取证、主机侧核对、截图）：`/home/peterhan/qa-tmp/issue161/`（会话临时路径；**含主机细节，零入册**——本节仅布尔/计数/路径）。
+- 关键文件：`logcat-step0-full.txt`（插桩窗 106 条 jsch 行）、`logcat-qa-window.txt`（QA 窗）、`registry-before/after-step0.json`、`server-before/after.json`（逐字节相等判定源）、`known-hosts-before-full.txt`/`known-hosts-after-redacted.txt`、`qa5-host-before/after-forcestop.txt`、`qa6-listener-up/stopped.txt`、`s0-*.png`/`s5-*.png`/`qa7-failed-row.png`、`step0-apk*.sha256`、`step0-install-result.txt`。
 ## issue #166 段（fix(pairing): link/QR 重配对丢失保存身份——priorRef 从保存时解析目标 URL 解析）——2026-11-07 实测记录
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/fix--166-pairing-credential-ref`，分支 `fix/166-pairing-credential-ref`，base `6b90c1e`（`6b90c1e5a2826908f5224d4511f27002da8bca8a`，origin/main）。改动范围：vendored `packages/app/src/servers/connect/dialog.tsx`（`priorRef` 增 `resolvedUrl` 可选参、add 流 `store.method` 门控传解析后 URL，password 面调用形态逐字节不变）+ 补丁 #8 `connection-remember-credential.patch` 镜像同改（hunk 行数不变，后续偏移字节稳定）+ 登记条目 reason/verification 增补 #166 句 + 文档（connection.md ④/A3/G32⑤）。displayName 重置（`displayName: name`）=上游 v2.2.1 行为，保持不改。**真机轮已于 2026-11-07 完成（见下「真机轮」节），全部步骤 PASS。**

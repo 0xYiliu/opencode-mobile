@@ -1964,6 +1964,24 @@
       "verification": "back-chain.test.ts 7 pass / 0 fail (chain walk, order precedence, unregister, throwing-layer decline); mobile-hosts back-handler port tests 4 pass / 0 fail; app directed subset 58 pass / 0 fail post-registration; titlebar G2 regression set (titlebar/history, routes/session, settings/surface) 13 pass / 0 fail; Kotlin BackDispatchPolicyTest truth table 6/0 + :app:testDebugUnitTest 37/0 + :app:assembleDebug BUILD SUCCESSFUL; device back-matrix QA rides the T14 round. QA-fix rerun: back-chain.test.ts 15 pass / 0 fail (chain walk + popover sentinels incl. closed-marker negatives + dock faces incl. narrow-screen decline); app directed subset / build / gradle rerun in the same round.",
       "status": "active",
       "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12"
+    },
+    {
+      "id": "settings-ssh-row-runtime-actions",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/settings-ssh-row-runtime-actions.patch",
+      "targets": [
+        "packages/app/src/settings/servers/mobile-ssh.tsx",
+        "packages/app/src/settings/servers/mobile-ssh.test.tsx"
+      ],
+      "dependsOn": [
+        "settings-server-menu"
+      ],
+      "reason": "Issue #161 reconnect wiring in the Settings SSH row (E37/G30④): the row's ordinary Connect stops failing closed with error.unavailable and drives the shared runtime directly — offline re-enters through retry (T10 offline→reconnecting), every other state starts a fresh attempt (T1 sources idle/failed/incompatible/authRequired, so a failed row is actionable again and an SSH-only idle host finally has a reachable reconnect entry). The pre-existing dialog path is preserved verbatim for hostKeyUnverified prompts and incompatible rows; the menu item stays disabled while connecting/reconnecting. Delete becomes a local-only runtime.remove (T14: zero transport calls, the remote host keeps running — AGENTS.md red line; a bound vault credential stays as an explicit orphan per the runtime remove contract) instead of throwing error.unavailable. The revised mobile-ssh.test locks the new behavior: Connect starts a real attempt (state leaves idle synchronously, settles failed under the fail-closed stub verifier, no toast, no dialog) and Delete shrinks the registry.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43; generated against the chain replay through settings-server-menu (only patch touching these two files); appended at the end of mobilePatches",
+      "verification": "V3 byte-exact closure round-trip (bun run patches:refresh; verify:patches; verify:closure DANGLING=0); vendored app targeted subset incl. revised mobile-ssh.test green under browser conditions with the test-time mobile-hosts seam; first-party regression bun test --conditions=browser packages/mobile-hosts unchanged; bun run scripts/verify-ssh.ts --pre-native --pre-vendor PASS; build:web + copy:web-dist PASS. Device-side connect→message→reconnect acceptance for issue #161 is gated on the Step 0 root-cause instrumentation run and recorded separately in docs/build-and-verify.md.",
+      "rebase": "Layered after settings-server-menu (its only dependency and the only other patch targeting mobile-ssh.tsx/mobile-ssh.test.tsx); anchors are settings-server-menu's row shape (ServerRow remove throwing, connect calling ui.unavailable). Regenerate from the diff of the replayed chain when the row adapter changes upstream.",
+      "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
+      "status": "active"
     }
   ]
 }

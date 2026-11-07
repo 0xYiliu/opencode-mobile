@@ -128,26 +128,31 @@ describe("production Settings SSH boundary", () => {
     expect(item.stage).toBe("disconnected")
   })
 
-  test("real mobile row exposes upstream Connect/Delete; both fail without changing its owner", async () => {
+  test("real mobile row drives the shared runtime: Connect attempts, Delete removes locally", async () => {
     const runtime = createMobileHosts({ storage: createMemoryStorage() })
     const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
-    const before = JSON.stringify(runtime.registry.list())
     const host = mount(() => createComponent(MobileSshSettingsRow, { server: `mobile-ssh:${saved.id}`, health: () => undefined }))
     const menu = () => host.querySelector("button")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }))
     menu()
     await Promise.resolve()
     const select = (text: string) => [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === text)!.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
     select("Connect")
-    await Promise.resolve()
-    expect(toasts).toBe(1)
+    // The row starts a real runtime attempt (T1) — no fail-closed toast, no dialog.
+    expect(runtime.stateOf(saved.id)).toBe("connecting")
+    expect(toasts).toBe(0)
     expect(pushed.length).toBe(0)
+    // Under the fail-closed stub verifier the attempt settles into failed (T8), leaving
+    // the row actionable again instead of dead-ending on an unavailable error.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(runtime.stateOf(saved.id)).toBe("failed")
+    expect(toasts).toBe(0)
     menu()
     await Promise.resolve()
     select("Delete")
-    await Promise.resolve()
-    expect(toasts).toBe(2)
-    expect(JSON.stringify(runtime.registry.list())).toBe(before)
-    expect(runtime.stateOf(saved.id)).toBe("idle")
+    // Delete is a local-only registry removal (T14): the record disappears, no error path.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(runtime.registry.list()).toHaveLength(0)
+    expect(toasts).toBe(0)
   })
 
   test("a reused row follows a changed mobile host key without retaining the previous host", async () => {
