@@ -3443,7 +3443,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### ① 直连基线与项目生命周期（W01/W10/S27/S28/S29）
 
 - 项目注册：Add project 手输路径 → 建议行命中 → 注册成功；`/api/project` 计数 30→**31**、新条目 canonical 相等 **true**；不存在路径不注册（无伪成功）、Cancel 零注册。服务器步骤中直连条目以历史 displayName "bastion" 呈现（遗留命名，环境事实）。
-- 发送→应答闭环：新会话标题自动生成、GLM-5.3 Flash·Max 应答逐字核对、服务端 1 对问答成立（G20⑤ 直连子集随 P4 全链再证）。
+- 发送→应答闭环：新会话标题自动生成、GLM-5.3 Flash·Max 应答逐字核对、服务端 1 对问答成立（G20③/G23⑤ 直连子集随 P4 全链再证）。
 - 项目 General：name/color 保存链过（服务端 name == "oc-147-repo QA"、icon.color == "cyan" 相等 true）；**失焦即保存语义**（无 Save 按钮，onClose 不构成放弃路径）；icon 图片上传拉起 SAF 实证、落地核验 PARTIAL（SAF 目录导航自动化未完成）。
 - Auto-accept 三值 Select：Use default/On/Off 切换，`settings.v3 autoApproveProjects` 键 true→false→删除全核 ✓（客户端设置归属，非服务端字段）；行为面由 P4.1 权限 dock 顺带覆盖（ask 生效）。
 - Settings 搜索：language/项目名命中行均在视口内 ✓；Servers 入口不弹回 ✓；SSH host 行无（继承 #146 发现②）。
@@ -3473,7 +3473,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 
 - Terminal 打开：ghostty WASM 正常、host shell 提示符渲染（cwd=会话仓库）；`/api/pty` running 条目（pid/cwd 一致）✓。
 - tabs：新建（pty 1→2）/ 切换保屏 / 重命名（UI+服务端 title 同步）/ 关闭（pty 2→1）全过 ✓。
-- **detach 红线①间接固化**：PTY pid 3835281 跨三次 app 进程更替存活（主机 `ps -p 3835281` = `/bin/bash -l` 实测）——客户端死亡，远端进程存活（detach not kill）语义成立。
+- **detach 红线①间接固化**：PTY pid 3835281 跨两次 app 进程更替（三代进程 6715→7347→29996）存活（主机 `ps -p 3835281` = `/bin/bash -l` 实测）——客户端死亡，远端进程存活（detach not kill）语义成立。
 - **红线②（显式关闭终止）、stty 尺寸/旋转、中文输入、clone UI —— BLOCKED**：宽屏双栏（会话+Terminal side panel）经 tab 切换/软键盘/旋转/app 重启后漂移至单栏且常规操作不可恢复（**含跨重启**，D14）；CDP insertText+Enter 在漂移期未达 PTY shell（D15——双栏窗口期 echo/重命名均达 shell 且服务端一致，归因收窄）；真机 IME 组串无法合成（R6）。控制键合成 Ctrl+C `^C` 回显 ✓（部分证据）。
 - OS=Linux 记录在案（persistentPty: true）；其余 OS 非目标。
 
@@ -3492,6 +3492,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - **Files 查看器（D10）与 pierre diff 体（D12）空渲染（复现成立，缺陷候选）**：Open file 侧表面 tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、**fetch 钩子实测 0 个 /api/fs 请求**——组件挂载但数据查询从未发起）；`<diffs-container>` shadowRoot 仅图标 sprite、零内容、host 高度 0；服务端 fs.list/vcs.diff 200 排除服务端因；对照同表面 app-UI 半边正常。→ P3.1/3.2/3.3/3.4/3.6/3.7 BLOCKED（files/diff 单元，回写主归属）。
 - P3.10 debounce：host 编辑后服务端 11s 内 +2 ✓ 但 UI 45s+ 不刷新——根因实测 `/api/event` 流对 host 编辑**零 filesystem.changed 事件**（仅 server.connected），事件驱动链路（model.ts:210，代码在位）从未触发——服务端事件缺位环境限制，不计应用缺陷（D13 关联：staleTime Infinity 缓存跨重挂载/重启前陈旧）。
 - P3.9 二进制 diff：服务端 ("sample.png",0,0,modified)+Binary files patch ✓；应用 Files Changed 列表**不含二进制条目**（重启后亦然）——与计划「列表二进制占位」不符，登记（diff 单元）。
+- P7.2 noGit/initGit 真机 PASS（G23⑤ 关联）：noGit 目录注册（服务端 vcs 无值=noGit 形态、composer 归属 footer 零 changes/分支行，与 location-menu.tsx `Show when={review() && project?.vcs}` 门控一致）→ 发送 prompt → 权限 dock（bash ask）→ 模型 shell 执行 `git init` → host `.git` 目录产生（`git rev-parse --git-dir`=`.git` ✓）+ `git status` 可用（master/No commits yet/?? 5 files）；注册前置=路径建议行点击（未点建议行直接 Select folder 为 no-op——会话 3 首跑失败根因）；M-021 分享桥触发语义核实（见 D16 收窄）；截图 P7.2-05..09。
 
 ### 发现与登记（D1–D17，按归属分组）
 
@@ -3503,11 +3504,11 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 
 **缺陷候选（各带四要素与解除条件，本 Issue 五单元内）**
 - **D10（files）**：Open file 侧表面空渲染。位置/操作=会话右侧面板 ＋ → New tab → Open file；证据=tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、fetch 钩子实测 0 个 /api/fs 请求）、fs.list 服务端 200 正确、对照 Review 面正常；影响=P3.1/3.2/3.3/3.4/3.7；解决条件=pierre-tree 渲染管线修复后复测（截图 `/tmp/oc147-P3.1-D10-empty.png`）。
-- **D12（diff）**：pierre `<diffs-container>` 空渲染（shadowRoot 仅图标 sprite、host 高度 0；vcs/diff 200 数据在位；app-UI 半边正常）。影响=P3.5 两态/P3.6/P3.10 diff 体；解决条件=pierre 组件在 Chrome/114 WebView 渲染管线修复后复测。
+- **D12（diff）**：pierre `<diffs-container>` 空渲染（shadowRoot 仅图标 sprite、host 高度 0；vcs/diff 200 数据在位；app-UI 半边正常）。影响=P3.5 两态/P3.6 diff 体（P3.10 列表时效归 D13 事件缺位，非本渲染缺陷）；解决条件=pierre 组件在 Chrome/114 WebView 渲染管线修复后复测。
 - **D13（diff）**：Review vcs 查询 staleTime Infinity + 服务端 filesystem.changed 缺位 → 列表陈旧（server +2 vs UI +1，跨激活/重挂载/重启前）；影响=P3.10/P3.9 列表时效；解决条件=服务端 fs 事件可用环境复测（或查询失效策略复核）。
 - **D14（terminal）**：宽屏双栏漂移至单栏不可恢复（tab 切换/软键盘/旋转/重启任一后；跨重启；Add tab 缺失致重开终端不可达）。影响=P5.3 红线两段/P5.4/P5.5 终端路径；解决条件=布局恢复机制修复后重跑。
 - **D15（terminal）**：布局漂移期 CDP insertText+Enter 未达 PTY shell（双栏窗口期 echo/重命名均达 shell 且服务端一致——归因收窄至漂移态）。影响=P5.3 sleep 4000 注入；解决条件同 D14。
-- **D16（attachments/core）**：timeline external-link 点击未走 openExternal 桥——mailto→WebView ERR_UNKNOWN_URL_SCHEME 错误页（Back 恢复）、http 未起浏览器。影响=N08 外跳语义；解决条件=点击路径接入桥（或 native 拦截）后复测。
+- **D16（attachments/core）**：timeline external-link 点击未走 openExternal 桥——mailto→WebView ERR_UNKNOWN_URL_SCHEME 错误页（Back 恢复）、http 未起浏览器。影响=N08 外跳语义；M-021 share 桥经 P7.2 触发语义核实为 data:-URL 唯一分支（路径选择 UI 不触桥），D16 范围收窄为「timeline 图片芯片 data: URL 点击」单形态，非 M-021 回归；解决条件=点击路径接入桥（或 native 拦截）后复测。
 
 **环境协调（非应用缺陷）**
 - **D8/D9/D11**：并行 #148 QA 占用同一应用实例（视图劫持/配对对话框/adb install 替换构建 f16cb684→已复装身份 A）；两轮验收需串行（AGENTS.md 单操作者）。缓解=服务端/host 核对优先 + UI 前后双校验 + 被污染即重跑。
@@ -3528,6 +3529,6 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### 证据索引
 
 - 台账：`/home/peterhan/qa-tmp/oc147-evidence.md`（会话 1–4 全记录，545 行）。
-- 截图：`/tmp/oc147-*.png`（约 110 张，场景 ID 序列命名；关键：identity-about/P1.1-05/P1.9-10/P2.2-08/P2.5-02/P3.1-D10-empty/P3.5-01/P4.2-02/P4.4-02/P4.5-01/P5.1-01/P5.2-03..05/P6.1-21/P6.2-13/P6.5-01/P6.6-04/P6.7-01/P7.2-05..09）。
+- 截图：`/tmp/oc147-*.png`（272 个文件，含成对缩略图；台账显式引用 58 个唯一路径；场景 ID 序列命名；关键：identity-about/P1.1-05/P1.9-10/P2.2-08/P2.5-02/P3.1-D10-empty/P3.5-01/P4.2-02/P4.4-02/P4.5-01/P5.1-01/P5.2-03..05/P6.1-21/P6.2-13/P6.5-01/P6.6-04/P6.7-01/P7.2-05..09）。
 - 清理记录：worktree×3 remove+prune、host 目录×3、tmp uploads big.bin、设备 Download×4 全删；服务端遗留逐条登记（QA DB 不清）：项目 7261947be7f4/baac233a0009、会话 ses_e4e4fb72/ses_e4dbeefe/ses_e4c9991a、PTY Terminal 1 pid 3835281 running（QA serve 随用时回收）、uploads 目录壳。
 - 全程未向生产项目/会话发送消息；未 clear 应用数据；未卸载；未重启/停止远端服务；oc-146/oc-148/qa148-a1 零触碰。
