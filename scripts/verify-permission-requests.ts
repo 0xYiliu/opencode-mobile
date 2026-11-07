@@ -87,7 +87,10 @@ const squash = (source: string) => source.replace(/\s+/g, "")
     `${APP}src/session/requests/model.ts`,
     `${APP}src/session/requests/auto-approve.ts`,
   ])
-  const skip = ["node_modules", "/dist/", "/web-dist/", "/.git/", "scripts/", "android/app/src/main/assets/web/"]
+  // issue #149: android/app/build/ excluded alongside the copied WebView payload — gradle
+  // merge/intermediate asset copies inside the build directory are the same minified dist
+  // bytes again, not a separate call surface (the asserted surface stays shipped app source).
+  const skip = ["node_modules", "/dist/", "/web-dist/", "/.git/", "scripts/", "android/app/src/main/assets/web/", "android/app/build/"]
   const glob = new Bun.Glob("**/*.{ts,tsx,js,jsx}")
   const collected = new Set<string>()
   for (const file of await Array.fromAsync(glob.scan({ cwd: new URL(".", repoRoot).pathname }))) {
