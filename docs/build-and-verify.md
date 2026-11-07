@@ -3813,3 +3813,32 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### 未验收清单（如实保留 BLOCKED + 解除条件）
 
 1. **G32⑤**：真机轮 ref 双面核对 **PASS**（S4/S5/S6/S8/S10），connection.md G32⑤ 行与本段已同步回填——**本项解除**。G32 其余九项维持各自在册状态（本轮不扩范围）。
+
+## issue #162/#163 段（fix(webview): pierre 渲染管线两缺陷——Step 0 诊断钉断点 + 修复轮）——2026-11-07 实测记录
+
+### Step 0 诊断（修复前基线 bf3fdc8 新构建复现；本节先于修复提交）
+
+**构建身份与 rig**：分支 `fix/162-163-pierre-webview-render` 基线 APK `4b77cd94dfeb1fb13de4fb772dd3f134bd54def9bdf3de8064c15da7916f65a1`（64,458,047 bytes；基线 gradle 单测 10 suites / 43 tests / 0 fail = 在册基线恒同）；设备 `100.86.53.73:5555`（DBY2-AL00，Android 12，WebView com.huawei.webview 114.0.5.302，UA Chrome/114.0.5735.196），`pm path` 回读 pull 后 sha256 与构建相等 true。QA server **本机 v2.2.1（GitHub release 二进制，`opencode serve`）= pin 版本零偏差**（m1 的 2.1.1 降级路径不触发）；fixtures `/tmp/oc162-qa-repo`（normal.txt/edit-me.txt/longline.txt 20000x + appended 工作区 +1 行/sample.png）；`/api/fs/list`（`location[directory]` 形）与 `/api/vcs/diff`（mode=working → longline.txt +1/-0）采证前 smoke 均 200。app 侧连接经 pairing link 兑换 + password 面「remember credential」（M-009 vault）建立——发现 **M-002 password memory-only**：pairing 兑换所得凭据仅存内存，`location.reload()` 后 401；vault remember 是跨 reload 唯一持久面（#162 QA rig 操作性发现，非缺陷，登记）。
+
+**0-a 固定前置**：SW unregister（1）+ caches.delete（1）+ reload 后重采样：performance 资源 181 个 `_assets/*` 名称 **全部 ⊆ web-dist/manifest.json files 键集**、入口 `_assets/index-Bm0WCEBk.js` 200 命中——采证身份成立（M3）。
+
+**0-b D10 复现与 M1 裁决（F2：判据采于真实文件 tab、sidebar 展开态表面）**：右侧面板 ＋ → Open file，tabpanel `session-side-panel-file-browser-tabpanel` **children=1 / innerHTML=3036 ≠ 0/0**（#147 期 0/0 形态在 bf3fdc8 上不复现）；`[data-slot="session-review-v2-sidebar"]` **存在**、过滤输入框存在、`file-tree-container` 存在、`[data-component="file-tree-v2"]` wrapper 存在（带 data-total-rows）；`performance` 实测 **`/api/fs/list?location[directory]=/tmp/oc162-qa-repo&path= 200`**——数据链已触发（fetch 钩子 0 计数的 #147 测量伪影判定成立）。**M1 裁决：H1（面板层 Suspense/lazy 工厂挂起）否定；H2-c（数据链未触发）否定。** 逐 chunk 缓存击穿导入未见挂起；console 双通道零 `[file]` 标签错误。
+
+**D10 真断点（新事实，两处）**：
+1. **依赖基线漂移**：console.error `[plugin] file TypeError: R.applyGitStatusPatch is not a function`（`_assets/pierre-tree-DSMyPcdA.js`）+ window-error `Uncaught TypeError: R.getVisibleRows is not a function`。vendored 源 `packages/gui-plugins/src/file/pierre-tree.tsx:463/508` 逐字节等于 pin 3ebcf9a（调用 beta.6 API），但 vendored `packages/app/package.json` 与 `packages/gui-plugins/package.json` 及移动根 `patchedDependencies` 均钉 **@pierre/trees 1.0.0-beta.4**（旧 pin b4525d79 时代），pin 实际为 **beta.6**（package.json + bun.lock + `patches/@pierre%2Ftrees@1.0.0-beta.6.patch`）；beta.4 dist 中两方法不存在（grep 证）。即：源=新 pin、依赖=旧 pin 的 vendor 同步缺口。
+2. **几何塌缩**：shadow DOM 内 5 行（.git/edit-me/longline/normal/sample，28px/行、list height:140px）全部就位，但 `data-file-tree-virtualized-scroll` 高 **8px**；高度链测量 `aside[data-slot=session-review-v2-sidebar]` 684px → sidebar-tree 601px（flex:1 规则在位）→ sidebar-viewport 601px（`:has(file-tree-container)` 列 flex 规则在位）→ **`[data-component="file-tree-v2"]` wrapper 12px（flex:0 1 auto，无任何高度/flex 规则命中）** → host 12px → 内层 shadow 链 12/8px。是否为 beta.6 才有的布局行为以升级后复测裁决（修复轮记录见下）。
+   截图（基线，不入境）：`/tmp/oc162-163/oc162-D10-empty-baseline.png`（侧栏+过滤框在、树区塌缩不可见）、`oc162-163-step0-session-open.png`、`oc162-163-step0-review-open.png`。
+
+**0-c D12 判别（Files Changed → longline.txt）**：`<diffs-container>` shadowRoot children = **svg(sprite 16080B) + PRE(0)**，host 高 **0**、宽 529——与 #147 D12 形态逐项一致；截图 `/tmp/oc162-163/oc162-D12-empty-baseline.png`。判别项：
+- **12s MutationObserver（m6）**：childList 变更 **0 次**——非路径 2（无周期性重建）；一次性失败后稳定 = 路径 1 形态。
+- `/json/list` 无 worker target、Target.setDiscoverTargets 无 worker——但 Worker 构造器钩子实测 **2 个 `/_assets/worker-AgjTSOCS.js` module worker spawn、`errors:[]`、`messages:0`**（spawn 成功、脚本加载零错误、但从未回任何消息）；10s 后池超时 terminateWorkers（复测 Target attach 0 个，自洽）。
+- **根因钉死（initdoc console 捕获，全 boot 每轮恒现）**：`RangeError: WebAssembly.Compile is disallowed on the main thread, if the buffer size is larger than 4KB`（`_assets/highlights-CPYkTV9U.js:3` 顶层 `init(new WebAssembly.Module(wasmBytes))`，183KB wasm 同步编译）×2 + 同文 unhandled rejection ×1。链路：`preferredHighlighter:"highlights"`（vendored `session-ui/src/pierre/index.ts` highlightOptions）→ 池 `initialize()` = `Promise.all([loadSharedHighlighter(主线程), initializeWorkers])` → 主线程动态 import `@pierre/highlights` dist default.js 顶层同步编译抛 RangeError → initialize reject → catch 置 `workersFailed=true` + terminateWorkers → FileDiff.render 走 `getPlainDiffAST` 时共享 highlighter 未载 → `queueInitialization(); return;` → render 返回 false → 恒 sprite+空 PRE。Chrome 同步编译 >4KB 主线程禁止为版本无关 Chromium 行为，「highlights」引擎在主线程不可用；worker 内异步编译本可用，但被主线程半边拖死（Promise.all）。
+- 对照目标 API：`resolveHighlighterType` 默认 **`"shiki-js"`**（纯 JS 正则引擎，无 wasm，主线程/worker 双可用）；上游 highlightOptions 显式 opt-in "highlights"。
+
+**决策表落点（对计划 v2 的偏离与理由）**：
+- H1 未证实 → **`files-panel-lazy-resilience.patch` 不落地**（其前提 lazy 工厂挂起/styles 永不落定与诊断矛盾；按 F3 精神如实登记，不强行扩 patch）。
+- §2.3 polyfill 扩展不触发（pierre 链无新增缺失 API 同步调用；`AbortSignal.any` 仅 goal 插件（`[plugin] goal TypeError`）= #165 在册，本轮不动）。
+- D12 → **`diff-worker-pool-fallback.patch` 落地**（§2.2），并在其内按决策表「pierre dist 侧 → 调用层改 preferredHighlighter/绕过」执行 `preferredHighlighter "highlights"→"shiki-js"`（114 主线程 wasm 同步编译不可用；shiki-js 为 pierre 默认引擎，主/worker 双面可用，保留完整语法高亮，非降级空渲染）。
+- **新事实落点（计划外 vendor 修正，非 mobile patch）**：@pierre/trees beta.4→beta.6 依赖基线对齐（vendored 两 package.json + 移动根 patchedDependencies + patch 文件换 pin 的 beta.6 版 + bun.lock 刷新）——修复「源=pin、依赖=旧 pin」缺口，属 copy 基线恢复；不动 bun patchedDependencies 语义（beta.6 patch 内容为上游自己的 onExpansionChange 透传 patch）。
+
+### 修复轮（本节其余部分随修复提交回填）
