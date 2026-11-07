@@ -43,8 +43,11 @@ android {
         applicationId = "ai.opencode.mobile"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // versionCode scheme (issue #149, release-runbook): major×10000 + minor×100 + patch.
+        // Strictly order-preserving for major≥1, minor≤98, patch≤99 (1.99.99=19999 < 2.0.0=20000;
+        // 2.9.99=20999 < 2.10.0=21000); 2.2.1 -> 20201 (monotonic over the installed 0.1.0/1).
+        versionCode = 20201
+        versionName = "2.2.1"
         buildConfigField("int", "WEB_ASSET_PORT", "18090")
         buildConfigField("boolean", "PASSWORD_KEYBOARD", passwordKeyboard.get().toString())
     }

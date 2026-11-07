@@ -14,5 +14,10 @@
 // (vendor/upstream/packages/app/package.json "version", shown on its own About row) and
 // from the connected server version (/api/info via ServerHealth, shown on its own About row
 // with explicit degradation strings). See the issue #72 alignment record (E27).
+//
+// Issue #149 release round: the identity left its 0.1.0 development placeholder and synced
+// to the 2.2.1 alignment target (versionCode scheme major×10000+minor×100+patch = 20201;
+// see android/app/build.gradle.kts and docs/release-runbook.md). The vendored base row keeps
+// showing the real pin tree version (2.1.4) — source honesty is unchanged.
 
-export const MOBILE_APP_VERSION = "0.1.0"
+export const MOBILE_APP_VERSION = "2.2.1"

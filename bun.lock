@@ -7,7 +7,7 @@
     },
     "packages/mobile-hosts": {
       "name": "@opencode-mobile/mobile-hosts",
-      "version": "0.1.0",
+      "version": "2.2.1",
       "dependencies": {
         "@opencode/ui": "workspace:*",
         "solid-js": "catalog:",
