@@ -1532,6 +1532,7 @@
         "packages/util/src/session-mention.ts"
       ],
       "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",
       "status": "active",
       "verification": "Replay, owning tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
@@ -1586,6 +1587,7 @@
         "packages/app/src/runtime/server/media-generated/types.ts"
       ],
       "reason": "Client/runtime compatibility source and media API contract; generated media client code remains in scope, while locally added tests absent from the fixed target are excluded. Issue #142: the composer/commands.tsx usage.view removal hunk (workaround for the then-missing usage module) and the providers/models/select-dialog.tsx drawer/manage fallback hunk (absorbed by the v2.2.1 target form) are retired; both hunks' purpose now lives in the target form carried by model-selector-usage-parity. Issue #144: the settings/search-catalog.ts zoom-gate hunk is pruned (see rebase); the M-035 catalog deviation lives directly in the vendored source.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
       "status": "active",
       "verification": "Replay, media/API/client tests, typecheck and build outcomes are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
@@ -1616,6 +1618,7 @@
         "packages/app/src/session/session-ownership.test.ts"
       ],
       "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
       "status": "active",
       "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
@@ -1651,6 +1654,7 @@
         "packages/app/src/shell/panel-motion.test.ts"
       ],
       "reason": "Minimal Android adaptation layer: retain mobile-hosts initialScreenOwned gating, keep the dev/Beta components lab out of this client, and guard the older WebView :dir() selector. Its composer hunk removes the target VoiceComposer wrapper and preserves the non-voice Composer fallback in accordance with ADR 0006; it does not enable voice calls.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
       "status": "active",
       "verification": "Replay and panel-motion/route/composer tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
@@ -1722,6 +1726,7 @@
         "packages/app/src/providers/models/selection.tsx"
       ],
       "reason": "Show the existing server-provided agent selector on the Android host while retaining Desktop visibility and existing selection fallback semantics.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
       "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
       "status": "active",
       "verification": "Static source inspection; empty catalogs remain hidden by the existing Composer view guard; device verification pending.",
@@ -1895,6 +1900,7 @@
         "packages/schema/src/usage-limits.ts"
       ],
       "reason": "v2.2.1 parity for the model selector family and usage viewing: usage/** (dialog/format/limits/model + tests + stories), selector target forms (details/manage.css new; select-dialog/manage/unpaid/provider-group/search rewritten to target), usage.limits schema/protocol/client closure (UsageGroup registration, generated types+client, solid data usageLimits resource and budget-refusal refresh wiring), usage.view composer registration, usage-exceeded standalone connect, en.ts 86 usage/model-details keys. Issue #142.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 (pin) + packageSources gui-plugins = 3ebcf9a32c7b28f658cfee80775448929361727a (v2.2.1); patch content copy-first from the v2.2.1 target faces (issue #142)",
       "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
       "status": "active",
       "verification": "verify:closure byte-identical replay (70 patches), negative drill (deferred + removed from mobilePatches -> closure FAIL with Only-in usage/ files -> restored PASS), app unit tests + typecheck distribution, web dist positive retrieval and Android build recorded in docs/build-and-verify.md issue #142 section."
