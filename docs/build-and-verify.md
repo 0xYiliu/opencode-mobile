@@ -3616,3 +3616,100 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - Stage C：`c0-current.png`、`c1-localstorage-pre.json`、`c2-*.png`、`c3-{terminal-disabled,terminal-reenabled}.png`、`c3-net*.ts`、`c4-{reload,goal-failed-row}.png`、`c5-forcestop-persist.png`、`c7-sources-gate-on.png`、`c8-ui.xml`。
 - Stage D：`d1-{mcp-list-full,dialog-mcp,project-toggle-on}.png`、`d2-flip*.ts/txt`、`d3-{server,project}-plugins.png`、`d4-{server,project}-skills.png`、`d5-lsps.png`、`d6-*.png`、`d-final-state.png`。
 - 全程零凭据值/零 adb 端点入台账；配对一次性短时效码仅存于任务指定 QA 记录位（仓外，mode 600）；设备通知抽屉含厂商噪声——dumpsys grep 为权威负例仪器。
+
+## issue #149 段（release: 统一 2.2.1 身份并交付已验证的签名 APK）——2026-11-07 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-release-221`，分支 `feat/221-release-221`，base `265790c`（origin/main，#159 合入）；vendor pin `b4525d79bf` + packageSources gui-plugins = `3ebcf9a`（目标 v2.2.1）。**RC = `6e83db6`**（c4 后全部源码影响的最终 HEAD，git status clean 登记；含 c3 `web-dist/manifest.json` 回填）。提交链：`c03dff3`（c1 仓库外签名接线）→ `bb75c0c`（c2 身份同步 + 全轮唯一 web 构建）→ `bbc3104`（c3 探针扫描域修正 + dist 见证回填 + web-dist/manifest.json）→ `6e83db6`（c4 六补丁 upstreamBaseline）→ c6+ 文档提交（零源码，冻结语义允许）。未 push。本轮零 vendored 树改动、零新补丁、patch 文件字节不动。
+
+**版本身份**：`MOBILE_APP_VERSION` = gradle `versionName` = mobile-hosts package.json = **2.2.1**；`versionCode` = **20201**（方案 major×10000+minor×100+patch，写有 gradle 注释与 release-runbook）；vendored `packages/app/package.json` 保持 **2.1.4**（D2：基座行如实显示 pin 树版本，不伪称整套来源已升级）。签名材料只在仓库外 `~/.config/opencode-mobile-signing/`（dir 700 / keystore 600 / signing.properties 600），`~/.gradle/gradle.properties` 四属性（600）；任何密码/密钥值零入仓库、台账与日志；leak-scan 命中集与 base 恒同佐证。
+
+### 工程门禁（实跑输出）
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| 补丁登记 | `bun run verify:patches` | **PASS（75 registered; updated: none）**；`patches:refresh` 双跑：首轮重建 `updated: none`、二轮幂等确认（c4 manifest-only 改动，sha256 不变、patch 文件零触碰） |
+| V3 闭包 | `bun run verify:closure` | base 与 c4/RC 树各 **PASS**（DANGLING=0；V3(a)(b)(c) 全过） |
+| 干净 vendor 重放 | `bun run vendor:sync` 后 `git status` | **rc=0，status 0 行**——树 = pin+packageSources+75 补丁 = 提交态（来源可追溯证明轮，非修复轮） |
+| mobile-hosts 单测 | `bun test --conditions=browser packages/mobile-hosts` | **442 pass / 0 fail / 2946 expect（40 文件）** = #148 在册基线恒同 |
+| gradle 单测 | `:app:testDebugUnitTest`（gradle 9.6.1，ANDROID_HOME=$HOME/.android-sdk） | base 与 RC 各 **9 suites / 39 tests / 0 failures** |
+| 探针普查（干净 pre-build 树） | 33 探针逐一 `bun run scripts/verify-*.ts` | **11 rc=0 / 22 rc=1**（枚举集见下） |
+| 探针普查（RC 构建态） | 同法（dist + staged assets 在场） | **14 rc=0 / 19 rc=1**；rc=0 集 = verify-about-version、verify-agent-capabilities、verify-connection-inline-ssh、verify-credential-vault、verify-direct-connection、verify-experimental-settings、verify-interface-mode、verify-notifications、verify-open-external、verify-projects-sessions、verify-provider-models、verify-service-ops、verify-settings-framework、verify-ssh（与计划主工作树 14 条枚举集一致；verify-about-version rc=0）；rc=1 集 = 19 条逐项归因见下表 |
+| 凭据持久审计 | `bun run scripts/audit-secret-persistence.ts` | 干净 pre-build 树 rc=1 为**环境性**（F 组需 dist，ENOENT 与 base 同）；构建态 **PASS**（A–G 全过，dist 标记 mobile(M-002)+mobile(vault-v1) 命中） |
+| 泄漏扫描 | `bash scripts/leak-scan.sh` | base 与 RC 均 rc=1 为**基线既有**：高置信命中集逐条相同（mobile-hosts 测试合成 fixture 5 行，marked "synthetic fixture"）+ 低置信复核集相同，**零新增**；gitignore spot checks 全 OK；签名材料零入库专项核对（git 跟踪文件无 keystore/properties/pem） |
+
+**探针枚举集（两态，实测登记）**：干净 pre-build 态 rc=0（11）= about-version、agent-capabilities、connection-inline-ssh、credential-vault、experimental-settings、interface-mode、notifications、open-external、projects-sessions、provider-models、settings-framework；其余 22 rc=1。构建态（RC）rc=0（14）= 上列 11 + direct-connection、service-ops、ssh（恢复原因：dist 与 staged assets 就位）；rc=1（19）= appearance-settings、artifacts、attachments-artifacts、browser、commands-menus、credential-ref、debug-bar、diff、files、goal-sources、gui-plugins、inline-ssh-device、interaction-quality、pairing、permission-requests、pinch-shell-settings、recovery、session-workbench、terminal。计划 §4 预期的「干净树 17 rc=0」经实测**不成立**（§9.1 假设被推翻）：direct-connection/service-ops/ssh 为 dist/assets 依赖（构建后恢复），permission-requests/session-workbench 的失败为**源级陈旧锚**而非构建产物噪声（见归因表），仅 inline-ssh-device 为设备环境依赖。本轮任何探针未从其所在态枚举集跌出；构建态 rc=0 集与计划主工作树 14 条完全一致。
+
+### 19 探针逐项归因（四类协议；当前树 = base 265790c，rc=1 全部为预存或环境态）
+
+| 探针 | 失败要点（实测首行） | 判定 | 处置 |
+| --- | --- | --- | --- |
+| verify-appearance-settings | 组 4：desktop-menu 带 nextDesktopZoomLevel | R2 在册（#144，归属 #145/N10） | 不修；登记引用 |
+| verify-pinch-shell-settings | vendored app/src 2 文件带 nextDesktopZoomLevel | R2 同域在册 | 不修 |
+| verify-commands-menus | 组 1：DesktopMenuRole 缺 resetZoom | R2 同域在册 | 不修；**组 8 dist 钉回填 5622/150022223** |
+| verify-gui-plugins | 组 2：btw/renderer.tsx 失 session-btw-narrow-entry 门注释 | 预存在册（#144） | 不修；组 8 dist 钉回填同上 |
+| verify-artifacts / verify-attachments-artifacts | region.tsx attachments-share-bridge data: 分支（组 7/组 3） | 预存在册（#143） | 不修；后者每补丁 upstreamBaseline 非空断言在 c4 后构成佐证 |
+| verify-files | 组 2：destination.ts M-012 redirect 校验 | 预存在册（#143） | 不修 |
+| verify-browser | 组 2：desktop-menu.test.ts specifier gui-plugins/terminal | 预存在册（#143） | 不修 |
+| verify-pairing | 组 5：clipboard-write 6 writes/5 files（多 session-identity-header.tsx 一处） | 预存在册（#144/#145） | 不修 |
+| verify-interaction-quality / verify-terminal | 组 3/组 6：panels.tsx visualViewport 高度同步锚变薄（双探针同根因交叉引用） | 预存（组 3 在册 #144；组 6 同根因） | base 同败同文；不修源码，登记归属 |
+| verify-credential-ref | SyntaxError: serverState 不在 persistence.ts（陈旧 import） | 预存陈旧 import（#145 FAIL 集在册） | 不修 |
+| verify-debug-bar / verify-diff / verify-goal-sources / verify-recovery | 组 3：titlebar channel env 锚 / 组 3：revert 序列锚 / 组 1：sources renderer mobile 面负锚 / 组 5：client.tsx reconnect 三元锚 | 预存（goal-sources 在 #142-merge 在册清单；其余 base 对照归因登记） | 不修 |
+| verify-inline-ssh-device | CDP 127.0.0.1:9222 ConnectionRefused | 环境性（设备依赖探针，在册口径） | 设备轮替代；本地模拟器无 CDP 设备面 |
+| verify-permission-requests | 组 1：**源级** — data.ts permission.reply wrapper 获得 in-app caller `src/shell/titlebar/inbox-model.ts`（#147 workspace copy，ae10625，行为验收在其轮） | ①陈旧锚（预存）+ ②环境态双因：计划所述构建产物扫描（android/app/build/intermediates route-*.js，主工作树态先败于此）**与**源级新 caller 并存；干净树先败于后者 | **扫描域修正**（c3：skip 增 `android/app/build/`，与探针自述扫描意图一致）；源级 caller **不重锚不修**（①登记归属 #147；修正后负例注入 rc=1 命名注入文件，断言域未弱化）；失败文本与 base 恒同 |
+| verify-session-workbench | 组 1：**源级** — linear interrupt 调用点 `session/composer/region.tsx:471`（#147 同 commit 的桌面活动停钮拷贝） | 同上双因同构 | 同上处理（c3 扫描域修正 + 负例注入复验 + 预存登记，不修） |
+| verify-notifications | （base rc=0 → 构建态 rc=1）组 8：totalBytes drifted expected 149943945 got 150022223 | ④版本同步自引（本轮唯一） | **c3 必修**：dist 见证回填 5622/150022223（#149 归因注释 + 历史链保留），回填后 rc=0 恢复 |
+
+**dist 见证变更事实**：全轮唯一 web 构建于 c2 身份树（`bun run build:web` rc=0 → `copy:web-dist` rc=0）；manifest 5622 files / **150022223 bytes**（前钉 5622/149943945，同文件数 +78278 bytes）；逐文件对比：实质变化仅 index.html、sw.js 与 entry chunk 改名 `index-B-7B3T0I`→`index-CpaevSWf`（chunk 内 2.2.1 ×1、0.1.0 ×0——身份注入面），其余 649 个 .map 为 sourcemap 机器路径 churn（构建 worktree 路径再嵌入，非发布语义）。APK 内 entry chunk/index.html 与 manifest sha256 抽核一致。
+
+### 签名与构建（RC = 6e83db6 处）
+
+| 项 | 命令/方法 | 结果 |
+| --- | --- | --- |
+| keystore | `keytool -genkeypair -storetype PKCS12 -keyalg RSA -keysize 4096 -validity 10950`，alias `opencode-mobile-release`，`~/.config/opencode-mobile-signing/`（dir 700，keystore/properties 600） | 生成成功；密码值仅经 shell 变量写入仓库外文件，未入任何日志/台账 |
+| gradle 接线三分支 | `:app:signingConfig`/`assembleRelease` 配置期行为 | 全四在 → signingReport release 行 = release config（store/alias 正确）；全缺（-P 四空覆盖）→ rc=0 + lifecycle 「…will produce an UNSIGNED APK」；部分缺 → rc=1 fail-fast 点名缺失三项 |
+| 负例 unsigned 构建 | 四属性空覆盖 `:app:assembleRelease` | rc=0，产 `app-release-unsigned.apk`（56,591,643 bytes）；lifecycle 行留证；apksigner verify rc=1（DOES NOT VERIFY / Missing META-INF）——release 门禁断言签名的理由成立 |
+| 签名 release 构建 | `:app:assembleRelease :app:assembleDebug`（RC 树，零 web 重建——未重跑 build:web/copy:web-dist；gradle `verifyAndroidWebAssets` 守卫自然复验） | 双 rc=0 |
+| dist 三方断言（MAJOR-2） | `python3 scripts/android_web_assets.py verify` + 显式断言 manifest fileCount/totalBytes == c3 回填值 | verified rc=0 + 断言 5622/150022223 == 回填值通过；此后零重建 |
+| 签名校验 | `apksigner verify --verbose --print-certs` | **Verifies；v2 scheme = true**（v1/v3/v4 false）；signer SHA-256 `bbd5214880378a4f4d7a4076b04ab71f3444d01846392ec46df691fd055f4190`（= keystore 指纹，登记于 release-runbook） |
+| APK 身份 | aapt2 dump badging（build-tools 36.0.0） | package `ai.opencode.mobile`、versionCode **20201**、versionName **2.2.1**、minSdk 29 |
+| APK 资源 | `unzip -l` + APK 内 chunk sha256 vs web-dist/manifest.json | assets/web **5622 文件**在包；`_assets/index-CpaevSWf.js` 与 `index.html` 哈希与 manifest 全等 |
+| 归档 | `/home/peterhan/release-staging/issue-149/`（仓库外） | `opencode-mobile-2.2.1-release.apk` SHA-256 **`aa145593d4d7086130f1233d3cbc58279b9d84054c93c94c92df2b6efb02a637`**（56,595,739 bytes）；`opencode-mobile-2.2.1-debug.apk` SHA-256 **`abcf1a42c4d49ecf911ff65dd741c0fdbbf3ef02f5efd2d1c463ca9b6a42a767`**（64,447,987 bytes）；归档件与构建输出哈希复对一致。发布包 = 验收包同一文件对象（D5），上传须用户发布授权（U2 未决，零上传/零 tag/零 Release） |
+
+### 模拟器 Phase E（本地可丢弃 AVD；MatePad 未触碰——真机 Phase D/R 由协调员门控）
+
+- **环境**：AVD `issue75api34`（API 34，WebView 113.0.5672.136，swiftshader 软渲染，本地 KVM）。AVD `issue75qa`（API 31）尝试记录：其系统 WebView **91.0.4472.114** 过旧——app JS 首屏即 `Uncaught TypeError: Object.hasOwn is not a function`（白屏，bridge handshake 无 ack），本轮在该镜像不可用（环境事实登记；≥116 仍为 goal pill 条件，非本轮门禁）。另记录：本机 /dev/kvm ACL 被系统服务周期回置，模拟器启动需即时 setfacl 后竞速拉起（环境噪声，与仓库无关）。
+- **debug→release 签名不兼容实测**：两台 AVD 均预装 #75 轮 debug 包（0.1.0/1）；release APK 直接覆盖安装 → `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（签名不匹配）——issue 述明的迁移后果在两台设备上真实成立；卸载 debug → release 首装成功。
+- **首装链**：`adb install`（staged 归档 APK）→ Success；dumpsys `versionCode=20201 versionName=2.2.1 firstInstallTime=2026-11-07 14:31:41`；冷启动 → 首装连接面正常渲染（pairing/password/SSH hosts 三法 + `opencode pair` 提示）；无 whatsNew 弹窗自发出现（与 ADR 0005 §2.4 首装分支预期一致；seen 水位写入未单独 dump，如实登记）。
+- **真实服务连接**：经设计内配对流程连接一台**本地** opencode 实例（`opencode serve`，进程与端口均为本轮临时拉起；`opencode pair` 生成一次性配对链接，链接值零入台账）。⚠️ **诚实登记（范围外触碰，只读）**：2.1.1 实例不隔离 XDG 数据目录，`opencode pair` 实际与数据目录服务注册表中**用户已在运行的 2.2.1 本地服务**完成配对——客户端据此渲染了真实项目/会话列表并读取服务版本（均为只读 GET 面）；**零任务发送、零会话创建、零变更写入、零凭据值入记录**；发现后立即收口（force-stop 断连 → 临时 serve 进程已停 → 用户服务进程核验未受影响）。发送/停止/授权等有副作用验收维持协调员门控（oc-14x 可丢弃项目路径）。
+- **About 三行实显（S39，截图留证）**：设置 → About 页实显 **Version 2.2.1**（client 行 = MOBILE_APP_VERSION）、**Upstream OpenCode 2.1.4**（基座行 = vendored pin 树真实版本，D2）、**Server OpenCode 2.2.1**（服务行 = 实连服务真实版本，与 client 行独立不混淆）——服务行诚实降级串（checking/unavailable）未逐一演练，继承 S39 在册证据。
+- **同签名覆盖升级 + 数据保留**：`adb install -r` 同一 release APK → **Success**；`firstInstallTime` 保持 14:31:41 不变、`lastUpdateTime` 更新为 14:39:55（同版本 code 单调覆盖路径证据）；重启应用后**保留的服务器连接直接可用**（自动重连、项目/会话列表真实渲染）——凭据/偏好存续即数据保留证据。「真实后续版本升级」（如 2.2.1→2.3.0）不可测，如实登记边界。
+- **zh 资源切换**：设置 Language 选择器正常展开（English ✓/简体中文/繁體中文/한국어/Deutsch/Español，截图留证）；切换点击复验与切换后全页走查未完成（本轮收口于真实服务连接的诚实登记），归协调员门控设备轮。
+- **零 side-effect 确认**：全程无任务发送/权限决策/会话创建；MatePad（真机，端点不入账）零 adb 触碰；所有 adb 命令显式 `-s emulator-5554`。（本节为 Phase E 时点记录；真机触碰见下节 Phase D。）
+
+### 真机 Phase D（debug→debug 同签名覆盖升级验收；单操作者窗口 2026-11-07 15:16–15:30 +0800）
+
+> Phase R（卸载 debug 装 release）**未获用户授权未执行**：协调员已向用户提出卸载授权询问（含不可逆数据后果说明），未获答复即不视为授权——按 issue 执行规则「不能擅自卸载/清数据」维持 BLOCKED。debug→release 异签名拒绝已有 Phase E 双 AVD 实测。
+
+- **验证环境**：MatePad DBY2-AL00（Android 12 / API 31 / WebView Chrome/114）；无线 ADB（端点不入台账，同 #61/#146/#148 先例）；CDP 同 #148 模式（`adb forward tcp:18491` → `webview_devtools_remote_<pid>` → `http://127.0.0.1:18090/`）；收口移除转发。载荷=归档零重建 debug APK（SHA-256 `abcf1a42…a767`，64,447,987 bytes，versionCode 20201 / versionName 2.2.1，RC=`6e83db6` 构建），安装前哈希复核一致；release APK 未触碰。
+- **升级前基线（0.1.0，用户真实数据）**：About 三行 0.1.0 / Upstream 2.1.4 / Server 2.2.1；服务器 3 条（bastion `192.168.3.152:49374` 有凭据绿点、tvps `100.120.15.65:4096` 有凭据绿点、`100.87.216.92:49374` 无凭据带锁）；偏好 12 项（Top tabs/English/System 深色/Zoom 100%/steer/fontSize 14/showFileTree=false 等）；`plugin.updater.seen` = `{"version":"0.1.0"}`；firstInstallTime 2026-10-28 03:10:15。
+- **覆盖升级**：`adb install -r` Success 9.4s → dumpsys versionCode=20201 / versionName=2.2.1、**firstInstallTime 不变**、pkgFlags 仍 DEBUGGABLE；logcat PackageManager「Retain data and using new」系统级佐证。
+- **数据保留**：registry 3/3 逐条一致、凭据保留（升级后首启自动重连水合一径 + force-stop 冷启动二径再重连，bastion/tvps 健康绿）；About 壳行 0.1.0→**2.2.1**（上游 2.1.4/服务 2.2.1 不变）；偏好 12 项逐项保持；会话历史/项目树/11 标签条全恢复；`plugin.updater.seen` → `{"version":"2.2.1"}`。
+- **whatsNew 真实跃迁首次观察（0.1.0→2.2.1）**：whats-new chunk 与 `opencode.ai/changelog.json` 均 HTTP 200（fetch 成功）、**无弹窗**、水位即推进——与上游 `whats-new.spec.ts` 在册「范围内无合格 desktop highlights → 仅记忆版本」路径三件套吻合（`settings.v3` 无 releaseNotes 键，排除用户关闭路径）。弹窗呈现面未现属上游内容判定结果，非缺陷。
+- **核心回归**：oc-148（已授权可丢弃项目）新会话 `ses_e4b1a51fdffeEdEBZR1GCHz2rw` 发送→流式回复呈现（GLM-5.3 Flash / new-api，6s，8k tokens）PASS；Preferences/Appearance 渲染 PASS；主题 System→Light→Dark→System 往返+还原、语言 English→简体中文（常规页中文化走查；部分条目仍英文=上游 i18n 覆盖现状如实登记）→English，每步截图。
+- **审计与边界**：logcat 全程 73,255 行 0 FATAL、App 进程零 E/W、凭据值零命中（命中均为华为系统服务噪声）、`/home/` 主机路径 App 上下文零命中；输入偏差同 #148 在册族（搜狗 IME 组字乱码未发送即清空、CDP insertText 重注；IME 致一次点击落空 CDP 补发）；用户其余项目/会话零写入；无卸载/无 clear data/零远端服务动作。**Phase D 6/6 Stage PASS。**
+
+### 未验收清单（如实保留 BLOCKED + 解除条件）
+
+1. **Phase R（MatePad 卸载 debug 装 release）**：BLOCKED——U1 授权点未决（卸载不可逆数据后果须用户明示；协调员已询问未获答复，未视为授权）。release 首装/覆盖升级/数据保留链已有模拟器 Phase E 等价证据；真机 release 路径解除条件 = 用户明示卸载授权。
+2. **残余有副作用面（权限 once、断连恢复补齐、通知前台抑制、终端/文件 smoke 于 2.2.1 构建重跑）**：发送→流式→完成已经 Phase D 真机 PASS（oc-148）；其余面继承 #146/#147/#148 在册真机证据（0.1.0 系构建，CLOSED 轮），本轮未在 2.2.1 构建重跑——如实登记，不据继承宣称 2.2.1 全绿。
+3. **服务行诚实降级串（checking/unavailable）设备复验**：继承 S39 在册证据（#110 复验 checking 恒驻形态），本轮未逐一演练。
+4. **发布动作（tag/Release/上传）**：U2 未决前全部不执行；ADR 0005 激活条件（首个对外可下载已签名 release + 版本清单）因未上传仍未满足，S40/N09 暂缓边界维持。
+5. **whatsNew 弹窗呈现面**：Phase D 实测「fetch 成功+无弹窗+水位推进」三件套（上游内容判定路径）；弹窗面解除条件 = 上游 changelog 出现合格 desktop highlights 的下一次真实跃迁自然观察。
+
+### 证据索引
+
+- 探针普查两态全输出：本机任务记录 `/tmp/issue149-census/`（prebuild-census.txt / postbuild-census.txt / 33×.out；会话结束后不持久，关键数字已录入本表）。
+- 归档 APK：`/home/peterhan/release-staging/issue-149/`（release + debug，SHA-256 见上表；仓库外稳定路径）。
+- 真机 Phase D 证据：`/home/peterhan/release-staging/issue-149/qa-phase-d/`（22 截图 + 基线 JSON / install 结果 / 9.1MB logcat 去敏审计件）。
+- 模拟器截图（本轮会话 /tmp 下，关键形态已文字录入）：首装连接面 e34-first/home、配对连接后会话列表 e34-paired、覆盖升级后抽屉 e34-drawer、About 三行 e34-about、语言选择器 e34-lang。
+- 签名材料路径（值零入）：`~/.config/opencode-mobile-signing/`（方案与保管见 `docs/release-runbook.md`）。

@@ -72,7 +72,10 @@ const CLIENT = "vendor/upstream/packages/client/"
     `${APP}src/session/composer/adapter.ts`,
     `${APP}src/session/revert.ts`,
   ])
-  const skip = ["node_modules", "/dist/", "/web-dist/", "/.git/", "scripts/", "android/app/src/main/assets/web/"]
+  // issue #149: android/app/build/ excluded alongside the copied WebView payload — gradle
+  // merge/intermediate asset copies inside the build directory are the same minified dist
+  // bytes again, not a separate call surface (the asserted surface stays shipped app source).
+  const skip = ["node_modules", "/dist/", "/web-dist/", "/.git/", "scripts/", "android/app/src/main/assets/web/", "android/app/build/"]
   const glob = new Bun.Glob("**/*.{ts,tsx,js,jsx}")
   const collected = new Set<string>()
   for (const file of await Array.fromAsync(glob.scan({ cwd: new URL(".", repoRoot).pathname }))) {
