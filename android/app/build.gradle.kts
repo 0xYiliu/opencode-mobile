@@ -9,6 +9,32 @@ val passwordKeyboard = providers.gradleProperty("passwordKeyboard").orElse("fals
     it.toBoolean()
 }
 
+// Release signing is resolved EXCLUSIVELY from repo-external Gradle properties
+// (issue #149): signing material never lives in this repo. The four properties
+// (opencodeReleaseStoreFile / opencodeReleaseStorePassword / opencodeReleaseKeyAlias /
+// opencodeReleaseKeyPassword) may come from ~/.gradle/gradle.properties, a -P flag or an
+// ORG_GRADLE_PROJECT_* environment variable.
+//   All four present  -> the release build type is signed with that config.
+//   None present      -> release stays buildable and produces an UNSIGNED APK (logged below);
+//                        release signature correctness is asserted by the release gate
+//                        (apksigner verify + recorded certificate fingerprint), not here.
+//   Some missing      -> fail fast, naming exactly which properties are missing.
+val releaseSigningProperties = listOf(
+    "opencodeReleaseStoreFile",
+    "opencodeReleaseStorePassword",
+    "opencodeReleaseKeyAlias",
+    "opencodeReleaseKeyPassword",
+)
+val releaseSigningValues = releaseSigningProperties.associate { key ->
+    key to providers.gradleProperty(key).orNull?.takeIf { it.isNotBlank() }
+}
+val releaseSigningPresent = releaseSigningValues.filterValues { it != null }
+require(releaseSigningPresent.isEmpty() || releaseSigningPresent.size == releaseSigningProperties.size) {
+    "release signing configuration is partially set; missing Gradle properties: " +
+        releaseSigningProperties.filter { releaseSigningValues[it] == null }.joinToString(", ")
+}
+val releaseSigningComplete = releaseSigningPresent.size == releaseSigningProperties.size
+
 android {
     namespace = "ai.opencode.mobile"
     compileSdk = 36
@@ -25,9 +51,28 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    if (releaseSigningComplete) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(requireNotNull(releaseSigningValues["opencodeReleaseStoreFile"]))
+                storePassword = requireNotNull(releaseSigningValues["opencodeReleaseStorePassword"])
+                keyAlias = requireNotNull(releaseSigningValues["opencodeReleaseKeyAlias"])
+                keyPassword = requireNotNull(releaseSigningValues["opencodeReleaseKeyPassword"])
+            }
+        }
+    } else {
+        logger.lifecycle(
+            "opencode release signing: no signing properties found; :app:assembleRelease will produce an UNSIGNED APK",
+        )
+    }
+
     buildTypes {
         release {
-            // No signing configuration on purpose: signing material never lives in this repo.
+            // Signing material never lives in this repo: the config above is built only from
+            // repo-external Gradle properties; without them release produces an unsigned APK.
+            if (releaseSigningComplete) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
