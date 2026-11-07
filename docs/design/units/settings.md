@@ -277,7 +277,7 @@ Desktop 参考端无 → 视觉对照 BLOCKED 继承；`<768px` 两侧联验 BLO
 ## S40 暂缓呈现契约（ADR 0005，呈现不误导已验）
 
 - **更新操作三负例全部成立**（设备实测）：①gui-extensions updater 行 = desktop-host 禁用行（15 行中 browser/pairing/updater/ssh 四行 `data-capability="desktop-host"`，Switch `aria-disabled=true` + `disabled` + "Desktop only" 能力列）；②设置导航/搜索零 Updates/What's New 页（13 个 tab 集合实测无 update/whats-new/beta 面——上游 Updates 页在 `ctx.desktop` 门后不注册）；③About 页零更新操作控件。
-- **whatsNew 邻外面保留**（ADR 0005 §6 R1 裁定 (c) 维持）：冷启动无发行说明弹窗自发弹出（seen==current 早退）；seen 水位实测 `opencode.global.dat:plugin.updater.seen = {"version":"0.1.0"}`（=MOBILE_APP_VERSION，`ctx.app.version = platform.version ?? ""` 仅作水位输入，E27 在册）；启动期零 changelog 拉取失败可见错误。**真实版本跃迁触发弹窗路径 BLOCKED**（激活条件 = 下一次真实 versionName 升版轮，不用合成 localStorage 伪造 previous）。
+- **whatsNew 邻外面保留**（ADR 0005 §6 R1 裁定 (c) 维持）：冷启动无发行说明弹窗自发弹出（seen==current 早退）；seen 水位实测 `opencode.global.dat:plugin.updater.seen = {"version":"0.1.0"}`（=MOBILE_APP_VERSION，`ctx.app.version = platform.version ?? ""` 仅作水位输入，E27 在册）；启动期零 changelog 拉取失败可见错误。**#149 release 轮注记（模拟器 API 34）**：2.2.1 release APK 全新首装后冷启动同样无 whatsNew 弹窗自发出现（首装分支形态，seen 写入未单独 dump——如实登记）；**真实版本跃迁触发弹窗路径 BLOCKED 维持**（本轮模拟器覆盖升级为同版本 release→release，未构成 seen 0.1.0→2.2.1 跃迁；激活条件 = 下一轮真实 versionName 升版，真机 Phase D 协调员门控，不用合成 localStorage 伪造 previous）。
 
 ## i18n
 
@@ -285,6 +285,6 @@ en.ts 上游 `settings.about.*` 键集与目标全等 + settings-about-version �
 
 ## 诚实边界
 
-- 服务行真服务版本展示 **BLOCKED**（需可达服务，激活条件 = 可达服务器环境）；Desktop 视觉对照 **BLOCKED** 继承（无 Windows 参考端）；whatsNew 真实跃迁触发 **BLOCKED**（激活条件如上）。
+- 服务行真服务版本展示 **已收口（#149）**：2.2.1 release APK 在模拟器实连本地服务后 About 页实显 `Server OpenCode 2.2.1`（真实连接服务版本，与 client 行 2.2.1 / base 行 2.1.4 三行独立不混淆，截图留证 build-and-verify.md #149 段）；诚实降级串（checking/unavailable）设备复验继承 #110 在册证据。Desktop 视觉对照 **BLOCKED** 继承（无 Windows 参考端）；whatsNew 真实跃迁触发 **BLOCKED**（激活条件如上，Phase D 门控）。
 - 结构锁（三行同步、settings-about-version 五 targets、目标形、负边界）由 verify-about-version 12 组静态探针承担；about 域无 about 页面单测——`contributors.test.ts`（2 例）为该目录唯一 vendored 单测且保持全绿（683 tests/115 files 全量口径内）。
 - 许可审计 V4 12 项待用户决策保持未决引用；`docs/decisions/0005-apk-update.md` 零改动（引用不改变）。
