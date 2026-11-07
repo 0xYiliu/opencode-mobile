@@ -283,7 +283,7 @@ const callSites = new Map<string, Set<string>>()
 
   const revert = squash(await read(`${APP}src/session/revert.ts`))
   if (
-    !/session\.interrupt\(\{sessionID\}\)\)\)\)return[\s\S]{0,120}session\.wait\(\{sessionID\}\)\)\)\)return[\s\S]{0,160}session\.revert\.stage\(\{sessionID,messageID:message\.id\}\)\)\)\)return/.test(
+    !/session\.interrupt\(\{sessionID\}\),current\)\)\)return[\s\S]{0,130}session\.wait\(\{sessionID\}\),current\)\)\)return[\s\S]{0,220}session\.revert\.stage\(\{sessionID,messageID:message\.id\}\),current\)\)\)return/.test(
       revert,
     )
   )
@@ -292,7 +292,8 @@ const callSites = new Map<string, Set<string>>()
     fail("3: the undelivered-prompt diversion must go through inbox.cancel (not interrupt)")
   if (!revert.includes("session.revert.clear({sessionID})"))
     fail("3: redo must clear the revert (revert.clear)")
-  if (!revert.includes("restore(target,message)"))
+  // Re-anchored to the v2.2.1 form: restore() now also takes the origin directory.
+  if (!revert.includes("restore(target,message,restored,origin.directory)"))
     fail("3: the staged prompt draft/context restore changed")
   if (!revert.includes("bothareidleno-ops"))
     fail("3: the idle no-op comment anchor changed (verbatim)")
@@ -353,9 +354,14 @@ function expectFromGroup2(name: string, files: string[]) {
   if (!review.includes("const REVIEW_MOUNT_MARGIN = 300"))
     fail("4: the 300px virtual mount margin anchor changed")
 
+  // Re-anchored to the v2.2.1 form: the threshold moved to pierre/virtualizer.ts
+  // (virtualizeLineThreshold = 200) and the function reads `> virtualizeLineThreshold`.
   const virtualize = await read(`${SESSION_UI}src/v2/components/session-review-file-preview-v2-virtualize.ts`)
-  if (!virtualize.includes("export function shouldVirtualizeReviewDiff(") || !virtualize.includes("const lineThreshold = 500"))
-    fail("4: shouldVirtualizeReviewDiff (>500) changed")
+  if (!virtualize.includes("export function shouldVirtualizeReviewDiff(") || !virtualize.includes("> virtualizeLineThreshold"))
+    fail("4: shouldVirtualizeReviewDiff changed")
+  const virtualizer = await read(`${SESSION_UI}src/pierre/virtualizer.ts`)
+  if (!virtualizer.includes("export const virtualizeLineThreshold = 200"))
+    fail("4: the v2.2.1 virtualizeLineThreshold = 200 anchor changed")
   const preview = await read(`${SESSION_UI}src/v2/components/session-review-file-preview-v2.tsx`)
   if (!preview.includes("virtualize={shouldVirtualizeReviewDiff({"))
     fail("4: the v2 preview must consume shouldVirtualizeReviewDiff")
@@ -548,6 +554,42 @@ let osScanFiles = 0
   if (osScanFiles < 150) fail(`8: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
 }
 
+// --- 9. Pierre worker pool fallback seam (issue #163, diff-worker-pool-fallback.patch) ---
+{
+  const index = await read(`${SESSION_UI}src/pierre/index.ts`)
+  if (!index.includes('preferredHighlighter: "shiki-js"'))
+    fail("9: highlightOptions must select the shiki-js engine (the highlights wasm cannot compile synchronously on the WebView main thread)")
+  if (!index.includes('theme: { dark: "pierre-dark", light: "pierre-light" }'))
+    fail("9: highlightOptions must carry pierre's bundled shiki theme pair (the highlights-palette theme registration is not reachable from the shiki path)")
+  if (/preferredHighlighter:\s*"highlights"/.test(index))
+    fail("9: the highlights engine selection resurfaced in pierre/index.ts")
+
+  const worker = await read(`${SESSION_UI}src/pierre/worker.ts`)
+  for (const anchor of [
+    'import { watchPoolSettlement } from "./pool-strategy"',
+    "const POOL_PROBE_TIMEOUT_MS = 12_000",
+    "failedPools.add(pool)",
+    "failedPools.has(plain) ? undefined : plain",
+    "failedPools.has(diff) ? undefined : diff",
+    'console.error("[diff] pierre worker pool init failed", cause)',
+  ])
+    if (!worker.includes(anchor)) fail(`9: worker.ts lost the pool-failure guard anchor: ${anchor}`)
+
+  const fileViewer = await read(`${SESSION_UI}src/components/file.tsx`)
+  for (const anchor of [
+    "const [failed, setFailed] = createSignal(false)",
+    "settled() || failed()) return true",
+    'console.error("[diff] pierre worker pool init failed", cause)',
+  ])
+    if (!fileViewer.includes(anchor)) fail(`9: file.tsx lost the createPoolReady failure-bypass anchor: ${anchor}`)
+
+  const strategy = await read(`${SESSION_UI}src/pierre/pool-strategy.ts`)
+  for (const anchor of ["export function observeSettlement", "export function watchPoolSettlement", "export type SettlementWatcher"])
+    if (!strategy.includes(anchor)) fail(`9: pool-strategy.ts lost a testable export: ${anchor}`)
+  if (strategy.includes('from "solid-js"') || strategy.includes("?worker&url"))
+    fail("9: pool-strategy.ts must stay a pure module (no solid, no worker imports)")
+}
+
 console.log(
   "verify-diff: PASS (" +
     "1: three-mode data face (git/branch→vcs.diff working/branch, turn→session.diff bounded context:3), gates, refetchOnMount always + connected gate, filesystem.changed + idle refresh, vcs.init + requestFailed, detailsQuery working/catch→[], location-scoped file.read, generated statuses init [400,401,404,409,501,503]/diff [400,401,404,503], protocol verbatim (in-closure); " +
@@ -560,5 +602,6 @@ console.log(
     "8: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted files (review/details/session-review/v2/revert/settings-workspaces); " +
+    "9: pierre worker pool fallback seam — shiki-js engine selection, worker.ts failed-pool guard (12s probe via pool-strategy), file.tsx createPoolReady failure bypass + labeled [diff] console.error, pure pool-strategy module (#163); " +
     "STATIC check - diff rendering, mode switching, comments, worktree flows, undo/redo, stale timing, client-exit red line and touch/a11y adequacy are G23)",
 )

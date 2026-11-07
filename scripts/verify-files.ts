@@ -167,10 +167,16 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   const destination = await read(`${APP}src/composer/attachments/destination.ts`)
   if (!destination.includes('new URL("/api/experimental/fs/write", server.conn.http.url)'))
     fail("2: destination.ts lost the upload endpoint construction")
-  if (!destination.includes("validateRedirectTarget(url.href, xhr.responseURL)"))
-    fail("2: destination.ts lost the attachments-upload-redirect-policy responseURL validated-follow check")
-  if (!destination.includes("assertNoUrlCredentials(url.href)"))
-    fail("2: destination.ts lost the attachments-upload-redirect-policy userinfo-credential URL refusal")
+  // Re-anchored to the v2.2.1 (3ebcf9a) form: the b4525d79-era responseURL redirect-policy
+  // validation no longer exists in the vendored source; the upload path is the direct XHR POST
+  // with the Basic auth header and the { data: { path } } response contract.
+  for (const anchor of ["xhr.open(\"POST\", url)", "xhr.responseType = \"json\"", "authTokenFromCredentials({ password })", "(xhr.response as { data: { path: string } }).data.path"])
+    if (!destination.includes(anchor)) fail(`2: destination.ts upload path lost the v2.2.1 anchor: ${anchor}`)
+  // Re-anchored to the v2.2.1 form: the userinfo-credential URL refusal moved out of
+  // destination.ts into the connect dialog (mobile(M-013) enforcement site).
+  const dialog = squash(await read(`${APP}src/servers/connect/dialog.tsx`))
+  if (!dialog.includes("assertNoUrlCredentials(normalized)"))
+    fail("2: the userinfo-credential URL refusal must stay enforced via assertNoUrlCredentials in the connect dialog (M-013 site)")
   if (!destination.includes("a 200 from `fs.write` is its declared success body"))
     fail("2: destination.ts lost the SAFETY comment context")
 
@@ -465,6 +471,30 @@ let osScanFiles = 0
   }
 }
 
+// --- 10. pierre tree chain on the @pierre/trees beta.6 baseline (issue #162) ---
+// The gui-plugins package is extracted from the v2.2.1 tree (3ebcf9a) while the vendor baseline
+// pin is b4525d79; its pierre-tree.tsx calls beta.6-only FileTree APIs, so the dependency
+// baseline MUST stay at beta.6 — the beta.4 downgrade broke the Open-file tree at runtime
+// (applyGitStatusPatch/getVisibleRows TypeErrors; see docs/build-and-verify.md #162/#163).
+{
+  const tree = await read(`${GUI_EXT}src/file/pierre-tree.tsx`)
+  if (!tree.includes("tree.applyGitStatusPatch(patch)"))
+    fail("10: pierre-tree lost the beta.6 applyGitStatusPatch call (git status badge chain)")
+  if (!tree.includes("tree.getVisibleRows(startIndex, endIndex)"))
+    fail("10: pierre-tree lost the beta.6 getVisibleRows call (scroll-into-view chain)")
+  if (!tree.includes('data-component="file-tree-v2"'))
+    fail("10: pierre-tree lost the file-tree-v2 wrapper identity")
+
+  const guiPkg = await read(`${GUI_EXT}package.json`)
+  const appPkg = await read(`${APP}package.json`)
+  if (!guiPkg.includes('"@pierre/trees": "1.0.0-beta.6"'))
+    fail("10: gui-plugins package.json must pin @pierre/trees 1.0.0-beta.6 (v2.2.1 extraction baseline)")
+  if (!appPkg.includes('"@pierre/trees": "1.0.0-beta.6"'))
+    fail("10: app package.json must pin @pierre/trees 1.0.0-beta.6 (api calls above need it)")
+  if (guiPkg.includes("1.0.0-beta.4") || appPkg.includes("1.0.0-beta.4"))
+    fail("10: the stale beta.4 pin resurfaced in a vendored package.json")
+}
+
 console.log(
   "verify-files: PASS (" +
     "1: tree/read/search wired through api.file.list/read/find with location scope + path identity + NotFound normalization + search swallow registered; generated client fs endpoints with [400,401,404]/binary read; " +
@@ -478,5 +508,6 @@ console.log(
     osScanFiles +
     " whitelisted files (workspaces + gui-extensions/file); " +
     "9: streamed media reads (HEAD-first via fileStreamUrl, download fallback, streamedKinds image/audio/video) + file.watch/unwatch subscriptions (scoped, silent-failure, server.connected re-watch, onCleanup) with the vendored de-prefixed generated face and [400,401,404,503] watch statuses; " +
+    "10: pierre tree chain on the @pierre/trees 1.0.0-beta.6 baseline (applyGitStatusPatch/getVisibleRows call sites + beta.6 pins in gui-plugins and app package.json, #162); " +
     "STATIC check - tree/search/view runtime behavior, stale reread timing, recovery, client-exit red line and touch/a11y adequacy are G22)",
 )
