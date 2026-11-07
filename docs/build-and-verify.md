@@ -3684,7 +3684,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - **About 三行实显（S39，截图留证）**：设置 → About 页实显 **Version 2.2.1**（client 行 = MOBILE_APP_VERSION）、**Upstream OpenCode 2.1.4**（基座行 = vendored pin 树真实版本，D2）、**Server OpenCode 2.2.1**（服务行 = 实连服务真实版本，与 client 行独立不混淆）——服务行诚实降级串（checking/unavailable）未逐一演练，继承 S39 在册证据。
 - **同签名覆盖升级 + 数据保留**：`adb install -r` 同一 release APK → **Success**；`firstInstallTime` 保持 14:31:41 不变、`lastUpdateTime` 更新为 14:39:55（同版本 code 单调覆盖路径证据）；重启应用后**保留的服务器连接直接可用**（自动重连、项目/会话列表真实渲染）——凭据/偏好存续即数据保留证据。「真实后续版本升级」（如 2.2.1→2.3.0）不可测，如实登记边界。
 - **zh 资源切换**：设置 Language 选择器正常展开（English ✓/简体中文/繁體中文/한국어/Deutsch/Español，截图留证）；切换点击复验与切换后全页走查未完成（本轮收口于真实服务连接的诚实登记），归协调员门控设备轮。
-- **零 side-effect 确认**：全程无任务发送/权限决策/会话创建；MatePad（100.86.53.73）零 adb 触碰；所有 adb 命令显式 `-s emulator-5554`。
+- **零 side-effect 确认**：全程无任务发送/权限决策/会话创建；MatePad（真机，端点不入账）零 adb 触碰；所有 adb 命令显式 `-s emulator-5554`。
 
 ### 未验收清单（如实保留 BLOCKED + 解除条件）
 
