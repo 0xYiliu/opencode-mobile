@@ -317,6 +317,20 @@
       "status": "active"
     },
     {
+      "id": "notifications-webview-focus-gate",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/notifications-webview-focus-gate.patch",
+      "targets": [
+        "packages/app/src/shell/notifications/coordinator.ts"
+      ],
+      "reason": "G33① device finding (issue #148, MatePad DBY2-AL00 / Android 12 WebView): document.hasFocus() stays TRUE while the activity is backgrounded (measured 0 false samples across a backgrounded window with visibilityState \"hidden\"), so the upstream coordinator foreground gate (a) early-returns in system() and a background completion NEVER reaches the notifications bridge, and (b) updateFocus acquires the FOCUS_LOCK Web Lock and never releases it (the in-lock !hasFocus() re-check also never fires) — both layers of the JS-side suppression are stuck closed. Fix keeps every upstream semantic where hasFocus behaves: the gate and the lock now follow document.visibilityState too (backgrounded() = not visible OR not focused); a hidden page releases/never holds the lock and system() proceeds exactly as a real blur does upstream, while the native bridge re-check (activity hasWindowFocus -> {posted:false, code:\"foreground\"}) stays the second layer against true-foreground posts. Upstream desktop behavior unchanged (hidden windows lose focus there). Patch is additive on the post-notifications-platform-delivery tree; coordinator.ts face counts unchanged (probe groups re-anchored in the same round).",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Device-measured reproduction (2026-11-07): two backgrounded agent completions produced ZERO system notifications (dumpsys negative x10 + shade screencap) with the focus trace showing hasFocus=true/visibility=hidden at both edges; after the fix + rebuild the same flow delivers the notification (build-and-verify #148). Gates: app subset baseline byte-identical; mobile-hosts 442/0; gradle 9/39/0; verify:closure PASS; probe re-anchored (group 1 anchors backgrounded() + visibility gates).",
+      "rebase": "New patch (issue #148); rebase target is the createNotificationCoordinator gate block in packages/app/src/shell/notifications/coordinator.ts: updateFocus outer guard, the in-lock focus re-check, and the system() document.hasFocus() early return (three decision points, one helper).",
+      "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
+      "status": "active"
+    },
+    {
       "id": "settings-notification-permission",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/settings-notification-permission.patch",

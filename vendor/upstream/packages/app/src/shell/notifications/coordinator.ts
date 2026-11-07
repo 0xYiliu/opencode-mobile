@@ -9,8 +9,16 @@ export function createNotificationCoordinator() {
   const claimed = new Set<string>()
   const focus = { pending: false, release: undefined as (() => void) | undefined }
 
+  // mobile(#148 G33①): the Android WebView keeps document.hasFocus() TRUE while the
+  // activity is backgrounded (measured 2026-11-07, MatePad DBY2-AL00: 0 false samples
+  // across a backgrounded window with visibilityState "hidden"), so the focus gate and
+  // its lock must also follow document.visibilityState — a hidden page releases (and
+  // never acquires) the lock, exactly the state a real blur produces upstream.
+  const backgrounded = () =>
+    typeof document !== "undefined" && (document.visibilityState !== "visible" || !document.hasFocus())
+
   const updateFocus = () => {
-    if (typeof document === "undefined" || !document.hasFocus()) {
+    if (typeof document === "undefined" || backgrounded()) {
       focus.release?.()
 
       return
@@ -23,7 +31,7 @@ export function createNotificationCoordinator() {
       .request(FOCUS_LOCK, { mode: "shared" }, async () => {
         focus.pending = false
 
-        if (!document.hasFocus()) return
+        if (backgrounded()) return
         await new Promise<void>((resolve) => {
           focus.release = resolve
         })
@@ -65,7 +73,12 @@ export function createNotificationCoordinator() {
     },
     system(eventID: string, run: () => Promise<unknown> | void) {
       return once("system", eventID, async () => {
-        if (typeof document !== "undefined" && document.hasFocus()) return
+        // mobile(#148 G33①): the hasFocus gate alone never opens on the Android WebView
+        // (focus stuck true while backgrounded) — visibility joins the gate so a
+        // backgrounded shell proceeds; the native bridge re-check (activity
+        // hasWindowFocus → {posted:false, code:"foreground"}) stays the second layer,
+        // so a truly focused shell still never posts.
+        if (typeof document !== "undefined" && document.hasFocus() && document.visibilityState === "visible") return
 
         if (!locks) return run()
         await locks.request(FOCUS_LOCK, { mode: "exclusive", ifAvailable: true }, async (lock) => {

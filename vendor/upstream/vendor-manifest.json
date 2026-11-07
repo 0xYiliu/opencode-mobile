@@ -71,6 +71,7 @@
     "patches/mobile/attachments-share-bridge.patch",
     "patches/mobile/app-notifications-bridge.patch",
     "patches/mobile/notifications-platform-delivery.patch",
+    "patches/mobile/notifications-webview-focus-gate.patch",
     "patches/mobile/settings-notification-permission.patch",
     "patches/mobile/gui-plugins-disabled-merge.patch",
     "patches/mobile/settings-mobile-gui-plugins.patch",
@@ -294,6 +295,12 @@
       "id": "notifications-platform-delivery",
       "path": "patches/mobile/notifications-platform-delivery.patch",
       "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
+      "status": "active"
+    },
+    {
+      "id": "notifications-webview-focus-gate",
+      "path": "patches/mobile/notifications-webview-focus-gate.patch",
+      "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
       "status": "active"
     },
     {
