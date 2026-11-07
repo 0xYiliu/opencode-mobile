@@ -3428,6 +3428,111 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - logcat 关键行：`ssh: handshake retry (no ack yet)`/`ssh: channel acked`/`vault: protocol v2 ready`（桥握手时序）。
 - 全程未向生产项目/会话发送任何消息；未 clear 应用数据；未卸载；未重启/停止远端服务；known_hosts 仅新增本轮自建测试主机信任（Trust and connect 明示路径）。
 
+## issue #147 段（test(android): 验收项目/Git/PTY/附件导出操作闭环——feat/221-workspace-operations 真机验收）——2026-11-07 实测记录（四会话）
+
+### 构建身份与验证环境
+
+- 分支 `feat/221-workspace-operations`；worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-workspace-operations`；base/HEAD `24f5547`（= origin/main，含 #140–#146 全部前置）。**零源码、零补丁变更（纯验收轮）**；工作树唯一改动 = `web-dist/manifest.json`（构建产物身份，随本提交入库，#146 PR 同型）。
+- Web 构建 `bun run build:web` PASS（rolldown-vite，13.71s，PWA precache 2859 entries）；`copy-web-dist.sh` PASS（**5622 files / 150,016,113 bytes verified**）。新 worktree 手工补 `vendor/upstream/packages/{ui,session-ui}/node_modules/@opencode/*` 符号链接（ui→util；session-ui→{client,patchmark,ui,util}，同 #146 段口径）。
+- Gradle：`:app:testDebugUnitTest` 9 suites / 39 tests / 0 failures / 0 errors（与 #146 基线一致，无基线外失败）+ `:app:assembleDebug` BUILD SUCCESSFUL（34s，gradle 9.6.1）。**APK SHA-256（构建身份 A）`25c0252effc0c0c10dcc8090d503e59d8f00760009b9fb0caca07957fc940e06`**（64,445,791 bytes）；`adb install -r` Success；设备回读 base.apk sha256 相等布尔 true。被覆盖基线（#146 轮）`42d4b47effa5b0bf0f0e5eef015fd5b4cf9ea0391a2dcf8574bc295e813804e3`（安装前 pm path pull 实测确认）。会话 3 曾被并行操作者 adb install 替换为未知构建（`f16cb684…`，02:19:33 am_kill installPackageLI 留痕）——已复装身份 A（回读相等 true）后继续。
+- 安装后实载资源身份：CDP 抽样 12 chunk（8 js + 4 css）12/12 命中 `web-dist/manifest.json` files 键集（相等布尔 true；fileCount=5622）；About 页 `Version 0.1.0 / Upstream OpenCode 2.1.4 / Server OpenCode 2.2.1`。
+- 设备 MatePad DBY2-AL00 / Android 12 / 无线 ADB；CDP 口径与坐标换算（css×2.249, css×2.249+72）沿用 #146 段；viewport 1245×786 css / dpr 2.25 / 截图 2802×1769。服务 `http://192.168.3.152:49374` = opencode serve 2.2.1（PID 1574186 全程存活）。
+- 测试仓库 `oc-147-repo`：main @ `d4b4e25`（含 opencode.json permission edit/bash=ask）+ `feature/base` @ `37ec835` + 初态快照；附件样本三件（small.png 7,028 B / big.bin 28 MiB / mystery.xyz 4 KiB），设备侧 md5 与主机 md5 全部相等。
+- 凭据零入台账（运行时读入 shell 变量）；全程零生产项目/会话触碰；应用数据未 clear；远端服务未重启/停止。
+
+### ① 直连基线与项目生命周期（W01/W10/S27/S28/S29）
+
+- 项目注册：Add project 手输路径 → 建议行命中 → 注册成功；`/api/project` 计数 30→**31**、新条目 canonical 相等 **true**；不存在路径不注册（无伪成功）、Cancel 零注册。服务器步骤中直连条目以历史 displayName "bastion" 呈现（遗留命名，环境事实）。
+- 发送→应答闭环：新会话标题自动生成、GLM-5.3 Flash·Max 应答逐字核对、服务端 1 对问答成立（G20③/G23⑤ 直连子集随 P4 全链再证）。
+- 项目 General：name/color 保存链过（服务端 name == "oc-147-repo QA"、icon.color == "cyan" 相等 true）；**失焦即保存语义**（无 Save 按钮，onClose 不构成放弃路径）；icon 图片上传拉起 SAF 实证、落地核验 PARTIAL（SAF 目录导航自动化未完成）。
+- Auto-accept 三值 Select：Use default/On/Off 切换，`settings.v3 autoApproveProjects` 键 true→false→删除全核 ✓（客户端设置归属，非服务端字段）；行为面由 P4.1 权限 dock 顺带覆盖（ask 生效）。
+- Settings 搜索：language/项目名命中行均在视口内 ✓；Servers 入口不弹回 ✓；SSH host 行无（继承 #146 发现②）。
+
+### ② 会话生命周期（W10/W25）
+
+- 重命名：行菜单 → 行内编辑器 → 行/tab/服务端 title 三处相等 ✓；Esc 关闭不变、空提交服务端不变（编辑器保持打开，形态登记）。
+- 删除：Cancel 零删除（GET 200）✓；danger 删除后行消失、服务端 GET **404** 相等 true ✓。
+- **归档 = 结构性发现**：home 行菜单仅 Rename/Export…/Delete…（无归档项）；`SHOW_HOME_SESSION_ARCHIVE=false`（上游 pin 同值）+ M-017 `onArchiveSession` dead entry + unarchive 入口仅在 `props.verticalTabs` 分支（`titlebar.tsx:807`），Android 标题栏走 `!mobile()` fallback（`titlebar.tsx:671`）——Android 可达面无归档/恢复 UI。API 造归档会话（PATCH archived:true → time.archived number）后应用侧列表过滤成立（三视图实测不显示）；已归档会话经 tab 打开正常呈现（not-found 面不适用）；深链冷加载对照实验：归档/非归档同形 URL 同样失败（深链冷启动整体不可用，D2）。**未翻上游开关**；解除条件=用户裁决。
+- Details 抽屉：有变更后 changes 行（project chip 菜单 `3 Changed files · +2 -0`）与分支行（`main`）实渲染 ✓；Extensions 四子 tab（MCP/Skills/Plugins/LSP）与会话上下文面复验 ✓。
+
+### ③ 工作区/启动脚本/删除（S30/S31/S32/W25）
+
+- 启动脚本真实执行：`echo oc147-startup-ok > "$OPENCODE_WORKTREE_PATH/.oc147-startup-marker"` 失焦保存后 New worktree 创建 → marker 逐字节两轮验证（md5 相等 true）；exit 3 → toast「Failed to move session / Command failed (exit 3)」+ 会话不移动（无伪成功 ✓）；失败 worktree 不回滚（登记）。New worktree 即时创建并移动会话（无命名对话框，自动命名——形态登记）。
+- worktree.updated 三向实时性：创建/删除/移动均无手动刷新即时呈现 ✓；`/api/worktree` 即时返回（#106 挂起未复现）。
+- 删除确认链：Cancel autofocus Enter 负例零删除 ✓；danger 删除后行/目录/worktree list 全清 ✓；dirty 单删=确认框警示（非入口级 blocked toast，形态登记）；批量删除 scoped 对话框计数 3（作用域跟随项目过滤器——未过滤态计数 34 曾打开即 Cancel 零删除，安全面观察）；批量执行 per-workspace blocked toast（dirty）实证 ✓。
+- Move session to existing：时间线 "Moved to…" + 服务端 directory 相等 true ✓。
+
+### ④ Git Undo/Redo/Fork（W11）
+
+- **验收清单第 2 条核心证据成立**：P4.1 Write（权限 dock Allow once，`undo-me.txt`=oc147-alpha 逐字节）→ /undo → **UI 整轮隐藏 + 文件消失 + git 回初态**（消息↔文件回退一致）→ /redo → **消息+文件回归**（oc147-alpha 逐字节、revert=null）。
+- 语义澄清（源码+实测一致）：undo=`revert.stage`（UI 隐藏+文件回退，消息计数不落库删除）；redo=`revert.clear`（回归+无悬挂）；prompt-on-pending-revert=**commit-drop**（实测 23→21）。once 不跨轮记忆 ✓。
+- Fork：取消零新会话 ✓；执行产生 `oc147-renamed (fork #1)` 新 tab——形态 =「新会话+composer 预填所选消息」（非消息前缀拷贝，按上游实态修正登记）；原会话 21 条不变 ✓。
+- turn 模式对照：会话末轮纯回复 → UI 空态与服务端 session.diff `{"data":[]}` **逐项一致** ✓。
+
+### ⑤ PTY（W04/G24）
+
+- Terminal 打开：ghostty WASM 正常、host shell 提示符渲染（cwd=会话仓库）；`/api/pty` running 条目（pid/cwd 一致）✓。
+- tabs：新建（pty 1→2）/ 切换保屏 / 重命名（UI+服务端 title 同步）/ 关闭（pty 2→1）全过 ✓。
+- **detach 红线①间接固化**：PTY pid 3835281 跨两次 app 进程更替（三代进程 6715→7347→29996）存活（主机 `ps -p 3835281` = `/bin/bash -l` 实测）——客户端死亡，远端进程存活（detach not kill）语义成立。
+- **红线②（显式关闭终止）、stty 尺寸/旋转、中文输入、clone UI —— BLOCKED**：宽屏双栏（会话+Terminal side panel）经 tab 切换/软键盘/旋转/app 重启后漂移至单栏且常规操作不可恢复（**含跨重启**，D14）；CDP insertText+Enter 在漂移期未达 PTY shell（D15——双栏窗口期 echo/重命名均达 shell 且服务端一致，归因收窄）；真机 IME 组串无法合成（R6）。控制键合成 Ctrl+C `^C` 回显 ✓（部分证据）。
+- OS=Linux 记录在案（persistentPty: true）；其余 OS 非目标。
+
+### ⑥ 附件/分享/外跳/导出（W06/W13/N08/G27）
+
+- inline 上传：SAF 多选路径可达 → composer 图片芯片（blob URL）→ 发送；**服务端 files[0].data 解码 7,028 bytes，md5 = 主机源逐字节相等 true** ✓；时间线缩略图渲染 ✓ + zoom 查看器全图 ✓。
+- 28 MiB staged path 上传：SAF 长按多选 → SELECT → 路径芯片（BIN 徽标）→ 发送；**服务端 `/tmp/opencode/uploads/…/oc147-big.bin` 29,360,128 bytes md5 = 主机源逐字节相等 true** ✓（模型 shell 读回一致）；上传后文件留存于 uploads（上游无清理面，登记）。取消变体 SAF 超时未执行（登记）；断网失败变体按协调裁定未验证（登记）。
+- Export：`/export` → SAF Downloads → SAVE → `oc147-renamed.json`（slug 化，零服务器路径形）；**JSON 合法 + message count 40 = 服务端相等 true + mediaRefs:false 实态**（图片字节在 files base64、无 mediaRefs 字段）✓。SAF Back 取消静默、无新文件 ✓。SAF 期间 force-stop → DocumentsUI 独立存活 → SAVE 覆盖写成功 → 重启 app 会话完好 ✓。
+- 外跳：timeline 链接渲染可点 ✓；**http 点击未起系统浏览器、mailto 点击 → WebView 内 ERR_UNKNOWN_URL_SCHEME 错误页**（计划 native toast；Back 返回 app 完好）——D16 候选缺陷（外跳桥点击路径未接通，attachments/core）。
+- 剪贴板：CDP clipboard.write → Write permission denied（WebView 权限模型真实形态）；设备路径未走 → PARTIAL。
+- logcat 审计：全程零凭据值、零服务器绝对路径/URL 值命中（仅 Tailscale gojni 网络层噪声）✓。
+
+### ⑦ 文件/Diff 面与剩余（W03/W16/G22/G23）
+
+- Review/Git changes 面：列表与计数渲染与服务端 vcs/status|diff 一致 ✓（模式 Select 两值 Git changes/Last turn changes——branch 不提供，按 F3 登记；turn 空态与 server 逐项一致 ✓）；模式重启持久化 ✓。
+- **Files 查看器（D10）与 pierre diff 体（D12）空渲染（复现成立，缺陷候选）**：Open file 侧表面 tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、**fetch 钩子实测 0 个 /api/fs 请求**——组件挂载但数据查询从未发起）；`<diffs-container>` shadowRoot 仅图标 sprite、零内容、host 高度 0；服务端 fs.list/vcs.diff 200 排除服务端因；对照同表面 app-UI 半边正常。→ P3.1/3.2/3.3/3.4/3.6/3.7 BLOCKED（files/diff 单元，回写主归属）。
+- P3.10 debounce：host 编辑后服务端 11s 内 +2 ✓ 但 UI 45s+ 不刷新——根因实测 `/api/event` 流对 host 编辑**零 filesystem.changed 事件**（仅 server.connected），事件驱动链路（model.ts:210，代码在位）从未触发——服务端事件缺位环境限制，不计应用缺陷（D13 关联：staleTime Infinity 缓存跨重挂载/重启前陈旧）。
+- P3.9 二进制 diff：服务端 ("sample.png",0,0,modified)+Binary files patch ✓；应用 Files Changed 列表**不含二进制条目**（重启后亦然）——与计划「列表二进制占位」不符，登记（diff 单元）。
+- P7.2 noGit/initGit 真机 PASS（G23⑤ 关联）：noGit 目录注册（服务端 vcs 无值=noGit 形态、composer 归属 footer 零 changes/分支行，与 location-menu.tsx `Show when={review() && project?.vcs}` 门控一致）→ 发送 prompt → 权限 dock（bash ask）→ 模型 shell 执行 `git init` → host `.git` 目录产生（`git rev-parse --git-dir`=`.git` ✓）+ `git status` 可用（master/No commits yet/?? 5 files）；注册前置=路径建议行点击（未点建议行直接 Select folder 为 no-op——会话 3 首跑失败根因）；M-021 分享桥触发语义核实（见 D16 收窄）；截图 P7.2-05..09。
+
+### 发现与登记（D1–D17，按归属分组）
+
+**结构性发现（上游语义/门控，登记不裁剪）**
+- 归档入口三重不可达：`SHOW_HOME_SESSION_ARCHIVE=false`（上游 pin）+ M-017 dead entry + unarchive 仅 verticalTabs 分支；Android 可达面无归档/恢复 UI；未翻开关，解除条件=用户裁决。
+- 深链冷加载（`/server/<key>/session/<id>`）应用层错误页（归档/非归档对照同败）——D2。
+- S30 New worktree 即时创建+移动会话、无命名对话框；S32 dirty 单删=确认框警示（非入口级 blocked toast）；批量删除作用域跟随项目过滤器（未过滤态计数 34，对话框计数为唯一防线）——D7。
+- P6.2 上传后文件留存 uploads（上游无清理面）；P6.6 mailto/http 外跳形态（D16）。
+
+**缺陷候选（各带四要素与解除条件，本 Issue 五单元内）**
+- **D10（files）**：Open file 侧表面空渲染。位置/操作=会话右侧面板 ＋ → New tab → Open file；证据=tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、fetch 钩子实测 0 个 /api/fs 请求）、fs.list 服务端 200 正确、对照 Review 面正常；影响=P3.1/3.2/3.3/3.4/3.7；解决条件=pierre-tree 渲染管线修复后复测（截图 `/tmp/oc147-P3.1-D10-empty.png`）。
+- **D12（diff）**：pierre `<diffs-container>` 空渲染（shadowRoot 仅图标 sprite、host 高度 0；vcs/diff 200 数据在位；app-UI 半边正常）。影响=P3.5 两态/P3.6 diff 体（P3.10 列表时效归 D13 事件缺位，非本渲染缺陷）；解决条件=pierre 组件在 Chrome/114 WebView 渲染管线修复后复测。
+- **D13（diff）**：Review vcs 查询 staleTime Infinity + 服务端 filesystem.changed 缺位 → 列表陈旧（server +2 vs UI +1，跨激活/重挂载/重启前）；影响=P3.10/P3.9 列表时效；解决条件=服务端 fs 事件可用环境复测（或查询失效策略复核）。
+- **D14（terminal）**：宽屏双栏漂移至单栏不可恢复（tab 切换/软键盘/旋转/重启任一后；跨重启；Add tab 缺失致重开终端不可达）。影响=P5.3 红线两段/P5.4/P5.5 终端路径；解决条件=布局恢复机制修复后重跑。
+- **D15（terminal）**：布局漂移期 CDP insertText+Enter 未达 PTY shell（双栏窗口期 echo/重命名均达 shell 且服务端一致——归因收窄至漂移态）。影响=P5.3 sleep 4000 注入；解决条件同 D14。
+- **D16（attachments/core）**：timeline external-link 点击未走 openExternal 桥——mailto→WebView ERR_UNKNOWN_URL_SCHEME 错误页（Back 恢复）、http 未起浏览器。影响=N08 外跳语义；M-021 share 桥经 P7.2 触发语义核实为 data:-URL 唯一分支（路径选择 UI 不触桥），D16 范围收窄为「timeline 图片芯片 data: URL 点击」单形态，非 M-021 回归；解决条件=点击路径接入桥（或 native 拦截）后复测。
+
+**环境协调（非应用缺陷）**
+- **D8/D9/D11**：并行 #148 QA 占用同一应用实例（视图劫持/配对对话框/adb install 替换构建 f16cb684→已复装身份 A）；两轮验收需串行（AGENTS.md 单操作者）。缓解=服务端/host 核对优先 + UI 前后双校验 + 被污染即重跑。
+- **D17（语义澄清，非缺陷）**：undo=revert.stage（UI 隐藏+文件回退，消息不落库删除）；redo=revert.clear（回归+无悬挂）；prompt-on-pending-revert=commit-drop（23→21 实测）。
+- **D4**：应用进程非计划重启一次（01:07，状态无损恢复）；**D3**：Portal 元素合成 tap 不激活、DOM click/真实按键/CDP 指针可靠（自动化通道观察）。
+
+### 未验收清单（如实保留 BLOCKED/未验证 + 解除条件）
+
+- SSH 双路由向全部场景：继承 #146 隧道数据面缺陷（JSch 本地转发挂起），修复前不重跑。
+- P3.1/3.2/3.3/3.4/3.7（Files 查看器族）——解除=D10 修复；P3.5 wrap 两态、P3.6 comments——解除=D12 修复；P3.9 二进制占位面——解除=D12+上游语义复核。
+- P3.10 debounce 自动刷新——解除=服务端 fs 事件可用环境（应用侧机制在位）。
+- P5.3 红线②显式关闭、`echo oc147-alive`、stty/旋转/中文输入/clone UI——解除=D14/D15 修复。
+- P5.5 真机 IME 组串——解除=用户批准 helper IME（R6）。
+- P6.2 上传取消变体（SAF picker 二次超时）；P6.3 断网失败变体（协调裁定不做）；P6.4 设备路径剪贴板（需设备 UI 深导航）。
+- 三 OS 矩阵（本轮仅 Linux）；P1.6 icon 上传落地核验（SAF 目录导航）；P6.4 非图像剪贴板（G27⑥ 预登记非本期）。
+- 门禁子项未测（F3 规则如实登记）：G23⑥ preflight 三态、G24⑤ 锁屏/飞行模式、G24⑨ 触屏选择复制粘贴、G27④ 旋转（布局漂移阻断）、G27⑤ grant flag/临时授权/L1 清理、G27⑥ 非图像剪贴板。
+
+### 证据索引
+
+- 台账：`/home/peterhan/qa-tmp/oc147-evidence.md`（会话 1–4 全记录，545 行）。
+- 截图：`/tmp/oc147-*.png`（272 个文件，含成对缩略图；台账显式引用 58 个唯一路径；场景 ID 序列命名；关键：identity-about/P1.1-05/P1.9-10/P2.2-08/P2.5-02/P3.1-D10-empty/P3.5-01/P4.2-02/P4.4-02/P4.5-01/P5.1-01/P5.2-03..05/P6.1-21/P6.2-13/P6.5-01/P6.6-04/P6.7-01/P7.2-05..09）。
+- 清理记录：worktree×3 remove+prune、host 目录×3、tmp uploads big.bin、设备 Download×4 全删；服务端遗留逐条登记（QA DB 不清）：项目 7261947be7f4/baac233a0009、会话 ses_e4e4fb72/ses_e4dbeefe/ses_e4c9991a、PTY Terminal 1 pid 3835281 running（QA serve 随用时回收）、uploads 目录壳。
+- 全程未向生产项目/会话发送消息；未 clear 应用数据；未卸载；未重启/停止远端服务；oc-146/oc-148/qa148-a1 零触碰。
+
 ## issue #148 段（test(android): 闭环扫码、通知与扩展生命周期——feat/221-platform-events 首轮真实验收）——2026-11-07 实测记录
 
 ### 构建身份与验证环境
