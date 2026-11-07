@@ -14,7 +14,22 @@ import quoteHighlightStyles from "../components/quote-highlight.css?inline"
 registerCustomTheme(OpenCodeTheme.name, () => Promise.resolve(OpenCodeTheme), "zed")
 
 // Viewers and worker pools must agree: the pool's options win whenever it renders.
-export const highlightOptions = { theme: OpenCodeTheme.name, preferredHighlighter: "highlights" } as const
+// mobile(diff-worker-pool-fallback): the upstream "highlights" engine compiles its oniguruma wasm
+// synchronously at module load (`init(new WebAssembly.Module(bytes))` in @pierre/highlights'
+// default entry), which Chromium forbids on the main thread for buffers >4 KiB — on the Android
+// WebView every boot rejects the pool's initialize() with that RangeError and both diff and file
+// viewers stay on the sprite + empty-pre face (#163). "shiki-js" is pierre's own default engine
+// (resolveHighlighterType falls back to it) — pure JS, no wasm — and loads on the main thread and
+// inside workers alike; syntax highlighting itself is unchanged. The theme moves to pierre's
+// bundled pair: the shiki path cannot consume the Highlights-palette "OpenCode" registration
+// (themeResolver only serves it to the highlights engine), while pierre-dark/pierre-light are
+// the bundled shiki themes the app palette was modelled on — the code pane follows the app
+// appearance again; the exact token colours are pierre's, not the app palette's (registered
+// adaptation in docs/design/units/diff.md).
+export const highlightOptions = {
+  theme: { dark: "pierre-dark", light: "pierre-light" },
+  preferredHighlighter: "shiki-js",
+} as const
 
 export type DiffProps<T = {}> = FileDiffOptions<T, undefined> & {
   before: FileContents

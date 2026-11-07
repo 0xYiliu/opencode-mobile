@@ -218,6 +218,18 @@
   overflow: hidden;
 }
 
+/* mobile(files-tree-sidebar-fill): the tree wrapper is a content-sized custom element host and
+ * nothing in the fill chain gives it a height, so the sidebar tree collapsed to its content
+ * minimum (~12px) and every row clipped out of view (#162). The directory picker solves the same
+ * shape with an explicit height on its wrapper (.directory-picker-tree { height: 100% }); do the
+ * equivalent here — let the wrapper flex-fill the tree viewport it lives in. */
+[data-component="session-review-v2-sidebar-root"]
+  [data-slot="session-review-v2-sidebar-viewport"]:has(file-tree-container)
+  > [data-component="file-tree-v2"] {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
 [data-component="session-review-v2"] [data-slot="session-review-v2-preview"] {
   display: flex;
   flex-direction: column;
