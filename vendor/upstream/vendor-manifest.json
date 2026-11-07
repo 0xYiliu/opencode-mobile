@@ -627,7 +627,7 @@
     {
       "id": "diff-worker-pool-fallback",
       "path": "patches/mobile/diff-worker-pool-fallback.patch",
-      "sha256": "baf3d45f84b4ae1f68727a1dec2b6073af53a4a1747161cf8f9d55a6b6095b2d",
+      "sha256": "e5ca4876238c8d784ca38709d698c312440eb702fc687669dc7e8014edbf8fe2",
       "status": "active"
     },
     {

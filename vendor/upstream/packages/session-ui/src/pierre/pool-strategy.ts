@@ -22,7 +22,10 @@ export function observeSettlement<T>(
   promise: Promise<T>,
   ms: number,
   timer: (callback: () => void, ms: number) => unknown = setTimeout,
-  clear: (handle: unknown) => void = clearTimeout,
+  // mobile(diff-worker-pool-fallback): the handle we hand back is whatever `timer` returned
+  // (a Timeout object under bun, a number in test fakes), so the contract stays unknown and
+  // the platform clearTimeout default is a type-level cast only — runtime is untouched.
+  clear: (handle: unknown) => void = clearTimeout as (handle: unknown) => void,
 ): Promise<SettlementOutcome<T>> {
   return new Promise((resolve) => {
     let done = false

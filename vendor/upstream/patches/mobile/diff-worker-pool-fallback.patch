@@ -53,10 +53,10 @@ index 5d4fed6..d6f0d03 100644
    before: FileContents
 diff --git a/packages/session-ui/src/pierre/pool-strategy.ts b/packages/session-ui/src/pierre/pool-strategy.ts
 new file mode 100644
-index 0000000..8bad076
+index 0000000..f73c6b4
 --- /dev/null
 +++ b/packages/session-ui/src/pierre/pool-strategy.ts
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,80 @@
 +// mobile(diff-worker-pool-fallback): pure helpers that make a pierre worker pool's first
 +// initialize() observable and bounded, so a pool that rejects — or never settles — can release
 +// the render gate instead of leaving viewers on the sprite + empty-pre face (#163). Nothing in
@@ -81,7 +81,10 @@ index 0000000..8bad076
 +  promise: Promise<T>,
 +  ms: number,
 +  timer: (callback: () => void, ms: number) => unknown = setTimeout,
-+  clear: (handle: unknown) => void = clearTimeout,
++  // mobile(diff-worker-pool-fallback): the handle we hand back is whatever `timer` returned
++  // (a Timeout object under bun, a number in test fakes), so the contract stays unknown and
++  // the platform clearTimeout default is a type-level cast only — runtime is untouched.
++  clear: (handle: unknown) => void = clearTimeout as (handle: unknown) => void,
 +): Promise<SettlementOutcome<T>> {
 +  return new Promise((resolve) => {
 +    let done = false
