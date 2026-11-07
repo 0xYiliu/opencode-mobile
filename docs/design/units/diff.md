@@ -130,3 +130,15 @@
 - **服务端实现语义来源边界**：`packages/core/src/vcs.ts`、`vcs/patch.ts`、`plugin/vcs/{git,hg}.ts` 与 server handler 不在闭包内（引上游 pin 缓存）；协议与 schema 描述在闭包内可静态锚定——两类来源显式分层；pin 更新时缓存引文随 PROVENANCE 演练同步。
 - **四类吞错的呈现充分性归 G23**：detailsQuery→[]、loadDiff→undefined、branch.list 候选→[]、turn 缓存失败静默重试——上游语义如实落字，用户可见性未核验。
 - **上游全量套件不作为门禁**；终端与设置两个单元仍为 architecture.md TODO 行，本期不声称已交付。
+
+## #162/#163 修复轮登记（2026-11-08，分支 fix/162-163-pierre-webview-render）
+
+**pierre diff 体渲染修复（#163）——`diff-worker-pool-fallback.patch`**（`packages/session-ui/src/{pierre/index.ts,pierre/worker.ts,pierre/pool-strategy.ts,components/file.tsx}`，mobilePatches 0-based 74）：
+
+- **根因（step-0 CDP 钉死）**：上游 `preferredHighlighter: "highlights"` 引擎在 @pierre/highlights default 入口模块顶层同步编译 183 KiB oniguruma wasm（`init(new WebAssembly.Module(bytes))`）；Chromium 主线程禁止 >4 KiB 同步编译（版本无关行为）→ 池 `initialize()` 的主线程半边（`loadSharedHighlighter`）每轮启动即 RangeError → `workersFailed=true` + `terminateWorkers()` → FileDiff 渲染走 `getPlainDiffAST` 时共享 highlighter 未载 → `queueInitialization(); return` → **恒 sprite + 空 PRE、host 高 0**（与 #147 D12 形态逐项一致），且全部失败路径静默（12s MutationObserver 窗口 0 变更、后续零 console）。
+- **适配 1：引擎切换 `preferredHighlighter: "highlights"` → `"shiki-js"`**——pierre 自身默认引擎（`resolveHighlighterType` 兜底值），纯 JS 无 wasm，主线程/worker 双面可用；语法高亮语义保留。
+- **适配 2：主题面切换 `theme` → pierre 内置 `{ dark: "pierre-dark", light: "pierre-light" }`**——shiki 路径无法消费 Highlights-palette 形的 "OpenCode" 注册（themeResolver 仅将其提供给 highlights 引擎；首轮 shiki-js 实测报 `Theme "OpenCode" is only registered for Zed`）；pierre-dark/light 为内置 shiki 主题（应用调色板亦按其分组建模）。**登记降级形态**：代码窗格 token 配色为 pierre 主题（跟随应用 appearance 的 dark/light 对），不再逐 token 映射应用 CSS 变量；与在册「114 上 light-dark()/相对色降级」同级呈现差异。
+- **适配 3（§2.2 韧性面，非本轮触发路径）**：`pierre/pool-strategy.ts`（纯 promise/setTimeout 状态机，无 solid/worker 导入，bun 可测）+ `worker.ts` 失败池 WeakSet 守卫（initialize reject 或 12s 未 settle——pierre 自身 10s 超时之上留 margin——即从 `getWorkerPool` 返回 undefined，让 `FileDiff/PierreFile/Virtualized*` 走无池主线程路径）+ `file.tsx createPoolReady` 失败旁路（catch 置 failed 信号 + `console.error("[diff] pierre worker pool init failed", cause)` 标签化可见化）。失败可见、可判定，不再静默。
+- **运行验收（#163 验收句）**：真机 Files Changed → `longline.txt`（+1/-0，vcs.diff 200）→ **diff 正文渲染**（split 态双栏行号 + 20000 字符行换行铺满、host 高 19248px、滚轮滚动实测位移；unified 切换重渲染正常、wrap 态长行换行可见）；`normal.txt` 文件 tab 内容渲染同轮验证。截图 `/tmp/oc162-163/oc163-final-D12-*.png`（构建 d059d094）。
+- **console/logcat 审计**：全程仅 goal 插件 `AbortSignal.any`（#165 在册，本轮不动）；零 `[diff]/[file]` 标签错误、零 wasm 错误、logcat 零未捕获异常、零凭据值。
+- **测试**：`scripts/verify-pierre-webview-compat.test.ts`（bun，15 用例：patch seam 静态锚 + pool-strategy settle/reject/挂起×超时矩阵）+ `verify-diff.ts` 组 9 锚 + `verify-files.ts` 组 10 锚 + 三件套（78 registered）+ closure 全链重放 PASS。
