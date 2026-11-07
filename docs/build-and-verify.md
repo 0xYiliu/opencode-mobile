@@ -3684,21 +3684,32 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - **About 三行实显（S39，截图留证）**：设置 → About 页实显 **Version 2.2.1**（client 行 = MOBILE_APP_VERSION）、**Upstream OpenCode 2.1.4**（基座行 = vendored pin 树真实版本，D2）、**Server OpenCode 2.2.1**（服务行 = 实连服务真实版本，与 client 行独立不混淆）——服务行诚实降级串（checking/unavailable）未逐一演练，继承 S39 在册证据。
 - **同签名覆盖升级 + 数据保留**：`adb install -r` 同一 release APK → **Success**；`firstInstallTime` 保持 14:31:41 不变、`lastUpdateTime` 更新为 14:39:55（同版本 code 单调覆盖路径证据）；重启应用后**保留的服务器连接直接可用**（自动重连、项目/会话列表真实渲染）——凭据/偏好存续即数据保留证据。「真实后续版本升级」（如 2.2.1→2.3.0）不可测，如实登记边界。
 - **zh 资源切换**：设置 Language 选择器正常展开（English ✓/简体中文/繁體中文/한국어/Deutsch/Español，截图留证）；切换点击复验与切换后全页走查未完成（本轮收口于真实服务连接的诚实登记），归协调员门控设备轮。
-- **零 side-effect 确认**：全程无任务发送/权限决策/会话创建；MatePad（真机，端点不入账）零 adb 触碰；所有 adb 命令显式 `-s emulator-5554`。
+- **零 side-effect 确认**：全程无任务发送/权限决策/会话创建；MatePad（真机，端点不入账）零 adb 触碰；所有 adb 命令显式 `-s emulator-5554`。（本节为 Phase E 时点记录；真机触碰见下节 Phase D。）
+
+### 真机 Phase D（debug→debug 同签名覆盖升级验收；单操作者窗口 2026-11-07 15:16–15:30 +0800）
+
+> Phase R（卸载 debug 装 release）**未获用户授权未执行**：协调员已向用户提出卸载授权询问（含不可逆数据后果说明），未获答复即不视为授权——按 issue 执行规则「不能擅自卸载/清数据」维持 BLOCKED。debug→release 异签名拒绝已有 Phase E 双 AVD 实测。
+
+- **验证环境**：MatePad DBY2-AL00（Android 12 / API 31 / WebView Chrome/114）；无线 ADB（端点不入台账，同 #61/#146/#148 先例）；CDP 同 #148 模式（`adb forward tcp:18491` → `webview_devtools_remote_<pid>` → `http://127.0.0.1:18090/`）；收口移除转发。载荷=归档零重建 debug APK（SHA-256 `abcf1a42…a767`，64,447,987 bytes，versionCode 20201 / versionName 2.2.1，RC=`6e83db6` 构建），安装前哈希复核一致；release APK 未触碰。
+- **升级前基线（0.1.0，用户真实数据）**：About 三行 0.1.0 / Upstream 2.1.4 / Server 2.2.1；服务器 3 条（bastion `192.168.3.152:49374` 有凭据绿点、tvps `100.120.15.65:4096` 有凭据绿点、`100.87.216.92:49374` 无凭据带锁）；偏好 12 项（Top tabs/English/System 深色/Zoom 100%/steer/fontSize 14/showFileTree=false 等）；`plugin.updater.seen` = `{"version":"0.1.0"}`；firstInstallTime 2026-10-28 03:10:15。
+- **覆盖升级**：`adb install -r` Success 9.4s → dumpsys versionCode=20201 / versionName=2.2.1、**firstInstallTime 不变**、pkgFlags 仍 DEBUGGABLE；logcat PackageManager「Retain data and using new」系统级佐证。
+- **数据保留**：registry 3/3 逐条一致、凭据保留（升级后首启自动重连水合一径 + force-stop 冷启动二径再重连，bastion/tvps 健康绿）；About 壳行 0.1.0→**2.2.1**（上游 2.1.4/服务 2.2.1 不变）；偏好 12 项逐项保持；会话历史/项目树/11 标签条全恢复；`plugin.updater.seen` → `{"version":"2.2.1"}`。
+- **whatsNew 真实跃迁首次观察（0.1.0→2.2.1）**：whats-new chunk 与 `opencode.ai/changelog.json` 均 HTTP 200（fetch 成功）、**无弹窗**、水位即推进——与上游 `whats-new.spec.ts` 在册「范围内无合格 desktop highlights → 仅记忆版本」路径三件套吻合（`settings.v3` 无 releaseNotes 键，排除用户关闭路径）。弹窗呈现面未现属上游内容判定结果，非缺陷。
+- **核心回归**：oc-148（已授权可丢弃项目）新会话 `ses_e4b1a51fdffeEdEBZR1GCHz2rw` 发送→流式回复呈现（GLM-5.3 Flash / new-api，6s，8k tokens）PASS；Preferences/Appearance 渲染 PASS；主题 System→Light→Dark→System 往返+还原、语言 English→简体中文（常规页中文化走查；部分条目仍英文=上游 i18n 覆盖现状如实登记）→English，每步截图。
+- **审计与边界**：logcat 全程 73,255 行 0 FATAL、App 进程零 E/W、凭据值零命中（命中均为华为系统服务噪声）、`/home/` 主机路径 App 上下文零命中；输入偏差同 #148 在册族（搜狗 IME 组字乱码未发送即清空、CDP insertText 重注；IME 致一次点击落空 CDP 补发）；用户其余项目/会话零写入；无卸载/无 clear data/零远端服务动作。**Phase D 6/6 Stage PASS。**
 
 ### 未验收清单（如实保留 BLOCKED + 解除条件）
 
-1. **Phase D（MatePad debug 0.1.0 → debug 2.2.1 原地升级、whatsNew 真实跃迁弹窗、资源切换全走查、核心回归清单）**：BLOCKED——协调员门控（单操作者窗口 + 用户真实数据设备）；解除条件 = 协调员排程 Phase D。
-2. **Phase R（MatePad 卸载 debug 装 release）**：BLOCKED——U1 授权点未决（卸载不可逆数据后果须用户明示）。
-3. **有副作用服务验收（真实任务发送→流式→完成、权限 once、断连恢复补齐、通知前台抑制、终端/文件 smoke）**：BLOCKED——本轮模拟器路径只读收口（见上），须 oc-14x 类可丢弃项目环境；解除条件 = 协调员提供授权测试实例排程。
-4. **zh 切换后全页走查**：BLOCKED 继承（选择器面已验，切换后走查归设备轮）。
-5. **服务行诚实降级串（checking/unavailable）设备复验**：继承 S39 在册证据（#110 复验 checking 恒驻形态），本轮未逐一演练。
-6. **发布动作（tag/Release/上传）**：U2 未决前全部不执行；ADR 0005 激活条件（首个对外可下载已签名 release + 版本清单）因未上传仍未满足，S40/N09 暂缓边界维持。
-7. **whatsNew seen 水位写入 dump**：未单独取证（首装无弹窗行为观察已登记）；真实跃迁路径 BLOCKED 同 Phase D。
+1. **Phase R（MatePad 卸载 debug 装 release）**：BLOCKED——U1 授权点未决（卸载不可逆数据后果须用户明示；协调员已询问未获答复，未视为授权）。release 首装/覆盖升级/数据保留链已有模拟器 Phase E 等价证据；真机 release 路径解除条件 = 用户明示卸载授权。
+2. **残余有副作用面（权限 once、断连恢复补齐、通知前台抑制、终端/文件 smoke 于 2.2.1 构建重跑）**：发送→流式→完成已经 Phase D 真机 PASS（oc-148）；其余面继承 #146/#147/#148 在册真机证据（0.1.0 系构建，CLOSED 轮），本轮未在 2.2.1 构建重跑——如实登记，不据继承宣称 2.2.1 全绿。
+3. **服务行诚实降级串（checking/unavailable）设备复验**：继承 S39 在册证据（#110 复验 checking 恒驻形态），本轮未逐一演练。
+4. **发布动作（tag/Release/上传）**：U2 未决前全部不执行；ADR 0005 激活条件（首个对外可下载已签名 release + 版本清单）因未上传仍未满足，S40/N09 暂缓边界维持。
+5. **whatsNew 弹窗呈现面**：Phase D 实测「fetch 成功+无弹窗+水位推进」三件套（上游内容判定路径）；弹窗面解除条件 = 上游 changelog 出现合格 desktop highlights 的下一次真实跃迁自然观察。
 
 ### 证据索引
 
 - 探针普查两态全输出：本机任务记录 `/tmp/issue149-census/`（prebuild-census.txt / postbuild-census.txt / 33×.out；会话结束后不持久，关键数字已录入本表）。
 - 归档 APK：`/home/peterhan/release-staging/issue-149/`（release + debug，SHA-256 见上表；仓库外稳定路径）。
+- 真机 Phase D 证据：`/home/peterhan/release-staging/issue-149/qa-phase-d/`（22 截图 + 基线 JSON / install 结果 / 9.1MB logcat 去敏审计件）。
 - 模拟器截图（本轮会话 /tmp 下，关键形态已文字录入）：首装连接面 e34-first/home、配对连接后会话列表 e34-paired、覆盖升级后抽屉 e34-drawer、About 三行 e34-about、语言选择器 e34-lang。
 - 签名材料路径（值零入）：`~/.config/opencode-mobile-signing/`（方案与保管见 `docs/release-runbook.md`）。
