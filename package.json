@@ -110,7 +110,7 @@
     "@corvu/drawer@0.2.4": "vendor/upstream/patches/@corvu%2Fdrawer@0.2.4.patch",
     "@dnd-kit/dom@0.5.0": "vendor/upstream/patches/@dnd-kit%2Fdom@0.5.0.patch",
     "@npmcli/agent@4.0.2": "vendor/upstream/patches/@npmcli%2Fagent@4.0.2.patch",
-    "@pierre/trees@1.0.0-beta.4": "vendor/upstream/patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
+    "@pierre/trees@1.0.0-beta.6": "vendor/upstream/patches/@pierre%2Ftrees@1.0.0-beta.6.patch",
     "@tanstack/virtual-core@3.17.8": "vendor/upstream/patches/@tanstack%2Fvirtual-core@3.17.8.patch",
     "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "vendor/upstream/patches/ghostty-web@0.3.0.patch",
     "pacote@21.5.1": "vendor/upstream/patches/pacote@21.5.1.patch",

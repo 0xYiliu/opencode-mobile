@@ -2,7 +2,7 @@ diff --git a/packages/app/package.json b/packages/app/package.json
 index e4f8f9f..1a6deed 100644
 --- a/packages/app/package.json
 +++ b/packages/app/package.json
-@@ -64,7 +64,8 @@
+@@ -64,11 +64,12 @@
      "@kobalte/core": "catalog:",
      "@opencode/client": "workspace:*",
      "@opencode/schema": "workspace:*",
@@ -12,6 +12,11 @@ index e4f8f9f..1a6deed 100644
      "@opencode/session-ui": "workspace:*",
      "@opencode/ui": "workspace:*",
      "@opencode/util": "workspace:*",
+-    "@pierre/trees": "1.0.0-beta.4",
++    "@pierre/trees": "1.0.0-beta.6",
+     "@sentry/solid": "catalog:",
+     "@solid-primitives/event-bus": "1.1.2",
+     "@solid-primitives/event-listener": "catalog:",
 diff --git a/packages/app/src/app.tsx b/packages/app/src/app.tsx
 index 78d1117..9226b80 100644
 --- a/packages/app/src/app.tsx
@@ -16202,15 +16207,6 @@ diff --git a/packages/gui-plugins/package.json b/packages/gui-plugins/package.js
 index 6401edd..7138547 100644
 --- a/packages/gui-plugins/package.json
 +++ b/packages/gui-plugins/package.json
-@@ -33,7 +33,7 @@
-     "@opencode/session-ui": "workspace:*",
-     "@opencode/ui": "workspace:*",
-     "@opencode/util": "workspace:*",
--    "@pierre/trees": "1.0.0-beta.6",
-+    "@pierre/trees": "1.0.0-beta.4",
-     "@solid-primitives/event-listener": "catalog:",
-     "@solid-primitives/media": "catalog:",
-     "@solid-primitives/resize-observer": "catalog:",
 @@ -42,7 +42,7 @@
      "@tanstack/solid-virtual": "catalog:",
      "effect": "catalog:",

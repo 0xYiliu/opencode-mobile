@@ -127,3 +127,13 @@ Android 文件导入（附件上传 `composer/attachments/*` + `onShowFileChoose
 - **diff 查看不在本期**：文件与 Diff 拆分后 diff 单元保持「未开始」；`sidebar.tsx`（changes 树 tab）与 `SessionReviewV2*` 的 diff 面不声称已交付。
 - **#16 面（导入/导出/分享）不在本期**：仅边界声明与 `fs.write` 基线断言，不声称任何导入导出能力已验证。
 - **搜索失败吞为空结果**：`model.tsx` search 非 abort 错误 `.catch → []`——上游语义如实登记，呈现充分性归 G22③ 首项核对。
+
+## #162/#163 修复轮登记（2026-11-08，分支 fix/162-163-pierre-webview-render）
+
+**Open file 侧面板树渲染修复（#162）**——两处 114 存活适配 + 一处 vendor 基线缺口修正，全部走 mobile patch / vendor 修正登记：
+
+- **依赖基线对齐（vendor 修正，非 mobile patch）**：`@pierre/trees` 从 1.0.0-beta.4（旧 pin b4525d79 基线）对齐到 **1.0.0-beta.6**（gui-plugins 包实际抽取源 v2.2.1=3ebcf9a 的 package.json/lock/patchedDependencies 版本）。缺口形态：gui-plugins 包源码=3ebcf9a（`pierre-tree.tsx` 调用 beta.6 API），依赖=旧基线，运行期 `applyGitStatusPatch`/`getVisibleRows` TypeError（step-0 CDP console 捕获）。修正载体：`gui-plugins-api-migration.patch` 修订（删除 gui-plugins/package.json 的 beta.6→beta.4 翻转 hunk；app/package.json hunk 增 beta.4→beta.6 翻转）+ 仓库根 `patchedDependencies` 与 patch 文件换 `@pierre%2Ftrees@1.0.0-beta.6.patch`（pin 原件）+ bun.lock 刷新。
+- **`files-tree-sidebar-fill.patch`（布局语义修正）**：sidebar 树 wrapper（`[data-component="file-tree-v2"]`，content-sized 自定义元素宿主）在 `:has(file-tree-container)` tree viewport（列 flex、overflow hidden）内无任何高度来源——`:host(height:100%)` 相对 content-sized 父级解析为 auto，整条 shadow flex 链塌缩到内容最小值（实测 wrapper 12px / scroller 8px / list 140px 但全部裁剪不可见）。修正：wrapper 在 viewport 内 `flex: 1 1 0%; min-height: 0`（镜像本应用 directory picker 对同型组件的显式高度模式 `.directory-picker-tree { height: 100% }`）。设备探针：wrapper 12→601px、scroller 597px，全部行渲染。
+- **`diff-worker-pool-fallback.patch`**（详见 diff.md）：`preferredHighlighter` 与主题面切换同样服务于文件查看器（TextViewer 同闸门）——`normal.txt` 内容渲染（alpha/beta 两行 + 行号）即经此路径。
+- **运行验收（#162 验收句）**：真机 Open file 侧面板实际打开文件树（5 行可见：.git/edit-me.txt/longline.txt[M]/normal.txt/sample.png）→ 选择普通文本文件 `normal.txt` → 内容可见（行号 + alpha/beta，与服务端 fs.read 内容一致）→ 关闭文件 tab 返回、重进面板树状态保留（5 行 + M 徽标在位）。截图 `/tmp/oc162-163/oc162-final-D10-*.png`（构建 d059d094）。
+- **登记形态（非缺陷，如实）**：树数据 scoped 缓存（staleTime Infinity，#147 D13 同源）——面板重开命中缓存时本轮零新增 `/api/fs` 请求；fs.list 200 证据来自 step-0 采证轮与服务端 smoke。

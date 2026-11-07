@@ -1,0 +1,191 @@
+diff --git a/packages/session-ui/src/components/file.tsx b/packages/session-ui/src/components/file.tsx
+index 1d38682..6f540d0 100644
+--- a/packages/session-ui/src/components/file.tsx
++++ b/packages/session-ui/src/components/file.tsx
+@@ -699,12 +699,18 @@ function createSharedVirtualStrategy(host: () => HTMLDivElement | undefined, ena
+ // of its scroller anchors the file's bottom edge, then scrolls to the end once the rows arrive.
+ function createPoolReady() {
+   const [settled, setSettled] = createSignal(false)
++  // mobile(diff-worker-pool-fallback): a pool whose initialize() rejected must not hold the render gate
++  // shut — the viewer renders on the main-thread path instead and the failure stays visible in the console.
++  const [failed, setFailed] = createSignal(false)
+ 
+   return (pool: ReturnType<typeof getWorkerPool>) => {
+-    if (!pool || pool.isInitialized() || settled()) return true
++    if (!pool || pool.isInitialized() || settled() || failed()) return true
+     void pool
+       .initialize()
+-      .catch(() => undefined)
++      .catch((cause) => {
++        setFailed(true)
++        console.error("[diff] pierre worker pool init failed", cause)
++      })
+       .then(() => setSettled(true))
+ 
+     return false
+diff --git a/packages/session-ui/src/pierre/index.ts b/packages/session-ui/src/pierre/index.ts
+index 5d4fed6..d6f0d03 100644
+--- a/packages/session-ui/src/pierre/index.ts
++++ b/packages/session-ui/src/pierre/index.ts
+@@ -14,7 +14,22 @@ import quoteHighlightStyles from "../components/quote-highlight.css?inline"
+ registerCustomTheme(OpenCodeTheme.name, () => Promise.resolve(OpenCodeTheme), "zed")
+ 
+ // Viewers and worker pools must agree: the pool's options win whenever it renders.
+-export const highlightOptions = { theme: OpenCodeTheme.name, preferredHighlighter: "highlights" } as const
++// mobile(diff-worker-pool-fallback): the upstream "highlights" engine compiles its oniguruma wasm
++// synchronously at module load (`init(new WebAssembly.Module(bytes))` in @pierre/highlights'
++// default entry), which Chromium forbids on the main thread for buffers >4 KiB — on the Android
++// WebView every boot rejects the pool's initialize() with that RangeError and both diff and file
++// viewers stay on the sprite + empty-pre face (#163). "shiki-js" is pierre's own default engine
++// (resolveHighlighterType falls back to it) — pure JS, no wasm — and loads on the main thread and
++// inside workers alike; syntax highlighting itself is unchanged. The theme moves to pierre's
++// bundled pair: the shiki path cannot consume the Highlights-palette "OpenCode" registration
++// (themeResolver only serves it to the highlights engine), while pierre-dark/pierre-light are
++// the bundled shiki themes the app palette was modelled on — the code pane follows the app
++// appearance again; the exact token colours are pierre's, not the app palette's (registered
++// adaptation in docs/design/units/diff.md).
++export const highlightOptions = {
++  theme: { dark: "pierre-dark", light: "pierre-light" },
++  preferredHighlighter: "shiki-js",
++} as const
+ 
+ export type DiffProps<T = {}> = FileDiffOptions<T, undefined> & {
+   before: FileContents
+diff --git a/packages/session-ui/src/pierre/pool-strategy.ts b/packages/session-ui/src/pierre/pool-strategy.ts
+new file mode 100644
+index 0000000..f73c6b4
+--- /dev/null
++++ b/packages/session-ui/src/pierre/pool-strategy.ts
+@@ -0,0 +1,80 @@
++// mobile(diff-worker-pool-fallback): pure helpers that make a pierre worker pool's first
++// initialize() observable and bounded, so a pool that rejects — or never settles — can release
++// the render gate instead of leaving viewers on the sprite + empty-pre face (#163). Nothing in
++// this module may import viewer code, solid, or any worker-script module: it must stay loadable
++// from a plain bun test (scripts/verify-pierre-webview-compat.test.ts exercises the matrix).
++
++export type PoolLike = {
++  initialize(): Promise<unknown>
++}
++
++export type SettlementOutcome<T> =
++  | { ok: true; value: T }
++  | { ok: false; reason: "timeout" }
++  | { ok: false; reason: "rejected"; cause: unknown }
++
++/**
++ * Resolves with the promise's settlement outcome, or `{ ok: false, reason: "timeout" }` when it
++ * neither resolves nor rejects within `ms`. Never rejects. `timer`/`clear` are injectable so
++ * tests run without real clocks.
++ */
++export function observeSettlement<T>(
++  promise: Promise<T>,
++  ms: number,
++  timer: (callback: () => void, ms: number) => unknown = setTimeout,
++  // mobile(diff-worker-pool-fallback): the handle we hand back is whatever `timer` returned
++  // (a Timeout object under bun, a number in test fakes), so the contract stays unknown and
++  // the platform clearTimeout default is a type-level cast only — runtime is untouched.
++  clear: (handle: unknown) => void = clearTimeout as (handle: unknown) => void,
++): Promise<SettlementOutcome<T>> {
++  return new Promise((resolve) => {
++    let done = false
++    const finish = (outcome: SettlementOutcome<T>) => {
++      if (done) return
++      done = true
++      clear(handle)
++      resolve(outcome)
++    }
++    const handle = timer(() => finish({ ok: false, reason: "timeout" }), ms)
++    promise.then(
++      (value) => finish({ ok: true, value }),
++      (cause) => finish({ ok: false, reason: "rejected", cause }),
++    )
++  })
++}
++
++export type SettlementWatcher = {
++  /** True once initialize() rejected or failed to settle within the timeout. */
++  isFailed(): boolean
++}
++
++/**
++ * Watches a pool's first initialize(): `onError` fires with the cause on rejection, or with a
++ * timeout marker error when the promise does not settle within `timeoutMs`; `onSettled` fires
++ * on a healthy settle. Pierre's own initialization timeout (10s) still runs inside the pool,
++ * so the probe keeps a margin over it and pool-side timeouts surface as rejections, not probe
++ * timeouts.
++ */
++export function watchPoolSettlement(
++  pool: PoolLike,
++  options: {
++    timeoutMs: number
++    onSettled?: () => void
++    onError?: (cause: unknown) => void
++    timer?: (callback: () => void, ms: number) => unknown
++    clear?: (handle: unknown) => void
++  },
++): SettlementWatcher {
++  let failed = false
++  void observeSettlement(pool.initialize(), options.timeoutMs, options.timer, options.clear).then((outcome) => {
++    if (outcome.ok) {
++      options.onSettled?.()
++      return
++    }
++    failed = true
++    options.onError?.(
++      outcome.reason === "rejected" ? outcome.cause : new Error(`pool initialize did not settle within ${options.timeoutMs}ms`),
++    )
++  })
++  return { isFailed: () => failed }
++}
+diff --git a/packages/session-ui/src/pierre/worker.ts b/packages/session-ui/src/pierre/worker.ts
+index 3f59e52..a004be1 100644
+--- a/packages/session-ui/src/pierre/worker.ts
++++ b/packages/session-ui/src/pierre/worker.ts
+@@ -1,7 +1,19 @@
+ import { WorkerPoolManager } from "@pierre/diffs/worker"
+ import DiffsWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
++import { watchPoolSettlement } from "./pool-strategy"
+ import { highlightOptions } from "./index"
+ 
++// mobile(diff-worker-pool-fallback): pierre gives up on its own initialization after 10s; probe
++// with a margin over that so pool-side timeouts surface as rejections rather than probe timeouts.
++const POOL_PROBE_TIMEOUT_MS = 12_000
++
++// mobile(diff-worker-pool-fallback): a pool whose first initialize() rejects — or never settles —
++// must not gate rendering forever (#163). Such a pool is recorded here and getWorkerPool() hands
++// back undefined, so viewers construct without a pool and render rows on the main-thread path
++// (word-level diff/highlight semantics degrade to pierre's no-pool face; registered in
++// docs/design/units/diff.md). The probe lives in pool-strategy.ts so bun tests can exercise it.
++const failedPools = new WeakSet<WorkerPoolManager>()
++
+ function createPool(lineDiffType: "none" | "word-line") {
+   const pool = new WorkerPoolManager(
+     {
+@@ -22,6 +34,14 @@ function createPool(lineDiffType: "none" | "word-line") {
+     },
+   )
+ 
++  watchPoolSettlement(pool, {
++    timeoutMs: POOL_PROBE_TIMEOUT_MS,
++    onError: (cause) => {
++      failedPools.add(pool)
++      console.error("[diff] pierre worker pool init failed", cause)
++    },
++  })
++
+   void pool.initialize()
+ 
+   return pool
+@@ -37,10 +57,10 @@ export function getWorkerPool(lineDiffType: "none" | "word-line" = "word-line"):
+   if (lineDiffType === "none") {
+     if (!plain) plain = createPool("none")
+ 
+-    return plain
++    return failedPools.has(plain) ? undefined : plain
+   }
+ 
+   if (!diff) diff = createPool("word-line")
+ 
+-  return diff
++  return failedPools.has(diff) ? undefined : diff
+ }

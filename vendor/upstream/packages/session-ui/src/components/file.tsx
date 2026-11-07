@@ -699,12 +699,18 @@ function createSharedVirtualStrategy(host: () => HTMLDivElement | undefined, ena
 // of its scroller anchors the file's bottom edge, then scrolls to the end once the rows arrive.
 function createPoolReady() {
   const [settled, setSettled] = createSignal(false)
+  // mobile(diff-worker-pool-fallback): a pool whose initialize() rejected must not hold the render gate
+  // shut — the viewer renders on the main-thread path instead and the failure stays visible in the console.
+  const [failed, setFailed] = createSignal(false)
 
   return (pool: ReturnType<typeof getWorkerPool>) => {
-    if (!pool || pool.isInitialized() || settled()) return true
+    if (!pool || pool.isInitialized() || settled() || failed()) return true
     void pool
       .initialize()
-      .catch(() => undefined)
+      .catch((cause) => {
+        setFailed(true)
+        console.error("[diff] pierre worker pool init failed", cause)
+      })
       .then(() => setSettled(true))
 
     return false

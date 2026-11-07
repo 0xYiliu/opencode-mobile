@@ -3489,7 +3489,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### ⑦ 文件/Diff 面与剩余（W03/W16/G22/G23）
 
 - Review/Git changes 面：列表与计数渲染与服务端 vcs/status|diff 一致 ✓（模式 Select 两值 Git changes/Last turn changes——branch 不提供，按 F3 登记；turn 空态与 server 逐项一致 ✓）；模式重启持久化 ✓。
-- **Files 查看器（D10）与 pierre diff 体（D12）空渲染（复现成立，缺陷候选）**：Open file 侧表面 tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、**fetch 钩子实测 0 个 /api/fs 请求**——组件挂载但数据查询从未发起）；`<diffs-container>` shadowRoot 仅图标 sprite、零内容、host 高度 0；服务端 fs.list/vcs.diff 200 排除服务端因；对照同表面 app-UI 半边正常。→ P3.1/3.2/3.3/3.4/3.6/3.7 BLOCKED（files/diff 单元，回写主归属）。
+- **Files 查看器（D10）与 pierre diff 体（D12）空渲染（复现成立，缺陷候选）【2026-11-08 改判：已修复并真机复验 PASS，见 build-and-verify.md #162/#163 段】**：Open file 侧表面 tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、**fetch 钩子实测 0 个 /api/fs 请求**——组件挂载但数据查询从未发起）；`<diffs-container>` shadowRoot 仅图标 sprite、零内容、host 高度 0；服务端 fs.list/vcs.diff 200 排除服务端因；对照同表面 app-UI 半边正常。→ P3.1/3.2/3.3/3.4/3.6/3.7 BLOCKED（files/diff 单元，回写主归属）。
 - P3.10 debounce：host 编辑后服务端 11s 内 +2 ✓ 但 UI 45s+ 不刷新——根因实测 `/api/event` 流对 host 编辑**零 filesystem.changed 事件**（仅 server.connected），事件驱动链路（model.ts:210，代码在位）从未触发——服务端事件缺位环境限制，不计应用缺陷（D13 关联：staleTime Infinity 缓存跨重挂载/重启前陈旧）。
 - P3.9 二进制 diff：服务端 ("sample.png",0,0,modified)+Binary files patch ✓；应用 Files Changed 列表**不含二进制条目**（重启后亦然）——与计划「列表二进制占位」不符，登记（diff 单元）。
 - P7.2 noGit/initGit 真机 PASS（G23⑤ 关联）：noGit 目录注册（服务端 vcs 无值=noGit 形态、composer 归属 footer 零 changes/分支行，与 location-menu.tsx `Show when={review() && project?.vcs}` 门控一致）→ 发送 prompt → 权限 dock（bash ask）→ 模型 shell 执行 `git init` → host `.git` 目录产生（`git rev-parse --git-dir`=`.git` ✓）+ `git status` 可用（master/No commits yet/?? 5 files）；注册前置=路径建议行点击（未点建议行直接 Select folder 为 no-op——会话 3 首跑失败根因）；M-021 分享桥触发语义核实（见 D16 收窄）；截图 P7.2-05..09。
@@ -3503,8 +3503,8 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 - P6.2 上传后文件留存 uploads（上游无清理面）；P6.6 mailto/http 外跳形态（D16）。
 
 **缺陷候选（各带四要素与解除条件，本 Issue 五单元内）**
-- **D10（files）**：Open file 侧表面空渲染。位置/操作=会话右侧面板 ＋ → New tab → Open file；证据=tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、fetch 钩子实测 0 个 /api/fs 请求）、fs.list 服务端 200 正确、对照 Review 面正常；影响=P3.1/3.2/3.3/3.4/3.7；解决条件=pierre-tree 渲染管线修复后复测（截图 `/tmp/oc147-P3.1-D10-empty.png`）。
-- **D12（diff）**：pierre `<diffs-container>` 空渲染（shadowRoot 仅图标 sprite、host 高度 0；vcs/diff 200 数据在位；app-UI 半边正常）。影响=P3.5 两态/P3.6 diff 体（P3.10 列表时效归 D13 事件缺位，非本渲染缺陷）；解决条件=pierre 组件在 Chrome/114 WebView 渲染管线修复后复测。
+- **D10（files）**：Open file 侧表面空渲染。位置/操作=会话右侧面板 ＋ → New tab → Open file；证据=tabpanel 恒 0/0（3/3 独立打开、chunk 200、零 console 错误、fetch 钩子实测 0 个 /api/fs 请求）、fs.list 服务端 200 正确、对照 Review 面正常；影响=P3.1/3.2/3.3/3.4/3.7；解决条件=pierre-tree 渲染管线修复后复测（截图 `/tmp/oc147-P3.1-D10-empty.png`）。**【2026-11-08 已修复（#162）：依赖基线 beta.6 对齐 + files-tree-sidebar-fill.patch + diff-worker-pool-fallback.patch，真机复验 PASS——根因与证据见 #162/#163 段；#147 期 0/0 形态在 bf3fdc8 基线不复现（面板骨架挂载），当期形态为树 wrapper 高度链塌缩】**
+- **D12（diff）**：pierre `<diffs-container>` 空渲染（shadowRoot 仅图标 sprite、host 高度 0；vcs/diff 200 数据在位；app-UI 半边正常）。影响=P3.5 两态/P3.6 diff 体（P3.10 列表时效归 D13 事件缺位，非本渲染缺陷）；解决条件=pierre 组件在 Chrome/114 WebView 渲染管线修复后复测。**【2026-11-08 已修复（#163）：diff-worker-pool-fallback.patch（引擎 shiki-js + pierre 主题对 + 池失败守卫），真机复验 PASS——根因=主线程 wasm 同步编译 RangeError 致池 initialize 静默失败，见 #162/#163 段】**
 - **D13（diff）**：Review vcs 查询 staleTime Infinity + 服务端 filesystem.changed 缺位 → 列表陈旧（server +2 vs UI +1，跨激活/重挂载/重启前）；影响=P3.10/P3.9 列表时效；解决条件=服务端 fs 事件可用环境复测（或查询失效策略复核）。
 - **D14（terminal）**：宽屏双栏漂移至单栏不可恢复（tab 切换/软键盘/旋转/重启任一后；跨重启；Add tab 缺失致重开终端不可达）。影响=P5.3 红线两段/P5.4/P5.5 终端路径；解决条件=布局恢复机制修复后重跑。
 - **D15（terminal）**：布局漂移期 CDP insertText+Enter 未达 PTY shell（双栏窗口期 echo/重命名均达 shell 且服务端一致——归因收窄至漂移态）。影响=P5.3 sleep 4000 注入；解决条件同 D14。
@@ -3813,3 +3813,71 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 ### 未验收清单（如实保留 BLOCKED + 解除条件）
 
 1. **G32⑤**：真机轮 ref 双面核对 **PASS**（S4/S5/S6/S8/S10），connection.md G32⑤ 行与本段已同步回填——**本项解除**。G32 其余九项维持各自在册状态（本轮不扩范围）。
+
+## issue #162/#163 段（fix(webview): pierre 渲染管线两缺陷——Step 0 诊断钉断点 + 修复轮）——2026-11-07 实测记录
+
+### Step 0 诊断（修复前基线 bf3fdc8 新构建复现；本节先于修复提交）
+
+**构建身份与 rig**：分支 `fix/162-163-pierre-webview-render` 基线 APK `4b77cd94dfeb1fb13de4fb772dd3f134bd54def9bdf3de8064c15da7916f65a1`（64,458,047 bytes；基线 gradle 单测 10 suites / 43 tests / 0 fail = 在册基线恒同）；设备 `100.86.53.73:5555`（DBY2-AL00，Android 12，WebView com.huawei.webview 114.0.5.302，UA Chrome/114.0.5735.196），`pm path` 回读 pull 后 sha256 与构建相等 true。QA server **本机 v2.2.1（GitHub release 二进制，`opencode serve`）= pin 版本零偏差**（m1 的 2.1.1 降级路径不触发）；fixtures `/tmp/oc162-qa-repo`（normal.txt/edit-me.txt/longline.txt 20000x + appended 工作区 +1 行/sample.png）；`/api/fs/list`（`location[directory]` 形）与 `/api/vcs/diff`（mode=working → longline.txt +1/-0）采证前 smoke 均 200。app 侧连接经 pairing link 兑换 + password 面「remember credential」（M-009 vault）建立——发现 **M-002 password memory-only**：pairing 兑换所得凭据仅存内存，`location.reload()` 后 401；vault remember 是跨 reload 唯一持久面（#162 QA rig 操作性发现，非缺陷，登记）。
+
+**0-a 固定前置**：SW unregister（1）+ caches.delete（1）+ reload 后重采样：performance 资源 181 个 `_assets/*` 名称 **全部 ⊆ web-dist/manifest.json files 键集**、入口 `_assets/index-Bm0WCEBk.js` 200 命中——采证身份成立（M3）。
+
+**0-b D10 复现与 M1 裁决（F2：判据采于真实文件 tab、sidebar 展开态表面）**：右侧面板 ＋ → Open file，tabpanel `session-side-panel-file-browser-tabpanel` **children=1 / innerHTML=3036 ≠ 0/0**（#147 期 0/0 形态在 bf3fdc8 上不复现）；`[data-slot="session-review-v2-sidebar"]` **存在**、过滤输入框存在、`file-tree-container` 存在、`[data-component="file-tree-v2"]` wrapper 存在（带 data-total-rows）；`performance` 实测 **`/api/fs/list?location[directory]=/tmp/oc162-qa-repo&path= 200`**——数据链已触发（fetch 钩子 0 计数的 #147 测量伪影判定成立）。**M1 裁决：H1（面板层 Suspense/lazy 工厂挂起）否定；H2-c（数据链未触发）否定。** 逐 chunk 缓存击穿导入未见挂起；console 双通道零 `[file]` 标签错误。
+
+**D10 真断点（新事实，两处）**：
+1. **依赖基线漂移**：console.error `[plugin] file TypeError: R.applyGitStatusPatch is not a function`（`_assets/pierre-tree-DSMyPcdA.js`）+ window-error `Uncaught TypeError: R.getVisibleRows is not a function`。vendored 源 `packages/gui-plugins/src/file/pierre-tree.tsx:463/508` 逐字节等于 pin 3ebcf9a（调用 beta.6 API），但 vendored `packages/app/package.json` 与 `packages/gui-plugins/package.json` 及移动根 `patchedDependencies` 均钉 **@pierre/trees 1.0.0-beta.4**（旧 pin b4525d79 时代），pin 实际为 **beta.6**（package.json + bun.lock + `patches/@pierre%2Ftrees@1.0.0-beta.6.patch`）；beta.4 dist 中两方法不存在（grep 证）。即：源=新 pin、依赖=旧 pin 的 vendor 同步缺口。
+2. **几何塌缩**：shadow DOM 内 5 行（.git/edit-me/longline/normal/sample，28px/行、list height:140px）全部就位，但 `data-file-tree-virtualized-scroll` 高 **8px**；高度链测量 `aside[data-slot=session-review-v2-sidebar]` 684px → sidebar-tree 601px（flex:1 规则在位）→ sidebar-viewport 601px（`:has(file-tree-container)` 列 flex 规则在位）→ **`[data-component="file-tree-v2"]` wrapper 12px（flex:0 1 auto，无任何高度/flex 规则命中）** → host 12px → 内层 shadow 链 12/8px。是否为 beta.6 才有的布局行为以升级后复测裁决（修复轮记录见下）。
+   截图（基线，不入境）：`/tmp/oc162-163/oc162-D10-empty-baseline.png`（侧栏+过滤框在、树区塌缩不可见）、`oc162-163-step0-session-open.png`、`oc162-163-step0-review-open.png`。
+
+**0-c D12 判别（Files Changed → longline.txt）**：`<diffs-container>` shadowRoot children = **svg(sprite 16080B) + PRE(0)**，host 高 **0**、宽 529——与 #147 D12 形态逐项一致；截图 `/tmp/oc162-163/oc162-D12-empty-baseline.png`。判别项：
+- **12s MutationObserver（m6）**：childList 变更 **0 次**——非路径 2（无周期性重建）；一次性失败后稳定 = 路径 1 形态。
+- `/json/list` 无 worker target、Target.setDiscoverTargets 无 worker——但 Worker 构造器钩子实测 **2 个 `/_assets/worker-AgjTSOCS.js` module worker spawn、`errors:[]`、`messages:0`**（spawn 成功、脚本加载零错误、但从未回任何消息）；10s 后池超时 terminateWorkers（复测 Target attach 0 个，自洽）。
+- **根因钉死（initdoc console 捕获，全 boot 每轮恒现）**：`RangeError: WebAssembly.Compile is disallowed on the main thread, if the buffer size is larger than 4KB`（`_assets/highlights-CPYkTV9U.js:3` 顶层 `init(new WebAssembly.Module(wasmBytes))`，183KB wasm 同步编译）×2 + 同文 unhandled rejection ×1。链路：`preferredHighlighter:"highlights"`（vendored `session-ui/src/pierre/index.ts` highlightOptions）→ 池 `initialize()` = `Promise.all([loadSharedHighlighter(主线程), initializeWorkers])` → 主线程动态 import `@pierre/highlights` dist default.js 顶层同步编译抛 RangeError → initialize reject → catch 置 `workersFailed=true` + terminateWorkers → FileDiff.render 走 `getPlainDiffAST` 时共享 highlighter 未载 → `queueInitialization(); return;` → render 返回 false → 恒 sprite+空 PRE。Chrome 同步编译 >4KB 主线程禁止为版本无关 Chromium 行为，「highlights」引擎在主线程不可用；worker 内异步编译本可用，但被主线程半边拖死（Promise.all）。
+- 对照目标 API：`resolveHighlighterType` 默认 **`"shiki-js"`**（纯 JS 正则引擎，无 wasm，主线程/worker 双可用）；上游 highlightOptions 显式 opt-in "highlights"。
+
+**决策表落点（对计划 v2 的偏离与理由）**：
+- H1 未证实 → **`files-panel-lazy-resilience.patch` 不落地**（其前提 lazy 工厂挂起/styles 永不落定与诊断矛盾；按 F3 精神如实登记，不强行扩 patch）。
+- §2.3 polyfill 扩展不触发（pierre 链无新增缺失 API 同步调用；`AbortSignal.any` 仅 goal 插件（`[plugin] goal TypeError`）= #165 在册，本轮不动）。
+- D12 → **`diff-worker-pool-fallback.patch` 落地**（§2.2），并在其内按决策表「pierre dist 侧 → 调用层改 preferredHighlighter/绕过」执行 `preferredHighlighter "highlights"→"shiki-js"`（114 主线程 wasm 同步编译不可用；shiki-js 为 pierre 默认引擎，主/worker 双面可用，保留完整语法高亮，非降级空渲染）。
+- **新事实落点（计划外 vendor 修正，非 mobile patch）**：@pierre/trees beta.4→beta.6 依赖基线对齐（vendored 两 package.json + 移动根 patchedDependencies + patch 文件换 pin 的 beta.6 版 + bun.lock 刷新）——修复「源=pin、依赖=旧 pin」缺口，属 copy 基线恢复；不动 bun patchedDependencies 语义（beta.6 patch 内容为上游自己的 onExpansionChange 透传 patch）。
+
+### 修复轮（2026-11-08 同分支回填；最终构建与门禁）
+
+**落点与计划 v2 的对应/偏离**：
+- 计划 §2.1 `files-panel-lazy-resilience.patch` **不落地**——step-0 诊断否定 H1（chunks 200、fs.list 200、面板骨架挂载、无 lazy 工厂挂起），按 F3 精神如实登记不强行扩 patch。
+- 计划 §2.3 polyfill 扩展**不触发**——pierre 链无新增缺失 API 同步调用（goal 插件 `AbortSignal.any` 为 #165 在册，本轮不动）。
+- 计划 §2.2 `diff-worker-pool-fallback.patch` **落地**（mobilePatches 0-based 74，77→78 前）：决策表「pierre dist 侧 → 调用层改 preferredHighlighter/绕过」行触发——引擎 `highlights`→`shiki-js`（+ 主题对 pierre-dark/light，shiki 路径无法消费 Highlights-palette 注册），池失败守卫（pool-strategy.ts 纯模块 + worker.ts WeakSet + 12s 探针 + file.tsx 闸门旁路 + `[diff]` 标签化日志）。
+- **计划外 vendor 修正（同分支提交，理由见诊断）**：`@pierre/trees` beta.4→beta.6 依赖基线对齐——`gui-plugins-api-migration.patch` 修订（删 gui-plugins/package.json beta.6→beta.4 翻转 hunk、app/package.json hunk 增 beta.4→beta.6 翻转）+ 根 patchedDependencies/patch 文件换 pin 原件 beta.6 + bun.lock 刷新。补丁数 76→**78**（新增 diff-worker-pool-fallback@74、files-tree-sidebar-fill@75，mobilePatches 0-based）。
+- `files-tree-sidebar-fill.patch`（0-based 75，#162）：树 wrapper 高度链塌缩的布局语义修正（viewport 内 flex:1 + min-height:0，镜像 directory picker 的显式高度模式）；设备探针 wrapper 12→601px/scroll 597px。
+
+**门禁（实跑）**：
+| 门禁 | 结果 |
+| --- | --- |
+| `patches:refresh` / `verify:patches` | PASS（78 registered; updated: manifest/vendor-manifest/provenance → 后续 updated: none） |
+| `verify:closure` | PASS，DANGLING=0（修订链含 gui-plugins-api-migration 修订 + 两新 patch 全链重放） |
+| `bun test scripts/verify-pierre-webview-compat.test.ts` | **15 pass / 0 fail / 46 expect**（patch seam 静态锚 + pool-strategy settle/reject/挂起×超时矩阵） |
+| `bun run scripts/verify-files.ts` | **PASS**（组 10 新增 pierre 树链/beta.6 基线锚；组 2 两处 destination.ts 锚按 v2.2.1 源实态重锚——b4525d79 时代的 responseURL 重定向校验与 assertNoUrlCredentials 上游已移除/迁移 M-013，基线 `76e8b77` 上即 FAIL 属预存漂移） |
+| `bun run scripts/verify-diff.ts` | 组 9 新增池策略锚 PASS；脚本整体仍 FAIL 于历史组（组 5 branch 候选锚等）——**预存基线漂移**（基线 `76e8b77` 同 FAIL，v2.2.1 源 API 面迁移所致），非本轮引入；本轮仅重锚了组 3 revert 序列/restore 形态、组 4 virtualizeLineThreshold=200（均可对照源验证），其余历史组漂移登记为独立后续项 |
+| `python3 scripts/test_mobile_patches.py` | OK（8/8 协议用例） |
+| gradle | `:app:testDebugUnitTest :app:assembleDebug` PASS；**10 suites / 43 tests / 0 failures = 基线恒同** |
+| Web 构建 | `build:web` rc=0；`copy:web-dist` 5622 files / 150,026,157 bytes（verified） |
+
+**最终构建身份与部署**：debug APK SHA-256 **`d059d094f191e2a69e40ed4f61d2c6f641e3221c608646761c1613531440f5ff`**（65,365,001 bytes 设备回读 pull 后与构建 **sha256 相等 true**）；`adb install -r` Success（数据保留，firstInstallTime 不变）；每轮采证前 SW unregister + caches.delete + reload，资源 181 项全部 ⊆ web-dist/manifest.json、入口 `index-Bg1chB0C.js` 命中（M3 身份链闭合）。entry chunk 演进：基线 `index-Bm0WCEBk.js` → beta.6 后 `index-DhmNUgnp.js` → 终态 `index-Bg1chB0C.js`；pierre-tree chunk `DSMyPcdA`→`DZe5kesh`（beta.6 在包实证）。
+
+**QA §7 十步（构建 d059d094；QA server = pin v2.2.1 本机 serve，`/api/fs/list` + `/api/vcs/diff` 采证前 smoke 200）**：
+| # | 步骤 | 结果 |
+| --- | --- | --- |
+| 1 | 连接 server、注册 /tmp/oc162-qa-repo、进入会话 | PASS（pairing + password 面 remember credential；timeline 渲染） |
+| 2 | D10 复现面：右侧面板 ＋ → Open file | 修复前=树 wrapper 12px/scroller 8px 全部行裁剪不可见；修复后=树 5 行可见（含 longline.txt M 徽标） |
+| 3 | CDP 度量 | tabpanel children=1、sidebar/filter 判据存在（M1）、wrapper 601px/scroller 597px、行 28px×5；fs.list 本轮命中 scoped 缓存零新请求（step-0 轮 200 + 服务端 smoke 200 在案）；`/api/fs/list?location[directory]=…&path= 200` 见 step-0 |
+| 4 | D10 主验收：点击 normal.txt | **PASS**——文件 tab 打开、行号 1/2/3 + alpha/beta 内容渲染（与服务端内容一致）；关闭 tab 返回、重进面板树状态保留（5 行 + M 徽标）。注意：面板布局开合状态与 tab 内容状态经 CDP DOM click 快速序列可短暂解耦（aside width 0 + 内容挂载），真实 UI 流程 Toggle review 开合正常——登记为自动化序列观察，非产品缺陷裁决 |
+| 5 | D12 复现面：Files Changed → longline.txt | 修复前=sprite+空 PRE、host 0；修复后=**diff 正文渲染** |
+| 6 | CDP：shadowRoot + host 高度 + 12s 窗口 | shadowRoot = svg(sprite)+PRE(41743B)+STYLE×2、**host 19248px**、滚轮滚动实测位移（pierre 虚拟滚动）、12s 窗口 0 周期重建（无池失败循环） |
+| 7 | 切换文件 | PASS（同型局限：fixtures 仅 1 个变更文件，以 normal.txt 文件 tab ↔ Files Changed tab 双面并存渲染为切换证据，如实登记） |
+| 8 | diff 样式切换 | PASS——split ↔ unified 切换重渲染正常（unified 态自动滚至变更行 2）；wrap 态长行换行可见 |
+| 9 | console/logcat 审计 | 页面 console 仅 goal 插件 `AbortSignal.any`（#165 在册）；零 `[diff]/[file]` 错误、零 wasm 错误；logcat 零未捕获异常、零凭据值 |
+| 10 | 截图 | 每步一图：`/tmp/oc162-163/oc162-final-D10-{tree-visible,normal-open,closed-return,reopen-tree}.png`、`oc163-final-D12-{diff,scrolled,unified}.png`（不入境，此处存路径与文字结论） |
+
+**降级形态登记（如实，均非通过障碍）**：①代码窗格 token 配色为 pierre-dark/light 内置主题（不再逐 token 映射应用 CSS 变量；应用调色板本按 pierre-dark 分组建模，暗色观感接近，light app 模式下代码区保持深色系）；②无池主线程路径（本轮流 未触发——池随 shiki-js 正常初始化）语义=词级 diff/高亮降级为纯文本色（保留韧性面）；③树数据 scoped 缓存跨面板重开（staleTime Infinity，D13 在册）；④markdown 主线程内联代码高亮（ui/marked-parser 主线程 import @pierre/highlights）在 114 主线程同步编译禁令下仍不可用——**预存独立面，不在 #162/#163 范围**（时间线正文 markdown 由 worker 侧 highlights 引擎渲染不受影响）；⑤ goal 插件 AbortSignal.any=#165 在册。
+
+**执行卡回填（#162/#163）**：已完成=诊断（含 M1 裁决：H1 否定、H2-c 否定、断点=依赖基线漂移 + 主线程 wasm + 树 wrapper 塌缩）、两 patch + vendor 对齐、全部门禁、真机 QA 十步、文档（matrix W03、implementation.md E05、units files/diff 修复轮登记、#147 D10/D12 改判）；剩余=verify-diff 历史组漂移治理（独立后续项）、D13/P3.10 服务端事件面（环境受限在册）；阻塞=无。
