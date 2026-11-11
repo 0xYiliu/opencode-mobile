@@ -63,6 +63,8 @@
 - [ ] pristine v2.2.7 closure + ordered mobile patches 可干净重放。
 - [ ] Android/mobile/vendor/About 身份同步为 2.2.7 / 20207。
 
+**当前门禁状态：暂阻塞于语义重基，不是产品决策阻塞。** v2.2.7 pristine closure 与旧 v2.2.1 mobile tree 的三方试算得到：296 个文件的移动差异已被上游吸收，71 个文件可自动三方合并，232 个文件存在真实冲突（主要为 app 225、ui 31、session-ui 30；统计按重叠目录会重复计数）。首个结构性冲突是 `connection-dialog-credential-reference`：v2.2.7 已将连接表单迁移到 `servers/connect/machine.ts` + `controller.ts`，旧补丁不能只重写行号，必须把 credentialRef 语义接到新状态机的 `ServerOriginal`/`ServerSaveAction` 契约。
+
 ### Stage C：验证与交付
 
 - [ ] patch、closure、install、web build、typecheck、相关单测和 Android Gradle 门禁完成 before/after 对账。
@@ -74,6 +76,6 @@
 
 - 当前状态：**Stage A 审计与文档进行中**。
 - 已完成：上游 tag 固定、差异规模盘点、Desktop commit/path 盘点、78 条补丁现状确认、目标闭包首次重放探测。
-- 关键发现：v2.2.7 已吸收部分旧移动差异；当前首条移动补丁 `gui-plugins-native-test-deps` 在目标源码上不再适用，不能直接沿用旧链。
-- 剩余：完成完整变化文档与 ID crosswalk；随后在独立迁移阶段重建 vendor 和补丁链。
+- 关键发现：v2.2.7 已吸收部分旧移动差异；`gui-plugins-native-test-deps` 需要保留“删除 Electron 测试依赖”的语义，但必须在 v2.2.7 的 package.json（新增 protocol devDependency、依赖移除形态变化）上重新生成。
+- 剩余：按连接/设置/会话/UI/platform 域逐条重写冲突补丁；完成 upstream npm patch/lockfile 重建后才能运行实际 vendor replay。
 - 停止条件：出现需要改变产品范围、安全策略、远程服务承诺或删除既有移动适配的决策时暂停并记录。

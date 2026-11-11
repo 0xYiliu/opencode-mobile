@@ -138,7 +138,19 @@ These shared changes are not all Android changes. Each affected mobile patch mus
 
 ## First migration evidence
 
-The first v2.2.7 scratch replay was intentionally run before changing the real worktree. After deriving the target upstream npm patch set, the first mobile patch (`gui-plugins-native-test-deps`) did not apply because v2.2.7 already has the target dependency shape. This proves the 78-patch chain cannot be copied unchanged; it does not by itself prove that every mobile behavior is absorbed. The next stage must reconstruct each patch disposition from the target tree.
+The first v2.2.7 scratch replay was intentionally run before changing the real worktree. A pristine target closure was built with 9 target upstream npm patches (including MCP client 2.4.0, Solid 1.9.17 and Vite 8.2.4; excluding the old Ghostty patch). A three-way overlay trial then compared:
+
+```text
+base  = old pristine closure (old pin + old upstream npm patches)
+theirs = current v2.2.1 mobile tree (all 78 mobile adaptations)
+ours  = pristine v2.2.7 closure
+```
+
+The result was **296 absorbed files, 71 clean merges, 232 conflict files and 6 mobile-added files**. The conflict count is a discovery result, not a new patch count. It proves the 78-patch chain cannot be copied unchanged and that a clean `git apply --check` pass is not a sufficient migration strategy.
+
+The first patch (`gui-plugins-native-test-deps`) still has a valid mobile intent—remove Electron, node-pty and devtools protocol test dependencies—but v2.2.7's package manifest has a new version, a protocol devDependency and a different dependency block. The first connection reference patch is more structural: v2.2.7's connection dialog now delegates to `servers/connect/machine.ts` and `controller.ts`, so credentialRef must be reattached to the new `ServerOriginal`/`ServerSaveAction` state-machine contract rather than copied into the old dialog save object.
+
+The real worktree was restored after the scratch trial; no partial v2.2.7 vendor tree or conflict markers are committed. The next stage must reconstruct patch dispositions by domain (connection/security, settings, session/files, GUI plugins, UI, and compatibility), then regenerate each semantic patch and replay the complete chain.
 
 ## Limitations
 
