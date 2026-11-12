@@ -275,7 +275,10 @@ describe("servers page (target-verbatim, issue #102)", () => {
     const source = await Bun.file(new URL("./servers.tsx", import.meta.url)).text()
 
     // SettingsServerGeneral delegates to the shared row and health-gates Shell.
-    expect(source).toContain("<ServerConnectionRow entry={props.entry} />")
+    expect(source).toContain("entry={props.entry}")
+    expect(source).toContain("delayMenuActions={!!props.unsupportedWsl && isAndroidMobileHost()}")
+    expect(source).toContain("onCleanup(() => clearTimeout(pendingEdit))")
+    expect(source).toContain("pendingEdit = setTimeout(() => {")
     expect(source).toContain(
       "props.entry.connection && health()?.healthy !== false ? props.entry.connection : undefined",
     )

@@ -104,6 +104,7 @@
     "patches/mobile/connection-password-keyboard.patch",
     "patches/mobile/webview-url-polyfill.patch",
     "patches/mobile/settings-server-menu.patch",
+    "patches/mobile/server-edit-touch-compatibility.patch",
     "patches/mobile/session-workbench-upstream.patch",
     "patches/mobile/session-client-compatibility.patch",
     "patches/mobile/session-media-source-safety.patch",
@@ -496,6 +497,12 @@
       "id": "settings-server-menu",
       "path": "patches/mobile/settings-server-menu.patch",
       "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
+      "status": "active"
+    },
+    {
+      "id": "server-edit-touch-compatibility",
+      "path": "patches/mobile/server-edit-touch-compatibility.patch",
+      "sha256": "d7c6f36281c22d1edb7af4f464e247c7d54ef67201c10e92d96c1a47f68abeb7",
       "status": "active"
     },
     {
