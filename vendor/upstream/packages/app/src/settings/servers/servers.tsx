@@ -1,6 +1,6 @@
 import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { createMemo, For, Show, type Component } from "solid-js"
+import { createMemo, For, onCleanup, Show, type Component } from "solid-js"
 import { ServerRowMenu } from "@/servers/registry/row-menu"
 import { ServerHealthIndicator } from "@/servers/registry/row"
 import { PluginServerRow } from "@/servers/registry/plugin-row"
@@ -14,6 +14,7 @@ import { ShellSetting } from "@/settings/general/general"
 import { createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
 import { MobileSshSettingsRow } from "./mobile-ssh"
+import { isAndroidMobileHost } from "./android-host"
 import { parseHostKey } from "@opencode-mobile/mobile-hosts"
 import "@/settings/settings.css"
 
@@ -35,7 +36,10 @@ export const SettingsServerGeneral: Component<{
         <section class="settings-section settings-server-connection" data-component="settings-server-connection">
           <h3 class="settings-section-title">{language.t("settings.server.section.connection")}</h3>
           <SettingsList>
-            <ServerConnectionRow entry={props.entry} />
+            <ServerConnectionRow
+              entry={props.entry}
+              delayMenuActions={!!props.unsupportedWsl && isAndroidMobileHost()}
+            />
           </SettingsList>
         </section>
 
@@ -79,7 +83,11 @@ export const SettingsServerList: Component<{
               aria-label={entry.name}
             >
               <SettingsList>
-                <ServerConnectionRow entry={entry} onServerChange={props.onServerChange} />
+                <ServerConnectionRow
+                  entry={entry}
+                  onServerChange={props.onServerChange}
+                  delayMenuActions={!!props.unsupportedWsl && isAndroidMobileHost()}
+                />
                 <Show
                   when={
                     entry.connection && controller.collection.health()[entry.key]?.healthy !== false
@@ -122,14 +130,34 @@ function SettingsServersHeader(props: { title: string; onAddServer: () => void; 
   )
 }
 
-function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (server: ServerConnection.Any) => void }) {
+function ServerConnectionRow(props: {
+  entry: SettingsServer
+  onServerChange?: (server: ServerConnection.Any) => void
+  delayMenuActions?: boolean
+}) {
   const dialog = useDialog()
   const language = useLanguage()
   const controller = useServerCollectionController()
   const health = createMemo(() => controller.collection.health()[props.entry.key])
+  let pendingEdit: ReturnType<typeof setTimeout> | undefined
 
   const edit = (server: ServerConnection.Http) =>
     void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
+
+  const editFromMenu = (server: ServerConnection.Http) => {
+    if (!props.delayMenuActions) return edit(server)
+
+    // Android WebView 114 can deliver a compatibility click after touch selection.
+    // Let the menu finish dismissing before mounting the dialog, otherwise that
+    // trailing click is interpreted as a backdrop click on the new dialog.
+    clearTimeout(pendingEdit)
+    pendingEdit = setTimeout(() => {
+      pendingEdit = undefined
+      edit(server)
+    }, 350)
+  }
+
+  onCleanup(() => clearTimeout(pendingEdit))
 
   // An HTTP server that rejects its saved credentials signs in again through the edit dialog.
   const signedOut = (server: ServerConnection.Any) =>
@@ -163,7 +191,7 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
                     </Button>
                   )}
                 </Show>
-                <ServerRowMenu server={server()} domain={controller} onEdit={edit} />
+                <ServerRowMenu server={server()} domain={controller} onEdit={editFromMenu} />
               </div>
             </div>
           )}

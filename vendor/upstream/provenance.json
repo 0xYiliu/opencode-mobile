@@ -719,6 +719,12 @@
       "status": "active"
     },
     {
+      "id": "server-edit-touch-compatibility",
+      "path": "patches/mobile/server-edit-touch-compatibility.patch",
+      "sha256": "d7c6f36281c22d1edb7af4f464e247c7d54ef67201c10e92d96c1a47f68abeb7",
+      "status": "active"
+    },
+    {
       "id": "session-workbench-upstream",
       "path": "patches/mobile/session-workbench-upstream.patch",
       "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",

@@ -1168,6 +1168,21 @@
       "status": "active"
     },
     {
+      "id": "server-edit-touch-compatibility",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/server-edit-touch-compatibility.patch",
+      "targets": [
+        "packages/app/src/settings/servers/servers.tsx",
+        "packages/app/src/settings/servers/servers-page.test.tsx"
+      ],
+      "reason": "Delay the Android server-row Edit action until the WebView 114 touch compatibility click has finished. Opening the edit dialog immediately lets that trailing click hit the new dialog backdrop and close it before it becomes visible.",
+      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
+      "verification": "Targeted settings servers test plus web build; Android device verification is required to confirm the WebView touch sequence.",
+      "rebase": "Layered after settings-server-menu; shares its Android host marker and follows the existing Add/SSH menu compatibility workaround.",
+      "sha256": "d7c6f36281c22d1edb7af4f464e247c7d54ef67201c10e92d96c1a47f68abeb7",
+      "status": "active"
+    },
+    {
       "id": "session-workbench-upstream",
       "owner": "opencode-mobile maintainers",
       "patch": "patches/mobile/session-workbench-upstream.patch",
