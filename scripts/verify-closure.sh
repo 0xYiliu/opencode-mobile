@@ -2,7 +2,8 @@
 # verify-closure.sh — V3 closure verification.
 #
 # (a) Tree equivalence: vendor/upstream/{packages,LICENSE} is byte-identical to the pinned
-#     upstream tree with exactly the registered mobile patches applied — zero other diff.
+#     upstream tree with exactly the registered build-only closure patches and active mobile
+#     patches applied — zero other diff.
 # (b) Workspace-reference consistency: every `workspace:*` reference inside the 11 vendored
 #     packages resolves to a package inside the closure; no dangling references.
 #
@@ -26,6 +27,7 @@ PATCH_CREATED="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.
 WORKSPACE_PACKAGES="$PACKAGES $PATCH_CREATED"
 TOPFILES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["topLevelFiles"]))' "$MANIFEST")"
 MOBILE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["mobilePatches"]))' "$MANIFEST")"
+CLOSURE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1])).get("closurePatches", [])))' "$MANIFEST")"
 PARTIALS="$(python3 -c 'import json,sys; print(" ".join(e["path"] for e in json.load(open(sys.argv[1])).get("partialPackages", [])))' "$MANIFEST")"
 # Per-package extraction revisions (issue #67): manifest "packageSources" overrides the
 # pin for the listed packages; the pristine tree is built under the same rule as
@@ -67,6 +69,12 @@ for p in $PACKAGES; do
   [ -n "$r" ] || continue
   git -C "$CACHE" archive "$r" -- "packages/$p" \
     | tar -x --exclude='packages/ai/test/fixtures/recordings' -C "$WORK/pristine"
+done
+
+for cp in $CLOSURE_PATCHES; do
+  (cd "$SCRATCH" && git apply --directory="$WORK_REL/pristine" --check "$DEST/$cp") \
+    || { echo "V3(a) FAIL: closure patch $cp does not apply to pristine tree (pin + packageSources)"; exit 1; }
+  (cd "$SCRATCH" && git apply --directory="$WORK_REL/pristine" "$DEST/$cp")
 done
 
 for mp in $MOBILE_PATCHES; do

@@ -2,13 +2,13 @@
 
 OpenCode 移动端客户端。目标平台是 Android（APK），以固定上游 OpenCode Windows Desktop 版本为复制基准；后续平台适配不改变该基准。
 
-> 当前状态：Android 客户端已有共享前端、Kotlin WebView 壳、SSH/直连、凭据保险库和远程工作界面。debug APK 已构建并有 MatePad 局部验证记录；#61 已有 SSH 信任、认证、隧道及到达既有会话的历史主链证据，当前集成版完整复验及任务级端到端验收仍未完成。详见[构建与验证记录](docs/build-and-verify.md)和[功能对齐矩阵](docs/alignment/windows-desktop/v2.2.1/matrix.md)。
+> 当前状态：Android 客户端已有共享前端、Kotlin WebView 壳、SSH/直连、凭据保险库和远程工作界面。当前正在把固定对齐目标从 Windows Desktop v2.2.1 迁移到 v2.2.7；v2.2.7 的 Desktop/共享闭包审计已完成，vendor、移动补丁重基和 Android 运行验证尚未完成。详见[v2.2.7 对齐矩阵](docs/alignment/windows-desktop/v2.2.7/matrix.md)、[变化总结](docs/alignment/windows-desktop/v2.2.7/changes.md)和[构建与验证记录](docs/build-and-verify.md)。
 
 ## 产品目标
 
 在手机上提供 OpenCode Windows Desktop 的远程工作体验：连接远程机器，管理项目和会话，发送任务，查看文件与 Diff，处理权限确认，使用远程终端。
 
-当前对齐基准为 **Windows Desktop v2.2.1**（上游 commit `3ebcf9a32c7b28f658cfee80775448929361727a`）。实现采用 copy 优先：先复制上游完整页面和流程，再对 Android WebView、触摸、键盘、生命周期及安全边界做必要的最小适配。当前仓库客户端版本应与该上游版本同步；服务端版本单独展示。
+当前活跃对齐基准为 **Windows Desktop v2.2.7**（上游 commit `fedc6f208aa2bd54c1019227214568083f6380ad`）；v2.2.1 保留为冻结历史基准。实现采用 copy 优先：先复制上游完整页面和流程，再对 Android WebView、触摸、键盘、生命周期及安全边界做必要的最小适配。当前仓库客户端版本应与该上游版本同步；服务端版本单独展示。
 
 支持两种连接方式：
 

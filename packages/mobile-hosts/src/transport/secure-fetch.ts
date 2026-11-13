@@ -26,7 +26,7 @@ import { assertNoUrlCredentials, validateRedirectTarget } from "./url-policy"
 export const SECURE_FETCH_MARKER =
   "mobile(M-011): platform fetch validated-follow (origin + downgrade checked before body delivery)"
 
-type FetchInit = Parameters<typeof globalThis.fetch>[1]
+export type FetchLike = (input: Request | URL | string, init?: RequestInit) => Promise<Response>
 
 function requestUrlOf(input: Request | URL | string): string {
   if (typeof input === "string") return input
@@ -39,9 +39,9 @@ function requestUrlOf(input: Request | URL | string): string {
  * signature matches `typeof fetch` so it drops into the vendored Platform.fetch seam
  * unchanged (M-011 rollback = revert the one patch).
  */
-export function createSecureFetch(options?: { underlying?: typeof globalThis.fetch }): typeof globalThis.fetch {
+export function createSecureFetch(options?: { underlying?: FetchLike }): FetchLike {
   const underlying = options?.underlying ?? globalThis.fetch
-  const secureFetch = async (input: Request | URL | string, init?: FetchInit): Promise<Response> => {
+  const secureFetch: FetchLike = async (input, init) => {
     const url = requestUrlOf(input)
     // Rule 3 (D-URL): long-term credentials never travel in URLs. Refuse before sending.
     assertNoUrlCredentials(url)

@@ -1,5 +1,6 @@
-// verify-about-version.ts — static probe for issue #72 (S39: About page version
-// displays alignment, patch settings-about-version).
+// verify-about-version.ts — static probe for the current About/version face.
+// The original issue #72/settings-about-version assertions remain below as a
+// historical v2.2.1 probe; v2.2.7's upstream About page has a different target face.
 //
 // Asserts, against the REAL sources (vendored pin b4525d79bf… + mobile patches
 // registered by semantic identity), the structural facts
@@ -28,8 +29,8 @@
 //      unavailable key; settings-about-versions[data-component] anchor present.
 //   3. Three-way version sync (first-party): MOBILE_APP_VERSION (packages/mobile-hosts/
 //      src/app-version.ts) == android/app/build.gradle.kts defaultConfig.versionName ==
-//      packages/mobile-hosts/package.json "version"; the constant is exported from the
-//      package index and injected at the entry (createWebPlatform(MOBILE_APP_VERSION)).
+//      packages/mobile-hosts/package.json "version"; the constant remains a mobile identity
+//      export, while the v2.2.7 upstream entry keeps its own package-version platform face.
 //   4. i18n: en.ts carries EXACTLY the four new keys (upstreamVersion +
 //      serverVersion.version/checking/unavailable) and no other serverVersion key; zh/zht
 //      carry ZERO new keys; the language.tsx en-base-first fallback chain anchors are
@@ -87,6 +88,38 @@ const M040_TARGETS = [
   "packages/app/src/entry.tsx",
   "packages/app/src/runtime/i18n/en.ts",
 ]
+
+// v2.2.7 current face: the upstream About page owns the platform.version row and does not
+// carry the deferred v2.2.1 mobile base/server-row overlay. Keep the identity check active
+// without treating that historical five-file patch as part of the v2.2.7 replay.
+{
+  const packageJson = JSON.parse(await read(`${APP}package.json`)) as { version?: unknown }
+  if (packageJson.version === "2.2.7") {
+    const about = await read(`${APP}src/settings/about/about.tsx`)
+    const entry = await read(`${APP}src/entry.tsx`)
+    const constant = await read(`${HOSTS}src/app-version.ts`)
+    const gradle = await read("android/app/build.gradle.kts")
+    const mobileManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
+    const replay = Array.isArray(mobileManifest.mobilePatches) ? mobileManifest.mobilePatches : []
+
+    if (!about.includes("const version = () => platform.version ?? language.t(\"settings.about.devVersion\")"))
+      fail("v2.2.7: About page lost the upstream platform.version source")
+    if (about.includes("settings.about.upstreamVersion") || about.includes("useServerCollectionController"))
+      fail("v2.2.7: deferred v2.2.1 base/server About rows leaked into the current target face")
+    if (!entry.includes("createWebPlatform(pkg.version)"))
+      fail("v2.2.7: entry.tsx does not retain the upstream package-version platform face")
+    if (replay.includes("patches/mobile/settings-about-version.patch"))
+      fail("v2.2.7: historical settings-about-version patch must remain deferred")
+
+    const version = constant.match(/export const MOBILE_APP_VERSION = \"([^\"]+)\"/)?.[1]
+    const versionName = gradle.match(/versionName = \"([^\"]+)\"/)?.[1]
+    if (version !== "2.2.7" || versionName !== version || packageJson.version !== version)
+      fail(`v2.2.7: identity mismatch mobile=${version} gradle=${versionName} package=${String(packageJson.version)}`)
+
+    console.log("verify-about-version: PASS (v2.2.7 current About face and 2.2.7 identity; historical v2.2.1 probe skipped)")
+    process.exit(0)
+  }
+}
 
 // --- 1. Notices v2.2.1 verbatim face (track 1) ---
 {

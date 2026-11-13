@@ -1,17 +1,17 @@
 import type { OpenCodeEvent } from "@opencode/client/promise"
-import { createClientConnection, createPtyClient, type ClientConnectionStatus } from "@opencode/client/solid"
+import { createClientConnection, type ClientConnectionStatus } from "@opencode/client/solid"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
-import { type Accessor, createEffect, createMemo, on, onCleanup } from "solid-js"
-import { createStore } from "solid-js/store"
-import { createApiForServer, type MediaServerApi, type InlineServerApi } from "@/runtime/server/api"
+import { type Accessor, createEffect, on, onCleanup } from "solid-js"
+import { createApiForServer, type ServerApi } from "@/runtime/server/api"
 import { createMediaCache, type MediaCache } from "@/runtime/server/media"
-import { captureMediaSource, setMediaBlobLoader } from "@/runtime/persistence/drafts"
+import { setMediaBlobLoader } from "@/runtime/persistence/drafts"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ServerConnection } from "./registry"
 import { createRefCountMap } from "@/runtime/server/refcount"
 import { createRequestQueue } from "@/runtime/server/request-queue"
 import { ServerScope } from "@/runtime/server/scope"
 import { useServer } from "./current"
+import { createEndpointSyncState, transitionEndpointSync, type EndpointSyncEvent } from "./server-sync/endpoint-machine"
 
 type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent, { type: Type }> }
 
@@ -67,12 +67,8 @@ type ServerSDKBase = {
   url: string
   /** The connection the API currently uses, which a managed server's reconnect may replace. */
   http: ServerConnection.HttpBase
-  api: InlineServerApi
-  mediaApi: MediaServerApi
+  api: ServerApi
   media: MediaCache
-  generation: number
-  capture(): () => boolean
-  pty: ReturnType<typeof createPtyClient>
   connection: {
     status: Accessor<ServerConnectionStatus>
     attempt: Accessor<number>
@@ -81,25 +77,55 @@ type ServerSDKBase = {
   event: OpenCodeEventSource
 }
 
+// Where a plugin server's transport points until the plugin reports the server ready; it never answers. The server has
+// a controller, and so a transport, from the moment it is listed.
+const unready = { url: "http://127.0.0.1:0" }
+
 function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope): ServerSDKBase {
   const platform = usePlatform()
-  const transport = createServerTransport({ http: server.http, fetch: platform.fetch })
+  const transport = createServerTransport({ http: ServerConnection.http(server) ?? unready, fetch: platform.fetch })
+  const media = createMediaCache(() => transport.api)
   const serverKey = ServerConnection.key(server)
-  let active = true
-  onCleanup(() => { active = false })
-  const media = createMemo(() => {
-    transport.generation
-    const cache = createMediaCache(() => transport.api)
-    const unregister = setMediaBlobLoader(serverKey, (uri) => cache.load(uri))
-    onCleanup(() => { unregister(); cache.dispose() })
-    return cache
+  setMediaBlobLoader(serverKey, (uri) => media.load(uri))
+  onCleanup(() => {
+    setMediaBlobLoader(serverKey, undefined)
+    media.dispose()
   })
 
   const events = createOpenCodeEventSource()
   const reconnect = resolveEndpoint(server)
+  // Read only by `dispatchEndpoint`, the transport's only writer.
+  let endpoint = createEndpointSyncState(transport.http)
+
+  function dispatchEndpoint(event: EndpointSyncEvent) {
+    const result = transitionEndpointSync(endpoint, event)
+    endpoint = result.state
+    result.effects.forEach((effect) => {
+      if (effect.type === "transport.update") return void transport.update(effect.http)
+      connection.internal.resync("Server endpoint changed")
+    })
+  }
 
   const connection = createClientConnection(transport.api, {
-    reconnect: reconnect ? async (signal) => transport.update(await reconnect(signal)) : undefined,
+    // Returns the transport's client rather than the resolved one: when the plugin reported a newer endpoint while
+    // this resolution ran, the stream connects to that one.
+    reconnect: reconnect
+      ? async (signal) => {
+          dispatchEndpoint({ type: "resolve.started" })
+
+          if (endpoint.type !== "resolving") return transport.api
+          const attempt = endpoint.attempt
+          const resolution = reconnect(signal)
+
+          void resolution.catch(() => dispatchEndpoint({ type: "resolve.failed", attempt }))
+
+          return resolution.then((http) => {
+            dispatchEndpoint({ type: "resolve.succeeded", attempt, http })
+
+            return transport.api
+          })
+        }
+      : undefined,
     flushInterval: 16,
     pageLifecycle: true,
     onEvent(event) {
@@ -114,21 +140,31 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     },
   })
 
-  // The plugin reports a new endpoint: requests use it at once, and a connected stream moves to it now. An endpoint
-  // the stream's own reconnect already moved to needs neither.
-  if (server.type === "plugin") {
+  // The plugin, or the desktop after another window's reconnect, reports a new endpoint: requests use it at once, and
+  // a connected stream moves to it now. An endpoint the stream's own reconnect already moved to needs neither.
+  if (server.type === "plugin" || server.type === "sidecar") {
     createEffect(
       on(
-        () => `${server.http.url}\0${server.http.password ?? ""}`,
         () => {
-          if (sameEndpoint(transport.http, server.http)) return
-          transport.update(server.http)
-          connection.internal.resync("Server endpoint changed")
+          const http = ServerConnection.http(server)
+
+          return http && `${http.url}\0${http.password ?? ""}`
+        },
+        () => {
+          const http = ServerConnection.http(server)
+
+          // A plugin server that stops being ready keeps its last endpoint until the plugin reports it ready again.
+          if (http) dispatchEndpoint({ type: "endpoint.reported", http })
         },
         { defer: true },
       ),
     )
   }
+
+  onCleanup(() => {
+    dispatchEndpoint({ type: "disposed" })
+    transport.dispose()
+  })
 
   return {
     server,
@@ -142,33 +178,29 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     get api() {
       return transport.api
     },
-    get mediaApi() {
-      return transport.mediaApi
-    },
-    get media() { return media() },
-    get generation() { return transport.generation },
-    capture() {
-      const generation = transport.generation
-      const current = captureMediaSource(serverKey)
-      return () => active && generation === transport.generation && current()
-    },
-    get pty() {
-      return transport.pty
-    },
+    media,
     connection,
     event: events.event,
   }
 }
 
 /**
- * Where the event stream connects after a disconnect. A plugin's server can exist before the plugin reports its
- * endpoint (a server restored from the plugin's last inventory starts on a placeholder) and can move at any time, so
- * its stream always resolves the plugin's current endpoint, through the plugin's `reconnect` when it has one then.
+ * Where the event stream connects after a disconnect. A plugin's server can exist before it is ready (a server restored
+ * from the plugin's last inventory starts on `unready`) and can move at any time, so its stream always resolves the
+ * plugin's current endpoint, through the plugin's `reconnect` when it has one then. A server that is not ready has none
+ * to resolve, so the stream keeps retrying where it is.
  */
 function resolveEndpoint(
   server: ServerConnection.Any,
 ): ((signal: AbortSignal) => Promise<ServerConnection.HttpBase>) | undefined {
-  if (server.type === "plugin") return (signal) => server.reconnect?.(signal) ?? Promise.resolve(server.http)
+  if (server.type === "plugin")
+    return (signal) => {
+      const http = ServerConnection.http(server)
+
+      return (
+        server.reconnect?.(signal) ?? (http ? Promise.resolve(http) : Promise.reject(new Error("Server is not ready")))
+      )
+    }
 
   if (server.type === "sidecar") return server.reconnect
 
@@ -179,20 +211,18 @@ function sameEndpoint(a: ServerConnection.HttpBase, b: ServerConnection.HttpBase
   return a.url === b.url && a.password === b.password
 }
 
-/** A server's HTTP and PTY clients, rebuilt when its endpoint changes. */
+/** A server's HTTP client, rebuilt when its endpoint changes. */
 export interface ServerTransport {
-  /** Rebuilds the clients for a new endpoint and returns the new API client. */
-  update(http: ServerConnection.HttpBase): InlineServerApi
+  /** Rebuilds the client for a new endpoint and returns it. */
+  update(http: ServerConnection.HttpBase): ServerApi
   /** The current base URL. */
   readonly url: string
   /** The current endpoint. */
   readonly http: ServerConnection.HttpBase
   /** The current API client. */
-  readonly api: InlineServerApi
-  readonly mediaApi: MediaServerApi
-  readonly generation: number
-  /** The current PTY client. */
-  readonly pty: ReturnType<typeof createPtyClient>
+  readonly api: ServerApi
+  /** Cancels every queued and in-flight request; later requests reject at once. */
+  dispose(): void
 }
 
 export function createServerTransport(input: {
@@ -202,23 +232,19 @@ export function createServerTransport(input: {
   const queue = createRequestQueue({ fetch: input.fetch ?? globalThis.fetch })
 
   // Keeps the endpoint as plain values: a plugin's endpoint can be a store proxy that already reads the next password,
-  // and the clients built here keep the one they started with.
+  // and the client built here keeps the one it started with.
   const build = (input: ServerConnection.HttpBase) => {
     const http = { url: input.url, password: input.password }
-    const mediaApi = createApiForServer({ server: http, fetch: queue.fetch })
-    const api = mediaApi.inline
 
-    return { http, api, mediaApi, pty: createPtyClient(api, { url: http.url }) }
+    return { http, api: createApiForServer({ server: http, fetch: queue.fetch }) }
   }
 
   const state = { current: build(input.http) }
-  const [revision, setRevision] = createStore({ value: 0 })
 
   return {
     update(http: ServerConnection.HttpBase) {
       if (sameEndpoint(http, state.current.http)) return state.current.api
       state.current = build(http)
-      setRevision("value", (value) => value + 1)
 
       return state.current.api
     },
@@ -229,17 +255,9 @@ export function createServerTransport(input: {
       return state.current.http
     },
     get api() {
-      revision.value
       return state.current.api
     },
-    get mediaApi() {
-      revision.value
-      return state.current.mediaApi
-    },
-    get generation() { return revision.value },
-    get pty() {
-      return state.current.pty
-    },
+    dispose: queue.dispose,
   }
 }
 

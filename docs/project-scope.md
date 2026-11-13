@@ -1,6 +1,6 @@
 # 项目范围
 
-本项目的目标是：以固定上游版本为基准，将 OpenCode Windows Desktop 客户端的页面、交互、视觉和使用流程尽量原样复制到 Android APK 中。当前固定基准为 **OpenCode Windows Desktop v2.2.1**，上游 commit 为 `3ebcf9a32c7b28f658cfee80775448929361727a`；逐项实现、差异和验收状态以[版本矩阵](alignment/windows-desktop/v2.2.1/matrix.md)为准。
+本项目的目标是：以固定上游版本为基准，将 OpenCode Windows Desktop 客户端的页面、交互、视觉和使用流程尽量原样复制到 Android APK 中。当前活跃固定基准为 **OpenCode Windows Desktop v2.2.7**，上游 commit 为 `fedc6f208aa2bd54c1019227214568083f6380ad`；逐项实现、差异和验收状态以[版本矩阵](alignment/windows-desktop/v2.2.7/matrix.md)为准，v2.2.1 保留为冻结历史矩阵。
 
 ## 对齐原则
 
@@ -34,7 +34,7 @@ WSL 排除、原生 Windows 支持及服务操作边界分别见[决策记录 00
 
 当前客户端复用独立维护的 OpenCode 前端闭包，通过 **Kotlin 原生 Android WebView** 与平台桥接接入 SSH、凭据、文件、通知及生命周期能力。SSH 隧道的设备回环监听只是转发入口，不是手机本地 OpenCode 服务。共享界面和通信状态不得直接依赖 Android API；平台能力只能经适配边界接入。
 
-vendor 来源、固定版本、许可证和移动补丁见 `vendor/upstream/PROVENANCE.md`。升级按固定版本逐次比较，不建立 submodule、fork 跟踪或自动同步关系。与 v2.2.1 的实现差异见[矩阵](alignment/windows-desktop/v2.2.1/matrix.md)。
+vendor 来源、固定版本、许可证和移动补丁见 `vendor/upstream/PROVENANCE.md`。升级按固定版本逐次比较，不建立 submodule、fork 跟踪或自动同步关系。v2.2.1→v2.2.7 的 Desktop/closure 变化见[变化总结](alignment/windows-desktop/v2.2.7/changes.md)，当前实现差异见[v2.2.7 矩阵](alignment/windows-desktop/v2.2.7/matrix.md)。
 
 ## 验证与交付
 

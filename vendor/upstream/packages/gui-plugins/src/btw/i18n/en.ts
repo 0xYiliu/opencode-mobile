@@ -4,9 +4,8 @@ export default {
   "tab.title": "/btw",
   "question.required": "Add a question after /btw",
   error: "Couldn’t answer that question",
+  "error.empty": "The model replied without any text.",
+  "error.timeout": "The model took too long to reply.",
   retry: "Retry",
   copy: "Copy answer",
-  // mobile(M-038): the narrow-screen More-drawer entry title and its honest empty state.
-  "mobile.title": "Side question",
-  "mobile.none": "No side question yet",
 }

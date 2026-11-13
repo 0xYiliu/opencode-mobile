@@ -24,9 +24,8 @@ if (tailwindGenerate && typeof tailwindHotUpdate === "function") {
 }
 
 // The markdown worker imports these directly, so they are served unbundled to keep worker startup
-// stable. Vite applies `exclude` to every import inside a pre-bundle too, which would leave a bare
-// `import "marked"` in mermaid's chunk that the browser cannot resolve from this package.
-const workerDeps = ["@pierre/highlights", "marked", "remend"]
+// stable.
+const workerDeps = ["@pierre/highlights", "marked"]
 
 // The Office previews load their wasm and fonts through `new URL(..., import.meta.url)`, which a pre-bundle would move
 // away from the files.
@@ -73,6 +72,16 @@ const bundleNestedWorkerDeps = {
   },
 }
 
+// The components lab globs every story, and the dependency scan cannot parse a .tsx story that calls import.meta.glob
+// itself. The lab is a development tool, so its dependencies are found when it first opens rather than at startup.
+/** @type {import("rolldown").Plugin} */
+const skipComponentsLab = {
+  name: "opencode-desktop:skip-components-lab",
+  resolveId(id) {
+    if (id === "@/components-lab/lab") return { id, external: true }
+  },
+}
+
 export const channel = (() => {
   const raw = process.env.OPENCODE_CHANNEL
 
@@ -98,10 +107,7 @@ export default [
             "@betteroffice/fonts-cjk": fileURLToPath(
               new URL("../gui-plugins/src/microsoft-office/fonts-cjk.ts", import.meta.url),
             ),
-            // mobile(M-004): the first-party host registry lives outside the vendor closure, at
-            // the repository root's packages/. Like the fonts-cjk entry above, the URL is
-            // importer-relative (packages/app), so four ".." segments reach the repo root; a
-            // bare relative string would be resolved against the importer and miss.
+            // #184: resolve the first-party connection/SSH host registry from the repository root.
             "@opencode-mobile/mobile-hosts": fileURLToPath(
               new URL("../../../../packages/mobile-hosts/src/index.ts", import.meta.url),
             ),
@@ -115,8 +121,7 @@ export default [
         },
         optimizeDeps: {
           exclude: [...workerDeps, ...officeDeps],
-          include: ["@opencode/session-ui > mermaid", "@opencode/session-ui > mermaid > katex"],
-          rolldownOptions: { plugins: [bundleNestedWorkerDeps] },
+          rolldownOptions: { plugins: [bundleNestedWorkerDeps, skipComponentsLab] },
         },
       }
     },

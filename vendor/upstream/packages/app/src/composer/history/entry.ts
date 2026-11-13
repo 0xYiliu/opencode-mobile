@@ -5,7 +5,11 @@ import type { PromptHistoryComment, PromptHistoryEntry } from "../schema"
 
 export type { PromptHistoryComment, PromptHistoryEntry } from "../schema"
 
-const MAX_HISTORY = 100
+// Attachments keep their bytes pinned for as long as history references them, so only the most
+// recent entries may carry them; older entries are kept only when they are attachment-free.
+const MAX_RECENT_HISTORY = 100
+
+const MAX_HISTORY = 200
 
 export type PromptHistoryStoredEntry = PromptHistoryEntry
 
@@ -33,7 +37,6 @@ export function prependHistoryEntry(
   entries: PromptHistoryStoredEntry[],
   prompt: Prompt,
   comments: PromptHistoryComment[] = [],
-  max = MAX_HISTORY,
 ) {
   const text = prompt
     .map((part) => ("content" in part ? part.content : ""))
@@ -54,7 +57,9 @@ export function prependHistoryEntry(
 
   if (last && isPromptEqual(last, entry)) return entries
 
-  return [entry, ...entries].slice(0, max)
+  return [entry, ...entries]
+    .filter((item, index) => index < MAX_RECENT_HISTORY || !item.prompt.some(isAttachment))
+    .slice(0, MAX_HISTORY)
 }
 
 // A send that failed puts its prompt back in the composer, so the entry recorded for it would
@@ -97,7 +102,6 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
     if (partA.type === "session" && (partB.type !== "session" || partA.id !== partB.id)) return false
 
     if (partA.type === "file") {
-      if (partB.type !== "file" || partA.sourceServerKey !== partB.sourceServerKey || partA.url !== partB.url) return false
       if (partA.path !== (partB.type === "file" ? partB.path : "")) return false
       const a = partA.selection
       const b = partB.type === "file" ? partB.selection : undefined
@@ -121,7 +125,6 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
     }
 
     if (isAttachment(partA) && partA.id !== (isAttachment(partB) ? partB.id : "")) return false
-    if (partA.type === "image" && (partB.type !== "image" || partA.blob.id !== partB.blob.id || partA.blob.sourceServerKey !== partB.blob.sourceServerKey)) return false
   }
 
   if (entryA.comments.length !== entryB.comments.length) return false

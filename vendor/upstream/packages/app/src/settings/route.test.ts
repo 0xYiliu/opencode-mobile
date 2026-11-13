@@ -49,35 +49,6 @@ describe("settings route", () => {
     })
   })
 
-  // mobile(M-044/M-052, issue #109): the restored "gui-extensions" root tab parses as a
-  // host tab, and host tabs win over a plugin page claiming the same id (route.ts
-  // isRootTab branch precedes the pluginTabs branch — the D4 contract in
-  // docs/design/units/gui-plugins.md).
-  test("parses the restored gui-extensions host root tab", () => {
-    expect(parseSettingsView("?tab=gui-extensions")).toEqual({
-      type: "root",
-      tab: "gui-extensions",
-      server: undefined,
-      subtab: undefined,
-    })
-    expect(parseSettingsView("?server=wsl%3ADebian&tab=gui-extensions")).toEqual({
-      type: "root",
-      tab: "gui-extensions",
-      server: "wsl:Debian",
-      subtab: undefined,
-    })
-  })
-
-  test("host tabs win over a plugin page with the same id", () => {
-    const pluginTabs = new Set(["gui-extensions"])
-    expect(parseSettingsView("?tab=gui-extensions", undefined, pluginTabs)).toEqual({
-      type: "root",
-      tab: "gui-extensions",
-      server: undefined,
-      subtab: undefined,
-    })
-  })
-
   test("keeps search reveal state transient", () => {
     expect(
       parseSettingsView("?server=local&project=%2Fwork&tab=extensions&subtab=plugins", {
@@ -97,8 +68,8 @@ describe("settings route", () => {
 
   test("keeps a restored server selection until the server lists load, then drops a removed one", () => {
     const view: SettingsView = { type: "root", tab: "models", server: "wsl:Debian" }
-    const local = { key: "local", connected: true, starting: false }
-    const wsl = { key: "wsl:Debian", connected: false, starting: true }
+    const local = { key: "local", availability: "ready" as const }
+    const wsl = { key: "wsl:Debian", availability: "starting" as const }
 
     expect(settingsViewRedirect({ view, loaded: false, servers: [local] })).toBeUndefined()
     expect(settingsViewRedirect({ view, loaded: true, servers: [local, wsl] })).toBeUndefined()
@@ -109,24 +80,20 @@ describe("settings route", () => {
     })
   })
 
-  test("keeps a project page while its server starts", () => {
+  test("keeps a project page while its server starts and leaves it for a signed-out or unreachable one", () => {
     const view: SettingsView = { type: "project", server: "wsl:Debian", project: "/work", tab: "general" }
-    const local = { key: "local", connected: true, starting: false }
+    const local = { key: "local", availability: "ready" as const }
 
-    expect(
-      settingsViewRedirect({
-        view,
-        loaded: true,
-        servers: [local, { key: "wsl:Debian", connected: false, starting: true }],
-      }),
-    ).toBeUndefined()
-    expect(
-      settingsViewRedirect({
-        view,
-        loaded: true,
-        servers: [local, { key: "wsl:Debian", connected: false, starting: false }],
-      }),
-    ).toEqual({ type: "root", tab: "projects", server: "wsl:Debian" })
+    for (const availability of ["ready", "starting"] as const)
+      expect(
+        settingsViewRedirect({ view, loaded: true, servers: [local, { key: "wsl:Debian", availability }] }),
+      ).toBeUndefined()
+
+    // An HTTP server that answers 401 or not at all used to keep the route and render a blank page.
+    for (const availability of ["unauthorized", "unreachable"] as const)
+      expect(
+        settingsViewRedirect({ view, loaded: true, servers: [local, { key: "wsl:Debian", availability }] }),
+      ).toEqual({ type: "root", tab: "projects", server: "wsl:Debian" })
     expect(settingsViewRedirect({ view, loaded: true, servers: [local] })).toEqual({ type: "root", tab: "projects" })
   })
 

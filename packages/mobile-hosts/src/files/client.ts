@@ -273,7 +273,11 @@ export function createFilesClient(transport: FilesBridgeTransport): FilesPort {
         if (name.length === 0 || data.length === 0) return null
         if (Math.floor((data.length * 3) / 4) > MAX_BRIDGE_BYTES) return null // native re-check breach: degrade, never throw past the seam
         const bytes = base64ToBytes(data) // malformed base64 -> FilesError -> caught below
-        return new File([bytes], name, { type: mime })
+        // Copy into an owned ArrayBuffer: newer DOM typings reject Uint8Array<ArrayBufferLike>
+        // as a BlobPart because the bridge decoder may be backed by SharedArrayBuffer.
+        const owned = new Uint8Array(bytes.byteLength)
+        owned.set(bytes)
+        return new File([owned.buffer], name, { type: mime })
       } catch {
         return null
       }

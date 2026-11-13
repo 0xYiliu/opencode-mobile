@@ -14,22 +14,7 @@ import quoteHighlightStyles from "../components/quote-highlight.css?inline"
 registerCustomTheme(OpenCodeTheme.name, () => Promise.resolve(OpenCodeTheme), "zed")
 
 // Viewers and worker pools must agree: the pool's options win whenever it renders.
-// mobile(diff-worker-pool-fallback): the upstream "highlights" engine compiles its oniguruma wasm
-// synchronously at module load (`init(new WebAssembly.Module(bytes))` in @pierre/highlights'
-// default entry), which Chromium forbids on the main thread for buffers >4 KiB — on the Android
-// WebView every boot rejects the pool's initialize() with that RangeError and both diff and file
-// viewers stay on the sprite + empty-pre face (#163). "shiki-js" is pierre's own default engine
-// (resolveHighlighterType falls back to it) — pure JS, no wasm — and loads on the main thread and
-// inside workers alike; syntax highlighting itself is unchanged. The theme moves to pierre's
-// bundled pair: the shiki path cannot consume the Highlights-palette "OpenCode" registration
-// (themeResolver only serves it to the highlights engine), while pierre-dark/pierre-light are
-// the bundled shiki themes the app palette was modelled on — the code pane follows the app
-// appearance again; the exact token colours are pierre's, not the app palette's (registered
-// adaptation in docs/design/units/diff.md).
-export const highlightOptions = {
-  theme: { dark: "pierre-dark", light: "pierre-light" },
-  preferredHighlighter: "shiki-js",
-} as const
+export const highlightOptions = { theme: OpenCodeTheme.name, preferredHighlighter: "highlights" } as const
 
 export type DiffProps<T = {}> = FileDiffOptions<T, undefined> & {
   before: FileContents
@@ -86,9 +71,49 @@ const unsafeCSS = `
   --diffs-bg-selection-number: var(--diffs-bg-selection-number-override, var(--diffs-bg-selection));
 }
 
-[data-diff] ::selection,
-[data-file] ::selection {
-  background-color: var(--timeline-quote-background);
+/* Each diff token is an element, so highlight rules match one ancestor where Blink inherits them; see quote-highlight.css. */
+@supports selector(:host-context(*)) {
+  [data-diff]::selection,
+  [data-file]::selection {
+    background-color: var(--timeline-quote-background);
+  }
+
+  :host::highlight(opencode-find) {
+    background-color: rgb(from var(--surface-warning-base) r g b / 0.35);
+  }
+
+  [data-diff]::highlight(timeline-quote-source),
+  [data-file]::highlight(timeline-quote-source),
+  [data-diff]::highlight(timeline-quote-source-active),
+  [data-file]::highlight(timeline-quote-source-active) {
+    background-color: var(--timeline-quote-background);
+  }
+
+  :host::highlight(opencode-find-current) {
+    background-color: rgb(from var(--surface-warning-strong) r g b / 0.55);
+  }
+}
+
+@supports not selector(:host-context(*)) {
+  [data-diff] ::selection,
+  [data-file] ::selection {
+    background-color: var(--timeline-quote-background);
+  }
+
+  ::highlight(opencode-find) {
+    background-color: rgb(from var(--surface-warning-base) r g b / 0.35);
+  }
+
+  [data-diff] ::highlight(timeline-quote-source),
+  [data-file] ::highlight(timeline-quote-source),
+  [data-diff] ::highlight(timeline-quote-source-active),
+  [data-file] ::highlight(timeline-quote-source-active) {
+    background-color: var(--timeline-quote-background);
+  }
+
+  ::highlight(opencode-find-current) {
+    background-color: rgb(from var(--surface-warning-strong) r g b / 0.55);
+  }
 }
 
 [data-indicators='bars'] [data-column-number][data-line-type='change-addition']::before,
@@ -150,21 +175,6 @@ const unsafeCSS = `
 [data-content-buffer] {
   background-image: none;
   background-color: var(--diffs-bg-context-gutter);
-}
-
-::highlight(opencode-find) {
-  background-color: rgb(from var(--surface-warning-base) r g b / 0.35);
-}
-
-[data-diff] ::highlight(timeline-quote-source),
-[data-file] ::highlight(timeline-quote-source),
-[data-diff] ::highlight(timeline-quote-source-active),
-[data-file] ::highlight(timeline-quote-source-active) {
-  background-color: var(--timeline-quote-background);
-}
-
-::highlight(opencode-find-current) {
-  background-color: rgb(from var(--surface-warning-strong) r g b / 0.55);
 }
 
 [data-diff] [data-line][data-comment-selected]:not([data-selected-line]) {

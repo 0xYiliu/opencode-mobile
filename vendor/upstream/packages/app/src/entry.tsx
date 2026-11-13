@@ -13,30 +13,17 @@ import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import pkg from "../package.json"
 import {
-  createFilesClient,
   createMobileHosts,
-  createNotificationsClient,
   createProbeClient,
-  createServiceOpsClient,
   createSshHostKeyVerifier,
   createSshHostTransport,
-  MOBILE_APP_VERSION,
   SSH_BOOTSTRAP_MESSAGE,
   createVaultClient,
   createVaultResolver,
   createAndroidXVaultTransport,
-  createWebMessageFilesTransport,
-  createWebMessageNotificationsTransport,
   createWebMessageProbeTransport,
-  createWebMessageServiceOpsTransport,
   createWebMessageSshTransport,
-  activeBackHandlerPort,
-  setActiveBackHandlerPort,
-  setActiveFilesPort,
-  setActiveNotificationsPort,
-  setActiveServiceOpsPort,
 } from "@opencode-mobile/mobile-hosts"
-import { consumeBackChain } from "@/shell/back-chain"
 
 const getLocale = () => {
   if (typeof navigator === "undefined") return "en" as const
@@ -67,13 +54,7 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 // mobile(M-007): the ?auth_token URL passthrough and its cleanup helper are removed with the
 // location.origin server assembly — this shell never assembles a server from the URL, so
 // there is nothing to authenticate here.
-
-// mobile(M-040): platform.version is the MOBILE APP version (issue #72) — the About page
-// and the error page then display this app's own version instead of impersonating the
-// vendored upstream base version (still visible verbatim on its own About row). The Sentry
-// release below intentionally stays on pkg.version, upstream verbatim, negatively locked
-// by scripts/verify-about-version.ts.
-const web = createWebPlatform(MOBILE_APP_VERSION)
+const web = createWebPlatform(pkg.version)
 
 // Create the SSH message listener synchronously during module evaluation. Native currently
 // starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here
@@ -88,19 +69,6 @@ const ssh = createWebMessageSshTransport({
     if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
   },
 })
-
-// mobile(android-back-bridge): the Android system back dispatch (issue #145, plan T12).
-// MainActivity's deprecated onBackPressed face (zero-androidx constraint, API 31 device)
-// evaluates window.opencodeMobileBack.consume() through the WebView and finishes only on
-// false — or when this binding does not exist yet, which is exactly today's behavior.
-// The chain walk is synchronous (dialog close / store flags / router navigate), so the
-// answer rides the WebView evaluation callback; the mobile-hosts port seam keeps the
-// contract (the fail-closed stub consumes nothing), and the chain layers themselves
-// register from the mounted shell components (dialog provider, panel drawer, titlebar).
-setActiveBackHandlerPort({ consume: () => consumeBackChain() })
-;(window as any).opencodeMobileBack = {
-  consume: () => activeBackHandlerPort().consume(),
-}
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
@@ -171,76 +139,6 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     // origin by platform construction). The port is captured into the transport closure and
     // acked immediately; before that ack every ssh attempt fails explicitly
     // (bridge-unavailable) — no tunnel can exist unverified.
-    // mobile(M-016): the service ops bridge (issue #7) — the FOURTH protocol-isolated
-    // sibling of the vault/probe/ssh bridges on the same window message events. Its
-    // handshake string ("opencode-mobile-svcops-handshake") is captured only by this
-    // transport (strict data equality + exactly one port), so none of the four bridges
-    // can capture another's handshake; event.origin is never consulted (embedder-posted
-    // messages carry an empty origin by platform construction). The port is captured
-    // into the transport closure and acked immediately; before that ack the service ops
-    // panel stays degraded-hidden (fail-closed stub) — a client-only build implies no
-    // service-operation surface. The bridge protocol carries {templateId, params, os}
-    // ONLY (never a command string): the command face is the native-side whitelist,
-    // assembled by the mirrored validator, never free commands. Registration goes through
-    // the module-level service ops seam (setActiveServiceOpsPort) so the runtime bootstrap
-    // contract (createMobileHosts options) stays unchanged; the credential is resolved
-    // per command by the panel and crosses one way, once, never logged or echoed (N7).
-    setActiveServiceOpsPort(
-      createServiceOpsClient(
-        createWebMessageServiceOpsTransport({
-          subscribe: (handler) => {
-            window.addEventListener("message", handler as EventListener)
-            return () => window.removeEventListener("message", handler as EventListener)
-          },
-        }),
-      ),
-    )
-    // mobile(M-020): the files bridge (issue #16) — the FIFTH protocol-isolated sibling of
-    // the vault/probe/ssh/svcops bridges on the same window message events. Its handshake
-    // string ("opencode-mobile-files-handshake") is captured only by this transport
-    // (strict data equality + exactly one port), so none of the five bridges can capture
-    // another's handshake; event.origin is never consulted (embedder-posted messages
-    // carry an empty origin by platform construction). The port is captured into the
-    // transport closure and acked immediately; before that ack the platform file
-    // capabilities stay fail-closed stubs (clipboardImage null / saveFile false /
-    // shareDataUrl false). Registration goes through the module-level files seam
-    // (setActiveFilesPort) so the runtime bootstrap contract stays unchanged — the same
-    // shape as the service ops registration directly above.
-    setActiveFilesPort(
-      createFilesClient(
-        createWebMessageFilesTransport({
-          subscribe: (handler) => {
-            window.addEventListener("message", handler as EventListener)
-            return () => window.removeEventListener("message", handler as EventListener)
-          },
-        }),
-      ),
-    )
-    // mobile(M-022): the notifications bridge (issue #23) — the SIXTH protocol-isolated
-    // sibling of the vault/probe/ssh/svcops/files bridges on the same window message
-    // events. Its handshake string ("opencode-mobile-notifications-handshake") is captured
-    // only by this transport (strict data equality + exactly one port), so none of the six
-    // bridges can capture another's handshake; event.origin is never consulted
-    // (embedder-posted messages carry an empty origin by platform construction). The port
-    // is captured into the transport closure and acked immediately; before that ack the
-    // notifications port stays a fail-closed stub — the exact pre-issue state (the Web
-    // Notification API behind platform.notify does not exist in the Android WebView), so
-    // the in-app faces carry on either way. Registration goes through the module-level
-    // notifications seam (setActiveNotificationsPort) so the runtime bootstrap contract
-    // stays unchanged — the same shape as the files registration directly above. The
-    // bridge is notification-ONLY: its op whitelist {notify, requestPermission} has no
-    // reply/cancel/interrupt face, so a notification can never approve a permission or
-    // stop a task (issue #23 acceptance 3).
-    setActiveNotificationsPort(
-      createNotificationsClient(
-        createWebMessageNotificationsTransport({
-          subscribe: (handler) => {
-            window.addEventListener("message", handler as EventListener)
-            return () => window.removeEventListener("message", handler as EventListener)
-          },
-        }),
-      ),
-    )
     const hosts = createMobileHosts({
       storage: window.localStorage,
       fetch: globalThis.fetch.bind(globalThis),

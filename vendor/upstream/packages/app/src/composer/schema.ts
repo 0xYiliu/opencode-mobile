@@ -42,7 +42,6 @@ export const FileAttachmentPart = Persistence.struct({
   filename: Persistence.optional(Schema.String),
   description: Persistence.optional(Schema.String),
   url: Persistence.optional(Schema.String),
-  sourceServerKey: Persistence.optional(Schema.String),
   source: Persistence.optional(FilePartSource),
 })
 
@@ -80,7 +79,7 @@ const ImageFields = {
 const Image = Persistence.struct({
   ...ImageFields,
   // An empty URL is an image whose bytes are still in the draft store; see `resolveBlobUrl`.
-  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)), sourceServerKey: Schema.optional(Schema.String) }),
+  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)) }),
 })
 
 // Draft storage keeps content-addressed blobs in the store until an image is shown or sent; a
@@ -88,7 +87,7 @@ const Image = Persistence.struct({
 export const ImageAttachmentPart = Schema.Struct({
   ...ImageFields,
   blob: Persistence.optional(
-    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String), sourceServerKey: Persistence.optional(Schema.String) }),
+    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String) }),
   ),
   dataUrl: Persistence.optional(Schema.String),
 }).pipe(
@@ -105,7 +104,6 @@ export const ImageAttachmentPart = Schema.Struct({
         mime: value.mime,
         blob: {
           id,
-          sourceServerKey: value.blob?.sourceServerKey,
           url: url?.startsWith("blob:") || url?.startsWith("data:") ? url : id.startsWith("data:") ? id : "",
         },
       }
@@ -170,6 +168,8 @@ const NoteFields = {
   type: Schema.Literal("note"),
   origin: Schema.String,
   label: Schema.String,
+  title: Persistence.optional(Schema.String),
+  subtitle: Persistence.optional(Schema.String),
   icon: Schema.String,
   subject: Schema.String,
   href: Persistence.optional(Schema.String),
@@ -194,6 +194,21 @@ export const QuoteSource = Persistence.struct({
 })
 
 export type QuoteSource = typeof QuoteSource.Type
+
+/** Timeline coordinates kept only with the app's draft, never in quote metadata. */
+export const TimelineQuoteSource = Persistence.array(
+  Persistence.struct({
+    partID: Schema.String,
+    revealID: Schema.String,
+    body: Persistence.optional(Schema.String),
+    shadow: Persistence.optional(Persistence.struct({ host: Schema.Number, line: Schema.String })),
+    start: Schema.Number,
+    end: Schema.Number,
+    text: Schema.String,
+  }),
+)
+
+export type TimelineQuoteSource = typeof TimelineQuoteSource.Type
 
 const QuoteFields = {
   type: Schema.Literal("quote"),
@@ -351,16 +366,10 @@ export const ComposerStore = Persistence.struct({
   ),
   model: Persistence.optional(PromptModel),
   mode: Persistence.optional(Schema.Literals(["normal", "shell"])),
-  retry: Persistence.optional(
-    Schema.Struct({
-      id: SessionMessage.ID,
-      agent: Schema.String,
-      providerID: Schema.String,
-      modelID: Schema.String,
-      variant: Persistence.optional(Schema.String),
-    }),
-  ),
+  // A retry stored before it carried its payload's fingerprint cannot prove its payload, so it reads as none.
+  retry: Persistence.optional(Schema.Struct({ id: SessionMessage.ID, fingerprint: Schema.NonEmptyString })),
   context: Persistence.struct({ items: Persistence.array(ContextEntry) }),
+  quoteSources: Persistence.optional(Persistence.record(Schema.UndefinedOr(TimelineQuoteSource))),
 })
 
 export type ComposerStore = typeof ComposerStore.Type
@@ -376,7 +385,7 @@ export const LineComment = Persistence.struct({
 export type LineComment = typeof LineComment.Type
 
 export const CommentStore = Persistence.struct({
-  comments: Schema.Record(Schema.String, Schema.mutableKey(Persistence.array(LineComment))),
+  comments: Schema.Record(Schema.String, Persistence.entry(Persistence.array(LineComment))),
 })
 
 export type CommentStore = typeof CommentStore.Type

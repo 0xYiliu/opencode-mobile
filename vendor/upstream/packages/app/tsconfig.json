@@ -21,14 +21,15 @@
     "outDir": "node_modules/.ts-dist",
     "isolatedModules": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@opencode-mobile/mobile-hosts": ["../../../../packages/mobile-hosts/src/index.ts"]
     }
   },
   "include": [
     "src",
     "component-tests",
     "playwright.components.config.ts",
-    "../storybook/playwright/*.ts",
+    "../stories/playwright/*.ts",
     "package.json"
   ],
   "exclude": ["dist", "ts-dist"]

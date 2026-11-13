@@ -1,5 +1,5 @@
 import { plugin } from "bun"
-import { describe, expect, mock, test } from "bun:test"
+import { describe, expect, jest, mock, test } from "bun:test"
 import { createComponent, createRoot } from "solid-js"
 import { insert } from "solid-js/web"
 import type { ServerConnection } from "@/runtime/server/registry"
@@ -8,7 +8,8 @@ import type { ServerConnection } from "@/runtime/server/registry"
 // (v2.2.1). The pins below lock the shapes the shell and the General page rely
 // on so a later re-glue cannot silently regress them:
 //   - source: SettingsServerGeneral delegates to the shared ServerConnectionRow
-//     and health-gates the Shell preferences section (`healthy !== false`),
+//     and gates the Shell preferences section through the current
+//     `SettingsServerAvailability` health projection,
 //     SettingsServersHeader is the header of both page faces, the per-server
 //     shell row search action (`settings-shell:<key>`, defaulting for the
 //     selected server) threads servers.tsx -> ServerShell -> ShellSetting ->
@@ -42,10 +43,9 @@ import type { ServerConnection } from "@/runtime/server/registry"
 // convention from issue #101):
 //   bun test --conditions=browser --isolate --preload ./happydom.ts \
 //     src/settings/servers/servers-page.test.tsx
-// The mock graph deliberately avoids every module that imports the
-// `@opencode-mobile/mobile-hosts` seam (registry/runtime/connect dialog are
-// either mocked or only type-imported here), so even the source pins load and
-// run in a fresh worktree where that gitignored symlink does not exist.
+// The mock graph keeps the runtime registry, dialog and row/menu seams local,
+// so the page regression remains deterministic and does not require a live
+// server, mobile host bridge or remote service.
 const transpiler = new Bun.Transpiler({
   loader: "tsx",
   trimUnusedImports: true,
@@ -66,12 +66,26 @@ plugin({
 
 // The controller seam: only `collection.health()` is read by the page itself
 // (the row menu's domain actions are probed away below).
-const healthByServer: Record<string, { healthy?: boolean; unauthorized?: boolean }> = {}
+const healthByServer: Record<string, { type?: string; healthy?: boolean; unauthorized?: boolean }> = {}
 
-// The http fixture matches the persistence schema shape; the runtime module is
-// only imported as a type (its value side reaches the mobile-hosts seam).
+// The HTTP fixture matches the persistence schema shape; the runtime registry
+// value seam is mocked while the ServerConnection type remains authoritative.
 const httpServer = (url: string) => ({ type: "http", http: { url } }) as unknown as ServerConnection.Http
 const serverKey = (key: string) => key as unknown as ServerConnection.Key
+const readyAvailability = (connection: ServerConnection.Http) => ({
+  status: "ready" as const,
+  connection,
+  health: { type: "healthy" as const },
+})
+const offlineAvailability = (connection: ServerConnection.Http) => ({
+  status: "unreachable" as const,
+  reason: "offline" as const,
+  connection,
+})
+const unauthorizedAvailability = (connection: ServerConnection.Http) => ({
+  status: "unauthorized" as const,
+  connection,
+})
 
 // Behavioral harness; `undefined` when this environment cannot render real
 // modules' JSX (shared-preload runs), in which case only the source pins run.
@@ -97,6 +111,18 @@ try {
       intl: () => "en-US",
       plural: () => "other",
     }),
+  }))
+
+  mock.module("@/runtime/server/registry", () => ({
+    ServerConnection: {
+      http: (server: { http?: unknown }) => server.http,
+    },
+    useServers: () => ({ list: [], hydrated: () => true, label: () => "" }),
+  }))
+  mock.module("./inventory", () => ({
+    settingsServers: () => [],
+    useSettingsServers: () => () => [],
+    useSettingsServersLoaded: () => () => true,
   }))
 
   const uiDialog = await import("@opencode/ui/context/dialog")
@@ -136,6 +162,7 @@ try {
       ...input.shells,
     ],
     createSoundPreviewController: () => ({}),
+    createOptimisticSetting: () => () => {},
     createServerShellController: () => ({
       shells: () => [],
       current: () => "auto",
@@ -153,11 +180,21 @@ try {
 
   // Observe the page-to-menu option on both real page layouts without replacing the pages.
   mock.module("@/servers/registry/add-menu", () => ({
-    SettingsAddServerMenu: (props: { checkAndroid?: boolean }) => {
+    AddServerMenu: () => {
       const button = document.createElement("button")
       button.textContent = "dialog.server.add.button"
-      button.dataset.unsupportedWsl = String(!!props.checkAndroid)
       return button
+    },
+  }))
+
+  mock.module("@/servers/registry/row", () => ({
+    ServerHealthIndicator: (props: { health?: { type?: string; unauthorized?: boolean } }) => {
+      const indicator = document.createElement("span")
+      if (props.health?.type === "unauthorized" || props.health?.unauthorized) {
+        indicator.setAttribute("role", "status")
+        indicator.setAttribute("aria-label", "server.status.authentication")
+      }
+      return indicator
     },
   }))
 
@@ -256,31 +293,40 @@ const preferencesCount = (host: HTMLElement) => (host.textContent.match(/setting
 // In the list face the Shell section renders without the preferences header;
 // its observable body is the ShellSetting row (title + data-action).
 const shellRowCount = (host: HTMLElement) => (host.textContent.match(/settings\.general\.row\.shell\.title/g) ?? []).length
+const browser = (window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM
 
 describe("servers page (target-verbatim, issue #102)", () => {
-  test.skipIf(!behavior)("both server layouts pass the Android menu option", () => {
+  test.skipIf(!behavior)("both server layouts render the server controls", () => {
     const { SettingsServerGeneral, SettingsServerList } = behavior!
-    const entry = { key: serverKey("srv-one"), name: "One", connection: httpServer("http://one.local:4096") }
+    const connection = httpServer("http://one.local:4096")
+    const entry = {
+      key: serverKey("srv-one"),
+      name: "One",
+      connection,
+      availability: offlineAvailability(connection),
+    }
     const single = mount(() => createComponent(SettingsServerGeneral as never, {
-      entry, onAddServer: () => {}, unsupportedWsl: true,
+      entry, onAddServer: () => {},
     }))
     const multiple = mount(() => createComponent(SettingsServerList as never, {
       servers: [entry, { ...entry, key: serverKey("srv-two") }], onAddServer: () => {},
-      onServerChange: () => {}, unsupportedWsl: true,
+      onServerChange: () => {},
     }))
-    expect(single.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
-    expect(multiple.querySelector("button")?.dataset.unsupportedWsl).toBe("true")
+    expect(single.textContent).toContain("settings.section.server")
+    expect(multiple.textContent).toContain("settings.tab.servers")
+    expect(single.querySelector("button")).not.toBeNull()
+    expect(multiple.querySelector("button")).not.toBeNull()
   })
   test("source: target rows, health gate, header reuse and the shell action thread", async () => {
     const source = await Bun.file(new URL("./servers.tsx", import.meta.url)).text()
 
     // SettingsServerGeneral delegates to the shared row and health-gates Shell.
     expect(source).toContain("entry={props.entry}")
-    expect(source).toContain("delayMenuActions={!!props.unsupportedWsl && isAndroidMobileHost()}")
+    expect(source).toContain("isAndroidMobileHost")
     expect(source).toContain("onCleanup(() => clearTimeout(pendingEdit))")
     expect(source).toContain("pendingEdit = setTimeout(() => {")
     expect(source).toContain(
-      "props.entry.connection && health()?.healthy !== false ? props.entry.connection : undefined",
+      "serverPagesConnection(props.entry.availability)",
     )
     // SettingsServersHeader is the header of both faces.
     expect(source.match(/<SettingsServersHeader /g)?.length).toBe(2)
@@ -302,10 +348,15 @@ describe("servers page (target-verbatim, issue #102)", () => {
   test.skipIf(!behavior)("behavior: an unauthorized HTTP server renders the Authenticate face", () => {
     const { SettingsServerList } = behavior!
     const connection = httpServer("http://locked.local:40910")
-    healthByServer["srv-locked"] = { healthy: false, unauthorized: true }
+    healthByServer["srv-locked"] = { type: "unauthorized", unauthorized: true }
     const host = mount(() =>
       createComponent(SettingsServerList as never, {
-        servers: [{ key: serverKey("srv-locked"), name: "Locked", connection }],
+        servers: [{
+          key: serverKey("srv-locked"),
+          name: "Locked",
+          connection,
+          availability: unauthorizedAvailability(connection),
+        }],
         onAddServer: () => {},
         onServerChange: () => {},
       }),
@@ -322,16 +373,16 @@ describe("servers page (target-verbatim, issue #102)", () => {
     const alpha = httpServer("http://alpha.local:40911")
     const beta = httpServer("http://beta.local:40912")
     const gamma = httpServer("http://gamma.local:40913")
-    healthByServer["srv-alpha"] = { healthy: true }
-    healthByServer["srv-beta"] = { healthy: true }
-    healthByServer["srv-gamma"] = { healthy: false }
+    healthByServer["srv-alpha"] = { type: "healthy", healthy: true }
+    healthByServer["srv-beta"] = { type: "healthy", healthy: true }
+    healthByServer["srv-gamma"] = { type: "unreachable", healthy: false }
 
     const host = mount(() =>
       createComponent(SettingsServerList as never, {
         servers: [
-          { key: serverKey("srv-alpha"), name: "Alpha", connection: alpha },
-          { key: serverKey("srv-beta"), name: "Beta", connection: beta },
-          { key: serverKey("srv-gamma"), name: "Gamma", connection: gamma },
+          { key: serverKey("srv-alpha"), name: "Alpha", connection: alpha, availability: readyAvailability(alpha) },
+          { key: serverKey("srv-beta"), name: "Beta", connection: beta, availability: readyAvailability(beta) },
+          { key: serverKey("srv-gamma"), name: "Gamma", connection: gamma, availability: offlineAvailability(gamma) },
         ],
         selected: "srv-alpha",
         onAddServer: () => {},
@@ -350,11 +401,16 @@ describe("servers page (target-verbatim, issue #102)", () => {
   test.skipIf(!behavior)("behavior: single-server view shows Shell when healthy, hides it when not", () => {
     const { SettingsServerGeneral } = behavior!
     const connection = httpServer("http://single.local:40914")
-    healthByServer["srv-single"] = { healthy: true }
+    healthByServer["srv-single"] = { type: "healthy", healthy: true }
 
     const healthyHost = mount(() =>
       createComponent(SettingsServerGeneral as never, {
-        entry: { key: serverKey("srv-single"), name: "Single", connection },
+        entry: {
+          key: serverKey("srv-single"),
+          name: "Single",
+          connection,
+          availability: readyAvailability(connection),
+        },
         onAddServer: () => {},
       }),
     )
@@ -362,10 +418,15 @@ describe("servers page (target-verbatim, issue #102)", () => {
     expect(healthyHost.textContent).toContain("settings.section.server")
     expect(healthyHost.textContent).toContain("dialog.server.add.button")
 
-    healthByServer["srv-single"] = { healthy: false }
+    healthByServer["srv-single"] = { type: "unreachable", healthy: false }
     const unhealthyHost = mount(() =>
       createComponent(SettingsServerGeneral as never, {
-        entry: { key: serverKey("srv-single"), name: "Single", connection },
+        entry: {
+          key: serverKey("srv-single"),
+          name: "Single",
+          connection,
+          availability: offlineAvailability(connection),
+        },
         onAddServer: () => {},
       }),
     )
@@ -378,7 +439,7 @@ describe("servers page (target-verbatim, issue #102)", () => {
   test.skipIf(!behavior)("behavior: a row edit reaches DialogServer with server and onServerChange", () => {
     const { SettingsServerList, pushed } = behavior!
     const connection = httpServer("http://editable.local:40915")
-    healthByServer["srv-editable"] = { healthy: true }
+    healthByServer["srv-editable"] = { type: "healthy", healthy: true }
     let received: unknown
     pushed.length = 0
     behavior!.setFireRowEdit(true)
@@ -386,7 +447,12 @@ describe("servers page (target-verbatim, issue #102)", () => {
     try {
       mount(() =>
         createComponent(SettingsServerList as never, {
-          servers: [{ key: serverKey("srv-editable"), name: "Editable", connection }],
+          servers: [{
+            key: serverKey("srv-editable"),
+            name: "Editable",
+            connection,
+            availability: readyAvailability(connection),
+          }],
           onAddServer: () => {},
           onServerChange: (server: ServerConnection.Any) => {
             received = server
@@ -413,6 +479,81 @@ describe("servers page (target-verbatim, issue #102)", () => {
       expect(received).toBe(connection)
     } finally {
       behavior!.setFireRowEdit(false)
+    }
+  })
+
+  test("behavior: Android host delays row Edit for 350ms", () => {
+    if (!behavior) throw new Error("servers-page behavior harness unavailable")
+    const { SettingsServerList, pushed } = behavior
+    const connection = httpServer("http://android.local:40916")
+    const initialUrl = window.location.href
+    const marker = document.createElement("meta")
+    marker.name = "opencode-mobile-host"
+    marker.content = "android-v1"
+    healthByServer["srv-android-edit"] = { type: "healthy", healthy: true }
+    pushed.length = 0
+    behavior.setFireRowEdit(true)
+    jest.useFakeTimers()
+
+    try {
+      browser.setURL("http://127.0.0.1:18090/")
+      document.head.append(marker)
+      mount(() =>
+        createComponent(SettingsServerList as never, {
+          servers: [{
+            key: serverKey("srv-android-edit"),
+            name: "Android",
+            connection,
+            availability: readyAvailability(connection),
+          }],
+          onAddServer: () => {},
+          onServerChange: () => {},
+        }),
+      )
+
+      expect(pushed).toHaveLength(0)
+      jest.advanceTimersByTime(349)
+      expect(pushed).toHaveLength(0)
+      jest.advanceTimersByTime(1)
+      expect(pushed).toHaveLength(1)
+    } finally {
+      behavior.setFireRowEdit(false)
+      marker.remove()
+      browser.setURL(initialUrl)
+      jest.useRealTimers()
+    }
+  })
+
+  test("behavior: non-Android host opens Edit immediately", () => {
+    if (!behavior) throw new Error("servers-page behavior harness unavailable")
+    const { SettingsServerList, pushed } = behavior
+    const connection = httpServer("http://desktop.local:40917")
+    const initialUrl = window.location.href
+    healthByServer["srv-desktop-edit"] = { type: "healthy", healthy: true }
+    pushed.length = 0
+    behavior.setFireRowEdit(true)
+    jest.useFakeTimers()
+
+    try {
+      browser.setURL("http://127.0.0.1:18090/")
+      mount(() =>
+        createComponent(SettingsServerList as never, {
+          servers: [{
+            key: serverKey("srv-desktop-edit"),
+            name: "Desktop",
+            connection,
+            availability: readyAvailability(connection),
+          }],
+          onAddServer: () => {},
+          onServerChange: () => {},
+        }),
+      )
+
+      expect(pushed).toHaveLength(1)
+    } finally {
+      behavior.setFireRowEdit(false)
+      browser.setURL(initialUrl)
+      jest.useRealTimers()
     }
   })
 })

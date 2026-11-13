@@ -1,19 +1,19 @@
 # Vendor provenance — upstream opencode frontend closure
 
-Machine-readable twin: `provenance.json`. Acquisition/rebuild tool: `scripts/vendor-sync.sh`.
+Machine-readable twin: `provenance.json`. Acquisition/rebuild tool: `scripts/vendor-sync.sh` (build-only closure patches replay before the scoped mobile overlay).
 Verification: `scripts/verify-closure.sh` (V3).
 
 Current mobile patch maintenance: [protocol and commands](patches/mobile/README.md).
-`vendor-manifest.json#mobilePatches` alone determines replay order. The patch registry
+`vendor-manifest.json#closurePatches` determines the build-only closure replay order;
+`vendor-manifest.json#mobilePatches` alone determines mobile overlay replay order. The patch registry
 owns IDs, paths, status and hashes; `bun run patches:refresh` generates the registry
 mirrors in both machine-readable provenance files. Historical narrative inventories
-below are not additional live registries. As of 2026-11-05 all 65 registered patches
-are active (zero deferred), with semantic IDs equal to filename stems. This supersedes
-the earlier policy of retaining legacy names. See [identity-migration.json](patches/mobile/identity-migration.json)
-for all 65 identities (64 file renames; extensions-flyout-webview was already semantic).
-Payload bytes and source/artifact markers such as `mobile(M-002)` are unchanged;
-markers are historical evidence, not current IDs. Historical ranges below denote
-replay-order intervals at the stated revision, never lexical name ordering.
+below are not additional live registries. As of 2026-11-13, the v2.2.7 registry has
+80 entries: two active replays — the #184 scoped `v2-2-7-mobile-connection-pairing-ssh-closure` overlay and the inherited main `server-edit-touch-compatibility` patch —,
+19 absorbed historical payloads, and 59 deferred historical patches outside #184. The inherited main patch is separate from the #184 overlay scope. The historical identity migration and
+source/artifact markers such as `mobile(M-002)` remain preserved; markers are evidence,
+not current IDs. Historical ranges below denote replay-order intervals at the stated
+revision, never lexical name ordering.
 Historical hashes and PASS/FAIL/BLOCKED results retain their original revision/date scope.
 
 ## Pin
@@ -22,9 +22,9 @@ Historical hashes and PASS/FAIL/BLOCKED results retain their original revision/d
 | --- | --- |
 | Upstream repository | https://github.com/anomalyco/opencode |
 | Branch | `dev` (upstream default branch) |
-| Pin | `b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43` (advanced from `cec70f3ed6b64bf0e23a7c62325850ca25d3409b` via the issue #27 update exercise; see below) |
-| Pin date | 2026-10-23T10:28:20-07:00 |
-| Pin subject | `fix(app,client): wire session transcript retention and evict background transcripts (#57025)` |
+| Pin | `fedc6f208aa2bd54c1019227214568083f6380ad` (fixed Windows Desktop v2.2.7 release target) |
+| Pin date | 2026-11-10T07:52:42Z |
+| Pin subject | `release: v2.2.7` |
 | Local cache | `~/.cache/opencode-upstream` (`clone --filter=blob:none`) |
 
 Acquisition command (whole-repo copy is forbidden by policy; only the closure below is
@@ -35,21 +35,19 @@ scripts/vendor-sync.sh
 # git -C ~/.cache/opencode-upstream archive <pin> -- packages/<p>... LICENSE \
 #   | tar -x --exclude=packages/ai/test/fixtures/recordings -C vendor/upstream
 # + extract registered upstream npm patches (subset) from the same tree
-# + apply registered mobile patches (git apply --check first)
+# + apply registered build-only closure patches, then mobile patches (git apply --check first)
 ```
 
-Per-package extraction revisions (issue #67, ruling 1): manifest `packageSources` maps a package to its own
-revision. `packages/gui-plugins` was born after the pin, in upstream `dae4077a96` (2026-10-27, "feat(plugin): add
-OpenCode Desktop GUI plugins", whose parent commit lacks the directory), so it extracts from the v2.2.1 release
-tree `3ebcf9a32c7b28f658cfee80775448929361727a`; every other closure package still extracts at the pin.
-`scripts/verify-closure.sh` builds the pristine side of its equivalence check under the same rule.
+All 11 closure packages, including `packages/gui-plugins`, extract from the fixed v2.2.7 target.
+`packageSources` is therefore empty; `scripts/verify-closure.sh` builds the pristine side of its
+equivalence check from the same target, replays the build-only closure patch, and then replays the
+two active mobile patches in `vendor-manifest.json#mobilePatches`.
 
 ## Closure packages (11)
 
 `app, client, protocol, schema, session-ui, ui, util, gui-plugins, plugin-browser, plugin, ai`
 
-- 4473 files, ~45 MB under `packages/` (git ls-files count at the pin; the earlier 4460 was
-  an intermediate-state residue, corrected in review), before install; excludes install/build artifacts.
+- 5384 files, ~45 MB under `packages/` (git ls-tree count at v2.2.7, excluding registered recordings and including partial icon assets), before install; excludes install/build artifacts.
 - Excluded packages: `cli, codemode, console, containers, core, desktop,
   effect-drizzle-sqlite, function, http-recorder, httpapi-codegen, identity, latex,
   merman, plugins, posts, script, sdk, server, simulation, stats, storybook, theme, tui, web`
@@ -65,19 +63,20 @@ tree `3ebcf9a32c7b28f658cfee80775448929361727a`; every other closure package sti
 - File-level exclusion: `packages/ai/test/fixtures/recordings/` (274 files, ~13.7 MiB,
   HTTP recorder test fixtures) — dropped during extraction and registered in the manifest.
 
-## Current mobile patch inventory (65 active, 0 deferred; 2026-11-05)
+## Current mobile patch inventory (2 active, 19 absorbed, 59 deferred; 2026-11-13)
 
 | ID | Target | Change | Why |
 | --- | --- | --- | --- |
-| gui-plugins-native-test-deps | `packages/gui-plugins/package.json` | drop `electron`, `@lydell/node-pty`, `devtools-protocol` devDeps | Electron-only test tooling; electron postinstall ≈110 MB, never needed by the web build. gui-plugins-native-test-deps' (issue #67): retargeted from the replaced gui-extensions package; same three removals, hunk re-derived against the v2.2.1 gui-plugins block |
-| connection-password-memory-only | `packages/app/src/runtime/server/persistence.ts` | encode path strips `password` (memory-only); embeds marker `mobile(M-002): password stripped at encode (memory-only)` | Web default storage is localStorage; persisting credentials violates AGENTS.md. Decode tolerates legacy values; Keystore is issue #4 |
-| workspace-dependency-closure | `packages/{client,plugin,ai}/package.json` | strip three dangling workspace refs (`@opencode/httpapi-codegen`, `@opencode/theme` ×3 spots, `@opencode/http-recorder`) | Targets are excluded packages; Bun 1.4.2 hard-errors on dangling workspace devDeps and unsatisfied optional workspace peerDeps |
+| `v2-2-7-mobile-connection-pairing-ssh-closure` | v2.2.7 connection/pairing/SSH shared closure | Scoped #184 overlay: connection/pairing, credential/vault/probe/fetch/security, server lifecycle/health/loopback/host API compatibility, and shared SSH state/renderer seams. Provider, settings, session, files, terminal, notifications, generic UI, patchmark and unrelated package behavior are excluded. | One reproducible #184 scoped overlay; its 24-target scope is unchanged. Nineteen historical payloads are explicitly absorbed; 59 remain deferred outside #184. |
 
-Runtime seam patches beyond the closure set — app-mobile-hosts-alias…app-ssh-bridge (issues #3/#4/#5/#6) — are registered with
-owner/reason/upstreamBaseline/verification/rebase in `patches/mobile/manifest.json` (mirrored in
-`vendor-manifest.json#mobilePatches`, currently 65 active patches); the table above lists only the
-three original closure-acquisition patches. `scripts/vendor-sync.sh` replays the entire active
-array, not just those three. The following narrative records their historical introduction:
+| `server-edit-touch-compatibility` | inherited main baseline patch | Rebased from origin/main onto pristine v2.2.7; delays the Android WebView 114 server-row Edit action and remains outside the #184 overlay target list. | Inherited main change, replayed separately after the #184 overlay. |
+The 78 historical deferred payload files remain in `patches/mobile/manifest.json` and the generated
+registry mirrors with their original payloads, hashes and semantic identities. They are historical
+file artifacts, not 78 current deferred patches: 19 are marked `absorbed` when the scoped overlay
+explicitly carries their semantics, and the current disposition has **59 deferred patches** outside #184.
+Neither class is replayed from the historical files. `scripts/vendor-sync.sh` replays the separate
+build-only closure patch first, then only the active mobile array. The following narrative records
+their historical introduction and is not a second live registry:
 
 - app-mobile-hosts-alias–settings-mobile-host-manager (issue #3): app vite alias to the first-party package, credentialRef field, dialog
   reference passthrough, entry bootstrap of the host registry, settings mount of the host manager.
@@ -131,10 +130,25 @@ array, not just those three. The following narrative records their historical in
   on MatePad API 31; service-worker promotion was skipped only in the temp test copy.
   No main-app/device data was cleared; real SSH E2E remains BLOCKED.
 
-The active vendor tree invariant: **tree == pin tree + the active mobile patches listed in
-`vendor-manifest.json#mobilePatches`**, byte-identical, zero other diff (checked by
-`scripts/verify-closure.sh`, with registered per-package source overrides and patch-created packages).
-There are currently no deferred entries; the candidate snapshot below is historical only.
+The active vendor tree invariant: **tree == v2.2.7 target tree + the build-only closure patches listed in
+`vendor-manifest.json#closurePatches` + the active mobile patches listed in `vendor-manifest.json#mobilePatches`**,
+byte-identical, zero other diff (checked by
+`scripts/verify-closure.sh`, with registered partial assets and patch-created packages). The
+current active array has two entries: the #184 overlay and the inherited main server-edit patch; the 78 historical deferred payload files are retained for
+provenance and are not replayed. They do not define the current disposition count: the current
+registry has 59 deferred patches.
+
+## Build-only closure patch (separate from #184 mobile overlay)
+
+- `vendor-manifest.json#closurePatches` replays `patches/closure/v2-2-7-build-dependency-closure.patch`
+  before the active mobile overlay. It removes five dangling `workspace:*` references introduced by
+  extracting only the web closure (`@opencode/httpapi-codegen`, `@opencode/theme`,
+  `@opencode/http-recorder`) and carries the minimal `@opencode/patchmark` package required by
+  the v2.2.7 `session-ui` workspace dependency.
+- Closure patch SHA-256: `127840237babf53466c548fb455e47adecf0e922f6d01a1160a1b9f096362d57`.
+- This patch is a build/install dependency correction, not a product/mobile delta: it is deliberately
+  outside `patches/mobile/manifest.json`, outside `mobilePatches`, and excluded from the active #184
+  target list. It is retained because removing it makes V3(b) fail with five dangling workspace refs.
 
 ## Upstream update exercise (issue #27 lifecycle, S3)
 
@@ -246,7 +260,7 @@ these hashes today. Current hashes/status are exclusively in the registry and ge
 The historical future ordering contract was base gui-plugins-native-test-deps…settings-server-menu excluding the later-positioned connection-initial-credential-persistence/connection-vault-ready-wait, then
 P126 U/C/S/A, then connection-initial-credential-persistence/connection-vault-ready-wait, then agent-selector and session-ownership-whitespace. It does not
 authorize applying these patches in that block. Current replay and tree checks consume only
-`vendor-manifest.json#mobilePatches` (now 65 active entries).
+`vendor-manifest.json#mobilePatches` (now two active v2.2.7 replays: the #184 consolidated entry and the inherited main server-edit patch; 78 historical payload files remain outside the current active replays).
 
 ## P126 session runtime source cleanup snapshot (2026-11-05)
 
@@ -254,7 +268,7 @@ The following hashes and verification claims belong to that cleanup delivery, be
 identity migration; they are not a new verification of the current tree. Current status/count
 is given above, and current hashes are in `patches/mobile/manifest.json`.
 
-The current source overlay targets upstream `v2.2.1` commit
+The historical source overlay in this snapshot targeted upstream `v2.2.1` commit
 `3ebcf9a32c7b28f658cfee80775448929361727a`; active replay order is the `mobilePatches` array in
 `vendor-manifest.json`. session-agent-selector is active at the replay tail after session-composer-test-fixture. Its Android marker only
 exposes the existing server-provided Agent selector; an empty catalog stays hidden and the original

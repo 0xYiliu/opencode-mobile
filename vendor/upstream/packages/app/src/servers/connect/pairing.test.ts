@@ -1,33 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { bareServerAddress, legacyPairingLink, pairingLink, serverAddress } from "./pairing"
+import { bareServerAddress, legacyPairingLink, pairingLink } from "./pairing"
 
 describe("pairing link", () => {
-  test("validates addresses and links without URL static parsing methods", () => {
-    const parse = Object.getOwnPropertyDescriptor(URL, "parse")
-    const canParse = Object.getOwnPropertyDescriptor(URL, "canParse")
-    try {
-      Object.defineProperty(URL, "parse", { configurable: true, value: undefined })
-      Object.defineProperty(URL, "canParse", { configurable: true, value: undefined })
-      expect(serverAddress("example.com:4096")).toBe("http://example.com:4096")
-      for (const value of ["http://[", "ftp://example.com", "http://user:pass@example.com", "http://example.com/?q=1", "http://example.com/#hash"]) {
-        expect(serverAddress(value)).toBeUndefined()
-      }
-      expect(bareServerAddress("localhost:4096")).toBe("http://localhost:4096")
-      expect(bareServerAddress("http://example.com/path")).toBeUndefined()
-      expect(pairingLink("https://example.com/auth/connect/abc_DEF-123")).toEqual({ urls: ["https://example.com"], code: "abc_DEF-123" })
-      expect(pairingLink(JSON.stringify({ code: "abc", urls: ["example.com:4096"] }))).toEqual({ urls: ["http://example.com:4096"], code: "abc" })
-      expect(pairingLink("http://[")).toBeUndefined()
-      expect(pairingLink("https://example.com/auth/connect/a%2Fb")).toBeUndefined()
-      expect(legacyPairingLink("https://example.com/connect?data=abc")).toBe(true)
-      expect(legacyPairingLink("http://[")).toBe(false)
-    } finally {
-      if (parse) Object.defineProperty(URL, "parse", parse)
-      else Reflect.deleteProperty(URL, "parse")
-      if (canParse) Object.defineProperty(URL, "canParse", canParse)
-      else Reflect.deleteProperty(URL, "canParse")
-    }
-  })
-
   test("reads the server address and code from opencode pair links", () => {
     expect(pairingLink(" http://192.168.1.2:49374/auth/connect/abc_DEF-123 ")).toEqual({
       urls: ["http://192.168.1.2:49374"],

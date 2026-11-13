@@ -30,8 +30,7 @@ export function isAttachment(part: ContentPart): part is ImageAttachmentPart | P
 
 export function clonePrompt(prompt: Prompt): Prompt {
   return prompt.map((part) =>
-    part.type === "image" ? { ...part, blob: { ...part.blob } } :
-      part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
+    part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
   )
 }
 

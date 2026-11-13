@@ -1,6 +1,6 @@
-import { Component, createSignal } from "solid-js"
-import { setStoredToggle, storedToggle } from "@opencode/ui/motion-tuning"
+import { Component } from "solid-js"
 import { Switch } from "@opencode/ui/switch"
+import { Select } from "@opencode/ui/select"
 import { useLanguage } from "@/runtime/i18n/language"
 import { SettingsList } from "@/settings/list"
 import { useSettings } from "@/settings/model"
@@ -12,10 +12,6 @@ export const experimentalSettingsAvailable = true
 export const SettingsExperimental: Component = () => {
   const language = useLanguage()
   const settings = useSettings()
-  // mobile(M-036): the Sources experiment gate lives in the ui motion-tuning store (the upstream
-  // `opencode.motion.v2` record, default off) — the knob is declared by session-ui's sources
-  // experiment; this row only reads and flips the stored value. settings.v3 is not involved.
-  const [sources, setSources] = createSignal(storedToggle("sources.enabled", false))
 
   return (
     <>
@@ -33,6 +29,20 @@ export const SettingsExperimental: Component = () => {
       <div class="settings-tab-body">
         <div class="settings-section">
           <SettingsList>
+            <SettingsRow
+              title={language.t("settings.experimental.row.sidebarOrganize.title")}
+              description={language.t("settings.experimental.row.sidebarOrganize.description")}
+            >
+              <Select
+                data-action="settings-sidebar-organize"
+                options={["list", "projects"] as const}
+                current={settings.general.sidebarOrganize()}
+                label={(mode) => language.t(`settings.experimental.sidebarOrganize.${mode}`)}
+                onSelect={(mode) => mode && settings.general.setSidebarOrganize(mode)}
+                placement="bottom-end"
+                gutter={6}
+              />
+            </SettingsRow>
             <SettingsRow
               title={language.t("settings.experimental.row.newIcons.title")}
               description={language.t("settings.experimental.row.newIcons.description")}
@@ -56,17 +66,17 @@ export const SettingsExperimental: Component = () => {
               </div>
             </SettingsRow>
             <SettingsRow
-              title={language.t("settings.experimental.row.sources.title")}
-              description={language.t("settings.experimental.row.sources.description")}
+              title={language.t("settings.experimental.row.newQuestionUI.title")}
+              description={language.t("settings.experimental.row.newQuestionUI.description")}
             >
-              <div data-action="settings-sources">
+              <div data-action="settings-new-question-ui">
                 <Switch
-                  checked={sources()}
-                  onChange={(checked) => {
-                    setStoredToggle("sources.enabled", checked, false)
-                    setSources(checked)
-                  }}
-                />
+                  checked={settings.general.newQuestionUI()}
+                  onChange={(checked) => settings.general.setNewQuestionUI(checked)}
+                  hideLabel
+                >
+                  {language.t("settings.experimental.row.newQuestionUI.title")}
+                </Switch>
               </div>
             </SettingsRow>
           </SettingsList>

@@ -1,9 +1,9 @@
 import { showToast } from "@opencode/ui/toast"
-import { createMemo, createRoot, lazy, onCleanup, Suspense, type JSX } from "solid-js"
+import { createRoot, lazy, onCleanup, Suspense, type JSX } from "solid-js"
 import { Command, createKeyed, MenuItem, Server, Style, type ServerEntry, type Plugin } from "@opencode/plugin/gui"
 import { onIdle } from "@opencode/plugin/gui/builtin"
 import { Ssh, type SshConfig, type SshItem } from "./contract"
-import { SshCover, type SshOffer } from "./cover"
+import { SshCover } from "./cover"
 import type definition from "./index"
 import { sshName, sshServerState } from "./name"
 import { createSshController } from "./state"
@@ -32,31 +32,27 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
   const ssh = createSshController({
     items: () => state()?.servers ?? [],
     api: client,
-    // Resolves once main publishes the revision; disabling the plugin resolves it early.
-    refresh: (revision) =>
+    // Resolves once main publishes the revision, the attempt is aborted, or the plugin is disabled.
+    refresh: (revision, signal) =>
       new Promise<void>((resolve) =>
         createRoot((dispose) => {
           const done = () => {
+            ctx.signal.removeEventListener("abort", done)
+            signal.removeEventListener("abort", done)
             dispose()
             resolve()
           }
 
+          if (ctx.signal.aborted || signal.aborted) return done()
           ctx.signal.addEventListener("abort", done, { once: true })
-          createKeyed(
-            () => (state()?.revision ?? 0) >= revision,
-            () => {
-              ctx.signal.removeEventListener("abort", done)
-              done()
-            },
-          )
+          signal.addEventListener("abort", done, { once: true })
+          createKeyed(() => (state()?.revision ?? 0) >= revision, done)
         }),
       ),
     error: () => showToast({ variant: "error", title: ctx.t("common.requestFailed") }),
+    path: () => router.path(),
   })
 
-  // A visit to the routed page: a new token each time another tab or page is routed, whether or not a cover shows.
-  const visit = createMemo(() => ({ path: router.path() }))
-  const offer: SshOffer = { visit: undefined }
   const styled = { added: false }
   const byKey = (key: string) => (key.startsWith("ssh:") ? ssh.item(key.slice(4)) : undefined)
 
@@ -111,7 +107,7 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
           <Row row={row} id={id} ssh={ssh} />
         </Suspense>
       ),
-      cover: () => <SshCover id={id} visit={visit()} ssh={ssh} offer={offer} />,
+      cover: () => <SshCover id={id} ssh={ssh} />,
     }
   }
 
@@ -173,24 +169,6 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
         if (item) ssh.connect(item.config)
       },
     }),
-  )
-
-  // Reconnect saved servers in the background once per window. Mark active
-  // connections too, so a later manual disconnect is respected.
-  const restored = new Set<string>()
-
-  createKeyed(
-    () => {
-      const unseen = (state()?.servers ?? []).filter((item) => item.saved && !restored.has(item.config.id))
-
-      return unseen.length > 0 ? unseen : undefined
-    },
-    (unseen) =>
-      unseen.forEach((item) => {
-        restored.add(item.config.id)
-
-        if (item.stage === "disconnected") void ssh.restore(item.config)
-      }),
   )
 
   // Challenges of an attempt started without its dialog open one of their own.

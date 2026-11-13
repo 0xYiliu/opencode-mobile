@@ -62,14 +62,13 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
     const serverSDK = useServerSDK()
     const tabs = useTabs()
     const cache = new Map<string, ComposerCacheEntry>()
-    let active = true
 
     const disposeAll = () => {
       for (const entry of cache.values()) entry.dispose()
       cache.clear()
     }
 
-    onCleanup(() => { active = false; disposeAll() })
+    onCleanup(disposeAll)
 
     const prune = () => {
       while (cache.size > MAX_PROMPT_SESSIONS) {
@@ -120,7 +119,6 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
     }
 
     const session = createMemo(() => load(scope()))
-    const ownership = createMemo(() => ({ scope: scopeKey(scope()), server: serverKey(), state: session() }))
 
     const pick = (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
       scope ? load(scope, target) : session()
@@ -141,11 +139,6 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
 
     return {
       ready,
-      captureOwner() {
-        const owner = ownership()
-        const source = serverSDK.capture()
-        return () => active && source() && ownership() === owner
-      },
       capture: (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
         pick(scope, target).capture(),
       current: withSuspense(() => session().current()),

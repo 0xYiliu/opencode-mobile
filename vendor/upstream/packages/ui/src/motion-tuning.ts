@@ -281,19 +281,6 @@ function number(id: string, fallback: number) {
   return id in saved && Number.isFinite(value) ? value : fallback
 }
 
-export function storedToggle(id: string, initial: boolean) {
-  return number(id, Number(initial)) === 1
-}
-
-export function setStoredToggle(id: string, value: boolean, initial: boolean) {
-  if (value === initial) delete saved[id]
-  else saved[id] = Number(value)
-  const knob = knobs.get(id)
-  if (knob?.kind === "toggle" || knob?.kind === "mode") knob.value = value
-  persistSaved()
-  notify()
-}
-
 function load(): Record<string, number> {
   try {
     localStorage.removeItem("opencode.motion.v1")
@@ -327,16 +314,10 @@ function save() {
 
       return [[knob.id, knob.value, knob.initial]]
     })
-  for (const [id, value, initial] of entries) {
-    if (value === initial) delete saved[id]
-    else saved[id] = value
-  }
-  persistSaved()
-}
+    .flatMap(([id, value, initial]) => (value === initial ? [] : [[id, value]]))
 
-function persistSaved() {
   try {
-    if (Object.keys(saved).length === 0) return localStorage.removeItem(key)
-    localStorage.setItem(key, JSON.stringify(saved))
+    if (entries.length === 0) return localStorage.removeItem(key)
+    localStorage.setItem(key, JSON.stringify(Object.fromEntries(entries)))
   } catch {}
 }

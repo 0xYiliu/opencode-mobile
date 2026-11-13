@@ -136,6 +136,16 @@ class MobilePatchesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dependency cycle"):
             patches.check(self.vendor, refresh=True)
 
+    def test_absorbed_status_is_mirrored_but_not_replayed(self):
+        self.entries[0]["status"] = "absorbed"
+        self.entries[1]["status"] = "deferred"
+        self.order = []
+        self.write_fixture()
+        patches.check(self.vendor, refresh=True)
+        self.assertEqual(len(patches.read_json(self.vendor / "provenance.json")["deferredMobilePatches"]), 1)
+        self.assertEqual(len(patches.read_json(self.vendor / "provenance.json")["absorbedMobilePatches"]), 1)
+        patches.check(self.vendor)
+
     def test_sync_rejects_invalid_registry_before_deleting_sources(self):
         scripts = self.root / "scripts"
         scripts.mkdir()

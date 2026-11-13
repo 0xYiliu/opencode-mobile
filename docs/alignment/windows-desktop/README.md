@@ -1,14 +1,15 @@
 # 按 Windows Desktop 版本追踪功能对齐
 
-每个**实际启动对齐工作的 Windows Desktop 版本**一个目录、一份完整功能矩阵。目录名表示上游目标版本，同时也是当前客户端版本同步的基准，不表示可以长期保留不同的移动客户端版本。当前唯一目标为 **v2.2.1**，固定 commit `3ebcf9a32c7b28f658cfee80775448929361727a`；复制优先，Android 只做必要适配。没有前版对齐表，但有现存 vendor 基线和迁移差异。
+每个**实际启动对齐工作的 Windows Desktop 版本**一个目录、一份完整功能矩阵。目录名表示上游目标版本，同时也是当前客户端版本同步的基准，不表示可以长期保留不同的移动客户端版本。当前唯一活跃目标为 **v2.2.7**，固定 commit `fedc6f208aa2bd54c1019227214568083f6380ad`；v2.2.1 已冻结为历史基准。复制优先，Android 只做必要适配。
 
 ## 版本索引
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.1 | 活跃目标，首个基准 | 检查基线 `740ce386`（2026-11-06）；全局 vendor `b4525d79bf`，gui-plugins `3ebcf9a` + 65 active / 0 deferred 补丁 | Settings、Inbox、queue/media、导出参数、Goal pill 等已迁入；剩余 home/new-session、FU-1/2/3、usage.view、文件订阅与版本同步，以及当前双路由任务和整体体验验收 | [矩阵](v2.2.1/matrix.md) · [Windows 基准](v2.2.1/baseline.md) · [历史证据](v2.2.1/implementation.md) · [当前复核 E35 / 历史 E34](v2.2.1/current-review.md) |
+| v2.2.7 | **活跃目标，合并解析已提交并推送** | 当前 worktree HEAD 为本次 merge resolution commit（parents 为 c7441f5e 与 origin/main `4961ec04`；父轮审计起点 `fd898b8` 仅作历史锚点）；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry 80 registered / 2 active / 19 absorbed / 59 deferred | Desktop/closure 审计、vendor 重建、补丁登记、版本身份和 #184 focused tests 已有静态证据；全仓 typecheck、Android/Gradle/APK、设备、QR、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
+| v2.2.1 | **冻结历史** | 历史检查与实现证据保留原提交/环境边界 | 不因 v2.2.7 新代码回填历史；原矩阵中的 PASS/BLOCKED/未验证只说明 v2.2.1 轮次 | [历史矩阵](v2.2.1/matrix.md) · [历史基准](v2.2.1/baseline.md) · [历史复核](v2.2.1/current-review.md) |
 
-当前 Android 版本为 `0.1.0`（code 1），mobile app `0.1.0`，vendored app `2.1.4`；尚未同步为目标 `2.2.1`。历史补丁重放与 PR #135 局部设备通过不等于发布完成；本轮没有构建或设备操作。总任务 [#139](https://github.com/0xYiliu/opencode-mobile/issues/139) 下挂 #140–#149 十个原生子 Issue；首批可并行开发 #140/#141/#143，详细范围与依赖见矩阵推进指针，实时调度以 GitHub 为准。
+当前 Android/mobile/About 声明身份为 `2.2.7`（versionCode `20207`），vendor app 为 `2.2.7`；Android Gradle/APK、adb、设备 UI 和覆盖安装尚未运行验证。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。
 
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 

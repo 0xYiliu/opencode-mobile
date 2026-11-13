@@ -1,10 +1,22 @@
 import type { AsyncStorage } from "@solid-primitives/storage"
 import { Option, Schema } from "effect"
 import { mediaHashFromUri } from "@/runtime/server/media"
+import {
+  createDraftRetentionState,
+  isCurrentSave,
+  RETAINED_BLOB_GRACE_MS,
+  resolveBlobAlias,
+  selectBlobStoreId,
+  selectDocumentRevision,
+  selectLatestMutation,
+  selectRetainedBlob,
+  transitionDraftRetention,
+  type DraftRetentionEvent,
+} from "./drafts-machine"
 
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-known-value-widening -- the store walks opaque persisted JSON in every shape earlier releases wrote, and IndexedDB hands back untyped values */
 
-export type BlobReference = { id: string; url: string; sourceServerKey?: string }
+export type BlobReference = { id: string; url: string }
 
 type Driver = {
   get(key: string): Promise<string | null>
@@ -33,57 +45,67 @@ export const draftTextChunk = 64 * 1024
 
 const textCacheLimit = 64
 
-// Decoded image bytes the renderer pins through object URLs. Every consumer of a `blob.url` is a
-// persisted draft document (composer prompt, prompt history), so an image is pinned exactly while a
-// stored document references it. Once the last reference disappears (removed from a draft, sent, or
-// a discarded duplicate paste) the URL is revoked after this grace, which covers the persist delay
-// between a paste and the save that references it, and the submit → history handoff.
-export const retainedBlobGrace = 30_000
+export const retainedBlobGrace = RETAINED_BLOB_GRACE_MS
 
-type Retained = { blob: Blob; url: string; release: ReturnType<typeof setTimeout> | undefined }
+let retention = createDraftRetentionState()
 
-const retained = new Map<string, Retained>()
+const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
-// Document keys that reference each image id; an id with no keys is released after the grace.
-const refs = new Map<string, Set<string>>()
+// Fetches image bytes from the store whose documents reference them. Documents load without their
+// bytes; a consumer that renders or sends an image resolves its URL through here, so a history full
+// of large attachments costs nothing at startup.
+const storeLoaders = new Map<number, (id: string) => Promise<string | undefined>>()
 
-// Image ids that were restored under a different id (a store without WebCrypto assigns fresh
-// ones); live references still carry the original.
-const aliases = new Map<string, string>()
-
-// Fetches image bytes from the store created last. Documents load without their bytes; a consumer
-// that renders or sends an image resolves its URL through here, so a history full of large
-// attachments costs nothing at startup.
 type MediaBlobLoader = (uri: string) => Promise<string | undefined>
 
-let loader: ((id: string) => Promise<string | undefined>) | undefined
+const mediaLoaders = new Map<string, MediaBlobLoader>()
 
-const mediaLoaders = new Map<string, { load: MediaBlobLoader }>()
+function dispatch(event: DraftRetentionEvent) {
+  const result = transitionDraftRetention(retention, event)
+  retention = result.state
+  result.effects.forEach((effect) => {
+    if (effect.type === "url.revoke") return URL.revokeObjectURL(effect.url)
+
+    clearTimeout(timers.get(effect.id))
+    timers.delete(effect.id)
+
+    if (effect.type === "timer.cancel") return
+
+    timers.set(
+      effect.id,
+      setTimeout(() => {
+        timers.delete(effect.id)
+        dispatch({ type: "grace.expired", id: effect.id, attempt: effect.attempt })
+      }, effect.delayMs),
+    )
+  })
+}
 
 export function setMediaBlobLoader(key: string, next: MediaBlobLoader | undefined) {
-  if (!next) { mediaLoaders.delete(key); return () => {} }
-  const registration = { load: next }
-  mediaLoaders.set(key, registration)
-  return () => { if (mediaLoaders.get(key) === registration) mediaLoaders.delete(key) }
-}
+  mediaLoaders.delete(key)
 
-/** Runtime-only source lease. A same-key replacement invalidates old completions and cleanup. */
-export function captureMediaSource(sourceServerKey: string | undefined) {
-  const registration = sourceServerKey ? mediaLoaders.get(sourceServerKey) : undefined
-  return () => !!sourceServerKey && !!registration && mediaLoaders.get(sourceServerKey) === registration
-}
-
-function referenceID(blob: { id: string; sourceServerKey?: unknown }) {
-  return mediaHashFromUri(blob.id) ? `${typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : ""}\0${blob.id}` : blob.id
+  if (next) mediaLoaders.set(key, next)
 }
 
 async function loadMediaBlobUrl(uri: string, serverKey?: string) {
-  if (!serverKey) return undefined
-  const registration = mediaLoaders.get(serverKey)
-  if (!registration) return undefined
-  const url = await registration.load(uri).catch(() => undefined)
-  if (mediaLoaders.get(serverKey) !== registration) return undefined
-  return url?.startsWith("blob:") || url?.startsWith("data:") ? url : undefined
+  if (serverKey) {
+    const keyed = mediaLoaders.get(serverKey)
+
+    if (keyed) {
+      const url = await keyed(uri).catch(() => undefined)
+
+      if (url) return url
+    }
+  }
+
+  for (const [key, candidate] of [...mediaLoaders.entries()].reverse()) {
+    if (key === serverKey) continue
+    const url = await candidate(uri).catch(() => undefined)
+
+    if (url) return url
+  }
+
+  return undefined
 }
 
 // The bytes behind a `media:<hash>` ref, through the authenticated media loader; `media:` is not
@@ -100,62 +122,33 @@ async function loadMediaBlob(uri: string, serverKey?: string) {
 }
 
 /** The object URL for an image reference, loading its bytes from the draft store on first use. */
-export function resolveBlobUrl(blob: { id: string; url?: string; sourceServerKey?: string }) {
+export function resolveBlobUrl(blob: { id: string; url?: string; server?: string }) {
   if (blob.url && !mediaHashFromUri(blob.url)) return Promise.resolve(blob.url)
-  const existing = retained.get(aliases.get(referenceID(blob)) ?? blob.id)
+  const existing = selectRetainedBlob(retention, blob.id)
 
   if (existing) return Promise.resolve(existing.url)
 
-  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.sourceServerKey)
+  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.server)
 
   if (blob.url) return Promise.resolve(blob.url)
 
-  return loader?.(blob.id) ?? Promise.resolve(undefined)
+  return storeLoaders.get(selectBlobStoreId(retention, blob.id) ?? 0)?.(blob.id) ?? Promise.resolve(undefined)
 }
 
-function blobUrl(id: string, blob: Blob, grace?: number) {
-  const existing = retained.get(id)
+// Without a grace the image has no store to reference it from and stays for the page's lifetime.
+function blobUrl(id: string, blob: Blob, graceMs?: number) {
+  const existing = retention.blobs.get(id)
 
-  if (existing) return existing.url
+  if (existing) {
+    dispatch({ type: "blob.touched", id, graceMs })
+
+    return existing.url
+  }
+
   const url = URL.createObjectURL(blob)
-  // Without a grace the image has no store to reference it from and stays for the page's lifetime.
-  const release = grace === undefined || refs.get(id)?.size ? undefined : setTimeout(() => revoke(id), grace)
-  retained.set(id, { blob, url, release })
+  dispatch({ type: "blob.materialized", id, blob, url, graceMs })
 
   return url
-}
-
-// Record which image ids `key` now references; ids it dropped are released once no other document
-// references them, ids it gained stay pinned.
-function retain(key: string, ids: ReadonlySet<string>, grace: number) {
-  for (const [id, keys] of refs) {
-    if (ids.has(id) || !keys.delete(key) || keys.size) continue
-    refs.delete(id)
-    const entry = retained.get(id)
-
-    if (entry) entry.release = setTimeout(() => revoke(id), grace)
-  }
-
-  for (const id of ids) {
-    const keys = refs.get(id) ?? new Set<string>()
-    keys.add(key)
-    refs.set(id, keys)
-    const entry = retained.get(id)
-
-    if (!entry) continue
-    clearTimeout(entry.release)
-    entry.release = undefined
-  }
-}
-
-function revoke(id: string) {
-  const entry = retained.get(id)
-
-  if (!entry) return
-  URL.revokeObjectURL(entry.url)
-  retained.delete(id)
-
-  for (const [from, to] of aliases) if (to === id) aliases.delete(from)
 }
 
 // Image ids a document references: `{ blob: { id } }` parts, not text chunk lists.
@@ -173,7 +166,7 @@ function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
   if (blob && typeof blob === "object" && !("kind" in blob)) {
     const id = (blob as Record<string, unknown>).id
 
-    if (typeof id === "string" && !mediaHashFromUri(id)) into.add(id)
+    if (typeof id === "string") into.add(id)
 
     return into
   }
@@ -195,7 +188,15 @@ async function blobID(blob: Blob) {
   return id
 }
 
-export async function createBlobReference(blob: Blob): Promise<BlobReference> {
+// A pasted or dropped File can be backed by a file on disk that the browser reads lazily. Clipboard
+// tools delete such temp files once something else is copied, and the preview and the send would
+// then fail to read it, so keep the bytes in memory from the start.
+async function detach(blob: Blob) {
+  return blob instanceof File ? new Blob([await blob.arrayBuffer()], { type: blob.type }) : blob
+}
+
+export async function createBlobReference(source: Blob): Promise<BlobReference> {
+  const blob = await detach(source)
   const id = await blobID(blob)
 
   return { id, url: blobUrl(id, blob) }
@@ -203,11 +204,12 @@ export async function createBlobReference(blob: Blob): Promise<BlobReference> {
 
 export function createDraftStore(driver: Driver, options: { grace?: number } = {}): DraftStore {
   const grace = options.grace ?? retainedBlobGrace
-  const versions = new Map<string, number>()
+  const storeId = retention.nextStoreId
+  dispatch({ type: "store.registered" })
   const loading = new Map<string, Promise<string | undefined>>()
 
   const loadBlobUrl = (id: string) => {
-    const existing = retained.get(id)
+    const existing = selectRetainedBlob(retention, id)
 
     if (existing) return Promise.resolve(existing.url)
     const pending = loading.get(id)
@@ -224,9 +226,10 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
     return next
   }
 
-  loader = loadBlobUrl
+  storeLoaders.set(storeId, loadBlobUrl)
 
-  const putBlob = async (blob: Blob) => {
+  const putBlob = async (source: Blob) => {
+    const blob = await detach(source)
     const id = await driver.putBlob(blob)
 
     return { id, url: blobUrl(id, blob, grace) }
@@ -279,7 +282,10 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
   // bytes again: the chunk text itself, or the image Blob (or object URL) the reference carries.
   type Sources = Map<string, { blob: () => Promise<Blob>; chunk?: string }>
 
-  const encode = async (value: unknown, sources: Sources): Promise<unknown> => {
+  // `pin` claims an image id for the running save before its bytes get an object URL.
+  type Pin = (id: string) => void
+
+  const encode = async (value: unknown, sources: Sources, pin: Pin): Promise<unknown> => {
     if (typeof value === "string" && value.length >= draftTextThreshold) {
       const pieces = split(value)
       const ids = await externalize(value)
@@ -290,7 +296,7 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
       return { blob: { kind: "text", ids } }
     }
 
-    if (Array.isArray(value)) return Promise.all(value.map((entry) => encode(entry, sources)))
+    if (Array.isArray(value)) return Promise.all(value.map((entry) => encode(entry, sources, pin)))
 
     if (!value || typeof value !== "object") return value
     const item = value as Record<string, unknown>
@@ -319,40 +325,42 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
 
       // Drafts own their bytes: the server sweeps a media blob once no message or inbox item references
       // it, so the first save copies the bytes into the draft store and later saves reuse that copy.
-      if (typeof blob.id === "string" && mediaHashFromUri(blob.id) && !retained.has(aliases.get(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) ?? "")) {
-        const sourceServerKey = typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : undefined
-        const current = captureMediaSource(sourceServerKey)
-        const data = await loadMediaBlob(blob.id, sourceServerKey)
+      if (
+        typeof blob.id === "string" &&
+        mediaHashFromUri(blob.id) &&
+        !(retention.aliases.has(blob.id) && selectRetainedBlob(retention, blob.id))
+      ) {
+        const data = await loadMediaBlob(blob.id, typeof blob.server === "string" ? blob.server : undefined)
 
-        // An unresolved remote reference is not a missing local blob. Preserve it in the document
-        // without claiming local ownership, so strict writes can still save the rest of the draft.
-        if (!data || !current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+        // Nothing serves the bytes anymore; the reference is dropped on read like any blob with no bytes.
+        if (!data) return { ...item, blob: { id: blob.id } }
         const id = await driver.putBlob(data)
-        if (!current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+        pin(id)
         blobUrl(id, data, grace)
-        aliases.set(referenceID({ id: blob.id, sourceServerKey }), id)
+        dispatch({ type: "alias.recorded", from: blob.id, to: id })
         sources.set(id, { blob: async () => data })
 
-        return { ...item, blob: { id, sourceServerKey } }
+        return { ...item, blob: { id } }
       }
 
       if (typeof blob.id === "string") {
         // A live reference keeps the id it was created with; publish the id its bytes now live under.
-        const id = aliases.get(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) ?? blob.id
-        const kept = retained.get(id)?.blob
-        const url = typeof blob.url === "string" && !mediaHashFromUri(blob.url) ? blob.url : retained.get(id)?.url
+        const id = resolveBlobAlias(retention, blob.id)
+        const retained = selectRetainedBlob(retention, id)
+        const kept = retained?.blob
+        const url = typeof blob.url === "string" && !mediaHashFromUri(blob.url) ? blob.url : retained?.url
 
         if (kept) sources.set(id, { blob: async () => kept })
         else if (url) sources.set(id, { blob: () => fetch(url).then((response) => response.blob()) })
 
-        return { ...item, blob: { id, sourceServerKey: blob.sourceServerKey } }
+        return { ...item, blob: { id } }
       }
 
       return { ...item, blob: { id: blob.id } }
     }
 
     return Object.fromEntries(
-      await Promise.all(Object.entries(item).map(async ([key, entry]) => [key, await encode(entry, sources)])),
+      await Promise.all(Object.entries(item).map(async ([key, entry]) => [key, await encode(entry, sources, pin)])),
     )
   }
 
@@ -364,8 +372,6 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
 
     if (item.blob && typeof item.blob === "object") {
       const ref = item.blob as Record<string, unknown>
-      if (typeof ref.mediaURI === "string" && mediaHashFromUri(ref.mediaURI))
-        return { ...item, blob: { id: ref.mediaURI, url: "", sourceServerKey: ref.sourceServerKey } }
 
       if (ref.kind === "text" && Array.isArray(ref.ids)) {
         return (await Promise.all(ref.ids.map((id) => loadChunk(String(id))))).join("")
@@ -374,9 +380,9 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
       // Bytes stay in the store until something renders or sends the image (see resolveBlobUrl);
       // only an image already pinned in this page gets its URL back immediately.
       if (typeof ref.id === "string") {
-        const url = retained.get(aliases.get(referenceID({ id: ref.id, sourceServerKey: ref.sourceServerKey })) ?? ref.id)?.url
+        const url = selectRetainedBlob(retention, ref.id)?.url
 
-        return { ...item, blob: url ? { id: ref.id, url, sourceServerKey: ref.sourceServerKey } : { id: ref.id, sourceServerKey: ref.sourceServerKey } }
+        return { ...item, blob: url ? { id: ref.id, url } : { id: ref.id } }
       }
     }
 
@@ -388,7 +394,7 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
   // Upload the bytes behind `ids` again and return the ids they were stored under. Ids are
   // usually content hashes and come back unchanged, but a store without WebCrypto assigns fresh
   // ones, so callers must rename references rather than assume.
-  const restore = async (ids: readonly string[], sources: Sources) => {
+  const restore = async (ids: readonly string[], sources: Sources, pin: Pin) => {
     const renamed = new Map<string, string>()
     await Promise.all(
       ids.map(async (id) => {
@@ -406,14 +412,9 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
           return
         }
 
+        pin(next)
         blobUrl(next, blob, grace)
-
-        if (next === id) return
-
-        // Later encodes of the still-live reference resolve straight to the new id. Re-point any
-        // earlier alias chain so lookups stay one step.
-        for (const [from, to] of aliases) if (to === id) aliases.set(from, next)
-        aliases.set(id, next)
+        dispatch({ type: "alias.recorded", from: id, to: next })
       }),
     )
 
@@ -438,27 +439,26 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
     return Object.fromEntries(Object.entries(item).map(([key, entry]) => [key, rename(entry, renamed)]))
   }
 
-  const setDocument = async (key: string, document: unknown) => {
-    const version = (versions.get(key) ?? 0) + 1
-    versions.set(key, version)
-    const sources: Sources = new Map()
-    const encoded = await encode(document, sources)
+  // The image ids the stored document now references, or undefined when a later save or remove
+  // superseded this one before it wrote.
+  const write = async (key: string, document: unknown, attempt: number) => {
+    const pin = (id: string) =>
+      dispatch({ type: "save.referenced", storeId, key, attempt, ids: new Set([id]), graceMs: grace })
 
-    if (versions.get(key) !== version) return
+    const sources: Sources = new Map()
+    const encoded = await encode(document, sources, pin)
+
+    if (!isCurrentSave(retention, storeId, key, attempt)) return undefined
     // The store refuses the write while any referenced blob is missing, so the previous document
     // stays visible until the bytes are back. Covers a blob collected while a cache, another tab,
     // or the composer's history still held its id.
     const missing = await driver.set(key, JSON.stringify(encoded), true)
 
-    if (missing.length === 0) {
-      retain(key, imageIDs(encoded), grace)
+    if (missing.length === 0) return imageIDs(encoded)
 
-      return
-    }
+    const renamed = await restore(missing, sources, pin)
 
-    const renamed = await restore(missing, sources)
-
-    if (versions.get(key) !== version) return
+    if (!isCurrentSave(retention, storeId, key, attempt)) return undefined
     const unrestored = missing.filter((id) => !renamed.has(id))
 
     if (unrestored.length)
@@ -466,11 +466,31 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
     // Anything still missing has no bytes anywhere; the owning codec drops such references on read.
     const final = rename(encoded, renamed)
     await driver.set(key, JSON.stringify(final), false)
-    retain(key, imageIDs(final), grace)
+
+    return imageIDs(final)
+  }
+
+  const setDocument = async (key: string, document: unknown) => {
+    dispatch({ type: "save.started", storeId, key, ids: imageIDs(document), graceMs: grace })
+    const attempt = selectLatestMutation(retention, storeId, key)
+
+    await write(key, document, attempt).then(
+      (ids) =>
+        dispatch(
+          ids
+            ? { type: "save.committed", storeId, key, attempt, ids, graceMs: grace }
+            : { type: "save.aborted", storeId, key, attempt, graceMs: grace },
+        ),
+      (error: unknown) => {
+        dispatch({ type: "save.aborted", storeId, key, attempt, graceMs: grace })
+        throw error
+      },
+    )
   }
 
   return {
     getItem: async (key) => {
+      const revision = selectDocumentRevision(retention, storeId, key)
       const value = await driver.get(key)
 
       if (value === null) return null
@@ -479,16 +499,17 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
       // Let the owning persistence codec apply its invalid-document policy.
       if (Option.isNone(parsed)) return value
       // A loaded document is live in the composer: pin its images before decode mints their URLs.
-      retain(key, imageIDs(parsed.value), grace)
+      dispatch({ type: "load.succeeded", storeId, key, revision, ids: imageIDs(parsed.value), graceMs: grace })
 
       return JSON.stringify(await decode(parsed.value))
     },
     setItem: (key, value) => setDocument(key, JSON.parse(value)),
     setDocument,
     removeItem: async (key) => {
-      versions.set(key, (versions.get(key) ?? 0) + 1)
+      dispatch({ type: "remove.started", storeId, key })
+      const attempt = selectLatestMutation(retention, storeId, key)
       await driver.remove(key)
-      retain(key, new Set(), grace)
+      dispatch({ type: "remove.committed", storeId, key, attempt, graceMs: grace })
     },
     putBlob,
   }
@@ -624,13 +645,13 @@ function referenced(json: string) {
 // Submits always carry the bytes, so a send never depends on a server blob that may have been swept.
 // A `media:` ref goes out only when no bytes are reachable here; the server still resolves it if it can.
 export async function blobDataUrl(blob: BlobReference, mime: string) {
-  const current = mediaHashFromUri(blob.id) ? captureMediaSource(blob.sourceServerKey) : undefined
-  const kept = retained.get(aliases.get(referenceID(blob)) ?? blob.id)
+  const kept = selectRetainedBlob(retention, blob.id)
   const url = kept ? undefined : await resolveBlobUrl(blob)
+
+  if (!kept && !url && mediaHashFromUri(blob.id)) return blob.id
 
   if (!kept && !url) throw new Error(`Attachment ${blob.id} has no stored bytes`)
   const data = kept ? kept.blob : await fetch(url!).then((response) => response.blob())
-  if (!kept && current && !current()) throw new Error(`Attachment ${blob.id} has no stored bytes`)
 
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -648,25 +669,19 @@ export async function blobDataUrl(blob: BlobReference, mime: string) {
  * outlive the server's copy: cancelling an inbox item sweeps blobs nothing else references. Other references return
  * unchanged; a ref nothing serves anymore throws, so the caller can stop before dropping the last server copy.
  */
-export async function pinMediaBlob(blob: BlobReference, operationCurrent: () => boolean = () => true): Promise<BlobReference> {
-  if (!operationCurrent()) throw new DOMException("", "AbortError")
+export async function pinMediaBlob(blob: BlobReference): Promise<BlobReference> {
   const ref = [blob.id, blob.url].find((uri) => mediaHashFromUri(uri))
 
   if (!ref) return blob
-  const cached = retained.get(aliases.get(referenceID({ ...blob, id: ref })) ?? "")
-  if (cached) return { ...await createBlobReference(cached.blob), sourceServerKey: blob.sourceServerKey }
-  const current = captureMediaSource(blob.sourceServerKey)
-  const data = await loadMediaBlob(ref, blob.sourceServerKey)
+  const data = await loadMediaBlob(ref)
 
-  if (!data || !current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
-  const local = await createBlobReference(data)
-  if (!current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
-  aliases.set(referenceID({ ...blob, id: ref }), local.id)
-  return { ...local, sourceServerKey: blob.sourceServerKey }
+  if (!data) throw new Error(`Attachment ${ref} is no longer available`)
+
+  return createBlobReference(data)
 }
 
 // A `media:<hash>` ref is no URL a renderer can load, so it keeps the empty URL a draft-store id has and resolves
 // through `resolveBlobUrl`; drafts saved this way stay readable by versions that predate media refs.
-export function createLegacyBlobReference(dataUrl: string, sourceServerKey?: string): BlobReference {
-  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl, sourceServerKey }
+export function createLegacyBlobReference(dataUrl: string): BlobReference {
+  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl }
 }
