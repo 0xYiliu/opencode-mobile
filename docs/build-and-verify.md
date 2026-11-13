@@ -151,21 +151,28 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
         → composer-queue-attachments-v2-2-7 (#188，本轮)
 ```
 
-- `composer-queue-attachments-v2-2-7.patch` SHA-256=`023da5f92756c9f59c87f4e3c8a316ce7241a1b29cf5e195d2e097fde6e6bc09`；20 targets（16 源文件 + 4 测试文件，逐一见 manifest row 84）；前五 patch hash 不变量不变。Registry **84 registered / 6 active / 29 absorbed / 49 deferred**（#12/#19/#20 → absorbed，payload 由 #84 在当前树重 derive；#58 保持 deferred + partial-carry 处置）。
+- `composer-queue-attachments-v2-2-7.patch` SHA-256=`508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da`；20 targets（16 源文件 + 4 测试文件，逐一见 manifest row 84）；前五 patch hash 不变量不变。Registry **84 registered / 6 active / 29 absorbed / 49 deferred**（#12/#19/#20 → absorbed，payload 由 #84 在当前树重 derive；#58 保持 deferred + partial-carry 处置）。
 - patch 生成与重放：hunks 由本轮工作树对累计链树 `git diff --relative=vendor/upstream` 生成；apply-check 用 scratch 方法（`git archive HEAD vendor/upstream/packages` + `git apply --directory=vendor/upstream --check`）通过，且 patch 后树与工作树 `diff -r`（排除 node_modules/dist）**byte-identical**；`verify-closure.sh` 在 pristine pin + closure + 六 active mobile patch 有序重放下 **PASS（DANGLING=0）**。
 
-**c0 基线（coordinator 在 pristine stacked base 记录；引用不重 derive）**：A app 单测 **385 pass / 5 fail / 1744 expect / 30 files**（5 条 pre-existing：submit.test ×4「a failed quote send retains…」「restores and retries an unacknowledged admission」「restores first-prompt comments…」「moves a first prompt…」+ machine.test ×1「prepends a skill mention…」）；B component set 0 pass / 4 fail（pre-existing module-resolution，RECORDED ONLY 非门禁）；C test-browser **13/0/35**；D session-ui **38/0/126**；E mobile-hosts **446/0/3034**；F1 `verify-attachments-artifacts.ts` pre-existing FAIL「2: entry.tsx lost the createFilesClient import…」；F2 `verify-files.ts` pre-existing FAIL「1: model.tsx must normalize FileNotFoundError via isFileNotFoundError」。
+**c0 基线（coordinator 在 pristine stacked base 记录；引用不重 derive）**：A app 单测 **385 pass / 5 fail / 1744 expect / 30 files**（5 条 pre-existing：submit.test ×4「a failed quote send retains…」「restores and retries an unacknowledged admission」「restores first-prompt comments…」「moves a first prompt…」+ editor/actions.test.ts ×1「prepends a skill mention…」）；B component set 0 pass / 4 fail（pre-existing module-resolution，RECORDED ONLY 非门禁）；C test-browser **13/0/35**；D session-ui **38/0/126**；E mobile-hosts **446/0/3034**；F1 `verify-attachments-artifacts.ts` pre-existing FAIL「2: entry.tsx lost the createFilesClient import…」；F2 `verify-files.ts` pre-existing FAIL「1: model.tsx must normalize FileNotFoundError via isFileNotFoundError」。
 
 **门禁 attribution（c0 → post-landing）**：
 
 | Gate | 基线（c0，pristine stacked base） | 本轮 post-landing | 归因 |
 | --- | --- | --- | --- |
-| A（30 文件 app 单测，命令形同 c0） | 385 pass / 5 fail / 1744 expect | **396 pass / 5 fail / 1793 expect / 30 files** | +11 pass / +49 expect = 重 derive 新增用例（drafts fail-closed/lease/alias 5、queue attribution/unserved/backfill 2、image keying 扩展、request media 3）；**5 条 pre-existing 失败恒同（同文件同名同断言位），零失败转绿、零新失败** |
+| A（30 文件 app 单测，精确命令见下） | 385 pass / 5 fail / 1744 expect | **396 pass / 5 fail / 1793 expect / 30 files** | +11 pass / +49 expect = 重 derive 新增用例（drafts fail-closed/lease/alias 5、queue attribution/unserved/backfill 2、image keying 扩展、request media 3）；**5 条 pre-existing 失败恒同（同文件同名同断言位），零失败转绿、零新失败** |
+| A+（review 修复轮新增 31st 文件） | — | **queue-lifecycle.test.ts：5 pass / 0 fail / 24 expect**（随 #84 targets 扩至 21） | 生命周期回归（R1–R5）；合跑 401 pass / 5 fail / 1817 expect / 31 files |
 | C（test-browser 4 文件） | 13/0/35 | **13 pass / 0 fail / 35 expect** | 基线持平 |
 | D（session-ui 3 文件） | 38/0/126 | **38 pass / 0 fail / 126 expect** | 基线持平 |
 | E（mobile-hosts 40 文件） | 446/0/3034 | **446 pass / 0 fail / 3034 expect** | 基线持平 |
 | F1 verify-attachments-artifacts | FAIL「2: entry.tsx lost the createFilesClient import…」 | **PASS**（dist 5496 assets 标记核对） | #84 M-020/M-021/M-012 落地后转绿 |
 | F2 verify-files | FAIL「1: model.tsx must normalize FileNotFoundError…」 | **PASS**（重锚定后） | 计划内 2 处重锚定 + 追加 7 处 v2.2.7-context 重锚定（见下）+ M-012 新锚 |
+
+Gate A 精确命令（cwd `vendor/upstream/packages/app`；30 文件 = c0 集合）：
+
+```bash
+bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/composer/{prompt,request,submit,schema,comment-note,retry,machine,prompt-status-machine,comment-focus-machine,quote-comment-machine}.test.ts src/composer/history/entry.test.ts src/composer/editor/{actions,dom,interaction,machine,mention-search-machine}.test.ts src/composer/suggestions/machine.test.ts src/composer/attachments/uploads.test.ts src/session/composer/{queue,queue-machine,queue-panel-machine,focus-machine,spring-height-machine,location-missing-machine,shell-panel-machine}.test.ts src/runtime/persistence/{drafts,drafts-machine,storage,schema}.test.ts src/runtime/server/image.test.ts
+```
 
 **probe 重锚定记录（old → new，全部 v2.2.7-context 漂移，非契约违约；无 S3 触发）**：
 
@@ -191,6 +198,16 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
 - `bash scripts/copy-web-dist.sh`（android_web_assets.py stage）：**PASS**（**5520 files / 155,565,011 bytes** verified）；`python3 scripts/android_web_assets.py verify`：**PASS**。
 - `web-dist/manifest.json`：已变更并提交（145 行 hash 刷新，多为 `.map` sourcemap 行——#84 载体 chunk 级联；`web-dist/` 载荷文件本体 hash 不变集由 verify 工具核对）。
 - `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**BUILD SUCCESSFUL**（24s，42 tasks）；JVM 单测 **10 suites / 47 tests / 0 failures / 0 errors / 0 skipped**（10 XML；android/ 树与 base byte-identical——`git diff feat/187-timeline-messaging...HEAD -- android/` 为空）；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 **`a39ebb3b638d826630ae9b5b1f8460bf00d349d1d20b030acb71b8bf823b215f`**（**66,072,093 bytes**）。**未安装**。
+
+**review 修复轮（3 MAJOR + 4 MINOR；本轮第二个 vendor commit）**：
+
+- **MAJOR-1（提交后 owner 门弃置 committed 相位 → 重复投递）**：移除 sendEdit steer 路径的 admission 后 owner 门（原 :409）与 rewrite 的 admission 后/committed 取消循环 owner 门（原 :523/:527/:539）——一旦 `progress.stage === "committed"`（或单笔 admission 已 dispatch），其后的取消与发布按基线语义无条件运行。修复后：unmount 命中 admission 在途 → 替代已入队时原始项仍被取消（R1），不再出现「steered edit + 原始 queued item 双投递」。
+- **MAJOR-2（终态报告被抑制 → DisposedReturn 内容丢失）**：run()/undo/steer/remove 的终态 dispatch 全部恢复基线非门控——machine 的 attempt 追踪与 `returning`/`settleDisposed` 契约决定迟来报告的效果：undo cancel 在途 unmount → 迟到 `mutation.undone` 仍经 `draft.merge` 恢复内容（R2）；edit admission 失败 + unmount → 迟到 `mutation.failed` 仍合并回 stash（R3）。
+- **MAJOR-3（owner break 不卸载 → machine 永久 busy）**：abort watcher 改为仅对 undo 触发（machine dispose 的同款契约——undo 才有「停止于 cancel 之前」的安全停止点）；edit/reorder attempt 与基线一致跑完（server 可能已持有一半），其每次 re-admission 由 `prepare` 钩子拦在发送前、失败路径 withdraw 已发送者；终态 dispatch 非门控后每个 attempt（含 owner-broken）经自身 flow 恰好一个终态 machine 事件（请求队列 60s header 等待为上界）→ R4（steer owner break 后 machine settle）/R5（rewrite 中 owner break → withdraw + settle）锁定。
+- **MINOR-4**：rewrite 重入队不经 wire floor 的 residual 在 request.ts 注记 + row-58/#84 处置登记（诚实记录路线）。
+- **MINOR-5/7**：queue.test 计数 13→18；Set A 精确命令写入本节（上表）；c0 pre-existing 归属「machine.test ×1」修正为 `editor/actions.test.ts ×1`。
+- **MINOR-6**：QueueOwner 的 sessionID/directory/serverKey 死字段移除（谓词只读 composerOwner/http/media）。
+- 新增 `session/composer/queue-lifecycle.test.ts`（R1–R5，5 用例）入 #84 targets（21）；patch 重生成，SHA-256 见上；registry/closure 重放重跑 PASS；Set A 30 文件 396/5 恒同 + lifecycle 5/0（合跑 401/5/1817/31 files）。
 
 **记录性偏差（#84 内，已在 manifest reason + changes.md 登记）**：计划原样的 request.ts 双子句 wire floor（file parts + images）与 v2.2.7 新增的 `retryFingerprint` 碰撞——submit.test 基线恒绿用例「pressing Enter and then Send while an image attachment resolves sends the prompt once」在 images 子句下新失败（fingerprint 镜像 pending payload）。按计划「NEW failure → fix #84」协议收窄：file-part 子句保留（url 逐字上送，真实风险面）；images 子句撤除并在注释中登记——两条真实 producer（submit.ts buildSubmissionRequest、queue.ts editedPromptInput）的 dataUrl 均经 `blobDataUrl` 构建，后者已 fail-closed 拒绝未解析引用，image 面 wire floor 由该字节边界执行；request.test 的 images 用例改写为锁定该 carve-out。复测：该用例转绿，set A 回到 5 条 pre-existing 恒同。
 

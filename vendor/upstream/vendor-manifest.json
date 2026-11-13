@@ -603,7 +603,7 @@
     {
       "id": "composer-queue-attachments-v2-2-7",
       "path": "patches/mobile/composer-queue-attachments-v2-2-7.patch",
-      "sha256": "023da5f92756c9f59c87f4e3c8a316ce7241a1b29cf5e195d2e097fde6e6bc09",
+      "sha256": "508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da",
       "status": "active"
     }
   ],

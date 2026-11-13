@@ -138,6 +138,12 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
   // fingerprint legitimately mirrors a pending payload ("what would go out right now", v2.2.7
   // submit restore); rejecting it would break the failed-submit restore, so the byte-boundary
   // floor is the enforcement point for images.
+  //
+  // Recorded residual (issue #188 review round): the queue's rewrite re-admission path does NOT
+  // pass through this floor — it re-posts a stored inbox payload's file uris verbatim
+  // (`storedFileUri`), which is a server-echo of what the server itself holds, not a client-built
+  // request. A queued item queued before #188 can therefore carry a `media:` uri through a
+  // re-admission/undo re-post; see the row-58/#84 disposition for the enumeration.
   if (input.prompt.some((part) => part.type === "file" && part.url?.startsWith("media:")))
     throw new ClientError("MalformedResponse")
   const prompt = serializePrompt(input.prompt)

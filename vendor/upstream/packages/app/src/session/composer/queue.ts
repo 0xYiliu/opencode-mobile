@@ -36,14 +36,11 @@ import {
 
 // mobile(M-016, issue #188): one mutation attempt's captured ownership. `current` is false once
 // the queue unmounted, the composer instance was replaced, the connection rebuilt, or the media
-// lease was superseded — any of which invalidates the attempt's remaining publications.
+// lease was superseded — any of which stops the attempt's not-yet-dispatched remote steps.
 type QueueOwner = {
   composerOwner: () => boolean
   http: ServerConnection.HttpBase
-  serverKey: ServerConnection.Key
   media: () => boolean
-  sessionID: string
-  directory: string
   current: () => boolean
 }
 
@@ -63,9 +60,12 @@ export function createSessionQueue(input: {
 
   // mobile(M-016, issue #188): every mutation, pin and undo runs on an owner captured when it
   // starts. The owner binds the attempt to the composer instance, the connection and the media
-  // lease it started on; once any of those is lost the attempt stops publishing (and its existing
-  // abort checkpoints stop it) without ever touching a request already dispatched — the AbortSignal
-  // is not wired to any HTTP call, so an owner break cannot cancel a remote prompt (issue #188).
+  // lease it started on. The owner never gates a machine report or a request already dispatched:
+  // an attempt whose owner broke still reaches exactly one terminal machine event through its own
+  // flow (bounded by the request queue's wait for headers), and only its not-yet-dispatched remote
+  // steps stop — an undo via the abort watcher below, later re-admissions via the client's native
+  // `prepare` hook. The AbortSignal is never wired to an HTTP call, so no owner break cancels a
+  // remote prompt or task (issue #188).
   const sourceServerKey = ServerConnection.key(server.server)
   let active = true
   onCleanup(() => {
@@ -78,10 +78,7 @@ export function createSessionQueue(input: {
     const owner: Omit<QueueOwner, "current"> = {
       composerOwner,
       http: server.http,
-      serverKey: sourceServerKey,
       media,
-      sessionID: input.sessionID,
-      directory: location().directory,
     }
 
     return Object.assign(owner, {
@@ -198,12 +195,17 @@ export function createSessionQueue(input: {
         owner: captureOwner(),
       }
       runs.set(attempt, progress)
-      // mobile(M-016, issue #188): an owner break aborts the attempt exactly like the machine's
-      // mutation.abort does. The signal is never wired to an HTTP call, so this cannot cancel a
-      // request already dispatched; the run's existing throwIfAborted checkpoints absorb the break.
+      // mobile(M-016, issue #188): an owner break stops the attempt where a stop is still safe —
+      // an undo before its cancel, exactly the machine's dispose contract. Edit and reorder
+      // attempts run to completion like the base (the server may already hold half of one); their
+      // per-admission `prepare` hook stops NEW admissions on the broken owner and the failure path
+      // withdraws what was already sent. Every attempt — owner-broken or not — reaches exactly one
+      // terminal machine event through its own flow tail (dispatches are ungated; the machine
+      // ignores stale attempts), so the machine never strands on an owner break.
       const stopWatching = createRoot((dispose) => {
         createEffect(() => {
-          if (!progress.owner.current()) runs.get(attempt)?.controller.abort()
+          if (effect.operation.type === "undo" && !progress.owner.current())
+            runs.get(attempt)?.controller.abort()
         })
 
         return dispose
@@ -272,13 +274,13 @@ export function createSessionQueue(input: {
   }
 
   // Runs the operation in flight and reports its progress. Each report carries the operation's attempt, so the machine
-  // ignores one that arrives after the operation stopped being current. Every publication is gated on the attempt's
-  // owner (issue #188): a result that lands after the composer, connection or media lease was lost is dropped, and
-  // the machine's timeout cleans the attempt up.
+  // ignores one that arrives after the operation stopped being current. Reports are never owner-gated (issue #188
+  // review round): a result that lands after the owner was lost still settles the machine — the machine's own
+  // attempt tracking and disposed-return contract (queue-machine `returning`/`settleDisposed`) decide what a late
+  // report does, so queued or edited content is never stranded by a suppressed report. The owner instead stops the
+  // attempt's not-yet-dispatched remote steps (abort watcher for an undo, `prepare` for admissions).
   const run = async (operation: ActiveOperation, progress: MutationProgress) => {
     const attempt = operation.attempt
-    const owner = progress.owner
-    const current = () => owner.current()
 
     // SSE retracts and updates materialized timeline messages for a steer or removal, so neither re-syncs the queue.
     if (operation.type === "steer") {
@@ -288,25 +290,17 @@ export function createSessionQueue(input: {
         .update({ sessionID: input.sessionID, inboxID: operation.id, delivery: "steer" })
         .then(
           () => {
-            if (!current()) return
             void background?.move()
             dispatch({ type: "mutation.succeeded", attempt })
           },
-          () => {
-            if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-          },
+          () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
         )
     }
 
     if (operation.type === "remove")
       return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.id }).then(
-        () => {
-          if (!current()) return
-          dispatch({ type: "mutation.succeeded", attempt })
-        },
-        () => {
-          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-        },
+        () => dispatch({ type: "mutation.succeeded", attempt }),
+        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
       )
 
     if (operation.type === "undo") {
@@ -328,15 +322,11 @@ export function createSessionQueue(input: {
           return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.item.id })
         },
       }).then(
-        (prompt) => {
-          if (!current()) return
-          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] })
-        },
-        () => {
-          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-        },
+        (prompt) =>
+          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] }),
+        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
       )
-      if (current()) await data.session.pending.sync(input.sessionID).catch(() => undefined)
+      await data.session.pending.sync(input.sessionID).catch(() => undefined)
 
       return
     }
@@ -348,14 +338,11 @@ export function createSessionQueue(input: {
       () => false,
     )
 
-    if (!current()) return
-
     if (settled) progress.stage = "settled"
 
     if (operation.type === "reorder") data.session.pending.invalidate(input.sessionID)
     // The rows keep their optimistic state until the server's queue has caught up.
     await data.session.pending.sync(input.sessionID).catch(() => undefined)
-    if (!current()) return
     dispatch(
       settled ? { type: "mutation.succeeded", attempt } : { type: "mutation.failed", attempt, hidden: progress.hidden },
     )
@@ -363,8 +350,6 @@ export function createSessionQueue(input: {
 
   const sendEdit = async (operation: EditOperation & { attempt: number }, progress: MutationProgress) => {
     const signal = progress.controller.signal
-    const owner = progress.owner
-    const current = () => owner.current()
 
     const replacement = await editedPromptInput(
       input.sessionID,
@@ -373,7 +358,6 @@ export function createSessionQueue(input: {
       operation.prompt,
       operation.raw,
     )
-    if (!current()) throw new DOMException("", "AbortError")
 
     // Admit before cancelling so a failed replacement never discards the original. A queued edit rebuilds its position
     // in one rewrite, which leaves the queue unchanged if any admission fails.
@@ -389,7 +373,9 @@ export function createSessionQueue(input: {
     signal.throwIfAborted()
     // Like a queued edit, an original the server delivered meanwhile keeps the edit draft instead of sending twice.
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
-    if (!current()) throw new DOMException("", "AbortError")
+    // Pre-admission owner checkpoint (issue #188): the admission below has not been dispatched yet,
+    // so a broken owner stops before any remote effect; the committed phase after it runs ungated.
+    if (!progress.owner.current()) throw new DOMException("", "AbortError")
 
     if (!pending.some((item) => item.id === operation.original && item.type === "user" && item.delivery === "queue"))
       throw new Error("Queued prompt was delivered before the edit")
@@ -399,20 +385,20 @@ export function createSessionQueue(input: {
     // the edit returns to the composer only if it really did not go out.
     progress.stage = "committed"
     // The client's native prepare hook re-checks ownership just before the request goes out, so a
-    // lost owner never admits a new remote prompt (issue #188).
+    // lost owner never admits a new remote prompt (issue #188). Once the admission is dispatched
+    // the committed phase runs ungated (issue #188 review round): admitting and then abandoning
+    // the original's cancel would deliver it twice.
     await data.session.prompt({
       ...admission,
       prepare: async () => {
-        if (!current()) throw new DOMException("", "AbortError")
+        if (!progress.owner.current()) throw new DOMException("", "AbortError")
       },
     })
-    if (!current()) throw new DOMException("", "AbortError")
     void background?.move()
     dispatch({ type: "mutation.admitted", attempt: operation.attempt })
     // Cancelling is a no-op once the original is gone, so one retry is safe.
     const cancel = () => server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.original })
     await cancel().catch(cancel)
-    if (!current()) throw new DOMException("", "AbortError")
   }
 
   // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
@@ -428,12 +414,12 @@ export function createSessionQueue(input: {
     },
   ) => {
     const signal = progress.controller.signal
-    const owner = progress.owner
-    // `current` below is the queue's filtered row list, so the ownership predicate is `owned`.
-    const owned = () => owner.current()
     signal.throwIfAborted()
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
-    if (!owned()) throw new DOMException("", "AbortError")
+    // Pre-admission owner checkpoint (issue #188): nothing has been sent in this rewrite yet, so a
+    // broken owner stops before any remote effect. Past this point each admission carries its own
+    // `prepare` hook and the committed phase runs ungated.
+    if (!progress.owner.current()) throw new DOMException("", "AbortError")
     signal.throwIfAborted()
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -457,10 +443,9 @@ export function createSessionQueue(input: {
       Promise.all(
         replacements.map((inboxID) =>
           server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).then(
-            () => {
-              // The hidden record feeds the machine's failure report, so it is a publication (issue #188).
-              if (owned()) progress.hidden.push(inboxID)
-            },
+            // The hidden record feeds the machine's failure report; the withdrawal itself always
+            // runs — it cleans up copies the server may already hold (issue #188 review round).
+            () => void progress.hidden.push(inboxID),
             () => undefined,
           ),
         ),
@@ -504,39 +489,39 @@ export function createSessionQueue(input: {
       const id = admission.id ?? SessionMessage.ID.create()
 
       await stopped()
-      if (!owned()) throw new DOMException("", "AbortError")
       replacements.push(id)
-      // The native prepare hook re-checks ownership just before each re-admission goes out (issue #188).
+      // The native prepare hook re-checks ownership just before each re-admission goes out, so a
+      // broken owner never admits a new remote prompt (issue #188); the failure path withdraws what
+      // earlier iterations already sent. Once an admission is dispatched the flow runs ungated
+      // (issue #188 review round): abandoning the committed cancels would hold both copies.
       await data
         .session.prompt({
           ...admission,
           id,
           prepare: async () => {
-            if (!owned()) throw new DOMException("", "AbortError")
+            if (!progress.owner.current()) throw new DOMException("", "AbortError")
           },
         })
         .catch(async (error) => {
-          if (!owned()) throw error
           await withdraw()
           throw error
         })
-      if (!owned()) throw new DOMException("", "AbortError")
     }
 
     await stopped()
-    if (!owned()) throw new DOMException("", "AbortError")
     // Every copy is in, so the originals must go, however long that takes, or the queue holds both.
     progress.stage = "committed"
 
     if (replace) dispatch({ type: "mutation.admitted", attempt })
 
     // An edit cancels last first: the strip shows each original until it goes, so its copies never
-    // show out of order.
+    // show out of order. The committed cancel phase runs ungated (issue #188 review round): every
+    // copy is already admitted, so an owner break here must not leave the originals queued behind
+    // them — that would deliver both.
     const replaced = current.slice(changed)
 
     for (const item of replace ? replaced.reverse() : replaced) {
       await server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: item.id })
-      if (!owned()) throw new DOMException("", "AbortError")
       progress.hidden.push(item.id)
     }
   }

@@ -22,6 +22,14 @@
 # session-prompt composers share a directory-keyed container and stay unattributed — that residual
 # is fenced by the request.ts wire floor and such drafts remain editable. Fork/revert gain only
 # the provenance threading; lifecycle guards belong to their upstream machines (#196).
+#
+# Review fix round (issue #188): the owner machinery no longer gates machine reports or the
+# committed phase of a mutation. Post-admission runs ungated (steer-edit cancel, rewrite cancels,
+# run tails) — the base semantics; a lost owner stops only the not-yet-dispatched remote steps
+# (abort watcher for an undo before its cancel, per-admission `prepare` hook, pre-admission
+# checkpoints) and withdraws what was already sent. Every attempt reaches exactly one terminal
+# machine event through its own flow, so the disposed-return contract (draft.merge of a stashed
+# edit / an applied undo) and machine settling hold. queue-lifecycle.test.ts locks the windows.
 diff --git a/packages/app/src/composer/attachments/destination.ts b/packages/app/src/composer/attachments/destination.ts
 index 04efe65..ee740d7 100644
 --- a/packages/app/src/composer/attachments/destination.ts
@@ -312,7 +320,7 @@ index 1382d66..de27775 100644
 +  })
 +})
 diff --git a/packages/app/src/composer/request.ts b/packages/app/src/composer/request.ts
-index 7009d7a..6c82011 100644
+index 7009d7a..1983e9e 100644
 --- a/packages/app/src/composer/request.ts
 +++ b/packages/app/src/composer/request.ts
 @@ -1,5 +1,6 @@
@@ -322,7 +330,7 @@ index 7009d7a..6c82011 100644
  import { serializePrompt } from "./prompt-parts"
  import type { FileSelection } from "@/workspaces/files/model"
  import type {
-@@ -124,6 +125,21 @@ export function quoteComment(item: QuoteContextItem) {
+@@ -124,6 +125,27 @@ export function quoteComment(item: QuoteContextItem) {
  }
  
  export function buildPromptRequest(input: BuildPromptRequestInput): PromptRequest {
@@ -339,6 +347,12 @@ index 7009d7a..6c82011 100644
 +  // fingerprint legitimately mirrors a pending payload ("what would go out right now", v2.2.7
 +  // submit restore); rejecting it would break the failed-submit restore, so the byte-boundary
 +  // floor is the enforcement point for images.
++  //
++  // Recorded residual (issue #188 review round): the queue's rewrite re-admission path does NOT
++  // pass through this floor — it re-posts a stored inbox payload's file uris verbatim
++  // (`storedFileUri`), which is a server-echo of what the server itself holds, not a client-built
++  // request. A queued item queued before #188 can therefore carry a `media:` uri through a
++  // re-admission/undo re-post; see the row-58/#84 disposition for the enumeration.
 +  if (input.prompt.some((part) => part.type === "file" && part.url?.startsWith("media:")))
 +    throw new ClientError("MalformedResponse")
    const prompt = serializePrompt(input.prompt)
@@ -1056,6 +1070,320 @@ index 70daa1c..b7a4408 100644
 +    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBeUndefined()
    })
  })
+diff --git a/packages/app/src/session/composer/queue-lifecycle.test.ts b/packages/app/src/session/composer/queue-lifecycle.test.ts
+new file mode 100644
+index 0000000..66423d3
+--- /dev/null
++++ b/packages/app/src/session/composer/queue-lifecycle.test.ts
+@@ -0,0 +1,308 @@
++import { afterEach, expect, mock, test } from "bun:test"
++import { createRoot } from "solid-js"
++import type { SessionInboxInfo } from "@opencode/client/promise"
++import type { ComposerDelivery } from "@/composer/adapter"
++import { createMemoryComposerState, type Prompt } from "@/composer/state"
++import { setMediaBlobLoader } from "@/runtime/persistence/drafts"
++import { ServerConnection } from "@/runtime/server/registry"
++
++// These cases own the queue lifecycle handoff windows the #188 review round locked down: an owner
++// break (unmount or connection/composer loss) must never abandon the committed phase of a mutation
++// (duplicate remote delivery), must never suppress a terminal machine report (the machine's
++// disposed-return contract restores the content), and must always leave the machine settled. They
++// keep the production machine, drafts and queue algorithms intact; the server/context edges are
++// mocked at the module seams the queue reads.
++
++const fixture = {
++  inbox: [] as SessionInboxInfo[],
++  owner: () => true,
++  calls: [] as string[],
++  prompts: [] as { id?: string; text: string }[],
++  gates: new Map<string, PromiseWithResolvers<void>>(),
++}
++
++const data = {
++  session: {
++    get: () => undefined,
++    pending: {
++      list: () => fixture.inbox,
++      sync: async () => undefined,
++      invalidate: () => undefined,
++    },
++    prompt: (input: { id?: string; text: string; prepare?: () => Promise<unknown> }) => {
++      // Like the real client: the native prepare hook runs BEFORE the request is recorded or sent,
++      // so an admission refused by prepare never appears as a sent prompt.
++      const gate = fixture.gates.get("prompt")
++
++      return (async () => {
++        await input.prepare?.()
++        fixture.calls.push(`prompt:${input.id ?? "?"}`)
++        fixture.prompts.push({ id: input.id, text: input.text })
++
++        if (gate) await gate.promise
++
++        return undefined
++      })()
++    },
++  },
++}
++
++const server = {
++  server: { type: "http" as const, http: { url: "https://queue-lifecycle.fixture.example" } },
++  http: { url: "https://queue-lifecycle.fixture.example" },
++  api: {
++    session: {
++      inbox: {
++        list: async () => {
++          fixture.calls.push("list")
++
++          return fixture.inbox
++        },
++        cancel: async (input: { inboxID: string }) => {
++          fixture.calls.push(`cancel:${input.inboxID}`)
++          const gate = fixture.gates.get("cancel")
++
++          return gate ? ((await gate.promise), undefined) : undefined
++        },
++        update: async (input: { inboxID: string; delivery: string }) => {
++          fixture.calls.push(`update:${input.inboxID}:${input.delivery}`)
++          const gate = fixture.gates.get("update")
++
++          return gate ? ((await gate.promise), undefined) : undefined
++        },
++      },
++    },
++  },
++}
++
++mock.module("@/runtime/server/current", () => ({ useData: () => data }))
++mock.module("@/runtime/server/client", () => ({ useServerSDK: () => server }))
++mock.module("@/workspaces/location", () => ({ useWorkspaceLocation: () => () => ({ directory: "/repo" }) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++mock.module("@/shell/notifications/toast", () => ({ showToast: () => undefined }))
++mock.module("@/composer/persistence", () => ({ useComposerState: () => ({ captureOwner: () => () => fixture.owner() }) }))
++
++const { createSessionQueue } = await import("./queue")
++
++const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
++
++const queuedItem = (id: string, text: string): SessionInboxInfo =>
++  ({
++    id,
++    sessionID: "ses_lifecycle",
++    time: { created: 1 },
++    type: "user",
++    delivery: "queue",
++    payload: { text },
++  }) as SessionInboxInfo
++
++function mount(text = "queued body") {
++  fixture.calls.length = 0
++  fixture.prompts.length = 0
++  fixture.gates.clear()
++  fixture.owner = () => true
++  fixture.inbox = [queuedItem("msg_original", text)]
++
++  // The production server SDK registers the per-server draft loader (client.tsx); the harness
++  // mirrors that so the captured media lease is live.
++  const serverKey = ServerConnection.key({ type: "http", http: { url: "https://queue-lifecycle.fixture.example" } })
++  const unregister = setMediaBlobLoader(serverKey, async () => undefined)
++
++  const composer = createMemoryComposerState({ prompt: "draft" }).capture()
++  // The composer writes record what the machine's draft effects actually published, in order.
++  const sets: string[] = []
++  const write = (prompt: { type: string; content?: string }[]) =>
++    prompt.map((part) => (part.type === "text" ? part.content ?? "" : part.type)).join("|")
++  // The captured value's `set` is readonly-typed; the recorder installs through a mutable view.
++  const writer = composer as { set: (prompt: Prompt, cursor?: number) => void }
++  const rawSet = writer.set.bind(composer)
++  writer.set = (prompt, cursor) => {
++    sets.push(write(prompt as { type: string; content?: string }[]))
++    rawSet(prompt, cursor)
++  }
++
++  let queue!: ReturnType<typeof createSessionQueue>
++  let dispose!: () => void
++  createRoot((root) => {
++    dispose = root
++    queue = createSessionQueue({
++      sessionID: "ses_lifecycle",
++      draft: composer,
++      working: () => false,
++      behavior: () => "queue" as ComposerDelivery,
++      restoreFocus: () => undefined,
++      background: () => ({ move: () => Promise.resolve() }),
++    })
++  })
++
++  return {
++    composer,
++    dispose: () => {
++      dispose()
++      unregister()
++    },
++    queue,
++    sets,
++  }
++}
++
++afterEach(() => {
++  fixture.gates.clear()
++})
++
++test("R1: unmount while a steered edit admission is in flight still cancels the original (no duplicate delivery)", async () => {
++  const { composer, dispose, queue, sets } = mount()
++  expect(queue.edit("msg_original")).toBe(true)
++  await flush()
++  expect(sets).toEqual(["queued body"])
++
++  // The prompt must differ from the queued item, or the machine steers it in place instead of
++  // re-admitting it as an edit.
++  composer.set([{ type: "text", content: "queued body v2", start: 0, end: 14 }], 14)
++
++  // The admission is parked mid-flight; the unmount lands while it is outstanding.
++  const gate = Promise.withResolvers<void>()
++  fixture.gates.set("prompt", gate)
++  queue.confirmEdit("steer")
++  await flush()
++  expect(fixture.prompts).toHaveLength(1)
++  expect(fixture.prompts[0]!.text).toBe("queued body v2")
++
++  dispose()
++  gate.resolve()
++  await flush()
++  await flush()
++
++  // The committed phase ran ungated: the original's cancel went out, so the steered replacement
++  // cannot be delivered twice; and the admitted edit is not merged back into the composer. The
++  // writes are: the edit's draft.load, the manual text change, the confirm-time optimistic restore
++  // of the pre-edit draft — nothing lands after the unmount+admission.
++  expect(fixture.calls).toContain("cancel:msg_original")
++  expect(sets).toEqual(["queued body", "queued body v2", "draft"])
++})
++
++test("R2: unmount during an undo's cancel round-trip still merges the prompt back (disposed return)", async () => {
++  const { composer, dispose, queue, sets } = mount("undo me")
++  const gate = Promise.withResolvers<void>()
++  fixture.gates.set("cancel", gate)
++  queue.undo("msg_original")
++  await flush()
++
++  // The cancel is parked mid-flight; the unmount lands while the server may still apply it.
++  dispose()
++  expect(composer.current().some((part) => part.type === "text" && part.content === "undo me")).toBe(false)
++  gate.resolve()
++  await flush()
++  await flush()
++
++  // The late mutation.undone reaches the disposed machine and merges the content back.
++  expect(composer.current().some((part) => part.type === "text" && part.content === "undo me")).toBe(true)
++  expect(sets.at(-1)).toContain("undo me")
++})
++
++test("R3: unmount during an edit admission that then fails still restores the edited text", async () => {
++  const { composer, dispose, queue, sets } = mount("queued body")
++  queue.edit("msg_original")
++  await flush()
++  composer.set([{ type: "text", content: "queued body v2", start: 0, end: 14 }], 14)
++  const gate = Promise.withResolvers<void>()
++  fixture.gates.set("prompt", gate)
++  queue.confirmEdit("steer")
++  await flush()
++  expect(fixture.prompts.at(-1)?.text).toBe("queued body v2")
++
++  dispose()
++  gate.reject(new Error("admission failed"))
++  await flush()
++  await flush()
++
++  // The late mutation.failed reaches the disposed machine and merges the stashed edit back. The
++  // writes before it: the edit's draft.load, the manual text change, the confirm-time optimistic
++  // restore of the pre-edit draft — the LAST write is the disposed-return merge carrying the edit.
++  expect(sets.at(-1)).toContain("queued body v2")
++  expect(sets).not.toEqual(["queued body", "queued body v2"])
++  expect(composer.current().some((part) => part.type === "text" && part.content === "queued body v2")).toBe(true)
++})
++
++test("R4: an owner break without unmount still settles the machine (steer)", async () => {
++  const { dispose, queue } = mount()
++  const gate = Promise.withResolvers<void>()
++  fixture.gates.set("update", gate)
++  queue.steer("msg_original")
++  await flush()
++  expect(queue.busy()).toBe(true)
++
++  fixture.owner = () => false
++  gate.resolve()
++  await flush()
++  await flush()
++
++  expect(queue.busy()).toBe(false)
++  dispose()
++})
++
++test("R5: an owner break between rewrite re-admissions withdraws what was sent and settles", async () => {
++  fixture.calls.length = 0
++  fixture.prompts.length = 0
++  fixture.gates.clear()
++  fixture.owner = () => true
++  fixture.inbox = [queuedItem("msg_a", "first body"), queuedItem("msg_b", "second body")]
++
++  // Mirrors the production per-server draft loader registration (see mount()).
++  const serverKey = ServerConnection.key({ type: "http", http: { url: "https://queue-lifecycle.fixture.example" } })
++  const unregister = setMediaBlobLoader(serverKey, async () => undefined)
++
++  const composer = createMemoryComposerState({ prompt: "draft" }).capture()
++  const sets: string[] = []
++  const writer = composer as { set: (prompt: Prompt, cursor?: number) => void }
++  const rawSet = writer.set.bind(composer)
++  writer.set = (prompt, cursor) => {
++    sets.push((prompt as { type: string; content?: string }[]).map((part) => (part.type === "text" ? part.content ?? "" : part.type)).join("|"))
++    rawSet(prompt, cursor)
++  }
++
++  let queue!: ReturnType<typeof createSessionQueue>
++  let dispose!: () => void
++  createRoot((root) => {
++    dispose = root
++    queue = createSessionQueue({
++      sessionID: "ses_lifecycle",
++      draft: composer,
++      working: () => false,
++      behavior: () => "queue" as ComposerDelivery,
++      restoreFocus: () => undefined,
++      background: () => ({ move: () => Promise.resolve() }),
++    })
++  })
++
++  queue.edit("msg_a")
++  await flush()
++  composer.set([{ type: "text", content: "first body v2", start: 0, end: 13 }], 13)
++  const gate = Promise.withResolvers<void>()
++  fixture.gates.set("prompt", gate)
++  queue.confirmEdit("queue")
++  await flush()
++  expect(fixture.prompts).toHaveLength(1)
++  expect(fixture.prompts[0]!.text).toBe("first body v2")
++
++  // The first re-admission went out and resolved; break the owner before the second admission's
++  // prepare runs.
++  fixture.owner = () => false
++  gate.resolve()
++  await flush()
++  await flush()
++
++  const replacement = fixture.prompts[0]!.id
++  expect(replacement).toBeDefined()
++  // Only one admission was sent; its copy is withdrawn and the originals stay queued (no
++  // duplicate, no content loss), and the machine settles.
++  expect(fixture.prompts).toHaveLength(1)
++  expect(fixture.calls).toContain(`cancel:${replacement}`)
++  expect(fixture.calls).not.toContain("cancel:msg_a")
++  expect(fixture.calls).not.toContain("cancel:msg_b")
++  expect(queue.busy()).toBe(false)
++  // The edited text returned through the machine's failed-while-admitting merge.
++  expect(sets.at(-1)).toContain("first body v2")
++  dispose()
++  unregister()
++})
 diff --git a/packages/app/src/session/composer/queue.test.ts b/packages/app/src/session/composer/queue.test.ts
 index e67115c..b610b18 100644
 --- a/packages/app/src/session/composer/queue.test.ts
@@ -1204,7 +1532,7 @@ index e67115c..b610b18 100644
 +  })
  })
 diff --git a/packages/app/src/session/composer/queue.ts b/packages/app/src/session/composer/queue.ts
-index decbf1d..969edd3 100644
+index decbf1d..d2882e2 100644
 --- a/packages/app/src/session/composer/queue.ts
 +++ b/packages/app/src/session/composer/queue.ts
 @@ -1,16 +1,18 @@
@@ -1229,27 +1557,24 @@ index decbf1d..969edd3 100644
  import { useWorkspaceLocation } from "@/workspaces/location"
  import { useLanguage } from "@/runtime/i18n/language"
  import { showToast } from "@/shell/notifications/toast"
-@@ -32,6 +34,19 @@ import {
+@@ -32,6 +34,16 @@ import {
    type QueuedPrompt,
  } from "./queue-machine"
  
 +// mobile(M-016, issue #188): one mutation attempt's captured ownership. `current` is false once
 +// the queue unmounted, the composer instance was replaced, the connection rebuilt, or the media
-+// lease was superseded — any of which invalidates the attempt's remaining publications.
++// lease was superseded — any of which stops the attempt's not-yet-dispatched remote steps.
 +type QueueOwner = {
 +  composerOwner: () => boolean
 +  http: ServerConnection.HttpBase
-+  serverKey: ServerConnection.Key
 +  media: () => boolean
-+  sessionID: string
-+  directory: string
 +  current: () => boolean
 +}
 +
  export function createSessionQueue(input: {
    sessionID: string
    draft: ComposerStateTarget
-@@ -44,6 +59,36 @@ export function createSessionQueue(input: {
+@@ -44,6 +56,36 @@ export function createSessionQueue(input: {
    const server = useServerSDK()
    const location = useWorkspaceLocation()
    const language = useLanguage()
@@ -1257,9 +1582,12 @@ index decbf1d..969edd3 100644
 +
 +  // mobile(M-016, issue #188): every mutation, pin and undo runs on an owner captured when it
 +  // starts. The owner binds the attempt to the composer instance, the connection and the media
-+  // lease it started on; once any of those is lost the attempt stops publishing (and its existing
-+  // abort checkpoints stop it) without ever touching a request already dispatched — the AbortSignal
-+  // is not wired to any HTTP call, so an owner break cannot cancel a remote prompt (issue #188).
++  // lease it started on. The owner never gates a machine report or a request already dispatched:
++  // an attempt whose owner broke still reaches exactly one terminal machine event through its own
++  // flow (bounded by the request queue's wait for headers), and only its not-yet-dispatched remote
++  // steps stop — an undo via the abort watcher below, later re-admissions via the client's native
++  // `prepare` hook. The AbortSignal is never wired to an HTTP call, so no owner break cancels a
++  // remote prompt or task (issue #188).
 +  const sourceServerKey = ServerConnection.key(server.server)
 +  let active = true
 +  onCleanup(() => {
@@ -1272,10 +1600,7 @@ index decbf1d..969edd3 100644
 +    const owner: Omit<QueueOwner, "current"> = {
 +      composerOwner,
 +      http: server.http,
-+      serverKey: sourceServerKey,
 +      media,
-+      sessionID: input.sessionID,
-+      directory: location().directory,
 +    }
 +
 +    return Object.assign(owner, {
@@ -1286,7 +1611,7 @@ index decbf1d..969edd3 100644
  
    const queued = createMemo(() =>
      data.session.pending
-@@ -122,8 +167,12 @@ export function createSessionQueue(input: {
+@@ -122,8 +164,12 @@ export function createSessionQueue(input: {
  
      if (effect.type === "media.pin") {
        // Images the user removed meanwhile stay removed; a pin for a row no longer open is rejected by the machine.
@@ -1301,7 +1626,7 @@ index decbf1d..969edd3 100644
            dispatch({
              type: "edit.mediaPinned",
              attempt: effect.attempt,
-@@ -132,7 +181,8 @@ export function createSessionQueue(input: {
+@@ -132,7 +178,8 @@ export function createSessionQueue(input: {
                  part.type === "image" ? [[part.id, part.blob]] : [],
                ),
              ),
@@ -1311,7 +1636,7 @@ index decbf1d..969edd3 100644
          () => undefined,
        )
  
-@@ -141,10 +191,28 @@ export function createSessionQueue(input: {
+@@ -141,10 +188,33 @@ export function createSessionQueue(input: {
  
      if (effect.type === "mutation.run") {
        const attempt = effect.operation.attempt
@@ -1323,18 +1648,23 @@ index decbf1d..969edd3 100644
 +        owner: captureOwner(),
 +      }
        runs.set(attempt, progress)
-+      // mobile(M-016, issue #188): an owner break aborts the attempt exactly like the machine's
-+      // mutation.abort does. The signal is never wired to an HTTP call, so this cannot cancel a
-+      // request already dispatched; the run's existing throwIfAborted checkpoints absorb the break.
++      // mobile(M-016, issue #188): an owner break stops the attempt where a stop is still safe —
++      // an undo before its cancel, exactly the machine's dispose contract. Edit and reorder
++      // attempts run to completion like the base (the server may already hold half of one); their
++      // per-admission `prepare` hook stops NEW admissions on the broken owner and the failure path
++      // withdraws what was already sent. Every attempt — owner-broken or not — reaches exactly one
++      // terminal machine event through its own flow tail (dispatches are ungated; the machine
++      // ignores stale attempts), so the machine never strands on an owner break.
 +      const stopWatching = createRoot((dispose) => {
 +        createEffect(() => {
-+          if (!progress.owner.current()) runs.get(attempt)?.controller.abort()
++          if (effect.operation.type === "undo" && !progress.owner.current())
++            runs.get(attempt)?.controller.abort()
 +        })
-+
-+        return dispose
-+      })
  
 -      return void run(effect.operation, progress).finally(() => runs.delete(attempt))
++        return dispose
++      })
++
 +      return void run(effect.operation, progress).finally(() => {
 +        runs.delete(attempt)
 +        stopWatching()
@@ -1342,51 +1672,20 @@ index decbf1d..969edd3 100644
      }
  
      if (effect.type === "mutation.abort") return runs.get(effect.attempt)?.controller.abort()
-@@ -204,9 +272,13 @@ export function createSessionQueue(input: {
+@@ -204,7 +274,11 @@ export function createSessionQueue(input: {
    }
  
    // Runs the operation in flight and reports its progress. Each report carries the operation's attempt, so the machine
 -  // ignores one that arrives after the operation stopped being current.
-+  // ignores one that arrives after the operation stopped being current. Every publication is gated on the attempt's
-+  // owner (issue #188): a result that lands after the composer, connection or media lease was lost is dropped, and
-+  // the machine's timeout cleans the attempt up.
++  // ignores one that arrives after the operation stopped being current. Reports are never owner-gated (issue #188
++  // review round): a result that lands after the owner was lost still settles the machine — the machine's own
++  // attempt tracking and disposed-return contract (queue-machine `returning`/`settleDisposed`) decide what a late
++  // report does, so queued or edited content is never stranded by a suppressed report. The owner instead stops the
++  // attempt's not-yet-dispatched remote steps (abort watcher for an undo, `prepare` for admissions).
    const run = async (operation: ActiveOperation, progress: MutationProgress) => {
      const attempt = operation.attempt
-+    const owner = progress.owner
-+    const current = () => owner.current()
  
-     // SSE retracts and updates materialized timeline messages for a steer or removal, so neither re-syncs the queue.
-     if (operation.type === "steer") {
-@@ -216,17 +288,25 @@ export function createSessionQueue(input: {
-         .update({ sessionID: input.sessionID, inboxID: operation.id, delivery: "steer" })
-         .then(
-           () => {
-+            if (!current()) return
-             void background?.move()
-             dispatch({ type: "mutation.succeeded", attempt })
-           },
--          () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
-+          () => {
-+            if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-+          },
-         )
-     }
- 
-     if (operation.type === "remove")
-       return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.id }).then(
--        () => dispatch({ type: "mutation.succeeded", attempt }),
--        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
-+        () => {
-+          if (!current()) return
-+          dispatch({ type: "mutation.succeeded", attempt })
-+        },
-+        () => {
-+          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-+        },
-       )
- 
-     if (operation.type === "undo") {
-@@ -236,9 +316,11 @@ export function createSessionQueue(input: {
+@@ -236,9 +310,11 @@ export function createSessionQueue(input: {
        await undoQueuedPrompt({
          prompt: extractPromptFromMessage(source, {
            directory: location().directory,
@@ -1398,155 +1697,93 @@ index decbf1d..969edd3 100644
          signal: progress.controller.signal,
          cancelInboxItem: () => {
            progress.stage = "committed"
-@@ -246,11 +328,15 @@ export function createSessionQueue(input: {
-           return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.item.id })
-         },
-       }).then(
--        (prompt) =>
--          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] }),
--        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
-+        (prompt) => {
-+          if (!current()) return
-+          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] })
-+        },
-+        () => {
-+          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
-+        },
-       )
--      await data.session.pending.sync(input.sessionID).catch(() => undefined)
-+      if (current()) await data.session.pending.sync(input.sessionID).catch(() => undefined)
- 
-       return
-     }
-@@ -262,11 +348,14 @@ export function createSessionQueue(input: {
-       () => false,
-     )
- 
-+    if (!current()) return
-+
-     if (settled) progress.stage = "settled"
- 
-     if (operation.type === "reorder") data.session.pending.invalidate(input.sessionID)
-     // The rows keep their optimistic state until the server's queue has caught up.
-     await data.session.pending.sync(input.sessionID).catch(() => undefined)
-+    if (!current()) return
-     dispatch(
-       settled ? { type: "mutation.succeeded", attempt } : { type: "mutation.failed", attempt, hidden: progress.hidden },
-     )
-@@ -274,6 +363,8 @@ export function createSessionQueue(input: {
- 
-   const sendEdit = async (operation: EditOperation & { attempt: number }, progress: MutationProgress) => {
-     const signal = progress.controller.signal
-+    const owner = progress.owner
-+    const current = () => owner.current()
- 
-     const replacement = await editedPromptInput(
-       input.sessionID,
-@@ -282,6 +373,7 @@ export function createSessionQueue(input: {
-       operation.prompt,
-       operation.raw,
-     )
-+    if (!current()) throw new DOMException("", "AbortError")
- 
-     // Admit before cancelling so a failed replacement never discards the original. A queued edit rebuilds its position
-     // in one rewrite, which leaves the queue unchanged if any admission fails.
-@@ -297,6 +389,7 @@ export function createSessionQueue(input: {
+@@ -297,6 +373,9 @@ export function createSessionQueue(input: {
      signal.throwIfAborted()
      // Like a queued edit, an original the server delivered meanwhile keeps the edit draft instead of sending twice.
      const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
-+    if (!current()) throw new DOMException("", "AbortError")
++    // Pre-admission owner checkpoint (issue #188): the admission below has not been dispatched yet,
++    // so a broken owner stops before any remote effect; the committed phase after it runs ungated.
++    if (!progress.owner.current()) throw new DOMException("", "AbortError")
  
      if (!pending.some((item) => item.id === operation.original && item.type === "user" && item.delivery === "queue"))
        throw new Error("Queued prompt was delivered before the edit")
-@@ -305,12 +398,21 @@ export function createSessionQueue(input: {
+@@ -305,7 +384,16 @@ export function createSessionQueue(input: {
      // A steered replacement can be delivered before a withdrawal reaches it, so the bound waits for the admission and
      // the edit returns to the composer only if it really did not go out.
      progress.stage = "committed"
 -    await data.session.prompt(admission)
 +    // The client's native prepare hook re-checks ownership just before the request goes out, so a
-+    // lost owner never admits a new remote prompt (issue #188).
++    // lost owner never admits a new remote prompt (issue #188). Once the admission is dispatched
++    // the committed phase runs ungated (issue #188 review round): admitting and then abandoning
++    // the original's cancel would deliver it twice.
 +    await data.session.prompt({
 +      ...admission,
 +      prepare: async () => {
-+        if (!current()) throw new DOMException("", "AbortError")
++        if (!progress.owner.current()) throw new DOMException("", "AbortError")
 +      },
 +    })
-+    if (!current()) throw new DOMException("", "AbortError")
      void background?.move()
      dispatch({ type: "mutation.admitted", attempt: operation.attempt })
      // Cancelling is a no-op once the original is gone, so one retry is safe.
-     const cancel = () => server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.original })
-     await cancel().catch(cancel)
-+    if (!current()) throw new DOMException("", "AbortError")
-   }
- 
-   // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
-@@ -326,8 +428,12 @@ export function createSessionQueue(input: {
-     },
-   ) => {
+@@ -328,6 +416,10 @@ export function createSessionQueue(input: {
      const signal = progress.controller.signal
-+    const owner = progress.owner
-+    // `current` below is the queue's filtered row list, so the ownership predicate is `owned`.
-+    const owned = () => owner.current()
      signal.throwIfAborted()
      const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
-+    if (!owned()) throw new DOMException("", "AbortError")
++    // Pre-admission owner checkpoint (issue #188): nothing has been sent in this rewrite yet, so a
++    // broken owner stops before any remote effect. Past this point each admission carries its own
++    // `prepare` hook and the committed phase runs ungated.
++    if (!progress.owner.current()) throw new DOMException("", "AbortError")
      signal.throwIfAborted()
  
      if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
-@@ -351,7 +457,10 @@ export function createSessionQueue(input: {
+@@ -351,6 +443,8 @@ export function createSessionQueue(input: {
        Promise.all(
          replacements.map((inboxID) =>
            server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).then(
--            () => void progress.hidden.push(inboxID),
-+            () => {
-+              // The hidden record feeds the machine's failure report, so it is a publication (issue #188).
-+              if (owned()) progress.hidden.push(inboxID)
-+            },
++            // The hidden record feeds the machine's failure report; the withdrawal itself always
++            // runs — it cleans up copies the server may already hold (issue #188 review round).
+             () => void progress.hidden.push(inboxID),
              () => undefined,
            ),
-         ),
-@@ -395,14 +504,27 @@ export function createSessionQueue(input: {
-       const id = admission.id ?? SessionMessage.ID.create()
+@@ -396,10 +490,22 @@ export function createSessionQueue(input: {
  
        await stopped()
-+      if (!owned()) throw new DOMException("", "AbortError")
        replacements.push(id)
 -      await data.session.prompt({ ...admission, id }).catch(async (error) => {
 -        await withdraw()
 -        throw error
 -      })
-+      // The native prepare hook re-checks ownership just before each re-admission goes out (issue #188).
++      // The native prepare hook re-checks ownership just before each re-admission goes out, so a
++      // broken owner never admits a new remote prompt (issue #188); the failure path withdraws what
++      // earlier iterations already sent. Once an admission is dispatched the flow runs ungated
++      // (issue #188 review round): abandoning the committed cancels would hold both copies.
 +      await data
 +        .session.prompt({
 +          ...admission,
 +          id,
 +          prepare: async () => {
-+            if (!owned()) throw new DOMException("", "AbortError")
++            if (!progress.owner.current()) throw new DOMException("", "AbortError")
 +          },
 +        })
 +        .catch(async (error) => {
-+          if (!owned()) throw error
 +          await withdraw()
 +          throw error
 +        })
-+      if (!owned()) throw new DOMException("", "AbortError")
      }
  
      await stopped()
-+    if (!owned()) throw new DOMException("", "AbortError")
-     // Every copy is in, so the originals must go, however long that takes, or the queue holds both.
-     progress.stage = "committed"
+@@ -409,7 +515,9 @@ export function createSessionQueue(input: {
+     if (replace) dispatch({ type: "mutation.admitted", attempt })
  
-@@ -414,6 +536,7 @@ export function createSessionQueue(input: {
+     // An edit cancels last first: the strip shows each original until it goes, so its copies never
+-    // show out of order.
++    // show out of order. The committed cancel phase runs ungated (issue #188 review round): every
++    // copy is already admitted, so an owner break here must not leave the originals queued behind
++    // them — that would deliver both.
+     const replaced = current.slice(changed)
  
      for (const item of replace ? replaced.reverse() : replaced) {
-       await server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: item.id })
-+      if (!owned()) throw new DOMException("", "AbortError")
-       progress.hidden.push(item.id)
-     }
-   }
-@@ -482,7 +605,14 @@ export function createSessionQueue(input: {
+@@ -482,7 +590,14 @@ export function createSessionQueue(input: {
  export type SessionQueue = ReturnType<typeof createSessionQueue>
  
  // What a running operation has done so far: the IDs it withdrew or cancelled, and how far it got.
@@ -1562,7 +1799,7 @@ index decbf1d..969edd3 100644
  
  // The slice of the queue the panel renders and drives. Without `moved`, a replaced row closes and its replacement opens.
  export type SessionQueueView = Pick<
-@@ -494,18 +624,50 @@ export type SessionQueueView = Pick<
+@@ -494,18 +609,50 @@ export type SessionQueueView = Pick<
  // Pin `media:<hash>` attachments before cancelling: the cancel releases the item's blob refs and sweeps blobs
  // nothing else references, so a pin that fails leaves the item queued.
  // An undo stopped while its media loads leaves the item queued.
