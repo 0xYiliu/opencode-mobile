@@ -2194,6 +2194,27 @@
       "rebase": "#186 replay order is closure → #184 scoped overlay → inherited server-edit → #185 Home overlay → this patch. The production tabs/Inbox/titlebar allowlist is absorbed by the v2.2.7 pin; only the required back bridge is active. The entry.tsx overlap with #184 is an explicit same-file, different-hunk dependency and is not a copy of the #184 bridge hunk.",
       "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
       "status": "active"
+    },
+    {
+      "id": "timeline-messaging-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/timeline-messaging-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/shell/panel-motion.ts",
+        "packages/app/src/shell/panel-motion.test.ts"
+      ],
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "server-edit-touch-compatibility",
+        "home-new-session-v2-2-7",
+        "tabs-inbox-titlebar-v2-2-7"
+      ],
+      "reason": "Issue #187: the fixed v2.2.1→v2.2.7 timeline/messaging production allowlist (packages/app/src/session, packages/app/src/shell/commands, packages/session-ui/src; pass-2 composer/e2e/component-tests/ui context+i18n/runtime i18n) is byte-identical in the v2.2.7 vendor tree and is recorded as absorbed, not copied into a second overlay. The only required mobile delta is the WebView 114 `:dir()` capability guard on the session panel-motion path: older Android WebViews reject `matches(\":dir(rtl)\")` with a SyntaxError that takes the whole shell to the error screen, so `isRTL` falls back to the LTR reading. Re-based from the retired `session-android-adaptation` payload, whose remaining parts are superseded (upstream voice gating, build-shape components-lab, #184 initial-handoff); issue #197 must not double-land this guard.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Generated from the post-#184/#185/#186 v2.2.7 cumulative tree; target paths apply without copying prior hunks; the panel-motion.test.ts additions run green under `bun test src/shell/panel-motion.test.ts` in packages/app (6 tests incl. the throwing-WebView and RTL-support probes); patch refresh/verify/closure, focused session-ui and app suites, Web build, and Gradle unit/APK checks are recorded in the v2.2.7 #187 execution card. Device/adb, real running-session, and Android runtime evidence remain separately marked BLOCKED/NOT RUN when unavailable.",
+      "rebase": "#187 replay order is closure → #184 scoped overlay → inherited server-edit → #185 Home overlay → #186 tabs/Inbox/titlebar overlay → this patch, appended last to `mobilePatches`. The timeline/messaging production allowlist is absorbed by the v2.2.7 pin; only the panel-motion `:dir()` guard is active. Re-based from `session-android-adaptation` (its historical `mobile(A, issue #126)` marker text is preserved verbatim in that retired patch file; the re-landed guard carries the `mobile(timeline-messaging-v2-2-7, issue #187)` marker), regenerated against the current vendored panel-motion.ts context rather than replaying the old blob.",
+      "sha256": "602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99",
+      "status": "active"
     }
   ]
 }

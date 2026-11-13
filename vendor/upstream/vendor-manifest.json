@@ -62,7 +62,8 @@
     "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
     "patches/mobile/server-edit-touch-compatibility.patch",
     "patches/mobile/home-new-session-v2-2-7.patch",
-    "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch"
+    "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
+    "patches/mobile/timeline-messaging-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -590,6 +591,12 @@
       "id": "tabs-inbox-titlebar-v2-2-7",
       "path": "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
       "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
+      "status": "active"
+    },
+    {
+      "id": "timeline-messaging-v2-2-7",
+      "path": "patches/mobile/timeline-messaging-v2-2-7.patch",
+      "sha256": "602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99",
       "status": "active"
     }
   ],
