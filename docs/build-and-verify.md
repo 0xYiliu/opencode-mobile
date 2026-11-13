@@ -47,7 +47,7 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 
 ### issue #186 段（tabs / Inbox / titlebar 与 Android back bridge）——2026-11-13 当前 worktree
 
-**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727`。
+**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；reviewed/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727`。
 
 **fixed-source crosswalk / allowlist**：`docs/alignment/windows-desktop/v2.2.7/changes.md` 的 #186 section 记录 `git log/diff/show` 命令、commit/path crosswalk、逐文件 allowlist 与 deny audit。tabs/Inbox/titlebar/mobile-tabs/route/scroll/shelf/avatar/activity-ring production delta 与 fixed v2.2.7 vendor 逐文件 byte-compare 为 **absorbed**；没有复制历史 payload。唯一 active source patch 为 `tabs-inbox-titlebar-v2-2-7`，只承载 required app-side back bridge；root Android/first-party handler 为同一交付的移动边界接线。
 

@@ -18,7 +18,7 @@
 - 绝对工作目录：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`
 - 分支：`feat/186-tabs-inbox-titlebar`
 - 父轮审计起点：`5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`（#184/#185 已进入 main 的 v2.2.7 closure 基线）
-- 本次实施 base：`5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录；提交已存在，尚未推送、创建 PR 或合并
+- 本次实施 base：`5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；reviewed/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；提交已存在，尚未推送、创建 PR 或合并
 - 本次实施 worktree：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`
 - 本次实施分支：`feat/186-tabs-inbox-titlebar`
 - 开工状态：该 worktree 由本子工作单元独占；前三个 active patch payload/hash/order 作为硬不变量保留，#186 active patch 已在审核修复后更新 hash 与对应文档/验证记录

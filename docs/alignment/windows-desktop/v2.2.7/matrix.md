@@ -2,7 +2,7 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-13**；当前 Issue #186 worktree 为 `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base 为 `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录；提交已存在，尚未推送、创建 PR 或合并。#185 worktree 只作为历史记录。
+- 更新日期：**2026-11-13**；当前 Issue #186 worktree 为 `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base 为 `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`，reviewed/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；提交已存在，尚未推送、创建 PR 或合并。#185 worktree 只作为历史记录。
 - 上游目标：Windows Desktop **v2.2.7**，`fedc6f208aa2bd54c1019227214568083f6380ad`；前版为 v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`。
 - Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**；移动 replay 顺序为 #184 `v2-2-7-mobile-connection-pairing-ssh-closure.patch` → inherited `server-edit-touch-compatibility.patch` → 历史 #185 `home-new-session-v2-2-7.patch` → 当前 #186 `tabs-inbox-titlebar-v2-2-7.patch`。前三 patch 的顺序、hash 与 #184 的 24-target scope 不变。
 - Replay hash 不变量：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94` → server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0` → 历史 #185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；修复后 #186 patch `1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2`。
