@@ -10,14 +10,15 @@
 - 当前子工作单元：[#184](https://github.com/0xYiliu/opencode-mobile/issues/184)（连接、配对与 SSH 共享闭包）
 - 当前子工作单元：[#185](https://github.com/0xYiliu/opencode-mobile/issues/185)（Home 与新建会话 v2.2.7 对齐）
 - 当前子工作单元：[#186](https://github.com/0xYiliu/opencode-mobile/issues/186)（tabs / Inbox / titlebar 与 Android back bridge）
+- 当前子工作单元：[#187](https://github.com/0xYiliu/opencode-mobile/issues/187)（timeline / messaging crosswalk 与 panel-motion guard）
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
 ## Provenance revision binding
 
-- implementation/fix revision：`9cafaba249efbe35110988b18e2977a9c9aac04e`
-- documentation/final revision：`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）
-- 当前最终 HEAD：由本次 docs-only provenance commit 产生并在交付报告中记录；不改变实现、patch scope、registry/replay 或 BLOCKED/NOT RUN 边界。
+- #187 轮 implementation revision：`4b86f9b`（panel-motion guard + patch 注册）；registry/absorption revision=`004ed54`；web payload revision=`c8163a3`
+- #187 轮 documentation/final revision：本轮 docs-only commit（完整 SHA 在交付报告记录）；当前最终 HEAD 由该 commit 追溯；不改变实现、patch scope、registry/replay 或 BLOCKED/NOT RUN 边界。
+- 前轮（#186）binding：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）——保持历史有效。
 
 ## 基准与工作区
 
@@ -36,10 +37,10 @@
 
 - 全局 vendor pin：`fedc6f208aa2bd54c1019227214568083f6380ad`（v2.2.7）
 - 当前 `packageSources`：空；11 个 closure package 均从固定 v2.2.7 目标提取
-- 当前移动补丁：82 registered / 4 active / 19 absorbed / 59 deferred；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay、继承自 origin/main 的 `server-edit-touch-compatibility` patch、#185 `home-new-session-v2-2-7` patch，再重放 #186 `tabs-inbox-titlebar-v2-2-7` patch；#184 overlay 仍只包含 24 个 scoped targets
+- 当前移动补丁：83 registered / 5 active / 26 absorbed / 52 deferred（#187 轮：7 条 deferred 翻转 absorbed、新增 `timeline-messaging-v2-2-7`）；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay、继承自 origin/main 的 `server-edit-touch-compatibility` patch、#185 `home-new-session-v2-2-7` patch、#186 `tabs-inbox-titlebar-v2-2-7` patch，再重放 #187 `timeline-messaging-v2-2-7` patch；#184 overlay 仍只包含 24 个 scoped targets
 - 当前客户端身份：Android/mobile `2.2.7`，versionCode `20207`；vendor app 包为 `2.2.7`
-- 当前补丁登记门禁：`python3 scripts/mobile-patches.py` PASS（82）
-- 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自 pristine v2.2.7 tree、closure patch、#184 scoped overlay、inherited main server-edit patch、#185 Home patch 与 #186 back bridge patch 的有序重放和等价性核对。
+- 当前补丁登记门禁：`python3 scripts/mobile-patches.py` PASS（83）
+- 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自 pristine v2.2.7 tree、closure patch、#184 scoped overlay、inherited main server-edit patch、#185 Home patch、#186 back bridge patch 与 #187 panel-motion guard patch 的有序重放和等价性核对。
 - 当前 scope audit（`git status --porcelain=v1 -uall`）：#185 代码增量限于 Home fade helper/test、view import/use、patch registry/provenance/vendor order、生成 Web manifest 与本执行卡/设计记录；typecheck 产生的未跟踪 declaration artifacts 已清理，未保留 `.tsbuildinfo`、`node_modules`、`dist`、`.vite` 或 `.turbo` 作为交付文件。
 
 ## 历史 #185 Home / new-session 执行卡
@@ -62,7 +63,24 @@
 - 先前三 patch 硬不变量：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；修复后 #186 `1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2`。前三 targets/order/behavior unchanged。
 - 授权与停止条件：修复提交已存在，只保持不 push、不创建 PR、不合并；没有设备/真实服务时不声称 Android runtime、safe-area、hardware back、running session、predictive back 或 Windows runtime 通过；不声称 full typecheck。
 
-## 稳定 focused-test 复跑记录（#184）
+## #187 timeline / messaging 执行卡
+
+- 用户可观察目标（#187）：固定核对 v2.2.1→v2.2.7 的 timeline 与消息呈现（timeline cache/paging、user message actions 菜单族、session-ui 状态机族、markdown fragment links、session read/unread menu、session content search、composer/e2e/i18n/context 辅路径）未被错误 deny 且不被复制成第二份 overlay；落定唯一必需的移动 delta——session panel-motion 的 WebView 114 `:dir()` capability guard（旧 Android WebView 对 `matches(":dir(rtl)")` 抛 SyntaxError 会把整个壳带到错误屏，`isRTL` try/catch 回落 LTR 分支）。
+- 基准与上游审计：pass-1 路径集（`packages/app/src/session`、`packages/app/src/shell/commands`、`packages/session-ui/src`）294 entries = 147 A + 138 M + 8 D + 1 R100 → 286 present → 285 SAME + 1 DIFF（`session/screen.tsx`，#186 back-chain hunk，非本期 delta；计划期记录为 285/284，与重放差 1 条清点口径，以上列命令当轮重放为准）；pass-2 路径集（`packages/app/src/composer`、`packages/app/e2e`、`packages/session-ui/component-tests`、`packages/ui/src/context`、`packages/ui/src/i18n`、`packages/app/src/runtime/i18n`）357 entries = 219 M + 39 A + 84 D + 15 R → 273 present → 273 SAME；absence 负检 108 项（D + rename 源）0 present。逐 commit crosswalk 与 deny audit 见 [changes.md](changes.md) #187 section。
+- 本次必要移动差异：`timeline-messaging-v2-2-7.patch`，targets `packages/app/src/shell/panel-motion.ts` + `panel-motion.test.ts`；从退役 `session-android-adaptation` 重基（历史 `mobile(A, issue #126)` marker 原文保留在该退役文件，重落 guard 带 `mobile(timeline-messaging-v2-2-7, issue #187)` marker），SHA-256=`602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99`；`dependsOn` 前四个 active patch，追加为 `mobilePatches` 第 5 项（replay：closure → #184 → server-edit → #185 → #186 → #187）。#197 不得双落该 guard。
+- registry/absorption：83 registered / 5 active / 26 absorbed / 52 deferred；7 条 deferred 翻转 absorbed（rows 56/57/60/63/64/74/75；载体=v2.2.7 vendor pin byte-identity / active `timeline-messaging-v2-2-7`（panel-motion）/ active `tabs-inbox-titlebar-v2-2-7`（row 75，7 targets 为其 8 targets 子集仅缺 `titlebar/history.ts`））；5 条 deferred 加「本轮未触碰 + owner」routing note（`session-goal-sources-panels`→goal/sources、`session-media-source-safety`→composer/media #188/#196 lineage、`settings-experimental`→settings/experimental、`gui-plugins-api-migration`→gui-plugins/extensions、`project-identity-migration`→identity #140 lineage），状态不翻转。
+- 提交链：`4b86f9b`（feat(vendor): re-base WebView 114 panel-motion `:dir()` guard for issue #187）→ `004ed54`（chore(vendor): retire absorbed session timeline/messaging deferred payloads #187）→ `c8163a3`（chore(web): rebuild web payload for #187）→ 本 docs 提交（final HEAD 由该 docs-only commit 追溯）。worktree `/home/peterhan/worktrees/opencode-mobile/feat--187-timeline-messaging`，分支 `feat/187-timeline-messaging`，base=`a25ab51`（origin/main）。提交已存在，尚未推送、创建 PR 或合并。
+- 验收（当轮实跑，verbatim）：
+  - A（`vendor/upstream/packages/session-ui`，plain `bun test`，9 文件 = rows-current/projection/steer-arrival-machine/turn-phase-machine/user-runs/action-machine/compaction-entrance-machine/paced-text-machine/markdown-fragment-links）：**139 pass / 0 fail / 436 expect / 9 files**——基线持平，零新失败。
+  - B（`vendor/upstream/packages/app`，14 文件，plain 与 `--conditions=browser --isolate` 两形同数）：**182 pass / 0 fail / 704 expect / 14 files**——计划基线 180/702 恰 +2（isRTL throwing-WebView 与 RTL-support 两测试），零失败。**口径登记**：实施简报未携带计划 §4 B 的逐字 14-file 清单（协调者答复未到）；当轮以与基线算术精确吻合（180/702/14）、覆盖计划点名存在的 `controller-projection.test.ts`/`turn-diffs.test.ts`、必含 `panel-motion.test.ts` 且全部落在 #187 审计路径族（session/timeline ×7、composer ×5、shell/commands ×1、shell/panel-motion ×1）的重建清单执行——精确命令见 [build-and-verify.md](../../../build-and-verify.md) #187 段，待协调者确认原始清单后如需替换仅重跑该 gate，无代码影响。
+  - C（`bun test --conditions=browser packages/mobile-hosts`）：**446 pass / 0 fail / 3034 expect / 40 files**——基线持平。
+  - D：`python3 scripts/mobile-patches.py` **PASS**（83 registered；5 active / 26 absorbed / 52 deferred）；`python3 scripts/test_mobile_patches.py` **OK（9/9）**；`bash scripts/verify-closure.sh` **PASS**（#187 patch 有序重放、byte-identical、DANGLING=0）；`git diff --check origin/main...HEAD -- . ':(exclude)vendor/upstream/patches/**'` **PASS**。
+  - E：`bun run build:web` **PASS**（rc=0，14.52s）；`bun run copy:web-dist` **PASS**（**5520 files / 155,503,085 bytes** verified——文件数与上一代相同）；`python3 scripts/android_web_assets.py verify` **PASS**；`web-dist/manifest.json` 已变更并提交（117 chunk 改名 + 27 同名哈希刷新：141 sourcemap + index.html/sw.js 及面板族 chunk 因 panel-motion guard 级联改名；`isRTL` guard 与 `timeline-messaging-v2-2-7` marker 实证存在于构建产物 `host-apis-*.js(.map)`）。
+  - F：`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` **BUILD SUCCESSFUL**（36s）；JVM 单测 **47 tests / 0 failures / 0 skipped**（10 XML）；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256=`b5332707401a5da2584e753edf4559bf3fc98a2ec74b78e3cdd8dd7fd2d187dd`（**66,052,781 bytes**）。**未安装**。
+- BLOCKED / NOT RUN（设备边界）：WebView 114 真机 `:dir()` 崩溃场景回归、面板开合 RTL/RTL-less 实机走查、长历史会话 UX、menu 触摸、锚点跳转、真实运行会话均 **NOT RUN**；无设备/授权服务，不声称任何 Android runtime 通过。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。
+- 授权与停止条件：PR 由协调者创建（不合并）；不推送；无设备主张。出现需要改变补丁 scope、registry 语义或安全策略的决策时停止并记录。
+
+
 
 以下四组是本轮实际执行、可在当前 worktree 直接复跑的稳定选择，不是从聚合日志推算的数字。
 
