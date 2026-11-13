@@ -136,6 +136,68 @@ bun test --conditions=browser --isolate src/session/timeline/cache-machine.test.
 
 **E2E / runtime boundaries**：Playwright e2e 为 audit-only（fixed-source spec/fixture byte-identical 登记），本轮未运行，不作为 Android APK 门禁。无 adb 设备、无真实运行会话、无授权远程服务；**WebView 114 真机 `:dir()` 崩溃场景回归、面板开合 RTL/RTL-less 实机走查、长历史会话 UX、menu 触摸、锚点跳转均 NOT RUN**（解除条件=授权设备/一次性长历史测试会话）。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
 
+### issue #188 段（composer / queue / attachments 重 derive 与归属保护——feat/188-composer-queue-attachments 静态轮）——2026-11-14 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base=`e4a6dd1`（`feat/187-timeline-messaging` 链尾，stacked chain）；implementation revision=`ede5f54`（commit 1：`composer-queue-attachments-v2-2-7`（#84）注册 + #12/#19/#20 翻转 absorbed + #58 partial-carry 处置 + probe v2.2.7 重锚定）→ `4fa3d3e`（commit 2：web payload manifest 刷新）→ 本 docs 提交（final HEAD 由该 docs-only commit 追溯，交付报告记录完整 SHA）。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；上游只读引用 `/home/peterhan/repository/opencode`。
+
+**patch replay / hashes**：
+
+```text
+closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
+        → server-edit-touch-compatibility
+        → home-new-session-v2-2-7 (#185)
+        → tabs-inbox-titlebar-v2-2-7 (#186)
+        → timeline-messaging-v2-2-7 (#187)
+        → composer-queue-attachments-v2-2-7 (#188，本轮)
+```
+
+- `composer-queue-attachments-v2-2-7.patch` SHA-256=`023da5f92756c9f59c87f4e3c8a316ce7241a1b29cf5e195d2e097fde6e6bc09`；20 targets（16 源文件 + 4 测试文件，逐一见 manifest row 84）；前五 patch hash 不变量不变。Registry **84 registered / 6 active / 29 absorbed / 49 deferred**（#12/#19/#20 → absorbed，payload 由 #84 在当前树重 derive；#58 保持 deferred + partial-carry 处置）。
+- patch 生成与重放：hunks 由本轮工作树对累计链树 `git diff --relative=vendor/upstream` 生成；apply-check 用 scratch 方法（`git archive HEAD vendor/upstream/packages` + `git apply --directory=vendor/upstream --check`）通过，且 patch 后树与工作树 `diff -r`（排除 node_modules/dist）**byte-identical**；`verify-closure.sh` 在 pristine pin + closure + 六 active mobile patch 有序重放下 **PASS（DANGLING=0）**。
+
+**c0 基线（coordinator 在 pristine stacked base 记录；引用不重 derive）**：A app 单测 **385 pass / 5 fail / 1744 expect / 30 files**（5 条 pre-existing：submit.test ×4「a failed quote send retains…」「restores and retries an unacknowledged admission」「restores first-prompt comments…」「moves a first prompt…」+ machine.test ×1「prepends a skill mention…」）；B component set 0 pass / 4 fail（pre-existing module-resolution，RECORDED ONLY 非门禁）；C test-browser **13/0/35**；D session-ui **38/0/126**；E mobile-hosts **446/0/3034**；F1 `verify-attachments-artifacts.ts` pre-existing FAIL「2: entry.tsx lost the createFilesClient import…」；F2 `verify-files.ts` pre-existing FAIL「1: model.tsx must normalize FileNotFoundError via isFileNotFoundError」。
+
+**门禁 attribution（c0 → post-landing）**：
+
+| Gate | 基线（c0，pristine stacked base） | 本轮 post-landing | 归因 |
+| --- | --- | --- | --- |
+| A（30 文件 app 单测，命令形同 c0） | 385 pass / 5 fail / 1744 expect | **396 pass / 5 fail / 1793 expect / 30 files** | +11 pass / +49 expect = 重 derive 新增用例（drafts fail-closed/lease/alias 5、queue attribution/unserved/backfill 2、image keying 扩展、request media 3）；**5 条 pre-existing 失败恒同（同文件同名同断言位），零失败转绿、零新失败** |
+| C（test-browser 4 文件） | 13/0/35 | **13 pass / 0 fail / 35 expect** | 基线持平 |
+| D（session-ui 3 文件） | 38/0/126 | **38 pass / 0 fail / 126 expect** | 基线持平 |
+| E（mobile-hosts 40 文件） | 446/0/3034 | **446 pass / 0 fail / 3034 expect** | 基线持平 |
+| F1 verify-attachments-artifacts | FAIL「2: entry.tsx lost the createFilesClient import…」 | **PASS**（dist 5496 assets 标记核对） | #84 M-020/M-021/M-012 落地后转绿 |
+| F2 verify-files | FAIL「1: model.tsx must normalize FileNotFoundError…」 | **PASS**（重锚定后） | 计划内 2 处重锚定 + 追加 7 处 v2.2.7-context 重锚定（见下）+ M-012 新锚 |
+
+**probe 重锚定记录（old → new，全部 v2.2.7-context 漂移，非契约违约；无 S3 触发）**：
+
+1. verify-files §1：`isFileNotFoundError(e)` → `isFileNotFoundError(error)`（v2.2.7 catch-var 改名；计划内）。
+2. verify-files §2：`new URL("/api/experimental/fs/write", server.conn.http.url)` → `new URL("/api/experimental/fs/write", sdk.http.url)`（v2.2.7 form；计划内）。
+3. verify-files §1 readBlock 正则：`/file:\s*\{[\s\S]*?read:\s*\(input[\s\S]*?list:\s*\(input/` → `/read:\s*\(input: FileReadInput[\s\S]*?list:\s*\(input\?: FileListInput/`（v2.2.7 generated client 在 fs group 前新增 `persistentPty.read`，旧惰性匹配跨组；`list` 入参转可选）。
+4. verify-files §2 M-013 位点：`connect/dialog.tsx` 的 `assertNoUrlCredentials(normalized)` → `connect/controller.ts` 的 `assertNoUrlCredentials(prev.draft.url)`（v2.2.7 把 userinfo 拒绝移入 connect controller submitted 事件）。
+5. verify-files §4 scope-change 重置块：`on(scope, () => { … inflight.clear() … resetFileContentLru() … reconcile({}) … tree.reset() })` → `on(scope, (directory) => { … dispatch({ type: "scope.changed", directory }) … tree.reset() })`（v2.2.7 把 inflight/LRU/store 重置移入 content machine 的 `scope.changed` 转移 abort.all+cache.reset）；相邻注释锚 `a reset after that load // would discard its reply` → `a reset after that // load would discard its reply`（换行）。
+6. verify-files §4 renderer：`Always reread: a cached copy can be stale` → `always reread: a cached copy can be stale`（v2.2.7 句式改写，小写）；`files.sync(targetPath, { force: true })` → `files.sync(effect.path, { force: true, silent: true })`。
+7. verify-files §6 open-in-app：`!!desktop && input.session.server.local`（单行）→ `!!desktop &&\n      input.session.server.local &&`（v2.2.7 canOpen 增 skill:// 与 /builtin/ 排除臂）；`if (opening() || !canOpen() || !desktop) return` → `if (!canOpen()) return`（desktop 门并入 canOpen）。
+8. verify-files §6 search：`file.search(value, { limit: 200, signal })` → `type: "file", limit: 200 }` + `AbortSignal.any([ctx.signal, request.controller.signal])`（v2.2.7 检索移入 browser machine 面）。
+9. verify-files §9：HEAD 探锚 `(platform.fetch??fetch)(url,{method:"HEAD"})` → `headStreamedFile(platform.fetch??fetch,url,signal)`（v2.2.7 抽出 artifact.ts helper）；watch/unwatch `api.file.watch/unwatch` → `api.experimental.file.watch/unwatch`（v2.2.7 上游重新 verticalize，旧 de-prefix 反泄漏检查退役）；watch block 正则去前缀名 → `ExperimentalFileWatchInput/ExperimentalFileUnwatchInput`（vendored face 恢复上游前缀；204/[400,401,404,503] 恒同）；types.ts 四个 de-prefixed 名以 upstream deprecated alias 保留（锚不变）。
+10. verify-files §10：`tree.applyGitStatusPatch(patch)` → `current.applyGitStatusPatch(effect.patch)`（beta.6 调用移入 effect handler；beta.6 pin 与 file-tree-v2 标识不变）。
+11. verify-attachments-artifacts §3：uri/data split `consturl=file.source.type==="uri"?file.source.uri:\`data:…\`` → `constinlineUrl=source?.type==="uri"?source.uri:fileData!==undefined?\`data:${file.mime};base64,${fileData}\`:undefined`（v2.2.7 openAttachment 形；file:// 分支语义不变）。
+
+**探针新增锚（#84 载体锁定）**：verify-files §2 增 `assertNoUrlCredentials(url.href)`（write() 入口）、`validateRedirectTarget(url.href, xhr.responseURL)`、`verdict.reason === "downgrade" ? "redirect-downgrade" : "redirect-cross-host"`（SecureFetchError 拒绝分支）三条 M-012 锚；fs.write 闭集断言（= {composer/attachments/destination.ts}）复验 PASS。
+
+**上游 allowlist 审计（#188）**：233 paths（composer 57 / session-composer 35 / runtime-persistence 21 / session-ui 120）× 116 commits = 227 present + 6 deleted-absent（`runtime/persistence/uuid{,.test}.ts`、`session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts` 均不在 vendored 树）；计划期 227 SAME + 0 DIFF；本轮 landing 后重放 216 SAME + 11 DIFF（全部 = #84 在册载体：destination/history-entry/request(+test)/schema/state/drafts(+test)/queue(+test)/region）；crosswalk 表与 deny audit 见 changes.md #188 section。
+
+**build / APK**：
+
+- `bun run build:web`：**PASS**（rc=0，built in 15.33s；existing chunk/dynamic-import warnings only）。
+- `bash scripts/copy-web-dist.sh`（android_web_assets.py stage）：**PASS**（**5520 files / 155,565,011 bytes** verified）；`python3 scripts/android_web_assets.py verify`：**PASS**。
+- `web-dist/manifest.json`：已变更并提交（145 行 hash 刷新，多为 `.map` sourcemap 行——#84 载体 chunk 级联；`web-dist/` 载荷文件本体 hash 不变集由 verify 工具核对）。
+- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**BUILD SUCCESSFUL**（24s，42 tasks）；JVM 单测 **10 suites / 47 tests / 0 failures / 0 errors / 0 skipped**（10 XML；android/ 树与 base byte-identical——`git diff feat/187-timeline-messaging...HEAD -- android/` 为空）；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 **`a39ebb3b638d826630ae9b5b1f8460bf00d349d1d20b030acb71b8bf823b215f`**（**66,072,093 bytes**）。**未安装**。
+
+**记录性偏差（#84 内，已在 manifest reason + changes.md 登记）**：计划原样的 request.ts 双子句 wire floor（file parts + images）与 v2.2.7 新增的 `retryFingerprint` 碰撞——submit.test 基线恒绿用例「pressing Enter and then Send while an image attachment resolves sends the prompt once」在 images 子句下新失败（fingerprint 镜像 pending payload）。按计划「NEW failure → fix #84」协议收窄：file-part 子句保留（url 逐字上送，真实风险面）；images 子句撤除并在注释中登记——两条真实 producer（submit.ts buildSubmissionRequest、queue.ts editedPromptInput）的 dataUrl 均经 `blobDataUrl` 构建，后者已 fail-closed 拒绝未解析引用，image 面 wire floor 由该字节边界执行；request.test 的 images 用例改写为锁定该 carve-out。复测：该用例转绿，set A 回到 5 条 pre-existing 恒同。
+
+**泄漏扫描**：`git diff <base>...HEAD` grep credential-face 模式（password=、PRIVATE KEY、api_key=、长 token 串）零命中（见交付报告终版扫描）。
+
+**E2E / runtime boundaries**：无 adb 设备、无真实运行会话、无授权远程服务；**SAF 保存/分享/剪贴板设备行为（G27）、queue 归属保护真服务竞态（W15 乐观编辑/重排/撤回 + owner 丢失中止路径）、drafts fail-closed 真机恢复走查均 NOT RUN**（解除条件=授权真机（直连或 SSH）与 QA server）。Playwright e2e 为 audit-only，本轮未运行。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
+
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-home-projects`，分支 `feat/221-home-projects`，base `3310b80`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d0ea30e`（feat FU-3 数据层迁移）→ `0a60814`（feat Home 页目标形 + M-017 重锚）→ `58f448b`（feat new-session/location/pin）→ `52b94cc`（feat project-icon generated 面 + location re-export 退役）→ `f109d12`（chore 补丁登记 65→67）→ `ec34aec`（chore 凭据探针 retarget + dist manifest 刷新），未 push。**源码对齐目标 = `3ebcf9a32c7b28f658cfee80775448929361727a`**（copy 优先，逐文件目标形核对），移动补丁语义经三条新补丁 + 存量补丁修剪重放。
