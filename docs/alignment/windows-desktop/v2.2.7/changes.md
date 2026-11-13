@@ -272,3 +272,49 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **ALLOW（audit-only）** `packages/app/e2e`（Playwright spec/fixture/mock-server）：作为 fixed-source 审计面 byte-identical 登记（pass-2 SAME），**不作为 Android 运行门禁**——Playwright 不是 Android APK 硬门禁；本轮未运行 e2e。
 - **DENY（routing）** 历史 M-021/files-bridge 类平台桥 payload 不由 #187 承载：`files-platform-bridge`/`attachments-share-bridge` 等 platform-bridge 家族保持 deferred，归 files/attachments 桥 owner 单元。
 - **routing notes（7 absorbed + 5 deferred）**：7 条 absorbed（rows 56/57/60/63/64/74/75）按「v2.2.7 vendor pin byte-identity / active `timeline-messaging-v2-2-7`（panel-motion guard）/ active `tabs-inbox-titlebar-v2-2-7`（row 75 back bridge）」三类载体登记；5 条 deferred（`session-goal-sources-panels`→goal/sources 单元、`session-media-source-safety`→composer/media 单元 #188/#196 lineage、`settings-experimental`→settings/experimental 单元、`gui-plugins-api-migration`→gui-plugins/extensions 单元、`project-identity-migration`→identity 单元 #140 lineage）加「本轮未触碰 + owner」routing note，状态不翻转。panel-motion `:dir()` guard 是本轮唯一 active delta，#197 不得双落。
+
+## Issue #188：composer / queue / attachments crosswalk and allowlist
+
+本节是 #188 的固定上游审计，不改变冻结的 v2.2.1 文档与前序 #186/#187 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base `e4a6dd1`（#187 链尾）。本轮 landing 是 active `composer-queue-attachments-v2-2-7`（#84）：v2.2.7 重 derive 已退役的 `attachments-upload-redirect-policy`（#12）/`files-platform-bridge`（#19）/`attachments-share-bridge`（#20）与 `session-media-source-safety`（#58）的 composer 侧 payload。
+
+### 可复现 fixed-source 命令
+
+```bash
+# path set（composer / session composer / persistence / session-ui src）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/composer packages/app/src/session/composer \
+  packages/app/src/runtime/persistence packages/session-ui/src
+# 逐文件 byte-compare：`git -C <upstream> rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# absence 负检：上列 D 条目在 vendored 树必须不存在
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- 范围条目 **233 paths**（按目录：`composer` 57、`session/composer` 35、`runtime/persistence` 21、`session-ui/src` 120），对应 **116 commits**；形态分布 102 A + 125 M + 6 D（0 R）。
+- 计划期审计：**227 present → 227 SAME + 0 DIFF；6 deleted-absent（0 present）**——上游删除的 `runtime/persistence/uuid{,.test}.ts` 与 `session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts` 在 vendored 树全部不存在。
+- 本轮 landing 后重放（同命令同法）：**227 present → 216 SAME + 11 DIFF**——11 条 DIFF 全部是 active `composer-queue-attachments-v2-2-7` 的在册载体 hunks：`composer/{attachments/destination.ts,history/entry.ts,request.ts,request.test.ts,schema.ts,state.ts}`、`runtime/persistence/{drafts.ts,drafts.test.ts}`、`session/composer/{queue.ts,queue.test.ts,region.tsx}`（与 #187 轮 `screen.tsx` DIFF = #186 在册载体同一处理方式）；其余 216 条保持 byte-identical，absorbed by vendor pin。#84 targets 中不在本 allowlist 的文件（media/prompt/prompt-parts/persistence/fork/revert/entry/web 等）不在本审计范围内，由 `verify-closure.sh` 全树 byte-identity 覆盖。
+
+### 行为 crosswalk
+
+| fixed upstream commit | 目标行为 | #188 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `095098fd6a` | fix(app): drive the session queue with an explicit state machine (#61592)——queue machine 家族 | **absorbed**（vendor pin，queue-machine.ts 零改动） | `session/composer/queue-machine.test.ts` 等 SAME 集 |
+| `17100fc529` | fix(app): give composer recovery, queue mutations, row stops and /reload explicit lifecycles (#62097)——queue mutation 生命周期 | **absorbed**（vendor pin）+ #84 在 queue.ts 加 per-attempt owner（machine 原生中止路径，queue.ts-local） | `session/composer/queue.ts`（DIFF = #84 在册载体）；queue.test 18/0 |
+| `14df429e18` | fix(app): drive request slots and draft image retention through state machines (#61970)——drafts retention machine（drafts-machine） | **absorbed**（vendor pin，drafts-machine.ts 零改动）+ #84 drafts.ts fail-closed 媒体面 | `runtime/persistence/{drafts-machine.test.ts,drafts.test.ts}`；drafts.test 重 derive 后全绿 |
+| `1c3decd370` | fix(app): drive composer history, shell mode and retry IDs through explicit state machines (#62021)——history/retry 机器 | **absorbed**（vendor pin）；#84 的 request.ts wire floor 与 v2.2.7 `retryFingerprint` 镜像共存（记录性偏差：images 不在 request.ts 重复把关，blobDataUrl 为执行点） | `composer/{history/entry.test.ts,retry.test.ts,request.test.ts}` SAME/载体集 |
+| `42be645ad7` | fix(app): drive quote comment, upload and @-mention search lifecycles through state machines (#62016)——quote-comment/uploads/mention 机器 | **absorbed**（vendor pin） | `composer/{quote-comment-machine.test.ts,attachments/uploads.test.ts,suggestions/machine.test.ts}` SAME 集 |
+| `65d59b9847` | fix(app): drive the composer focus handoff with an explicit state machine (#61924)——focus 机器 | **absorbed**（vendor pin） | `session/composer/focus-machine.test.ts` SAME 集 |
+| `0e655ff2a2` | fix(app): keep pasted image bytes in memory so a deleted temp file can't break the send (#62057)——paste detach | **absorbed**（vendor pin）；#84 的 `sourceServerKey` 溯源与其正交（本地字节引用不携带远端 key） | `composer/attachments/uploads.test.ts` SAME；drafts.test 重 derive 集 |
+| `0cb3d68f6e` + `490739afe7` | fix(app): retry failed namespace writes and settle load and clear races (#61766) / keep persisting after a localStorage quota failure (#61764)——persistence 稳健性 | **absorbed**（vendor pin）；#84 未解析引用以 `{mediaURI,sourceServerKey}` 持久化不阻塞 strict write（与其互补） | `runtime/persistence/{storage.test.ts,schema.test.ts}` SAME；drafts.test `unresolved` 用例 |
+
+- **machine families（pin 携带）**：`09dcb47861`（composer morph/Grow springs）、`36bdbb8584`/`b6f3294e9d`（rewind/undo/redo——本轮仅 provenance threading，生命周期守卫归 #196）、`c3f9fbbce3`（optimistic prompt handoff 恢复）、`12c371e08d`（web search consent dock，#189 deny）等 `session/composer/*machine*` 与 `session-ui` 状态机族全部 byte-identical。
+- **editor dom/actions 处置（一行）**：`composer/editor/{dom,actions,interaction,machine,...}` 家族 pin 携带（byte-identical），其 pin-carried 语义由 composer 门禁行使（set A 396 pass / 5 pre-existing fail 基线恒同），本轮零改动。
+- **prompt-status/prompt-status-machine/comment-focus-machine/quote-comment-machine** 同为 pin 携带（SAME），#84 只加可选 `sourceServerKey` 溯源字段。
+
+### deny audit
+
+- **DENY（routing）** `#189` web search consent dock（`12c371e08d` 的 dock 面）：本轮不承载，保持其 owner 单元 routing。
+- **DENY（routing）** `#196` runtime/server/client.tsx capture/generation/mediaApi seam 与 fork/revert 生命周期守卫套件：本轮明确不落（superseded-by-design 记录在 row 58 处置：queue.ts 本地 owner lease + 原生 client.tsx:89 media-loader 接线已覆盖其意图）。
+- **DENY（routing）** `#199` 依赖升级类 payload（workspace-dependency-closure 等依赖面）：本轮不触碰。
+- **EXCLUDED** `packages/core|server|schema|protocol` fs/media 服务端语义不在 vendored closure（同 #11 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。

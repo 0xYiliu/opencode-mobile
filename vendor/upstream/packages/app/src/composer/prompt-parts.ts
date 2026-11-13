@@ -30,7 +30,13 @@ export function isAttachment(part: ContentPart): part is ImageAttachmentPart | P
 
 export function clonePrompt(prompt: Prompt): Prompt {
   return prompt.map((part) =>
-    part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
+    // An image's blob object can be replaced in place by a pin handoff (its #188 attribution rides
+    // the object), so a clone copies it too.
+    part.type === "image"
+      ? { ...part, blob: { ...part.blob } }
+      : part.type === "file"
+        ? { ...part, selection: part.selection ? { ...part.selection } : undefined }
+        : { ...part },
   )
 }
 

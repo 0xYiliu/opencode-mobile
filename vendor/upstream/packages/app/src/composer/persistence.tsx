@@ -62,13 +62,17 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
     const serverSDK = useServerSDK()
     const tabs = useTabs()
     const cache = new Map<string, ComposerCacheEntry>()
+    let active = true
 
     const disposeAll = () => {
       for (const entry of cache.values()) entry.dispose()
       cache.clear()
     }
 
-    onCleanup(disposeAll)
+    onCleanup(() => {
+      active = false
+      disposeAll()
+    })
 
     const prune = () => {
       while (cache.size > MAX_PROMPT_SESSIONS) {
@@ -119,6 +123,10 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
     }
 
     const session = createMemo(() => load(scope()))
+    // mobile(M-016, issue #188): the identity a queued/forked/restored operation must keep to be
+    // allowed to publish into this composer. Only existing seams take part: the routed scope, the
+    // server the route names, and the composer instance that scope currently resolves to.
+    const ownership = createMemo(() => ({ scope: scopeKey(scope()), server: serverKey(), state: session() }))
 
     const pick = (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
       scope ? load(scope, target) : session()
@@ -139,6 +147,14 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } = 
 
     return {
       ready,
+      // mobile(M-016, issue #188): captures this composer's ownership identity; the returned
+      // predicate is false once the provider was disposed, the routed scope/server changed, or
+      // the scope resolves to another composer instance. Callers stop publishing on false.
+      captureOwner() {
+        const owner = ownership()
+
+        return () => active && ownership() === owner
+      },
       capture: (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
         pick(scope, target).capture(),
       current: withSuspense(() => session().current()),

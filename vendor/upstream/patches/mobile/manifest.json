@@ -180,8 +180,8 @@
       "verification": "V3 tree equivalence with the patch registered; the shared validateRedirectTarget/assertNoUrlCredentials rules are unit-tested in packages/mobile-hosts/test/url-policy.test.ts; V2 build smoke after registration; device behavior BLOCKED (G11).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by the v2.2.7 re-derivation carried in composer-queue-attachments-v2-2-7 (#84): the M-012 destination.ts face (assertNoUrlCredentials at write() entry + validateRedirectTarget rejection branch with SecureFetchError) is re-derived at the current tree's context and replayed as part of #84; historical payload and identity retained, not independently replayed"
     },
     {
       "id": "connection-error-classification",
@@ -290,8 +290,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0 (6180 modules); dist markers mobile(M-020) (function .marker properties, secure-fetch precedent), mobile(files-v1) and opencode-mobile-files-handshake (FILES_BRIDGE constants) found in the built assets; scripts/verify-attachments-artifacts.ts (stub shape, seam registration, three-field Platform completion); mobile-hosts test/files-client.test.ts locks the per-field stub semantics; device behavior BLOCKED (G27).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by the v2.2.7 re-derivation carried in composer-queue-attachments-v2-2-7 (#84): the M-020 entry.tsx files-bridge registration (createFilesClient over createWebMessageFilesTransport via setActiveFilesPort, above createMobileHosts) and the web.ts readClipboardImage/saveFile completion (per-call seam readers with both mobile(M-020) markers) are re-derived against the cumulative post-#184/#186/#187 tree; historical payload and identity retained, not independently replayed"
     },
     {
       "id": "attachments-share-bridge",
@@ -305,8 +305,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist marker mobile(M-021) (marker property inside the patched branch) found in the built assets; scripts/verify-attachments-artifacts.ts (data:-only branch guard + getFilename same-source name anchor + file:// branch zero-diff adjacent anchors); device share-sheet behavior BLOCKED (G27 item 5).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by the v2.2.7 re-derivation carried in composer-queue-attachments-v2-2-7 (#84): the M-021 region.tsx data:-only share branch (activeFilesPort().shareDataUrl with the getFilename same-source name and the false/throw fallback to the upstream anchor download) is re-derived at the current openAttachment shape; historical payload and identity retained, not independently replayed"
     },
     {
       "id": "app-notifications-bridge",
@@ -1681,7 +1681,7 @@
       "status": "deferred",
       "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: composer/media unit (#188/#196 lineage).",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed Issue #187 routing: not touched this round; owner: composer/media unit (#188/#196 lineage)."
+      "disposition": "deferred; partial carry by composer-queue-attachments-v2-2-7 (#84), which re-derives the composer-side set at v2.2.7 context: composer provenance (schema.ts, prompt.ts, prompt-parts.ts, history/entry.ts, media.ts, persistence.tsx, state.ts), the drafts.ts fail-closed foundation, the request.ts wire floor, the queue.ts ownership face, fork/revert provenance threading, and the drafts/queue/image/request test set. Superseded, not pending: the runtime/server/client.tsx capture/generation/mediaApi seam (superseded by the queue.ts-local owner lease plus the native client.tsx:89 media-loader wiring), runtime/server/media.ts type re-parenting (superseded — the v2.2.7 media cache keeps its upstream shape), and session-ownership.test.ts (deleted upstream; superseded by the #84 test set). The fork/revert lifecycle-guard suites route to #196. Historical payload and identity retained."
     },
     {
       "id": "files-stream-watch",
@@ -2215,6 +2215,48 @@
       "rebase": "#187 replay order is closure → #184 scoped overlay → inherited server-edit → #185 Home overlay → #186 tabs/Inbox/titlebar overlay → this patch, appended last to `mobilePatches`. The timeline/messaging production allowlist is absorbed by the v2.2.7 pin; only the panel-motion `:dir()` guard is active. Re-based from `session-android-adaptation` (its historical `mobile(A, issue #126)` marker text is preserved verbatim in that retired patch file; the re-landed guard carries the `mobile(timeline-messaging-v2-2-7, issue #187)` marker), regenerated against the current vendored panel-motion.ts context rather than replaying the old blob.",
       "sha256": "602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99",
       "status": "active"
+    },
+    {
+      "id": "composer-queue-attachments-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/composer-queue-attachments-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/runtime/persistence/drafts.ts",
+        "packages/app/src/runtime/persistence/drafts.test.ts",
+        "packages/app/src/composer/request.ts",
+        "packages/app/src/composer/request.test.ts",
+        "packages/app/src/composer/schema.ts",
+        "packages/app/src/composer/prompt.ts",
+        "packages/app/src/composer/prompt-parts.ts",
+        "packages/app/src/composer/history/entry.ts",
+        "packages/app/src/composer/media.ts",
+        "packages/app/src/composer/persistence.tsx",
+        "packages/app/src/composer/state.ts",
+        "packages/app/src/session/composer/queue.ts",
+        "packages/app/src/session/composer/queue.test.ts",
+        "packages/app/src/session/composer/queue-lifecycle.test.ts",
+        "packages/app/src/session/fork.ts",
+        "packages/app/src/session/revert.ts",
+        "packages/app/src/composer/attachments/destination.ts",
+        "packages/app/src/session/composer/region.tsx",
+        "packages/app/src/entry.tsx",
+        "packages/app/src/runtime/platform/web.ts",
+        "packages/app/src/runtime/server/image.test.ts"
+      ],
+      "reason": "Composer queue attachments at v2.2.7 (issue #188): re-derives the deferred payloads of attachments-upload-redirect-policy (#12), files-platform-bridge (#19), attachments-share-bridge (#20) and the composer-side face of session-media-source-safety (#58) against the CURRENT chain tree. Fail-closed pair: drafts.ts blobDataUrl refuses an unresolved `media:` reference (the old passthrough is gone) and request.ts buildPromptRequest rejects an unresolved `media:` file-part url at the wire boundary — recorded deviation: images are not re-checked in request.ts because both real producers build their dataUrl through blobDataUrl (which refuses unresolved refs first) and the v2.2.7 retryFingerprint legitimately mirrors a pending payload. Draft media refs carry sourceServerKey, resolve only on their captured server (no cross-server fallback), persist unresolved as { mediaURI, sourceServerKey }, and alias keys are source-scoped; setMediaBlobLoader returns an unregister closure and captureMediaSource provides the runtime lease. Composer provenance threads sourceServerKey through schema/prompt/prompt-parts/history-entry/media/persistence/state; state.ts attributes legacy refs at decode ONLY for uniquely scoped per-draft containers — session-prompt composers share a directory-keyed container and stay unattributed, a residual fenced by the request.ts wire floor (drafts stay editable). Queue ownership is queue.ts-local and machine-native (queue-machine.ts untouched): each mutation attempt captures an owner (composer instance, connection, media lease); after the review fix round the semantics are: pre-send owner checks only (rewrite pre-list checkpoint, sendEdit post-list checkpoint, per-admission native prepare hooks — a refused admission retracts locally and never reaches the wire), terminal dispatches ungated (the machine's DisposedReturn contract merges late undone/failed reports back), the undo-only abort watcher mirrors the machine's own dispose contract, and committed-phase withdrawals run ungated so an admitted replacement always cancels its original exactly once; the signal is never wired to an HTTP call, so no owner break can cancel a remote prompt or strand the machine. entry.tsx/web.ts overlap with #184/#186 is acknowledged — those hunks are generated against the cumulative post-#184/#186/#187 tree (precedented by #185/#186). rewrite re-admission residual (recorded): the queue's rewrite/undo re-posts a stored inbox payload's file uris verbatim (storedFileUri — a server-echo, not a client-built request), so the wire floor does not gate it; SAF trio re-derived: destination.ts M-012, region.tsx M-021, entry.tsx+web.ts M-020.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "V3 closure (verify-closure.sh) with the patch replayed byte-identically in order; app unit set (385-baseline + re-derived drafts/queue/image/request cases + queue-lifecycle regression cases) with the 5 pre-existing failures unchanged; test-browser set 13/0; session-ui set 38/0; mobile-hosts set 446/0; scripts/verify-attachments-artifacts.ts GREEN (M-012/M-020/M-021 anchors) and scripts/verify-files.ts GREEN after its two recorded v2.2.7 re-anchors; bun run build:web dist markers mobile(M-012 face anchors), mobile(M-020), mobile(M-021), mobile(files-v1); device SAF/share/clipboard behavior BLOCKED (G27).",
+      "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/188-composer-queue-attachments.",
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "server-edit-touch-compatibility",
+        "home-new-session-v2-2-7",
+        "tabs-inbox-titlebar-v2-2-7",
+        "timeline-messaging-v2-2-7"
+      ],
+      "sha256": "508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da",
+      "status": "active",
+      "disposition": "active; sole carrier of the re-derived #12/#19/#20 payloads and the composer-side face of #58"
     }
   ]
 }

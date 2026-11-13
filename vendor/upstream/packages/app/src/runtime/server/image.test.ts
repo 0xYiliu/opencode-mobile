@@ -201,14 +201,18 @@ describe("readLocalImage", () => {
     expect(await pending).toBeUndefined()
     expect(delayedCache.peek(`media:${hashA}`, "image/png")).toBeUndefined()
 
-    // Per-server draft loader keying and cleanup
+    // Per-server draft loader keying and cleanup. mobile(M-016, issue #188): a ref resolves only
+    // through the key it was captured on — no cross-server fallback probes other servers.
     setMediaBlobLoader("srv-1", async (uri) => `blob:srv1:${uri}`)
     setMediaBlobLoader("srv-2", async (uri) => `blob:srv2:${uri}`)
-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
     setMediaBlobLoader("srv-2", undefined)
-    expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBe(`blob:srv1:media:${hashA}`)
-    setMediaBlobLoader("srv-1", undefined)
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBeUndefined()
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-3" })).toBeUndefined()
     expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBeUndefined()
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
+    setMediaBlobLoader("srv-1", undefined)
+    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBeUndefined()
   })
 })

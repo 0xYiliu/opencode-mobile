@@ -11,6 +11,7 @@ import { extractPromptContext, extractPromptFromMessage } from "@/composer/promp
 import { pinPromptMedia } from "@/composer/media"
 import { clonePrompt, promptLength } from "@/composer/prompt-parts"
 import { showToast } from "@/shell/notifications/toast"
+import { ServerConnection } from "@/runtime/server/registry"
 import type { SessionModel } from "./model"
 import {
   createSessionRevertState,
@@ -73,6 +74,9 @@ export function createSessionRevert(input: {
   const messageDraft = (message: SessionMessageUser, directory: string) =>
     extractPromptFromMessage(message, {
       directory,
+      // mobile(M-016, issue #188): the restored prompt's media refs resolve (and pin) against the
+      // server this Session lives on, now that loaders fail closed without a source.
+      sourceServerKey: ServerConnection.key(server.server),
       attachmentName: language.t("common.attachment"),
       sessionTitle: (id) => data.session.get(id)?.title,
     })

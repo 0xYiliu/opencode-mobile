@@ -11,6 +11,7 @@
 - 当前子工作单元：[#185](https://github.com/0xYiliu/opencode-mobile/issues/185)（Home 与新建会话 v2.2.7 对齐）
 - 当前子工作单元：[#186](https://github.com/0xYiliu/opencode-mobile/issues/186)（tabs / Inbox / titlebar 与 Android back bridge）
 - 当前子工作单元：[#187](https://github.com/0xYiliu/opencode-mobile/issues/187)（timeline / messaging crosswalk 与 panel-motion guard）
+- 当前子工作单元：[#188](https://github.com/0xYiliu/opencode-mobile/issues/188)（composer / queue / attachments 重 derive 与归属保护）
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
@@ -18,6 +19,7 @@
 
 - #187 轮 implementation revision：`4b86f9b`（panel-motion guard + patch 注册）；registry/absorption revision=`004ed54`；web payload revision=`c8163a3`
 - #187 轮 documentation/final revision：本轮 docs-only commit（完整 SHA 在交付报告记录）；当前最终 HEAD 由该 commit 追溯；不改变实现、patch scope、registry/replay 或 BLOCKED/NOT RUN 边界。
+- #188 轮 implementation revision：`ede5f54`（#84 `composer-queue-attachments-v2-2-7` 注册 + #12/#19/#20 翻转 absorbed + probe v2.2.7 重锚定）；web payload revision=`4fa3d3e`；documentation/final revision=本轮 docs-only commit（完整 SHA 在交付报告记录）；不改变 BLOCKED/NOT RUN 边界。
 - 前轮（#186）binding：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）——保持历史有效。
 
 ## 基准与工作区
@@ -37,7 +39,7 @@
 
 - 全局 vendor pin：`fedc6f208aa2bd54c1019227214568083f6380ad`（v2.2.7）
 - 当前 `packageSources`：空；11 个 closure package 均从固定 v2.2.7 目标提取
-- 当前移动补丁：83 registered / 5 active / 26 absorbed / 52 deferred（#187 轮：7 条 deferred 翻转 absorbed、新增 `timeline-messaging-v2-2-7`）；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay、继承自 origin/main 的 `server-edit-touch-compatibility` patch、#185 `home-new-session-v2-2-7` patch、#186 `tabs-inbox-titlebar-v2-2-7` patch，再重放 #187 `timeline-messaging-v2-2-7` patch；#184 overlay 仍只包含 24 个 scoped targets
+- 当前移动补丁：84 registered / 6 active / 29 absorbed / 49 deferred（#188 轮：新增 `composer-queue-attachments-v2-2-7` active、#12/#19/#20 翻转 absorbed；#187 轮翻转记录保持历史）；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay、继承自 origin/main 的 `server-edit-touch-compatibility` patch、#185 `home-new-session-v2-2-7` patch、#186 `tabs-inbox-titlebar-v2-2-7` patch，再重放 #187 `timeline-messaging-v2-2-7` patch；#184 overlay 仍只包含 24 个 scoped targets
 - 当前客户端身份：Android/mobile `2.2.7`，versionCode `20207`；vendor app 包为 `2.2.7`
 - 当前补丁登记门禁：`python3 scripts/mobile-patches.py` PASS（83）
 - 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自 pristine v2.2.7 tree、closure patch、#184 scoped overlay、inherited main server-edit patch、#185 Home patch、#186 back bridge patch 与 #187 panel-motion guard patch 的有序重放和等价性核对。
@@ -216,3 +218,17 @@ bun test --conditions=browser packages/mobile-hosts
 - 已知失败/阻塞：direct `tsc` 仍报告 app→mobile-hosts 的 rootDir/TS6307、app→gui-plugins 的 TS6307、v2.2.7 generated/client 与旧 settings fixture 类型不一致，以及 closure 外的 Electron/GUI legacy 测试依赖；GUI `askpass.test.ts` 依赖未纳入 closure 的 `packages/core/test/lib/effect`。这些不能通过关闭 strict、引入 Electron 到 Android 或静默跳过来解决。
 - 下一步：完成 #185 文档/deny audit/diff review，按用户授权决定是否提交；不创建 PR、不推送、不合并；继续保持 typecheck 的 known-baseline、设备 UI 与真实链路的 BLOCKED/NOT RUN 边界。
 - 后置阻塞：真实 SSH tunnel/session/stream/permission/task survival、QR physical、设备 UI 与真实服务证据仍缺失；Android Gradle/APK 仅有本轮 build-only PASS，不能替代安装和受影响路径验证；解除条件为真实设备、授权 SSH 主机/服务端和完整链路证据，不能由静态或历史证据替代。
+
+### #188 当前执行状态
+
+- 目标：composer/queue/attachments 归属保护与 fail-closed 草稿语义在 v2.2.7 落地（active `composer-queue-attachments-v2-2-7`），并重 derive 已退役 #12/#19/#20 与 #58 composer 侧 payload。
+- 基准与绝对工作目录：`/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base `e4a6dd1`（#187 链尾，stacked chain）。
+- c0 基线（coordinator 记录，pristine stacked base）：A app 单测 385 pass / 5 fail / 1744 expect / 30 files（5 条 pre-existing：submit.test ×4、editor/actions.test.ts ×1）；B component set 0/4 pre-existing module-resolution（recorded，非门禁）；C test-browser 13/0/35；D session-ui 38/0/126；E mobile-hosts 446/0/3034；F1 verify-attachments-artifacts pre-existing FAIL（entry.tsx createFilesClient import）；F2 verify-files pre-existing FAIL（model.tsx isFileNotFoundError）。
+- 已完成：#84 patch（review 修复轮后 21 targets；patch SHA-256=`508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da`）按 §8 顺序落地——drafts fail-closed、request wire floor、composer provenance 7 文件、queue.ts 本地 machine-native owner（queue-machine.ts 零改动）、fork/revert provenance threading、SAF 三件（M-012/M-021/M-020）；测试重 derive（drafts/queue/image/request）；registry 84/6/29/49 + patches:refresh；probe 重锚定（verify-files 9 处 old→new + verify-attachments-artifacts 1 处，见 build-and-verify.md #188 段）。
+- 停止条件结果：S1 未触发（owner 集成完全 queue.ts-local，queue-machine.ts 零 diff）；S2 未触发（drafts fail-closed 与 drafts-machine 保持协调）；S3 未触发（verify-attachments-artifacts post-landing GREEN）；S4 未触发（set A 恒同 5 条 pre-existing，无新增失败——中途出现的 `pressing Enter...` 新失败经查明为 #84 request 守卫与 v2.2.7 retryFingerprint 的碰撞，按计划「NEW failure → fix #84」协议在 #84 内收窄（记录性偏差），复测后消失）；S5 未触发（无 scope/registry/安全策略变更）。
+- 门禁结果（verbatim）：`python3 scripts/mobile-patches.py` → PASS (84 registered; updated: none)；`python3 scripts/test_mobile_patches.py` → OK；`bash scripts/verify-closure.sh` → PASS（DANGLING=0，#84 按序 byte-identical 重放）；set A 396 pass / 5 fail（= 5 条 pre-existing，11 条净新增用例全绿）/ 1793 expect / 30 files；set C 13/0/35；set D 38/0/126；set E 446/0/3034；`git diff --check feat/187-timeline-messaging...HEAD -- . ':(exclude)vendor/upstream/patches/**'` → PASS；`bun run scripts/verify-attachments-artifacts.ts` → PASS（dist 5496 assets 标记核对）；`bun run scripts/verify-files.ts` → PASS。
+- 构建与 payload：`bun run build:web` rc=0（built in 15.33s）；`copy:web-dist` → 5520 files / 155,565,011 bytes verified；`android_web_assets.py verify` → verified；web payload revision=`4fa3d3e`（仅 web-dist/manifest.json 刷新，145 行 hash 行替换）。
+- Gradle（build-only）：`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` → BUILD SUCCESSFUL in 24s（42 tasks）；单测 **10 suites / 47 tests / 0 failures / 0 errors**（android/ 树与 #187 base byte-identical，计数为本轮 verbatim 实测，#187 轮记录为 9/39，差额来自链上此前轮次的测试集增长，本轮零 android 改动）；debug APK `android/app/build/outputs/apk/debug/app-debug.apk` **66,072,093 bytes，SHA-256 `a39ebb3b638d826630ae9b5b1f8460bf00d349d1d20b030acb71b8bf823b215f`**；未安装任何设备。
+- BLOCKED/NOT RUN：直连与 SSH 真机任务链、SAF/share/clipboard 设备行为（G27）、QA server 真服务竞态（W15 乐观编辑/重排/撤回）——解除条件：真实设备/授权 SSH 主机/QA server 可用并按 G 门禁执行；当前不声称任何设备/真实服务/runtime 验证。
+- 授权与停止条件：PR created not merged（授权内不推送、不合并）；无 S1–S5 触发。
+- **Review 修复轮（3 MAJOR + 4 MINOR，新增修复 commit）**：MAJOR-1 提交后 owner 门卸除（steer-edit cancel / rewrite cancels / run tail 恢复基线语义——不再在 committed 相位抛 owner 门，杜绝重复投递）；MAJOR-2 终态报告不再被 owner 抑制（dispose-returning 的 draft.merge 恢复成立；undo/edit-fail 两窗口均有回归测试）；MAJOR-3 owner break 只对 undo 触发 abort（machine dispose 同款契约），每 attempt 经自身 flow 恰好一个终态 machine 事件（R4/R5 锁定）；MINOR-4 rewrite 重入队 residual 在 row-58/#84 处置 + request.ts 注记登记；MINOR-5 queue.test 计数 13→18；MINOR-6 QueueOwner 死字段移除；MINOR-7 Set A 精确命令与 actions.test.ts 归属修正。新增 `queue-lifecycle.test.ts`（5 用例）入 #84 targets（21），patch 重生成（SHA-256 上记），verify-closure/registry 重放 PASS。

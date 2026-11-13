@@ -1,5 +1,7 @@
 import { batch, getOwner, onCleanup, untrack, type Accessor } from "solid-js"
 import { createStore, unwrap, type SetStoreFunction } from "solid-js/store"
+import { Predicate, Schema, SchemaGetter } from "effect"
+import { Persistence } from "@/runtime/persistence/schema"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { ServerScope } from "@/runtime/server/scope"
 import type { Platform } from "@/runtime/platform/platform"
@@ -232,8 +234,49 @@ function createPersistedComposer(
   target: ReturnType<typeof composerTarget>,
   initial?: InitialPrompt,
   platform?: Platform,
+  legacySourceServerKey?: string,
 ) {
-  const [store, setStore, _, ready] = persisted(target, ComposerStore, initialComposerStore(initial), platform)
+  // mobile(M-016, issue #188): only a uniquely scoped persisted container may attribute an old
+  // remote reference at decode. A draft's storage is per-draft, so one key cannot contradict
+  // another instance sharing it. Session-prompt composers share a directory-keyed container
+  // (local scopes collapse into it), so they deliberately stay unresolved — their residual is
+  // fenced at the wire boundary (buildPromptRequest refuses unresolved `media:` refs) and such
+  // drafts remain editable.
+  const attribute = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(attribute)
+    if (!Predicate.isObject(value)) return value
+    if (
+      legacySourceServerKey &&
+      value.type === "image" &&
+      Predicate.isObject(value.blob) &&
+      typeof value.blob.id === "string" &&
+      value.blob.id.startsWith("media:") &&
+      !Object.hasOwn(value.blob, "sourceServerKey")
+    )
+      return { ...value, blob: { ...value.blob, sourceServerKey: legacySourceServerKey } }
+    if (
+      legacySourceServerKey &&
+      value.type === "file" &&
+      typeof value.url === "string" &&
+      value.url.startsWith("media:") &&
+      !Object.hasOwn(value, "sourceServerKey")
+    )
+      return { ...value, sourceServerKey: legacySourceServerKey }
+
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, attribute(entry)]))
+  }
+  const definition = legacySourceServerKey
+    ? Persistence.migrate(
+        ComposerStore,
+        Schema.Unknown.pipe(
+          Schema.decode({
+            decode: SchemaGetter.transform(attribute),
+            encode: SchemaGetter.transform((value) => value),
+          }),
+        ),
+      )
+    : ComposerStore
+  const [store, setStore, _, ready] = persisted(target, definition, initialComposerStore(initial), platform)
 
   return { ready, ...createComposerStateValue(store, setStore) }
 }
@@ -244,7 +287,15 @@ export function createComposerState(
   initial?: InitialPrompt,
   platform?: Platform,
 ) {
-  return createPersistedComposer(composerTarget(serverScope, scope), initial, platform)
+  return createPersistedComposer(
+    composerTarget(serverScope, scope),
+    initial,
+    platform,
+    // A draft container is per-draft unique, so its stored refs all belong to the server the draft
+    // is routed against (local has no single key to attribute). Session-prompt scopes share their
+    // container and stay unattributed (see createPersistedComposer).
+    "draftID" in scope && serverScope !== ServerScope.local ? String(serverScope) : undefined,
+  )
 }
 
 export function createDraftComposerState(draftID: string, initial?: InitialPrompt) {

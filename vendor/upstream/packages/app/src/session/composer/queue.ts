@@ -1,16 +1,18 @@
-import { createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
+import { createEffect, createMemo, createRoot, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
 import type { PromptAttachment } from "@opencode/client/promise"
 import { SessionMessage } from "@opencode/schema/session-message"
 import type { ComposerDelivery, ComposerSession } from "@/composer/adapter"
 import type { ComposerStateTarget } from "@/composer/submission-state"
-import type { ImageAttachmentPart, Prompt } from "@/composer/state"
+import type { ImageAttachmentPart, PathAttachmentPart, Prompt } from "@/composer/state"
 import { clonePrompt, promptLength } from "@/composer/prompt-parts"
 import { buildPromptRequest } from "@/composer/request"
-import { type BlobReference, blobDataUrl } from "@/runtime/persistence/drafts"
+import { type BlobReference, blobDataUrl, captureMediaSource } from "@/runtime/persistence/drafts"
 import { pinPromptMedia } from "@/composer/media"
 import { extractPromptContext, extractPromptFromMessage } from "@/composer/prompt"
 import { useData } from "@/runtime/server/current"
+import { useComposerState } from "@/composer/persistence"
 import { useServerSDK } from "@/runtime/server/client"
+import { ServerConnection } from "@/runtime/server/registry"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
@@ -32,6 +34,16 @@ import {
   type QueuedPrompt,
 } from "./queue-machine"
 
+// mobile(M-016, issue #188): one mutation attempt's captured ownership. `current` is false once
+// the queue unmounted, the composer instance was replaced, the connection rebuilt, or the media
+// lease was superseded — any of which stops the attempt's not-yet-dispatched remote steps.
+type QueueOwner = {
+  composerOwner: () => boolean
+  http: ServerConnection.HttpBase
+  media: () => boolean
+  current: () => boolean
+}
+
 export function createSessionQueue(input: {
   sessionID: string
   draft: ComposerStateTarget
@@ -44,6 +56,36 @@ export function createSessionQueue(input: {
   const server = useServerSDK()
   const location = useWorkspaceLocation()
   const language = useLanguage()
+  const composer = useComposerState()
+
+  // mobile(M-016, issue #188): every mutation, pin and undo runs on an owner captured when it
+  // starts. The owner binds the attempt to the composer instance, the connection and the media
+  // lease it started on. The owner never gates a machine report or a request already dispatched:
+  // an attempt whose owner broke still reaches exactly one terminal machine event through its own
+  // flow (bounded by the request queue's wait for headers), and only its not-yet-dispatched remote
+  // steps stop — an undo via the abort watcher below, later re-admissions via the client's native
+  // `prepare` hook. The AbortSignal is never wired to an HTTP call, so no owner break cancels a
+  // remote prompt or task (issue #188).
+  const sourceServerKey = ServerConnection.key(server.server)
+  let active = true
+  onCleanup(() => {
+    active = false
+  })
+
+  const captureOwner = (): QueueOwner => {
+    const composerOwner = composer.captureOwner()
+    const media = captureMediaSource(sourceServerKey)
+    const owner: Omit<QueueOwner, "current"> = {
+      composerOwner,
+      http: server.http,
+      media,
+    }
+
+    return Object.assign(owner, {
+      // The predicate closes over the captured identity itself.
+      current: () => active && composerOwner() && server.http === owner.http && media(),
+    })
+  }
 
   const queued = createMemo(() =>
     data.session.pending
@@ -122,8 +164,12 @@ export function createSessionQueue(input: {
 
     if (effect.type === "media.pin") {
       // Images the user removed meanwhile stay removed; a pin for a row no longer open is rejected by the machine.
-      void pinPromptMedia([...effect.attachments]).then(
-        (pinned) =>
+      // The pin loads on the queue's own server lease (issue #188): a lost owner rejects the machine attempt
+      // (unchanged) and leaves the edit draft's unresolved refs alone.
+      const owner = captureOwner()
+      void pinPromptMedia(sourcedAttachments([...effect.attachments], sourceServerKey), owner.current).then(
+        (pinned) => {
+          if (!owner.current()) return
           dispatch({
             type: "edit.mediaPinned",
             attempt: effect.attempt,
@@ -132,7 +178,8 @@ export function createSessionQueue(input: {
                 part.type === "image" ? [[part.id, part.blob]] : [],
               ),
             ),
-          }),
+          })
+        },
         () => undefined,
       )
 
@@ -141,10 +188,33 @@ export function createSessionQueue(input: {
 
     if (effect.type === "mutation.run") {
       const attempt = effect.operation.attempt
-      const progress: MutationProgress = { controller: new AbortController(), hidden: [], stage: "running" }
+      const progress: MutationProgress = {
+        controller: new AbortController(),
+        hidden: [],
+        stage: "running",
+        owner: captureOwner(),
+      }
       runs.set(attempt, progress)
+      // mobile(M-016, issue #188): an owner break stops the attempt where a stop is still safe —
+      // an undo before its cancel, exactly the machine's dispose contract. Edit and reorder
+      // attempts run to completion like the base (the server may already hold half of one); their
+      // per-admission `prepare` hook stops NEW admissions on the broken owner and the failure path
+      // withdraws what was already sent. Every attempt — owner-broken or not — reaches exactly one
+      // terminal machine event through its own flow tail (dispatches are ungated; the machine
+      // ignores stale attempts), so the machine never strands on an owner break.
+      const stopWatching = createRoot((dispose) => {
+        createEffect(() => {
+          if (effect.operation.type === "undo" && !progress.owner.current())
+            runs.get(attempt)?.controller.abort()
+        })
 
-      return void run(effect.operation, progress).finally(() => runs.delete(attempt))
+        return dispose
+      })
+
+      return void run(effect.operation, progress).finally(() => {
+        runs.delete(attempt)
+        stopWatching()
+      })
     }
 
     if (effect.type === "mutation.abort") return runs.get(effect.attempt)?.controller.abort()
@@ -204,7 +274,11 @@ export function createSessionQueue(input: {
   }
 
   // Runs the operation in flight and reports its progress. Each report carries the operation's attempt, so the machine
-  // ignores one that arrives after the operation stopped being current.
+  // ignores one that arrives after the operation stopped being current. Reports are never owner-gated (issue #188
+  // review round): a result that lands after the owner was lost still settles the machine — the machine's own
+  // attempt tracking and disposed-return contract (queue-machine `returning`/`settleDisposed`) decide what a late
+  // report does, so queued or edited content is never stranded by a suppressed report. The owner instead stops the
+  // attempt's not-yet-dispatched remote steps (abort watcher for an undo, `prepare` for admissions).
   const run = async (operation: ActiveOperation, progress: MutationProgress) => {
     const attempt = operation.attempt
 
@@ -236,9 +310,11 @@ export function createSessionQueue(input: {
       await undoQueuedPrompt({
         prompt: extractPromptFromMessage(source, {
           directory: location().directory,
+          sourceServerKey,
           attachmentName: language.t("common.attachment"),
           sessionTitle: (id) => data.session.get(id)?.title,
         }),
+        sourceServerKey,
         signal: progress.controller.signal,
         cancelInboxItem: () => {
           progress.stage = "committed"
@@ -297,6 +373,9 @@ export function createSessionQueue(input: {
     signal.throwIfAborted()
     // Like a queued edit, an original the server delivered meanwhile keeps the edit draft instead of sending twice.
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
+    // Pre-admission owner checkpoint (issue #188): the admission below has not been dispatched yet,
+    // so a broken owner stops before any remote effect; the committed phase after it runs ungated.
+    if (!progress.owner.current()) throw new DOMException("", "AbortError")
 
     if (!pending.some((item) => item.id === operation.original && item.type === "user" && item.delivery === "queue"))
       throw new Error("Queued prompt was delivered before the edit")
@@ -305,7 +384,16 @@ export function createSessionQueue(input: {
     // A steered replacement can be delivered before a withdrawal reaches it, so the bound waits for the admission and
     // the edit returns to the composer only if it really did not go out.
     progress.stage = "committed"
-    await data.session.prompt(admission)
+    // The client's native prepare hook re-checks ownership just before the request goes out, so a
+    // lost owner never admits a new remote prompt (issue #188). Once the admission is dispatched
+    // the committed phase runs ungated (issue #188 review round): admitting and then abandoning
+    // the original's cancel would deliver it twice.
+    await data.session.prompt({
+      ...admission,
+      prepare: async () => {
+        if (!progress.owner.current()) throw new DOMException("", "AbortError")
+      },
+    })
     void background?.move()
     dispatch({ type: "mutation.admitted", attempt: operation.attempt })
     // Cancelling is a no-op once the original is gone, so one retry is safe.
@@ -328,6 +416,10 @@ export function createSessionQueue(input: {
     const signal = progress.controller.signal
     signal.throwIfAborted()
     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
+    // Pre-admission owner checkpoint (issue #188): nothing has been sent in this rewrite yet, so a
+    // broken owner stops before any remote effect. Past this point each admission carries its own
+    // `prepare` hook and the committed phase runs ungated.
+    if (!progress.owner.current()) throw new DOMException("", "AbortError")
     signal.throwIfAborted()
 
     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
@@ -351,6 +443,8 @@ export function createSessionQueue(input: {
       Promise.all(
         replacements.map((inboxID) =>
           server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).then(
+            // The hidden record feeds the machine's failure report; the withdrawal itself always
+            // runs — it cleans up copies the server may already hold (issue #188 review round).
             () => void progress.hidden.push(inboxID),
             () => undefined,
           ),
@@ -396,10 +490,22 @@ export function createSessionQueue(input: {
 
       await stopped()
       replacements.push(id)
-      await data.session.prompt({ ...admission, id }).catch(async (error) => {
-        await withdraw()
-        throw error
-      })
+      // The native prepare hook re-checks ownership just before each re-admission goes out, so a
+      // broken owner never admits a new remote prompt (issue #188); the failure path withdraws what
+      // earlier iterations already sent. Once an admission is dispatched the flow runs ungated
+      // (issue #188 review round): abandoning the committed cancels would hold both copies.
+      await data
+        .session.prompt({
+          ...admission,
+          id,
+          prepare: async () => {
+            if (!progress.owner.current()) throw new DOMException("", "AbortError")
+          },
+        })
+        .catch(async (error) => {
+          await withdraw()
+          throw error
+        })
     }
 
     await stopped()
@@ -409,7 +515,9 @@ export function createSessionQueue(input: {
     if (replace) dispatch({ type: "mutation.admitted", attempt })
 
     // An edit cancels last first: the strip shows each original until it goes, so its copies never
-    // show out of order.
+    // show out of order. The committed cancel phase runs ungated (issue #188 review round): every
+    // copy is already admitted, so an owner break here must not leave the originals queued behind
+    // them — that would deliver both.
     const replaced = current.slice(changed)
 
     for (const item of replace ? replaced.reverse() : replaced) {
@@ -482,7 +590,14 @@ export function createSessionQueue(input: {
 export type SessionQueue = ReturnType<typeof createSessionQueue>
 
 // What a running operation has done so far: the IDs it withdrew or cancelled, and how far it got.
-type MutationProgress = { controller: AbortController; hidden: string[]; stage: QueueMutationStage }
+// mobile(M-016, issue #188): the owner captured at mutation.run binds every publication to the
+// composer, connection and media lease the attempt started on.
+type MutationProgress = {
+  controller: AbortController
+  hidden: string[]
+  stage: QueueMutationStage
+  owner: QueueOwner
+}
 
 // The slice of the queue the panel renders and drives. Without `moved`, a replaced row closes and its replacement opens.
 export type SessionQueueView = Pick<
@@ -494,16 +609,48 @@ export type SessionQueueView = Pick<
 // Pin `media:<hash>` attachments before cancelling: the cancel releases the item's blob refs and sweeps blobs
 // nothing else references, so a pin that fails leaves the item queued.
 // An undo stopped while its media loads leaves the item queued.
+// mobile(M-016, issue #188): `sourceServerKey` backfills refs that predate per-part provenance —
+// the queued items came from this queue's own server, so the attribution is the captured source,
+// not a cross-server fallback.
 export async function undoQueuedPrompt<A>(input: {
   prompt: Prompt
+  sourceServerKey?: string
   signal?: AbortSignal
   cancelInboxItem: () => Promise<A>
 }): Promise<Prompt> {
-  const pinned = await pinPromptMedia(input.prompt)
-  input.signal?.throwIfAborted()
+  const signal = input.signal
+  const prompt = input.sourceServerKey
+    ? input.prompt.map((part) => {
+        if (part.type === "image" && !part.blob.sourceServerKey)
+          return { ...part, blob: { ...part.blob, sourceServerKey: input.sourceServerKey } }
+        if (part.type === "file" && !part.sourceServerKey) return { ...part, sourceServerKey: input.sourceServerKey }
+
+        return part
+      })
+    : input.prompt
+  let pinned: Prompt
+  try {
+    pinned = await pinPromptMedia(prompt, signal && (() => !signal.aborted))
+  } catch (error) {
+    // A stop that lands mid-load reads as the signal's abort, not a missing attachment: the caller
+    // stopped the undo, so the item stays queued exactly as an explicit abort does.
+    if (signal?.aborted) throw new DOMException("", "AbortError")
+    throw error
+  }
+  signal?.throwIfAborted()
   await input.cancelInboxItem()
 
   return pinned
+}
+
+// mobile(M-016, issue #188): the machine's `queuedPromptAttachments` is source-neutral (the machine
+// keeps its upstream shape), so the queue attributes each image ref with the server the queue is
+// bound to before a pin loads the bytes. Data URLs are unaffected: `createLegacyBlobReference`
+// keeps them byte-exact.
+function sourcedAttachments(attachments: readonly (ImageAttachmentPart | PathAttachmentPart)[], sourceServerKey: string) {
+  return attachments.map((part) =>
+    part.type === "image" && !part.blob.sourceServerKey ? { ...part, blob: { ...part.blob, sourceServerKey } } : part,
+  )
 }
 
 // A stored file re-admits by the URI it came from, as the TUI does, so a file:// reference keeps its

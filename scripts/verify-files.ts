@@ -106,7 +106,8 @@ const squash = (source: string) => source.replace(/\s+/g, "")
     fail("1: file search must route through api.file.find (newline-tolerant match)")
   if (!model.includes("absolute:`${scope()}/${entry.path}`"))
     fail("1: tree nodes must compose absolute from scope + entry path (path identity)")
-  if (!model.includes("isFileNotFoundError(e)"))
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the catch variable is named `error`.
+  if (!model.includes("isFileNotFoundError(error)"))
     fail("1: model.tsx must normalize FileNotFoundError via isFileNotFoundError")
   if (!model.includes("formatServerError"))
     fail("1: model.tsx must surface formatServerError for non-NotFound failures")
@@ -125,7 +126,12 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!client.includes("path: `/api/fs/list`")) fail("1: generated client lost the /api/fs/list endpoint path")
   if (!client.includes("path: `/api/fs/find`")) fail("1: generated client lost the /api/fs/find endpoint path")
   // The read block specifically: declared 401 + binary transfer.
-  const readBlock = /file:\s*\{[\s\S]*?read:\s*\(input[\s\S]*?list:\s*\(input/.exec(client)
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the generated client grew an
+  // experimental persistentPty read before the fs group, so the old lazy
+  // `file: { ... read: (input ... list: (input` span matched the wrong block. The read/list
+  // pair is now pinned by its de-prefixed wrapper names (same vendored-face discipline as the
+  // watch/unwatch block in section 9).
+  const readBlock = /read:\s*\(input: FileReadInput[\s\S]*?list:\s*\(input\?: FileListInput/.exec(client)
   if (!readBlock) fail("1: the file.read block was not found in the generated client")
   if (!readBlock![0].includes("declaredStatuses: [400, 401, 404]"))
     fail("1: file.read must declare [400, 401, 404] (401 = auth face of server permissions)")
@@ -165,20 +171,33 @@ const squash = (source: string) => source.replace(/\s+/g, "")
 
   // The single call site keeps its attachments-upload-redirect-policy transport-hygiene context (#16 face).
   const destination = await read(`${APP}src/composer/attachments/destination.ts`)
-  if (!destination.includes('new URL("/api/experimental/fs/write", server.conn.http.url)'))
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the endpoint is built from the
+  // sdk's current connection (`sdk.http.url`), not the b4525d79-era `server.conn.http.url`.
+  if (!destination.includes('new URL("/api/experimental/fs/write", sdk.http.url)'))
     fail("2: destination.ts lost the upload endpoint construction")
   // Re-anchored to the v2.2.1 (3ebcf9a) form: the b4525d79-era responseURL redirect-policy
   // validation no longer exists in the vendored source; the upload path is the direct XHR POST
   // with the Basic auth header and the { data: { path } } response contract.
   for (const anchor of ["xhr.open(\"POST\", url)", "xhr.responseType = \"json\"", "authTokenFromCredentials({ password })", "(xhr.response as { data: { path: string } }).data.path"])
     if (!destination.includes(anchor)) fail(`2: destination.ts upload path lost the v2.2.1 anchor: ${anchor}`)
-  // Re-anchored to the v2.2.1 form: the userinfo-credential URL refusal moved out of
-  // destination.ts into the connect dialog (mobile(M-013) enforcement site).
-  const dialog = squash(await read(`${APP}src/servers/connect/dialog.tsx`))
-  if (!dialog.includes("assertNoUrlCredentials(normalized)"))
-    fail("2: the userinfo-credential URL refusal must stay enforced via assertNoUrlCredentials in the connect dialog (M-013 site)")
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the userinfo-credential URL refusal
+  // moved from the connect dialog's normalize path into the connect CONTROLLER's submitted-event
+  // handling (mobile(M-013) enforcement site; the old b4525d79-era anchor read
+  // `assertNoUrlCredentials(normalized)` in dialog.tsx).
+  const controller = squash(await read(`${APP}src/servers/connect/controller.ts`))
+  if (!controller.includes("assertNoUrlCredentials(prev.draft.url)"))
+    fail("2: the userinfo-credential URL refusal must stay enforced via assertNoUrlCredentials in the connect controller (M-013 site)")
   if (!destination.includes("a 200 from `fs.write` is its declared success body"))
     fail("2: destination.ts lost the SAFETY comment context")
+  // mobile(M-012) anchors re-derived by composer-queue-attachments-v2-2-7 (issue #188): the
+  // upload face enforces the URL policy itself — credential refusal at write() entry and the
+  // final-response redirect validation in the load listener (fail-closed SecureFetchError).
+  if (!destination.includes("assertNoUrlCredentials(url.href)"))
+    fail("2: destination.ts lost the mobile(M-012) assertNoUrlCredentials call at write() entry")
+  if (!destination.includes("validateRedirectTarget(url.href, xhr.responseURL)"))
+    fail("2: destination.ts lost the mobile(M-012) validateRedirectTarget final-response check")
+  if (!destination.includes('verdict.reason === "downgrade" ? "redirect-downgrade" : "redirect-cross-host"'))
+    fail("2: destination.ts lost the mobile(M-012) SecureFetchError rejection branch")
 
   // N-5 single-listing: the generated wrapper exists but has NO caller in the
   // scan domain (the set above proves it) — pin its existence here so a pin
@@ -226,16 +245,24 @@ const squash = (source: string) => source.replace(/\s+/g, "")
     fail("4: model.tsx lost the filesystem.changed subscription")
   if (!model.includes("load(file, { force: true, silent: true })"))
     fail("4: open files must be force-reread (silent) on filesystem.changed")
-  // Adjacent scope-change reset block: inflight/LRU/store/tree reset together.
-  if (!/on\(scope, \(\) => \{[\s\S]*?inflight\.clear\(\)[\s\S]*?resetFileContentLru\(\)[\s\S]*?reconcile\(\{\}\)[\s\S]*?tree\.reset\(\)/.test(model))
-    fail("4: the scope-change reset block (inflight/LRU/store/tree) changed")
-  if (!/a reset after that load\s*\/\/\s*would discard its reply/.test(model))
+  // Adjacent scope-change reset block. Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the
+  // inflight/LRU/store resets moved into the content machine's `scope.changed` transition
+  // (abort.all + cache.reset), and the model's handler dispatches that plus tree.reset in one
+  // batch (the old b4525d79-era inline `inflight.clear()/resetFileContentLru()/reconcile({})`
+  // block no longer exists).
+  if (!/on\(scope, \(directory\) => \{[\s\S]*?dispatch\(\{ type: "scope.changed", directory \}\)[\s\S]*?tree\.reset\(\)/.test(model))
+    fail("4: the scope-change reset block (machine scope.changed + tree.reset) changed")
+  // Re-anchored to the v2.2.7 line wrap ("a reset after that / load would discard its reply").
+  if (!/a reset after that\s*\/\/\s*load would discard its reply/.test(model))
     fail("4: the scope-change ordering comment anchor changed (verbatim, newline-tolerant)")
 
   const renderer = await read(`${GUI_EXT}src/file/renderer.tsx`)
-  if (!renderer.includes("Always reread: a cached copy can be stale"))
-    fail("4: the link-open reread comment anchor changed (verbatim 'Always reread: a cached copy can be stale')")
-  if (!renderer.includes("files.sync(targetPath, { force: true })"))
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the comment is now the sentence tail
+  // "..., and always reread: a cached copy can be stale." (lowercase), and the sync call names
+  // the effect path with silent:true — the force reread discipline is unchanged.
+  if (!renderer.includes("always reread: a cached copy can be stale"))
+    fail("4: the link-open reread comment anchor changed (verbatim 'always reread: a cached copy can be stale')")
+  if (!renderer.includes("files.sync(effect.path, { force: true, silent: true })"))
     fail("4: link-open must confirm existence via files.sync(force) before a tab appears")
 
   const viewCache = await read(`${APP}src/workspaces/files/view-cache.ts`)
@@ -276,10 +303,16 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!renderer.includes("<Show when={desktop}>")) fail("6: the OpenInApp UI must gate on <Show when={desktop}>")
 
   const openInApp = await read(`${GUI_EXT}src/file/open-in-app.tsx`)
-  if (!openInApp.includes("!!desktop && input.session.server.local"))
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): canOpen grew skill:// and /builtin/
+  // exclusion arms, so the desktop && local double gate wraps onto its own lines
+  // (the old b4525d79-era single-line `!!desktop && input.session.server.local` no longer exists).
+  if (!openInApp.includes("!!desktop &&\n      input.session.server.local &&"))
     fail("6: canOpen lost its desktop && local double gate")
-  if (!openInApp.includes("if (opening() || !canOpen() || !desktop) return"))
-    fail("6: openPath lost its canOpen/desktop early return")
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): openPath gained app/target/reveal
+  // parameters and the desktop gate folded into canOpen, so the early return is now
+  // `if (!canOpen()) return` (the old `opening() || !canOpen() || !desktop` form is gone).
+  if (!openInApp.includes("if (!canOpen()) return"))
+    fail("6: openPath lost its canOpen early return")
 
   const hostApis = squash(await read(`${APP}src/runtime/plugin/host-apis.tsx`))
   if (!/desktop:\(\)=>platform\.platform==="desktop"\?[\s\S]*?:undefined/.test(hostApis))
@@ -308,8 +341,14 @@ const squash = (source: string) => source.replace(/\s+/g, "")
     fail("6: tree rows must gate open-in-app behind ctx.desktop")
 
   const browser = await read(`${GUI_EXT}src/file/browser.tsx`)
-  if (!browser.includes("file.search(value, { limit: 200, signal })"))
+  // Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the search moved into the browser's
+  // machine face — `file.find({ ..., type: "file", limit: 200 }, { signal: AbortSignal.any(...) })`
+  // keeps the limit-200 + signal discipline (the old `file.search(value, { limit: 200, signal })`
+  // call no longer exists).
+  if (!browser.includes('type: "file", limit: 200 },'))
     fail("6: the search query anchor changed (limit 200 + signal)")
+  if (!browser.includes("AbortSignal.any([ctx.signal, request.controller.signal])"))
+    fail("6: the search lost its combined abort signal")
   if (!browser.includes('role="status"')) fail("6: the search loading/empty states lost role=status")
   if (!browser.includes("draggable={!props.mobile}"))
     fail("6: mobile must keep drag disabled (draggable lives in browser.tsx — review N-2)")
@@ -399,28 +438,30 @@ let osScanFiles = 0
 // --- 9. Streaming reads + file-watch subscriptions (issue #143) ---
 {
   // model.tsx: the streamed media read (HEAD-first, download fallback), the
-  // watch/unwatch lifecycle (open-or-show watch, reconnect re-watch), and the
-  // mobile call-point adaptation (vendored generated face has no `experimental`
-  // namespace on the file group — see the mobile(files-stream-watch) note).
+  // watch/unwatch lifecycle (open-or-show watch, reconnect re-watch).
+  // Re-anchored to the v2.2.7 (fedc6f2) forms (issue #188): the HEAD probe moved into
+  // `headStreamedFile(platform.fetch ?? fetch, url, signal)` (artifact.ts), and upstream
+  // re-verticalized the watch call points through `api.experimental.file.watch/unwatch` —
+  // the generated face carries the `Experimental`-prefixed wrappers again, so the old
+  // mobile(files-stream-watch) de-prefix adaptation is obsolete and the anti-leak check
+  // below is retired (recorded old→new).
   const model = squash(await read(`${APP}src/workspaces/files/model.tsx`))
   if (!model.includes("streamedKinds.has(artifactKind(file))"))
     fail("9: model.tsx lost the streamed-kind gate (HEAD-first read)")
-  if (!model.includes("platform.fetch??fetch)(url,{method:\"HEAD\"})"))
-    fail("9: model.tsx lost the HEAD probe shape (platform.fetch ?? fetch)")
+  if (!model.includes("headStreamedFile(platform.fetch??fetch,url,signal)"))
+    fail("9: model.tsx lost the HEAD probe shape (headStreamedFile over platform.fetch ?? fetch)")
   if (!model.includes("response.ok?streamedFileContent(file,url,response):download()"))
     fail("9: model.tsx lost the streamed/download fallback pair")
-  if (!model.includes("voidserverSDK.api.file.watch({path:file,location:{directory:scope()}}).catch(()=>{})"))
-    fail("9: model.tsx watch must dial api.file.watch scoped to the location and swallow errors (old-server tolerance)")
-  if (!model.includes("voidserverSDK.api.file.unwatch({path:file,location:{directory:scope()}}).catch(()=>{})"))
-    fail("9: model.tsx unwatch must dial api.file.unwatch scoped to the location and swallow errors")
+  if (!model.includes("voidserverSDK.api.experimental.file.watch({path:file,location:{directory:scope()}}).catch(()=>{})"))
+    fail("9: model.tsx watch must dial api.experimental.file.watch scoped to the location and swallow errors (old-server tolerance)")
+  if (!model.includes("voidserverSDK.api.experimental.file.unwatch({path:file,location:{directory:scope()}}).catch(()=>{})"))
+    fail("9: model.tsx unwatch must dial api.experimental.file.unwatch scoped to the location and swallow errors")
   if (!model.includes('serverSDK.event.on("server.connected"'))
     fail("9: model.tsx lost the server.connected re-watch subscription")
   if (!model.includes("attachment.files.opened().forEach(watch)"))
     fail("9: the reconnect handler must re-watch the opened files")
   if (!model.includes("onCleanup(stop)"))
     fail("9: the server.connected subscription must clean up (onCleanup)")
-  if (model.includes("api.experimental.file.watch") || model.includes("api.experimental.file.unwatch"))
-    fail("9: the pin generated-face namespace (api.experimental.file.*) leaked back into model.tsx")
 
   // artifact.ts: streamed media kinds + the versioned URL composition.
   const artifact = squash(await read(`${APP}src/workspaces/files/artifact.ts`))
@@ -453,18 +494,22 @@ let osScanFiles = 0
   if (!fs.includes("ServiceUnavailableError"))
     fail("9: fs.watch must declare ServiceUnavailableError (location not ready → 503)")
 
-  // generated client: the vendored (de-prefixed) wrapper names and statuses.
+  // generated client. Re-anchored to the v2.2.7 (fedc6f2) form (issue #188): the vendored
+  // generated face carries the upstream `Experimental`-prefixed wrapper names again (the
+  // de-prefix payload of the old files-stream-watch adaptation is obsolete upstream), with the
+  // same endpoint paths and the same watch statuses.
   const client = await read(`${CLIENT}src/promise/generated/client.ts`)
   if (!client.includes("path: `/api/experimental/fs/watch`"))
     fail("9: the generated client lost the watch/unwatch endpoint path")
-  const watchBlock = /watch:\s*\(input: FileWatchInput[\s\S]*?unwatch:\s*\(input: FileUnwatchInput[\s\S]*?\),\s*\n\s*\},/.exec(client)
-  if (!watchBlock) fail("9: the file.watch/unwatch wrapper block (FileWatchInput/FileUnwatchInput names) changed")
-  if (watchBlock && !watchBlock[0].includes("successStatus: 204,\n            declaredStatuses: [400, 401, 404, 503],\n            empty: true,"))
+  const watchBlock =
+    /watch:\s*\(input: ExperimentalFileWatchInput[\s\S]*?unwatch:\s*\(input: ExperimentalFileUnwatchInput[\s\S]*?\),\s*\n\s*\},/.exec(client)
+  if (!watchBlock)
+    fail("9: the file.watch/unwatch wrapper block (ExperimentalFileWatchInput/ExperimentalFileUnwatchInput names) changed")
+  if (watchBlock && !watchBlock[0].includes("successStatus: 204,\n              declaredStatuses: [400, 401, 404, 503],\n              empty: true,"))
     fail("9: file.watch must declare success 204 with [400, 401, 404, 503]")
-  if (client.includes("ExperimentalFileWatchInput") || client.includes("ExperimentalFileUnwatchInput"))
-    fail("9: the Experimental-prefixed type names leaked into the vendored generated client")
 
-  // types.ts: the four de-prefixed payload types.
+  // types.ts: the four payload types (the de-prefixed names survive as upstream deprecated
+  // aliases of the Experimental-prefixed types).
   const types = await read(`${CLIENT}src/promise/generated/types.ts`)
   for (const name of ["FileWatchInput", "FileWatchOutput", "FileUnwatchInput", "FileUnwatchOutput"]) {
     if (!types.includes(`export type ${name} =`)) fail(`9: generated types lost ${name}`)
@@ -478,7 +523,11 @@ let osScanFiles = 0
 // (applyGitStatusPatch/getVisibleRows TypeErrors; see docs/build-and-verify.md #162/#163).
 {
   const tree = await read(`${GUI_EXT}src/file/pierre-tree.tsx`)
-  if (!tree.includes("tree.applyGitStatusPatch(patch)"))
+  // Re-anchored to the v2.2.7 (fedc6f2) forms (issue #188): the beta.6 calls moved into effect
+  // handlers (`current.applyGitStatusPatch(effect.patch)`) and a guard expression
+  // (`tree.getVisibleRows(startIndex, endIndex)` inside a null-checked branch); the beta.6 pin
+  // and the file-tree-v2 identity are unchanged.
+  if (!tree.includes("current.applyGitStatusPatch(effect.patch)"))
     fail("10: pierre-tree lost the beta.6 applyGitStatusPatch call (git status badge chain)")
   if (!tree.includes("tree.getVisibleRows(startIndex, endIndex)"))
     fail("10: pierre-tree lost the beta.6 getVisibleRows call (scroll-into-view chain)")
