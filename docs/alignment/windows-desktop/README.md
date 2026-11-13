@@ -6,7 +6,7 @@
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.7 | **活跃目标，合并解析已提交待推送** | 当前 worktree HEAD 为本次 merge resolution commit（parents 为 c7441f5e 与 origin/main `4961ec04`；父轮审计起点 `fd898b8` 仅作历史锚点）；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry 80 registered / 2 active / 19 absorbed / 59 deferred | Desktop/closure 审计、vendor 重建、补丁登记、版本身份和 #184 focused tests 已有静态证据；全仓 typecheck、Android/Gradle/APK、设备、QR、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
+| v2.2.7 | **活跃目标，合并解析已提交并推送** | 当前 worktree HEAD 为本次 merge resolution commit（parents 为 c7441f5e 与 origin/main `4961ec04`；父轮审计起点 `fd898b8` 仅作历史锚点）；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry 80 registered / 2 active / 19 absorbed / 59 deferred | Desktop/closure 审计、vendor 重建、补丁登记、版本身份和 #184 focused tests 已有静态证据；全仓 typecheck、Android/Gradle/APK、设备、QR、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
 | v2.2.1 | **冻结历史** | 历史检查与实现证据保留原提交/环境边界 | 不因 v2.2.7 新代码回填历史；原矩阵中的 PASS/BLOCKED/未验证只说明 v2.2.1 轮次 | [历史矩阵](v2.2.1/matrix.md) · [历史基准](v2.2.1/baseline.md) · [历史复核](v2.2.1/current-review.md) |
 
 当前 Android/mobile/About 声明身份为 `2.2.7`（versionCode `20207`），vendor app 为 `2.2.7`；Android Gradle/APK、adb、设备 UI 和覆盖安装尚未运行验证。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。

@@ -26,6 +26,6 @@
 
 - `bunx tsc -b --pretty false` 仍未通过：直接错误包含 app/mobile-hosts rootDir/TS6307、app/gui-plugins source inclusion、v2.2.7 generated/client 与旧 settings fixture 类型不一致，以及 closure 外 legacy GUI/Electron 测试错误。该门禁不以关闭 strict 或扩大 Android closure 解决。
 - Android Gradle/APK、adb 安装、设备 UI、QR physical、Windows v2.2.7 运行端、真实远程服务、真实 JSch tunnel/session/stream/permission/task-survival 均未运行验证。
-- merge resolution 已提交，当前待推送到 `feat/upstream-227-alignment`；PR #200 保持不合并，版本身份已同步为 Android/mobile/About `2.2.7`、versionCode `20207`，连接服务版本仍独立展示。
+- merge resolution 已提交并推送到 `feat/upstream-227-alignment`；PR #200 当前保持 OPEN/CLEAN/MERGEABLE，不执行合并；版本身份已同步为 Android/mobile/About `2.2.7`、versionCode `20207`，连接服务版本仍独立展示。
 
 因此本轮可以声明“v2.2.7 vendor/patch closure 与共享连接、配对、SSH 语义静态迁移已完成”，但不能声明 APK 可用、设备/真实服务通过或 v2.2.7 完整运行对齐完成。

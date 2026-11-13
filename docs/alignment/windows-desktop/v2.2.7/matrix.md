@@ -2,7 +2,7 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-13**；当前 Mobile worktree HEAD 为本次 merge resolution commit（merge parents 为 c7441f5e 与 origin/main `4961ec04`，已提交待推送）；父轮审计起点 **`fd898b8ea2107884729530aedfb9bf34e173a3bc`** 仅作历史锚点，工作树 `feat/upstream-227-alignment`。
+- 更新日期：**2026-11-13**；当前 Mobile worktree HEAD 为本次 merge resolution commit（merge parents 为 c7441f5e 与 origin/main `4961ec04`，已提交并推送）；父轮审计起点 **`fd898b8ea2107884729530aedfb9bf34e173a3bc`** 仅作历史锚点，工作树 `feat/upstream-227-alignment`。
 - 上游目标：Windows Desktop **v2.2.7**，`fedc6f208aa2bd54c1019227214568083f6380ad`；前版为 v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`。
 - Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；移动差异由 #184 active `v2-2-7-mobile-connection-pairing-ssh-closure.patch` 承载；继承自 origin/main 的 `server-edit-touch-compatibility.patch` 作为独立 active patch 重放，不改变 #184 的 24-target scope。
 - 架构：共享 Web UI + Kotlin 原生 WebView。v2.2.1 的局部 Android 证据只能作为历史参照，不能直接升级为 v2.2.7 通过；Windows v2.2.7 安装包尚未运行验证。
