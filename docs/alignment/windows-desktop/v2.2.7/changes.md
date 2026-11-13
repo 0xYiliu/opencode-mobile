@@ -9,7 +9,7 @@ v2.2.1 = 3ebcf9a32c7b28f658cfee80775448929361727a
 v2.2.7 = fedc6f208aa2bd54c1019227214568083f6380ad
 ```
 
-当前 v2.2.7 patch registry：**79 registered / 1 active / 19 absorbed / 59 deferred**；`mobilePatches` 只重放 #184 scoped overlay，构建传递依赖由独立 `closurePatches` 承载。
+当前 v2.2.7 patch registry：**80 registered / 2 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay 与 inherited main `server-edit-touch-compatibility` patch，构建传递依赖由独立 `closurePatches` 承载。
 
 直接 Desktop 变化：
 

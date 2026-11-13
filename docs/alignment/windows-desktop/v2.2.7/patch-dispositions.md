@@ -1,7 +1,7 @@
 # v2.2.7 移动补丁处置记录
 
-- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**79 registered / 1 active / 19 absorbed / 59 deferred**。
-- 当前唯一 active replay：`patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`。
+- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**80 registered / 2 active / 19 absorbed / 59 deferred**。
+- 当前 active replay：`patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）与 `patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch，独立于 #184 scope）。
 - 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。
 - active consolidated patch 只承载 #184 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。
 
@@ -86,6 +86,7 @@
 | 77 | `diff-worker-pool-fallback` | `deferred` | 历史 payload 保留；位于 #184 scoped overlay 外，交由所属 follow-up 独立重基，不在当前 replay | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/session-ui/src/components/file.tsx, packages/session-ui/src/pierre/index.ts, packages/session-ui/src/pierre/pool-strategy.ts, packages/session-ui/src/pierre/worker.ts |
 | 78 | `files-tree-sidebar-fill` | `deferred` | 历史 payload 保留；位于 #184 scoped overlay 外，交由所属 follow-up 独立重基，不在当前 replay | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/session-ui/src/v2/components/session-review-v2.css |
 | 79 | `v2-2-7-mobile-connection-pairing-ssh-closure` | `active` | 直接从 pristine v2.2.7 生成的 #184 connection/pairing/SSH scoped overlay；不包含 providers/settings/session/files/terminal/notifications/generic UI/patchmark/无关 package 行为 | `fedc6f208aa2bd54c1019227214568083f6380ad` | 24 个 scoped targets（以 `manifest.json` 为准） |
+| 80 | `server-edit-touch-compatibility` | `active` | 继承自 origin/main `4961ec04`，重基到 pristine v2.2.7 后独立重放；保留 Android WebView host identity，并将服务器行 Edit 延迟 350ms 以避开触摸兼容 click；不计入 #184 overlay scope | `fedc6f208aa2bd06c8fa099c4175939a8ac7e2f` | packages/app/src/settings/servers/android-host.ts, packages/app/src/settings/servers/servers.tsx, packages/app/src/settings/servers/servers-page.test.tsx |
 
 ## 验证口径
 

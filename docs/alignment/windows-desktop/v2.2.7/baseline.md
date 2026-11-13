@@ -12,7 +12,7 @@
 | 上游读取方式 | `/home/peterhan/repository/opencode` 的固定 git 对象；不使用工作区 HEAD 代替 tag |
 | Windows 安装包运行验证 | 未提供；Desktop 原生窗口、菜单、更新器、WSL 与视觉结论只能记录源码/构建级事实 |
 
-上游 v2.2.7 的 `packages/app/package.json` 与 `packages/gui-plugins/package.json` 均为 `2.2.7`。当前 Mobile vendor 已从固定 v2.2.7 commit 重建，11 个 closure package 均来自该目标；当前 patch registry 为 **79 registered / 1 active / 19 absorbed / 59 deferred**。构建传递依赖由独立 `closurePatches` 修复，移动差异由唯一 active 的 #184 scoped consolidated overlay 承载，不宣称历史 payload 逐条独立重放。
+上游 v2.2.7 的 `packages/app/package.json` 与 `packages/gui-plugins/package.json` 均为 `2.2.7`。当前 Mobile vendor 已从固定 v2.2.7 commit 重建，11 个 closure package 均来自该目标；当前 patch registry 为 **80 registered / 2 active / 19 absorbed / 59 deferred**。构建传递依赖由独立 `closurePatches` 修复，#184 移动差异由 24-target scoped consolidated overlay 承载，继承自 origin/main 的 server-edit patch 独立重放，不宣称历史 payload 逐条独立重放。
 
 ## 目标来源范围
 

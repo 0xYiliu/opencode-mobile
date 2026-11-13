@@ -1,6 +1,6 @@
 import { Button } from "@opencode/ui/button"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { createMemo, For, Show, type Component } from "solid-js"
+import { createMemo, For, onCleanup, Show, type Component } from "solid-js"
 import { ServerRowMenu } from "@/servers/registry/row-menu"
 import { ServerHealthIndicator } from "@/servers/registry/row"
 import { PluginServerRow } from "@/servers/registry/plugin-row"
@@ -14,6 +14,7 @@ import { ShellSetting } from "@/settings/general/general"
 import { createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
 import { serverPagesConnection, unauthorizedHttpServer } from "./machine"
+import { isAndroidMobileHost } from "./android-host"
 import "@/settings/settings.css"
 
 /** The only server's connection and preferences. */
@@ -114,9 +115,25 @@ function ServerConnectionRow(props: {
   const language = useLanguage()
   const controller = useServerCollectionController()
   const health = createMemo(() => controller.collection.health()[props.entry.key])
+  let pendingEdit: ReturnType<typeof setTimeout> | undefined
 
   const edit = (server: ServerConnection.Http) =>
     void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
+
+  const editFromMenu = (server: ServerConnection.Http) => {
+    if (!isAndroidMobileHost()) return edit(server)
+
+    // Android WebView 114 can deliver a compatibility click after touch selection.
+    // Let the menu finish dismissing before mounting the dialog, otherwise that
+    // trailing click is interpreted as a backdrop click on the new dialog.
+    clearTimeout(pendingEdit)
+    pendingEdit = setTimeout(() => {
+      pendingEdit = undefined
+      edit(server)
+    }, 350)
+  }
+
+  onCleanup(() => clearTimeout(pendingEdit))
 
   return (
     <Show
@@ -145,7 +162,7 @@ function ServerConnectionRow(props: {
                     </Button>
                   )}
                 </Show>
-                <ServerRowMenu server={server()} domain={controller} onEdit={edit} />
+                <ServerRowMenu server={server()} domain={controller} onEdit={editFromMenu} />
               </div>
             </div>
           )}

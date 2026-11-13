@@ -11,7 +11,7 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 - 检查基线 `740ce386cd74569afc11722182247092b0b6390a`；工作树 `/home/peterhan/worktrees/opencode-mobile/docs--221-release-plan`，分支 `docs/221-release-plan`；固定上游 `3ebcf9a32c7b28f658cfee80775448929361727a`，从 git 对象比较 `vendor/upstream`。完整核实表与执行卡见 [E35](alignment/windows-desktop/v2.2.1/current-review.md)，E34 保留历史但不得用作当前结论。
 - Inbox/titlebar、queue+server/session 归属保护、composer/media 与 fork/revert、export 的 `mediaRefs: false`、Goal ComposerPill、backgroundActivity 消费、notification、voice-delegation 已迁入；S10 categories/commentary 与 compact/quiet 预设亦已更新。palette/session-search 仅 catalog 兼容差异。
 - 当前源码剩余：home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份、W18 子能力 usage.view、文件 stream HEAD/watch/unwatch/重连订阅，以及版本同步（Android `0.1.0` / code `1`、mobile app `0.1.0`、vendor app `2.1.4`）。Settings 已迁入部分继续补真实运行验收。
-- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节冻结 v2.2.1 历史 registry 的重放 PASS 不能作为当前 v2.2.7 发布通过；当前 v2.2.7 registry 为 79 registered / 1 active / 19 absorbed / 59 deferred。
+- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节冻结 v2.2.1 历史 registry 的重放 PASS 不能作为当前 v2.2.7 发布通过；当前 v2.2.7 registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；#184 overlay scope 不变，另有继承自 origin/main 的 server-edit patch。
 - 用户已授权先文档、后总 Issue/详细子 Issue/并行首批；已创建 [总任务 #139](https://github.com/0xYiliu/opencode-mobile/issues/139) 和 #140–#149 十个子项，API 回读确认全部正文、10 条原生子关系、26 条 blocked-by 与规划一致且无依赖环。首批 #140/#141/#143，完整分工回填 [矩阵](alignment/windows-desktop/v2.2.1/matrix.md)，实时状态以 GitHub 为准。子 Issue 边界经独立检查和定向复审通过，补齐 W12 压缩验收、明确纯验收零源码/零补丁，不新增功能完成声明。
 
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
@@ -108,7 +108,7 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 
 ### P126 session runtime copy cleanup (2026-11-05)
 
-Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. The current registry is 79 registered / 1 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
+Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. The current registry is 80 registered / 2 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
 
 - Source target: upstream release `v2.2.1`, commit `3ebcf9a32c7b28f658cfee80775448929361727a`; package source pin and per-package override remain in `vendor/upstream/vendor-manifest.json`. The active patch order is the single `mobilePatches` list there; deferred source remains marked in `patches/mobile/manifest.json`.
 - The copied session runtime overlay remains upstream-first (session-workbench-upstream–session-media-source-safety); session-android-adaptation contains only the recorded Android adaptations. `patchmark` is a source-package addition carried by the client-compat patch, recorded separately as a patch-created package so source extraction stays pinned while workspace reference validation includes it.

@@ -1,0 +1,201 @@
+diff --git a/packages/app/src/settings/servers/android-host.ts b/packages/app/src/settings/servers/android-host.ts
+new file mode 100644
+index 0000000..948985c
+--- /dev/null
++++ b/packages/app/src/settings/servers/android-host.ts
+@@ -0,0 +1,6 @@
++/** UI-only identity; native bridges must continue enforcing their own origin and capability gates. */
++export function isAndroidMobileHost() {
++  if (typeof window === "undefined" || window.location.origin !== "http://127.0.0.1:18090") return false
++  const markers = document.head.querySelectorAll('meta[name="opencode-mobile-host"]')
++  return markers.length === 1 && markers[0]?.getAttribute("content") === "android-v1"
++}
+diff --git a/packages/app/src/settings/servers/servers-page.test.tsx b/packages/app/src/settings/servers/servers-page.test.tsx
+new file mode 100644
+index 0000000..7b3629b
+--- /dev/null
++++ b/packages/app/src/settings/servers/servers-page.test.tsx
+@@ -0,0 +1,127 @@
++import { plugin } from "bun"
++import { afterEach, beforeEach, expect, jest, mock, test } from "bun:test"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++
++const transpiler = new Bun.Transpiler({
++  loader: "tsx",
++  trimUnusedImports: true,
++  tsconfig: { compilerOptions: { jsx: "react", jsxFactory: "h", jsxFragmentFactory: "Fragment" } },
++})
++
++plugin({
++  name: "servers-page-solid-jsx",
++  setup(build) {
++    build.onLoad({ filter: /packages\/(app|ui)\/src\/.*\.tsx$/ }, async (args) => ({
++      contents:
++        'import h from "solid-js/h";\nimport { Fragment } from "solid-js/h/jsx-runtime";\n' +
++        transpiler.transformSync(await Bun.file(args.path).text()),
++      loader: "js",
++    }))
++  },
++})
++
++const pushed: Array<() => unknown> = []
++const browser = (window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM
++
++mock.module("@opencode/ui/button", () => ({ Button: () => document.createElement("button") }))
++mock.module("@opencode/ui/context/dialog", () => ({
++  useDialog: () => ({
++    push: (render: () => unknown) => {
++      pushed.push(render)
++    },
++  }),
++}))
++mock.module("@/runtime/i18n/language", () => ({
++  useLanguage: () => ({ t: (key: string) => key }),
++}))
++mock.module("@/runtime/server/registry", () => ({
++  ServerConnection: {
++    http: (server: { http?: unknown }) => server.http,
++  },
++}))
++mock.module("@/servers/registry/controller", () => ({
++  useServerCollectionController: () => ({
++    collection: { health: () => ({}) },
++    connection: {},
++  }),
++}))
++mock.module("@/servers/registry/add-menu", () => ({ AddServerMenu: () => document.createElement("button") }))
++mock.module("@/servers/registry/plugin-row", () => ({ PluginServerRow: () => document.createElement("div") }))
++mock.module("@/servers/registry/row", () => ({ ServerHealthIndicator: () => document.createElement("span") }))
++mock.module("@/servers/connect/dialog", () => ({ DialogServer: () => document.createElement("div") }))
++mock.module("@/settings/general/controllers", () => ({ createServerShellController: () => ({}) }))
++mock.module("@/settings/general/general", () => ({ ShellSetting: () => document.createElement("div") }))
++
++mock.module("@/servers/registry/row-menu", () => ({
++  ServerRowMenu: (props: { server: { type?: string }; onEdit: (server: never) => void }) => {
++    if (props.server.type === "http") props.onEdit(props.server as never)
++    return document.createElement("div")
++  },
++}))
++
++const { SettingsServerList } = await import("./servers")
++
++let dispose: (() => void) | undefined
++let marker: HTMLMetaElement | undefined
++let initialUrl: string
++
++beforeEach(() => {
++  jest.useFakeTimers()
++  pushed.length = 0
++  initialUrl = window.location.href
++})
++
++afterEach(() => {
++  dispose?.()
++  dispose = undefined
++  marker?.remove()
++  marker = undefined
++  browser.setURL(initialUrl)
++  jest.useRealTimers()
++})
++
++function mountServerRow() {
++  const host = document.createElement("div")
++  document.body.append(host)
++  const server = { type: "http", http: { url: "http://server.local:4096" } }
++  const entry = {
++    key: "server-key",
++    name: "Server",
++    connection: server,
++    availability: { status: "unreachable", reason: "offline", connection: server },
++  }
++
++  createRoot((rootDispose) => {
++    dispose = rootDispose
++    insert(
++      host,
++      createComponent(SettingsServerList as never, {
++        servers: [entry],
++        onAddServer: () => {},
++        onServerChange: () => {},
++      } as never) as never,
++    )
++  })
++}
++
++test("delays the server edit action for the Android WebView touch compatibility click", () => {
++  browser.setURL("http://127.0.0.1:18090/")
++  marker = document.createElement("meta")
++  marker.name = "opencode-mobile-host"
++  marker.content = "android-v1"
++  document.head.append(marker)
++
++  mountServerRow()
++  expect(pushed).toHaveLength(0)
++
++  jest.advanceTimersByTime(349)
++  expect(pushed).toHaveLength(0)
++  jest.advanceTimersByTime(1)
++  expect(pushed).toHaveLength(1)
++})
++
++test("keeps the edit action immediate outside the Android WebView host", () => {
++  mountServerRow()
++  expect(pushed).toHaveLength(1)
++})
+diff --git a/packages/app/src/settings/servers/servers.tsx b/packages/app/src/settings/servers/servers.tsx
+index 33eff53..103b42c 100644
+--- a/packages/app/src/settings/servers/servers.tsx
++++ b/packages/app/src/settings/servers/servers.tsx
+@@ -1,6 +1,6 @@
+ import { Button } from "@opencode/ui/button"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import { createMemo, For, Show, type Component } from "solid-js"
++import { createMemo, For, onCleanup, Show, type Component } from "solid-js"
+ import { ServerRowMenu } from "@/servers/registry/row-menu"
+ import { ServerHealthIndicator } from "@/servers/registry/row"
+ import { PluginServerRow } from "@/servers/registry/plugin-row"
+@@ -14,6 +14,7 @@ import { ShellSetting } from "@/settings/general/general"
+ import { createServerShellController } from "@/settings/general/controllers"
+ import type { SettingsServer } from "./inventory"
+ import { serverPagesConnection, unauthorizedHttpServer } from "./machine"
++import { isAndroidMobileHost } from "./android-host"
+ import "@/settings/settings.css"
+ 
+ /** The only server's connection and preferences. */
+@@ -114,10 +115,26 @@ function ServerConnectionRow(props: {
+   const language = useLanguage()
+   const controller = useServerCollectionController()
+   const health = createMemo(() => controller.collection.health()[props.entry.key])
++  let pendingEdit: ReturnType<typeof setTimeout> | undefined
+ 
+   const edit = (server: ServerConnection.Http) =>
+     void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
+ 
++  const editFromMenu = (server: ServerConnection.Http) => {
++    if (!isAndroidMobileHost()) return edit(server)
++
++    // Android WebView 114 can deliver a compatibility click after touch selection.
++    // Let the menu finish dismissing before mounting the dialog, otherwise that
++    // trailing click is interpreted as a backdrop click on the new dialog.
++    clearTimeout(pendingEdit)
++    pendingEdit = setTimeout(() => {
++      pendingEdit = undefined
++      edit(server)
++    }, 350)
++  }
++
++  onCleanup(() => clearTimeout(pendingEdit))
++
+   return (
+     <Show
+       when={props.entry.source?.entry.row ? props.entry.key : undefined}
+@@ -145,7 +162,7 @@ function ServerConnectionRow(props: {
+                     </Button>
+                   )}
+                 </Show>
+-                <ServerRowMenu server={server()} domain={controller} onEdit={edit} />
++                <ServerRowMenu server={server()} domain={controller} onEdit={editFromMenu} />
+               </div>
+             </div>
+           )}

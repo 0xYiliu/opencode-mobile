@@ -9,9 +9,8 @@ Current mobile patch maintenance: [protocol and commands](patches/mobile/README.
 owns IDs, paths, status and hashes; `bun run patches:refresh` generates the registry
 mirrors in both machine-readable provenance files. Historical narrative inventories
 below are not additional live registries. As of 2026-11-13, the v2.2.7 registry has
-79 entries: one active `v2-2-7-mobile-connection-pairing-ssh-closure` scoped overlay,
-19 absorbed historical payloads whose semantics are explicitly carried by that overlay,
-and 59 deferred historical patches outside #184. The historical identity migration and
+80 entries: two active replays — the #184 scoped `v2-2-7-mobile-connection-pairing-ssh-closure` overlay and the inherited main `server-edit-touch-compatibility` patch —,
+19 absorbed historical payloads, and 59 deferred historical patches outside #184. The inherited main patch is separate from the #184 overlay scope. The historical identity migration and
 source/artifact markers such as `mobile(M-002)` remain preserved; markers are evidence,
 not current IDs. Historical ranges below denote replay-order intervals at the stated
 revision, never lexical name ordering.
@@ -42,7 +41,7 @@ scripts/vendor-sync.sh
 All 11 closure packages, including `packages/gui-plugins`, extract from the fixed v2.2.7 target.
 `packageSources` is therefore empty; `scripts/verify-closure.sh` builds the pristine side of its
 equivalence check from the same target, replays the build-only closure patch, and then replays the
-single active mobile overlay.
+two active mobile patches in `vendor-manifest.json#mobilePatches`.
 
 ## Closure packages (11)
 
@@ -64,12 +63,13 @@ single active mobile overlay.
 - File-level exclusion: `packages/ai/test/fixtures/recordings/` (274 files, ~13.7 MiB,
   HTTP recorder test fixtures) — dropped during extraction and registered in the manifest.
 
-## Current mobile patch inventory (1 active, 19 absorbed, 59 deferred; 2026-11-13)
+## Current mobile patch inventory (2 active, 19 absorbed, 59 deferred; 2026-11-13)
 
 | ID | Target | Change | Why |
 | --- | --- | --- | --- |
-| `v2-2-7-mobile-connection-pairing-ssh-closure` | v2.2.7 connection/pairing/SSH shared closure | Scoped #184 overlay: connection/pairing, credential/vault/probe/fetch/security, server lifecycle/health/loopback/host API compatibility, and shared SSH state/renderer seams. Provider, settings, session, files, terminal, notifications, generic UI, patchmark and unrelated package behavior are excluded. | One reproducible scoped overlay is the only active mobile replay. Nineteen historical payloads are explicitly absorbed; 59 remain deferred outside #184. |
+| `v2-2-7-mobile-connection-pairing-ssh-closure` | v2.2.7 connection/pairing/SSH shared closure | Scoped #184 overlay: connection/pairing, credential/vault/probe/fetch/security, server lifecycle/health/loopback/host API compatibility, and shared SSH state/renderer seams. Provider, settings, session, files, terminal, notifications, generic UI, patchmark and unrelated package behavior are excluded. | One reproducible #184 scoped overlay; its 24-target scope is unchanged. Nineteen historical payloads are explicitly absorbed; 59 remain deferred outside #184. |
 
+| `server-edit-touch-compatibility` | inherited main baseline patch | Rebased from origin/main onto pristine v2.2.7; delays the Android WebView 114 server-row Edit action and remains outside the #184 overlay target list. | Inherited main change, replayed separately after the #184 overlay. |
 The 78 historical deferred payload files remain in `patches/mobile/manifest.json` and the generated
 registry mirrors with their original payloads, hashes and semantic identities. They are historical
 file artifacts, not 78 current deferred patches: 19 are marked `absorbed` when the scoped overlay
@@ -134,7 +134,7 @@ The active vendor tree invariant: **tree == v2.2.7 target tree + the build-only 
 `vendor-manifest.json#closurePatches` + the active mobile patches listed in `vendor-manifest.json#mobilePatches`**,
 byte-identical, zero other diff (checked by
 `scripts/verify-closure.sh`, with registered partial assets and patch-created packages). The
-current active array has one entry; the 78 historical deferred payload files are retained for
+current active array has two entries: the #184 overlay and the inherited main server-edit patch; the 78 historical deferred payload files are retained for
 provenance and are not replayed. They do not define the current disposition count: the current
 registry has 59 deferred patches.
 
@@ -260,7 +260,7 @@ these hashes today. Current hashes/status are exclusively in the registry and ge
 The historical future ordering contract was base gui-plugins-native-test-deps…settings-server-menu excluding the later-positioned connection-initial-credential-persistence/connection-vault-ready-wait, then
 P126 U/C/S/A, then connection-initial-credential-persistence/connection-vault-ready-wait, then agent-selector and session-ownership-whitespace. It does not
 authorize applying these patches in that block. Current replay and tree checks consume only
-`vendor-manifest.json#mobilePatches` (now one active v2.2.7 consolidated entry; 78 historical entries are deferred).
+`vendor-manifest.json#mobilePatches` (now two active v2.2.7 replays: the #184 consolidated entry and the inherited main server-edit patch; 78 historical payload files remain outside the current active replays).
 
 ## P126 session runtime source cleanup snapshot (2026-11-05)
 

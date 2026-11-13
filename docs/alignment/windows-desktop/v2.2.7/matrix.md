@@ -2,9 +2,9 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-13**；当前 Mobile worktree HEAD：**`5135095baaa4170fab9ab6a9356adcd9504456b9`**（未提交）；父轮审计起点 **`fd898b8ea2107884729530aedfb9bf34e173a3bc`** 仅作历史锚点，工作树 `feat/upstream-227-alignment`。
+- 更新日期：**2026-11-13**；当前 Mobile worktree HEAD 为本次 merge resolution commit（merge parents 为 c7441f5e 与 origin/main `4961ec04`，已提交待推送）；父轮审计起点 **`fd898b8ea2107884729530aedfb9bf34e173a3bc`** 仅作历史锚点，工作树 `feat/upstream-227-alignment`。
 - 上游目标：Windows Desktop **v2.2.7**，`fedc6f208aa2bd54c1019227214568083f6380ad`；前版为 v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`。
-- Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；移动差异由唯一 active 的 `v2-2-7-mobile-connection-pairing-ssh-closure.patch` 承载。
+- Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；移动差异由 #184 active `v2-2-7-mobile-connection-pairing-ssh-closure.patch` 承载；继承自 origin/main 的 `server-edit-touch-compatibility.patch` 作为独立 active patch 重放，不改变 #184 的 24-target scope。
 - 架构：共享 Web UI + Kotlin 原生 WebView。v2.2.1 的局部 Android 证据只能作为历史参照，不能直接升级为 v2.2.7 通过；Windows v2.2.7 安装包尚未运行验证。
 - 保留全部 **93 个稳定 ID**；本表由 v2.2.1 工作表继承，旧版本证据仍按历史处理。当前 v2.2.7 closure、补丁和 focused-test 事实以 [execution-card.md](execution-card.md)、[current-review.md](current-review.md) 与 [changes.md](changes.md) 为准。
 
@@ -22,7 +22,7 @@
 
 本矩阵保留 v2.2.1 的 93 个稳定 ID 和用户可观察功能分组，作为迁移 crosswalk，而不是把旧行文字当作 v2.2.7 已验证事实。行内出现的 v2.2.1 源码、Issue、APK、真机或 Desktop 证据均属于前版历史；v2.2.7 当前共享连接/配对/SSH 迁移的静态事实见下方本轮覆盖和 [current-review.md](current-review.md)，运行期仍按本版本的 BLOCKED/未验证边界执行。
 
-> **Crosswalk 历史边界（适用于下方 A–E 继承行）**：行内出现的 v2.2.1 固定 pin、旧 vendor/app 版本、旧 APK、设备型号、真机截图或历史 PASS/BLOCKED，均明确属于 **v2.2.1 历史/迁移前证据**，用于定位迁移差异，不是 v2.2.7 当前事实。当前 v2.2.7 唯一 pin 为 `fedc6f208aa2bd54c1019227214568083f6380ad`，当前 registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；当前结论只取本节 #184 覆盖、[current-review.md](current-review.md) 与 execution card。
+> **Crosswalk 历史边界（适用于下方 A–E 继承行）**：行内出现的 v2.2.1 固定 pin、旧 vendor/app 版本、旧 APK、设备型号、真机截图或历史 PASS/BLOCKED，均明确属于 **v2.2.1 历史/迁移前证据**，用于定位迁移差异，不是 v2.2.7 当前事实。当前 v2.2.7 唯一 pin 为 `fedc6f208aa2bd54c1019227214568083f6380ad`，当前 registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；其中 #184 overlay scope 不变，当前结论只取本节 #184 覆盖、[current-review.md](current-review.md) 与 execution card。
 
 ### #184 当前 v2.2.7 覆盖
 
@@ -31,7 +31,7 @@
 | connection / credentials | **已实现，静态验证通过** | v2.2.7 `ServerOriginal`/`ServerSaveAction` 上的 `credentialRef`、remember、vault ready/status/generation、memory-only persistence、probe/fetch URL 安全与失败分类已落位；最新 app stable connection/server/pairing selection 为 137 pass / 0 fail（16 files）。Android vault、真实服务和运行期凭据恢复未验证。 |
 | pairing | **已实现，静态验证通过** | pairing URL 解析、scheme/host/userinfo/TLS/redirect 边界、malformed/expired/replay 语义与确认动作保留；QR physical 与真实兑换服务未验证。 |
 | SSH shared closure | **已实现，静态验证通过** | GUI pairing/SSH machine tests 88 pass / 0 fail（11 files），mobile-hosts browser tests 442 pass / 0 fail（40 files）；host-key unknown/changed、auth/lifecycle/remote-task 不停止语义保留。真实 JSch tunnel/session/stream/permission/task survival 未验证。 |
-| vendor / patch closure | **已实现，可重放** | pristine v2.2.7 closure + 1 build-only closure patch + 1 active #184 scoped overlay 由 `verify-closure.sh` 重放通过；79 条登记中 19 absorbed、59 deferred、1 active；`mobilePatches` 只包含 active overlay。 |
+| vendor / patch closure | **已实现，可重放** | pristine v2.2.7 closure + 1 build-only closure patch + 2 active mobile patches 由 `verify-closure.sh` 重放通过；80 条登记中 19 absorbed、59 deferred、2 active；#184 overlay 仍为 24 targets，`mobilePatches` 另含 inherited main server-edit patch。 |
 | Android identity | **已同步，未构建验证** | mobile/About/Gradle `2.2.7`，versionCode `20207`；Android Gradle/APK/adb/device UI 尚未运行。 |
 | About/version current face | **已实现，静态验证通过** | v2.2.7 upstream About retains the `platform.version` row, and `entry.tsx` keeps the upstream `createWebPlatform(pkg.version)` face; the old v2.2.1 three-row base/server overlay is deferred with `settings-about-version` and is not part of the current replay. Current identity is Android/mobile/About `2.2.7`; old #149/About three-row and device evidence remain historical. |
 
@@ -188,7 +188,7 @@
 
 1. Settings 主要已迁入，按下节保留的具体运行/整体对照缺口继续验收；Inbox、queue/media、导出参数、Goal、通知及搜索不得重复列为未迁移。
 2. 真实迁移工作为 home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份/恢复、W18 usage.view、文件流与订阅；按上表完整流程和共享写入边界推进。
-3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。当前 patch registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；静态重放通过不是 APK、设备或真实服务发布结论。
+3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。当前 patch registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；静态重放通过不是 APK、设备或真实服务发布结论。
 4. #135 已合并，最终修复 `813e68d`，merge commit `bbd0b488`；Agent 及 Details 可见/切换/关闭局部通过。消息列宽度、密度、Composer 尺寸、工具卡片截图差异和完整竖屏键盘未验收。
 
 > **下方历史执行台账边界**：`下一实施工作单元：Settings 整体界面对齐` 及其后续推进记录承接冻结 v2.2.1/迁移前工作单元，包含的旧 pin、vendor、APK、设备和局部 PASS/BLOCKED 只用于历史追溯；它们不是 v2.2.7 当前实施状态。当前 v2.2.7 事实仍以本页 #184 覆盖、current-review 和 execution card 为准。

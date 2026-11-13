@@ -59,7 +59,8 @@
     "@modelcontextprotocol/client@2.4.0": "patches/@modelcontextprotocol%2Fclient@2.4.0.patch"
   },
   "mobilePatches": [
-    "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch"
+    "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
+    "patches/mobile/server-edit-touch-compatibility.patch"
   ],
   "excluded": {
     "packages": [
@@ -569,6 +570,12 @@
       "id": "v2-2-7-mobile-connection-pairing-ssh-closure",
       "path": "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
       "sha256": "6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94",
+      "status": "active"
+    },
+    {
+      "id": "server-edit-touch-compatibility",
+      "path": "patches/mobile/server-edit-touch-compatibility.patch",
+      "sha256": "5dec7bf2a5a7f984b0ef9f58ad83656a447acadeca6d2bfaf95b3a63ec087c42",
       "status": "active"
     }
   ],
