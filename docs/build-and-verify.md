@@ -138,7 +138,7 @@ bun test --conditions=browser --isolate src/session/timeline/cache-machine.test.
 
 ### issue #188 段（composer / queue / attachments 重 derive 与归属保护——feat/188-composer-queue-attachments 静态轮）——2026-11-14 实测记录
 
-**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base=`e4a6dd1`（`feat/187-timeline-messaging` 链尾，stacked chain）；implementation revision=`ede5f54`（commit 1：`composer-queue-attachments-v2-2-7`（#84）注册 + #12/#19/#20 翻转 absorbed + #58 partial-carry 处置 + probe v2.2.7 重锚定）→ `4fa3d3e`（commit 2：web payload manifest 刷新）→ 本 docs 提交（final HEAD 由该 docs-only commit 追溯，交付报告记录完整 SHA）。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；上游只读引用 `/home/peterhan/repository/opencode`。
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base=`e4a6dd1`（`feat/187-timeline-messaging` 链尾，stacked chain）；implementation revision=`ede5f54`（commit 1：`composer-queue-attachments-v2-2-7`（#84）注册 + #12/#19/#20 翻转 absorbed + #58 partial-carry 处置 + probe v2.2.7 重锚定）→ `4fa3d3e`（commit 2：web payload manifest 刷新）→ `3450444`（commit 3：#188 crosswalk/evidence 文档）→ `026d239`（commit 4：review 修复轮——queue committed-phase/terminal-report 语义修复 + queue-lifecycle 回归测试 + patch 重生成）→ 本 docs 提交（final HEAD 由该 docs-only commit 追溯，交付报告记录完整 SHA）。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；上游只读引用 `/home/peterhan/repository/opencode`。
 
 **patch replay / hashes**：
 
@@ -207,7 +207,7 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 - **MINOR-4**：rewrite 重入队不经 wire floor 的 residual 在 request.ts 注记 + row-58/#84 处置登记（诚实记录路线）。
 - **MINOR-5/7**：queue.test 计数 13→18；Set A 精确命令写入本节（上表）；c0 pre-existing 归属「machine.test ×1」修正为 `editor/actions.test.ts ×1`。
 - **MINOR-6**：QueueOwner 的 sessionID/directory/serverKey 死字段移除（谓词只读 composerOwner/http/media）。
-- 新增 `session/composer/queue-lifecycle.test.ts`（R1–R5，5 用例）入 #84 targets（21）；patch 重生成，SHA-256 见上；registry/closure 重放重跑 PASS；Set A 30 文件 396/5 恒同 + lifecycle 5/0（合跑 401/5/1817/31 files）。
+- 新增 `session/composer/queue-lifecycle.test.ts`（R1–R5，5 用例）入 #84 targets（21）；patch 重生成，SHA-256=`508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da`（上表 hash 已同步）；registry/closure 重放重跑 PASS；Set A 30 文件 396 pass / 5 fail / 1793 expect 恒同 + lifecycle 5/0（合跑 **401 pass / 5 fail / 1817 expect / 31 files**）；verify-attachments-artifacts/verify-files 重跑 PASS；mobile-hosts 446/0、session-ui 38/0、test-browser 13/0 重跑恒同。
 
 **记录性偏差（#84 内，已在 manifest reason + changes.md 登记）**：计划原样的 request.ts 双子句 wire floor（file parts + images）与 v2.2.7 新增的 `retryFingerprint` 碰撞——submit.test 基线恒绿用例「pressing Enter and then Send while an image attachment resolves sends the prompt once」在 images 子句下新失败（fingerprint 镜像 pending payload）。按计划「NEW failure → fix #84」协议收窄：file-part 子句保留（url 逐字上送，真实风险面）；images 子句撤除并在注释中登记——两条真实 producer（submit.ts buildSubmissionRequest、queue.ts editedPromptInput）的 dataUrl 均经 `blobDataUrl` 构建，后者已 fail-closed 拒绝未解析引用，image 面 wire floor 由该字节边界执行；request.test 的 images 用例改写为锁定该 carve-out。复测：该用例转绿，set A 回到 5 条 pre-existing 恒同。
 
