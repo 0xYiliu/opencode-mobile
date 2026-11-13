@@ -1,13 +1,6 @@
-import type { ServerApi } from "./api"
+import { mediaHashFromUri, type OpenCodeClient } from "@opencode/client/promise"
 
-const MEDIA_REF = /^media:([0-9a-f]{64})$/
-
-/** The blob hash in a `media:<hash>` ref, the only form the server sends stored media in. */
-export function mediaHashFromUri(uri: string | undefined): string | undefined {
-  if (!uri) return undefined
-
-  return MEDIA_REF.exec(uri)?.[1]
-}
+export { mediaHashFromUri }
 
 export type MediaCache = {
   peek(uri: string, mime?: string): string | undefined
@@ -17,7 +10,7 @@ export type MediaCache = {
 
 // Object URLs stay valid until dispose. Rendered attachments, image previews and composer drafts keep the URL they
 // were given without releasing it, so revoking one earlier would break an image that is still on screen.
-export function createMediaCache(getApi: () => Pick<ServerApi, "experimental">): MediaCache {
+export function createMediaCache(getApi: () => Pick<OpenCodeClient, "experimental">): MediaCache {
   const urls = new Map<string, string>()
   const inflight = new Map<string, Promise<string | undefined>>()
   let disposed = false

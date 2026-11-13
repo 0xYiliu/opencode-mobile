@@ -16,13 +16,13 @@ describe("server persistence schema", () => {
     const input = {
       list: [
         "http://localhost:4096",
-        { url: "https://flat.example", username: "legacy", password: "first", credentialRef: "fixture-ref-a" },
+        { url: "https://flat.example", username: "legacy", password: "first" },
         {
           type: "http",
           displayName: "Remote",
           label: "Production",
           authToken: true,
-          http: { url: "https://nested.example", username: "legacy", password: "second", credentialRef: "fixture-ref-b" },
+          http: { url: "https://nested.example", username: "legacy", password: "second" },
         },
       ],
       projects: { local: [{ worktree: "/project", expanded: true }] },
@@ -35,13 +35,13 @@ describe("server persistence schema", () => {
     expect(state).toEqual({
       list: [
         { type: "http", http: { url: "http://localhost:4096" } },
-        { type: "http", http: { url: "https://flat.example", password: "first", credentialRef: "fixture-ref-a" } },
+        { type: "http", http: { url: "https://flat.example", password: "first" } },
         {
           type: "http",
           displayName: "Remote",
           label: "Production",
           authToken: true,
-          http: { url: "https://nested.example", password: "second", credentialRef: "fixture-ref-b" },
+          http: { url: "https://nested.example", password: "second" },
         },
       ],
       hidden: {},
@@ -52,20 +52,15 @@ describe("server persistence schema", () => {
     })
     expect(input.list[1]).toHaveProperty("username", "legacy")
     const encoded = Schema.encodeSync(schema)(state)
-    // mobile(M-002): the encode (stored) path drops the password (memory-only) while the
-    // non-secret credential reference survives, so no persistent backend sees a credential.
-    expect(encoded).toEqual({ ...state, list: [
-      { type: "http", http: { url: "http://localhost:4096" } },
-      { type: "http", http: { url: "https://flat.example", credentialRef: "fixture-ref-a" } },
-      { type: "http", displayName: "Remote", label: "Production", authToken: true,
-        http: { url: "https://nested.example", credentialRef: "fixture-ref-b" } },
-    ] })
-    expect(input.list[1]).toHaveProperty("password", "first")
-    const wire = JSON.parse(JSON.stringify(encoded))
-    expect(Schema.decodeUnknownSync(schema)(wire)).toEqual(wire)
-    expect(Schema.encodeSync(schema)(Schema.decodeUnknownSync(schema)({ list: [
-      { type: "http", http: { url: "https://no-password.example/", credentialRef: "fixture-ref-c" } },
-    ] }))).toHaveProperty("list.0.http", { url: "https://no-password.example/", credentialRef: "fixture-ref-c" })
+    const memoryOnly = {
+      ...state,
+      list: state.list.map((server) => ({
+        ...server,
+        http: { ...server.http, password: undefined },
+      })),
+    }
+    expect(encoded).toEqual(memoryOnly)
+    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(memoryOnly)
   })
 
   test("defaults missing or malformed fields and drops invalid entries independently", () => {

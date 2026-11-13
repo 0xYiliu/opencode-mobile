@@ -2,11 +2,11 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-12**；Mobile 检查提交：**`fd898b8ea2107884729530aedfb9bf34e173a3bc`**，工作树 `feat/upstream-227-alignment`。
+- 更新日期：**2026-11-13**；当前 Mobile worktree HEAD：**`5135095baaa4170fab9ab6a9356adcd9504456b9`**（未提交）；父轮审计起点 **`fd898b8ea2107884729530aedfb9bf34e173a3bc`** 仅作历史锚点，工作树 `feat/upstream-227-alignment`。
 - 上游目标：Windows Desktop **v2.2.7**，`fedc6f208aa2bd54c1019227214568083f6380ad`；前版为 v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`。
-- Vendor：当前仍是迁移前 pin **`b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43`**，gui-plugins 单包来源为 v2.2.1；v2.2.7 vendor 重建尚未完成。
+- Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；移动差异由唯一 active 的 `v2-2-7-mobile-connection-pairing-ssh-closure.patch` 承载。
 - 架构：共享 Web UI + Kotlin 原生 WebView。v2.2.1 的局部 Android 证据只能作为历史参照，不能直接升级为 v2.2.7 通过；Windows v2.2.7 安装包尚未运行验证。
-- 保留全部 **93 个稳定 ID**；本表由 v2.2.1 工作表继承，所有验证状态在 v2.2.7 迁移中默认重新核对。当前执行卡与变化总表见 [execution-card.md](execution-card.md) 与 [changes.md](changes.md)。
+- 保留全部 **93 个稳定 ID**；本表由 v2.2.1 工作表继承，旧版本证据仍按历史处理。当前 v2.2.7 closure、补丁和 focused-test 事实以 [execution-card.md](execution-card.md)、[current-review.md](current-review.md) 与 [changes.md](changes.md) 为准。
 
 [推进规则](../../workflow.md) · [v2.2.7 基准](baseline.md) · [v2.2.7 变化总结](changes.md) · [迁移执行卡](execution-card.md) · [v2.2.1 冻结历史](../v2.2.1/matrix.md) · [运行验证台账](../../../build-and-verify.md)
 
@@ -20,7 +20,20 @@
 
 ## v2.2.7 继承与验证规则
 
-本矩阵保留 v2.2.1 的 93 个稳定 ID 和用户可观察功能分组，作为迁移 crosswalk，而不是把旧行文字当作 v2.2.7 已验证事实。行内出现的 v2.2.1 源码、Issue、APK、真机或 Desktop 证据均属于前版历史；除非本版本明确记录复用理由，否则 v2.2.7 验证状态为**未验证**。新增的上游行为、删除/合并项、Desktop-only 变化及移动适配处置统一记录在 [changes.md](changes.md) 和后续补丁 disposition 中。
+本矩阵保留 v2.2.1 的 93 个稳定 ID 和用户可观察功能分组，作为迁移 crosswalk，而不是把旧行文字当作 v2.2.7 已验证事实。行内出现的 v2.2.1 源码、Issue、APK、真机或 Desktop 证据均属于前版历史；v2.2.7 当前共享连接/配对/SSH 迁移的静态事实见下方本轮覆盖和 [current-review.md](current-review.md)，运行期仍按本版本的 BLOCKED/未验证边界执行。
+
+> **Crosswalk 历史边界（适用于下方 A–E 继承行）**：行内出现的 v2.2.1 固定 pin、旧 vendor/app 版本、旧 APK、设备型号、真机截图或历史 PASS/BLOCKED，均明确属于 **v2.2.1 历史/迁移前证据**，用于定位迁移差异，不是 v2.2.7 当前事实。当前 v2.2.7 唯一 pin 为 `fedc6f208aa2bd54c1019227214568083f6380ad`，当前 registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；当前结论只取本节 #184 覆盖、[current-review.md](current-review.md) 与 execution card。
+
+### #184 当前 v2.2.7 覆盖
+
+| 领域 | 当前事实状态 | 证据与边界 |
+| --- | --- | --- |
+| connection / credentials | **已实现，静态验证通过** | v2.2.7 `ServerOriginal`/`ServerSaveAction` 上的 `credentialRef`、remember、vault ready/status/generation、memory-only persistence、probe/fetch URL 安全与失败分类已落位；最新 app stable connection/server/pairing selection 为 137 pass / 0 fail（16 files）。Android vault、真实服务和运行期凭据恢复未验证。 |
+| pairing | **已实现，静态验证通过** | pairing URL 解析、scheme/host/userinfo/TLS/redirect 边界、malformed/expired/replay 语义与确认动作保留；QR physical 与真实兑换服务未验证。 |
+| SSH shared closure | **已实现，静态验证通过** | GUI pairing/SSH machine tests 88 pass / 0 fail（11 files），mobile-hosts browser tests 442 pass / 0 fail（40 files）；host-key unknown/changed、auth/lifecycle/remote-task 不停止语义保留。真实 JSch tunnel/session/stream/permission/task survival 未验证。 |
+| vendor / patch closure | **已实现，可重放** | pristine v2.2.7 closure + 1 build-only closure patch + 1 active #184 scoped overlay 由 `verify-closure.sh` 重放通过；79 条登记中 19 absorbed、59 deferred、1 active；`mobilePatches` 只包含 active overlay。 |
+| Android identity | **已同步，未构建验证** | mobile/About/Gradle `2.2.7`，versionCode `20207`；Android Gradle/APK/adb/device UI 尚未运行。 |
+| About/version current face | **已实现，静态验证通过** | v2.2.7 upstream About retains the `platform.version` row, and `entry.tsx` keeps the upstream `createWebPlatform(pkg.version)` face; the old v2.2.1 three-row base/server overlay is deferred with `settings-about-version` and is not part of the current replay. Current identity is Android/mobile/About `2.2.7`; old #149/About three-row and device evidence remain historical. |
 
 ## 当前差距摘要
 
@@ -74,7 +87,7 @@
 | S36 | SSH 连接、认证、隧道与恢复 | 部分验证 + 已复现缺陷（#146） | 适配；#146 真机全链推进至服务认证：添加表单/registry 持久化、unknown 指纹挑战（呈现值与独立参考相等）→Trust→Sign-in required→SAF 密钥导入（vault 封装）→密钥认证 Connected（信任命中无重复提示）→ServiceAuthPrompt 呈现与密码提交全部 PASS；**隧道数据面 BLOCKED**：JSch 本地转发在设备绑定但每连接挂起（设备 curl 000/服务端日志零到达；主机同密钥 OpenSSH 转发 200/401 正常；主机 JVM 同 jsch 2.28.8 同序列正常）——隧道依赖项（SSH 向发送/流式/红线/队列/compact 复测）继承 BLOCKED，其余负例（TLS/非 ASCII/端口变化/incompatible/changed 键/vault 门禁）为本轮未跑（见未验收清单）；另登记：冷启动 ssh 桥握手竞态一次（reload 后 acked）、idle SSH 主机无可用重连入口（settings 行按阶段 inert + 单 plugin 条目死壳，G30④ 判定点交用户决策） | E13–E18/E34；#102；#146（build-and-verify.md #146 段） |
 | S37 | 每服务器 Shell 选择 | 已有代码 | 对齐；#102 服务器页已迁移至 v2.2.1 目标（settings-servers-migration）：servers.tsx/row.tsx 目标逐字，ShellSetting action 搜索命名线程接通，Shell 段随服务器健康门显隐；候选/读写/回滚线协议已核等价，保留 pin 的 config.update 命名；写入成功/失败回滚有单测与探针回滚序锚，真服务动态往返仍未验 | E30/E31/E34；settings-servers-migration；#102 |
 | S38 | 新图标、折叠长用户消息 | 已有代码及局部运行证据 | 适配；实验入口及消费链已接通；图标切换/持久化、8lh 支持已验；#145 QA：G1 项目图标生成/跨重启保持实测 PASS（D/O/N/X/P 字母块多次冷重启一致），motion-spring 目标采纳后动效面无回归（Reduce motion On/Off 各一遍）；长消息折叠展开与性能仍阻塞（无长历史会话）；#103/settings-general-experimental-migration 零改动复用（Experimental 页自有行经核对已目标形），回归确认归 #103 设备 QA（图标切换、8lh 折叠行为不变） | E20/E34；#64 补验；#103 回归确认；#145 QA（build-and-verify.md #145 段） |
-| S39 | About、版本、许可与声明 | **已实现（复验收口；issue #110）** | 对齐/适配；notices 滚动目标差异已补齐（`data-scrollable` 目标形，#110 复验 scrollH 5327/clientH 404 滚动不回退）；另显示移动版本与基座，服务版本取排序首项为移动边界；#110 新基线复验：三行实显 + 搜索命中 PASS、服务行诚实降级串实测（checking 恒驻与 #72 同形）、zh 回退不回退；链接实测为**目标形 plain `target=_blank` 原位打开**（非 files-open-external 消费者——计划前提经设备实测更正，链接可打开 + 返回复原成立；显式失败半边继承 #76 JVM/AVD 证据）；服务行真服务展示 BLOCKED 维持（需可达服务）；**#149 release 轮三行实显复验（模拟器 API 34，实连本地服务）：Version 2.2.1 / Upstream OpenCode 2.1.4 / Server OpenCode 2.2.1 截图实测——client=MOBILE_APP_VERSION、base=pin 树真实版本（D2 诚实）、server=实连服务独立不混淆** | E28/E34；#72 补验；#110 复验；#149（build-and-verify.md #149 段）；完整许可审计另见台账 V4 |
+| S39 | About、版本、许可与声明 | **已实现（复验收口；issue #110）** | 对齐/适配；notices 滚动目标差异已补齐（`data-scrollable` 目标形，#110 复验 scrollH 5327/clientH 404 滚动不回退）；另显示移动版本与基座，服务版本取排序首项为移动边界；#110 新基线复验：三行实显 + 搜索命中 PASS、服务行诚实降级串实测（checking 恒驻与 #72 同形）、zh 回退不回退；链接实测为**目标形 plain `target=_blank` 原位打开**（非 files-open-external 消费者——计划前提经设备实测更正，链接可打开 + 返回复原成立；显式失败半边继承 #76 JVM/AVD 证据）；服务行真服务展示 BLOCKED 维持（需可达服务）；**#149 release 轮三行实显复验（模拟器 API 34，实连本地服务）：Version 2.2.1 / Upstream OpenCode 2.1.4 / Server OpenCode 2.2.1 截图实测——client=历史移动 identity、base=pin 树真实版本（D2 诚实）、server=实连服务独立不混淆** | E28/E34；#72 补验；#110 复验；#149（build-and-verify.md #149 段）；完整许可审计另见台账 V4 |
 | S40 | 更新检查、安装与发行说明 | 不实现（当前暂缓） | 已确认暂缓；当前只保留已有 What's New 外联面，APK 更新待已签名 release 与版本清单等激活条件；上游 external 契约不等于已有生产实现；**#110 复核：暂缓维持、呈现不误导已验**（更新操作三负例成立——updater=desktop-host 禁用行、零 Updates 页、About 零更新控件；冷启动无伪弹窗，seen 水位 = 0.1.0；真实跃迁触发路径 BLOCKED，激活条件不变）；**#149 Phase D 真机首测：0.1.0→2.2.1 跃迁 fetch 200+无弹窗+水位推进（上游「无合格 highlights」判定路径），弹窗呈现面待上游内容激活，暂缓边界不变）；**#149 注记：已签名 release APK 已备妥但未上传 → ADR 0005 激活条件（首个对外可下载已签名 release + 版本清单）仍未满足，暂缓边界维持不变** | E24；[ADR 0005](../../../decisions/0005-apk-update.md)；#110 复核；#149（build-and-verify.md #149 段） |
 | S41 | 扩展贡献设置页、分区和设置行 | 已有代码及局部运行证据 | #109 宿主设置挂载、review wrap 行和 GUI tab 标签已局部验证；pairing/updater 桌面守卫保留。Goal 已目标 ComposerPill，不再沿用旧 Panel 断言；#145 QA（评审 MINOR 吸收项）：Extensions flyout 实际可见复验（MCP 2 / Skills 11 / Plugins / LSP 行真实呈现，#135 判据口径）；**#148 会话贡献面生命周期闭环**（真实会话面同帧撤除/恢复、兄弟 tab 完好零死菜单、Terminal 同 PTY id 重挂、撤除不停远端任务红线 PASS、force-stop 持久化 PASS、Reload 零崩溃；sources gate 开/关+空来源契约 PASS；**goal pill BLOCKED**——WebView Chrome/114 缺 `AbortSignal.any` 预存环境缺陷（vendored `plugin/src/promise/adapter.ts:110`，git log 空零 #148 归因），解除条件=WebView ≥116 或 polyfill 决策） | E23/E34 历史；E35 当前；#109；#145 QA（build-and-verify.md #145 段）；#148（build-and-verify.md #148 段） |
 | S42 | 界面缩放比例 | 已有代码及运行证据（issue #104 复验） | 适配；100%–200% 六档，以 CSS zoom 实现并持久化；#104 换壳复验：六档逐档 documentElement.style.zoom 生效（100% 档属性移除）、`opencode-ui-zoom-level` 逐档持久、零横向溢出、200% 跨重启保持；系统字号 1.3 × zoom 200% 组合下设置页可垂直滚动（scrollHeight 898 > clientHeight 644）、末行可达无遮挡、软键盘避让正常（聚焦输入全程可见）、恢复默认可逆；非法存储值回退 1（属性移除）实态复验；**issue #144：M-035 目录行偏离退役-恢复（源码级）**——搜索目录 zoom 行的 `available:"desktop"` 门曾在补丁链 54/55 退役翻回，#144 恢复 web 可用偏离（移动搜索可命中 zoom 行）；缩放行为面无变化，设备复验 BLOCKED 继承（物理合盖）；非 Desktop 原生窗口缩放机制 | E21/E34；#65/#104 补验；#144 源码级 |
@@ -175,8 +188,10 @@
 
 1. Settings 主要已迁入，按下节保留的具体运行/整体对照缺口继续验收；Inbox、queue/media、导出参数、Goal、通知及搜索不得重复列为未迁移。
 2. 真实迁移工作为 home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份/恢复、W18 usage.view、文件流与订阅；按上表完整流程和共享写入边界推进。
-3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。65 active / 0 deferred 历史重放通过不是发布结论。
+3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。当前 patch registry 为 79 registered / 1 active / 19 absorbed / 59 deferred；静态重放通过不是 APK、设备或真实服务发布结论。
 4. #135 已合并，最终修复 `813e68d`，merge commit `bbd0b488`；Agent 及 Details 可见/切换/关闭局部通过。消息列宽度、密度、Composer 尺寸、工具卡片截图差异和完整竖屏键盘未验收。
+
+> **下方历史执行台账边界**：`下一实施工作单元：Settings 整体界面对齐` 及其后续推进记录承接冻结 v2.2.1/迁移前工作单元，包含的旧 pin、vendor、APK、设备和局部 PASS/BLOCKED 只用于历史追溯；它们不是 v2.2.7 当前实施状态。当前 v2.2.7 事实仍以本页 #184 覆盖、current-review 和 execution card 为准。
 
 ## 下一实施工作单元：Settings 整体界面对齐
 

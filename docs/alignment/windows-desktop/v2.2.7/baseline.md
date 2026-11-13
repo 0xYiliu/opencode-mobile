@@ -12,13 +12,13 @@
 | 上游读取方式 | `/home/peterhan/repository/opencode` 的固定 git 对象；不使用工作区 HEAD 代替 tag |
 | Windows 安装包运行验证 | 未提供；Desktop 原生窗口、菜单、更新器、WSL 与视觉结论只能记录源码/构建级事实 |
 
-上游 v2.2.7 的 `packages/app/package.json` 与 `packages/gui-plugins/package.json` 均为 `2.2.7`。当前 Mobile vendor 仍处于迁移前状态：全局 pin 为 `b4525d79…`，GUI plugins 单包来自 v2.2.1；因此本页的“目标”不等于“当前 vendor 已完成迁移”。
+上游 v2.2.7 的 `packages/app/package.json` 与 `packages/gui-plugins/package.json` 均为 `2.2.7`。当前 Mobile vendor 已从固定 v2.2.7 commit 重建，11 个 closure package 均来自该目标；当前 patch registry 为 **79 registered / 1 active / 19 absorbed / 59 deferred**。构建传递依赖由独立 `closurePatches` 修复，移动差异由唯一 active 的 #184 scoped consolidated overlay 承载，不宣称历史 payload 逐条独立重放。
 
 ## 目标来源范围
 
 ### Android 需要的共享闭包
 
-当前闭包的主要共享包为 `app`、`client`、`protocol`、`schema`、`session-ui`、`ui`、`util`、`gui-plugins`、`plugin-browser`、`plugin` 和 `ai`。v2.2.7 迁移必须重新从目标 tag 核对这些包的目录、包版本、依赖、导出、协议/生成面和构建补丁；不能把旧 pin 的文件存在性当作目标等价。
+当前闭包的主要共享包为 `app`、`client`、`protocol`、`schema`、`session-ui`、`ui`、`util`、`gui-plugins`、`plugin-browser`、`plugin` 和 `ai`。这些包已从目标 tag 提取，经 build-only closure patch 与 #184 scoped overlay 重放，并由 `verify-closure.sh` 核对；后续升级仍须从新固定 tag 重新核对目录、版本、依赖、导出和生成面。
 
 ### Desktop 原生包
 
@@ -29,7 +29,7 @@
 - 移动补丁唯一重放顺序：`vendor/upstream/vendor-manifest.json#mobilePatches`。
 - 补丁 ID 与文件 stem 必须保持语义身份；吸收或退休须保留历史处置记录，不静默删除。
 - upstream npm patch 只携带 v2.2.7 closure 实际解析且需要的子集；Desktop-only 依赖和补丁不进入 Android closure。
-- `vendor/upstream/PROVENANCE.md`、`provenance.json` 与 manifest 由 `bun run patches:refresh` 等工具生成字段保持一致。
+- `vendor/upstream/PROVENANCE.md`、`provenance.json` 与 manifest 的机器字段由 `bun run patches:refresh` 保持一致；人工叙述只解释当前 overlay 与历史 deferred 处置。
 
 ## 最小验收要求
 
@@ -42,4 +42,4 @@
 
 ## 变化总结
 
-完整变化盘点见 [changes.md](changes.md)。完整稳定 ID 矩阵见 [matrix.md](matrix.md)；该矩阵当前是从 v2.2.1 继承的迁移工作表，所有 v2.2.7 运行验证默认未完成。
+完整变化盘点见 [changes.md](changes.md)。完整稳定 ID 矩阵见 [matrix.md](matrix.md)；矩阵保留 v2.2.1 crosswalk，但当前 v2.2.7 的源码/补丁/构建证据以本页、[current-review.md](current-review.md) 和执行卡为准。Android APK、设备 UI、Windows 运行端、真实服务与 JSch 数据面仍按验证边界记录为未验证或阻塞。

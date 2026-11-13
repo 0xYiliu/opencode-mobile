@@ -4,7 +4,7 @@ import { createMemo, For, Show, type Component } from "solid-js"
 import { ServerRowMenu } from "@/servers/registry/row-menu"
 import { ServerHealthIndicator } from "@/servers/registry/row"
 import { PluginServerRow } from "@/servers/registry/plugin-row"
-import { SettingsAddServerMenu } from "@/servers/registry/add-menu"
+import { AddServerMenu } from "@/servers/registry/add-menu"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useServerCollectionController } from "@/servers/registry/controller"
@@ -13,23 +13,16 @@ import { SettingsList } from "@/settings/list"
 import { ShellSetting } from "@/settings/general/general"
 import { createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
-import { MobileSshSettingsRow } from "./mobile-ssh"
-import { parseHostKey } from "@opencode-mobile/mobile-hosts"
+import { serverPagesConnection, unauthorizedHttpServer } from "./machine"
 import "@/settings/settings.css"
 
 /** The only server's connection and preferences. */
-export const SettingsServerGeneral: Component<{
-  entry: SettingsServer
-  onAddServer: () => void
-  unsupportedWsl?: boolean
-}> = (props) => {
+export const SettingsServerGeneral: Component<{ entry: SettingsServer; onAddServer: () => void }> = (props) => {
   const language = useLanguage()
-  const controller = useServerCollectionController()
-  const health = createMemo(() => controller.collection.health()[props.entry.key])
 
   return (
     <>
-      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
+      <SettingsServersHeader title={language.t("settings.section.server")} onAddServer={props.onAddServer} />
 
       <div class="settings-tab-body settings-tab-body--sectioned">
         <section class="settings-section settings-server-connection" data-component="settings-server-connection">
@@ -39,7 +32,7 @@ export const SettingsServerGeneral: Component<{
           </SettingsList>
         </section>
 
-        <Show when={props.entry.connection && health()?.healthy !== false ? props.entry.connection : undefined} keyed>
+        <Show when={serverPagesConnection(props.entry.availability)} keyed>
           {(server) => (
             <section class="settings-section">
               <h3 class="settings-section-title">{language.t("settings.tab.preferences")}</h3>
@@ -60,15 +53,13 @@ export const SettingsServerList: Component<{
   /** The server whose shell row search results reveal. */
   selected?: string
   onAddServer: () => void
-  unsupportedWsl?: boolean
   onServerChange: (server: ServerConnection.Any) => void
 }> = (props) => {
   const language = useLanguage()
-  const controller = useServerCollectionController()
 
   return (
     <>
-      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} unsupportedWsl={props.unsupportedWsl} />
+      <SettingsServersHeader title={language.t("settings.tab.servers")} onAddServer={props.onAddServer} />
 
       <div class="settings-tab-body settings-tab-body--sectioned">
         <For each={props.servers}>
@@ -80,14 +71,7 @@ export const SettingsServerList: Component<{
             >
               <SettingsList>
                 <ServerConnectionRow entry={entry} onServerChange={props.onServerChange} />
-                <Show
-                  when={
-                    entry.connection && controller.collection.health()[entry.key]?.healthy !== false
-                      ? entry.connection
-                      : undefined
-                  }
-                  keyed
-                >
+                <Show when={serverPagesConnection(entry.availability)} keyed>
                   {(server) => (
                     <ServerShell
                       server={server}
@@ -104,7 +88,7 @@ export const SettingsServerList: Component<{
   )
 }
 
-function SettingsServersHeader(props: { title: string; onAddServer: () => void; unsupportedWsl?: boolean }) {
+function SettingsServersHeader(props: { title: string; onAddServer: () => void }) {
   const language = useLanguage()
 
   return (
@@ -115,14 +99,17 @@ function SettingsServersHeader(props: { title: string; onAddServer: () => void; 
           <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
         </div>
         <div class="settings-tab-header-actions">
-          <SettingsAddServerMenu onAddServer={props.onAddServer} checkAndroid={props.unsupportedWsl} />
+          <AddServerMenu onAddServer={props.onAddServer} />
         </div>
       </div>
     </div>
   )
 }
 
-function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (server: ServerConnection.Any) => void }) {
+function ServerConnectionRow(props: {
+  entry: SettingsServer
+  onServerChange?: (server: ServerConnection.Any) => void
+}) {
   const dialog = useDialog()
   const language = useLanguage()
   const controller = useServerCollectionController()
@@ -131,12 +118,7 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
   const edit = (server: ServerConnection.Http) =>
     void dialog.push(() => <DialogServer mode="edit" server={server} onSave={props.onServerChange} />)
 
-  // An HTTP server that rejects its saved credentials signs in again through the edit dialog.
-  const signedOut = (server: ServerConnection.Any) =>
-    server.type === "http" && health()?.unauthorized ? server : undefined
-
   return (
-    <Show when={!parseHostKey(props.entry.key)} fallback={<MobileSshSettingsRow server={props.entry.key} health={health} />}>
     <Show
       when={props.entry.source?.entry.row ? props.entry.key : undefined}
       keyed
@@ -145,18 +127,18 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
           {(server) => (
             <div class="settings-servers-row">
               <div class="settings-servers-lead">
-                <ServerHealthIndicator health={health()} authenticationRequired={!!health()?.unauthorized} />
+                <ServerHealthIndicator health={health()} />
                 <div class="settings-servers-copy">
                   <bdi class="settings-servers-name" dir="auto">
                     {props.entry.name}
                   </bdi>
                   <bdi class="settings-servers-meta" dir="ltr">
-                    {server().http.url}
+                    {ServerConnection.http(server())?.url}
                   </bdi>
                 </div>
               </div>
               <div class="settings-servers-actions">
-                <Show when={signedOut(server())}>
+                <Show when={unauthorizedHttpServer(props.entry.availability)}>
                   {(http) => (
                     <Button size="small" variant="neutral" onClick={() => edit(http())}>
                       {language.t("server.action.authenticate")}
@@ -171,7 +153,6 @@ function ServerConnectionRow(props: { entry: SettingsServer; onServerChange?: (s
       }
     >
       {(key) => <PluginServerRow server={key} controller={controller} />}
-    </Show>
     </Show>
   )
 }

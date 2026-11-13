@@ -1,0 +1,4153 @@
+diff --git a/packages/ai/package.json b/packages/ai/package.json
+index 65b6386..eb7f858 100644
+--- a/packages/ai/package.json
++++ b/packages/ai/package.json
+@@ -158,7 +158,6 @@
+   "devDependencies": {
+     "@clack/prompts": "1.0.0-alpha.1",
+     "@effect/platform-node": "catalog:",
+-    "@opencode/http-recorder": "workspace:*",
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+     "@typescript/native": "catalog:",
+diff --git a/packages/client/package.json b/packages/client/package.json
+index a9341a6..d8580d9 100644
+--- a/packages/client/package.json
++++ b/packages/client/package.json
+@@ -54,7 +54,6 @@
+   "devDependencies": {
+     "@effect/platform-node": "catalog:",
+     "@modelcontextprotocol/client": "2.4.0",
+-    "@opencode/httpapi-codegen": "workspace:*",
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+     "@typescript/native": "catalog:",
+diff --git a/packages/patchmark/package.json b/packages/patchmark/package.json
+new file mode 100644
+index 0000000..cf7493b
+--- /dev/null
++++ b/packages/patchmark/package.json
+@@ -0,0 +1,20 @@
++{
++  "$schema": "https://json.schemastore.org/package.json",
++  "name": "@opencode/patchmark",
++  "version": "2.2.1",
++  "private": true,
++  "type": "module",
++  "license": "MIT",
++  "exports": {
++    ".": "./src/index.ts"
++  },
++  "scripts": {
++    "test": "bun test --only-failures",
++    "typecheck": "tsc --noEmit"
++  },
++  "devDependencies": {
++    "@tsconfig/bun": "catalog:",
++    "@types/bun": "catalog:",
++    "@typescript/native": "catalog:"
++  }
++}
+diff --git a/packages/patchmark/src/blocks.ts b/packages/patchmark/src/blocks.ts
+new file mode 100644
+index 0000000..3c1c522
+--- /dev/null
++++ b/packages/patchmark/src/blocks.ts
+@@ -0,0 +1,967 @@
++// CommonMark 0.31.2 block parser: a line-by-line port of commonmark.js `blocks.js`, extended with GFM tables and
++// OpenCode's `$$`/`$` display-math blocks. The parser is persistent: complete lines are incorporated once, and the
++// streaming tail is produced by forking only the open spine (the open last-child chain) of the tree.
++import { unescapeString } from "./entities"
++import { CLOSETAG, OPENTAG, parseReference, type RefMap } from "./inline"
++import type { TableAlign } from "./types"
++
++export type BlockType =
++  | "document"
++  | "block_quote"
++  | "list"
++  | "item"
++  | "heading"
++  | "thematic_break"
++  | "code_block"
++  | "html_block"
++  | "paragraph"
++  | "table"
++  | "math_block"
++
++export interface ListData {
++  type: "bullet" | "ordered"
++  tight: boolean
++  bulletChar: string | null
++  start: number | null
++  delimiter: string | null
++  padding: number
++  markerOffset: number
++}
++
++export interface TableMemo {
++  version: number
++  headers: unknown[] | null
++  rows: unknown[]
++  rawRows: string[]
++  used: Set<string>
++  unresolved: Set<string>
++}
++
++export interface ListMemo {
++  version: number
++  items: unknown[]
++  count: number
++  used: Set<string>
++  unresolved: Set<string>
++  tightChecked: number
++}
++
++const EMPTY_ALIGN: TableAlign[] = []
++const EMPTY_STRINGS: string[] = []
++
++export class BNode {
++  type: BlockType
++  parent: BNode | null = null
++  children: BNode[] = []
++  open = true
++  startLine: number
++  endLine = 0
++  content = ""
++  level = 0
++  listData: ListData | null = null
++  isFenced = false
++  fenceChar = ""
++  fenceLength = 0
++  fenceOffset = 0
++  info = ""
++  literal = ""
++  htmlBlockType = 0
++  /** paragraph whose whole content was reference definitions; renders nothing */
++  defsOnly = false
++  align: TableAlign[] = EMPTY_ALIGN
++  header: string[] = EMPTY_STRINGS
++  rows: string[] = EMPTY_STRINGS
++  /** shared memo across forks of an open table so streaming flushes only convert newly added rows */
++  tableMemo: TableMemo | null = null
++  /** shared memo across forks of an open list so streaming flushes only convert newly closed/open items */
++  listMemo: ListMemo | null = null
++  mathDelimiter = ""
++  mathClosed = false
++  mathLines = 0
++  fenceClosed = false
++  lastLineCannotHeadTable = false
++  /** created or cloned by a throwaway fork (never cached) */
++  forked = false
++  rowsCloned = false
++  /** monotonically increasing identity, stable across forks of the same logical node */
++  serial: number
++
++  constructor(type: BlockType, startLine: number, serial: number) {
++    this.type = type
++    this.startLine = startLine
++    this.serial = serial
++  }
++
++  get lastChild(): BNode | undefined {
++    return this.children[this.children.length - 1]
++  }
++
++  shallowClone(cloneChildren = true): BNode {
++    const copy = new BNode(this.type, this.startLine, this.serial)
++    copy.parent = this.parent
++    copy.children = cloneChildren ? this.children.slice() : []
++    copy.open = this.open
++    copy.endLine = this.endLine
++    copy.content = this.content
++    copy.level = this.level
++    copy.listData = this.listData ? { ...this.listData } : null
++    copy.isFenced = this.isFenced
++    copy.fenceChar = this.fenceChar
++    copy.fenceLength = this.fenceLength
++    copy.fenceOffset = this.fenceOffset
++    copy.info = this.info
++    copy.literal = this.literal
++    copy.htmlBlockType = this.htmlBlockType
++    copy.defsOnly = this.defsOnly
++    copy.align = this.align
++    copy.header = this.header
++    copy.rows = this.rows
++    copy.tableMemo = this.tableMemo
++    copy.listMemo = this.listMemo
++    copy.mathDelimiter = this.mathDelimiter
++    copy.mathClosed = this.mathClosed
++    copy.mathLines = this.mathLines
++    copy.fenceClosed = this.fenceClosed
++    copy.lastLineCannotHeadTable = this.lastLineCannotHeadTable
++    copy.forked = true
++    return copy
++  }
++}
++
++const CODE_INDENT = 4
++const C_TAB = 9
++const C_GREATERTHAN = 62
++const C_LESSTHAN = 60
++const C_SPACE = 32
++const C_OPEN_BRACKET = 91
++
++const reHtmlBlockOpen: RegExp[] = [
++  /./,
++  /^<(?:script|pre|textarea|style)(?:\s|>|$)/i,
++  /^<!--/,
++  /^<[?]/,
++  /^<![A-Za-z]/,
++  /^<!\[CDATA\[/,
++  /^<[/]?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[123456]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|section|search|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:\s|[/]?[>]|$)/i,
++  new RegExp("^(?:" + OPENTAG + "|" + CLOSETAG + ")\\s*$", "i"),
++]
++
++const reHtmlBlockClose: RegExp[] = [/./, /<\/(?:script|pre|textarea|style)>/i, /-->/, /\?>/, />/, /\]\]>/]
++
++const reNonSpace = /[^ \t\f\v\r\n]/
++const reBulletListMarker = /^[*+-]/
++const reOrderedListMarker = /^(\d{1,9})([.)])/
++const reATXHeadingMarker = /^#{1,6}(?:[ \t]+|$)/
++const reCodeFence = /^`{3,}(?!.*`)|^~{3,}/
++const reClosingCodeFence = /^(?:`{3,}|~{3,})(?=[ \t]*$)/
++const reSetextHeadingLine = /^(?:=+|-+)[ \t]*$/
++const reTableDelimiterRow = /^\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/
++
++const isBlank = (s: string) => !reNonSpace.test(s)
++const isSpaceOrTab = (c: number) => c === C_SPACE || c === C_TAB
++const peek = (ln: string, pos: number) => (pos < ln.length ? ln.charCodeAt(pos) : -1)
++
++function isThematicBreak(ln: string, start: number): boolean {
++  const marker = peek(ln, start)
++  if (marker !== 0x2a /* * */ && marker !== 0x5f /* _ */ && marker !== 0x2d /* - */) return false
++  let count = 0
++  for (let i = ln.length - 1; i >= start; i--) {
++    const c = ln.charCodeAt(i)
++    if (c === marker) count++
++    else if (c !== C_SPACE && c !== C_TAB) return false
++  }
++  return count >= 3
++}
++
++function isMaybeSpecial(c: number, ext: boolean): boolean {
++  switch (c) {
++    case 0x23: // #
++    case 0x60: // `
++    case 0x7e: // ~
++    case 0x2a: // *
++    case 0x2b: // +
++    case 0x5f: // _
++    case 0x3d: // =
++    case 0x3c: // <
++    case 0x3e: // >
++    case 0x2d: // -
++      return true
++    case 0x7c: // |
++    case 0x3a: // :
++    case 0x24: // $
++      return ext
++    default:
++      return c >= 0x30 && c <= 0x39
++  }
++}
++
++function endsWithBlankLine(block: BNode, next: BNode | undefined): boolean {
++  return next !== undefined && block.endLine !== next.startLine - 1
++}
++
++/** Split a GFM table row into raw cell strings (escaped pipes stay escaped; they are unescaped per cell later) */
++export function splitTableRow(line: string): string[] {
++  let s = line.trim()
++  if (s.startsWith("|")) s = s.slice(1)
++  if (s.endsWith("|") && !isEscapedAt(s, s.length - 1)) s = s.slice(0, -1)
++  const cells: string[] = []
++  let start = 0
++  for (let i = 0; i < s.length; i++) {
++    const c = s.charCodeAt(i)
++    if (c === 0x5c /* \ */) {
++      i++
++      continue
++    }
++    if (c === 0x7c /* | */) {
++      cells.push(s.slice(start, i).trim())
++      start = i + 1
++    }
++  }
++  cells.push(s.slice(start).trim())
++  return cells
++}
++
++function isEscapedAt(s: string, idx: number): boolean {
++  let backslashes = 0
++  for (let k = idx - 1; k >= 0 && s.charCodeAt(k) === 0x5c; k--) backslashes++
++  return backslashes % 2 === 1
++}
++
++function parseAlign(delimiterRow: string): TableAlign[] {
++  return splitTableRow(delimiterRow).map((cell) => {
++    const left = cell.startsWith(":")
++    const right = cell.endsWith(":")
++    if (left && right) return "center"
++    if (right) return "right"
++    if (left) return "left"
++    return null
++  })
++}
++
++export interface ParserOptions {
++  gfm: boolean
++  math: boolean
++}
++
++type Continue = 0 | 1 | 2
++
++export class BlockParser {
++  doc: BNode
++  tip: BNode
++  oldtip: BNode
++  currentLine = ""
++  lineNumber = 0
++  offset = 0
++  column = 0
++  nextNonspace = 0
++  nextNonspaceColumn = 0
++  indent = 0
++  indented = false
++  blank = false
++  partiallyConsumedTab = false
++  allClosed = true
++  lastMatchedContainer: BNode
++  refmap: RefMap
++  options: ParserOptions
++  /** lines (1-based) where an unclosed display-math opener must be read as ordinary Markdown */
++  disallowMath: Set<number>
++  /** set when a math block closed without its closing delimiter; the document must be re-parsed */
++  unclosedMathAt = 0
++  serialCounter: { n: number }
++  /** refmap entries added since construction/fork (labels), so a fork can report new definitions */
++  refsAdded: string[] = []
++
++  constructor(
++    options: ParserOptions,
++    disallowMath: Set<number> = new Set(),
++    serialCounter = { n: 0 },
++    doc?: BNode,
++    refmap?: RefMap,
++  ) {
++    this.options = options
++    this.disallowMath = disallowMath
++    this.serialCounter = serialCounter
++    this.doc = doc ?? new BNode("document", 1, this.serialCounter.n++)
++    this.tip = this.doc
++    this.oldtip = this.doc
++    this.lastMatchedContainer = this.doc
++    this.refmap = refmap ?? new Map()
++  }
++
++  forkMode = false
++  refmapCloned = false
++
++  newNode(type: BlockType, startLine: number): BNode {
++    const node = new BNode(type, startLine, this.serialCounter.n++)
++    if (type === "list") {
++      node.listMemo = { version: -1, items: [], count: 0, used: new Set(), unresolved: new Set(), tightChecked: 0 }
++    } else if (type === "table") {
++      node.rows = []
++      node.tableMemo = { version: -1, headers: null, rows: [], rawRows: [], used: new Set(), unresolved: new Set() }
++    }
++    if (this.forkMode) node.forked = true
++    return node
++  }
++
++  /**
++   * Fork the parser for a throwaway continuation (the streaming tail). Only the open spine is cloned; closed
++   * nodes are shared and never mutated. The fork's document holds just the open top-level child (if any).
++   */
++  fork(): BlockParser {
++    const doc = this.doc.shallowClone(false)
++    const f = new BlockParser(this.options, this.disallowMath, this.serialCounter, doc, this.refmap)
++    f.lineNumber = this.lineNumber
++    f.forkMode = true
++    let src = this.doc
++    let dst = doc
++    while (src !== this.tip) {
++      const child = src.lastChild!
++      const copy = child.shallowClone(child.children.length > 0)
++      copy.parent = dst
++      if (dst === doc) doc.children = [copy]
++      else dst.children[dst.children.length - 1] = copy
++      src = child
++      dst = copy
++    }
++    f.tip = dst
++    f.oldtip = f.tip
++    f.lastMatchedContainer = f.tip
++    return f
++  }
++
++  addLine() {
++    if (this.partiallyConsumedTab) {
++      this.offset += 1
++      const charsToTab = 4 - (this.column % 4)
++      this.tip.content += " ".repeat(charsToTab)
++    }
++    this.tip.content += this.currentLine.slice(this.offset) + "\n"
++  }
++
++  addChild(tag: BlockType, offset: number): BNode {
++    while (!this.canContain(this.tip.type, tag)) {
++      this.finalize(this.tip, this.lineNumber - 1)
++    }
++    void offset
++    const newBlock = this.newNode(tag, this.lineNumber)
++    newBlock.parent = this.tip
++    this.tip.children.push(newBlock)
++    this.tip = newBlock
++    return newBlock
++  }
++
++  canContain(parent: BlockType, child: BlockType): boolean {
++    switch (parent) {
++      case "document":
++      case "block_quote":
++      case "item":
++        return child !== "item"
++      case "list":
++        return child === "item"
++      default:
++        return false
++    }
++  }
++
++  acceptsLines(t: BlockType): boolean {
++    return t === "paragraph" || t === "code_block" || t === "html_block" || t === "table" || t === "math_block"
++  }
++
++  parseListMarker(container: BNode): ListData | null {
++    const rest = this.currentLine.slice(this.nextNonspace)
++    let match: RegExpMatchArray | null
++    const data: ListData = {
++      type: "bullet",
++      tight: true,
++      bulletChar: null,
++      start: null,
++      delimiter: null,
++      padding: 0,
++      markerOffset: this.indent,
++    }
++    if (this.indent >= 4) return null
++    if ((match = rest.match(reBulletListMarker))) {
++      data.type = "bullet"
++      data.bulletChar = match[0][0]!
++    } else if ((match = rest.match(reOrderedListMarker)) && (container.type !== "paragraph" || match[1] === "1")) {
++      data.type = "ordered"
++      data.start = Number.parseInt(match[1]!, 10)
++      data.delimiter = match[2]!
++    } else {
++      return null
++    }
++    let nextc = peek(this.currentLine, this.nextNonspace + match[0].length)
++    if (!(nextc === -1 || nextc === C_TAB || nextc === C_SPACE)) return null
++    if (container.type === "paragraph" && !reNonSpace.test(this.currentLine.slice(this.nextNonspace + match[0].length))) {
++      return null
++    }
++    this.advanceNextNonspace()
++    this.advanceOffset(match[0].length, true)
++    const spacesStartCol = this.column
++    const spacesStartOffset = this.offset
++    do {
++      this.advanceOffset(1, true)
++      nextc = peek(this.currentLine, this.offset)
++    } while (this.column - spacesStartCol < 5 && isSpaceOrTab(nextc))
++    const blankItem = peek(this.currentLine, this.offset) === -1
++    const spacesAfterMarker = this.column - spacesStartCol
++    if (spacesAfterMarker >= 5 || spacesAfterMarker < 1 || blankItem) {
++      data.padding = match[0].length + 1
++      this.column = spacesStartCol
++      this.offset = spacesStartOffset
++      if (isSpaceOrTab(peek(this.currentLine, this.offset))) this.advanceOffset(1, true)
++    } else {
++      data.padding = match[0].length + spacesAfterMarker
++    }
++    return data
++  }
++
++  closeUnmatchedBlocks() {
++    if (!this.allClosed) {
++      while (this.oldtip !== this.lastMatchedContainer) {
++        const parent = this.oldtip.parent!
++        this.finalize(this.oldtip, this.lineNumber - 1)
++        this.oldtip = parent
++      }
++      this.allClosed = true
++    }
++  }
++
++  continueBlock(container: BNode): Continue {
++    const ln = this.currentLine
++    switch (container.type) {
++      case "document":
++      case "list":
++        return 0
++      case "block_quote":
++        if (!this.indented && peek(ln, this.nextNonspace) === C_GREATERTHAN) {
++          this.advanceNextNonspace()
++          this.advanceOffset(1, false)
++          if (isSpaceOrTab(peek(ln, this.offset))) this.advanceOffset(1, true)
++          return 0
++        }
++        return 1
++      case "item": {
++        const ld = container.listData!
++        if (this.blank) {
++          if (container.children.length === 0) return 1
++          this.advanceNextNonspace()
++        } else if (this.indent >= ld.markerOffset + ld.padding) {
++          this.advanceOffset(ld.markerOffset + ld.padding, true)
++        } else {
++          return 1
++        }
++        return 0
++      }
++      case "heading":
++      case "thematic_break":
++        return 1
++      case "code_block": {
++        const indent = this.indent
++        if (container.isFenced) {
++          const match =
++            indent <= 3 &&
++            ln.charAt(this.nextNonspace) === container.fenceChar &&
++            ln.slice(this.nextNonspace).match(reClosingCodeFence)
++          if (match && match[0].length >= container.fenceLength) {
++            container.fenceClosed = true
++            this.finalize(container, this.lineNumber)
++            return 2
++          }
++          let i = container.fenceOffset
++          while (i > 0 && isSpaceOrTab(peek(ln, this.offset))) {
++            this.advanceOffset(1, true)
++            i--
++          }
++        } else if (indent >= CODE_INDENT) {
++          this.advanceOffset(CODE_INDENT, true)
++        } else if (this.blank) {
++          this.advanceNextNonspace()
++        } else {
++          return 1
++        }
++        return 0
++      }
++      case "html_block":
++        return this.blank && (container.htmlBlockType === 6 || container.htmlBlockType === 7) ? 1 : 0
++      case "paragraph":
++        return this.blank ? 1 : 0
++      case "table":
++        return this.blank ? 1 : 0
++      case "math_block": {
++        if (container.mathLines > 0 && ln.slice(this.offset) === container.mathDelimiter) {
++          container.mathClosed = true
++          this.finalize(container, this.lineNumber)
++          return 2
++        }
++        return 0
++      }
++    }
++  }
++
++  finalizeBlock(block: BNode) {
++    switch (block.type) {
++      case "list": {
++        const items = block.children
++        const memo = block.listMemo!
++        const start = block.listData!.tight ? Math.max(0, memo.tightChecked - 1) : items.length
++        outer: for (let i = start; i < items.length; i++) {
++          const item = items[i]!
++          if (i + 1 < items.length && endsWithBlankLine(item, items[i + 1])) {
++            block.listData!.tight = false
++            break
++          }
++          const subs = item.children
++          for (let j = 0; j < subs.length; j++) {
++            if (j + 1 < subs.length && endsWithBlankLine(subs[j]!, subs[j + 1])) {
++              block.listData!.tight = false
++              break outer
++            }
++          }
++        }
++        if (block.listData!.tight && items.length > 1 && !block.forked) {
++          memo.tightChecked = Math.max(memo.tightChecked, items.length - 1)
++        }
++        block.endLine = block.lastChild!.endLine
++        break
++      }
++      case "item":
++        if (block.lastChild) block.endLine = block.lastChild.endLine
++        else block.endLine = block.startLine
++        break
++      case "code_block":
++        if (block.isFenced) {
++          const content = block.content
++          const newlinePos = content.indexOf("\n")
++          const firstLine = content.slice(0, newlinePos)
++          block.info = unescapeString(firstLine.trim())
++          block.literal = content.slice(newlinePos + 1)
++        } else {
++          const lines = block.content.split("\n")
++          while (lines.length > 0 && /^[ \t]*$/.test(lines[lines.length - 1]!)) lines.pop()
++          block.literal = lines.join("\n") + "\n"
++          block.endLine = block.startLine + lines.length - 1
++        }
++        block.content = ""
++        break
++      case "html_block":
++        block.literal = block.content.replace(/\n$/, "")
++        block.content = ""
++        break
++      case "paragraph": {
++        let pos: number
++        while (
++          peek(block.content, 0) === C_OPEN_BRACKET &&
++          (pos = this.parseRef(block.content, block.startLine))
++        ) {
++          block.content = block.content.slice(pos)
++        }
++        if (isBlank(block.content)) block.defsOnly = true
++        break
++      }
++      case "math_block":
++        block.literal = block.content.slice(block.content.indexOf("\n") + 1)
++        block.content = ""
++        if (!block.mathClosed && this.unclosedMathAt === 0) this.unclosedMathAt = block.startLine
++        break
++      default:
++        break
++    }
++  }
++
++  parseRef(s: string, startLine: number): number {
++    if (this.forkMode && !this.refmapCloned) {
++      this.refmap = new Map(this.refmap)
++      this.refmapCloned = true
++    }
++    const before = this.refmap.size
++    const pos = parseReference(s, this.refmap)
++    if (pos && this.refmap.size > before) {
++      // the newest key is the last inserted
++      let lastKey = ""
++      for (const key of this.refmap.keys()) lastKey = key
++      const def = this.refmap.get(lastKey)
++      if (def) def.line = startLine
++      this.refsAdded.push(lastKey)
++    }
++    return pos
++  }
++
++  /** Block starts. Returns 0 = no match, 1 = matched container, 2 = matched leaf. */
++  tryStart(i: number, container: BNode): 0 | 1 | 2 {
++    switch (i) {
++      case 0: {
++        // block quote
++        if (!this.indented && peek(this.currentLine, this.nextNonspace) === C_GREATERTHAN) {
++          this.advanceNextNonspace()
++          this.advanceOffset(1, false)
++          if (isSpaceOrTab(peek(this.currentLine, this.offset))) this.advanceOffset(1, true)
++          this.closeUnmatchedBlocks()
++          this.addChild("block_quote", this.nextNonspace)
++          return 1
++        }
++        return 0
++      }
++      case 1: {
++        // ATX heading
++        let match: RegExpMatchArray | null
++        if (
++          !this.indented &&
++          peek(this.currentLine, this.nextNonspace) === 0x23 &&
++          (match = this.currentLine.slice(this.nextNonspace).match(reATXHeadingMarker))
++        ) {
++          this.advanceNextNonspace()
++          this.advanceOffset(match[0].length, false)
++          this.closeUnmatchedBlocks()
++          const c = this.addChild("heading", this.nextNonspace)
++          c.level = match[0].trim().length
++          c.content = this.currentLine
++            .slice(this.offset)
++            .replace(/^[ \t]*#+[ \t]*$/, "")
++            .replace(/[ \t]+#+[ \t]*$/, "")
++          this.advanceOffset(this.currentLine.length - this.offset, false)
++          return 2
++        }
++        return 0
++      }
++      case 2: {
++        // fenced code block
++        const first = peek(this.currentLine, this.nextNonspace)
++        let match: RegExpMatchArray | null
++        if (
++          !this.indented &&
++          (first === 0x60 || first === 0x7e) &&
++          (match = this.currentLine.slice(this.nextNonspace).match(reCodeFence))
++        ) {
++          const fenceLength = match[0].length
++          this.closeUnmatchedBlocks()
++          const c = this.addChild("code_block", this.nextNonspace)
++          c.isFenced = true
++          c.fenceLength = fenceLength
++          c.fenceChar = match[0][0]!
++          c.fenceOffset = this.indent
++          this.advanceNextNonspace()
++          this.advanceOffset(fenceLength, false)
++          return 2
++        }
++        return 0
++      }
++      case 3: {
++        // HTML block
++        if (!this.indented && peek(this.currentLine, this.nextNonspace) === C_LESSTHAN) {
++          const s = this.currentLine.slice(this.nextNonspace)
++          for (let blockType = 1; blockType <= 7; blockType++) {
++            if (
++              reHtmlBlockOpen[blockType]!.test(s) &&
++              (blockType < 7 ||
++                (container.type !== "paragraph" && !(!this.allClosed && !this.blank && this.tip.type === "paragraph")))
++            ) {
++              this.closeUnmatchedBlocks()
++              const b = this.addChild("html_block", this.offset)
++              b.htmlBlockType = blockType
++              return 2
++            }
++          }
++        }
++        return 0
++      }
++      case 4: {
++        // setext heading
++        const first = peek(this.currentLine, this.nextNonspace)
++        let match: RegExpMatchArray | null
++        if (
++          !this.indented &&
++          container.type === "paragraph" &&
++          (first === 0x3d || first === 0x2d) &&
++          (match = this.currentLine.slice(this.nextNonspace).match(reSetextHeadingLine))
++        ) {
++          this.closeUnmatchedBlocks()
++          let pos: number
++          while (
++            peek(container.content, 0) === C_OPEN_BRACKET &&
++            (pos = this.parseRef(container.content, container.startLine))
++          ) {
++            container.content = container.content.slice(pos)
++          }
++          if (container.content.length > 0) {
++            const heading = this.newNode("heading", container.startLine)
++            heading.level = match[0][0] === "=" ? 1 : 2
++            heading.content = container.content
++            const parent = container.parent!
++            heading.parent = parent
++            parent.children[parent.children.indexOf(container)] = heading
++            this.tip = heading
++            this.advanceOffset(this.currentLine.length - this.offset, false)
++            return 2
++          }
++          return 0
++        }
++        return 0
++      }
++      case 5: {
++        // thematic break
++        if (!this.indented && isThematicBreak(this.currentLine, this.nextNonspace)) {
++          this.closeUnmatchedBlocks()
++          this.addChild("thematic_break", this.nextNonspace)
++          this.advanceOffset(this.currentLine.length - this.offset, false)
++          return 2
++        }
++        return 0
++      }
++      case 8: {
++        // GFM table: the paragraph's last line is the header row, this line the delimiter row
++        if (!this.options.gfm || this.indented || container.type !== "paragraph" || container.lastLineCannotHeadTable) return 0
++        const rest = this.currentLine.slice(this.nextNonspace)
++        if (!reTableDelimiterRow.test(rest)) return 0
++        const content = container.content
++        const body = content.endsWith("\n") ? content.slice(0, -1) : content
++        const lastNl = body.lastIndexOf("\n")
++        const headerLine = body.slice(lastNl + 1)
++        const align = parseAlign(rest)
++        if (headerLine.trim() === "|") return 0
++        const header = splitTableRow(headerLine)
++        if (header.length !== align.length) return 0
++        if (!rest.includes("|") && !rest.includes(":")) return 0
++        this.closeUnmatchedBlocks()
++        const parent = container.parent!
++        const table = this.newNode("table", this.lineNumber - 1)
++        table.align = align
++        table.header = header
++        table.parent = parent
++        if (lastNl < 0) {
++          parent.children[parent.children.indexOf(container)] = table
++        } else {
++          container.content = body.slice(0, lastNl + 1)
++          this.tip = container
++          this.finalize(container, this.lineNumber - 2)
++          parent.children.push(table)
++        }
++        this.tip = table
++        this.advanceOffset(this.currentLine.length - this.offset, false)
++        return 2
++      }
++      case 6: {
++        // list item
++        const first = peek(this.currentLine, this.nextNonspace)
++        let data: ListData | null
++        if (
++          (!this.indented || container.type === "list") &&
++          (first === 0x2a || first === 0x2b || first === 0x2d || (first >= 0x30 && first <= 0x39)) &&
++          (data = this.parseListMarker(container))
++        ) {
++          this.closeUnmatchedBlocks()
++          if (this.tip.type !== "list" || !listsMatch(container.listData, data)) {
++            container = this.addChild("list", this.nextNonspace)
++            container.listData = data
++          }
++          container = this.addChild("item", this.nextNonspace)
++          container.listData = data
++          return 1
++        }
++        return 0
++      }
++      case 7: {
++        // indented code block
++        if (this.indented && this.tip.type !== "paragraph" && !this.blank) {
++          this.advanceOffset(CODE_INDENT, true)
++          this.closeUnmatchedBlocks()
++          this.addChild("code_block", this.offset)
++          return 2
++        }
++        return 0
++      }
++      case 9: {
++        // OpenCode display math: `$$` or `$` alone on a line, closed by the same delimiter alone on a line
++        if (!this.options.math || this.indent !== 0 || this.tip.type === "paragraph" || container.type === "paragraph") {
++          return 0
++        }
++        const rest = this.currentLine.slice(this.nextNonspace)
++        if ((rest === "$$" || rest === "$") && !this.disallowMath.has(this.lineNumber)) {
++          this.closeUnmatchedBlocks()
++          const b = this.addChild("math_block", this.nextNonspace)
++          b.mathDelimiter = rest
++          b.mathLines = -1
++          this.advanceOffset(this.currentLine.length - this.offset, false)
++          return 2
++        }
++        return 0
++      }
++    }
++    return 0
++  }
++
++  advanceOffset(count: number, columns = false) {
++    const currentLine = this.currentLine
++    let c: string | undefined
++    while (count > 0 && (c = currentLine[this.offset])) {
++      if (c === "\t") {
++        const charsToTab = 4 - (this.column % 4)
++        if (columns) {
++          this.partiallyConsumedTab = charsToTab > count
++          const charsToAdvance = charsToTab > count ? count : charsToTab
++          this.column += charsToAdvance
++          this.offset += this.partiallyConsumedTab ? 0 : 1
++          count -= charsToAdvance
++        } else {
++          this.partiallyConsumedTab = false
++          this.column += charsToTab
++          this.offset += 1
++          count -= 1
++        }
++      } else {
++        this.partiallyConsumedTab = false
++        this.offset += 1
++        this.column += 1
++        count -= 1
++      }
++    }
++  }
++
++  advanceNextNonspace() {
++    this.offset = this.nextNonspace
++    this.column = this.nextNonspaceColumn
++    this.partiallyConsumedTab = false
++  }
++
++  findNextNonspace() {
++    const currentLine = this.currentLine
++    const len = currentLine.length
++    let i = this.offset
++    let cols = this.column
++    while (i < len) {
++      const c = currentLine.charCodeAt(i)
++      if (c === C_SPACE) {
++        i++
++        cols++
++      } else if (c === C_TAB) {
++        i++
++        cols += 4 - (cols % 4)
++      } else {
++        break
++      }
++    }
++    const c = i < len ? currentLine.charCodeAt(i) : -1
++    this.blank = c === 0x0a || c === 0x0d || c === -1
++    this.nextNonspace = i
++    this.nextNonspaceColumn = cols
++    this.indent = this.nextNonspaceColumn - this.column
++    this.indented = this.indent >= CODE_INDENT
++  }
++
++  incorporateLine(input: string) {
++    let container = this.doc
++    this.oldtip = this.tip
++    this.offset = 0
++    this.column = 0
++    this.blank = false
++    this.partiallyConsumedTab = false
++    this.lineNumber += 1
++    const ln = input.indexOf("\u0000") !== -1 ? input.replace(/\0/g, "\uFFFD") : input
++    this.currentLine = ln
++
++    let lastChild: BNode | undefined
++    while ((lastChild = container.lastChild) && lastChild.open) {
++      container = lastChild
++      this.findNextNonspace()
++      const res = this.continueBlock(container)
++      if (res === 2) return
++      if (res === 1) {
++        container = container.parent!
++        break
++      }
++    }
++
++    this.allClosed = container === this.oldtip
++    this.lastMatchedContainer = container
++
++    let matchedLeaf =
++      container.type !== "paragraph" && container.type !== "table" && this.acceptsLines(container.type)
++    const ext = this.options.gfm || this.options.math
++    while (!matchedLeaf) {
++      this.findNextNonspace()
++      if (!this.indented && !isMaybeSpecial(peek(ln, this.nextNonspace), ext)) {
++        this.advanceNextNonspace()
++        break
++      }
++      let i = 0
++      let matched = false
++      while (i < 10) {
++        const res = this.tryStart(i, container)
++        if (res === 1) {
++          container = this.tip
++          matched = true
++          break
++        } else if (res === 2) {
++          container = this.tip
++          matchedLeaf = true
++          matched = true
++          break
++        }
++        i++
++      }
++      if (!matched) {
++        this.advanceNextNonspace()
++        break
++      }
++    }
++
++    if (!this.allClosed && !this.blank && this.tip.type === "paragraph") {
++      this.tip.lastLineCannotHeadTable = this.indented
++      this.addLine()
++    } else {
++      this.closeUnmatchedBlocks()
++      const t = container.type
++      if (this.acceptsLines(t)) {
++        if (t === "table") {
++          if (this.lineNumber > container.startLine + 1) {
++            if (container.forked && !container.rowsCloned) {
++              container.rows = container.rows.slice()
++              container.rowsCloned = true
++            }
++            container.rows.push(ln.slice(this.offset))
++          }
++        } else {
++          if (t === "paragraph") container.lastLineCannotHeadTable = this.indented
++          this.addLine()
++          if (t === "math_block") container.mathLines++
++        }
++        if (
++          t === "html_block" &&
++          container.htmlBlockType >= 1 &&
++          container.htmlBlockType <= 5 &&
++          reHtmlBlockClose[container.htmlBlockType]!.test(this.currentLine.slice(this.offset))
++        ) {
++          this.finalize(container, this.lineNumber)
++        }
++      } else if (this.offset < ln.length && !this.blank) {
++        container = this.addChild("paragraph", this.offset)
++        this.advanceNextNonspace()
++        this.addLine()
++      }
++    }
++  }
++
++  finalize(block: BNode, lineNumber: number) {
++    const above = block.parent
++    block.open = false
++    block.endLine = lineNumber
++    this.finalizeBlock(block)
++    this.tip = above!
++  }
++
++  /** Close every open block, as at the end of the document */
++  finish() {
++    while (this.tip && this.tip !== this.doc) this.finalize(this.tip, this.lineNumber)
++    this.doc.open = false
++    this.doc.endLine = this.lineNumber
++  }
++}
++
++function listsMatch(listData: ListData | null, itemData: ListData): boolean {
++  return (
++    listData !== null &&
++    listData.type === itemData.type &&
++    listData.delimiter === itemData.delimiter &&
++    listData.bulletChar === itemData.bulletChar
++  )
++}
+diff --git a/packages/patchmark/src/entities.ts b/packages/patchmark/src/entities.ts
+new file mode 100644
+index 0000000..c9a4e23
+--- /dev/null
++++ b/packages/patchmark/src/entities.ts
+@@ -0,0 +1,133 @@
++// Auto-generated HTML5 named character reference map (2,125 entries) + CommonMark entity/URI helpers
++
++export const HTML_ENTITIES: Record<string, string> = {"Aacute":"Á","aacute":"á","Abreve":"Ă","abreve":"ă","ac":"∾","acd":"∿","acE":"∾̳","Acirc":"Â","acirc":"â","acute":"´","Acy":"А","acy":"а","AElig":"Æ","aelig":"æ","af":"⁡","Afr":"𝔄","afr":"𝔞","Agrave":"À","agrave":"à","alefsym":"ℵ","aleph":"ℵ","Alpha":"Α","alpha":"α","Amacr":"Ā","amacr":"ā","amalg":"⨿","amp":"&","AMP":"&","andand":"⩕","And":"⩓","and":"∧","andd":"⩜","andslope":"⩘","andv":"⩚","ang":"∠","ange":"⦤","angle":"∠","angmsdaa":"⦨","angmsdab":"⦩","angmsdac":"⦪","angmsdad":"⦫","angmsdae":"⦬","angmsdaf":"⦭","angmsdag":"⦮","angmsdah":"⦯","angmsd":"∡","angrt":"∟","angrtvb":"⊾","angrtvbd":"⦝","angsph":"∢","angst":"Å","angzarr":"⍼","Aogon":"Ą","aogon":"ą","Aopf":"𝔸","aopf":"𝕒","apacir":"⩯","ap":"≈","apE":"⩰","ape":"≊","apid":"≋","apos":"'","ApplyFunction":"⁡","approx":"≈","approxeq":"≊","Aring":"Å","aring":"å","Ascr":"𝒜","ascr":"𝒶","Assign":"≔","ast":"*","asymp":"≈","asympeq":"≍","Atilde":"Ã","atilde":"ã","Auml":"Ä","auml":"ä","awconint":"∳","awint":"⨑","backcong":"≌","backepsilon":"϶","backprime":"‵","backsim":"∽","backsimeq":"⋍","Backslash":"∖","Barv":"⫧","barvee":"⊽","barwed":"⌅","Barwed":"⌆","barwedge":"⌅","bbrk":"⎵","bbrktbrk":"⎶","bcong":"≌","Bcy":"Б","bcy":"б","bdquo":"„","becaus":"∵","because":"∵","Because":"∵","bemptyv":"⦰","bepsi":"϶","bernou":"ℬ","Bernoullis":"ℬ","Beta":"Β","beta":"β","beth":"ℶ","between":"≬","Bfr":"𝔅","bfr":"𝔟","bigcap":"⋂","bigcirc":"◯","bigcup":"⋃","bigodot":"⨀","bigoplus":"⨁","bigotimes":"⨂","bigsqcup":"⨆","bigstar":"★","bigtriangledown":"▽","bigtriangleup":"△","biguplus":"⨄","bigvee":"⋁","bigwedge":"⋀","bkarow":"⤍","blacklozenge":"⧫","blacksquare":"▪","blacktriangle":"▴","blacktriangledown":"▾","blacktriangleleft":"◂","blacktriangleright":"▸","blank":"␣","blk12":"▒","blk14":"░","blk34":"▓","block":"█","bne":"=⃥","bnequiv":"≡⃥","bNot":"⫭","bnot":"⌐","Bopf":"𝔹","bopf":"𝕓","bot":"⊥","bottom":"⊥","bowtie":"⋈","boxbox":"⧉","boxdl":"┐","boxdL":"╕","boxDl":"╖","boxDL":"╗","boxdr":"┌","boxdR":"╒","boxDr":"╓","boxDR":"╔","boxh":"─","boxH":"═","boxhd":"┬","boxHd":"╤","boxhD":"╥","boxHD":"╦","boxhu":"┴","boxHu":"╧","boxhU":"╨","boxHU":"╩","boxminus":"⊟","boxplus":"⊞","boxtimes":"⊠","boxul":"┘","boxuL":"╛","boxUl":"╜","boxUL":"╝","boxur":"└","boxuR":"╘","boxUr":"╙","boxUR":"╚","boxv":"│","boxV":"║","boxvh":"┼","boxvH":"╪","boxVh":"╫","boxVH":"╬","boxvl":"┤","boxvL":"╡","boxVl":"╢","boxVL":"╣","boxvr":"├","boxvR":"╞","boxVr":"╟","boxVR":"╠","bprime":"‵","breve":"˘","Breve":"˘","brvbar":"¦","bscr":"𝒷","Bscr":"ℬ","bsemi":"⁏","bsim":"∽","bsime":"⋍","bsolb":"⧅","bsol":"\\","bsolhsub":"⟈","bull":"•","bullet":"•","bump":"≎","bumpE":"⪮","bumpe":"≏","Bumpeq":"≎","bumpeq":"≏","Cacute":"Ć","cacute":"ć","capand":"⩄","capbrcup":"⩉","capcap":"⩋","cap":"∩","Cap":"⋒","capcup":"⩇","capdot":"⩀","CapitalDifferentialD":"ⅅ","caps":"∩︀","caret":"⁁","caron":"ˇ","Cayleys":"ℭ","ccaps":"⩍","Ccaron":"Č","ccaron":"č","Ccedil":"Ç","ccedil":"ç","Ccirc":"Ĉ","ccirc":"ĉ","Cconint":"∰","ccups":"⩌","ccupssm":"⩐","Cdot":"Ċ","cdot":"ċ","cedil":"¸","Cedilla":"¸","cemptyv":"⦲","cent":"¢","centerdot":"·","CenterDot":"·","cfr":"𝔠","Cfr":"ℭ","CHcy":"Ч","chcy":"ч","check":"✓","checkmark":"✓","Chi":"Χ","chi":"χ","circ":"ˆ","circeq":"≗","circlearrowleft":"↺","circlearrowright":"↻","circledast":"⊛","circledcirc":"⊚","circleddash":"⊝","CircleDot":"⊙","circledR":"®","circledS":"Ⓢ","CircleMinus":"⊖","CirclePlus":"⊕","CircleTimes":"⊗","cir":"○","cirE":"⧃","cire":"≗","cirfnint":"⨐","cirmid":"⫯","cirscir":"⧂","ClockwiseContourIntegral":"∲","CloseCurlyDoubleQuote":"”","CloseCurlyQuote":"’","clubs":"♣","clubsuit":"♣","colon":":","Colon":"∷","Colone":"⩴","colone":"≔","coloneq":"≔","comma":",","commat":"@","comp":"∁","compfn":"∘","complement":"∁","complexes":"ℂ","cong":"≅","congdot":"⩭","Congruent":"≡","conint":"∮","Conint":"∯","ContourIntegral":"∮","copf":"𝕔","Copf":"ℂ","coprod":"∐","Coproduct":"∐","copy":"©","COPY":"©","copysr":"℗","CounterClockwiseContourIntegral":"∳","crarr":"↵","cross":"✗","Cross":"⨯","Cscr":"𝒞","cscr":"𝒸","csub":"⫏","csube":"⫑","csup":"⫐","csupe":"⫒","ctdot":"⋯","cudarrl":"⤸","cudarrr":"⤵","cuepr":"⋞","cuesc":"⋟","cularr":"↶","cularrp":"⤽","cupbrcap":"⩈","cupcap":"⩆","CupCap":"≍","cup":"∪","Cup":"⋓","cupcup":"⩊","cupdot":"⊍","cupor":"⩅","cups":"∪︀","curarr":"↷","curarrm":"⤼","curlyeqprec":"⋞","curlyeqsucc":"⋟","curlyvee":"⋎","curlywedge":"⋏","curren":"¤","curvearrowleft":"↶","curvearrowright":"↷","cuvee":"⋎","cuwed":"⋏","cwconint":"∲","cwint":"∱","cylcty":"⌭","dagger":"†","Dagger":"‡","daleth":"ℸ","darr":"↓","Darr":"↡","dArr":"⇓","dash":"‐","Dashv":"⫤","dashv":"⊣","dbkarow":"⤏","dblac":"˝","Dcaron":"Ď","dcaron":"ď","Dcy":"Д","dcy":"д","ddagger":"‡","ddarr":"⇊","DD":"ⅅ","dd":"ⅆ","DDotrahd":"⤑","ddotseq":"⩷","deg":"°","Del":"∇","Delta":"Δ","delta":"δ","demptyv":"⦱","dfisht":"⥿","Dfr":"𝔇","dfr":"𝔡","dHar":"⥥","dharl":"⇃","dharr":"⇂","DiacriticalAcute":"´","DiacriticalDot":"˙","DiacriticalDoubleAcute":"˝","DiacriticalGrave":"`","DiacriticalTilde":"˜","diam":"⋄","diamond":"⋄","Diamond":"⋄","diamondsuit":"♦","diams":"♦","die":"¨","DifferentialD":"ⅆ","digamma":"ϝ","disin":"⋲","div":"÷","divide":"÷","divideontimes":"⋇","divonx":"⋇","DJcy":"Ђ","djcy":"ђ","dlcorn":"⌞","dlcrop":"⌍","dollar":"$","Dopf":"𝔻","dopf":"𝕕","Dot":"¨","dot":"˙","DotDot":"⃜","doteq":"≐","doteqdot":"≑","DotEqual":"≐","dotminus":"∸","dotplus":"∔","dotsquare":"⊡","doublebarwedge":"⌆","DoubleContourIntegral":"∯","DoubleDot":"¨","DoubleDownArrow":"⇓","DoubleLeftArrow":"⇐","DoubleLeftRightArrow":"⇔","DoubleLeftTee":"⫤","DoubleLongLeftArrow":"⟸","DoubleLongLeftRightArrow":"⟺","DoubleLongRightArrow":"⟹","DoubleRightArrow":"⇒","DoubleRightTee":"⊨","DoubleUpArrow":"⇑","DoubleUpDownArrow":"⇕","DoubleVerticalBar":"∥","DownArrowBar":"⤓","downarrow":"↓","DownArrow":"↓","Downarrow":"⇓","DownArrowUpArrow":"⇵","DownBreve":"̑","downdownarrows":"⇊","downharpoonleft":"⇃","downharpoonright":"⇂","DownLeftRightVector":"⥐","DownLeftTeeVector":"⥞","DownLeftVectorBar":"⥖","DownLeftVector":"↽","DownRightTeeVector":"⥟","DownRightVectorBar":"⥗","DownRightVector":"⇁","DownTeeArrow":"↧","DownTee":"⊤","drbkarow":"⤐","drcorn":"⌟","drcrop":"⌌","Dscr":"𝒟","dscr":"𝒹","DScy":"Ѕ","dscy":"ѕ","dsol":"⧶","Dstrok":"Đ","dstrok":"đ","dtdot":"⋱","dtri":"▿","dtrif":"▾","duarr":"⇵","duhar":"⥯","dwangle":"⦦","DZcy":"Џ","dzcy":"џ","dzigrarr":"⟿","Eacute":"É","eacute":"é","easter":"⩮","Ecaron":"Ě","ecaron":"ě","Ecirc":"Ê","ecirc":"ê","ecir":"≖","ecolon":"≕","Ecy":"Э","ecy":"э","eDDot":"⩷","Edot":"Ė","edot":"ė","eDot":"≑","ee":"ⅇ","efDot":"≒","Efr":"𝔈","efr":"𝔢","eg":"⪚","Egrave":"È","egrave":"è","egs":"⪖","egsdot":"⪘","el":"⪙","Element":"∈","elinters":"⏧","ell":"ℓ","els":"⪕","elsdot":"⪗","Emacr":"Ē","emacr":"ē","empty":"∅","emptyset":"∅","EmptySmallSquare":"◻","emptyv":"∅","EmptyVerySmallSquare":"▫","emsp13":" ","emsp14":" ","emsp":" ","ENG":"Ŋ","eng":"ŋ","ensp":" ","Eogon":"Ę","eogon":"ę","Eopf":"𝔼","eopf":"𝕖","epar":"⋕","eparsl":"⧣","eplus":"⩱","epsi":"ε","Epsilon":"Ε","epsilon":"ε","epsiv":"ϵ","eqcirc":"≖","eqcolon":"≕","eqsim":"≂","eqslantgtr":"⪖","eqslantless":"⪕","Equal":"⩵","equals":"=","EqualTilde":"≂","equest":"≟","Equilibrium":"⇌","equiv":"≡","equivDD":"⩸","eqvparsl":"⧥","erarr":"⥱","erDot":"≓","escr":"ℯ","Escr":"ℰ","esdot":"≐","Esim":"⩳","esim":"≂","Eta":"Η","eta":"η","ETH":"Ð","eth":"ð","Euml":"Ë","euml":"ë","euro":"€","excl":"!","exist":"∃","Exists":"∃","expectation":"ℰ","exponentiale":"ⅇ","ExponentialE":"ⅇ","fallingdotseq":"≒","Fcy":"Ф","fcy":"ф","female":"♀","ffilig":"ﬃ","fflig":"ﬀ","ffllig":"ﬄ","Ffr":"𝔉","ffr":"𝔣","filig":"ﬁ","FilledSmallSquare":"◼","FilledVerySmallSquare":"▪","fjlig":"fj","flat":"♭","fllig":"ﬂ","fltns":"▱","fnof":"ƒ","Fopf":"𝔽","fopf":"𝕗","forall":"∀","ForAll":"∀","fork":"⋔","forkv":"⫙","Fouriertrf":"ℱ","fpartint":"⨍","frac12":"½","frac13":"⅓","frac14":"¼","frac15":"⅕","frac16":"⅙","frac18":"⅛","frac23":"⅔","frac25":"⅖","frac34":"¾","frac35":"⅗","frac38":"⅜","frac45":"⅘","frac56":"⅚","frac58":"⅝","frac78":"⅞","frasl":"⁄","frown":"⌢","fscr":"𝒻","Fscr":"ℱ","gacute":"ǵ","Gamma":"Γ","gamma":"γ","Gammad":"Ϝ","gammad":"ϝ","gap":"⪆","Gbreve":"Ğ","gbreve":"ğ","Gcedil":"Ģ","Gcirc":"Ĝ","gcirc":"ĝ","Gcy":"Г","gcy":"г","Gdot":"Ġ","gdot":"ġ","ge":"≥","gE":"≧","gEl":"⪌","gel":"⋛","geq":"≥","geqq":"≧","geqslant":"⩾","gescc":"⪩","ges":"⩾","gesdot":"⪀","gesdoto":"⪂","gesdotol":"⪄","gesl":"⋛︀","gesles":"⪔","Gfr":"𝔊","gfr":"𝔤","gg":"≫","Gg":"⋙","ggg":"⋙","gimel":"ℷ","GJcy":"Ѓ","gjcy":"ѓ","gla":"⪥","gl":"≷","glE":"⪒","glj":"⪤","gnap":"⪊","gnapprox":"⪊","gne":"⪈","gnE":"≩","gneq":"⪈","gneqq":"≩","gnsim":"⋧","Gopf":"𝔾","gopf":"𝕘","grave":"`","GreaterEqual":"≥","GreaterEqualLess":"⋛","GreaterFullEqual":"≧","GreaterGreater":"⪢","GreaterLess":"≷","GreaterSlantEqual":"⩾","GreaterTilde":"≳","Gscr":"𝒢","gscr":"ℊ","gsim":"≳","gsime":"⪎","gsiml":"⪐","gtcc":"⪧","gtcir":"⩺","gt":">","GT":">","Gt":"≫","gtdot":"⋗","gtlPar":"⦕","gtquest":"⩼","gtrapprox":"⪆","gtrarr":"⥸","gtrdot":"⋗","gtreqless":"⋛","gtreqqless":"⪌","gtrless":"≷","gtrsim":"≳","gvertneqq":"≩︀","gvnE":"≩︀","Hacek":"ˇ","hairsp":" ","half":"½","hamilt":"ℋ","HARDcy":"Ъ","hardcy":"ъ","harrcir":"⥈","harr":"↔","hArr":"⇔","harrw":"↭","Hat":"^","hbar":"ℏ","Hcirc":"Ĥ","hcirc":"ĥ","hearts":"♥","heartsuit":"♥","hellip":"…","hercon":"⊹","hfr":"𝔥","Hfr":"ℌ","HilbertSpace":"ℋ","hksearow":"⤥","hkswarow":"⤦","hoarr":"⇿","homtht":"∻","hookleftarrow":"↩","hookrightarrow":"↪","hopf":"𝕙","Hopf":"ℍ","horbar":"―","HorizontalLine":"─","hscr":"𝒽","Hscr":"ℋ","hslash":"ℏ","Hstrok":"Ħ","hstrok":"ħ","HumpDownHump":"≎","HumpEqual":"≏","hybull":"⁃","hyphen":"‐","Iacute":"Í","iacute":"í","ic":"⁣","Icirc":"Î","icirc":"î","Icy":"И","icy":"и","Idot":"İ","IEcy":"Е","iecy":"е","iexcl":"¡","iff":"⇔","ifr":"𝔦","Ifr":"ℑ","Igrave":"Ì","igrave":"ì","ii":"ⅈ","iiiint":"⨌","iiint":"∭","iinfin":"⧜","iiota":"℩","IJlig":"Ĳ","ijlig":"ĳ","Imacr":"Ī","imacr":"ī","image":"ℑ","ImaginaryI":"ⅈ","imagline":"ℐ","imagpart":"ℑ","imath":"ı","Im":"ℑ","imof":"⊷","imped":"Ƶ","Implies":"⇒","incare":"℅","in":"∈","infin":"∞","infintie":"⧝","inodot":"ı","intcal":"⊺","int":"∫","Int":"∬","integers":"ℤ","Integral":"∫","intercal":"⊺","Intersection":"⋂","intlarhk":"⨗","intprod":"⨼","InvisibleComma":"⁣","InvisibleTimes":"⁢","IOcy":"Ё","iocy":"ё","Iogon":"Į","iogon":"į","Iopf":"𝕀","iopf":"𝕚","Iota":"Ι","iota":"ι","iprod":"⨼","iquest":"¿","iscr":"𝒾","Iscr":"ℐ","isin":"∈","isindot":"⋵","isinE":"⋹","isins":"⋴","isinsv":"⋳","isinv":"∈","it":"⁢","Itilde":"Ĩ","itilde":"ĩ","Iukcy":"І","iukcy":"і","Iuml":"Ï","iuml":"ï","Jcirc":"Ĵ","jcirc":"ĵ","Jcy":"Й","jcy":"й","Jfr":"𝔍","jfr":"𝔧","jmath":"ȷ","Jopf":"𝕁","jopf":"𝕛","Jscr":"𝒥","jscr":"𝒿","Jsercy":"Ј","jsercy":"ј","Jukcy":"Є","jukcy":"є","Kappa":"Κ","kappa":"κ","kappav":"ϰ","Kcedil":"Ķ","kcedil":"ķ","Kcy":"К","kcy":"к","Kfr":"𝔎","kfr":"𝔨","kgreen":"ĸ","KHcy":"Х","khcy":"х","KJcy":"Ќ","kjcy":"ќ","Kopf":"𝕂","kopf":"𝕜","Kscr":"𝒦","kscr":"𝓀","lAarr":"⇚","Lacute":"Ĺ","lacute":"ĺ","laemptyv":"⦴","lagran":"ℒ","Lambda":"Λ","lambda":"λ","lang":"⟨","Lang":"⟪","langd":"⦑","langle":"⟨","lap":"⪅","Laplacetrf":"ℒ","laquo":"«","larrb":"⇤","larrbfs":"⤟","larr":"←","Larr":"↞","lArr":"⇐","larrfs":"⤝","larrhk":"↩","larrlp":"↫","larrpl":"⤹","larrsim":"⥳","larrtl":"↢","latail":"⤙","lAtail":"⤛","lat":"⪫","late":"⪭","lates":"⪭︀","lbarr":"⤌","lBarr":"⤎","lbbrk":"❲","lbrace":"{","lbrack":"[","lbrke":"⦋","lbrksld":"⦏","lbrkslu":"⦍","Lcaron":"Ľ","lcaron":"ľ","Lcedil":"Ļ","lcedil":"ļ","lceil":"⌈","lcub":"{","Lcy":"Л","lcy":"л","ldca":"⤶","ldquo":"“","ldquor":"„","ldrdhar":"⥧","ldrushar":"⥋","ldsh":"↲","le":"≤","lE":"≦","LeftAngleBracket":"⟨","LeftArrowBar":"⇤","leftarrow":"←","LeftArrow":"←","Leftarrow":"⇐","LeftArrowRightArrow":"⇆","leftarrowtail":"↢","LeftCeiling":"⌈","LeftDoubleBracket":"⟦","LeftDownTeeVector":"⥡","LeftDownVectorBar":"⥙","LeftDownVector":"⇃","LeftFloor":"⌊","leftharpoondown":"↽","leftharpoonup":"↼","leftleftarrows":"⇇","leftrightarrow":"↔","LeftRightArrow":"↔","Leftrightarrow":"⇔","leftrightarrows":"⇆","leftrightharpoons":"⇋","leftrightsquigarrow":"↭","LeftRightVector":"⥎","LeftTeeArrow":"↤","LeftTee":"⊣","LeftTeeVector":"⥚","leftthreetimes":"⋋","LeftTriangleBar":"⧏","LeftTriangle":"⊲","LeftTriangleEqual":"⊴","LeftUpDownVector":"⥑","LeftUpTeeVector":"⥠","LeftUpVectorBar":"⥘","LeftUpVector":"↿","LeftVectorBar":"⥒","LeftVector":"↼","lEg":"⪋","leg":"⋚","leq":"≤","leqq":"≦","leqslant":"⩽","lescc":"⪨","les":"⩽","lesdot":"⩿","lesdoto":"⪁","lesdotor":"⪃","lesg":"⋚︀","lesges":"⪓","lessapprox":"⪅","lessdot":"⋖","lesseqgtr":"⋚","lesseqqgtr":"⪋","LessEqualGreater":"⋚","LessFullEqual":"≦","LessGreater":"≶","lessgtr":"≶","LessLess":"⪡","lesssim":"≲","LessSlantEqual":"⩽","LessTilde":"≲","lfisht":"⥼","lfloor":"⌊","Lfr":"𝔏","lfr":"𝔩","lg":"≶","lgE":"⪑","lHar":"⥢","lhard":"↽","lharu":"↼","lharul":"⥪","lhblk":"▄","LJcy":"Љ","ljcy":"љ","llarr":"⇇","ll":"≪","Ll":"⋘","llcorner":"⌞","Lleftarrow":"⇚","llhard":"⥫","lltri":"◺","Lmidot":"Ŀ","lmidot":"ŀ","lmoustache":"⎰","lmoust":"⎰","lnap":"⪉","lnapprox":"⪉","lne":"⪇","lnE":"≨","lneq":"⪇","lneqq":"≨","lnsim":"⋦","loang":"⟬","loarr":"⇽","lobrk":"⟦","longleftarrow":"⟵","LongLeftArrow":"⟵","Longleftarrow":"⟸","longleftrightarrow":"⟷","LongLeftRightArrow":"⟷","Longleftrightarrow":"⟺","longmapsto":"⟼","longrightarrow":"⟶","LongRightArrow":"⟶","Longrightarrow":"⟹","looparrowleft":"↫","looparrowright":"↬","lopar":"⦅","Lopf":"𝕃","lopf":"𝕝","loplus":"⨭","lotimes":"⨴","lowast":"∗","lowbar":"_","LowerLeftArrow":"↙","LowerRightArrow":"↘","loz":"◊","lozenge":"◊","lozf":"⧫","lpar":"(","lparlt":"⦓","lrarr":"⇆","lrcorner":"⌟","lrhar":"⇋","lrhard":"⥭","lrm":"‎","lrtri":"⊿","lsaquo":"‹","lscr":"𝓁","Lscr":"ℒ","lsh":"↰","Lsh":"↰","lsim":"≲","lsime":"⪍","lsimg":"⪏","lsqb":"[","lsquo":"‘","lsquor":"‚","Lstrok":"Ł","lstrok":"ł","ltcc":"⪦","ltcir":"⩹","lt":"<","LT":"<","Lt":"≪","ltdot":"⋖","lthree":"⋋","ltimes":"⋉","ltlarr":"⥶","ltquest":"⩻","ltri":"◃","ltrie":"⊴","ltrif":"◂","ltrPar":"⦖","lurdshar":"⥊","luruhar":"⥦","lvertneqq":"≨︀","lvnE":"≨︀","macr":"¯","male":"♂","malt":"✠","maltese":"✠","Map":"⤅","map":"↦","mapsto":"↦","mapstodown":"↧","mapstoleft":"↤","mapstoup":"↥","marker":"▮","mcomma":"⨩","Mcy":"М","mcy":"м","mdash":"—","mDDot":"∺","measuredangle":"∡","MediumSpace":" ","Mellintrf":"ℳ","Mfr":"𝔐","mfr":"𝔪","mho":"℧","micro":"µ","midast":"*","midcir":"⫰","mid":"∣","middot":"·","minusb":"⊟","minus":"−","minusd":"∸","minusdu":"⨪","MinusPlus":"∓","mlcp":"⫛","mldr":"…","mnplus":"∓","models":"⊧","Mopf":"𝕄","mopf":"𝕞","mp":"∓","mscr":"𝓂","Mscr":"ℳ","mstpos":"∾","Mu":"Μ","mu":"μ","multimap":"⊸","mumap":"⊸","nabla":"∇","Nacute":"Ń","nacute":"ń","nang":"∠⃒","nap":"≉","napE":"⩰̸","napid":"≋̸","napos":"ŉ","napprox":"≉","natural":"♮","naturals":"ℕ","natur":"♮","nbsp":" ","nbump":"≎̸","nbumpe":"≏̸","ncap":"⩃","Ncaron":"Ň","ncaron":"ň","Ncedil":"Ņ","ncedil":"ņ","ncong":"≇","ncongdot":"⩭̸","ncup":"⩂","Ncy":"Н","ncy":"н","ndash":"–","nearhk":"⤤","nearr":"↗","neArr":"⇗","nearrow":"↗","ne":"≠","nedot":"≐̸","NegativeMediumSpace":"​","NegativeThickSpace":"​","NegativeThinSpace":"​","NegativeVeryThinSpace":"​","nequiv":"≢","nesear":"⤨","nesim":"≂̸","NestedGreaterGreater":"≫","NestedLessLess":"≪","NewLine":"\n","nexist":"∄","nexists":"∄","Nfr":"𝔑","nfr":"𝔫","ngE":"≧̸","nge":"≱","ngeq":"≱","ngeqq":"≧̸","ngeqslant":"⩾̸","nges":"⩾̸","nGg":"⋙̸","ngsim":"≵","nGt":"≫⃒","ngt":"≯","ngtr":"≯","nGtv":"≫̸","nharr":"↮","nhArr":"⇎","nhpar":"⫲","ni":"∋","nis":"⋼","nisd":"⋺","niv":"∋","NJcy":"Њ","njcy":"њ","nlarr":"↚","nlArr":"⇍","nldr":"‥","nlE":"≦̸","nle":"≰","nleftarrow":"↚","nLeftarrow":"⇍","nleftrightarrow":"↮","nLeftrightarrow":"⇎","nleq":"≰","nleqq":"≦̸","nleqslant":"⩽̸","nles":"⩽̸","nless":"≮","nLl":"⋘̸","nlsim":"≴","nLt":"≪⃒","nlt":"≮","nltri":"⋪","nltrie":"⋬","nLtv":"≪̸","nmid":"∤","NoBreak":"⁠","NonBreakingSpace":" ","nopf":"𝕟","Nopf":"ℕ","Not":"⫬","not":"¬","NotCongruent":"≢","NotCupCap":"≭","NotDoubleVerticalBar":"∦","NotElement":"∉","NotEqual":"≠","NotEqualTilde":"≂̸","NotExists":"∄","NotGreater":"≯","NotGreaterEqual":"≱","NotGreaterFullEqual":"≧̸","NotGreaterGreater":"≫̸","NotGreaterLess":"≹","NotGreaterSlantEqual":"⩾̸","NotGreaterTilde":"≵","NotHumpDownHump":"≎̸","NotHumpEqual":"≏̸","notin":"∉","notindot":"⋵̸","notinE":"⋹̸","notinva":"∉","notinvb":"⋷","notinvc":"⋶","NotLeftTriangleBar":"⧏̸","NotLeftTriangle":"⋪","NotLeftTriangleEqual":"⋬","NotLess":"≮","NotLessEqual":"≰","NotLessGreater":"≸","NotLessLess":"≪̸","NotLessSlantEqual":"⩽̸","NotLessTilde":"≴","NotNestedGreaterGreater":"⪢̸","NotNestedLessLess":"⪡̸","notni":"∌","notniva":"∌","notnivb":"⋾","notnivc":"⋽","NotPrecedes":"⊀","NotPrecedesEqual":"⪯̸","NotPrecedesSlantEqual":"⋠","NotReverseElement":"∌","NotRightTriangleBar":"⧐̸","NotRightTriangle":"⋫","NotRightTriangleEqual":"⋭","NotSquareSubset":"⊏̸","NotSquareSubsetEqual":"⋢","NotSquareSuperset":"⊐̸","NotSquareSupersetEqual":"⋣","NotSubset":"⊂⃒","NotSubsetEqual":"⊈","NotSucceeds":"⊁","NotSucceedsEqual":"⪰̸","NotSucceedsSlantEqual":"⋡","NotSucceedsTilde":"≿̸","NotSuperset":"⊃⃒","NotSupersetEqual":"⊉","NotTilde":"≁","NotTildeEqual":"≄","NotTildeFullEqual":"≇","NotTildeTilde":"≉","NotVerticalBar":"∤","nparallel":"∦","npar":"∦","nparsl":"⫽⃥","npart":"∂̸","npolint":"⨔","npr":"⊀","nprcue":"⋠","nprec":"⊀","npreceq":"⪯̸","npre":"⪯̸","nrarrc":"⤳̸","nrarr":"↛","nrArr":"⇏","nrarrw":"↝̸","nrightarrow":"↛","nRightarrow":"⇏","nrtri":"⋫","nrtrie":"⋭","nsc":"⊁","nsccue":"⋡","nsce":"⪰̸","Nscr":"𝒩","nscr":"𝓃","nshortmid":"∤","nshortparallel":"∦","nsim":"≁","nsime":"≄","nsimeq":"≄","nsmid":"∤","nspar":"∦","nsqsube":"⋢","nsqsupe":"⋣","nsub":"⊄","nsubE":"⫅̸","nsube":"⊈","nsubset":"⊂⃒","nsubseteq":"⊈","nsubseteqq":"⫅̸","nsucc":"⊁","nsucceq":"⪰̸","nsup":"⊅","nsupE":"⫆̸","nsupe":"⊉","nsupset":"⊃⃒","nsupseteq":"⊉","nsupseteqq":"⫆̸","ntgl":"≹","Ntilde":"Ñ","ntilde":"ñ","ntlg":"≸","ntriangleleft":"⋪","ntrianglelefteq":"⋬","ntriangleright":"⋫","ntrianglerighteq":"⋭","Nu":"Ν","nu":"ν","num":"#","numero":"№","numsp":" ","nvap":"≍⃒","nvdash":"⊬","nvDash":"⊭","nVdash":"⊮","nVDash":"⊯","nvge":"≥⃒","nvgt":">⃒","nvHarr":"⤄","nvinfin":"⧞","nvlArr":"⤂","nvle":"≤⃒","nvlt":"<⃒","nvltrie":"⊴⃒","nvrArr":"⤃","nvrtrie":"⊵⃒","nvsim":"∼⃒","nwarhk":"⤣","nwarr":"↖","nwArr":"⇖","nwarrow":"↖","nwnear":"⤧","Oacute":"Ó","oacute":"ó","oast":"⊛","Ocirc":"Ô","ocirc":"ô","ocir":"⊚","Ocy":"О","ocy":"о","odash":"⊝","Odblac":"Ő","odblac":"ő","odiv":"⨸","odot":"⊙","odsold":"⦼","OElig":"Œ","oelig":"œ","ofcir":"⦿","Ofr":"𝔒","ofr":"𝔬","ogon":"˛","Ograve":"Ò","ograve":"ò","ogt":"⧁","ohbar":"⦵","ohm":"Ω","oint":"∮","olarr":"↺","olcir":"⦾","olcross":"⦻","oline":"‾","olt":"⧀","Omacr":"Ō","omacr":"ō","Omega":"Ω","omega":"ω","Omicron":"Ο","omicron":"ο","omid":"⦶","ominus":"⊖","Oopf":"𝕆","oopf":"𝕠","opar":"⦷","OpenCurlyDoubleQuote":"“","OpenCurlyQuote":"‘","operp":"⦹","oplus":"⊕","orarr":"↻","Or":"⩔","or":"∨","ord":"⩝","order":"ℴ","orderof":"ℴ","ordf":"ª","ordm":"º","origof":"⊶","oror":"⩖","orslope":"⩗","orv":"⩛","oS":"Ⓢ","Oscr":"𝒪","oscr":"ℴ","Oslash":"Ø","oslash":"ø","osol":"⊘","Otilde":"Õ","otilde":"õ","otimesas":"⨶","Otimes":"⨷","otimes":"⊗","Ouml":"Ö","ouml":"ö","ovbar":"⌽","OverBar":"‾","OverBrace":"⏞","OverBracket":"⎴","OverParenthesis":"⏜","para":"¶","parallel":"∥","par":"∥","parsim":"⫳","parsl":"⫽","part":"∂","PartialD":"∂","Pcy":"П","pcy":"п","percnt":"%","period":".","permil":"‰","perp":"⊥","pertenk":"‱","Pfr":"𝔓","pfr":"𝔭","Phi":"Φ","phi":"φ","phiv":"ϕ","phmmat":"ℳ","phone":"☎","Pi":"Π","pi":"π","pitchfork":"⋔","piv":"ϖ","planck":"ℏ","planckh":"ℎ","plankv":"ℏ","plusacir":"⨣","plusb":"⊞","pluscir":"⨢","plus":"+","plusdo":"∔","plusdu":"⨥","pluse":"⩲","PlusMinus":"±","plusmn":"±","plussim":"⨦","plustwo":"⨧","pm":"±","Poincareplane":"ℌ","pointint":"⨕","popf":"𝕡","Popf":"ℙ","pound":"£","prap":"⪷","Pr":"⪻","pr":"≺","prcue":"≼","precapprox":"⪷","prec":"≺","preccurlyeq":"≼","Precedes":"≺","PrecedesEqual":"⪯","PrecedesSlantEqual":"≼","PrecedesTilde":"≾","preceq":"⪯","precnapprox":"⪹","precneqq":"⪵","precnsim":"⋨","pre":"⪯","prE":"⪳","precsim":"≾","prime":"′","Prime":"″","primes":"ℙ","prnap":"⪹","prnE":"⪵","prnsim":"⋨","prod":"∏","Product":"∏","profalar":"⌮","profline":"⌒","profsurf":"⌓","prop":"∝","Proportional":"∝","Proportion":"∷","propto":"∝","prsim":"≾","prurel":"⊰","Pscr":"𝒫","pscr":"𝓅","Psi":"Ψ","psi":"ψ","puncsp":" ","Qfr":"𝔔","qfr":"𝔮","qint":"⨌","qopf":"𝕢","Qopf":"ℚ","qprime":"⁗","Qscr":"𝒬","qscr":"𝓆","quaternions":"ℍ","quatint":"⨖","quest":"?","questeq":"≟","quot":"\"","QUOT":"\"","rAarr":"⇛","race":"∽̱","Racute":"Ŕ","racute":"ŕ","radic":"√","raemptyv":"⦳","rang":"⟩","Rang":"⟫","rangd":"⦒","range":"⦥","rangle":"⟩","raquo":"»","rarrap":"⥵","rarrb":"⇥","rarrbfs":"⤠","rarrc":"⤳","rarr":"→","Rarr":"↠","rArr":"⇒","rarrfs":"⤞","rarrhk":"↪","rarrlp":"↬","rarrpl":"⥅","rarrsim":"⥴","Rarrtl":"⤖","rarrtl":"↣","rarrw":"↝","ratail":"⤚","rAtail":"⤜","ratio":"∶","rationals":"ℚ","rbarr":"⤍","rBarr":"⤏","RBarr":"⤐","rbbrk":"❳","rbrace":"}","rbrack":"]","rbrke":"⦌","rbrksld":"⦎","rbrkslu":"⦐","Rcaron":"Ř","rcaron":"ř","Rcedil":"Ŗ","rcedil":"ŗ","rceil":"⌉","rcub":"}","Rcy":"Р","rcy":"р","rdca":"⤷","rdldhar":"⥩","rdquo":"”","rdquor":"”","rdsh":"↳","real":"ℜ","realine":"ℛ","realpart":"ℜ","reals":"ℝ","Re":"ℜ","rect":"▭","reg":"®","REG":"®","ReverseElement":"∋","ReverseEquilibrium":"⇋","ReverseUpEquilibrium":"⥯","rfisht":"⥽","rfloor":"⌋","rfr":"𝔯","Rfr":"ℜ","rHar":"⥤","rhard":"⇁","rharu":"⇀","rharul":"⥬","Rho":"Ρ","rho":"ρ","rhov":"ϱ","RightAngleBracket":"⟩","RightArrowBar":"⇥","rightarrow":"→","RightArrow":"→","Rightarrow":"⇒","RightArrowLeftArrow":"⇄","rightarrowtail":"↣","RightCeiling":"⌉","RightDoubleBracket":"⟧","RightDownTeeVector":"⥝","RightDownVectorBar":"⥕","RightDownVector":"⇂","RightFloor":"⌋","rightharpoondown":"⇁","rightharpoonup":"⇀","rightleftarrows":"⇄","rightleftharpoons":"⇌","rightrightarrows":"⇉","rightsquigarrow":"↝","RightTeeArrow":"↦","RightTee":"⊢","RightTeeVector":"⥛","rightthreetimes":"⋌","RightTriangleBar":"⧐","RightTriangle":"⊳","RightTriangleEqual":"⊵","RightUpDownVector":"⥏","RightUpTeeVector":"⥜","RightUpVectorBar":"⥔","RightUpVector":"↾","RightVectorBar":"⥓","RightVector":"⇀","ring":"˚","risingdotseq":"≓","rlarr":"⇄","rlhar":"⇌","rlm":"‏","rmoustache":"⎱","rmoust":"⎱","rnmid":"⫮","roang":"⟭","roarr":"⇾","robrk":"⟧","ropar":"⦆","ropf":"𝕣","Ropf":"ℝ","roplus":"⨮","rotimes":"⨵","RoundImplies":"⥰","rpar":")","rpargt":"⦔","rppolint":"⨒","rrarr":"⇉","Rrightarrow":"⇛","rsaquo":"›","rscr":"𝓇","Rscr":"ℛ","rsh":"↱","Rsh":"↱","rsqb":"]","rsquo":"’","rsquor":"’","rthree":"⋌","rtimes":"⋊","rtri":"▹","rtrie":"⊵","rtrif":"▸","rtriltri":"⧎","RuleDelayed":"⧴","ruluhar":"⥨","rx":"℞","Sacute":"Ś","sacute":"ś","sbquo":"‚","scap":"⪸","Scaron":"Š","scaron":"š","Sc":"⪼","sc":"≻","sccue":"≽","sce":"⪰","scE":"⪴","Scedil":"Ş","scedil":"ş","Scirc":"Ŝ","scirc":"ŝ","scnap":"⪺","scnE":"⪶","scnsim":"⋩","scpolint":"⨓","scsim":"≿","Scy":"С","scy":"с","sdotb":"⊡","sdot":"⋅","sdote":"⩦","searhk":"⤥","searr":"↘","seArr":"⇘","searrow":"↘","sect":"§","semi":";","seswar":"⤩","setminus":"∖","setmn":"∖","sext":"✶","Sfr":"𝔖","sfr":"𝔰","sfrown":"⌢","sharp":"♯","SHCHcy":"Щ","shchcy":"щ","SHcy":"Ш","shcy":"ш","ShortDownArrow":"↓","ShortLeftArrow":"←","shortmid":"∣","shortparallel":"∥","ShortRightArrow":"→","ShortUpArrow":"↑","shy":"­","Sigma":"Σ","sigma":"σ","sigmaf":"ς","sigmav":"ς","sim":"∼","simdot":"⩪","sime":"≃","simeq":"≃","simg":"⪞","simgE":"⪠","siml":"⪝","simlE":"⪟","simne":"≆","simplus":"⨤","simrarr":"⥲","slarr":"←","SmallCircle":"∘","smallsetminus":"∖","smashp":"⨳","smeparsl":"⧤","smid":"∣","smile":"⌣","smt":"⪪","smte":"⪬","smtes":"⪬︀","SOFTcy":"Ь","softcy":"ь","solbar":"⌿","solb":"⧄","sol":"/","Sopf":"𝕊","sopf":"𝕤","spades":"♠","spadesuit":"♠","spar":"∥","sqcap":"⊓","sqcaps":"⊓︀","sqcup":"⊔","sqcups":"⊔︀","Sqrt":"√","sqsub":"⊏","sqsube":"⊑","sqsubset":"⊏","sqsubseteq":"⊑","sqsup":"⊐","sqsupe":"⊒","sqsupset":"⊐","sqsupseteq":"⊒","square":"□","Square":"□","SquareIntersection":"⊓","SquareSubset":"⊏","SquareSubsetEqual":"⊑","SquareSuperset":"⊐","SquareSupersetEqual":"⊒","SquareUnion":"⊔","squarf":"▪","squ":"□","squf":"▪","srarr":"→","Sscr":"𝒮","sscr":"𝓈","ssetmn":"∖","ssmile":"⌣","sstarf":"⋆","Star":"⋆","star":"☆","starf":"★","straightepsilon":"ϵ","straightphi":"ϕ","strns":"¯","sub":"⊂","Sub":"⋐","subdot":"⪽","subE":"⫅","sube":"⊆","subedot":"⫃","submult":"⫁","subnE":"⫋","subne":"⊊","subplus":"⪿","subrarr":"⥹","subset":"⊂","Subset":"⋐","subseteq":"⊆","subseteqq":"⫅","SubsetEqual":"⊆","subsetneq":"⊊","subsetneqq":"⫋","subsim":"⫇","subsub":"⫕","subsup":"⫓","succapprox":"⪸","succ":"≻","succcurlyeq":"≽","Succeeds":"≻","SucceedsEqual":"⪰","SucceedsSlantEqual":"≽","SucceedsTilde":"≿","succeq":"⪰","succnapprox":"⪺","succneqq":"⪶","succnsim":"⋩","succsim":"≿","SuchThat":"∋","sum":"∑","Sum":"∑","sung":"♪","sup1":"¹","sup2":"²","sup3":"³","sup":"⊃","Sup":"⋑","supdot":"⪾","supdsub":"⫘","supE":"⫆","supe":"⊇","supedot":"⫄","Superset":"⊃","SupersetEqual":"⊇","suphsol":"⟉","suphsub":"⫗","suplarr":"⥻","supmult":"⫂","supnE":"⫌","supne":"⊋","supplus":"⫀","supset":"⊃","Supset":"⋑","supseteq":"⊇","supseteqq":"⫆","supsetneq":"⊋","supsetneqq":"⫌","supsim":"⫈","supsub":"⫔","supsup":"⫖","swarhk":"⤦","swarr":"↙","swArr":"⇙","swarrow":"↙","swnwar":"⤪","szlig":"ß","Tab":"\t","target":"⌖","Tau":"Τ","tau":"τ","tbrk":"⎴","Tcaron":"Ť","tcaron":"ť","Tcedil":"Ţ","tcedil":"ţ","Tcy":"Т","tcy":"т","tdot":"⃛","telrec":"⌕","Tfr":"𝔗","tfr":"𝔱","there4":"∴","therefore":"∴","Therefore":"∴","Theta":"Θ","theta":"θ","thetasym":"ϑ","thetav":"ϑ","thickapprox":"≈","thicksim":"∼","ThickSpace":"  ","ThinSpace":" ","thinsp":" ","thkap":"≈","thksim":"∼","THORN":"Þ","thorn":"þ","tilde":"˜","Tilde":"∼","TildeEqual":"≃","TildeFullEqual":"≅","TildeTilde":"≈","timesbar":"⨱","timesb":"⊠","times":"×","timesd":"⨰","tint":"∭","toea":"⤨","topbot":"⌶","topcir":"⫱","top":"⊤","Topf":"𝕋","topf":"𝕥","topfork":"⫚","tosa":"⤩","tprime":"‴","trade":"™","TRADE":"™","triangle":"▵","triangledown":"▿","triangleleft":"◃","trianglelefteq":"⊴","triangleq":"≜","triangleright":"▹","trianglerighteq":"⊵","tridot":"◬","trie":"≜","triminus":"⨺","TripleDot":"⃛","triplus":"⨹","trisb":"⧍","tritime":"⨻","trpezium":"⏢","Tscr":"𝒯","tscr":"𝓉","TScy":"Ц","tscy":"ц","TSHcy":"Ћ","tshcy":"ћ","Tstrok":"Ŧ","tstrok":"ŧ","twixt":"≬","twoheadleftarrow":"↞","twoheadrightarrow":"↠","Uacute":"Ú","uacute":"ú","uarr":"↑","Uarr":"↟","uArr":"⇑","Uarrocir":"⥉","Ubrcy":"Ў","ubrcy":"ў","Ubreve":"Ŭ","ubreve":"ŭ","Ucirc":"Û","ucirc":"û","Ucy":"У","ucy":"у","udarr":"⇅","Udblac":"Ű","udblac":"ű","udhar":"⥮","ufisht":"⥾","Ufr":"𝔘","ufr":"𝔲","Ugrave":"Ù","ugrave":"ù","uHar":"⥣","uharl":"↿","uharr":"↾","uhblk":"▀","ulcorn":"⌜","ulcorner":"⌜","ulcrop":"⌏","ultri":"◸","Umacr":"Ū","umacr":"ū","uml":"¨","UnderBar":"_","UnderBrace":"⏟","UnderBracket":"⎵","UnderParenthesis":"⏝","Union":"⋃","UnionPlus":"⊎","Uogon":"Ų","uogon":"ų","Uopf":"𝕌","uopf":"𝕦","UpArrowBar":"⤒","uparrow":"↑","UpArrow":"↑","Uparrow":"⇑","UpArrowDownArrow":"⇅","updownarrow":"↕","UpDownArrow":"↕","Updownarrow":"⇕","UpEquilibrium":"⥮","upharpoonleft":"↿","upharpoonright":"↾","uplus":"⊎","UpperLeftArrow":"↖","UpperRightArrow":"↗","upsi":"υ","Upsi":"ϒ","upsih":"ϒ","Upsilon":"Υ","upsilon":"υ","UpTeeArrow":"↥","UpTee":"⊥","upuparrows":"⇈","urcorn":"⌝","urcorner":"⌝","urcrop":"⌎","Uring":"Ů","uring":"ů","urtri":"◹","Uscr":"𝒰","uscr":"𝓊","utdot":"⋰","Utilde":"Ũ","utilde":"ũ","utri":"▵","utrif":"▴","uuarr":"⇈","Uuml":"Ü","uuml":"ü","uwangle":"⦧","vangrt":"⦜","varepsilon":"ϵ","varkappa":"ϰ","varnothing":"∅","varphi":"ϕ","varpi":"ϖ","varpropto":"∝","varr":"↕","vArr":"⇕","varrho":"ϱ","varsigma":"ς","varsubsetneq":"⊊︀","varsubsetneqq":"⫋︀","varsupsetneq":"⊋︀","varsupsetneqq":"⫌︀","vartheta":"ϑ","vartriangleleft":"⊲","vartriangleright":"⊳","vBar":"⫨","Vbar":"⫫","vBarv":"⫩","Vcy":"В","vcy":"в","vdash":"⊢","vDash":"⊨","Vdash":"⊩","VDash":"⊫","Vdashl":"⫦","veebar":"⊻","vee":"∨","Vee":"⋁","veeeq":"≚","vellip":"⋮","verbar":"|","Verbar":"‖","vert":"|","Vert":"‖","VerticalBar":"∣","VerticalLine":"|","VerticalSeparator":"❘","VerticalTilde":"≀","VeryThinSpace":" ","Vfr":"𝔙","vfr":"𝔳","vltri":"⊲","vnsub":"⊂⃒","vnsup":"⊃⃒","Vopf":"𝕍","vopf":"𝕧","vprop":"∝","vrtri":"⊳","Vscr":"𝒱","vscr":"𝓋","vsubnE":"⫋︀","vsubne":"⊊︀","vsupnE":"⫌︀","vsupne":"⊋︀","Vvdash":"⊪","vzigzag":"⦚","Wcirc":"Ŵ","wcirc":"ŵ","wedbar":"⩟","wedge":"∧","Wedge":"⋀","wedgeq":"≙","weierp":"℘","Wfr":"𝔚","wfr":"𝔴","Wopf":"𝕎","wopf":"𝕨","wp":"℘","wr":"≀","wreath":"≀","Wscr":"𝒲","wscr":"𝓌","xcap":"⋂","xcirc":"◯","xcup":"⋃","xdtri":"▽","Xfr":"𝔛","xfr":"𝔵","xharr":"⟷","xhArr":"⟺","Xi":"Ξ","xi":"ξ","xlarr":"⟵","xlArr":"⟸","xmap":"⟼","xnis":"⋻","xodot":"⨀","Xopf":"𝕏","xopf":"𝕩","xoplus":"⨁","xotime":"⨂","xrarr":"⟶","xrArr":"⟹","Xscr":"𝒳","xscr":"𝓍","xsqcup":"⨆","xuplus":"⨄","xutri":"△","xvee":"⋁","xwedge":"⋀","Yacute":"Ý","yacute":"ý","YAcy":"Я","yacy":"я","Ycirc":"Ŷ","ycirc":"ŷ","Ycy":"Ы","ycy":"ы","yen":"¥","Yfr":"𝔜","yfr":"𝔶","YIcy":"Ї","yicy":"ї","Yopf":"𝕐","yopf":"𝕪","Yscr":"𝒴","yscr":"𝓎","YUcy":"Ю","yucy":"ю","yuml":"ÿ","Yuml":"Ÿ","Zacute":"Ź","zacute":"ź","Zcaron":"Ž","zcaron":"ž","Zcy":"З","zcy":"з","Zdot":"Ż","zdot":"ż","zeetrf":"ℨ","ZeroWidthSpace":"​","Zeta":"Ζ","zeta":"ζ","zfr":"𝔷","Zfr":"ℨ","ZHcy":"Ж","zhcy":"ж","zigrarr":"⇝","zopf":"𝕫","Zopf":"ℤ","Zscr":"𝒵","zscr":"𝓏","zwj":"‍","zwnj":"‌"};
++
++const DECODE_CODEPOINT_MAP = new Map<number, number>([
++  [0, 0xfffd],
++  [128, 8364],
++  [130, 8218],
++  [131, 402],
++  [132, 8222],
++  [133, 8230],
++  [134, 8224],
++  [135, 8225],
++  [136, 710],
++  [137, 8240],
++  [138, 352],
++  [139, 8249],
++  [140, 338],
++  [142, 381],
++  [145, 8216],
++  [146, 8217],
++  [147, 8220],
++  [148, 8221],
++  [149, 8226],
++  [150, 8211],
++  [151, 8212],
++  [152, 732],
++  [153, 8482],
++  [154, 353],
++  [155, 8250],
++  [156, 339],
++  [158, 382],
++  [159, 376],
++]);
++
++export function decodeCodePoint(cp: number): string {
++  if (!Number.isFinite(cp) || cp <= 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
++    return "\uFFFD";
++  }
++  const mapped = DECODE_CODEPOINT_MAP.get(cp) ?? cp;
++  try {
++    return String.fromCodePoint(mapped);
++  } catch {
++    return "\uFFFD";
++  }
++}
++
++export function decodeEntity(entity: string): string {
++  if (entity.length < 3 || entity.charCodeAt(0) !== 0x26 || entity.charCodeAt(entity.length - 1) !== 0x3b) {
++    return entity;
++  }
++  if (entity.charCodeAt(1) === 0x23 /* # */) {
++    const second = entity.charCodeAt(2);
++    if (second === 0x78 || second === 0x58) {
++      const hex = entity.slice(3, -1);
++      if (hex.length >= 1 && hex.length <= 6 && /^[0-9a-fA-F]+$/.test(hex)) {
++        return decodeCodePoint(Number.parseInt(hex, 16));
++      }
++      return entity;
++    }
++    const dec = entity.slice(2, -1);
++    if (dec.length >= 1 && dec.length <= 7 && /^[0-9]+$/.test(dec)) {
++      return decodeCodePoint(Number.parseInt(dec, 10));
++    }
++    return entity;
++  }
++  const name = entity.slice(1, -1);
++  return Object.prototype.hasOwnProperty.call(HTML_ENTITIES, name) ? HTML_ENTITIES[name]! : entity;
++}
++
++export const ESCAPABLE = "[!\"#$%&'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]";
++export const ENTITY_PATTERN = "&(?:#x[a-f0-9]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,31});";
++const RE_BACKSLASH_OR_AMP = /[\\&]/;
++const RE_ENTITY_OR_ESCAPED = new RegExp("\\\\" + ESCAPABLE + "|" + ENTITY_PATTERN, "gi");
++
++export function unescapeString(s: string): string {
++  if (!RE_BACKSLASH_OR_AMP.test(s)) return s;
++  return s.replace(RE_ENTITY_OR_ESCAPED, (m) => {
++    if (m.charCodeAt(0) === 0x5c) return m.charAt(1);
++    return decodeEntity(m);
++  });
++}
++
++const DEFAULT_URI_CHARS = ";/?:@&=+$,-_.!~*'()#";
++const URI_ENCODE_CACHE: string[] = (() => {
++  const cache: string[] = [];
++  for (let i = 0; i < 128; i++) {
++    const ch = String.fromCharCode(i);
++    if (/^[0-9a-z]$/i.test(ch)) {
++      cache.push(ch);
++    } else {
++      cache.push("%" + ("0" + i.toString(16).toUpperCase()).slice(-2));
++    }
++  }
++  for (let i = 0; i < DEFAULT_URI_CHARS.length; i++) {
++    cache[DEFAULT_URI_CHARS.charCodeAt(i)] = DEFAULT_URI_CHARS[i]!;
++  }
++  return cache;
++})();
++
++const RE_URI_SAFE = /^[A-Za-z0-9;/?:@&=+$,\-_.!~*'()#]*$/
++
++export function normalizeURI(uri: string): string {
++  if (RE_URI_SAFE.test(uri)) return uri
++  let result = "";
++  const l = uri.length;
++  for (let i = 0; i < l; i++) {
++    const code = uri.charCodeAt(i);
++    if (code === 0x25 /* % */ && i + 2 < l && /^[0-9a-f]{2}$/i.test(uri.slice(i + 1, i + 3))) {
++      result += uri.slice(i, i + 3);
++      i += 2;
++      continue;
++    }
++    if (code < 128) {
++      result += URI_ENCODE_CACHE[code];
++      continue;
++    }
++    if (code >= 0xd800 && code <= 0xdfff) {
++      if (code <= 0xdbff && i + 1 < l) {
++        const nextCode = uri.charCodeAt(i + 1);
++        if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
++          result += encodeURIComponent(uri[i]! + uri[i + 1]!);
++          i++;
++          continue;
++        }
++      }
++      result += "%EF%BF%BD";
++      continue;
++    }
++    result += encodeURIComponent(uri[i]!);
++  }
++  return result;
++}
+diff --git a/packages/patchmark/src/heal.ts b/packages/patchmark/src/heal.ts
+new file mode 100644
+index 0000000..bc161ed
+--- /dev/null
++++ b/packages/patchmark/src/heal.ts
+@@ -0,0 +1,251 @@
++// Streaming tail healing: close inline markers that are still open at the end of the block being written,
++// and hide markers that have nothing after them yet, so a half-written `**` never renders as `****` (a rule).
++
++export interface TailHeal {
++  /** Characters to remove from the end of the (right-trimmed) text */
++  strip: number
++  /** Text to append after stripping */
++  append: string
++}
++
++const reInlineDollarMath =
++  /\$\$(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n$]))\$\$|\$(?=[^\s$])((?:\\.|[^\\\n$])*?(?:\\\S|[^\s\\$]))\$(?!\w)/y
++const reInlineParenMath = /\\\(((?:\\.|[^\\\n])*?)\\\)/y
++const reLinkTail = /(!?)\[([^\]\n]*)\]\(([^)\n]*)$/
++
++function isSpace(c: number): boolean {
++  return c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d || Number.isNaN(c)
++}
++
++function isAlnum(c: number): boolean {
++  return (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)
++}
++
++function rtrimLength(text: string): number {
++  let end = text.length
++  while (end > 0 && isSpace(text.charCodeAt(end - 1))) end--
++  return end
++}
++
++function compose(a: TailHeal, b: TailHeal): TailHeal {
++  if (b.strip <= a.append.length) {
++    return { strip: a.strip, append: a.append.slice(0, a.append.length - b.strip) + b.append }
++  }
++  return { strip: a.strip + (b.strip - a.append.length), append: b.append }
++}
++
++interface Open {
++  ch: number
++  len: number
++  /** index just after the opening run */
++  after: number
++  start: number
++}
++
++/**
++ * Compute the edit that heals the end of `text` (an inline run: a paragraph, heading, or table row).
++ * Offsets are relative to `text` with trailing whitespace removed.
++ */
++export function computeTailHeal(input: string): TailHeal {
++  const end = rtrimLength(input)
++  let text = input.slice(0, end)
++  if (!text) return { strip: 0, append: "" }
++
++  let heal: TailHeal = { strip: 0, append: "" }
++
++  // 1. An unfinished inline link or image at the very end: `[label](https://…` shows just the label.
++  const lastOpen = text.lastIndexOf("[")
++  if (lastOpen >= 0 && (lastOpen === 0 || text[lastOpen - 1] !== "\\")) {
++    const m = reLinkTail.exec(text.slice(lastOpen > 0 && text[lastOpen - 1] === "!" ? lastOpen - 1 : lastOpen))
++    if (m) {
++      const matchLen = m[0].length
++      const replacement = m[1] ? "" : m[2]!
++      heal = { strip: matchLen, append: replacement }
++      text = text.slice(0, text.length - matchLen) + replacement
++    }
++  }
++
++  // 2. Scan code spans, math, and emphasis delimiters.
++  const n = text.length
++  let codeOpen: { len: number; start: number } | null = null
++  let wordHadEm = false
++  const stack: Open[] = []
++  let stars = 0
++  let underscores = 0
++  let tildes = 0
++  const push = (open: Open) => {
++    if (open.ch === 0x2a) stars++
++    else if (open.ch === 0x5f) underscores++
++    else tildes++
++    stack.push(open)
++  }
++  const pop = () => {
++    const open = stack.pop()!
++    if (open.ch === 0x2a) stars--
++    else if (open.ch === 0x5f) underscores--
++    else tildes--
++  }
++  const hasOpen = (ch: number) => (ch === 0x2a ? stars : ch === 0x5f ? underscores : tildes) > 0
++  let i = 0
++  while (i < n) {
++    const c = text.charCodeAt(i)
++    if (codeOpen) {
++      if (c === 0x60) {
++        let run = 1
++        while (i + run < n && text.charCodeAt(i + run) === 0x60) run++
++        if (run === codeOpen.len) codeOpen = null
++        i += run
++      } else {
++        i++
++      }
++      continue
++    }
++    if (isSpace(c)) {
++      wordHadEm = false
++      i++
++      continue
++    }
++    if (c === 0x5c /* \ */) {
++      reInlineParenMath.lastIndex = i
++      const pm = reInlineParenMath.exec(text)
++      if (pm) {
++        i += pm[0].length
++        continue
++      }
++      i += 2
++      continue
++    }
++    if (c === 0x60 /* ` */) {
++      let run = 1
++      while (i + run < n && text.charCodeAt(i + run) === 0x60) run++
++      codeOpen = { len: run, start: i }
++      i += run
++      continue
++    }
++    if (c === 0x24 /* $ */) {
++      reInlineDollarMath.lastIndex = i
++      const mm = reInlineDollarMath.exec(text)
++      if (mm) {
++        i += mm[0].length
++        continue
++      }
++      i++
++      continue
++    }
++    if (c === 0x2a /* * */ || c === 0x5f /* _ */ || c === 0x7e /* ~ */) {
++      let run = 1
++      while (i + run < n && text.charCodeAt(i + run) === c) run++
++      const prev = i > 0 ? text.charCodeAt(i - 1) : NaN
++      const next = i + run < n ? text.charCodeAt(i + run) : NaN
++      const isUnderscore = c === 0x5f
++      const isSingleStar = c === 0x2a && run === 1
++      const canOpen =
++        !isSpace(next) &&
++        !(isUnderscore && isAlnum(prev)) &&
++        !(isSingleStar && isAlnum(prev) && !wordHadEm)
++      const canClose = !isSpace(prev) && !(isUnderscore && isAlnum(next))
++      if (c === 0x2a && (run >= 2 || canOpen)) wordHadEm = true
++      if (c === 0x7e && run > 2) {
++        i += run
++        continue
++      }
++      let remaining = run
++      if (canClose) {
++        while (remaining > 0 && stack.length > 0) {
++          if (stack[stack.length - 1]!.ch !== c) {
++            if (!hasOpen(c)) break
++            while (stack[stack.length - 1]!.ch !== c) pop()
++          }
++          const top = stack[stack.length - 1]!
++          if (top.len <= remaining) {
++            remaining -= top.len
++            pop()
++          } else {
++            top.len -= remaining
++            remaining = 0
++          }
++        }
++      }
++      if (remaining > 0 && canOpen) {
++        if (c === 0x7e) {
++          push({ ch: c, len: remaining, after: i + run, start: i + (run - remaining) })
++        } else if (remaining >= 3) {
++          push({ ch: c, len: 2, after: i + run, start: i + (run - remaining) })
++          push({ ch: c, len: 1, after: i + run, start: i + (run - remaining) + 2 })
++        } else {
++          push({ ch: c, len: remaining, after: i + run, start: i + (run - remaining) })
++        }
++      }
++      i += run
++      continue
++    }
++    i++
++  }
++
++  let strip = 0
++  let append = ""
++  let codeClosed = false
++  let nonSpaceEnd = rtrimLength(text)
++
++  if (codeOpen) {
++    if (codeOpen.start + codeOpen.len >= nonSpaceEnd) {
++      strip = n - codeOpen.start
++    } else {
++      append += "`".repeat(codeOpen.len)
++      codeClosed = true
++    }
++  }
++
++  // Close (innermost first) markers that have content after them; drop trailing markers that have none.
++  let limit = n - strip
++  if (nonSpaceEnd > limit) {
++    nonSpaceEnd = limit
++    while (nonSpaceEnd > 0 && isSpace(text.charCodeAt(nonSpaceEnd - 1))) nonSpaceEnd--
++  }
++  for (let s = stack.length - 1; s >= 0; s--) {
++    const open = stack[s]!
++    if (open.start >= limit) continue
++    if (open.after >= nonSpaceEnd) {
++      if (append === "") {
++        // dangling opener at the end: hide it (and the whitespace before it)
++        let cut = open.start
++        while (cut > 0 && (text.charCodeAt(cut - 1) === 0x20 || text.charCodeAt(cut - 1) === 0x09)) cut--
++        strip = n - cut
++        limit = cut
++        if (nonSpaceEnd > limit) {
++          nonSpaceEnd = limit
++          while (nonSpaceEnd > 0 && isSpace(text.charCodeAt(nonSpaceEnd - 1))) nonSpaceEnd--
++        }
++      }
++      continue
++    }
++    append += String.fromCharCode(open.ch).repeat(open.len)
++  }
++
++  // Closers must hug the text: drop trailing spaces before appending
++  if (append && !codeClosed) {
++    let cut = n - strip
++    while (cut > 0 && isSpace(text.charCodeAt(cut - 1))) cut--
++    strip = n - cut
++  }
++
++  return compose(heal, { strip, append })
++}
++
++export function applyTailHeal(text: string, heal: TailHeal): string {
++  if (heal.strip === 0 && heal.append === "") return text
++  const end = rtrimLength(text)
++  return text.slice(0, Math.max(0, end - heal.strip)) + heal.append
++}
++
++/**
++ * Repairs incomplete inline markers at the tail of an actively streaming block without touching closed spans.
++ * `**bold` → `**bold**`, `` `code `` → `` `code` ``, `[label](https://…` → `label`, and a trailing `**` with
++ * nothing after it yet is hidden rather than doubled.
++ */
++export function healStreamingInline(raw: string): string {
++  if (!raw) return raw
++  const heal = computeTailHeal(raw)
++  if (heal.strip === 0 && heal.append === "") return raw
++  return applyTailHeal(raw, heal)
++}
+diff --git a/packages/patchmark/src/html.ts b/packages/patchmark/src/html.ts
+new file mode 100644
+index 0000000..8a4fec6
+--- /dev/null
++++ b/packages/patchmark/src/html.ts
+@@ -0,0 +1,302 @@
++import type { BlockKind, InlineNode, ListItemNode, MarkdownBlock } from "./types"
++
++export interface HtmlRenderOptions {
++  gfm?: boolean
++  math?: boolean
++}
++
++const DISALLOWED_RAW_HTML_RE =
++  /<(\/?)(iframe|noembed|noframes|plaintext|script|style|title|textarea|xmp)(?=[\t\n\f\r />])/gi
++
++export function filterDisallowedRawHtml(raw: string): string {
++  return raw.replace(DISALLOWED_RAW_HTML_RE, "&lt;$1$2")
++}
++
++export function escapeHtml(text: string): string {
++  if (!/[&<>"]/.test(text)) return text
++  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
++}
++
++/** Image alt text the way commonmark.js renders it: tags suppressed, text escaped, raw HTML kept */
++function renderAlt(nodes: ReadonlyArray<InlineNode>): string {
++  let out = ""
++  for (const node of nodes) {
++    switch (node.type) {
++      case "text":
++      case "code":
++        out += escapeHtml(node.text)
++        break
++      case "strong":
++      case "em":
++      case "del":
++      case "link":
++        out += renderAlt(node.children)
++        break
++      case "image":
++        out += node.children ? renderAlt(node.children) : escapeHtml(node.alt)
++        break
++      case "math":
++        out += escapeHtml(node.source)
++        break
++      case "br":
++        out += "\n"
++        break
++      case "html_inline":
++        out += node.raw
++        break
++    }
++  }
++  return out
++}
++
++export function renderInlinesToHtml(nodes: ReadonlyArray<InlineNode>, options?: HtmlRenderOptions): string {
++  let out = ""
++  const gfm = options?.gfm ?? false
++  for (const node of nodes) {
++    switch (node.type) {
++      case "text":
++        out += escapeHtml(node.text)
++        break
++      case "strong":
++        out += `<strong>${renderInlinesToHtml(node.children, options)}</strong>`
++        break
++      case "em":
++        out += `<em>${renderInlinesToHtml(node.children, options)}</em>`
++        break
++      case "del":
++        out += `<del>${renderInlinesToHtml(node.children, options)}</del>`
++        break
++      case "code":
++        out += `<code>${escapeHtml(node.text)}</code>`
++        break
++      case "math":
++        out += `<span class="math-${node.display ? "display" : "inline"}" data-math-delimiter="${node.delimiter}">${escapeHtml(node.source)}</span>`
++        break
++      case "link": {
++        const titleAttr = node.title ? ` title="${escapeHtml(node.title)}"` : ""
++        out += `<a href="${escapeHtml(node.href)}"${titleAttr}>${renderInlinesToHtml(node.children, options)}</a>`
++        break
++      }
++      case "image": {
++        const titleAttr = node.title ? ` title="${escapeHtml(node.title)}"` : ""
++        const alt = node.children ? renderAlt(node.children) : escapeHtml(node.alt)
++        out += `<img src="${escapeHtml(node.src)}" alt="${alt}"${titleAttr} />`
++        break
++      }
++      case "html_inline":
++        out += gfm ? filterDisallowedRawHtml(node.raw) : node.raw
++        break
++      case "br":
++        out += "<br />\n"
++        break
++    }
++  }
++  return out
++}
++
++const blockHtmlCache = new WeakMap<BlockKind, { gfm: boolean; html: string }>()
++const paragraphHtmlCache = new WeakMap<BlockKind, { gfm: boolean; tight?: string; loose?: string }>()
++const rowHtmlCache = new WeakMap<InlineNode[][], { gfm: boolean; align: string; html: string }>()
++
++const CHECKED = `<input checked="" disabled="" type="checkbox"> `
++const UNCHECKED = `<input disabled="" type="checkbox"> `
++
++class HtmlWriter {
++  private parts: string[] = []
++  private lastOut = "\n"
++  constructor(readonly options: HtmlRenderOptions | undefined) {}
++
++  get buffer(): string {
++    return this.parts.join("")
++  }
++
++  out(s: string) {
++    this.parts.push(s)
++    this.lastOut = s
++  }
++
++  cr() {
++    if (this.lastOut !== "\n") this.out("\n")
++  }
++
++  block(kind: BlockKind, tight: boolean, prefix = "") {
++    const gfm = this.options?.gfm ?? false
++    if (kind.type === "paragraph") {
++      if (prefix) return this.blockUncached(kind, tight, prefix)
++      const hit = paragraphHtmlCache.get(kind)
++      const key = tight ? "tight" : "loose"
++      let html = hit?.gfm === gfm ? hit[key] : undefined
++      if (html === undefined) {
++        html = renderInlinesToHtml(kind.inlines, this.options)
++        const entry = hit?.gfm === gfm ? hit : { gfm }
++        entry[key] = html
++        paragraphHtmlCache.set(kind, entry)
++      }
++      if (tight) {
++        this.out(html)
++      } else {
++        this.cr()
++        this.out(`<p>${html}</p>`)
++        this.cr()
++      }
++      return
++    }
++    if (!tight && !prefix) {
++      // kinds of closed blocks are shared across stream frames, so their HTML is too
++      const hit = blockHtmlCache.get(kind)
++      if (hit && hit.gfm === gfm) {
++        this.cr()
++        this.out(hit.html)
++        this.lastOut = "\n"
++        return
++      }
++      const sub = new HtmlWriter(this.options)
++      sub.blockUncached(kind, false, "")
++      const html = sub.buffer
++      blockHtmlCache.set(kind, { gfm, html })
++      this.cr()
++      this.out(html)
++      this.lastOut = "\n"
++      return
++    }
++    this.blockUncached(kind, tight, prefix)
++  }
++
++  blockUncached(kind: BlockKind, tight: boolean, prefix: string) {
++    const gfm = this.options?.gfm ?? false
++    switch (kind.type) {
++      case "paragraph":
++        if (tight) {
++          this.out(prefix + renderInlinesToHtml(kind.inlines, this.options))
++        } else {
++          this.cr()
++          this.out(`<p>${prefix}${renderInlinesToHtml(kind.inlines, this.options)}</p>`)
++          this.cr()
++        }
++        return
++      case "heading":
++        this.cr()
++        this.out(`<h${kind.level}>${renderInlinesToHtml(kind.inlines, this.options)}</h${kind.level}>`)
++        this.cr()
++        return
++      case "code": {
++        let cls = ""
++        if (kind.language) {
++          const escaped = escapeHtml(kind.language)
++          cls = ` class="${escaped.startsWith("language-") ? escaped : `language-${escaped}`}"`
++        }
++        const defaultBody = kind.source ? (kind.source.endsWith("\n") && !kind.complete ? kind.source : `${kind.source}\n`) : ""
++        const body = kind.htmlLiteral !== undefined ? kind.htmlLiteral : defaultBody
++        this.cr()
++        this.out(`<pre><code${cls}>${escapeHtml(body)}</code></pre>`)
++        this.cr()
++        return
++      }
++      case "mermaid": {
++        const defaultBody = kind.source ? (kind.source.endsWith("\n") && !kind.complete ? kind.source : `${kind.source}\n`) : ""
++        const body = kind.htmlLiteral !== undefined ? kind.htmlLiteral : defaultBody
++        this.cr()
++        this.out(`<pre><code class="language-mermaid">${escapeHtml(body)}</code></pre>`)
++        this.cr()
++        return
++      }
++      case "math":
++        this.cr()
++        this.out(`<div class="math-block" data-math-delimiter="${kind.delimiter}">${escapeHtml(kind.source)}</div>`)
++        this.cr()
++        return
++      case "blockquote":
++        this.cr()
++        this.out("<blockquote>")
++        this.cr()
++        for (const child of kind.blocks) this.block(child, false)
++        this.cr()
++        this.out("</blockquote>")
++        this.cr()
++        return
++      case "list": {
++        const tag = kind.ordered ? "ol" : "ul"
++        const startAttr = kind.ordered && kind.start !== undefined && kind.start !== 1 ? ` start="${kind.start}"` : ""
++        this.cr()
++        this.out(`<${tag}${startAttr}>`)
++        this.cr()
++        for (const item of kind.items) this.item(item, kind.tight)
++        this.cr()
++        this.out(`</${tag}>`)
++        this.cr()
++        return
++      }
++      case "table": {
++        this.cr()
++        let out = "<table>\n<thead>\n<tr>\n"
++        for (let c = 0; c < kind.headers.length; c++) {
++          const align = kind.align[c]
++          out += `<th${align ? ` align="${align}"` : ""}>${renderInlinesToHtml(kind.headers[c]!, this.options)}</th>\n`
++        }
++        out += "</tr>\n</thead>\n"
++        if (kind.rows.length > 0) {
++          out += "<tbody>\n"
++          const alignKey = kind.align.join(",") + ":" + kind.headers.length
++          for (const row of kind.rows) {
++            const hit = rowHtmlCache.get(row)
++            if (hit && hit.gfm === gfm && hit.align === alignKey) {
++              out += hit.html
++              continue
++            }
++            let rowHtml = "<tr>\n"
++            for (let c = 0; c < kind.headers.length; c++) {
++              const align = kind.align[c]
++              rowHtml += `<td${align ? ` align="${align}"` : ""}>${renderInlinesToHtml(row[c] ?? [], this.options)}</td>\n`
++            }
++            rowHtml += "</tr>\n"
++            rowHtmlCache.set(row, { gfm, align: alignKey, html: rowHtml })
++            out += rowHtml
++          }
++          out += "</tbody>\n"
++        }
++        out += "</table>"
++        this.out(out)
++        this.cr()
++        return
++      }
++      case "html_block":
++        this.cr()
++        this.out(gfm ? filterDisallowedRawHtml(kind.raw) : kind.raw)
++        this.cr()
++        return
++      case "hr":
++        this.cr()
++        this.out("<hr />")
++        this.cr()
++        return
++      case "group":
++        for (const child of kind.blocks) this.block(child, false)
++        return
++    }
++  }
++
++  item(item: ListItemNode, tight: boolean) {
++    const checkbox = item.checked === true ? CHECKED : item.checked === false ? UNCHECKED : ""
++    this.out("<li>")
++    for (let i = 0; i < item.blocks.length; i++) {
++      this.block(item.blocks[i]!, tight, i === 0 ? checkbox : "")
++    }
++    if (item.blocks.length === 0 && checkbox) this.out(checkbox.trimEnd())
++    this.out("</li>")
++    this.cr()
++  }
++}
++
++export function renderBlockKindToHtml(kind: BlockKind, options?: HtmlRenderOptions): string {
++  const writer = new HtmlWriter(options)
++  writer.block(kind, false)
++  return writer.buffer
++}
++
++export function renderBlocksToHtml(blocks: ReadonlyArray<MarkdownBlock>, options?: HtmlRenderOptions): string {
++  let out = ""
++  for (const b of blocks) {
++    out += options ? renderBlockKindToHtml(b.kind, options) : (b.html ?? renderBlockKindToHtml(b.kind))
++  }
++  return out
++}
+diff --git a/packages/patchmark/src/index.ts b/packages/patchmark/src/index.ts
+new file mode 100644
+index 0000000..2242932
+--- /dev/null
++++ b/packages/patchmark/src/index.ts
+@@ -0,0 +1,16 @@
++export { renderBlockKindToHtml, renderBlocksToHtml, renderInlinesToHtml, escapeHtml } from "./html"
++export { healStreamingInline, computeTailHeal, applyTailHeal, type TailHeal } from "./heal"
++export { parseInlines, type InlineParseOptions, type ReferenceDef } from "./inline"
++export { createMarkdownStream, PatchmarkStream, splitPendingMarker } from "./stream"
++export type {
++  BlockKind,
++  BlockPatch,
++  HeadingLevel,
++  InlineNode,
++  ListItemNode,
++  MarkdownBlock,
++  MathDelimiter,
++  StreamFrame,
++  StreamOptions,
++  TableAlign,
++} from "./types"
+diff --git a/packages/patchmark/src/inline.ts b/packages/patchmark/src/inline.ts
+new file mode 100644
+index 0000000..983ceef
+--- /dev/null
++++ b/packages/patchmark/src/inline.ts
+@@ -0,0 +1,1247 @@
++// CommonMark 0.31.2 inline parser (a port of commonmark.js's delimiter-stack and bracket-stack algorithm),
++// extended with GFM strikethrough and extended autolinks, and OpenCode's `$…$`, `$$…$$`, and `\(…\)` math.
++import { decodeEntity, ENTITY_PATTERN, ESCAPABLE, normalizeURI, unescapeString } from "./entities"
++import type { InlineNode, MathDelimiter } from "./types"
++
++export { healStreamingInline } from "./heal"
++
++export interface ReferenceDef {
++  href: string
++  title?: string
++  /** Source text of the definition (container prefixes stripped), for renderers that re-parse a block on its own */
++  raw?: string
++  /** 1-based start line of the paragraph that defined this reference */
++  line?: number
++}
++
++export type RefMap = Map<string, ReferenceDef>
++
++export interface InlineParseOptions {
++  gfm?: boolean
++  math?: boolean
++  defs?: ReadonlyMap<string, ReferenceDef>
++  unresolvedRefs?: Set<string>
++  usedRefs?: Set<string>
++}
++
++const C_NEWLINE = 10
++const C_ASTERISK = 42
++const C_UNDERSCORE = 95
++const C_BACKTICK = 96
++const C_OPEN_BRACKET = 91
++const C_CLOSE_BRACKET = 93
++const C_LESSTHAN = 60
++const C_BANG = 33
++const C_BACKSLASH = 92
++const C_AMPERSAND = 38
++const C_OPEN_PAREN = 40
++const C_CLOSE_PAREN = 41
++const C_COLON = 58
++const C_TILDE = 126
++const C_DOLLAR = 36
++
++const ESCAPED_CHAR = "\\\\" + ESCAPABLE
++const TAGNAME = "[A-Za-z][A-Za-z0-9-]*"
++const ATTRIBUTENAME = "[a-zA-Z_:][a-zA-Z0-9:._-]*"
++const UNQUOTEDVALUE = "[^\"'=<>`\\x00-\\x20]+"
++const SINGLEQUOTEDVALUE = "'[^']*'"
++const DOUBLEQUOTEDVALUE = '"[^"]*"'
++const ATTRIBUTEVALUE = "(?:" + UNQUOTEDVALUE + "|" + SINGLEQUOTEDVALUE + "|" + DOUBLEQUOTEDVALUE + ")"
++const ATTRIBUTEVALUESPEC = "(?:\\s*=\\s*" + ATTRIBUTEVALUE + ")"
++const ATTRIBUTE = "(?:\\s+" + ATTRIBUTENAME + ATTRIBUTEVALUESPEC + "?)"
++export const OPENTAG = "<" + TAGNAME + ATTRIBUTE + "*\\s*/?>"
++export const CLOSETAG = "</" + TAGNAME + "\\s*[>]"
++const HTMLCOMMENT = "<!-->|<!--->|<!--[\\s\\S]*?-->"
++const PROCESSINGINSTRUCTION = "[<][?][\\s\\S]*?[?][>]"
++const DECLARATION = "<![A-Za-z]+[^>]*>"
++const CDATA = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>"
++const HTMLTAG = "(?:" + OPENTAG + "|" + CLOSETAG + "|" + HTMLCOMMENT + "|" + PROCESSINGINSTRUCTION + "|" + DECLARATION + "|" + CDATA + ")"
++const reHtmlTag = new RegExp(HTMLTAG, "y")
++
++const rePunctuation = /^[!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~\p{P}\p{S}]/u
++const reLinkTitle = new RegExp(
++  '(?:"(' +
++    ESCAPED_CHAR +
++    '|\\\\[^\\\\]|[^\\\\"\\x00])*"' +
++    "|'(" +
++    ESCAPED_CHAR +
++    "|\\\\[^\\\\]|[^\\\\'\\x00])*'" +
++    "|\\((" +
++    ESCAPED_CHAR +
++    "|\\\\[^\\\\]|[^\\\\()\\x00])*\\))",
++  "y",
++)
++const reLinkDestinationBraces = /(?:<(?:[^<>\n\\\x00]|\\.)*>)/y
++const reEscapable = new RegExp("^" + ESCAPABLE)
++const reEntityHere = new RegExp(ENTITY_PATTERN, "iy")
++const reTicks = /`+/g
++const reTicksHere = /`+/y
++const reEmailAutolink =
++  /<([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)>/y
++const reAutolink = /<[A-Za-z][A-Za-z0-9.+-]{1,31}:[^<>\x00-\x20]*>/iy
++const reSpnl = / *(?:\n *)?/y
++const reWhitespaceChar = /^[ \t\n\x0b\x0c\x0d]/
++const reUnicodeWhitespaceChar = /^\s/
++const reFinalSpace = / *$/
++const reInitialSpace = / */y
++const reSpaceAtEndOfLine = / *(?:\n|$)/y
++const reLinkLabel = /\[(?:[^\\[\]]|\\.){0,1000}\]/sy
++const reMainCore = /[^\n`[\]\\!<&*_'"]+/y
++const reMainGfm = /[^\n`[\]\\!<&*_'"~]+/y
++const reMainMath = /[^\n`[\]\\!<&*_'"$]+/y
++const reMainGfmMath = /[^\n`[\]\\!<&*_'"~$]+/y
++
++// OpenCode's marked math extension (packages/ui/src/context/marked-parser.tsx), verbatim
++const reInlineDollarMath =
++  /\$\$(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n$]))\$\$|\$(?=[^\s$])((?:\\.|[^\\\n$])*?(?:\\\S|[^\s\\$]))\$(?!\w)/y
++const reInlineParenMath = /\\\(((?:\\.|[^\\\n])*?)\\\)/y
++
++type NodeType =
++  | "text"
++  | "softbreak"
++  | "linebreak"
++  | "code"
++  | "emph"
++  | "strong"
++  | "del"
++  | "link"
++  | "image"
++  | "html_inline"
++  | "math"
++  | "root"
++
++class INode {
++  type: NodeType
++  literal = ""
++  escaped = false
++  destination = ""
++  title = ""
++  delimiter: MathDelimiter = "dollar"
++  display = false
++  parent: INode | null = null
++  first: INode | null = null
++  last: INode | null = null
++  next: INode | null = null
++  prev: INode | null = null
++
++  constructor(type: NodeType, literal = "") {
++    this.type = type
++    this.literal = literal
++  }
++
++  appendChild(child: INode) {
++    child.unlink()
++    child.parent = this
++    if (this.last) {
++      this.last.next = child
++      child.prev = this.last
++      this.last = child
++    } else {
++      this.first = child
++      this.last = child
++    }
++  }
++
++  insertAfter(sibling: INode) {
++    sibling.unlink()
++    sibling.next = this.next
++    if (sibling.next) sibling.next.prev = sibling
++    sibling.prev = this
++    this.next = sibling
++    sibling.parent = this.parent
++    if (sibling.parent && !sibling.next) sibling.parent.last = sibling
++  }
++
++  insertBefore(sibling: INode) {
++    sibling.unlink()
++    sibling.prev = this.prev
++    if (sibling.prev) sibling.prev.next = sibling
++    sibling.next = this
++    this.prev = sibling
++    sibling.parent = this.parent
++    if (sibling.parent && !sibling.prev) sibling.parent.first = sibling
++  }
++
++  unlink() {
++    if (this.prev) this.prev.next = this.next
++    else if (this.parent) this.parent.first = this.next
++    if (this.next) this.next.prev = this.prev
++    else if (this.parent) this.parent.last = this.prev
++    this.parent = null
++    this.next = null
++    this.prev = null
++  }
++}
++
++interface Delimiter {
++  cc: number
++  numdelims: number
++  origdelims: number
++  node: INode
++  previous: Delimiter | null
++  next: Delimiter | null
++  canOpen: boolean
++  canClose: boolean
++}
++
++interface Bracket {
++  node: INode
++  previous: Bracket | null
++  previousDelimiter: Delimiter | null
++  index: number
++  image: boolean
++  active: boolean
++  bracketAfter: boolean
++}
++
++const text = (s: string) => new INode("text", s)
++
++/** Normalize a link label: strip brackets, trim, collapse whitespace, Unicode case fold */
++export function normalizeReference(label: string): string {
++  return label
++    .slice(1, label.length - 1)
++    .trim()
++    .replace(/[ \t\r\n]+/g, " ")
++    .toLowerCase()
++    .toUpperCase()
++}
++
++function isSpecialFastPath(src: string, gfm: boolean, math: boolean): boolean {
++  for (let i = 0; i < src.length; i++) {
++    const c = src.charCodeAt(i)
++    if (
++      c === C_NEWLINE ||
++      c === C_BACKSLASH ||
++      c === C_BACKTICK ||
++      c === C_ASTERISK ||
++      c === C_UNDERSCORE ||
++      c === C_OPEN_BRACKET ||
++      c === C_CLOSE_BRACKET ||
++      c === C_BANG ||
++      c === C_LESSTHAN ||
++      c === C_AMPERSAND ||
++      (gfm && (c === C_TILDE || c === C_COLON || c === 0x40 /* @ */ || c === 0x2e /* . */)) ||
++      (math && c === C_DOLLAR)
++    ) {
++      return true
++    }
++  }
++  return false
++}
++
++class InlineParser {
++  subject = ""
++  pos = 0
++  delimiters: Delimiter | null = null
++  brackets: Bracket | null = null
++  refmap: ReadonlyMap<string, ReferenceDef> = new Map()
++  gfm = false
++  math = false
++  reMain = reMainCore
++  tickRuns: Map<number, number[]> | null = null
++  unresolvedRefs?: Set<string>
++  usedRefs?: Set<string>
++
++  /** `re` must be sticky (anchored at `pos`) or global (searching forward from `pos`) */
++  match(re: RegExp): string | null {
++    re.lastIndex = this.pos
++    const m = re.exec(this.subject)
++    if (m === null) return null
++    this.pos = re.lastIndex
++    return m[0]
++  }
++
++  peek(): number {
++    return this.pos < this.subject.length ? this.subject.charCodeAt(this.pos) : -1
++  }
++
++  spnl(): true {
++    this.match(reSpnl)
++    return true
++  }
++
++  parseBackticks(block: INode): boolean {
++    const ticks = this.match(reTicksHere)
++    if (ticks === null) return false
++    const afterOpenTicks = this.pos
++    const len = ticks.length
++    if (this.tickRuns === null) {
++      const first = this.match(reTicks)
++      if (first === null) {
++        this.pos = afterOpenTicks
++        block.appendChild(text(ticks))
++        return true
++      }
++      if (first.length === len) {
++        const node = new INode("code")
++        const contents = this.subject.slice(afterOpenTicks, this.pos - len).replace(/\n/gm, " ")
++        if (contents.length > 0 && /[^ ]/.test(contents) && contents[0] === " " && contents[contents.length - 1] === " ") {
++          node.literal = contents.slice(1, contents.length - 1)
++        } else {
++          node.literal = contents
++        }
++        block.appendChild(node)
++        return true
++      }
++      const map = new Map<number, number[]>()
++      map.set(first.length, [this.pos])
++      let m: string | null
++      while ((m = this.match(reTicks)) !== null) {
++        let list = map.get(m.length)
++        if (!list) map.set(m.length, (list = []))
++        list.push(this.pos)
++      }
++      this.tickRuns = map
++    }
++    const candidates = this.tickRuns.get(len)
++    if (candidates) {
++      for (let i = 0; i < candidates.length; i++) {
++        const endPos = candidates[i]!
++        if (endPos - len >= afterOpenTicks) {
++          this.pos = endPos
++          const node = new INode("code")
++          const contents = this.subject.slice(afterOpenTicks, endPos - len).replace(/\n/gm, " ")
++          if (contents.length > 0 && /[^ ]/.test(contents) && contents[0] === " " && contents[contents.length - 1] === " ") {
++            node.literal = contents.slice(1, contents.length - 1)
++          } else {
++            node.literal = contents
++          }
++          block.appendChild(node)
++          return true
++        }
++      }
++    }
++    this.pos = afterOpenTicks
++    block.appendChild(text(ticks))
++    return true
++  }
++
++  parseBackslash(block: INode): boolean {
++    const subj = this.subject
++    if (this.math) {
++      reInlineParenMath.lastIndex = this.pos
++      const m = reInlineParenMath.exec(subj)
++      if (m) {
++        const node = new INode("math", m[1]!.trim())
++        node.delimiter = "paren"
++        node.display = false
++        block.appendChild(node)
++        this.pos += m[0].length
++        return true
++      }
++    }
++    this.pos += 1
++    if (this.peek() === C_NEWLINE) {
++      this.pos += 1
++      block.appendChild(new INode("linebreak"))
++    } else if (reEscapable.test(subj.charAt(this.pos))) {
++      const node = text(subj.charAt(this.pos))
++      node.escaped = true
++      block.appendChild(node)
++      this.pos += 1
++    } else {
++      block.appendChild(text("\\"))
++    }
++    return true
++  }
++
++  parseDollar(block: INode): boolean {
++    reInlineDollarMath.lastIndex = this.pos
++    const m = reInlineDollarMath.exec(this.subject)
++    if (!m) return false
++    const display = m[1] !== undefined
++    const node = new INode("math", (m[1] ?? m[2])!.trim())
++    node.delimiter = display ? "double-dollar" : "dollar"
++    node.display = display
++    block.appendChild(node)
++    this.pos += m[0].length
++    return true
++  }
++
++  parseAutolink(block: INode): boolean {
++    let m: string | null
++    if ((m = this.match(reEmailAutolink))) {
++      const dest = m.slice(1, m.length - 1)
++      const node = new INode("link")
++      node.destination = normalizeURI("mailto:" + dest)
++      node.appendChild(text(dest))
++      block.appendChild(node)
++      return true
++    }
++    if ((m = this.match(reAutolink))) {
++      const dest = m.slice(1, m.length - 1)
++      const node = new INode("link")
++      node.destination = normalizeURI(dest)
++      node.appendChild(text(dest))
++      block.appendChild(node)
++      return true
++    }
++    return false
++  }
++
++  parseHtmlTag(block: INode): boolean {
++    const m = this.match(reHtmlTag)
++    if (m === null) return false
++    block.appendChild(new INode("html_inline", m))
++    return true
++  }
++
++  scanDelims(cc: number): { numdelims: number; canOpen: boolean; canClose: boolean } | null {
++    let numdelims = 0
++    const startpos = this.pos
++    while (this.peek() === cc) {
++      numdelims++
++      this.pos++
++    }
++    if (numdelims === 0) return null
++
++    const charBefore = startpos === 0 ? "\n" : this.subject.charAt(startpos - 1)
++    const ccAfter = this.peek()
++    const charAfter = ccAfter === -1 ? "\n" : this.subject.charAt(this.pos)
++
++    const afterIsWhitespace = reUnicodeWhitespaceChar.test(charAfter)
++    const afterIsPunctuation = rePunctuation.test(charAfter)
++    const beforeIsWhitespace = reUnicodeWhitespaceChar.test(charBefore)
++    const beforeIsPunctuation = rePunctuation.test(charBefore)
++
++    const leftFlanking =
++      (!afterIsWhitespace && (!afterIsPunctuation || beforeIsWhitespace || beforeIsPunctuation)) ||
++      (this.gfm && cc !== C_TILDE && charAfter === "~")
++    const rightFlanking =
++      (!beforeIsWhitespace && (!beforeIsPunctuation || afterIsWhitespace || afterIsPunctuation)) ||
++      (this.gfm && cc !== C_TILDE && charBefore === "~")
++    let canOpen: boolean
++    let canClose: boolean
++    if (cc === C_UNDERSCORE) {
++      canOpen = leftFlanking && (!rightFlanking || beforeIsPunctuation)
++      canClose = rightFlanking && (!leftFlanking || afterIsPunctuation)
++    } else {
++      canOpen = leftFlanking
++      canClose = rightFlanking
++    }
++    if (cc === C_TILDE && numdelims > 2) {
++      canOpen = false
++      canClose = false
++    }
++    this.pos = startpos
++    return { numdelims, canOpen, canClose }
++  }
++
++  handleDelim(cc: number, block: INode): boolean {
++    const res = this.scanDelims(cc)
++    if (!res) return false
++    const numdelims = res.numdelims
++    const startpos = this.pos
++    this.pos += numdelims
++    const node = text(this.subject.slice(startpos, this.pos))
++    block.appendChild(node)
++
++    if (res.canOpen || res.canClose) {
++      this.delimiters = {
++        cc,
++        numdelims,
++        origdelims: numdelims,
++        node,
++        previous: this.delimiters,
++        next: null,
++        canOpen: res.canOpen,
++        canClose: res.canClose,
++      }
++      if (this.delimiters.previous !== null) this.delimiters.previous.next = this.delimiters
++    }
++    return true
++  }
++
++  removeDelimiter(delim: Delimiter) {
++    if (delim.previous !== null) delim.previous.next = delim.next
++    if (delim.next === null) this.delimiters = delim.previous
++    else delim.next.previous = delim.previous
++  }
++
++  processEmphasis(stackBottom: Delimiter | null) {
++    if (this.delimiters === stackBottom) return
++    const openersBottom: (Delimiter | null)[] = []
++    for (let i = 0; i < 16; i++) openersBottom[i] = stackBottom
++
++    let closer = this.delimiters
++    while (closer !== null && closer.previous !== stackBottom) closer = closer.previous
++
++    while (closer !== null) {
++      const closercc = closer.cc
++      if (!closer.canClose) {
++        closer = closer.next
++        continue
++      }
++      let opener = closer.previous
++      let openerFound = false
++      const openersBottomIndex =
++        closercc === C_UNDERSCORE
++          ? 2 + (closer.canOpen ? 3 : 0) + (closer.origdelims % 3)
++          : closercc === C_ASTERISK
++            ? 8 + (closer.canOpen ? 3 : 0) + (closer.origdelims % 3)
++            : 14 + (closer.origdelims === 2 ? 1 : 0)
++      while (opener !== null && opener !== stackBottom && opener !== openersBottom[openersBottomIndex]) {
++        if (closercc === C_TILDE) {
++          if (opener.cc === C_TILDE && opener.canOpen && opener.origdelims === closer.origdelims) {
++            openerFound = true
++            break
++          }
++        } else {
++          const oddMatch =
++            (closer.canOpen || opener.canClose) &&
++            closer.origdelims % 3 !== 0 &&
++            (opener.origdelims + closer.origdelims) % 3 === 0
++          if (opener.cc === closer.cc && opener.canOpen && !oddMatch) {
++            openerFound = true
++            break
++          }
++        }
++        opener = opener.previous
++      }
++      const oldCloser = closer
++
++      if (!openerFound) {
++        closer = closer.next
++      } else {
++        const op = opener!
++        const useDelims = closercc === C_TILDE ? closer.numdelims : closer.numdelims >= 2 && op.numdelims >= 2 ? 2 : 1
++        const openerInl = op.node
++        const closerInl = closer.node
++        op.numdelims -= useDelims
++        closer.numdelims -= useDelims
++        openerInl.literal = openerInl.literal.slice(0, openerInl.literal.length - useDelims)
++        closerInl.literal = closerInl.literal.slice(0, closerInl.literal.length - useDelims)
++
++        const emph = new INode(closercc === C_TILDE ? "del" : useDelims === 1 ? "emph" : "strong")
++        let tmp = openerInl.next
++        while (tmp && tmp !== closerInl) {
++          const next = tmp.next
++          tmp.unlink()
++          emph.appendChild(tmp)
++          tmp = next
++        }
++        openerInl.insertAfter(emph)
++
++        // remove delimiters between opener and closer
++        if (op.next !== closer) {
++          op.next = closer
++          closer.previous = op
++        }
++
++        if (op.numdelims === 0) {
++          openerInl.unlink()
++          this.removeDelimiter(op)
++        }
++        if (closer.numdelims === 0) {
++          closerInl.unlink()
++          const tempstack = closer.next
++          this.removeDelimiter(closer)
++          closer = tempstack
++        }
++      }
++      if (!openerFound) {
++        openersBottom[openersBottomIndex] = oldCloser.previous
++        if (!oldCloser.canOpen) this.removeDelimiter(oldCloser)
++      }
++    }
++
++    while (this.delimiters !== null && this.delimiters !== stackBottom) this.removeDelimiter(this.delimiters)
++  }
++
++  parseLinkTitle(): string | null {
++    const title = this.match(reLinkTitle)
++    if (title === null) return null
++    return unescapeString(title.slice(1, -1))
++  }
++
++  parseLinkDestination(): string | null {
++    let res = this.match(reLinkDestinationBraces)
++    if (res !== null) return normalizeURI(unescapeString(res.slice(1, -1)))
++    if (this.peek() === C_LESSTHAN) return null
++    const savepos = this.pos
++    let openparens = 0
++    let c: number
++    while ((c = this.peek()) !== -1) {
++      if (c === C_BACKSLASH && reEscapable.test(this.subject.charAt(this.pos + 1))) {
++        this.pos += 1
++        if (this.peek() !== -1) this.pos += 1
++      } else if (c === C_OPEN_PAREN) {
++        this.pos += 1
++        openparens += 1
++      } else if (c === C_CLOSE_PAREN) {
++        if (openparens < 1) break
++        this.pos += 1
++        openparens -= 1
++      } else if (reWhitespaceChar.test(String.fromCharCode(c))) {
++        break
++      } else if (c < 0x20 || c === 0x7f) {
++        break
++      } else {
++        this.pos += 1
++      }
++    }
++    if (this.pos === savepos && c !== C_CLOSE_PAREN) return null
++    if (openparens !== 0) return null
++    res = this.subject.slice(savepos, this.pos)
++    return normalizeURI(unescapeString(res))
++  }
++
++  parseLinkLabel(): number {
++    const m = this.match(reLinkLabel)
++    if (m === null || m.length > 1001) return 0
++    return m.length
++  }
++
++  parseOpenBracket(block: INode): boolean {
++    const startpos = this.pos
++    this.pos += 1
++    const node = text("[")
++    block.appendChild(node)
++    this.addBracket(node, startpos, false)
++    return true
++  }
++
++  parseBang(block: INode): boolean {
++    const startpos = this.pos
++    this.pos += 1
++    if (this.peek() === C_OPEN_BRACKET) {
++      this.pos += 1
++      const node = text("![")
++      block.appendChild(node)
++      this.addBracket(node, startpos + 1, true)
++    } else {
++      block.appendChild(text("!"))
++    }
++    return true
++  }
++
++  lookupRef(label: string): ReferenceDef | undefined {
++    const norm = normalizeReference(label)
++    const def = this.refmap.get(norm)
++    if (def) this.usedRefs?.add(norm)
++    else if (norm) this.unresolvedRefs?.add(norm)
++    return def
++  }
++
++  parseCloseBracket(block: INode): boolean {
++    let dest: string | null = null
++    let title: string | null = null
++    let matched = false
++
++    this.pos += 1
++    const startpos = this.pos
++    let opener = this.brackets
++    if (opener === null) {
++      block.appendChild(text("]"))
++      return true
++    }
++    if (!opener.active) {
++      block.appendChild(text("]"))
++      this.removeBracket()
++      return true
++    }
++    const isImage = opener.image
++    const savepos = this.pos
++
++    if (this.peek() === C_OPEN_PAREN) {
++      this.pos++
++      if (
++        this.spnl() &&
++        (dest = this.parseLinkDestination()) !== null &&
++        this.spnl() &&
++        ((reWhitespaceChar.test(this.subject.charAt(this.pos - 1)) && (title = this.parseLinkTitle())) || true) &&
++        this.spnl() &&
++        this.peek() === C_CLOSE_PAREN
++      ) {
++        this.pos += 1
++        matched = true
++      } else {
++        this.pos = savepos
++      }
++    }
++
++    if (!matched) {
++      const beforelabel = this.pos
++      const n = this.parseLinkLabel()
++      let reflabel: string | undefined
++      if (n > 2) {
++        reflabel = this.subject.slice(beforelabel, beforelabel + n)
++      } else if (!opener.bracketAfter) {
++        reflabel = this.subject.slice(opener.index, startpos)
++      }
++      if (n === 0) this.pos = savepos
++      if (reflabel) {
++        const link = this.lookupRef(reflabel)
++        if (link) {
++          dest = link.href
++          title = link.title ?? null
++          matched = true
++        }
++      }
++    }
++
++    if (matched) {
++      const node = new INode(isImage ? "image" : "link")
++      node.destination = dest ?? ""
++      node.title = title || ""
++      let tmp = opener.node.next
++      while (tmp) {
++        const next = tmp.next
++        tmp.unlink()
++        node.appendChild(tmp)
++        tmp = next
++      }
++      block.appendChild(node)
++      this.processEmphasis(opener.previousDelimiter)
++      this.removeBracket()
++      opener.node.unlink()
++      if (!isImage) {
++        opener = this.brackets
++        while (opener !== null) {
++          if (!opener.image) {
++            if (!opener.active) break
++            opener.active = false
++          }
++          opener = opener.previous
++        }
++      }
++      return true
++    }
++
++    this.removeBracket()
++    this.pos = startpos
++    block.appendChild(text("]"))
++    return true
++  }
++
++  addBracket(node: INode, index: number, image: boolean) {
++    if (this.brackets !== null) this.brackets.bracketAfter = true
++    this.brackets = {
++      node,
++      previous: this.brackets,
++      previousDelimiter: this.delimiters,
++      index,
++      image,
++      active: true,
++      bracketAfter: false,
++    }
++  }
++
++  removeBracket() {
++    this.brackets = this.brackets!.previous
++  }
++
++  parseEntity(block: INode): boolean {
++    const m = this.match(reEntityHere)
++    if (!m) return false
++    const node = text(decodeEntity(m))
++    node.escaped = true
++    block.appendChild(node)
++    return true
++  }
++
++  parseString(block: INode): boolean {
++    const m = this.match(this.reMain)
++    if (!m) return false
++    block.appendChild(text(m))
++    return true
++  }
++
++  parseNewline(block: INode): boolean {
++    this.pos += 1
++    const lastc = block.last
++    if (lastc && lastc.type === "text" && lastc.literal[lastc.literal.length - 1] === " ") {
++      const hardbreak = lastc.literal[lastc.literal.length - 2] === " "
++      lastc.literal = lastc.literal.replace(reFinalSpace, "")
++      block.appendChild(new INode(hardbreak ? "linebreak" : "softbreak"))
++    } else {
++      block.appendChild(new INode("softbreak"))
++    }
++    this.match(reInitialSpace)
++    return true
++  }
++
++  /** Attempt to parse a link reference definition at the start of `s`, adding it to `refmap`. Returns chars consumed. */
++  parseReference(s: string, refmap: RefMap): number {
++    this.subject = s
++    this.pos = 0
++    const startpos = 0
++    let title: string | null = null
++
++    const matchChars = this.parseLinkLabel()
++    if (matchChars === 0) return 0
++    const rawlabel = this.subject.slice(0, matchChars)
++
++    if (this.peek() === C_COLON) {
++      this.pos++
++    } else {
++      this.pos = startpos
++      return 0
++    }
++
++    this.spnl()
++    const dest = this.parseLinkDestination()
++    if (dest === null) {
++      this.pos = startpos
++      return 0
++    }
++
++    const beforetitle = this.pos
++    this.spnl()
++    if (this.pos !== beforetitle) title = this.parseLinkTitle()
++    if (title === null) this.pos = beforetitle
++
++    let atLineEnd = true
++    if (this.match(reSpaceAtEndOfLine) === null) {
++      if (title === null) {
++        atLineEnd = false
++      } else {
++        title = null
++        this.pos = beforetitle
++        atLineEnd = this.match(reSpaceAtEndOfLine) !== null
++      }
++    }
++    if (!atLineEnd) {
++      this.pos = startpos
++      return 0
++    }
++
++    const normlabel = normalizeReference(rawlabel)
++    if (normlabel === "") {
++      this.pos = startpos
++      return 0
++    }
++    if (!refmap.has(normlabel)) {
++      refmap.set(normlabel, {
++        href: dest,
++        ...(title ? { title } : {}),
++        raw: s.slice(0, this.pos).trim(),
++      })
++    }
++    return this.pos - startpos
++  }
++
++  parseInline(block: INode): boolean {
++    const c = this.peek()
++    if (c === -1) return false
++    let res = false
++    switch (c) {
++      case C_NEWLINE:
++        res = this.parseNewline(block)
++        break
++      case C_BACKSLASH:
++        res = this.parseBackslash(block)
++        break
++      case C_BACKTICK:
++        res = this.parseBackticks(block)
++        break
++      case C_ASTERISK:
++      case C_UNDERSCORE:
++        res = this.handleDelim(c, block)
++        break
++      case C_TILDE:
++        res = this.gfm && this.handleDelim(c, block)
++        break
++      case C_DOLLAR:
++        res = this.math && this.parseDollar(block)
++        break
++      case C_OPEN_BRACKET:
++        res = this.parseOpenBracket(block)
++        break
++      case C_BANG:
++        res = this.parseBang(block)
++        break
++      case C_CLOSE_BRACKET:
++        res = this.parseCloseBracket(block)
++        break
++      case C_LESSTHAN:
++        res = this.parseAutolink(block) || this.parseHtmlTag(block)
++        break
++      case C_AMPERSAND:
++        res = this.parseEntity(block)
++        break
++      default:
++        res = this.parseString(block)
++        break
++    }
++    if (!res) {
++      this.pos += 1
++      block.appendChild(text(String.fromCharCode(c)))
++    }
++    return true
++  }
++
++  parse(content: string): INode {
++    const root = new INode("root")
++    this.subject = content.trim()
++    this.pos = 0
++    this.delimiters = null
++    this.brackets = null
++    this.tickRuns = null
++    while (this.parseInline(root)) {}
++    this.processEmphasis(null)
++    return root
++  }
++}
++
++const sharedParser = new InlineParser()
++const EMPTY_REFMAP: ReadonlyMap<string, ReferenceDef> = new Map()
++
++/** Parse a link reference definition at the start of `s` into `refmap`; returns the number of characters consumed */
++export function parseReference(s: string, refmap: RefMap): number {
++  return sharedParser.parseReference(s, refmap)
++}
++
++export function parseInlines(raw: string, options: InlineParseOptions = {}): InlineNode[] {
++  const gfm = options.gfm !== false
++  const math = options.math !== false
++  const src = raw.trim()
++  if (!src) return []
++  if (!isSpecialFastPath(src, gfm, math)) return [{ type: "text", text: src }]
++
++  const p = sharedParser
++  p.refmap = options.defs ?? EMPTY_REFMAP
++  p.gfm = gfm
++  p.math = math
++  p.reMain = gfm ? (math ? reMainGfmMath : reMainGfm) : math ? reMainMath : reMainCore
++  p.unresolvedRefs = options.unresolvedRefs
++  p.usedRefs = options.usedRefs
++  const root = p.parse(src)
++  return convertChildren(root, gfm, false)
++}
++
++function convertChildren(parent: INode, gfm: boolean, inLink: boolean): InlineNode[] {
++  const out: InlineNode[] = []
++  let pendingText = ""
++  let prevChar = ""
++  const pushText = (s: string) => {
++    if (!s) return
++    const prev = out[out.length - 1]
++    if (prev && prev.type === "text") prev.text += s
++    else out.push({ type: "text", text: s })
++  }
++  const flush = () => {
++    if (!pendingText) return
++    if (gfm && !inLink) {
++      for (const node of autolinkLiterals(pendingText, prevChar)) {
++        if (node.type === "text") pushText(node.text)
++        else out.push(node)
++      }
++    } else {
++      pushText(pendingText)
++    }
++    prevChar = pendingText[pendingText.length - 1]!
++    pendingText = ""
++  }
++  for (let n = parent.first; n; n = n.next) {
++    switch (n.type) {
++      case "text":
++        if (gfm && !inLink && n.escaped) {
++          flush()
++          pushText(n.literal)
++          prevChar = n.literal[n.literal.length - 1] ?? ""
++        } else {
++          pendingText += n.literal
++        }
++        break
++      case "softbreak":
++        pendingText += "\n"
++        break
++      case "linebreak":
++        flush()
++        out.push({ type: "br" })
++        prevChar = "\n"
++        break
++      case "code":
++        flush()
++        out.push({ type: "code", text: n.literal })
++        prevChar = "`"
++        break
++      case "emph":
++        flush()
++        out.push({ type: "em", children: convertChildren(n, gfm, inLink) })
++        prevChar = "*"
++        break
++      case "strong":
++        flush()
++        out.push({ type: "strong", children: convertChildren(n, gfm, inLink) })
++        prevChar = "*"
++        break
++      case "del":
++        flush()
++        out.push({ type: "del", children: convertChildren(n, gfm, inLink) })
++        prevChar = "~"
++        break
++      case "link":
++        flush()
++        out.push({
++          type: "link",
++          href: n.destination,
++          ...(n.title ? { title: n.title } : {}),
++          children: convertChildren(n, gfm, true),
++        })
++        prevChar = ")"
++        break
++      case "image": {
++        flush()
++        const children = convertChildren(n, gfm, true)
++        out.push({
++          type: "image",
++          src: n.destination,
++          alt: inlinePlainText(children),
++          ...(n.title ? { title: n.title } : {}),
++          children,
++        })
++        prevChar = ")"
++        break
++      }
++      case "html_inline":
++        flush()
++        out.push({ type: "html_inline", raw: n.literal })
++        prevChar = ">"
++        break
++      case "math":
++        flush()
++        out.push({ type: "math", source: n.literal, delimiter: n.delimiter, display: n.display })
++        prevChar = "$"
++        break
++    }
++  }
++  flush()
++  return out
++}
++
++function inlinePlainText(nodes: ReadonlyArray<InlineNode>): string {
++  let out = ""
++  for (const node of nodes) {
++    switch (node.type) {
++      case "text":
++      case "code":
++        out += node.text
++        break
++      case "strong":
++      case "em":
++      case "del":
++      case "link":
++        out += inlinePlainText(node.children)
++        break
++      case "image":
++        out += node.children ? inlinePlainText(node.children) : node.alt
++        break
++      case "math":
++        out += node.source
++        break
++      case "br":
++        out += "\n"
++        break
++      case "html_inline":
++        out += node.raw
++        break
++    }
++  }
++  return out
++}
++
++// GFM extended autolinks (www., http://, https://, ftp://, and bare emails), applied to merged text runs
++// outside links, following cmark-gfm's autolink extension.
++
++function isAlnum(c: number): boolean {
++  return (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)
++}
++
++function isAutolinkWhitespace(c: number): boolean {
++  return c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0b || c === 0x0c || c === 0x0d
++}
++
++function isValidPrecedingForWww(s: string, i: number, prevChar: string): boolean {
++  if (i === 0 && !prevChar) return true
++  const c = i === 0 ? prevChar.charCodeAt(0) : s.charCodeAt(i - 1)
++  return (
++    isAutolinkWhitespace(c) ||
++    c === C_ASTERISK ||
++    c === C_UNDERSCORE ||
++    c === C_TILDE ||
++    c === C_OPEN_PAREN ||
++    c === C_OPEN_BRACKET ||
++    c === C_CLOSE_BRACKET
++  )
++}
++
++/** Length of a valid domain at `i`, or 0. Mirrors cmark-gfm `check_domain`. */
++function checkDomain(s: string, i: number, allowShort: boolean): number {
++  let np = 0
++  let uscore1 = 0
++  let uscore2 = 0
++  let j = i
++  for (; j < s.length; j++) {
++    const c = s.charCodeAt(j)
++    if (c === 0x5c /* \ */ && j + 1 < s.length) {
++      // a backslash is never part of a domain
++      break
++    }
++    if (c === C_UNDERSCORE) {
++      uscore2++
++    } else if (c === 0x2e /* . */) {
++      uscore1 = uscore2
++      uscore2 = 0
++      np++
++    } else if (!isAlnum(c) && c !== 0x2d /* - */ && c < 0x80) {
++      break
++    }
++  }
++  if ((uscore1 > 0 || uscore2 > 0) && np <= 10) return 0
++  if (allowShort || np > 0) return j - i
++  return 0
++}
++
++/** Trim trailing punctuation from a candidate link of length `len` starting at `start`. Mirrors cmark-gfm `autolink_delim`. */
++function autolinkDelim(s: string, start: number, len: number): number {
++  for (let k = 0; k < len; k++) {
++    if (s.charCodeAt(start + k) === C_LESSTHAN) {
++      len = k
++      break
++    }
++  }
++  while (len > 0) {
++    const cclose = s.charCodeAt(start + len - 1)
++    if (cclose === C_CLOSE_PAREN) {
++      let opening = 0
++      let closing = 0
++      for (let k = 0; k < len; k++) {
++        const c = s.charCodeAt(start + k)
++        if (c === C_OPEN_PAREN) opening++
++        else if (c === C_CLOSE_PAREN) closing++
++      }
++      if (closing <= opening) break
++      len--
++    } else if (
++      cclose === 0x3f /* ? */ ||
++      cclose === 0x21 /* ! */ ||
++      cclose === 0x2e /* . */ ||
++      cclose === 0x2c /* , */ ||
++      cclose === 0x3a /* : */ ||
++      cclose === C_ASTERISK ||
++      cclose === C_UNDERSCORE ||
++      cclose === C_TILDE ||
++      cclose === 0x27 /* ' */ ||
++      cclose === 0x22 /* " */
++    ) {
++      len--
++    } else if (cclose === 0x3b /* ; */) {
++      let newEnd = len - 2
++      while (newEnd > 0 && isAlnum(s.charCodeAt(start + newEnd))) newEnd--
++      if (newEnd < len - 2 && s.charCodeAt(start + newEnd) === C_AMPERSAND) len = newEnd
++      else len--
++    } else {
++      break
++    }
++  }
++  return len
++}
++
++function matchWww(s: string, i: number, prevChar: string): number {
++  if (!isValidPrecedingForWww(s, i, prevChar)) return 0
++  if (!s.startsWith("www.", i)) return 0
++  const domainLen = checkDomain(s, i, false)
++  if (domainLen === 0) return 0
++  let end = i + domainLen
++  while (end < s.length && !isAutolinkWhitespace(s.charCodeAt(end))) end++
++  return autolinkDelim(s, i, end - i)
++}
++
++function matchUrl(s: string, i: number, prevChar: string): { len: number; schemeLen: number } | null {
++  // `i` points at ':' of "://"
++  if (!s.startsWith("://", i)) return null
++  let start = i
++  while (start > 0 && /[A-Za-z]/.test(s[start - 1]!)) start--
++  if (start === 0 && prevChar && /[A-Za-z]/.test(prevChar)) return null
++  const scheme = s.slice(start, i).toLowerCase()
++  const matchedScheme =
++    scheme === "https" || scheme === "http" || scheme === "ftp" ? scheme : ""
++  if (!matchedScheme) return null
++  const schemeStart = start
++  const domainLen = checkDomain(s, i + 3, true)
++  if (domainLen === 0) return null
++  let end = i + 3 + domainLen
++  while (end < s.length && !isAutolinkWhitespace(s.charCodeAt(end))) end++
++  const len = autolinkDelim(s, schemeStart, end - schemeStart)
++  if (len <= i + 3 - schemeStart) return null
++  return { len, schemeLen: i - schemeStart }
++}
++
++function isEmailLocal(c: number): boolean {
++  return isAlnum(c) || c === 0x2e || c === 0x2b || c === 0x2d || c === C_UNDERSCORE
++}
++
++function matchEmail(s: string, at: number, minStart: number, prevChar: string): { start: number; end: number } | null {
++  let start = at
++  while (start > minStart && isEmailLocal(s.charCodeAt(start - 1))) start--
++  if (start === at) return null
++  if (start > 0) {
++    if (s.charCodeAt(start - 1) === 0x2f /* / */) return null
++  } else if (prevChar) {
++    const pc = prevChar.charCodeAt(0)
++    if (pc === 0x2f /* / */ || isEmailLocal(pc)) return null
++  }
++  let np = 0
++  let end = at + 1
++  for (; end < s.length; end++) {
++    const c = s.charCodeAt(end)
++    if (isAlnum(c)) continue
++    if (c === 0x40 /* @ */) return null
++    if (c === 0x2e && end + 1 < s.length && isAlnum(s.charCodeAt(end + 1))) {
++      np++
++      continue
++    }
++    if (c !== 0x2d && c !== C_UNDERSCORE) break
++  }
++  if (end - at < 2 || np === 0) return null
++  const last = s.charCodeAt(end - 1)
++  if (!((last >= 0x41 && last <= 0x5a) || (last >= 0x61 && last <= 0x7a))) return null
++  return { start, end }
++}
++
++const RE_AUTOLINK_CANDIDATE = /www\.|:\/\/|@/i
++
++function autolinkLiterals(s: string, prevChar: string): InlineNode[] {
++  if (!RE_AUTOLINK_CANDIDATE.test(s)) return [{ type: "text", text: s }]
++  const out: InlineNode[] = []
++  let textStart = 0
++  let i = 0
++  const emit = (start: number, end: number, href: string) => {
++    if (start > textStart) out.push({ type: "text", text: s.slice(textStart, start) })
++    const label = s.slice(start, end)
++    out.push({ type: "link", href: normalizeURI(href), children: [{ type: "text", text: label }] })
++    textStart = end
++    i = end
++  }
++  while (i < s.length) {
++    const c = s.charCodeAt(i)
++    if ((c === 0x77 || c === 0x57) && s.startsWith("www.", i)) {
++      const len = matchWww(s, i, prevChar)
++      if (len > 0) {
++        emit(i, i + len, "http://" + s.slice(i, i + len))
++        continue
++      }
++    } else if (c === C_COLON) {
++      const m = matchUrl(s, i, prevChar)
++      if (m) {
++        const start = i - m.schemeLen
++        if (start >= textStart) {
++          emit(start, start + m.len, s.slice(start, start + m.len))
++          continue
++        }
++      }
++    } else if (c === 0x40 /* @ */) {
++      const m = matchEmail(s, i, textStart, prevChar)
++      if (m) {
++        emit(m.start, m.end, "mailto:" + s.slice(m.start, m.end))
++        continue
++      }
++    }
++    i++
++  }
++  if (textStart === 0) return [{ type: "text", text: s }]
++  if (textStart < s.length) out.push({ type: "text", text: s.slice(textStart) })
++  return out
++}
+diff --git a/packages/patchmark/src/stream.ts b/packages/patchmark/src/stream.ts
+new file mode 100644
+index 0000000..8165890
+--- /dev/null
++++ b/packages/patchmark/src/stream.ts
+@@ -0,0 +1,962 @@
++import { BlockParser, BNode, splitTableRow } from "./blocks"
++import { applyTailHeal, computeTailHeal, type TailHeal } from "./heal"
++import { renderBlockKindToHtml } from "./html"
++import { parseInlines, type ReferenceDef, type RefMap } from "./inline"
++import type {
++  BlockKind,
++  BlockPatch,
++  HeadingLevel,
++  InlineNode,
++  ListItemNode,
++  MarkdownBlock,
++  StreamFrame,
++  StreamOptions,
++} from "./types"
++
++/**
++ * If the last line holds only a bare block opener (`-`, `*`, `+`, `##`, `12.`, `>`, ```` ``` ````, `$$`), hold that
++ * line back until its first content character or newline arrives. Prevents 1-frame paragraph-to-heading/list pops.
++ */
++export function splitPendingMarker(text: string): { visible: string; held: string } {
++  const lastNl = text.lastIndexOf("\n")
++  const lineStart = lastNl + 1
++  const tailLine = text.slice(lineStart)
++  if (!tailLine || tailLine.length > 12) return { visible: text, held: "" }
++
++  const trimmed = tailLine.trim()
++  if (!trimmed) return { visible: text, held: "" }
++
++  const first = trimmed.charCodeAt(0)
++  if (
++    first === 0x23 /* # */ ||
++    first === 0x60 /* ` */ ||
++    first === 0x7e /* ~ */ ||
++    first === 0x2d /* - */ ||
++    first === 0x2a /* * */ ||
++    first === 0x5f /* _ */ ||
++    first === 0x24 /* $ */ ||
++    first === 0x3d /* = */
++  ) {
++    let allSame = true
++    for (let i = 1; i < trimmed.length; i++) {
++      if (trimmed.charCodeAt(i) !== first) {
++        allSame = false
++        break
++      }
++    }
++    if (allSame) {
++      const maxHold = first === 0x23 ? 6 : first === 0x60 || first === 0x7e ? 3 : 2
++      if (trimmed.length <= maxHold) return { visible: text.slice(0, lineStart), held: tailLine }
++    }
++  }
++
++  if (trimmed === "+" || trimmed === "•" || trimmed === ">" || trimmed === "\\[") {
++    return { visible: text.slice(0, lineStart), held: tailLine }
++  }
++
++  let d = 0
++  while (d < trimmed.length && trimmed.charCodeAt(d) >= 0x30 && trimmed.charCodeAt(d) <= 0x39) d++
++  if (d > 0) {
++    const rest = trimmed.slice(d)
++    if (rest === "" || rest === "." || rest === ")") return { visible: text.slice(0, lineStart), held: tailLine }
++  }
++
++  return { visible: text, held: "" }
++}
++
++// A partial line that is only `-`/`=` (with optional surrounding spaces) would turn the paragraph above into a
++// setext heading for a frame, before it grows into a list item or thematic break. Always hold it.
++const RE_SETEXT_CANDIDATE = /^[ \t]*(?:-+|=+)[ \t]*$/
++
++interface Converted {
++  kind: BlockKind | null
++  used: Set<string>
++  unresolved: Set<string>
++}
++
++interface ConvertContext {
++  refmap: RefMap
++  /** whether results for persistent (non-forked) closed nodes may be cached */
++  cacheable: boolean
++  /** true when converting a block in the active streaming tail */
++  inTail: boolean
++  /** true when converting the last tail unit and the input ends with a non-empty partial line (no trailing `\n`) */
++  partialLine: boolean
++  healTarget: BNode | null
++  heal: TailHeal | null
++  used: Set<string>
++  unresolved: Set<string>
++}
++
++interface SettledMeta {
++  docIndex: number
++  lastIndex: number
++  unresolved: Set<string>
++}
++
++type ResolvedStreamOptions = Required<StreamOptions>
++
++export class PatchmarkStream {
++  private readonly options: ResolvedStreamOptions
++  private text = ""
++  private parser!: BlockParser
++  /** offset just past the last complete line */
++  private fed = 0
++  /** text after the last complete line */
++  private partial = ""
++  private lineStarts: number[] = []
++  /** complete lines, without and with their terminators */
++  private lines: string[] = []
++  private lineRaw: string[] = []
++  private tailRaw: { startLine: number; upTo: number; text: string } | null = null
++  private finished = false
++  private blocks: MarkdownBlock[] = []
++  private settledCount = 0
++  private settledNodes = 0
++  private settledMeta: SettledMeta[] = []
++  private waiting = new Map<string, Set<number>>()
++  private refsSeen = 0
++  private provisionalRefs: string[] = []
++  private nextId = 0
++  private cache = new WeakMap<BNode, { version: number; result: Converted }>()
++  private itemCache = new WeakMap<BNode, { version: number; item: ListItemNode; used: Set<string>; unresolved: Set<string> }>()
++  private disallowMath = new Set<number>()
++
++  constructor(options: StreamOptions = {}) {
++    this.options = {
++      gfm: options.gfm ?? true,
++      math: options.math ?? true,
++      heal: options.heal ?? true,
++      holdPendingMarkers: options.holdPendingMarkers ?? true,
++      settleOnComplete: options.settleOnComplete ?? true,
++      groupHtmlBlocks: options.groupHtmlBlocks ?? false,
++      renderHtml: options.renderHtml ?? false,
++    }
++    this.resetState()
++  }
++
++  private resetState() {
++    this.text = ""
++    this.disallowMath = new Set()
++    this.parser = new BlockParser({ gfm: this.options.gfm, math: this.options.math }, this.disallowMath)
++    this.fed = 0
++    this.partial = ""
++    this.lineStarts = []
++    this.lines = []
++    this.lineRaw = []
++    this.tailRaw = null
++    this.finished = false
++    this.blocks = []
++    this.settledCount = 0
++    this.settledNodes = 0
++    this.settledMeta = []
++    this.waiting = new Map()
++    this.refsSeen = 0
++    this.provisionalRefs = []
++    this.cache = new WeakMap()
++    this.itemCache = new WeakMap()
++  }
++
++  /** Reset the stream to empty state */
++  reset(): void {
++    this.resetState()
++    this.nextId = 0
++  }
++
++  getBlocks(): ReadonlyArray<MarkdownBlock> {
++    return this.blocks
++  }
++
++  getText(): string {
++    return this.text
++  }
++
++  /** Append a streaming delta chunk */
++  append(delta: string): StreamFrame {
++    if (!delta) return this.emptyFrame()
++    if (this.finished) return this.update(this.text + delta, { streaming: true })
++    this.text += delta
++    this.partial += delta
++    return this.step(true)
++  }
++
++  /** Finalize the stream: flush held markers and settle every block */
++  finalize(): StreamFrame {
++    return this.update(this.text, { streaming: false })
++  }
++
++  /** Declarative update: prefix appends are incremental; anything else re-parses and patches the difference */
++  update(text: string, opts: { streaming?: boolean } = {}): StreamFrame {
++    const streaming = opts.streaming ?? true
++    if (this.finished || !text.startsWith(this.text)) {
++      if (this.finished && text === this.text) return this.emptyFrame()
++      return this.rebuild(text, streaming)
++    }
++    if (text.length === this.text.length && streaming && this.blocks.length > 0) return this.emptyFrame()
++    this.partial += text.slice(this.text.length)
++    this.text = text
++    return this.step(streaming)
++  }
++
++  private emptyFrame(): StreamFrame {
++    return {
++      text: this.text,
++      settledOffset: this.settledOffset(),
++      blocks: this.blocks,
++      patches: [],
++      heldMarker: "",
++      charsScanned: 0,
++    }
++  }
++
++  private settledOffset(): number {
++    if (this.settledCount === 0) return 0
++    return this.blocks[this.settledCount - 1]!.end
++  }
++
++  private rebuild(text: string, streaming: boolean): StreamFrame {
++    const previous = this.blocks
++    this.resetState()
++    this.text = text
++    this.partial = text
++    const frame = this.step(streaming)
++    const next = this.blocks
++    let keep = 0
++    while (
++      keep < previous.length &&
++      keep < next.length &&
++      previous[keep]!.status === "settled" &&
++      next[keep]!.status === "settled" &&
++      previous[keep]!.raw === next[keep]!.raw &&
++      previous[keep]!.start === next[keep]!.start &&
++      previous[keep]!.defs === next[keep]!.defs
++    ) {
++      next[keep] = previous[keep]!
++      keep++
++    }
++    for (let i = keep; i < next.length; i++) next[i] = { ...next[i]!, id: this.nextId++ }
++    const patches: BlockPatch[] = []
++    if (keep < previous.length) patches.push({ op: "truncate", keepCount: keep })
++    for (let i = keep; i < next.length; i++) {
++      patches.push({ op: "append", block: next[i]! })
++      if (next[i]!.status === "settled") patches.push({ op: "finalize", id: next[i]!.id, index: i, block: next[i]! })
++    }
++    return { ...frame, blocks: next, patches }
++  }
++
++  private step(streaming: boolean): StreamFrame {
++    const before = this.fed
++    this.feedCompleteLines(streaming)
++    let partial = this.partial
++
++    if (!streaming) {
++      if (partial.length > 0) {
++        this.pushLine(partial.endsWith("\r") ? partial.slice(0, -1) : partial, partial)
++        this.parser.incorporateLine(this.lines[this.lines.length - 1]!)
++        this.partial = ""
++        partial = ""
++      }
++      this.parser.finish()
++      while (this.parser.unclosedMathAt) this.reparse(true)
++      this.finished = true
++    } else if (this.parser.unclosedMathAt) {
++      this.reparse(false)
++    }
++
++    const oldSettledCount = this.settledCount
++    const prevTail = this.blocks.slice(oldSettledCount)
++    const nextBlocks: MarkdownBlock[] = []
++    const newSettledMeta: SettledMeta[] = []
++
++    let held = ""
++    let visible = ""
++    let preFork: { fork: BlockParser; tip: BNode } | null = null
++    if (streaming) {
++      visible = partial
++      if (visible.endsWith("\r")) visible = visible.slice(0, -1)
++      if (visible && RE_SETEXT_CANDIDATE.test(visible)) {
++        held = visible
++        visible = ""
++      } else if (visible && this.options.holdPendingMarkers) {
++        const split = splitPendingMarker(visible)
++        held = split.held
++        visible = split.visible
++      }
++    }
++    const ensureFork = () => {
++      if (!preFork) {
++        const fork = this.parser.fork()
++        if (visible) fork.incorporateLine(visible)
++        const tip = fork.tip
++        fork.finish()
++        preFork = { fork, tip }
++      }
++      return preFork
++    }
++
++    // 1. Newly settled top-level blocks (or groups of them)
++    const children = this.parser.doc.children
++    while (this.settledNodes < children.length) {
++      const first = this.settledNodes
++      const grouped = this.groupEnd(children, first)
++      if (grouped < 0 && streaming) break
++      const last = grouped < 0 ? children.length - 1 : grouped
++      const node = children[first]!
++      const isLast = last === children.length - 1
++      const early =
++        this.options.settleOnComplete &&
++        first === last &&
++        node.open &&
++        isLast &&
++        streaming &&
++        (node.type === "heading" || node.type === "thematic_break")
++      let open = false
++      for (let k = first; k <= last; k++) if (children[k]!.open) open = true
++      if (open && !early) break
++      if (!this.options.settleOnComplete && streaming) {
++        let hasVisibleAfter = false
++        for (let m = last + 1; m < children.length; m++) {
++          if (!children[m]!.open && !children[m]!.defsOnly) {
++            hasVisibleAfter = true
++            break
++          }
++        }
++        if (!hasVisibleAfter) {
++          const lastChild = children[children.length - 1]
++          const openAfter = lastChild && lastChild.open && children.length - 1 > last ? lastChild : null
++          if (!openAfter && !visible) break
++          const mayBeDef =
++            (openAfter && openAfter.type === "paragraph" && openAfter.content.charCodeAt(0) === 0x5b) ||
++            (!openAfter && /^[ \t]{0,3}\[/.test(visible))
++          if (mayBeDef) {
++            const { fork } = ensureFork()
++            if (!fork.doc.children.some((n) => !n.defsOnly)) break
++          }
++        }
++      }
++      const ctx: ConvertContext = {
++        refmap: this.parser.refmap,
++        cacheable: true,
++        inTail: false,
++        partialLine: false,
++        healTarget: null,
++        heal: null,
++        used: new Set(),
++        unresolved: new Set(),
++      }
++      const kind = this.convertUnit(children, first, last, ctx)
++      if (kind) {
++        const end = children[last]!
++        const rawEndLine = !this.options.settleOnComplete
++          ? last + 1 < children.length
++            ? children[last + 1]!.startLine - 1
++            : this.lines.length
++          : end.open
++            ? this.lines.length
++            : end.endLine
++        const raw = this.joinLines(node.startLine, rawEndLine)
++        nextBlocks.push(this.makeBlock(-1, this.lineStarts[node.startLine - 1]!, raw, "settled", kind, ctx.used, this.parser.refmap, null))
++        newSettledMeta.push({ docIndex: first, lastIndex: last, unresolved: ctx.unresolved })
++      }
++      this.settledNodes = last + 1
++      if (early) break
++    }
++
++    // 2. The streaming tail
++    let tailRefmap: RefMap | null = null
++    let tailRefsAdded: string[] = []
++    if (streaming) {
++      const tail = this.buildTail(visible, preFork)
++      tailRefmap = tail.refmap
++      tailRefsAdded = tail.refsAdded
++      for (const block of tail.blocks) nextBlocks.push(block)
++    }
++
++    // 3. Reconcile against the previous tail and emit patches
++    const patches: BlockPatch[] = []
++    for (let j = 0; j < nextBlocks.length; j++) {
++      const index = oldSettledCount + j
++      let block = nextBlocks[j]!
++      const prev = prevTail[j]
++      if (prev) {
++        block.id = prev.id
++        if (block.status === "settled") {
++          patches.push({ op: "finalize", id: block.id, index, block })
++        } else if (prev.raw === block.raw && prev.liveRaw === block.liveRaw && prev.status === block.status && prev.defs === block.defs) {
++          block = prev
++        } else {
++          patches.push({ op: "replace", id: block.id, index, block })
++        }
++      } else {
++        block.id = this.nextId++
++        patches.push({ op: "append", block })
++        if (block.status === "settled") patches.push({ op: "finalize", id: block.id, index, block })
++      }
++      nextBlocks[j] = block
++    }
++    if (prevTail.length > nextBlocks.length) {
++      patches.push({ op: "truncate", keepCount: oldSettledCount + nextBlocks.length })
++    }
++    this.blocks.length = oldSettledCount
++    for (const block of nextBlocks) this.blocks.push(block)
++    for (const meta of newSettledMeta) {
++      const index = this.settledMeta.length
++      this.settledMeta.push(meta)
++      for (const label of meta.unresolved) {
++        let set = this.waiting.get(label)
++        if (!set) this.waiting.set(label, (set = new Set()))
++        set.add(index)
++      }
++    }
++    this.settledCount = oldSettledCount + newSettledMeta.length
++
++    // 4. Reference definitions that arrived after the blocks that use them: patch those blocks
++    this.backfillRefs(patches, tailRefmap, tailRefsAdded)
++
++    return {
++      text: this.text,
++      settledOffset: this.settledOffset(),
++      blocks: this.blocks,
++      patches,
++      heldMarker: held,
++      charsScanned: this.fed - before + partial.length,
++    }
++  }
++
++  private backfillRefs(patches: BlockPatch[], tailRefmap: RefMap | null, tailRefsAdded: string[]) {
++    const added = this.parser.refsAdded
++    const provisional = this.provisionalRefs
++    this.provisionalRefs = tailRefsAdded
++    if (this.refsSeen >= added.length && tailRefsAdded.length === 0 && provisional.length === 0) return
++    const touched = new Set<number>()
++    // A fork's definitions can disappear as the partial line grows or at EOF.
++    for (const label of provisional) {
++      const set = this.waiting.get(label)
++      if (set) for (const idx of set) touched.add(idx)
++    }
++    for (let i = this.refsSeen; i < added.length; i++) {
++      const set = this.waiting.get(added[i]!)
++      if (!set) continue
++      for (const idx of set) touched.add(idx)
++      this.waiting.delete(added[i]!)
++    }
++    this.refsSeen = added.length
++    for (const label of tailRefsAdded) {
++      const set = this.waiting.get(label)
++      if (!set) continue
++      for (const idx of set) touched.add(idx)
++    }
++    const refmap = tailRefmap ?? this.parser.refmap
++    for (const idx of [...touched].sort((a, b) => a - b)) {
++      const meta = this.settledMeta[idx]!
++      const ctx: ConvertContext = {
++        refmap,
++        cacheable: false,
++        inTail: false,
++        partialLine: false,
++        healTarget: null,
++        heal: null,
++        used: new Set(),
++        unresolved: new Set(),
++      }
++      const kind = this.convertUnit(this.parser.doc.children, meta.docIndex, meta.lastIndex, ctx)
++      if (!kind) continue
++      const old = this.blocks[idx]!
++      const updated = this.makeBlock(old.id, old.start, old.raw, "settled", kind, ctx.used, refmap, null)
++      meta.unresolved = ctx.unresolved
++      for (const label of ctx.unresolved) {
++        let set = this.waiting.get(label)
++        if (!set) this.waiting.set(label, (set = new Set()))
++        set.add(idx)
++      }
++      for (const label of ctx.used) {
++        if (!this.parser.refmap.has(label)) {
++          let set = this.waiting.get(label)
++          if (!set) this.waiting.set(label, (set = new Set()))
++          set.add(idx)
++        }
++      }
++      let patchedInFrame = false
++      for (const p of patches) {
++        if (p.op !== "truncate" && p.block.id === updated.id) {
++          p.block = updated
++          patchedInFrame = true
++        }
++      }
++      if (patchedInFrame) {
++        this.blocks[idx] = updated
++      } else if (old.defs !== updated.defs || old.html !== updated.html || JSON.stringify(old.kind) !== JSON.stringify(updated.kind)) {
++        this.blocks[idx] = updated
++        patches.push({ op: "replace", id: updated.id, index: idx, block: updated })
++      }
++    }
++  }
++
++  /** Raw source of complete lines `from`..`to` (1-based, inclusive) */
++  private joinLines(from: number, to: number): string {
++    if (to < from) return ""
++    if (from === to) return this.lineRaw[from - 1]!
++    let out = ""
++    for (let i = from - 1; i < to; i++) out += this.lineRaw[i]!
++    return out
++  }
++
++  private pushLine(line: string, raw: string) {
++    this.lineStarts.push(this.fed)
++    this.lines.push(line)
++    this.lineRaw.push(raw)
++    this.fed += raw.length
++  }
++
++  private feedCompleteLines(streaming: boolean) {
++    const partial = this.partial
++    const len = partial.length
++    let pos = 0
++    while (pos < len) {
++      let idx = partial.indexOf("\n", pos)
++      const cr = partial.indexOf("\r", pos)
++      if (cr >= 0 && (idx < 0 || cr < idx)) idx = cr
++      if (idx < 0) break
++      let term = 1
++      if (partial.charCodeAt(idx) === 0x0d) {
++        if (idx + 1 < len) term = partial.charCodeAt(idx + 1) === 0x0a ? 2 : 1
++        else if (streaming) break
++      }
++      this.pushLine(partial.slice(pos, idx), partial.slice(pos, idx + term))
++      this.parser.incorporateLine(this.lines[this.lines.length - 1]!)
++      pos = idx + term
++      if (this.parser.unclosedMathAt) this.reparse(false)
++    }
++    if (pos > 0) this.partial = partial.slice(pos)
++  }
++
++  /** An unclosed `$$` block is not math after all: re-read the document with that opener disabled */
++  private reparse(finish: boolean) {
++    while (this.parser.unclosedMathAt) {
++      this.disallowMath.add(this.parser.unclosedMathAt)
++      const parser = new BlockParser({ gfm: this.options.gfm, math: this.options.math }, this.disallowMath)
++      for (let i = 0; i < this.lines.length; i++) {
++        parser.incorporateLine(this.lines[i]!)
++        if (parser.unclosedMathAt) break
++      }
++      if (!parser.unclosedMathAt && finish) parser.finish()
++      this.parser = parser
++      this.cache = new WeakMap()
++      this.itemCache = new WeakMap()
++    }
++    this.refsSeen = Math.min(this.refsSeen, this.parser.refsAdded.length)
++  }
++
++  private buildTail(
++    visible: string,
++    preFork: { fork: BlockParser; tip: BNode } | null,
++  ): { blocks: MarkdownBlock[]; refmap: RefMap | null; refsAdded: string[] } {
++    const children = this.parser.doc.children
++    const last = children[children.length - 1]
++    const openChild = last && last.open ? last : null
++    const openIndex = openChild ? children.length - 1 : -1
++    if (this.settledNodes >= children.length && !visible) {
++      return { blocks: [], refmap: null, refsAdded: [] }
++    }
++
++    let fork: BlockParser
++    let tip: BNode
++    if (preFork) {
++      fork = preFork.fork
++      tip = preFork.tip
++    } else {
++      fork = this.parser.fork()
++      if (visible) fork.incorporateLine(visible)
++      tip = fork.tip
++      fork.finish()
++    }
++
++    let healTarget: BNode | null = null
++    let heal: TailHeal | null = null
++    if (this.options.heal && (tip.type === "paragraph" || tip.type === "heading" || tip.type === "table")) {
++      const content = tip.type === "table" ? (tip.rows[tip.rows.length - 1] ?? "") : tip.content
++      if (content) {
++        const h = computeTailHeal(content)
++        if (h.strip > 0 || h.append) {
++          healTarget = tip
++          heal = h
++        }
++      }
++    }
++
++    const lineCount = this.lines.length
++    // closed top-level blocks still waiting on an open HTML group (or settleOnComplete: false), then the fork's blocks
++    const tailNodes = children.slice(this.settledNodes, openChild ? openIndex : children.length)
++    for (const node of fork.doc.children.slice(openChild && openIndex < this.settledNodes ? 1 : 0)) tailNodes.push(node)
++
++    const units: Array<{ first: number; last: number; kind: BlockKind; ctx: ConvertContext }> = []
++    let first = 0
++    while (first < tailNodes.length) {
++      let last = this.groupEnd(tailNodes, first)
++      if (last < 0) last = tailNodes.length - 1
++      const isLastUnit = last === tailNodes.length - 1
++      const ctx: ConvertContext = {
++        refmap: fork.refmap,
++        cacheable: fork.refmap.size === this.parser.refmap.size,
++        inTail: true,
++        partialLine: isLastUnit && visible.length > 0,
++        healTarget,
++        heal,
++        used: new Set(),
++        unresolved: new Set(),
++      }
++      const kind = this.convertUnit(tailNodes, first, last, ctx)
++      if (kind) units.push({ first, last, kind, ctx })
++      first = last + 1
++    }
++
++    const out: MarkdownBlock[] = []
++    for (let u = 0; u < units.length; u++) {
++      const { first: f, last: l, kind, ctx } = units[u]!
++      const node = tailNodes[f]!
++      const end = tailNodes[l]!
++      const isLastVisUnit = u === units.length - 1
++      let raw: string
++      let start: number
++      if (node.startLine > lineCount) {
++        start = this.fed
++        raw = visible
++      } else {
++        start = this.lineStarts[node.startLine - 1]!
++        if (isLastVisUnit && (!this.options.settleOnComplete || l === tailNodes.length - 1)) {
++          raw = this.joinTail(node.startLine, lineCount) + visible
++        } else {
++          const nextStart = !isLastVisUnit ? tailNodes[units[u + 1]!.first]!.startLine - 1 : end.endLine
++          const endLine = !this.options.settleOnComplete ? Math.min(nextStart, lineCount) : Math.min(end.endLine, lineCount)
++          raw = this.joinLines(node.startLine, endLine) + (end.endLine > lineCount ? visible : "")
++        }
++      }
++      const liveRaw = heal !== null && isLastVisUnit && healTarget !== null ? applyTailHeal(raw, heal) : null
++      out.push(this.makeBlock(-1, start, raw, "streaming", kind, ctx.used, fork.refmap, liveRaw))
++    }
++    return { blocks: out, refmap: fork.refmap, refsAdded: fork.refsAdded }
++  }
++
++  /** Index of the last node in the display unit starting at `first`, or -1 if an HTML group is still open */
++  private groupEnd(nodes: BNode[], first: number): number {
++    if (!this.options.groupHtmlBlocks) return first
++    let balance = htmlBalance(nodes[first]!)
++    if (balance <= 0) return first
++    for (let k = first + 1; k < nodes.length; k++) {
++      balance += htmlBalance(nodes[k]!)
++      if (balance <= 0) return k
++    }
++    return -1
++  }
++
++  private convertUnit(nodes: BNode[], first: number, last: number, ctx: ConvertContext): BlockKind | null {
++    if (first === last) return this.convert(nodes[first]!, ctx)
++    const blocks: BlockKind[] = []
++    for (let k = first; k <= last; k++) {
++      const kind = this.convert(nodes[k]!, ctx)
++      if (kind) blocks.push(kind)
++    }
++    return { type: "group", blocks }
++  }
++
++  /** Lines `from`..`to` joined, extending the previous flush's join when the open block is the same */
++  private joinTail(from: number, to: number): string {
++    const cached = this.tailRaw
++    if (cached && cached.startLine === from && cached.upTo <= to) {
++      if (cached.upTo < to) {
++        cached.text += this.joinLines(cached.upTo + 1, to)
++        cached.upTo = to
++      }
++      return cached.text
++    }
++    const text = this.joinLines(from, to)
++    this.tailRaw = { startLine: from, upTo: to, text }
++    return text
++  }
++
++  private makeBlock(
++    id: number,
++    start: number,
++    raw: string,
++    status: "streaming" | "settled",
++    kind: BlockKind,
++    used: Set<string>,
++    refmap: RefMap,
++    liveRaw: string | null,
++  ): MarkdownBlock {
++    const block: MarkdownBlock = { id, start, end: start + raw.length, raw, status, kind }
++    if (used.size > 0) {
++      const defs: string[] = []
++      for (const label of used) {
++        const def = refmap.get(label)
++        if (!def?.raw) continue
++        const defStart =
++          def.line !== undefined ? (def.line <= this.lineStarts.length ? this.lineStarts[def.line - 1]! : this.fed) : -1
++        if (!this.options.settleOnComplete && defStart >= start && defStart < block.end) continue
++        defs.push(def.raw)
++      }
++      if (defs.length > 0) block.defs = defs.join("\n")
++    }
++    if (liveRaw !== null) block.liveRaw = liveRaw
++    if (this.options.renderHtml) block.html = renderBlockKindToHtml(kind, { gfm: this.options.gfm, math: this.options.math })
++    return block
++  }
++
++  private convert(node: BNode, ctx: ConvertContext): BlockKind | null {
++    const persistent = ctx.cacheable && !node.open && !node.forked
++    if (persistent) {
++      const hit = this.cache.get(node)
++      if (hit && hit.version === ctx.refmap.size) {
++        for (const label of hit.result.used) ctx.used.add(label)
++        for (const label of hit.result.unresolved) ctx.unresolved.add(label)
++        return hit.result.kind
++      }
++      const sub: ConvertContext = { ...ctx, used: new Set(), unresolved: new Set() }
++      const kind = this.convertUncached(node, sub)
++      this.cache.set(node, { version: ctx.refmap.size, result: { kind, used: sub.used, unresolved: sub.unresolved } })
++      for (const label of sub.used) ctx.used.add(label)
++      for (const label of sub.unresolved) ctx.unresolved.add(label)
++      return kind
++    }
++    return this.convertUncached(node, ctx)
++  }
++
++  private inlines(content: string, ctx: ConvertContext): InlineNode[] {
++    return parseInlines(content, {
++      gfm: this.options.gfm,
++      math: this.options.math,
++      defs: ctx.refmap as ReadonlyMap<string, ReferenceDef>,
++      usedRefs: ctx.used,
++      unresolvedRefs: ctx.unresolved,
++    })
++  }
++
++  private convertUncached(node: BNode, ctx: ConvertContext): BlockKind | null {
++    const healHere = ctx.healTarget === node && ctx.heal !== null
++    switch (node.type) {
++      case "paragraph": {
++        if (node.defsOnly) return null
++        const content = healHere ? applyTailHeal(node.content, ctx.heal!) : node.content
++        return { type: "paragraph", inlines: this.inlines(content, ctx) }
++      }
++      case "heading": {
++        const content = healHere ? applyTailHeal(node.content, ctx.heal!) : node.content
++        return { type: "heading", level: node.level as HeadingLevel, inlines: this.inlines(content, ctx) }
++      }
++      case "thematic_break":
++        return { type: "hr" }
++      case "code_block": {
++        const literal = node.literal
++        const info = node.info
++        const words = info ? info.split(/\s+/) : []
++        const language = words[0] || undefined
++        const meta = language ? info.slice(info.indexOf(language) + language.length).trim() || undefined : undefined
++        // an indented code block is complete only once the persistent parser has closed it
++        const complete = node.isFenced ? node.fenceClosed : !node.forked
++        const keepTrailingNewline = ctx.inTail && node.isFenced && !complete && !ctx.partialLine
++        const source = !keepTrailingNewline && literal.endsWith("\n") ? literal.slice(0, -1) : literal
++        const defaultHtmlLiteral = source ? (source.endsWith("\n") && !complete ? source : `${source}\n`) : ""
++        const htmlLiteral = literal !== defaultHtmlLiteral ? literal : undefined
++        if (language && language.toLowerCase() === "mermaid") {
++          return { type: "mermaid", source, complete, ...(htmlLiteral !== undefined ? { htmlLiteral } : {}) }
++        }
++        return {
++          type: "code",
++          ...(language ? { language } : {}),
++          ...(meta ? { meta } : {}),
++          source,
++          fence: node.isFenced ? node.fenceChar.repeat(node.fenceLength) : "",
++          ...(node.isFenced ? {} : { indented: true }),
++          complete,
++          ...(htmlLiteral !== undefined ? { htmlLiteral } : {}),
++        }
++      }
++      case "html_block":
++        return { type: "html_block", raw: node.literal }
++      case "math_block":
++        return {
++          type: "math",
++          source: node.literal.trim(),
++          delimiter: node.mathDelimiter === "$" ? "dollar" : "double-dollar",
++          complete: node.mathClosed,
++        }
++      case "block_quote": {
++        const blocks: BlockKind[] = []
++        for (const child of node.children) {
++          const kind = this.convert(child, ctx)
++          if (kind) blocks.push(kind)
++        }
++        return { type: "blockquote", blocks }
++      }
++      case "list": {
++        const ld = node.listData!
++        const version = ctx.cacheable ? ctx.refmap.size : -1
++        const memo = node.listMemo!
++        if (version < 0 || memo.version !== version) {
++          memo.version = version
++          memo.items = []
++          memo.count = 0
++          memo.used = new Set()
++          memo.unresolved = new Set()
++        }
++        const ch = node.children
++        let closedPrefix = ch.length
++        while (closedPrefix > 0 && ch[closedPrefix - 1]!.forked) closedPrefix--
++        if (memo.count > closedPrefix) {
++          memo.items.length = closedPrefix
++          memo.count = closedPrefix
++        }
++        for (let i = memo.count; i < closedPrefix; i++) {
++          memo.items.push(this.convertItemCached(ch[i]!, { ...ctx, used: memo.used, unresolved: memo.unresolved }))
++          memo.count = i + 1
++        }
++        for (const label of memo.used) ctx.used.add(label)
++        for (const label of memo.unresolved) ctx.unresolved.add(label)
++        const items = (memo.items as ListItemNode[]).slice()
++        for (let i = closedPrefix; i < ch.length; i++) {
++          items.push(this.convertItemCached(ch[i]!, ctx))
++        }
++        return {
++          type: "list",
++          ordered: ld.type === "ordered",
++          marker: ld.type === "ordered" ? ld.delimiter! : ld.bulletChar!,
++          ...(ld.type === "ordered" ? { start: ld.start! } : {}),
++          tight: ld.tight,
++          items,
++        }
++      }
++      case "table": {
++        const width = node.header.length
++        const version = ctx.cacheable ? ctx.refmap.size : -1
++        const memo = node.tableMemo!
++        if (version < 0 || memo.version !== version) {
++          memo.version = version
++          memo.headers = null
++          memo.rows = []
++          memo.rawRows = []
++          memo.used = new Set()
++          memo.unresolved = new Set()
++        }
++        const parseRow = (split: string[], targetUsed: Set<string>, targetUnresolved: Set<string>): InlineNode[][] => {
++          const sub: ConvertContext = { ...ctx, used: targetUsed, unresolved: targetUnresolved }
++          const row: InlineNode[][] = []
++          for (let c = 0; c < width; c++) row.push(c < split.length ? this.inlines(unescapePipes(split[c]!), sub) : [])
++          return row
++        }
++        if (!memo.headers) {
++          memo.headers = parseRow(node.header, memo.used, memo.unresolved)
++        }
++        const headers = memo.headers as InlineNode[][]
++        const stableCount = healHere && node.rows.length > 0 ? node.rows.length - 1 : node.rows.length
++        let common = Math.min(memo.rows.length, stableCount)
++        while (common > 0 && memo.rawRows[common - 1] !== node.rows[common - 1]) common--
++        if (common < memo.rows.length) {
++          memo.rows.length = common
++          memo.rawRows.length = common
++        }
++        for (let r = common; r < stableCount; r++) {
++          const rowText = node.rows[r]!
++          memo.rawRows.push(rowText)
++          memo.rows.push(parseRow(splitTableRow(rowText), memo.used, memo.unresolved))
++        }
++        for (const label of memo.used) ctx.used.add(label)
++        for (const label of memo.unresolved) ctx.unresolved.add(label)
++        const rows = (memo.rows as InlineNode[][][]).slice()
++        if (stableCount < node.rows.length) {
++          const rowText = applyTailHeal(node.rows[node.rows.length - 1]!, ctx.heal!)
++          rows.push(parseRow(splitTableRow(rowText), ctx.used, ctx.unresolved))
++        }
++        return { type: "table", align: node.align, headers, rows }
++      }
++      case "document":
++      case "item":
++        return null
++    }
++  }
++
++  private convertItemCached(item: BNode, ctx: ConvertContext): ListItemNode {
++    if (!ctx.cacheable || item.forked) return this.convertItem(item, ctx)
++    const version = ctx.refmap.size
++    const hit = this.itemCache.get(item)
++    if (hit && hit.version === version) {
++      for (const label of hit.used) ctx.used.add(label)
++      for (const label of hit.unresolved) ctx.unresolved.add(label)
++      return hit.item
++    }
++    const sub: ConvertContext = { ...ctx, used: new Set(), unresolved: new Set() }
++    const result = this.convertItem(item, sub)
++    this.itemCache.set(item, { version, item: result, used: sub.used, unresolved: sub.unresolved })
++    for (const label of sub.used) ctx.used.add(label)
++    for (const label of sub.unresolved) ctx.unresolved.add(label)
++    return result
++  }
++
++  private convertItem(item: BNode, ctx: ConvertContext): ListItemNode {
++    const blocks: BlockKind[] = []
++    let checked: boolean | undefined
++    const children = item.children
++    for (let i = 0; i < children.length; i++) {
++      const child = children[i]!
++      if (i === 0 && this.options.gfm && child.type === "paragraph" && !child.defsOnly) {
++        const task = matchTask(child.content)
++        if (task) {
++          checked = task.checked
++          const content = task.rest
++          const leadingBr = /^[ ]+\n/.test(content)
++          const leadingWs = leadingBr ? "" : (content.match(/^[ \t]+(?=[^\s])/)?.[0] ?? "")
++          const healed = ctx.healTarget === child && ctx.heal ? applyTailHeal(content, ctx.heal) : content
++          const inlines = this.inlines(healed, ctx)
++          if (leadingBr) {
++            inlines.unshift({ type: "br" })
++          } else if (leadingWs && inlines.length > 0) {
++            if (inlines[0]!.type === "text") {
++              inlines[0] = { type: "text", text: leadingWs + inlines[0]!.text }
++            } else {
++              inlines.unshift({ type: "text", text: leadingWs })
++            }
++          }
++          blocks.push({ type: "paragraph", inlines })
++          continue
++        }
++      }
++      const kind = this.convert(child, ctx)
++      if (kind) blocks.push(kind)
++    }
++    return { ...(checked !== undefined ? { checked } : {}), blocks }
++  }
++}
++
++const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"])
++const RE_TAG = /<(\/?)([A-Za-z][A-Za-z0-9-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g
++
++/** Open minus closed (non-void) tags in an HTML block */
++function htmlBalance(node: BNode): number {
++  if (node.type !== "html_block") return 0
++  // Comments, declarations and raw-text blocks already have their own terminators.
++  if (node.htmlBlockType <= 5) return 0
++  const html = (node.open ? node.content : node.literal).replace(/<!--[\s\S]*?(?:-->|$)/g, "")
++  let balance = 0
++  for (const m of html.matchAll(RE_TAG)) {
++    if (m[3] || VOID_TAGS.has(m[2]!.toLowerCase())) continue
++    balance += m[1] ? -1 : 1
++  }
++  return balance
++}
++
++function unescapePipes(cell: string): string {
++  return cell.includes("\\|") ? cell.replace(/\\\|/g, "|") : cell
++}
++
++function matchTask(content: string): { checked: boolean; rest: string } | null {
++  if (content.length < 4 || content.charCodeAt(0) !== 0x5b || content.charCodeAt(2) !== 0x5d) return null
++  const mark = content[1]!
++  if (mark !== " " && mark !== "x" && mark !== "X") return null
++  const after = content.charCodeAt(3)
++  if (after !== 0x20 && after !== 0x09 && after !== 0x0a) return null
++  if (content.slice(3).trim().length === 0) return null
++  return { checked: mark !== " ", rest: content.slice(4) }
++}
++
++export function createMarkdownStream(options?: StreamOptions): PatchmarkStream {
++  return new PatchmarkStream(options)
++}
+diff --git a/packages/patchmark/src/types.ts b/packages/patchmark/src/types.ts
+new file mode 100644
+index 0000000..05c6440
+--- /dev/null
++++ b/packages/patchmark/src/types.ts
+@@ -0,0 +1,147 @@
++export type MathDelimiter = "dollar" | "double-dollar" | "paren"
++
++export type InlineNode =
++  | { type: "text"; text: string }
++  | { type: "strong"; children: InlineNode[] }
++  | { type: "em"; children: InlineNode[] }
++  | { type: "del"; children: InlineNode[] }
++  | { type: "code"; text: string }
++  | { type: "math"; source: string; delimiter: MathDelimiter; display: boolean }
++  | { type: "link"; href: string; title?: string; children: InlineNode[] }
++  | { type: "image"; src: string; alt: string; title?: string; children?: InlineNode[] }
++  | { type: "html_inline"; raw: string }
++  | { type: "br" }
++
++export type TableAlign = "left" | "center" | "right" | null
++
++export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
++
++export interface ListItemNode {
++  checked?: boolean | null
++  blocks: BlockKind[]
++}
++
++export type BlockKind =
++  | {
++      type: "paragraph"
++      inlines: InlineNode[]
++    }
++  | {
++      type: "heading"
++      level: HeadingLevel
++      inlines: InlineNode[]
++    }
++  | {
++      type: "code"
++      language?: string
++      meta?: string
++      source: string
++      htmlLiteral?: string
++      fence: string
++      indented?: boolean
++      complete: boolean
++    }
++  | {
++      type: "mermaid"
++      source: string
++      htmlLiteral?: string
++      complete: boolean
++    }
++  | {
++      type: "math"
++      source: string
++      delimiter: "double-dollar" | "dollar"
++      complete: boolean
++    }
++  | {
++      type: "blockquote"
++      blocks: BlockKind[]
++    }
++  | {
++      type: "list"
++      ordered: boolean
++      marker: string
++      start?: number
++      tight: boolean
++      items: ListItemNode[]
++    }
++  | {
++      type: "table"
++      align: TableAlign[]
++      headers: InlineNode[][]
++      rows: InlineNode[][][]
++    }
++  | {
++      type: "html_block"
++      raw: string
++    }
++  | {
++      type: "hr"
++    }
++  | {
++      /** Consecutive top-level blocks kept together because an HTML block opened a tag a later block closes */
++      type: "group"
++      blocks: BlockKind[]
++    }
++
++export interface MarkdownBlock {
++  /** Monotonic stable block ID within the stream (0, 1, 2, ...) */
++  id: number
++  /** Start offset in the source string (UTF-16 code units) */
++  start: number
++  /** End offset in the source string (UTF-16 code units) */
++  end: number
++  /** Raw markdown slice for this block */
++  raw: string
++  /** Whether this block is settled (immutable) or still actively growing at the stream tail */
++  status: "streaming" | "settled"
++  /** Parsed block payload and inline AST */
++  kind: BlockKind
++  /** Lazily or eagerly rendered HTML when requested */
++  html?: string
++  /** Source of the reference definitions this block uses, for renderers that parse one block at a time */
++  defs?: string
++  /** For a streaming block: `raw` with the tail healed (open markers closed, dangling markers hidden) */
++  liveRaw?: string
++}
++
++export type BlockPatch =
++  | { op: "append"; block: MarkdownBlock }
++  | { op: "replace"; id: number; index: number; block: MarkdownBlock }
++  | { op: "finalize"; id: number; index: number; block: MarkdownBlock }
++  | { op: "truncate"; keepCount: number }
++
++export interface StreamFrame {
++  /** Full accumulated source text */
++  text: string
++  /** Byte/char offset up to which blocks are settled and will never be reparsed on append */
++  settledOffset: number
++  /** Current blocks array (settled prefix references are preserved identically across frames) */
++  blocks: ReadonlyArray<MarkdownBlock>
++  /** Minimal patch list transforming the previous frame's blocks into `blocks` */
++  patches: ReadonlyArray<BlockPatch>
++  /** Any trailing bare marker held back to prevent 1-frame paragraph-to-heading/list pops */
++  heldMarker: string
++  /** Exact number of source characters scanned during this step */
++  charsScanned: number
++}
++
++export interface StreamOptions {
++  /** Enable GFM tables, strikethrough, task lists, and autolinks (default: true) */
++  gfm?: boolean
++  /** Enable TeX math ($...$, $$...$$, \(...\), \[...\]) with Pandoc currency rules (default: true) */
++  math?: boolean
++  /** Repair unclosed inline syntax on the active streaming tail block (default: true) */
++  heal?: boolean
++  /** Hold bare trailing block markers (-, ##, 1., >) until their first word arrives (default: true) */
++  holdPendingMarkers?: boolean
++  /** Settle top-level blocks as soon as CommonMark closes them, or wait until a later visible block begins (default: true) */
++  settleOnComplete?: boolean
++  /**
++   * Keep an HTML block that opens a tag (e.g. `<details>`) together with the following blocks up to the block that
++   * closes it, as one `group` block. For renderers that turn each block into a DOM fragment (default: false).
++   */
++  groupHtmlBlocks?: boolean
++  /** Eagerly populate `block.html` on each emitted block (default: false) */
++  renderHtml?: boolean
++}
+diff --git a/packages/plugin/package.json b/packages/plugin/package.json
+index 16d0855..bd188ca 100644
+--- a/packages/plugin/package.json
++++ b/packages/plugin/package.json
+@@ -50,7 +50,6 @@
+     "effect": "catalog:"
+   },
+   "peerDependencies": {
+-    "@opencode/theme": "workspace:*",
+     "@opentui/core": ">=0.8.1",
+     "@opentui/solid": ">=0.8.1",
+     "electron": "*",
+@@ -59,9 +58,6 @@
+     "vite-plugin-solid": ">=2.11"
+   },
+   "peerDependenciesMeta": {
+-    "@opencode/theme": {
+-      "optional": true
+-    },
+     "@opentui/core": {
+       "optional": true
+     },
+@@ -82,7 +78,6 @@
+     }
+   },
+   "devDependencies": {
+-    "@opencode/theme": "workspace:*",
+     "@opentui/core": "catalog:",
+     "@opentui/solid": "catalog:",
+     "@tsconfig/bun": "catalog:",

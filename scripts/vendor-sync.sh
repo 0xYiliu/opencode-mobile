@@ -5,7 +5,8 @@
 # upstream patch subset from the local blobless clone of the upstream repository
 # (default ~/.cache/opencode-upstream), applies the registered mobile patches and prints
 # provenance facts. The tree is rebuilt from scratch on every run: the vendor tree must
-# always equal "pin tree + registered patches" (checked by scripts/verify-closure.sh).
+# always equal "pin tree + registered build-only closure patches + active mobile patches"
+# (checked by scripts/verify-closure.sh).
 #
 # Usage:
 #   scripts/vendor-sync.sh [revision]
@@ -97,13 +98,25 @@ for key, rel in sorted(patches.items()):
     print(f"vendor-sync: upstream patch {key} -> {rel} ({len(blob)} bytes)")
 PY
 
-# 3. Apply the registered mobile patches in manifest order, checking each patch right
+# 3. Apply build-only closure patches, then the registered mobile patches in manifest order,
+#    checking each patch right
 #    before applying it. The chain is order-dependent (later patches anchor on earlier
 #    hunks, e.g. connection-credential-reference anchors on connection-password-memory-only's MemoryOnlyPassword field), so a check-all-then-
 #    apply-all sweep would reject order-dependent patches against the pristine tree.
 #    (Issue #67 fix: the previous two-loop form only passed when the tree it ran against
 #    was already fully patched; verify-closure.sh has always checked per patch.)
 MOBILE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["mobilePatches"]))' "$MANIFEST")"
+CLOSURE_PATCHES="$(python3 -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1])).get("closurePatches", [])))' "$MANIFEST")"
+
+# Build-only closure patches are deliberately separate from the mobile overlay. They carry
+# package-manager closure repairs and patch-created transitive packages (for example patchmark),
+# not product/mobile behavior. They replay before the scoped mobile patches.
+for cp in $CLOSURE_PATCHES; do
+  git -C "$ROOT" apply --directory=vendor/upstream --check "$DEST/$cp"
+  git -C "$ROOT" apply --directory=vendor/upstream "$DEST/$cp"
+  echo "vendor-sync: applied closure patch $cp"
+done
+
 for mp in $MOBILE_PATCHES; do
   git -C "$ROOT" apply --directory=vendor/upstream --check "$DEST/$mp"
   git -C "$ROOT" apply --directory=vendor/upstream "$DEST/$mp"

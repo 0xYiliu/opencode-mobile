@@ -6,10 +6,10 @@
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.7 | **活跃目标，迁移中** | 检查基线 `fd898b8`（2026-11-12）；上游 `fedc6f2`；当前 vendor 仍为旧 pin，live registry 78 active | 已完成 v2.2.1→v2.2.7 Desktop/closure 审计与新版本文档；vendor、依赖、补丁重基、版本身份和 Android 运行验证尚未完成 | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
+| v2.2.7 | **活跃目标，迁移中** | 当前 worktree HEAD `5135095b`（未提交；父轮审计起点 `fd898b8` 仅作历史锚点）；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry 79 registered / 1 active / 19 absorbed / 59 deferred | Desktop/closure 审计、vendor 重建、补丁登记、版本身份和 #184 focused tests 已有静态证据；全仓 typecheck、Android/Gradle/APK、设备、QR、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
 | v2.2.1 | **冻结历史** | 历史检查与实现证据保留原提交/环境边界 | 不因 v2.2.7 新代码回填历史；原矩阵中的 PASS/BLOCKED/未验证只说明 v2.2.1 轮次 | [历史矩阵](v2.2.1/matrix.md) · [历史基准](v2.2.1/baseline.md) · [历史复核](v2.2.1/current-review.md) |
 
-当前 Android 版本仍为 `2.2.1`（code `20201`），mobile app `2.2.1`，vendor app 为旧 pin 的 `2.1.4`；尚未同步为目标 `2.2.7`。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。
+当前 Android/mobile/About 声明身份为 `2.2.7`（versionCode `20207`），vendor app 为 `2.2.7`；Android Gradle/APK、adb、设备 UI 和覆盖安装尚未运行验证。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。
 
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 

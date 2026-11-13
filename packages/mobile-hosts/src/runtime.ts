@@ -24,6 +24,7 @@ import { removeSshHostKey } from "./ssh/host-key-verifier"
 import type { SshBridgeTransport } from "./ssh/bridge"
 import { assessIncompatible } from "./health-wrapper"
 import { basicAuthToken } from "./transport/basic-auth"
+import type { FetchLike } from "./transport/secure-fetch"
 
 export interface MobileHostsOptions {
   /** WebView storage for the host registry (whitelist payload; no credentials, ever). */
@@ -32,7 +33,7 @@ export interface MobileHostsOptions {
    * Fetch for future transport/health integration (issue #6/#4). Nothing calls it this
    * phase; accepted at the seam so the bootstrap contract does not change.
    */
-  fetch?: typeof globalThis.fetch
+  fetch?: FetchLike
   /**
    * Credential reference resolver. Defaults to the vault-backed resolver when a vault is
    * injected, and to NullCredentialResolver otherwise (issue #3 — unresolvable refs yield
@@ -163,7 +164,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const transport = options.transport ?? StubHostTransport
   const probe = options.probe ?? StubProbePort
   const sshBridge = options.sshBridge
-  const fetchFn = options.fetch ?? ((...args: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...args))
+  const fetchFn: FetchLike = options.fetch ?? ((input, init) => globalThis.fetch(input, init))
 
   // volatile: the storage candidate was unavailable/refused writes, so the registry runs
   // on the in-memory fallback. Surfaced on the runtime (N5) — never silent.
@@ -271,7 +272,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
   const checkServiceHealth = async (
     endpoint: TransportEndpoint,
     signal: AbortSignal,
-    fetcher: typeof fetch = fetchFn,
+    fetcher: FetchLike = fetchFn,
   ): Promise<{ ok: true; version?: string; authenticated: boolean } | { ok: false; authenticated: false }> => {
     const controller = new AbortController()
     const abort = () => controller.abort()
@@ -293,7 +294,7 @@ export function createMobileHosts(options: MobileHostsOptions = {}): MobileHosts
     }
   }
 
-  const serviceAuthFetch = (password?: string): typeof fetch => password
+  const serviceAuthFetch = (password?: string): FetchLike => password
     ? (input, init) => {
         const headers = new Headers(init?.headers)
         headers.set("authorization", `Basic ${basicAuthToken("opencode", password)}`)

@@ -1,7 +1,3 @@
-// mobile(M-036): vendored from v2.2.1 (3ebcf9a) verbatim. The three
-// `Schema.toStandardSchemaV1(...)` wrappers stay: the closure's effect@4.0.1
-// exports the API, and the promise client's PortableDefinition requires the
-// Standard Schema form.
 export * as Goal from "./goal.js"
 
 import { Schema } from "effect"

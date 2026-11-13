@@ -49,7 +49,7 @@ def check(vendor, refresh=False):
         require(identity not in by_id, f"duplicate ID: {identity}")
         require(path not in by_path, f"duplicate patch path: {path}")
         require(path == f"patches/mobile/{identity}.patch", f"patch filename must match ID: {identity}")
-        require(status in ("active", "deferred"), f"invalid status: {identity}")
+        require(status in ("active", "deferred", "absorbed"), f"invalid status: {identity}")
         file = vendor / path
         require(file.is_file() and not file.is_symlink(), f"missing or symlink patch: {path}")
         hashes[identity] = hashlib.sha256(file.read_bytes()).hexdigest()
@@ -89,7 +89,7 @@ def check(vendor, refresh=False):
         visit(identity)
 
     # Structural checks complete before refreshing anything. Neither order nor status
-    # is inferred or repaired; only hashes and the two documented projections change.
+    # is inferred or repaired; only hashes and the documented registry projections change.
     for entry in entries:
         digest = hashes[entry["id"]]
         if refresh:
@@ -99,8 +99,13 @@ def check(vendor, refresh=False):
     projection = [dict(id=e["id"], path=e["patch"], sha256=e["sha256"], status=e["status"])
                   for e in entries]
     deferred = [e for e in projection if e["status"] == "deferred"]
+    absorbed = [e for e in projection if e["status"] == "absorbed"]
     for path, document in mirrors.items():
-        for key, value in (("mobilePatchRegistry", projection), ("deferredMobilePatches", deferred)):
+        for key, value in (
+            ("mobilePatchRegistry", projection),
+            ("deferredMobilePatches", deferred),
+            ("absorbedMobilePatches", absorbed),
+        ):
             if refresh:
                 document[key] = value
             else:

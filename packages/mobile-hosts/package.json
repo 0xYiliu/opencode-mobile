@@ -1,6 +1,6 @@
 {
   "name": "@opencode-mobile/mobile-hosts",
-  "version": "2.2.1",
+  "version": "2.2.7",
   "description": "First-party host registry, stable identity and connection state machine for the OpenCode mobile shell (issue #3).",
   "private": true,
   "type": "module",

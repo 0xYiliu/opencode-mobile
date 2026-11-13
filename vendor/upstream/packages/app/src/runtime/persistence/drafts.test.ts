@@ -6,7 +6,6 @@ import {
   draftTextThreshold,
   resolveBlobUrl,
   setMediaBlobLoader,
-  pinMediaBlob,
 } from "./drafts"
 
 function memoryDriver() {
@@ -137,6 +136,50 @@ describe("draft store text externalization", () => {
     await store.setDocument("doc", { prompt: [{ type: "image", blob: { id: image.id, url: image.url } }] })
     expect(memory.blobs.has(image.id)).toBe(true)
     expect(new Uint8Array(await memory.blobs.get(image.id)!.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+  })
+
+  test("a pasted file stays readable after its file on disk is deleted", async () => {
+    // Clipboard tools hand over temp files and delete them on the next copy; reads then fail.
+    class DiskFile extends File {
+      gone = false
+
+      private check() {
+        if (this.gone) throw new DOMException("file is gone", "NotReadableError")
+      }
+
+      override arrayBuffer() {
+        this.check()
+
+        return super.arrayBuffer()
+      }
+
+      override text() {
+        this.check()
+
+        return super.text()
+      }
+
+      override stream() {
+        this.check()
+
+        return super.stream()
+      }
+
+      override slice(...args: Parameters<File["slice"]>) {
+        this.check()
+
+        return super.slice(...args)
+      }
+    }
+
+    const memory = memoryDriver()
+    const store = createDraftStore(memory.driver)
+    const file = new DiskFile([new Uint8Array([1, 2, 3])], "1793877187508_d.png", { type: "image/png" })
+    const image = await store.putBlob(file)
+    file.gone = true
+    // happy-dom's FileReader reads a blob's internal buffer, so only a public read can notice the deleted file.
+    expect(new Uint8Array(await memory.blobs.get(image.id)!.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
+    expect(await blobDataUrl(image, "image/png")).toBe("data:image/png;base64,AQID")
   })
 
   test("the previous document stays visible until missing blobs are restored", async () => {
@@ -346,6 +389,57 @@ describe("draft store image retention", () => {
     fresh()
     expect(await resolveBlobUrl({ id: "gone" })).toBeUndefined()
   })
+
+  test("a save that takes longer than the grace keeps the image it writes", async () => {
+    const { memory, store } = fresh(10)
+    const pasted = await store.putBlob(image(7))
+    const gate = Promise.withResolvers<void>()
+    const set = memory.driver.set
+    memory.driver.set = async (key, value, strict) => {
+      await gate.promise
+
+      return set(key, value, strict)
+    }
+
+    const saving = store.setDocument("slow", { prompt: [{ type: "image", blob: pasted }] })
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    gate.resolve()
+    await saving
+    await tick()
+    expect(await released(store, 7, pasted.url)).toBe(false)
+  })
+
+  test("a load that resolves after a save replaced the image does not release the new one", async () => {
+    const { memory, store } = fresh()
+    const old = await memory.driver.putBlob(image(8))
+    memory.documents.set("raced", JSON.stringify({ prompt: [{ type: "image", blob: { id: old } }] }))
+    const gate = Promise.withResolvers<void>()
+    const get = memory.driver.get
+    memory.driver.get = async (key) => {
+      const value = await get(key)
+      await gate.promise
+
+      return value
+    }
+
+    const loading = store.getItem("raced")
+    const pasted = await store.putBlob(image(9))
+    await store.setDocument("raced", { prompt: [{ type: "image", blob: pasted }] })
+    gate.resolve()
+    await loading
+    await tick()
+    expect(await released(store, 9, pasted.url)).toBe(false)
+  })
+
+  test("an image a store's document references resolves through that store after another store is created", async () => {
+    const first = fresh()
+    const id = await first.memory.driver.putBlob(image(10))
+    first.memory.documents.set("loaded", JSON.stringify({ prompt: [{ type: "image", blob: { id } }] }))
+    await first.store.getItem("loaded")
+    fresh()
+    expect((await resolveBlobUrl({ id }))?.startsWith("blob:")).toBe(true)
+    expect(await resolveBlobUrl({ id: "gone" })).toBeUndefined()
+  })
 })
 
 describe("draft store media refs", () => {
@@ -355,13 +449,13 @@ describe("draft store media refs", () => {
   // A server's media blobs, served through the authenticated loader the way the media cache does.
   const serveMedia = (key: string, blobs: Map<string, string>) => {
     const loads: string[] = []
-    const close = setMediaBlobLoader(key, async (uri) => {
+    setMediaBlobLoader(key, async (uri) => {
       loads.push(uri)
 
       return blobs.get(uri.slice("media:".length))
     })
 
-    return { loads, close }
+    return { loads, close: () => setMediaBlobLoader(key, undefined) }
   }
 
   test("a media:<hash> ref is saved with its bytes, restored, and submitted as bytes after the server sweeps it", async () => {
@@ -374,7 +468,7 @@ describe("draft store media refs", () => {
       const memory = memoryDriver()
       const store = createDraftStore(memory.driver)
       // The composer holds the URL-neutral ref a restored message carries; `media:` is never fetched directly.
-      const live = { id: ref, url: ref, sourceServerKey: "srv-draft-media" }
+      const live = { id: ref, url: ref }
       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }] })
 
       const stored = JSON.parse(memory.documents.get("doc")!).prompt[0].blob
@@ -400,7 +494,7 @@ describe("draft store media refs", () => {
     }
   })
 
-  test("an unresolved media ref preserves the draft but cannot be submitted as attachment bytes", async () => {
+  test("a media ref no server can serve saves without failing and submits as the ref", async () => {
     const ref = `media:${"b".repeat(64)}`
     const media = serveMedia("srv-draft-media-gone", new Map())
     const error = console.error
@@ -410,70 +504,12 @@ describe("draft store media refs", () => {
       const memory = memoryDriver()
       const store = createDraftStore(memory.driver)
       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: { id: ref, url: ref } }] })
-      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ mediaURI: ref })
+      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ id: ref })
       expect(await resolveBlobUrl({ id: ref, url: ref })).toBeUndefined()
-      await expect(blobDataUrl({ id: ref, url: ref }, "image/png")).rejects.toBeDefined()
-      expect(media.loads).toEqual([])
-      const restored = JSON.parse((await store.getItem("doc"))!).prompt[0].blob
-      expect(restored.id).toBe(ref)
+      expect(await blobDataUrl({ id: ref, url: ref }, "image/png")).toBe(ref)
     } finally {
       console.error = error
       media.close()
     }
-  })
-
-  test.each(["missing", "403", "404", "offline", "unknown"] as const)("source %s fails closed with zero calls to another server", async (failure) => {
-    const ref = `media:${"c".repeat(64)}`
-    let a = 0
-    let b = 0
-    const closeA = failure === "missing" ? () => {} : setMediaBlobLoader("failclosed-a", async () => {
-      a++
-      throw new Error(failure)
-    })
-    const closeB = setMediaBlobLoader("failclosed-b", async () => { b++; return pngDataUrl })
-    try {
-      const reference = { id: ref, url: "", sourceServerKey: failure === "unknown" ? undefined : "failclosed-a" }
-      await expect(pinMediaBlob(reference)).rejects.toBeDefined()
-      expect(await resolveBlobUrl(reference)).toBeUndefined()
-      expect(b).toBe(0)
-      expect(a).toBe(failure === "missing" || failure === "unknown" ? 0 : 2)
-    } finally { closeA(); closeB() }
-  })
-
-  test("equal remote hashes use source-scoped aliases and local copies remain usable offline", async () => {
-    const ref = `media:${"d".repeat(64)}`
-    let a = 0
-    let b = 0
-    const closeA = setMediaBlobLoader("alias-a", async () => { a++; return "data:text/plain;base64,QQ==" })
-    const closeB = setMediaBlobLoader("alias-b", async () => { b++; return "data:text/plain;base64,Qg==" })
-    const first = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-a" })
-    expect(a).toBe(1)
-    expect(b).toBe(0)
-    const second = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-b" })
-    expect(second.id).not.toBe(first.id)
-    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
-    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
-    closeA(); closeB()
-    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
-    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
-    expect(await resolveBlobUrl({ id: ref, sourceServerKey: "alias-unknown" })).toBeUndefined()
-  })
-
-  test("late same-key completion and old cleanup cannot publish aliases or unregister a successor", async () => {
-    const ref = `media:${"e".repeat(64)}`
-    let finish!: (value: string) => void
-    const pending = new Promise<string>((resolve) => { finish = resolve })
-    const closeOld = setMediaBlobLoader("generation", () => pending)
-    const old = pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
-    const rejected = old.then(() => false, () => true)
-    let successor = 0
-    const closeNew = setMediaBlobLoader("generation", async () => { successor++; return "data:text/plain;base64,TkVX" })
-    closeOld()
-    finish("data:text/plain;base64,T0xE")
-    expect(await rejected).toBe(true)
-    const current = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
-    expect(successor).toBe(1)
-    expect(await blobDataUrl(current, "text/plain")).toBe("data:text/plain;base64,TkVX")
-    closeNew()
   })
 })

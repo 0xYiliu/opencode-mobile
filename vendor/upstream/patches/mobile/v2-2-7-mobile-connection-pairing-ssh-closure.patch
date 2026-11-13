@@ -1,0 +1,1581 @@
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 969f506..3a7a4e3 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -11,9 +11,19 @@ import { isStandalone, PwaRoutePersistence, restorePwaRoute } from "@/runtime/pl
+ import { KeyboardInsets } from "@/runtime/platform/keyboard"
+ import en from "@/runtime/i18n/en"
+ import zh from "@/runtime/i18n/zh"
+-import { authFromToken } from "@/runtime/server/api"
+ import pkg from "../package.json"
+-import { ServerConnection } from "@/runtime/server/registry"
++import {
++  createMobileHosts,
++  createProbeClient,
++  createSshHostKeyVerifier,
++  createSshHostTransport,
++  SSH_BOOTSTRAP_MESSAGE,
++  createVaultClient,
++  createVaultResolver,
++  createAndroidXVaultTransport,
++  createWebMessageProbeTransport,
++  createWebMessageSshTransport,
++} from "@opencode-mobile/mobile-hosts"
+ 
+ const getLocale = () => {
+   if (typeof navigator === "undefined") return "en" as const
+@@ -41,16 +51,24 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
+   throw new Error(getRootNotFoundError())
+ }
+ 
+-const clearAuthToken = () => {
+-  const params = new URLSearchParams(location.search)
+-
+-  if (!params.has("auth_token")) return
+-  params.delete("auth_token")
+-  history.replaceState(null, "", location.pathname + (params.size ? `?${params}` : "") + location.hash)
+-}
+-
+-// package.json carries the last stable version on every channel, so the server's build passes its own release.
+-const web = createWebPlatform(import.meta.env.VITE_OPENCODE_VERSION ?? pkg.version)
++// mobile(M-007): the ?auth_token URL passthrough and its cleanup helper are removed with the
++// location.origin server assembly — this shell never assembles a server from the URL, so
++// there is nothing to authenticate here.
++const web = createWebPlatform(pkg.version)
++
++// Create the SSH message listener synchronously during module evaluation. Native currently
++// starts its bounded port handshake from onPageFinished; waiting for loadInitialLocale() here
++// can miss that window on a slow device and leave every later connect unavailable.
++const ssh = createWebMessageSshTransport({
++  subscribe: (handler) => {
++    window.addEventListener("message", handler as EventListener)
++    return () => window.removeEventListener("message", handler as EventListener)
++  },
++  requestNativeHandshake: () => {
++    const bootstrap = (window as any).opencodeMobileSshBootstrapV2
++    if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
++  },
++})
+ 
+ if (import.meta.env.PROD && "serviceWorker" in navigator) {
+   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
+@@ -79,32 +97,68 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
+   // Lazy chunks can import the entry chunk back under a distinct URL, so claim the root before async startup.
+   root.dataset.opencodeMounted = ""
+   void loadInitialLocale().then((locale) => {
+-    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+-    clearAuthToken()
+     const standalone = isStandalone()
+     root.dataset.standalone = String(standalone)
+ 
+     if (standalone) restorePwaRoute()
+ 
+-    const server: ServerConnection.Http | undefined = web.currentServerUrl
+-      ? {
+-          type: "http",
+-          authToken: !!auth,
+-          http: {
+-            url: web.currentServerUrl,
+-            ...auth,
+-          },
+-        }
+-      : undefined
++    // mobile(M-007): the shell asset origin (http://127.0.0.1:18090) is not an OpenCode
++    // server — the previous assembly of `location.origin` into a ServerConnection could only
++    // fail its health check, so it is removed. SSH hosts come from the first-party registry
++    // as managed extension connections (stable mobile-ssh:<uuid> identity); direct servers
++    // are added through the app's own dialog into the upstream persisted list. The
++    // ?auth_token passthrough is inapplicable in this shell (no assembled server to
++    // authenticate), so its handling is removed with this patch.
++    //
++    // mobile vault protocol v2 uses the native origin-bound AndroidX listener. It remains
++    // unavailable until its non-mutating readiness roundtrip completes.
++    const vault = createVaultClient(
++      createAndroidXVaultTransport((window as any).opencodeMobileVaultV2),
++    )
++    // mobile(M-014): the endpoint probe bridge (issue #5) — a protocol-isolated sibling of
++    // the vault bridge on the same window message events. The handshake strings differ
++    // ("opencode-mobile-probe-handshake" vs the vault's) and each transport captures only
++    // its own string with exactly one port, so neither can capture the other's handshake;
++    // neither consults event.origin (platform carries an empty origin by construction).
++    // The port is captured into the transport closure and acked immediately; before that
++    // ack the probe stays unavailable (fail-closed), and when the bridge never comes up
++    // the dialog degrades to the generic error — no fabricated classification.
++    const probe = createProbeClient(
++      createWebMessageProbeTransport({
++        subscribe: (handler) => {
++          window.addEventListener("message", handler as EventListener)
++          return () => window.removeEventListener("message", handler as EventListener)
++        },
++      }),
++    )
++    // mobile(M-015): the ssh tunnel bridge (issue #6) — the THIRD protocol-isolated sibling
++    // of the vault and probe bridges on the same window message events. Its handshake
++    // string ("opencode-mobile-ssh-handshake") is captured only by this transport (strict
++    // data equality + exactly one port), so none of the three bridges can capture another's
++    // handshake; event.origin is never consulted (embedder-posted messages carry an empty
++    // origin by platform construction). The port is captured into the transport closure and
++    // acked immediately; before that ack every ssh attempt fails explicitly
++    // (bridge-unavailable) — no tunnel can exist unverified.
++    const hosts = createMobileHosts({
++      storage: window.localStorage,
++      fetch: globalThis.fetch.bind(globalThis),
++      vault,
++      probe,
++      resolver: createVaultResolver(vault),
++      // Issue #6: the fail-closed stubs (StubHostKeyVerifier / StubHostTransport) give way
++      // to the bridge-backed counterparts ONLY in this shipped wiring. Without the acked
++      // bridge no connection is attempted beyond an explicit failure; the stubs remain the
++      // package's no-injection default (fail-closed posture unchanged).
++      hostKey: createSshHostKeyVerifier(ssh),
++      transport: createSshHostTransport(ssh),
++      sshBridge: ssh,
++    })
+ 
+     render(
+       () => (
+         <PlatformProvider value={web.platform}>
+           <AppBaseProviders locale={locale}>
+-            <AppInterface
+-              canonicalLocalServer={server ? ServerConnection.key(server) : undefined}
+-              servers={server ? [server] : []}
+-            >
++            <AppInterface servers={hosts.upstreamConnections()}>
+               <KeyboardInsets />
+               {standalone && <PwaRoutePersistence />}
+             </AppInterface>
+diff --git a/packages/app/src/runtime/platform/web.ts b/packages/app/src/runtime/platform/web.ts
+index 28944b0..fc1c863 100644
+--- a/packages/app/src/runtime/platform/web.ts
++++ b/packages/app/src/runtime/platform/web.ts
+@@ -1,9 +1,13 @@
+ import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
++import { createSecureFetch } from "@opencode-mobile/mobile-hosts"
+ import type { Platform } from "./platform"
+ 
+ export function createWebPlatform(version: string) {
+   const platform: Platform = {
+     platform: "web",
++    // mobile(M-011): validated-follow fetch rejects credential-bearing URLs, unsafe redirects
++    // and cross-host/downgrade final responses before the response body is consumed.
++    fetch: createSecureFetch(),
+     draftStore: createBrowserDraftStore(),
+     version,
+     openExternal(value) {
+diff --git a/packages/app/src/runtime/server/health-machine.ts b/packages/app/src/runtime/server/health-machine.ts
+index 9e4b64b..f709f66 100644
+--- a/packages/app/src/runtime/server/health-machine.ts
++++ b/packages/app/src/runtime/server/health-machine.ts
+@@ -14,7 +14,7 @@ export type ServerProbeResult =
+  * What the app knows about a server's health. `checking` waits for the first answer from the current endpoint; a
+  * contributed server that is not ready reports its plugin's stage instead.
+  */
+-export type ServerHealth =
++type ServerHealthValue =
+   | ServerProbeResult
+   | { readonly type: "checking"; readonly managed: boolean }
+   | { readonly type: "incompatible" }
+@@ -22,6 +22,16 @@ export type ServerHealth =
+   | { readonly type: "auth" }
+   | { readonly type: "stopped" }
+ 
++export type ServerHealth = ServerHealthValue & {
++    /** Compatibility projections for pre-v2.2.7 consumers; `type` is authoritative. */
++    readonly healthy?: boolean
++    readonly version?: string
++    readonly hostname?: string
++    readonly unauthorized?: boolean
++    readonly checking?: boolean
++    readonly incompatible?: boolean
++  }
++
+ type PluginStage = Exclude<PluginServerStatus["type"], "ready">
+ 
+ /** A listed server, as plain values: the health checks keep the endpoint they started with. */
+@@ -136,11 +146,28 @@ export function selectServerHealthRecord(state: ServerHealthState) {
+ 
+ // Builds a new object on every call: the driver hands it to a store, which adopts and later changes it.
+ export function selectServerHealth(slot: ServerHealthSlot): ServerHealth {
+-  if (slot.type === "staged") return slot.stage === "failed" ? { type: "unreachable" } : { type: slot.stage }
++  if (slot.type === "staged") return legacy(slot.stage === "failed" ? { type: "unreachable" } : { type: slot.stage })
++
++  if (slot.type === "checking") return legacy({ type: "checking", managed: slot.endpoint.managed })
++
++  return legacy({ ...slot.result })
++}
+ 
+-  if (slot.type === "checking") return { type: "checking", managed: slot.endpoint.managed }
++/**
++ * The v2.2.7 tagged result is the public contract. Older shared app surfaces still read
++ * boolean projections, so expose them as non-enumerable compatibility properties while
++ * keeping target snapshots and serialized health records in the tagged shape.
++ */
++function legacy(value: ServerHealthValue): ServerHealth {
++  const projected = { ...value } as Record<string, unknown>
++  Object.defineProperties(projected, {
++    healthy: { enumerable: false, value: value.type === "healthy" },
++    unauthorized: { enumerable: false, value: value.type === "unauthorized" },
++    checking: { enumerable: false, value: value.type === "checking" },
++    incompatible: { enumerable: false, value: value.type === "incompatible" },
++  })
+ 
+-  return { ...slot.result }
++  return projected as ServerHealth
+ }
+ 
+ export function isServerHealthy(health: ServerHealth | undefined) {
+diff --git a/packages/app/src/runtime/server/health.ts b/packages/app/src/runtime/server/health.ts
+index 751c71d..93488b9 100644
+--- a/packages/app/src/runtime/server/health.ts
++++ b/packages/app/src/runtime/server/health.ts
+@@ -16,6 +16,8 @@ import { ClientError, isUnauthorizedError, OpenCode } from "@opencode/client"
+ import { Accessor, batch, createComputed, createSignal, onCleanup, untrack } from "solid-js"
+ import { createStore, reconcile } from "solid-js/store"
+ 
++export type { ServerHealth } from "./health-machine"
++
+ interface CheckServerHealthOptions {
+   timeoutMs?: number
+   signal?: AbortSignal
+diff --git a/packages/app/src/runtime/server/machine.test.ts b/packages/app/src/runtime/server/machine.test.ts
+index 7e2aebb..2d9763f 100644
+--- a/packages/app/src/runtime/server/machine.test.ts
++++ b/packages/app/src/runtime/server/machine.test.ts
+@@ -119,6 +119,7 @@ test("a contributed server has credentials to check only while it is ready", ()
+     key: "ssh:box",
+     plugin: "ssh",
+     status,
++    http: status.type === "ready" ? status.http : { url: "http://127.0.0.1:0" },
+     managed: true,
+     authenticate: () => false,
+   })
+diff --git a/packages/app/src/runtime/server/persistence.test.ts b/packages/app/src/runtime/server/persistence.test.ts
+index 10ed3af..2751883 100644
+--- a/packages/app/src/runtime/server/persistence.test.ts
++++ b/packages/app/src/runtime/server/persistence.test.ts
+@@ -52,8 +52,15 @@ describe("server persistence schema", () => {
+     })
+     expect(input.list[1]).toHaveProperty("username", "legacy")
+     const encoded = Schema.encodeSync(schema)(state)
+-    expect(encoded).toEqual(state)
+-    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(state)
++    const memoryOnly = {
++      ...state,
++      list: state.list.map((server) => ({
++        ...server,
++        http: { ...server.http, password: undefined },
++      })),
++    }
++    expect(encoded).toEqual(memoryOnly)
++    expect(Schema.decodeUnknownSync(schema)(encoded)).toEqual(memoryOnly)
+   })
+ 
+   test("defaults missing or malformed fields and drops invalid entries independently", () => {
+diff --git a/packages/app/src/runtime/server/persistence.ts b/packages/app/src/runtime/server/persistence.ts
+index ec87717..a247e23 100644
+--- a/packages/app/src/runtime/server/persistence.ts
++++ b/packages/app/src/runtime/server/persistence.ts
+@@ -3,9 +3,45 @@ import { Persistence } from "@/runtime/persistence/schema"
+ 
+ export const ServerKey = Schema.String.pipe(Schema.brand("ServerConnection.Key"))
+ 
++// mobile(M-002): password stripped at encode (memory-only).
++//
++// The encoded (stored) form of a server never contains `password`: the encode half of the
++// field codec below always drops it, so no persistent backend (web localStorage, desktop
++// storage, draft stores) ever receives a credential. Decoding keeps tolerating a stored
++// password from legacy or foreign files, and a missing password reaches the existing
++// authentication-failure path. Keystore-backed persistence is owned by mobile issue #4.
++// `M002.stripped` counts strip events on the live encode path and `M002.marker` anchors
++// static verification of the built bundle (search the dist for "mobile(M-002)").
++const M002 = {
++  marker: "mobile(M-002): password stripped at encode (memory-only)",
++  stripped: 0,
++}
++
++// Encoded side and type side share the same shape, so decoding is unchanged; only encoding
++// rewrites a present password to `undefined`, which struct serialization omits entirely.
++const MemoryOnlyPassword = Schema.UndefinedOr(Schema.String).pipe(
++  Schema.decodeTo(Schema.UndefinedOr(Schema.String), {
++    decode: SchemaGetter.transform((value: string | undefined) => value),
++    encode: SchemaGetter.transform((value: string | undefined) => {
++      if (Predicate.isString(value)) {
++        M002.stripped++
++        return undefined
++      }
++
++      return value
++    }),
++  }),
++)
++
+ export const ServerHttpBase = Persistence.struct({
+   url: Schema.String,
+-  password: Schema.optional(Schema.String),
++  password: Schema.optional(MemoryOnlyPassword),
++  // mobile(M-005): non-secret credential REFERENCE (a pointer such as
++  // "mobile-credential:<id>", not a credential value). The password above is still stripped
++  // at encode (M-002); this reference is safe to persist and is resolved per session into
++  // memory only by the credential resolver (keystore-backed resolution is mobile issue #4).
++  // Decoding tolerates its absence for already-stored servers.
++  credentialRef: Schema.optional(Schema.String),
+ })
+ 
+ export const ServerHttp = Persistence.struct({
+diff --git a/tmp/opencode/v227-clean/packages/app/src/runtime/server/registry-hydration.test.tsx b/packages/app/src/runtime/server/registry-hydration.test.tsx
+new file mode 100644
+index 0000000..5a7ca55
+--- /dev/null
++++ b/packages/app/src/runtime/server/registry-hydration.test.tsx
+@@ -0,0 +1,223 @@
++// mobile(M-062) cold-start credential restore regression (issue #128).
++//
++// Root cause under test: registry hydration runs once, microtask-early, while the
++// AndroidX vault transport only becomes available after its async native ready
++// roundtrip; without the bounded readiness wait every get() threw "unavailable",
++// the per-entry swallow left no password, the first /api call 401'd and the cold
++// start landed back on the Connect screen.
++//
++// Harness (precedent: settings/servers/mobile-ssh.test.tsx): the file registers the
++// real Solid babel transform for .tsx sources, stubs the environment providers at
++// their seams with mock.module (platform/i18n/mobile-hosts), and mounts the real
++// ServersProvider with createRoot + createComponent. The persisted server list is
++// seeded through real localStorage at the real Persist.global("server") key, so the
++// whole persisted -> hydrate -> vault.ready -> get -> setStore chain is the
++// production one; only the vault bridge is synthetic. Fixtures are synthetic values,
++// never real credentials.
++//
++// Solid condition note: the unit suite runs with --conditions=solid, which resolves
++// solid-js to its SSR dist — provider init then dies in createResource ("cannot be
++// used under non-hydrating context"). The mock.module seam below pins solid-js and
++// solid-js/store to the CLIENT dist (both subpaths are exported) so the real mount
++// runs identically under --conditions=solid (suite) and --conditions=browser
++// (standalone). The mock is registered before any source import below.
++
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test } from "bun:test"
++import { createRequire } from "node:module"
++
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core")
++plugin({
++  name: "registry-hydration-solid",
++  setup(build) {
++    build.onLoad({ filter: /packages\/.*\.tsx$/ }, async (args) => ({
++      contents: babel.transformSync(await Bun.file(args.path).text(), {
++        filename: args.path,
++        presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")],
++        configFile: false,
++        babelrc: false,
++      }).code,
++      loader: "js",
++    }))
++  },
++})
++
++// The vault seam registry.tsx reads at provider init (getMobileHosts().credentials).
++let currentVault: {
++  status(): "unavailable" | "available"
++  ready?(timeoutMs?: number): Promise<"unavailable" | "available">
++  get(ref: string): Promise<string | undefined>
++}
++let readyWaits = 0
++let getCalls: string[] = []
++
++// Client-distro solid runtime (see the condition note above).
++const solidClient = require("solid-js/dist/solid.cjs") as typeof import("solid-js")
++const solidStoreClient = require("solid-js/store/dist/store.cjs") as typeof import("solid-js/store")
++mock.module("solid-js", () => solidClient)
++mock.module("solid-js/store", () => solidStoreClient)
++
++mock.module("@opencode-mobile/mobile-hosts", () => ({
++  getMobileHosts: () => ({ credentials: currentVault }),
++}))
++mock.module("@/runtime/i18n/language", () => ({
++  useLanguage: () => ({ locale: () => "en", t: (key: string) => key }),
++}))
++// Web platform: persisted() then backs Persist.global("server") with real localStorage.
++mock.module("@/runtime/platform/platform", () => ({ usePlatform: () => ({ platform: "web" }) }))
++
++// JSX-free createSimpleContext: under the suite conditions the shared preload's
++// transform compiles the real helper's provider JSX into a non-executable classic
++// form ("React is not defined"). The provider wrapper is environment plumbing around
++// registry's init — the code under test — so this minimal client-side equivalent
++// keeps the same init-and-provide semantics (the readiness gate is dropped; with the
++// synchronous localStorage backend used here the gated first render and the ungated
++// one coincide, and the hydration under test starts from the provider init itself).
++const uiContext = await import("@opencode/ui/context")
++mock.module("@opencode/ui/context", () => ({
++  ...uiContext,
++  createSimpleContext: (input: { name: string; init: (props: never) => unknown }) => {
++    const ctx = solidClient.createContext<unknown>()
++    return {
++      provider: (props: { children?: unknown }) =>
++        solidClient.createComponent(ctx.Provider, {
++          value: input.init(props as never),
++          get children() {
++            return props.children
++          },
++        }),
++      use: () => {
++        const value = solidClient.useContext(ctx)
++        if (!value) throw new Error(`${input.name} context must be used within a context provider`)
++        return value
++      },
++    }
++  },
++}))
++
++const { ServersProvider, useServers } = await import("./registry")
++const { flushPersisted } = await import("../persistence/persist")
++
++const STORE_KEY = "opencode.global.dat:server"
++const CREDENTIAL_REF = "mobile-credential:hydration-probe"
++
++function seedPersistedServer() {
++  localStorage.setItem(
++    STORE_KEY,
++    JSON.stringify({
++      list: [{ type: "http", http: { url: "http://synthetic.restore.invalid:4096", credentialRef: CREDENTIAL_REF } }],
++      hidden: {},
++      lastProjectID: {},
++      usedProjectIDs: {},
++      hostnames: {},
++      projects: {},
++    }),
++  )
++}
++
++type HttpEntry = { type: "http"; http: { url: string; password?: string; credentialRef?: string } }
++
++let dispose: (() => void) | undefined
++
++/** Readiness that lands one macrotask after the hydration microtask has already run. */
++const lateReady = () => {
++  readyWaits++
++  return new Promise<"available">((resolve) => setTimeout(() => resolve("available"), 0))
++}
++
++/** Readiness that never lands; the deadline resolves "unavailable" (short test default). */
++const neverReady = (timeoutMs?: number) => {
++  readyWaits++
++  return new Promise<"unavailable">((resolve) => setTimeout(() => resolve("unavailable"), timeoutMs ?? 15))
++}
++
++function mountServers(): () => HttpEntry[] {
++  let read!: () => HttpEntry[]
++  solidClient.createRoot((stop) => {
++    dispose = stop
++    return solidClient.createComponent(ServersProvider, {
++      get children() {
++        const servers = useServers()
++        read = () => servers.list as unknown as HttpEntry[]
++        return ""
++      },
++    })
++  })
++  return read
++}
++
++afterEach(() => {
++  dispose?.()
++  dispose = undefined
++  flushPersisted()
++  localStorage.clear()
++  readyWaits = 0
++  getCalls = []
++})
++
++describe("registry hydration awaits vault readiness (M-062)", () => {
++  test("delayed-ready vault: the restore waits for the bridge, then injects the password in memory", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      // Readiness lands one macrotask later — after the hydration microtask has run.
++      ready: lateReady,
++      get: async (ref) => {
++        getCalls.push(ref)
++        return "synthetic-restored-password"
++      },
++    }
++    const list = mountServers()
++    expect(list()).toHaveLength(1)
++    // Pre-restore: the seeded entry carries the reference but no password yet.
++    expect(list()[0]!.http.password).toBeUndefined()
++    await new Promise((resolve) => setTimeout(resolve, 20))
++    expect(readyWaits).toBe(1)
++    expect(getCalls).toEqual([CREDENTIAL_REF])
++    expect(list()[0]!.http.password).toBe("synthetic-restored-password")
++    expect(list()[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++  })
++
++  test("the injected password never reaches the persisted payload (M-002 memory-only)", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      ready: lateReady,
++      get: async () => "synthetic-restored-password",
++    }
++    const list = mountServers()
++    await new Promise((resolve) => setTimeout(resolve, 20))
++    expect(list()[0]!.http.password).toBe("synthetic-restored-password")
++    // Force the persist write window now; the encode path (M-002) must strip the value.
++    flushPersisted()
++    const persisted = JSON.parse(localStorage.getItem(STORE_KEY)!) as {
++      list: Array<{ http: { password?: string; credentialRef?: string } }>
++    }
++    expect(persisted.list).toHaveLength(1)
++    expect(persisted.list[0]!.http.password).toBeUndefined()
++    expect("password" in persisted.list[0]!.http).toBe(false)
++    expect(persisted.list[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++  })
++
++  test("never-ready vault: the bounded timeout keeps today's behavior — no injection, no unhandled rejection, reference retained", async () => {
++    seedPersistedServer()
++    currentVault = {
++      status: () => "unavailable",
++      ready: neverReady,
++      get: async (ref) => {
++        getCalls.push(ref)
++        throw Object.assign(new Error("credential vault: unavailable"), { code: "unavailable" })
++      },
++    }
++    const list = mountServers()
++    // The short deadline (not the 15s default) bounds the wait; the loop then proceeds
++    // exactly as before the fix: the per-entry get() failure is swallowed per entry.
++    await new Promise((resolve) => setTimeout(resolve, 60))
++    expect(readyWaits).toBe(1)
++    expect(getCalls).toEqual([CREDENTIAL_REF])
++    expect(list()[0]!.http.password).toBeUndefined()
++    expect(list()[0]!.http.credentialRef).toBe(CREDENTIAL_REF)
++    expect(list()).toHaveLength(1)
++  })
++})
+diff --git a/packages/app/src/runtime/server/registry.test.ts b/packages/app/src/runtime/server/registry.test.ts
+index 03ed725..2d1d442 100644
+--- a/packages/app/src/runtime/server/registry.test.ts
++++ b/packages/app/src/runtime/server/registry.test.ts
+@@ -66,9 +66,10 @@ test("treats WSL and mismatched-port loopback servers as remote connections", ()
+     ServerConnection.local(
+       {
+         type: "plugin",
+-        key: "wsl:Debian",
+-        plugin: "wsl",
+-        status: { type: "ready", http: { url: "http://127.0.0.1:4097" } },
++         key: "wsl:Debian",
++         plugin: "wsl",
++         status: { type: "ready", http: { url: "http://127.0.0.1:4097" } },
++         http: { url: "http://127.0.0.1:4097" },
+         authenticate: () => false,
+         managed: false,
+       },
+diff --git a/packages/app/src/runtime/server/registry.tsx b/packages/app/src/runtime/server/registry.tsx
+index 4efb107..2c92315 100644
+--- a/packages/app/src/runtime/server/registry.tsx
++++ b/packages/app/src/runtime/server/registry.tsx
+@@ -6,6 +6,9 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { ServerScope } from "@/runtime/server/scope"
+ import type { PluginServerStatus } from "./plugin-machine"
+ import { ServerHttp, ServerHttpBase, ServerKey, ServerState } from "./persistence"
++// Mobile direct-server passwords are resolved from the device vault only after the persisted
++// list has hydrated. The value is written to the in-memory Solid store and never to storage.
++import { getMobileHosts } from "@opencode-mobile/mobile-hosts"
+ 
+ type StoredState = typeof ServerState.Type
+ 
+@@ -170,6 +173,12 @@ export namespace ServerConnection {
+     key: string
+     plugin: string
+     status: PluginServerStatus
++    /** Legacy fields remain optional while older inventory consumers migrate to `status`. */
++    state?: "stopped" | "starting" | "auth" | "ready" | "failed" | "incompatible"
++    connecting?: boolean
++    authenticationRequired?: boolean
++    /** Compatibility endpoint for older consumers; `status` is authoritative. */
++    http: HttpBase
+     /** The plugin re-resolves the endpoint (e.g. a tunnel), so the connection can drop and come back. */
+     managed: boolean
+     reconnect?: (signal: AbortSignal) => Promise<HttpBase>
+@@ -177,7 +186,7 @@ export namespace ServerConnection {
+      * Starts sign-in while the server waits for it, or joins the one in progress; false when the server does not
+      * wait for sign-in. `onConnected` runs once the server is ready.
+      */
+-    authenticate: (onConnected?: () => void) => boolean
++    authenticate?: (onConnected?: () => void) => boolean
+     /** Asks the plugin to connect, e.g. after the server rejected our credentials. Resolves true once it is ready. */
+     connect?: () => Promise<boolean>
+   } & Base
+@@ -204,10 +213,10 @@ export namespace ServerConnection {
+   export const builtin = (conn: Any) => conn.type === "sidecar" && conn.variant === "base"
+   /** Starts sign-in for a server that asks for it, or joins the one in progress; false when it does not. */
+   export const authenticate = (conn: Any, onConnected?: () => void) =>
+-    conn.type === "plugin" && conn.authenticate(onConnected)
++    conn.type === "plugin" && !!conn.authenticate?.(onConnected)
+ 
+   /** The endpoint to probe, show or call; undefined while a contributed server is not ready. */
+-  export const http = (conn: Any) => {
++  export const http = (conn: Any): HttpBase | undefined => {
+     if (conn.type !== "plugin") return conn.http
+ 
+     return conn.status.type === "ready" ? conn.status.http : undefined
+@@ -241,6 +250,37 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
+       { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} },
+     )
+ 
++    // Credential references are safe to persist; credential values are not. Resolve each
++    // reference into this in-memory list after the vault bridge is ready. A missing/corrupt
++    // vault entry deliberately leaves the password absent so the normal auth flow can ask
++    // again instead of falling back to plaintext storage.
++    const vault = (() => {
++      try {
++        return getMobileHosts().credentials
++      } catch {
++        return undefined
++      }
++    })()
++    if (vault) {
++      void Promise.resolve(hydrated.promise ?? undefined)
++        .then(async () => {
++          if (typeof vault.ready === "function") await vault.ready()
++          for (let index = 0; index < store.list.length; index++) {
++            const conn = store.list[index]
++            if (!conn || conn.type !== "http" || conn.http.password || !conn.http.credentialRef) continue
++
++            try {
++              const value = await vault.get(conn.http.credentialRef)
++              if (!value || store.list[index] !== conn || store.list[index]?.http.password) continue
++              batch(() => setStore("list", index, "http", "password", value))
++            } catch {
++              // Explicit vault unavailability/corruption is handled by the server auth path.
++            }
++          }
++        })
++        .catch(() => undefined)
++    }
++
+     const language = useLanguage()
+ 
+     const allServers = createMemo((): Array<ServerConnection.Any> => {
+diff --git a/packages/app/src/servers/connect/controller.ts b/packages/app/src/servers/connect/controller.ts
+index f801b0d..3642292 100644
+--- a/packages/app/src/servers/connect/controller.ts
++++ b/packages/app/src/servers/connect/controller.ts
+@@ -2,8 +2,15 @@ import { type Accessor, createEffect, createMemo, createSignal, on, onCleanup, u
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { usePlatform } from "@/runtime/platform/platform"
+ import { useCheckServerHealth } from "@/runtime/server/health"
+-import { ServerConnection, useServers } from "@/runtime/server/registry"
++import { normalizeServerUrl, ServerConnection, useServers } from "@/runtime/server/registry"
+ import { replaceServerConnection } from "@/servers/registry/management"
++import {
++  assertNoUrlCredentials,
++  evaluateRemember,
++  getMobileHosts,
++  initialRemember,
++  type ProbeResult,
++} from "@opencode-mobile/mobile-hosts"
+ import {
+   selectServerConnectView,
+   startServerConnect,
+@@ -11,10 +18,12 @@ import {
+   type ServerCameraSupport,
+   type ServerConnectEffect,
+   type ServerConnectEvent,
++  type ServerConnectState,
+   type ServerConnectTarget,
+   type ServerOriginal,
+ } from "./machine"
+ import { useRedeemPairing } from "./redeem"
++import { isMixedContent } from "./browser"
+ 
+ export type ServerConnectControllerOptions =
+   | { readonly surface: "screen"; readonly target: Extract<ServerConnectTarget, { kind: "connect" }> }
+@@ -41,8 +50,106 @@ export function createServerConnectController(options: ServerConnectControllerOp
+   const [machine, setMachine] = createSignal(initial.state)
+   let timer: ReturnType<typeof setTimeout> | undefined
+   let cameraTimer: ReturnType<typeof setTimeout> | undefined
++  let rememberOverride: boolean | undefined
++
++  // Mobile capabilities are optional at this shared boundary. A non-Android/web build has no
++  // host bootstrap and therefore stays fail-closed: no vault or probe operation is attempted.
++  const mobileHosts = (() => {
++    try {
++      return getMobileHosts()
++    } catch {
++      return undefined
++    }
++  })()
++  const vault = mobileHosts?.credentials
++  const probe = mobileHosts?.probe
++  const vaultAvailable = () => vault?.status() === "available"
+ 
+-  const dispatch = (event: ServerConnectEvent) => {
++  const priorRef = (state: ServerConnectState, resolvedUrl?: string) => {
++    if (state.target.kind === "edit") return state.target.original.credentialRef
++
++    const normalized = normalizeServerUrl(resolvedUrl ?? state.draft.url)
++    if (!normalized) return undefined
++
++    const prior = servers.list.find(
++      (server): server is ServerConnection.Http => server.type === "http" && server.http.url === normalized,
++    )
++
++    return prior?.http.credentialRef
++  }
++
++  const effectiveRemember = (state: ServerConnectState, resolvedUrl?: string) =>
++    rememberOverride !== undefined ? rememberOverride : state.draft.remember || initialRemember(priorRef(state, resolvedUrl))
++
++  const rememberDecision = (state: ServerConnectState, http: ServerConnection.HttpBase) =>
++    evaluateRemember({
++      mode: state.target.kind === "edit" ? "edit" : "add",
++      checkboxRendered: state.draft.method === "password" && vaultAvailable(),
++      remember: effectiveRemember(state, http.url),
++      valueEmpty: !http.password,
++      priorRef: priorRef(state, http.url),
++    })
++
++  const withoutCredentialRef = (http: ServerConnection.HttpBase): ServerConnection.HttpBase => {
++    const { credentialRef: _credentialRef, ...rest } = http
++
++    return rest
++  }
++
++  const prepareHttp = async (state: ServerConnectState, http: ServerConnection.HttpBase) => {
++    // The first connect screen is also the initial sign-in surface. When the Android
++    // vault is ready, persist only a vault reference so the next process can restore the
++    // password; an unavailable vault intentionally keeps the memory-only behavior.
++    if (options.surface === "screen" && http.password && vaultAvailable()) {
++      const credentialRef = await vault!.put({
++        kind: "password",
++        value: http.password,
++        ...(priorRef(state, http.url) !== undefined ? { existingRef: priorRef(state, http.url) } : {}),
++      })
++
++      return { ...http, credentialRef }
++    }
++
++    const decision = rememberDecision(state, http)
++
++    if (decision.action === "abort") throw new Error(language.t("dialog.server.remember.needsPassword"))
++
++    if (decision.action === "put") {
++      if (!vault) throw new Error(language.t("dialog.server.remember.saveFailed"))
++      const credentialRef = await vault.put({
++        kind: "password",
++        value: http.password!,
++        ...(decision.existingRef !== undefined ? { existingRef: decision.existingRef } : {}),
++      })
++
++      return { ...http, credentialRef }
++    }
++
++    if (decision.action === "clear") {
++      if (!vault) throw new Error(language.t("dialog.server.remember.saveFailed"))
++      await vault.remove(decision.ref)
++
++      return withoutCredentialRef(http)
++    }
++
++    if (decision.action === "passthrough" && decision.ref) return { ...http, credentialRef: decision.ref }
++
++    return withoutCredentialRef(http)
++  }
++
++  const connectError = async (url: string, result: { readonly type: string }, probePromise?: Promise<ProbeResult>) => {
++    if (platform.platform === "web" && isMixedContent(location.href, url)) return language.t("server.connect.mixedContent")
++    if (result.type === "unauthorized") return language.t("dialog.server.error.unauthorized")
++
++    const probed = await probePromise?.catch(() => undefined)
++    if (probed?.status === "available" && probed.code !== "ok") {
++      return language.t(`dialog.server.error.${probed.code}` as never)
++    }
++
++    return language.t(options.surface === "screen" ? "server.connect.failed" : "dialog.server.add.error")
++  }
++
++  const commit = (event: ServerConnectEvent) => {
+     const prev = untrack(machine)
+     const next = transitionServerConnect(prev, event)
+ 
+@@ -50,6 +157,53 @@ export function createServerConnectController(options: ServerConnectControllerOp
+     next.effects.forEach(run)
+   }
+ 
++  const dispatch = (event: ServerConnectEvent) => {
++    const prev = untrack(machine)
++
++    if (event.type === "remember.changed") rememberOverride = event.remember
++
++    if (event.type === "submitted" && prev.status === "editing") {
++      if (prev.draft.method === "password") {
++        try {
++          assertNoUrlCredentials(prev.draft.url)
++        } catch {
++          commit({
++            type: "validation.failed",
++            error: { type: "connection-failed", url: prev.draft.url, message: language.t("dialog.server.error.credential-url") },
++          })
++          return
++        }
++
++        if (rememberDecision(prev, { url: prev.draft.url, password: prev.draft.password || undefined }).action === "abort") {
++          commit({
++            type: "validation.failed",
++            error: { type: "connection-failed", url: prev.draft.url, message: language.t("dialog.server.remember.needsPassword") },
++          })
++          return
++        }
++      }
++    }
++
++    if (event.type === "submit.succeeded" && prev.status === "submitting" && prev.attempt === event.attempt) {
++      void prepareHttp(prev, event.http).then(
++        (http) => commit({ ...event, http }),
++        (error: unknown) =>
++          commit({
++            type: "submit.failed",
++            attempt: event.attempt,
++            error: {
++              type: "connection-failed",
++              url: event.http.url,
++              message: error instanceof Error ? error.message : language.t("dialog.server.remember.saveFailed"),
++            },
++          }),
++      )
++      return
++    }
++
++    commit(event)
++  }
++
+   const run = (effect: ServerConnectEffect) => {
+     if (effect.type === "timer.start") {
+       clearTimeout(timer)
+@@ -84,19 +238,24 @@ export function createServerConnectController(options: ServerConnectControllerOp
+     }
+ 
+     if (effect.type === "connect.http") {
+-      const failed = () =>
+-        dispatch({
+-          type: "submit.failed",
+-          attempt: effect.attempt,
+-          error: { type: "connection-failed", url: effect.http.url },
+-        })
++      const probePromise = probe
++        ? Promise.try(() => probe.probe({ url: effect.http.url, password: effect.http.password }))
++        : undefined
++      const failed = (result: { readonly type: string } = { type: "unreachable" }) =>
++        void connectError(effect.http.url, result, probePromise).then((message) =>
++          dispatch({
++            type: "submit.failed",
++            attempt: effect.attempt,
++            error: { type: "connection-failed", url: effect.http.url, message },
++          }),
++        )
+ 
+       void Promise.try(() => check(effect.http)).then(
+         (result) =>
+           result.type === "healthy"
+             ? dispatch({ type: "submit.succeeded", attempt: effect.attempt, http: effect.http })
+-            : failed(),
+-        failed,
++            : failed(result),
++        () => failed(),
+       )
+ 
+       return
+@@ -124,6 +283,7 @@ export function createServerConnectController(options: ServerConnectControllerOp
+         )
+ 
+         servers.add(existing ? { ...existing, http: action.http } : { type: "http", http: action.http })
++        if (options.surface === "screen") mobileHosts?.releaseInitialScreen()
+ 
+         return
+       }
+@@ -177,13 +337,20 @@ export function createServerConnectController(options: ServerConnectControllerOp
+   onCleanup(() => dispatch({ type: "disposed" }))
+   initial.effects.forEach(run)
+ 
+-  const view = createMemo(() =>
+-    selectServerConnectView(machine(), {
++  const view = createMemo(() => {
++    const state = machine()
++    const selected = selectServerConnectView(state, {
+       surface: options.surface,
+       pageHref: platform.platform === "web" ? location.href : undefined,
+       t: (key) => language.t(key),
+-    }),
+-  )
++    })
++
++    return {
++      ...selected,
++      rememberAvailable: vaultAvailable(),
++      draft: { ...selected.draft, remember: effectiveRemember(state) },
++    }
++  })
+ 
+   return { view, dispatch, redeem }
+ }
+diff --git a/packages/app/src/servers/connect/dialog.tsx b/packages/app/src/servers/connect/dialog.tsx
+index a17e27c..57bc7ac 100644
+--- a/packages/app/src/servers/connect/dialog.tsx
++++ b/packages/app/src/servers/connect/dialog.tsx
+@@ -33,6 +33,7 @@ export const DialogServer: Component<{
+     url: server.http.url,
+     displayName: server.displayName,
+     password: server.http.password,
++    credentialRef: server.http.credentialRef,
+     unauthorized: isServerUnauthorized(global.servers.health[ServerConnection.key(server)]),
+   })
+ 
+@@ -48,8 +49,8 @@ export const DialogServer: Component<{
+     surface: "dialog",
+     target: edited ? { kind: "edit", original: untrack(original) ?? originalOf(edited) } : { kind: "add" },
+     original,
+-    removeTabs: (key) => tabs.removeServer(key),
+     closing: () => dialog.closing,
++    removeTabs: (key) => tabs.removeServer(key),
+     // Close first: onSave may open the next dialog, such as the folder picker an interrupted action continues with.
+     onClose: (saved) => {
+       dialog.close()
+@@ -178,6 +179,22 @@ export const DialogServer: Component<{
+                 onKeyDown={keyDown}
+               />
+             </div>
++            <Show when={view().draft.method === "password"}>
++              <label class="flex items-center gap-2">
++                <input
++                  type="checkbox"
++                  checked={view().draft.remember}
++                  disabled={!view().rememberAvailable || view().disabled}
++                  onChange={(event) => form.dispatch({ type: "remember.changed", remember: event.currentTarget.checked })}
++                />
++                <span class="settings-server-dialog-hint">{language.t("dialog.server.remember")}</span>
++              </label>
++              <Show when={!view().rememberAvailable}>
++                <p class="settings-server-dialog-hint" role="status">
++                  {language.t("dialog.server.remember.unavailable")}
++                </p>
++              </Show>
++            </Show>
+             <Show when={view().draft.method === "password"}>
+               <div class="flex w-full min-w-0 flex-col gap-2">
+                 <label for="dialog-server-password" class="settings-server-dialog-label">
+diff --git a/packages/app/src/servers/connect/machine.test.ts b/packages/app/src/servers/connect/machine.test.ts
+index cadd27c..6ef1e19 100644
+--- a/packages/app/src/servers/connect/machine.test.ts
++++ b/packages/app/src/servers/connect/machine.test.ts
+@@ -430,6 +430,7 @@ describe("server connect form", () => {
+       url: "http://old:4096",
+       name: "Remote",
+       password: "secret",
++      remember: false,
+     })
+     expect(view(edit({ unauthorized: true })).draft.method).toBe("link")
+     expect(view({ kind: "connect", url: "http://localhost:4096" }).draft.url).toBe("http://localhost:4096")
+diff --git a/packages/app/src/servers/connect/machine.ts b/packages/app/src/servers/connect/machine.ts
+index eada0c8..1bfe8fb 100644
+--- a/packages/app/src/servers/connect/machine.ts
++++ b/packages/app/src/servers/connect/machine.ts
+@@ -29,6 +29,8 @@ export type ServerOriginal = {
+   readonly url: string
+   readonly displayName: string | undefined
+   readonly password: string | undefined
++  /** Non-secret reference to a device-vault credential. */
++  readonly credentialRef?: string
+   readonly unauthorized: boolean
+ }
+ 
+@@ -44,6 +46,7 @@ export type ServerConnectDraft = {
+   readonly url: string
+   readonly name: string
+   readonly password: string
++  readonly remember: boolean
+ }
+ 
+ export type ServerConnectField = "link" | "url" | "name" | "password"
+@@ -54,7 +57,7 @@ export type ServerConnectError =
+   | { readonly type: "address-invalid" }
+   /** Already localized by `useRedeemPairing`. */
+   | { readonly type: "redeem"; readonly message: string }
+-  | { readonly type: "connection-failed"; readonly url: string }
++  | { readonly type: "connection-failed"; readonly url: string; readonly message?: string }
+ 
+ export type ServerSaveAction =
+   | { readonly type: "connect"; readonly http: ServerConnection.HttpBase }
+@@ -86,6 +89,7 @@ export type ServerConnectState =
+ export type ServerConnectEvent =
+   | { readonly type: "method.changed"; readonly method: ConnectMethod }
+   | { readonly type: "field.changed"; readonly field: ServerConnectField; readonly value: string }
++  | { readonly type: "remember.changed"; readonly remember: boolean }
+   | { readonly type: "camera.settled"; readonly attempt: number; readonly available: boolean }
+   | { readonly type: "camera.timed-out"; readonly attempt: number }
+   | { readonly type: "scan.started" }
+@@ -95,6 +99,7 @@ export type ServerConnectEvent =
+   | { readonly type: "submit.succeeded"; readonly attempt: number; readonly http: ServerConnection.HttpBase }
+   | { readonly type: "submit.failed"; readonly attempt: number; readonly error: ServerConnectError }
+   | { readonly type: "submit.timed-out"; readonly attempt: number }
++  | { readonly type: "validation.failed"; readonly error: ServerConnectError }
+   /** The edited server as the registry lists it now; undefined once it is removed. */
+   | { readonly type: "original.synced"; readonly original: ServerOriginal | undefined }
+   | { readonly type: "disposed" }
+@@ -146,6 +151,12 @@ export function transitionServerConnect(state: ServerConnectState, event: Server
+ 
+   if (event.type === "original.synced") return synced(state, event.original)
+ 
++  if (event.type === "validation.failed") {
++    if (state.status !== "editing") return same
++
++    return { state: editing(state, state.draft, event.error), effects: [] }
++  }
++
+   if (event.type === "camera.settled" || event.type === "camera.timed-out") {
+     if (state.camera.status !== "probing" || state.camera.attempt !== event.attempt) return same
+     const available = event.type === "camera.settled" && event.available
+@@ -204,6 +215,12 @@ export function transitionServerConnect(state: ServerConnectState, event: Server
+     return { state: editing(state, { ...state.draft, [event.field]: event.value }), effects: [] }
+   }
+ 
++  if (event.type === "remember.changed") {
++    if (state.status !== "editing" || state.draft.remember === event.remember) return same
++
++    return { state: editing(state, { ...state.draft, remember: event.remember }), effects: [] }
++  }
++
+   if (event.type === "scan.started") {
+     if (state.camera.status !== "available") return same
+ 
+@@ -247,6 +264,8 @@ export function formatServerConnectError(error: ServerConnectError, context: Ser
+ 
+   if (context.pageHref && isMixedContent(context.pageHref, error.url)) return context.t("server.connect.mixedContent")
+ 
++  if (error.message) return error.message
++
+   return context.t(context.surface === "screen" ? "server.connect.failed" : "dialog.server.add.error")
+ }
+ 
+@@ -303,6 +322,7 @@ function initialDraft(target: ServerConnectTarget): ServerConnectDraft {
+       url: target.kind === "connect" ? (target.url ?? "") : "",
+       name: "",
+       password: "",
++      remember: false,
+     }
+ 
+   // A signed-out server needs a new pairing link; otherwise editing starts from its address.
+@@ -312,6 +332,7 @@ function initialDraft(target: ServerConnectTarget): ServerConnectDraft {
+     url: target.original.url,
+     name: target.original.displayName ?? "",
+     password: target.original.password ?? "",
++    remember: Boolean(target.original.credentialRef),
+   }
+ }
+ 
+@@ -370,7 +391,8 @@ function submit(state: Form, draft: ServerConnectDraft): ServerConnectTransition
+     !original.unauthorized &&
+     url === original.url &&
+     (draft.name.trim() || undefined) === original.displayName &&
+-    password === original.password
++    password === original.password &&
++    draft.remember === Boolean(original.credentialRef)
+   )
+     return close({ ...state, draft }, [{ type: "close" }])
+ 
+@@ -415,6 +437,7 @@ function synced(
+     current.url === original.url &&
+     current.displayName === original.displayName &&
+     current.password === original.password &&
++    current.credentialRef === original.credentialRef &&
+     current.unauthorized === original.unauthorized
+   )
+     return { state, effects: [] }
+diff --git a/packages/app/src/servers/connect/pairing.ts b/packages/app/src/servers/connect/pairing.ts
+index 25bc974..327c4db 100644
+--- a/packages/app/src/servers/connect/pairing.ts
++++ b/packages/app/src/servers/connect/pairing.ts
+@@ -3,14 +3,22 @@ import { Option, Schema } from "effect"
+ import { checkServerHealth } from "@/runtime/server/health"
+ import { normalizeServerUrl } from "@/runtime/server/registry"
+ 
++function parseUrl(value: string) {
++  try {
++    return new URL(value)
++  } catch {
++    return undefined
++  }
++}
++
+ export function serverAddress(value: string) {
+   if (value.includes("://") && !/^https?:\/\//.test(value.trim())) return
+   const normalized = normalizeServerUrl(value)
+ 
+-  if (!normalized || !URL.canParse(normalized)) return
+-  const url = new URL(normalized)
++  if (!normalized) return
++  const url = parseUrl(normalized)
+ 
+-  if (url.protocol !== "http:" && url.protocol !== "https:") return
++  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
+ 
+   if (url.username || url.password || url.search || url.hash) return
+ 
+@@ -39,7 +47,7 @@ export function pairingLink(value: string) {
+     return { urls: urls.filter((url) => url !== undefined), code: payload.code }
+   }
+ 
+-  const url = URL.parse(trimmed)
++  const url = parseUrl(trimmed)
+ 
+   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return
+   const code = /^\/auth\/connect\/([^/]+)$/.exec(url.pathname)?.[1]
+@@ -67,7 +75,7 @@ export function bareServerAddress(value: string) {
+ 
+ // Servers before one-time links paired with `/connect#<credentials>` or `/connect?data=<credentials>`.
+ export function legacyPairingLink(value: string) {
+-  const url = URL.parse(value.trim())
++  const url = parseUrl(value.trim())
+ 
+   if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) return false
+ 
+diff --git a/packages/app/src/servers/connect/screen.tsx b/packages/app/src/servers/connect/screen.tsx
+index 0452097..649e69a 100644
+--- a/packages/app/src/servers/connect/screen.tsx
++++ b/packages/app/src/servers/connect/screen.tsx
+@@ -1,8 +1,9 @@
+-import { lazy, Show, Suspense } from "solid-js"
++import { createSignal, lazy, Show, Suspense } from "solid-js"
+ import { Button } from "@opencode/ui/button"
+ import { TextInput } from "@opencode/ui/text-input"
+ import { Wordmark } from "@opencode/ui/wordmark"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { getMobileHosts, InitialSshSetup } from "@opencode-mobile/mobile-hosts"
+ import { createServerConnectController } from "./controller"
+ import { ConnectMethodSwitch } from "./method"
+ import "./screen.css"
+@@ -11,6 +12,8 @@ const PairingScanner = lazy(() => import("./scanner").then((module) => ({ defaul
+ 
+ export function ConnectServerScreen(props: { url?: string } = {}) {
+   const language = useLanguage()
++  const mobileHosts = getMobileHosts()
++  const [sshMode, setSshMode] = createSignal(false)
+   // Read once: the screen leaves when the server it signs in to answers, so its address does not change while it shows.
+   const form = createServerConnectController({ surface: "screen", target: { kind: "connect", url: props.url } })
+   const view = form.view
+@@ -25,22 +28,25 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
+           <h1 id="server-connect-title">{language.t("server.connect.title")}</h1>
+           <p>
+             {language.t(
+-              view().draft.method === "link" ? "server.connect.description.pairing" : "server.connect.description",
++              view().draft.method === "link" && !sshMode()
++                ? "server.connect.description.pairing"
++                : "server.connect.description",
+             )}
+           </p>
+         </header>
+-        <Show
+-          when={!view().scanning}
+-          fallback={
+-            <Suspense fallback={<p role="status">{language.t("server.connect.camera.starting")}</p>}>
+-              <PairingScanner
+-                redeem={form.redeem}
+-                onCancel={() => form.dispatch({ type: "scan.cancelled" })}
+-                onScan={(link) => form.dispatch({ type: "scan.completed", link })}
+-              />
+-            </Suspense>
+-          }
+-        >
++        <Show when={!sshMode()}>
++          <Show
++            when={!view().scanning}
++            fallback={
++              <Suspense fallback={<p role="status">{language.t("server.connect.camera.starting")}</p>}>
++                <PairingScanner
++                  redeem={form.redeem}
++                  onCancel={() => form.dispatch({ type: "scan.cancelled" })}
++                  onScan={(link) => form.dispatch({ type: "scan.completed", link })}
++                />
++              </Suspense>
++            }
++          >
+           <form
+             onSubmit={(event) => {
+               event.preventDefault()
+@@ -140,13 +146,30 @@ export function ConnectServerScreen(props: { url?: string } = {}) {
+             disabled={view().disabled}
+             onChange={(method) => form.dispatch({ type: "method.changed", method })}
+           />
+-          <Show when={view().draft.method === "link"}>
+-            <footer>
+-              <p>{language.t("server.connect.pair.link")}</p>
+-              <code dir="ltr">opencode pair</code>
+-            </footer>
++            <Show when={view().draft.method === "link"}>
++              <footer>
++                <p>{language.t("server.connect.pair.link")}</p>
++                <code dir="ltr">opencode pair</code>
++                <Button
++                  variant="neutral"
++                  size="large"
++                  onClick={() => {
++                    mobileHosts.claimInitialScreen()
++                    setSshMode(true)
++                  }}
++                >
++                  {language.t("settings.tab.sshHosts")}
++                </Button>
++              </footer>
++            </Show>
+           </Show>
+         </Show>
++        <Show when={sshMode()}>
++          <InitialSshSetup runtime={mobileHosts} active={sshMode} />
++          <Button variant="neutral" size="large" onClick={() => setSshMode(false)}>
++            {language.t("server.connect.link")}
++          </Button>
++        </Show>
+       </div>
+     </main>
+   )
+diff --git a/packages/app/tsconfig.json b/packages/app/tsconfig.json
+index 4c84234..0ef3ee6 100644
+--- a/packages/app/tsconfig.json
++++ b/packages/app/tsconfig.json
+@@ -21,7 +21,8 @@
+     "outDir": "node_modules/.ts-dist",
+     "isolatedModules": true,
+     "paths": {
+-      "@/*": ["./src/*"]
++      "@/*": ["./src/*"],
++      "@opencode-mobile/mobile-hosts": ["../../../../packages/mobile-hosts/src/index.ts"]
+     }
+   },
+   "include": [
+diff --git a/packages/app/vite.js b/packages/app/vite.js
+index 8134e5d..94f22bb 100644
+--- a/packages/app/vite.js
++++ b/packages/app/vite.js
+@@ -107,6 +107,10 @@ export default [
+             "@betteroffice/fonts-cjk": fileURLToPath(
+               new URL("../gui-plugins/src/microsoft-office/fonts-cjk.ts", import.meta.url),
+             ),
++            // #184: resolve the first-party connection/SSH host registry from the repository root.
++            "@opencode-mobile/mobile-hosts": fileURLToPath(
++              new URL("../../../../packages/mobile-hosts/src/index.ts", import.meta.url),
++            ),
+           },
+         },
+         define: {
+diff --git a/packages/gui-plugins/src/ssh/controller.ts b/packages/gui-plugins/src/ssh/controller.ts
+index 8e64149..7e58eef 100644
+--- a/packages/gui-plugins/src/ssh/controller.ts
++++ b/packages/gui-plugins/src/ssh/controller.ts
+@@ -214,6 +214,9 @@ export const createSshController = Effect.fn("Ssh.controller")(function* (input:
+         development: input.development,
+         env: askpass.env,
+         replace,
++        // The retained mobile bootstrap still exposes granular desktop progress stages. The v2.2.7 shared contract
++        // intentionally collapses them into `connecting`; the main machine already published that state.
++        stage: () => Effect.void,
+       }).pipe(
+         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+         Effect.provideService(HttpClient.HttpClient, httpClient),
+diff --git a/packages/gui-plugins/src/ssh/dialog.tsx b/packages/gui-plugins/src/ssh/dialog.tsx
+index 4930f50..5bea3a3 100644
+--- a/packages/gui-plugins/src/ssh/dialog.tsx
++++ b/packages/gui-plugins/src/ssh/dialog.tsx
+@@ -25,12 +25,14 @@ export function DialogSsh(props: {
+   config?: SshConfig
+   connect?: boolean
+   promptOnly?: boolean
++  /** A non-plugin host may supply only the UI translation boundary. */
++  translate?: (key: string, params?: Record<string, string>) => string
+   /** Runs with the server id once it connects. Only the palette entry point opens a project. */
+   onOpenProject?: (id: string) => void
+   onConnected?: () => void
+ }) {
+   const dialog = useDialog()
+-  const plugin = usePlugin()
++  const plugin = props.translate ? { t: props.translate } : usePlugin()
+   const ssh = props.ssh
+   // Entry-point behavior is fixed for the lifetime of this dialog.
+   const openProject = props.onOpenProject
+diff --git a/packages/gui-plugins/src/ssh/name.ts b/packages/gui-plugins/src/ssh/name.ts
+index 1db4898..c6bd1ac 100644
+--- a/packages/gui-plugins/src/ssh/name.ts
++++ b/packages/gui-plugins/src/ssh/name.ts
+@@ -16,9 +16,13 @@ export function sshName(config: Pick<SshConfig, "name" | "target">) {
+   return config.name || sshHostname(config.target)
+ }
+ 
++export function isSshConnecting(stage: SshItem["stage"]) {
++  return stage === "connecting"
++}
++
+ /** Another window answering the challenge reads as connecting here, not as a prompt of its own. */
+ export function sshServerState(item: SshItem): ServerState {
+-  if (item.stage === "connecting" || item.authenticatingElsewhere) return "starting"
++  if (isSshConnecting(item.stage) || item.authenticatingElsewhere) return "starting"
+ 
+   if (item.stage === "authentication") return "auth"
+ 
+diff --git a/packages/gui-plugins/src/ssh/renderer.tsx b/packages/gui-plugins/src/ssh/renderer.tsx
+index 696c6ef..ff09457 100644
+--- a/packages/gui-plugins/src/ssh/renderer.tsx
++++ b/packages/gui-plugins/src/ssh/renderer.tsx
+@@ -1,5 +1,5 @@
+ import { showToast } from "@opencode/ui/toast"
+-import { createRoot, createSignal, lazy, onCleanup, Suspense, untrack, type JSX } from "solid-js"
++import { createRoot, lazy, onCleanup, Suspense, type JSX } from "solid-js"
+ import { Command, createKeyed, MenuItem, Server, Style, type ServerEntry, type Plugin } from "@opencode/plugin/gui"
+ import { onIdle } from "@opencode/plugin/gui/builtin"
+ import { Ssh, type SshConfig, type SshItem } from "./contract"
+@@ -7,18 +7,9 @@ import { SshCover } from "./cover"
+ import type definition from "./index"
+ import { sshName, sshServerState } from "./name"
+ import { createSshController } from "./state"
+-import {
+-  initialSshAdd,
+-  SSH_DIALOG_LOAD_TIMEOUT_MS,
+-  transitionSshAdd,
+-  type SshAddEffect,
+-  type SshAddEvent,
+-} from "./add-machine"
+ 
+ const loadDialog = () => import("./dialog")
+ 
+-type DialogModule = Awaited<ReturnType<typeof loadDialog>>
+-
+ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+   // SSH lives in the desktop main process.
+   if (ctx.app.platform !== "desktop") return
+@@ -41,8 +32,7 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+   const ssh = createSshController({
+     items: () => state()?.servers ?? [],
+     api: client,
+-    // Resolves once main publishes the revision. Disabling the plugin, the attempt ending, or the main side going away
+-    // (a restarted main starts its revisions again) resolves it early.
++    // Resolves once main publishes the revision, the attempt is aborted, or the plugin is disabled.
+     refresh: (revision, signal) =>
+       new Promise<void>((resolve) =>
+         createRoot((dispose) => {
+@@ -56,7 +46,7 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+           if (ctx.signal.aborted || signal.aborted) return done()
+           ctx.signal.addEventListener("abort", done, { once: true })
+           signal.addEventListener("abort", done, { once: true })
+-          createKeyed(() => ipc().status !== "active" || (state()?.revision ?? 0) >= revision, done)
++          createKeyed(() => (state()?.revision ?? 0) >= revision, done)
+         }),
+       ),
+     error: () => showToast({ variant: "error", title: ctx.t("common.requestFailed") }),
+@@ -66,54 +56,21 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+   const styled = { added: false }
+   const byKey = (key: string) => (key.startsWith("ssh:") ? ssh.item(key.slice(4)) : undefined)
+ 
+-  // The dialog chunk under its load budget: one that fails or never loads rejects.
+-  const boundedDialog = () => {
+-    const deadline = Promise.withResolvers<never>()
+-    const timer = setTimeout(() => deadline.reject(new Error()), SSH_DIALOG_LOAD_TIMEOUT_MS)
+-
+-    return Promise.race([loadDialog(), deadline.promise]).finally(() => clearTimeout(timer))
+-  }
+-
+-  const open = (module: DialogModule, render: () => JSX.Element) => {
+-    if (!styled.added) ctx.add(Style, module.css)
+-    styled.added = true
+-    dialog.open(render)
+-  }
+-
+-  const [addState, setAddState] = createSignal(initialSshAdd)
++  const show = (render: (module: Awaited<ReturnType<typeof loadDialog>>) => JSX.Element) =>
++    void loadDialog().then((module) => {
++      if (ctx.signal.aborted) return
+ 
+-  const dispatchAdd = (event: SshAddEvent<DialogModule>) => {
+-    const next = transitionSshAdd(untrack(addState), event)
+-
+-    if (next.state !== untrack(addState)) setAddState(next.state)
+-    next.effects.forEach(runAdd)
+-  }
++      if (!styled.added) ctx.add(Style, module.css)
++      styled.added = true
++      dialog.open(() => render(module))
++    })
+ 
+-  const runAdd = (effect: SshAddEffect<DialogModule>) => {
+-    if (effect.type === "toast-failed")
+-      return void showToast({
+-        variant: "error",
+-        title: ctx.t("common.requestFailed"),
+-        description: effect.error || undefined,
+-      })
+-
+-    if (effect.type === "load") {
+-      const attempt = effect.attempt
+-
+-      return void boundedDialog().then(
+-        (module) => dispatchAdd({ type: "add.loaded", attempt, module }),
+-        (cause: unknown) =>
+-          dispatchAdd({ type: "add.failed", attempt, error: cause instanceof Error ? cause.message : String(cause) }),
+-      )
+-    }
+-
+-    const module = effect.module
+-
+-    open(module, () => (
++  const add = (openProject: boolean) =>
++    show((module) => (
+       <module.DialogSsh
+         ssh={ssh}
+         onOpenProject={
+-          effect.openProject
++          openProject
+             ? (id) => {
+                 const item = ssh.item(id)
+ 
+@@ -124,11 +81,6 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+         }
+       />
+     ))
+-  }
+-
+-  onCleanup(() => dispatchAdd({ type: "disposed" }))
+-
+-  const add = (openProject: boolean) => dispatchAdd({ type: "add.requested", openProject })
+ 
+   const entry = (item: SshItem): ServerEntry => {
+     const id = item.config.id
+@@ -219,26 +171,13 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
+     }),
+   )
+ 
+-  // Challenges of an attempt started without its dialog open one of their own. The attempt holds the dialog while its
+-  // chunk loads, and a chunk that fails to load ends the attempt.
++  // Challenges of an attempt started without its dialog open one of their own.
+   createKeyed(
+     () => (dialog.active() ? undefined : ssh.dialog.next()),
+-    (target) => {
+-      const id = target.item.config.id
+-      const config = target.item.config
+-      ssh.dialog.loading(id, target.attempt)
+-      // A chunk that never loads ends the attempt too, so it never waits on a dialog that cannot show.
+-      void boundedDialog().then(
+-        (module) => {
+-          if (ctx.signal.aborted || !ssh.dialog.canOpen(id, target.attempt)) return
+-          ssh.dialog.opened(id, target.attempt)
+-          open(module, () => <module.DialogSsh ssh={ssh} config={config} promptOnly />)
+-        },
+-        () => ssh.dialog.failed(id, target.attempt),
+-      )
+-    },
+-    {
+-      equals: (previous, next) => previous.item.config.id === next.item.config.id && previous.attempt === next.attempt,
++    (item) => {
++      ssh.dialog.opened(item.config.id)
++      const config = item.config
++      show((module) => <module.DialogSsh ssh={ssh} config={config} promptOnly />)
+     },
+   )
+ }
+diff --git a/packages/gui-plugins/src/ssh/row.tsx b/packages/gui-plugins/src/ssh/row.tsx
+index 042029d..59121be 100644
+--- a/packages/gui-plugins/src/ssh/row.tsx
++++ b/packages/gui-plugins/src/ssh/row.tsx
+@@ -8,8 +8,14 @@ import { usePlugin, type ServerRow } from "@opencode/plugin/gui"
+ import { sshName } from "./name"
+ import type { SshController } from "./state"
+ 
+-export default function SshRow(props: { row: ServerRow; id: string; ssh: SshController }) {
+-  const plugin = usePlugin()
++export default function SshRow(props: {
++  row: ServerRow
++  id: string
++  ssh: Pick<SshController, "item" | "pending" | "connect">
++  translate?: (key: string, params?: Record<string, string>) => string
++  onRemoveError?: (error: unknown) => void
++}) {
++  const plugin = props.translate ? { t: props.translate } : usePlugin()
+   const pending = () => props.ssh.pending(props.id)
+ 
+   return (
+@@ -83,7 +89,10 @@ export default function SshRow(props: { row: ServerRow; id: string; ssh: SshCont
+                       <Menu.GroupLabel>{plugin.t("server.menu.label")}</Menu.GroupLabel>
+                       <props.row.Items />
+                       <Menu.Separator />
+-                      <Menu.Item onSelect={() => void props.row.remove()}>{plugin.t("menu.delete")}</Menu.Item>
++                      <Menu.Item onSelect={() => {
++                        const result = props.row.remove()
++                        if (props.onRemoveError) void result.catch(props.onRemoveError)
++                      }}>{plugin.t("menu.delete")}</Menu.Item>
+                     </Menu.Group>
+                   </Menu.Content>
+                 </Menu.Portal>
+diff --git a/packages/gui-plugins/src/ssh/state.ts b/packages/gui-plugins/src/ssh/state.ts
+index 287ce41..0532264 100644
+--- a/packages/gui-plugins/src/ssh/state.ts
++++ b/packages/gui-plugins/src/ssh/state.ts
+@@ -169,6 +169,8 @@ export function createSshController(input: {
+     submitting: (id: string) => selectSshSubmitting(machine(), id),
+     error: (id: string) => selectSshError(machine(), id),
+     answeredPrompt: (id: string) => selectSshAnsweredPrompt(machine(), id),
++    /** Compatibility alias used by the retained mobile dialog. */
++    answered: (id: string) => selectSshAnsweredPrompt(machine(), id) === item(id)?.prompt?.id,
+     activeAttempt: (id: string) => selectSshActiveAttempt(machine(), id),
+     pending: (id: string) => selectSshPending(machine(), id, item(id)),
+     cover: {
+@@ -187,10 +189,19 @@ export function createSshController(input: {
+     },
+     dialog: {
+       /** The attempt whose prompt needs a dialog of its own. */
+-      next: () => selectSshPromptTarget(machine(), input.items()),
++      // The retained mobile dialog predates the target dialog loader and accepts the item directly. The target attempt
++      // remains fenced internally; `opened` immediately claims its slot before the old UI mounts.
++      next: () => selectSshPromptTarget(machine(), input.items())?.item,
+       loading: (id: string, attempt: number) => dispatch({ type: "dialog.loading", id, attempt }),
+       canOpen: (id: string, attempt: number) => selectSshCanOpenDialog(untrack(machine), id, attempt),
+-      opened: (id: string, attempt: number) => dispatch({ type: "dialog.opened", id, attempt }),
++      opened: (id: string, attempt?: number) => {
++        const target = selectSshPromptTarget(machine(), input.items())
++        const currentAttempt = attempt ?? target?.attempt
++
++        if (currentAttempt === undefined) return
++        dispatch({ type: "dialog.loading", id, attempt: currentAttempt })
++        dispatch({ type: "dialog.opened", id, attempt: currentAttempt })
++      },
+       failed: (id: string, attempt: number) =>
+         dispatch({ type: "dialog.failed", id, attempt, saved: !!current(id)?.saved }),
+     },
+@@ -208,9 +219,31 @@ export function createSshController(input: {
+         replace: options?.replace,
+         onConnected: options?.onConnected,
+       }),
+-    respond: (id: string, prompt: string, value: string) =>
+-      dispatch({ type: "respond.requested", id, prompt, value, ipcActive: !!untrack(input.api), item: current(id) }),
++    respond: (id: string, prompt: string, value: string) => {
++      const server = current(id)
++
++      // The retained mobile prompt dialog can be opened from a pre-existing main-side challenge, before this window
++      // has an attempt of its own. Admit the window attempt first so unavailable IPC still produces the same visible
++      // failure, while an active desktop IPC can claim the challenge through the normal machine path.
++      if (!machine().attempts.has(id) && server?.prompt?.id === prompt)
++        return dispatch({
++          type: "connect.requested",
++          config: server.config,
++          ipcActive: !!untrack(input.api),
++          item: server,
++          dialog: true,
++        })
++
++      dispatch({ type: "respond.requested", id, prompt, value, ipcActive: !!untrack(input.api), item: server })
++    },
+     cancel: (id: string) => dispatch({ type: "cancel.requested", id, saved: !!current(id)?.saved }),
++    /** Compatibility restore hook; normal saved-server restoration is owned by `items.synced`. */
++    restore: (config: SshConfig) => {
++      const api = untrack(input.api)
++
++      if (!api) return
++      void api.start({ ...config, background: true }).catch(() => {})
++    },
+     /** Waits for a healthy tunnel; main reconnects a dropped one by itself. */
+     resolve: (id: string, signal: AbortSignal) => resolve(id, AbortSignal.any([signal, lifetime.signal])),
+   }

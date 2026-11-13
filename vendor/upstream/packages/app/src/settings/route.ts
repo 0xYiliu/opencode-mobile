@@ -1,3 +1,5 @@
+import { canHoldProjectRoute, type SettingsServerAvailability } from "./servers/machine"
+
 export type SettingsRootTab =
   | "general"
   | "appearance"
@@ -10,15 +12,6 @@ export type SettingsRootTab =
   | "extensions"
   | "servers"
   | "experimental"
-  // mobile(M-044): the "gui-extensions" root tab is restored for the first-party GUI
-  // extension manager (M-026 face, unit contract D4 in docs/design/units/gui-plugins.md).
-  // Deliberate deviation from the target route model; issue #109 resolved the D4 contract
-  // and the tab is KEPT: the target PluginSettingsPages registry hosts plugin-owned
-  // contributions only, and the target Extensions face is server-scoped (bridge-driven
-  // ExtensionPlugins - names-only with zero controls on web/mobile where platform.plugins
-  // is undefined, built-ins hidden unless failed, no WSL excluded row) and renders only
-  // under reachable-server data scope, while this manager is window-local.
-  | "gui-extensions"
   | "about"
 
 declare const pluginTab: unique symbol
@@ -64,7 +57,6 @@ const rootTabs: Record<SettingsRootTab, true> = {
   extensions: true,
   servers: true,
   experimental: true,
-  "gui-extensions": true,
   about: true,
 }
 
@@ -128,7 +120,7 @@ export function settingsViewUrl(view: SettingsView) {
   return search ? `/settings?${search}` : "/settings"
 }
 
-type RedirectServer = { key: string; connected: boolean; starting: boolean }
+type RedirectServer = { key: string; availability: SettingsServerAvailability["status"] }
 
 /** Where a view must go when the server it names is gone, or a project's server is unavailable. */
 export function settingsViewRedirect(input: {
@@ -146,8 +138,8 @@ export function settingsViewRedirect(input: {
 
   if (!server) return { type: "root", tab: "projects" }
 
-  // A starting WSL or SSH server connects shortly; only an unavailable one leaves the project page.
-  if (!server.connected && !server.starting) return { type: "root", tab: "projects", server: server.key }
+  // A signed-out or unreachable server has no project to show; its Projects page shows why and offers a retry.
+  if (!canHoldProjectRoute(server.availability)) return { type: "root", tab: "projects", server: server.key }
 }
 
 export function isRootTab(value: string): value is SettingsRootTab {

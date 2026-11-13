@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { fileContentFromBytes, MAX_MEDIA_BYTES, streamedFileContent, streamedKinds } from "./artifact"
+import { afterEach, describe, expect, jest, test } from "bun:test"
+import { fileContentFromBytes, headStreamedFile, MAX_MEDIA_BYTES } from "./artifact"
 import { approxBytes } from "./content-cache"
 
 describe("fileContentFromBytes", () => {
@@ -46,27 +46,58 @@ describe("fileContentFromBytes", () => {
   })
 })
 
-describe("streamedFileContent", () => {
-  test("versions the URL from the HEAD's content-length and last-modified, with the artifact mime", () => {
-    const modified = "Mon, 02 Jan 2026 03:04:05 GMT"
-    const response = new Response(null, { headers: { "content-length": "1024", "last-modified": modified } })
-    const url = "http://127.0.0.1:4096/api/fs/read/a.png?location%5Bdirectory%5D=%2Fwork%2Fapp"
-    expect(streamedFileContent("a.png", url, response)).toEqual({
-      type: "binary",
-      content: "",
-      size: 1024,
-      mimeType: "image/png",
-      url: `${url}&v=1024-${Date.parse(modified)}`,
-    })
+// The media HEAD skips the API's request queue, so it bounds its own wait for a response, and only that wait.
+describe("headStreamedFile", () => {
+  afterEach(() => {
+    jest.useRealTimers()
   })
 
-  test("a HEAD without caching headers sizes zero and versions v=0-0", () => {
-    const content = streamedFileContent("clip.mp4", "http://127.0.0.1:4096/api/fs/read/clip.mp4", new Response(null))
-    expect(content).toMatchObject({ type: "binary", content: "", size: 0, mimeType: "video/mp4" })
-    expect(new URL(content.url!).searchParams.get("v")).toBe("0-0")
-  })
-})
+  function server() {
+    const calls: { signal: AbortSignal | null | undefined; answer: (response: Response) => void }[] = []
 
-test("streamedKinds is exactly the image/audio/video set", () => {
-  expect([...streamedKinds].sort()).toEqual(["audio", "image", "video"])
+    const fetch = (_url: string, init: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(init.signal?.reason))
+        calls.push({ signal: init.signal, answer: resolve })
+      })
+
+    return { calls, fetch }
+  }
+
+  test("gives up on a server that sends no response within a minute", async () => {
+    jest.useFakeTimers()
+    const head = server()
+    const response = headStreamedFile(head.fetch, "http://server/a.mp4", new AbortController().signal)
+
+    jest.advanceTimersByTime(59_999)
+    expect(head.calls[0]?.signal?.aborted).toBe(false)
+
+    jest.advanceTimersByTime(1)
+    const error = await response.catch((cause: unknown) => cause)
+
+    expect(error).toBeInstanceOf(DOMException)
+    expect(error).toMatchObject({ name: "TimeoutError" })
+  })
+
+  test("drops the deadline once the server answers", async () => {
+    jest.useFakeTimers()
+    const head = server()
+    const response = headStreamedFile(head.fetch, "http://server/a.mp4", new AbortController().signal)
+
+    head.calls[0]?.answer(new Response(null, { headers: { "content-length": "9" } }))
+    await expect(response).resolves.toBeInstanceOf(Response)
+
+    jest.advanceTimersByTime(10 * 60_000)
+    expect(head.calls[0]?.signal?.aborted).toBe(false)
+  })
+
+  test("passes the caller's abort on", async () => {
+    const head = server()
+    const controller = new AbortController()
+    const response = headStreamedFile(head.fetch, "http://server/a.mp4", controller.signal)
+
+    controller.abort()
+
+    await expect(response).rejects.toMatchObject({ name: "AbortError" })
+  })
 })

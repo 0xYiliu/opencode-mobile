@@ -32,6 +32,11 @@ export interface ExtensionConnection {
   type: "plugin"
   key: string
   plugin: string
+  /** v2.2.7 tagged server status; only `ready` carries a usable endpoint. */
+  status:
+    | { type: "stopped" | "starting" | "auth" | "failed" | "incompatible" }
+    | { type: "ready"; http: ExtensionHttpBase }
+  /** Legacy inventory fields retained for older app surfaces during the migration. */
   state: ServerState
   connecting: boolean
   authenticationRequired: boolean
@@ -48,6 +53,7 @@ export interface ExtensionConnection {
    *   resolves true once the connection is ready.
    */
   reconnect?: (signal: AbortSignal) => Promise<ExtensionHttpBase>
+  authenticate: (onConnected?: () => void) => boolean
   connect?: () => Promise<boolean>
 }
 
@@ -91,20 +97,31 @@ export interface ToExtensionConnectionInput {
 
 export function toExtensionConnection(input: ToExtensionConnectionInput): ExtensionConnection {
   const serverState = mapStateToServerState(input.state)
+  const http =
+    input.state === "ready" && input.endpoint
+      ? { url: input.endpoint.url, password: input.endpoint.password }
+      : { url: OFFLINE_ENDPOINT }
+
   return {
     type: "plugin",
     key: hostKey(input.record.id),
     plugin: "mobile-ssh",
+    // The v2.2.7 contract does not allow a ready status without an endpoint. A ready
+    // state without one is an incomplete snapshot, so expose it as failed rather than
+    // manufacturing a ready status that downstream health code cannot consume.
+    status:
+      input.state === "ready" && input.endpoint
+        ? { type: "ready", http: { url: input.endpoint.url, password: input.endpoint.password } }
+        : input.state === "ready"
+          ? { type: "failed" }
+          : { type: mapStateToServerState(input.state) as Exclude<ServerState, "ready"> },
     state: serverState,
     connecting: input.state === "connecting" || input.state === "reconnecting" || input.state === "hostKeyUnverified",
     authenticationRequired: input.state === "authRequired",
     managed: true,
     // Endpoint and service password live in memory only and only surface on the ready state.
     // A non-ready connection never exposes a real endpoint URL; no credential enters storage.
-    http:
-      input.state === "ready" && input.endpoint
-        ? { url: input.endpoint.url, password: input.endpoint.password }
-        : { url: OFFLINE_ENDPOINT },
+    http,
     displayName: input.record.name,
     label: "SSH",
     // The hooks are only present when provided: a shell without the ssh wiring (stub
@@ -112,6 +129,13 @@ export function toExtensionConnection(input: ToExtensionConnectionInput): Extens
     // upstream branches on presence (`!!entry().reconnect`).
     ...(input.reconnect ? { reconnect: input.reconnect } : {}),
     ...(input.connect ? { connect: input.connect } : {}),
+    authenticate: (onConnected) => {
+      if (input.state !== "authRequired" || !input.connect) return false
+      void input.connect().then((ready) => {
+        if (ready) onConnected?.()
+      })
+      return true
+    },
   }
 }
 
@@ -124,6 +148,8 @@ export function assertExtensionShape(conn: unknown): conn is ExtensionConnection
     typeof c["key"] === "string" &&
     c["key"].startsWith("mobile-ssh:") &&
     typeof c["plugin"] === "string" &&
+    typeof c["status"] === "object" &&
+    c["status"] !== null &&
     typeof c["state"] === "string" &&
     ["stopped", "starting", "auth", "ready", "failed", "incompatible"].includes(c["state"] as string) &&
     typeof c["connecting"] === "boolean" &&
