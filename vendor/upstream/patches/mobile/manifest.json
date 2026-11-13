@@ -2148,9 +2148,9 @@
       ],
       "reason": "Inherited from origin/main commit 4961ec04fa1d22b06c8fa099c4175939a8ac7e2f and rebased onto the fixed v2.2.7 vendor source: retain the Android host identity gate and delay the Android WebView 114 server-row Edit action until the touch compatibility click has finished.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
-      "verification": "Targeted server edit compatibility test; full app focused tests; `python3 scripts/mobile-patches.py`; `bash scripts/verify-closure.sh`. Android device touch-sequence verification remains BLOCKED/NOT RUN.",
+      "verification": "Full server-page regression plus Android host 350ms delayed-Edit and non-Android immediate-Edit tests (9 pass / 0 fail); app focused tests (137 pass / 0 fail); `python3 scripts/mobile-patches.py`; `bash scripts/verify-closure.sh`. Android device touch-sequence verification remains BLOCKED/NOT RUN.",
       "rebase": "Merge resolution for origin/main 4961ec04fa1d22b06c8fa099c4175939a8ac7e2f. This inherited main patch is replayed separately after the #184 consolidated overlay and is not part of the #184 active target scope.",
-      "sha256": "5dec7bf2a5a7f984b0ef9f58ad83656a447acadeca6d2bfaf95b3a63ec087c42",
+      "sha256": "89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0",
       "status": "active"
     }
   ]

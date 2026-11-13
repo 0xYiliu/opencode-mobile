@@ -36,7 +36,7 @@
 
 ## 稳定 focused-test 复跑记录（#184）
 
-以下三组是本轮实际执行、可在当前 worktree 直接复跑的稳定选择，不是从聚合日志推算的数字。
+以下四组是本轮实际执行、可在当前 worktree 直接复跑的稳定选择，不是从聚合日志推算的数字。
 
 - 公共环境：绝对工作目录 `/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`；当前 HEAD 为本次 merge resolution commit；Linux `7.0.0-38-generic x86_64`；Bun `1.4.2`（测试输出标识 `744846f84`）。测试使用仓库 fixture 与 Happy DOM preload，不使用真实凭据、Android 设备、QR physical、真实远程服务或 JSch/Windows runtime。
 
@@ -62,7 +62,12 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/servers-page.test.tsx
 ```
 
-- 实际结果：**2 pass / 0 fail，4 expect calls**；实际挂载 `SettingsServerList`，覆盖 Android host 350ms 延迟与非 Android 立即编辑两条路径。
+- 实际结果：**9 pass / 0 fail，38 expect calls，1 file**；恢复并适配 origin/main 的服务器页回归覆盖（General/List、availability/health gating、unauthorized Authenticate、Shell `data-action`、selected/non-selected action naming、edit dialog mode/server/onSave），并覆盖 Android host 350ms 延迟与非 Android 立即编辑两条路径。
+
+### Diff-check boundary
+
+- `git diff --check origin/main...HEAD` 不能记为无条件 PASS：该命令对 6 个已登记的上游 npm 生成 patch 报告 **206 条既有 whitespace diagnostics**（trailing whitespace 或 space before tab）：`@ai-sdk%2Fmistral@3.0.51.patch`、`@ff-labs%2Ffff-bun@0.10.5.patch`、`@modelcontextprotocol%2Fclient@2.4.0.patch`、`@silvia-odwyer%2Fphoton-node@0.3.4.patch`、`app-builder-lib@26.15.7.patch`、`vite@8.2.4.patch`。这些是上游生成 patch 内容，本轮未改写；`mobilePatches` 机器校验与 closure replay 仍 PASS。
+- 源码/文档及非生成 patch diff 的边界命令 `git diff --check origin/main...HEAD -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。当前工作树同口径 `git diff --check -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。
 
 ### GUI pairing/SSH
 
@@ -151,7 +156,7 @@ bun test --conditions=browser packages/mobile-hosts
 
 - 当前状态：**Stage A/B 已完成；Stage C 静态门禁部分完成**。当前 worktree 已提交并推送 merge-resolution commit；vendor 本身可由 pristine v2.2.7 closure + build-only closure patch + 两个 active mobile replay 重建。
 - 已完成：上游 tag 固定、差异规模盘点、Desktop commit/path 盘点、80 条补丁 disposition、目标闭包重建、upstream npm patch/lockfile 重算；连接/配对/SSH 共享状态机、凭据契约、健康/生命周期控制器和移动兼容接缝已落到源码。
-- 当前证据：`bun install` PASS；Web build PASS（14.47s，2806 PWA precache entries，保留既有 CSS、chunk/dynamic-import warnings）；inherited server-edit compatibility 2 pass / 0 fail；app focused selection 137 pass / 0 fail（16 files），GUI pairing/SSH 88 pass / 0 fail（11 files），mobile-hosts 442 pass / 0 fail（40 files）；`verify:patches`、`verify:closure`、`verify-about-version`、`git diff --check` PASS。app/mobile-hosts/gui direct typecheck 仍按下方边界失败；Android Gradle/APK、设备 UI、真实服务和真实 JSch 链路继续未验证，不冒充通过。
+- 当前证据：`bun install` PASS；Web build PASS（14.47s，2806 PWA precache entries，保留既有 CSS、chunk/dynamic-import warnings）；完整 server-page regression + Android delay 9 pass / 0 fail；app focused selection 137 pass / 0 fail（16 files），GUI pairing/SSH 88 pass / 0 fail（11 files），mobile-hosts 442 pass / 0 fail（40 files）；`verify:patches`、`verify:closure`、`verify-about-version` PASS；源码/文档 diff-check PASS，上游 npm 生成 patch whitespace diagnostics 按上项边界保留。app/mobile-hosts/gui direct typecheck 仍按下方边界失败；Android Gradle/APK、设备 UI、真实服务和真实 JSch 链路继续未验证，不冒充通过。
 - 关键发现：v2.2.7 已吸收部分旧移动差异；19 条 #184 历史语义明确标为 absorbed，59 条非 #184 历史 payload 保留为 deferred；#184 active overlay 只承载 scoped connection、配对、凭据/安全、server lifecycle/health 和 SSH 共享适配，继承自 origin/main 的 server-edit patch 独立重放；patchmark 与 workspace 修复仅作为 build-only closure 传递依赖重放。
 - 剩余：`bunx tsc -b --pretty false`（在 `vendor/upstream/packages/app` 等项目目录执行）仍有本次 project-boundary/生成类型及 legacy fixture 错误；Android Gradle/APK、设备 UI、真实服务和真实 JSch 链路未运行。
 - 停止条件：出现需要改变产品范围、安全策略、远程服务承诺或删除既有移动适配的决策时暂停并记录。
@@ -160,7 +165,7 @@ bun test --conditions=browser packages/mobile-hosts
 
 - 当前状态：**共享语义实施完成 → 静态门禁部分完成**；共享连接、配对、SSH 状态机和移动兼容接线已实现，v2.2.7 closure 可重建并通过 closure gate；不声称 APK 可用或任何 Android/真实服务通过。
 - 已落地的关键面：`ServerOriginal`/`ServerSaveAction` 连接保存契约、credentialRef/remember/vault hydration、URL userinfo/TLS/redirect 安全边界、tagged plugin/health 状态与旧投影、server lifecycle/health/request queue/endpoint sync machine、pairing main machine、SSH main/window machine 与保留的移动 UI 兼容面。
-- 可复现验证：`python3 scripts/mobile-patches.py` PASS（80 条；2 active/19 absorbed/59 deferred）；build-only closure patch + active overlay 可重建；Web build、`verify:patches`、`verify:closure`、app/GUI/mobile-hosts focused tests 与 `git diff --check` 均按修订后实际结果记录；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
+- 可复现验证：`python3 scripts/mobile-patches.py` PASS（80 条；2 active/19 absorbed/59 deferred）；build-only closure patch + 两个 active mobile replay 可重建；Web build、`verify:patches`、`verify:closure`、完整 server-page/app/GUI/mobile-hosts focused tests 与分层 diff-check 口径均按修订后实际结果记录；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
 - 已知失败/阻塞：direct `tsc` 仍报告 app→mobile-hosts 的 rootDir/TS6307、app→gui-plugins 的 TS6307、v2.2.7 generated/client 与旧 settings fixture 类型不一致，以及 closure 外的 Electron/GUI legacy 测试依赖；GUI `askpass.test.ts` 依赖未纳入 closure 的 `packages/core/test/lib/effect`。这些不能通过关闭 strict、引入 Electron 到 Android 或静默跳过来解决。
 - 下一步：等待 reviewer/CI 复核 `feat/upstream-227-alignment`；PR #200 保持 OPEN/CLEAN/MERGEABLE，禁止合并；继续保持 typecheck/Android/真实链路的 BLOCKED/NOT RUN 边界。
 - 后置阻塞：真实 SSH tunnel/session/stream/permission/task survival、QR physical、Android Gradle/APK、设备 UI 与真实服务证据仍缺失；解除条件为真实设备、授权 SSH 主机/服务端和完整链路证据，不能由静态或历史证据替代。

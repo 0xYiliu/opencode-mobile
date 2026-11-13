@@ -20,7 +20,7 @@
 4. 当前 live registry 是 **80 registered / 2 active / 19 absorbed / 59 deferred**；active 为 `v2-2-7-mobile-connection-pairing-ssh-closure`（#184 scoped overlay）和继承自 origin/main 的 `server-edit-touch-compatibility`，19 条历史 payload 由 #184 scoped overlay 明确承载，59 条 scope 外历史补丁保持 deferred；冻结 v2.2.1 的旧 registry 数字不作为当前 v2.2.7 事实。
 5. `vendor-manifest.json#closurePatches` 只承载构建传递依赖修复；`vendor-manifest.json#mobilePatches` 按顺序重放 #184 scoped consolidated overlay 与继承自 origin/main 的独立 `server-edit-touch-compatibility` patch。旧补丁文件与语义 ID 保留用于 provenance，不宣称逐条独立重基通过；19 条 #184 历史 payload 标为 absorbed，59 条 scope 外 payload 标为 deferred。
 6. `packageSources` 为空，11 个 closure package 均从固定 v2.2.7 目标提取；上游 npm patched dependency 映射已切换为 v2.2.7 closure 实际需要的 19 项。
-7. `bun install`、`verify:patches`、`verify:closure`、Web build、app/GUI/mobile-hosts focused tests 与 persistence regression 已通过；app stable connection/server/pairing subset 137 pass / 0 fail（16 files）、GUI pairing/SSH 88 pass / 0 fail（11 files）、mobile-hosts 442 pass / 0 fail（40 files）。精确命令、工作目录、preload 和测试文件清单见 [execution-card.md](execution-card.md) 的“稳定 focused-test 复跑记录”；旧 settings/provider fixture subset 不纳入通过证据。
+7. `bun install`、`verify:patches`、`verify:closure`、Web build、完整 server-page regression、app/GUI/mobile-hosts focused tests 与 persistence regression 已通过；server-page 9 pass / 0 fail / 38 expect，app stable connection/server/pairing subset 137 pass / 0 fail（16 files）、GUI pairing/SSH 88 pass / 0 fail（11 files）、mobile-hosts 442 pass / 0 fail（40 files）。源码/文档 diff-check PASS；origin/main range 的 6 个上游 npm 生成 patch 保留 206 条既有 whitespace diagnostics，未改写。精确命令、工作目录、preload 和测试文件清单见 [execution-card.md](execution-card.md) 的“稳定 focused-test 复跑记录”；旧 settings/provider fixture subset 不纳入通过证据。
 
 ## 未完成与阻塞
 
