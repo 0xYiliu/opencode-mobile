@@ -29,6 +29,7 @@ import {
   type ServerHealth,
 } from "@/runtime/server/health-machine"
 import { ProjectMenuItems } from "./menu"
+import { applyHomeProjectsFade } from "./fade"
 import { CollapsedSidebarToggleSpace } from "@/shell/sidebar-toggle"
 import "./view.css"
 
@@ -164,11 +165,6 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
   let frame = 0
   const [contextMenu, setContextMenu] = createStore<{ open: string | undefined }>({ open: undefined })
 
-  const updateFades = (element: HTMLDivElement) => {
-    element.toggleAttribute("data-fade-top", element.scrollTop > 0)
-    element.toggleAttribute("data-fade-bottom", element.scrollTop + element.clientHeight < element.scrollHeight - 1)
-  }
-
   onCleanup(() => {
     observer?.disconnect()
     cancelAnimationFrame(frame)
@@ -226,12 +222,12 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
           data-scrollable
           class="min-h-0 flex-1 overflow-y-auto"
           ref={(element) => {
-            createResizeObserver(element, () => updateFades(element))
-            observer = new MutationObserver(() => updateFades(element))
+            createResizeObserver(element, () => applyHomeProjectsFade(element))
+            observer = new MutationObserver(() => applyHomeProjectsFade(element))
             observer.observe(element, { childList: true, subtree: true })
-            frame = requestAnimationFrame(() => updateFades(element))
+            frame = requestAnimationFrame(() => applyHomeProjectsFade(element))
           }}
-          onScroll={(event) => updateFades(event.currentTarget)}
+          onScroll={(event) => applyHomeProjectsFade(event.currentTarget)}
         >
           <Show when={props.dropdown && props.servers.length === 1}>
             <HomeProjectNavButton

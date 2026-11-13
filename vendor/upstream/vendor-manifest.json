@@ -60,7 +60,8 @@
   },
   "mobilePatches": [
     "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
-    "patches/mobile/server-edit-touch-compatibility.patch"
+    "patches/mobile/server-edit-touch-compatibility.patch",
+    "patches/mobile/home-new-session-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -576,6 +577,12 @@
       "id": "server-edit-touch-compatibility",
       "path": "patches/mobile/server-edit-touch-compatibility.patch",
       "sha256": "89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0",
+      "status": "active"
+    },
+    {
+      "id": "home-new-session-v2-2-7",
+      "path": "patches/mobile/home-new-session-v2-2-7.patch",
+      "sha256": "fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d",
       "status": "active"
     }
   ],

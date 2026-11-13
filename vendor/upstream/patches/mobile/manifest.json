@@ -2152,6 +2152,22 @@
       "rebase": "Merge resolution for origin/main 4961ec04fa1d22b06c8fa099c4175939a8ac7e2f. This inherited main patch is replayed separately after the #184 consolidated overlay and is not part of the #184 active target scope.",
       "sha256": "89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0",
       "status": "active"
+    },
+    {
+      "id": "home-new-session-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/home-new-session-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/home/projects/fade.test.ts",
+        "packages/app/src/home/projects/fade.ts",
+        "packages/app/src/home/projects/view.tsx"
+      ],
+      "reason": "Issue #185 Home/new-session v2.2.7 migration. The fixed v2.2.7 source already carries the allowlisted Home selection, session load/search/row, new-session location/project/workspace/branch, and workspace picker state machines; those files are verified byte-identical to the target and are absorbed by the vendor pin rather than copied into a second payload. This independent post-server-edit patch extracts the Home project-list fade threshold into a directly imported helper, preserving the target top/middle/bottom DOM attributes and locking the Android-relevant scroll/resize edge behavior without introducing project identity or recent persistence semantics.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Pristine v2.2.7 closure plus #184 and server-edit replay; focused W01/W08 app machine tests with top/middle/bottom fade cases; `bun run build:web`; `python3 scripts/mobile-patches.py`; `bash scripts/verify-closure.sh`. Device/real worktree and Android APK checks remain separately reported.",
+      "rebase": "Generated after the #184 scoped overlay and inherited server-edit patch. No target overlap with either active patch; the allowlisted state-machine files that already match v2.2.7 remain absorbed and are not duplicated here.",
+      "sha256": "fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d",
+      "status": "active"
     }
   ]
 }
