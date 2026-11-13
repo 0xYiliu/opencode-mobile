@@ -461,7 +461,7 @@
       "id": "attachments-upload-redirect-policy",
       "path": "patches/mobile/attachments-upload-redirect-policy.patch",
       "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "connection-error-classification",
@@ -503,13 +503,13 @@
       "id": "files-platform-bridge",
       "path": "patches/mobile/files-platform-bridge.patch",
       "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "attachments-share-bridge",
       "path": "patches/mobile/attachments-share-bridge.patch",
       "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "app-notifications-bridge",
@@ -888,6 +888,12 @@
       "path": "patches/mobile/timeline-messaging-v2-2-7.patch",
       "sha256": "602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99",
       "status": "active"
+    },
+    {
+      "id": "composer-queue-attachments-v2-2-7",
+      "path": "patches/mobile/composer-queue-attachments-v2-2-7.patch",
+      "sha256": "023da5f92756c9f59c87f4e3c8a316ce7241a1b29cf5e195d2e097fde6e6bc09",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
@@ -910,12 +916,6 @@
       "status": "deferred"
     },
     {
-      "id": "attachments-upload-redirect-policy",
-      "path": "patches/mobile/attachments-upload-redirect-policy.patch",
-      "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9",
-      "status": "deferred"
-    },
-    {
       "id": "app-service-operations-bridge",
       "path": "patches/mobile/app-service-operations-bridge.patch",
       "sha256": "c077d6d331d1d5a5dc86ba16b472eae4f74fe74b32c7bebe051f6eb40b781cbb",
@@ -931,18 +931,6 @@
       "id": "settings-ssh-entry-guard",
       "path": "patches/mobile/settings-ssh-entry-guard.patch",
       "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
-      "status": "deferred"
-    },
-    {
-      "id": "files-platform-bridge",
-      "path": "patches/mobile/files-platform-bridge.patch",
-      "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
-      "status": "deferred"
-    },
-    {
-      "id": "attachments-share-bridge",
-      "path": "patches/mobile/attachments-share-bridge.patch",
-      "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
       "status": "deferred"
     },
     {
@@ -4076,6 +4064,12 @@
       "status": "absorbed"
     },
     {
+      "id": "attachments-upload-redirect-policy",
+      "path": "patches/mobile/attachments-upload-redirect-policy.patch",
+      "sha256": "eab5d533d43cb1f70c7a2f46650ce53a22a195b856bf7c3b1b9544387e502ae9",
+      "status": "absorbed"
+    },
+    {
       "id": "connection-error-classification",
       "path": "patches/mobile/connection-error-classification.patch",
       "sha256": "cbc5360a21026e8724dec8fefafd67d66091c8f4353f1068bf755b1a150c2dc1",
@@ -4091,6 +4085,18 @@
       "id": "app-ssh-bridge",
       "path": "patches/mobile/app-ssh-bridge.patch",
       "sha256": "1ba2ebce5ab35e5546e5b20f780381f7054d036ede0990a6a7803e9b17dbb946",
+      "status": "absorbed"
+    },
+    {
+      "id": "files-platform-bridge",
+      "path": "patches/mobile/files-platform-bridge.patch",
+      "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
+      "status": "absorbed"
+    },
+    {
+      "id": "attachments-share-bridge",
+      "path": "patches/mobile/attachments-share-bridge.patch",
+      "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
       "status": "absorbed"
     },
     {

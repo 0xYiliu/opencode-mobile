@@ -1,0 +1,1697 @@
+# mobile(M-016 + re-derived M-012/M-020/M-021, issue #84 of the registry / issue #188): composer
+# queue attachments — v2.2.7 re-derivation of the deferred payloads of attachments-upload-redirect-
+# policy (#12), files-platform-bridge (#19), attachments-share-bridge (#20) and the composer-side
+# face of session-media-source-safety (#58), regenerated against the CURRENT chain tree (the
+# entry.tsx / runtime/platform/web.ts hunks sit on the cumulative post-#184/#186/#187 tree, like
+# the #185/#186 precedents).
+#
+# Fail-closed pair: blobDataUrl no longer passes a `media:` ref through (unresolved refs throw),
+# and buildPromptRequest rejects an unresolved `media:` file-part url at the wire boundary
+# (recorded deviation: images are not re-checked here — both real producers build their dataUrl
+# through blobDataUrl, which refuses unresolved refs first; the v2.2.7 retryFingerprint mirrors a
+# pending payload and must stay computable). Draft media refs carry `sourceServerKey` and load
+# only from their captured server; unresolved refs persist as `{ mediaURI, sourceServerKey }`.
+#
+# Queue ownership is queue.ts-local and machine-native: queue-machine.ts is untouched. Each
+# mutation attempt captures an owner (composer instance, connection, media lease) and aborts
+# through the machine's own AbortController on owner break; the signal is never wired to an HTTP
+# call, so an owner break cannot cancel a remote prompt. Publish-side owner checks gate every
+# await boundary; prompt admissions re-check through the client's native `prepare` hook.
+#
+# state.ts attributes legacy media refs at decode ONLY for uniquely scoped (per-draft) containers;
+# session-prompt composers share a directory-keyed container and stay unattributed — that residual
+# is fenced by the request.ts wire floor and such drafts remain editable. Fork/revert gain only
+# the provenance threading; lifecycle guards belong to their upstream machines (#196).
+diff --git a/packages/app/src/composer/attachments/destination.ts b/packages/app/src/composer/attachments/destination.ts
+index 04efe65..ee740d7 100644
+--- a/packages/app/src/composer/attachments/destination.ts
++++ b/packages/app/src/composer/attachments/destination.ts
+@@ -2,6 +2,7 @@ import type { Accessor } from "solid-js"
+ import { useServer } from "@/runtime/server/current"
+ import { useServerSDK } from "@/runtime/server/client"
+ import { authTokenFromCredentials } from "@/runtime/server/api"
++import { SecureFetchError, assertNoUrlCredentials, validateRedirectTarget } from "@opencode-mobile/mobile-hosts"
+ import { uuid } from "@opencode/util/uuid"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+ import type { ComposerControls } from "../adapter"
+@@ -47,6 +48,10 @@ function write(
+   report: (loaded: number) => void,
+   signal: AbortSignal,
+ ) {
++  // mobile(M-012): the upload URL is assembled here, so its credential rule is enforced here too —
++  // a URL carrying userinfo credentials is refused before anything is sent (decision 0002 D-URL).
++  assertNoUrlCredentials(url.href)
++
+   return new Promise<string>((resolve, reject) => {
+     if (signal.aborted) return reject(new DOMException("Upload aborted", "AbortError"))
+     const xhr = new XMLHttpRequest()
+@@ -57,6 +62,13 @@ function write(
+     if (password) xhr.setRequestHeader("authorization", `Basic ${authTokenFromCredentials({ password })}`)
+     xhr.upload.addEventListener("progress", (event) => report(event.loaded))
+     xhr.addEventListener("load", () => {
++      // mobile(M-012): the browser follows redirects silently, so the FINAL response URL is
++      // validated against the requested one — no https→http downgrade, no cross-host delivery
++      // (decision 0002 D1). An empty responseURL means the response never traversed the network
++      // (no redirect), and the status check below still applies.
++      const verdict = validateRedirectTarget(url.href, xhr.responseURL)
++      if (!verdict.allowed)
++        return reject(new SecureFetchError(verdict.reason === "downgrade" ? "redirect-downgrade" : "redirect-cross-host"))
+       if (xhr.status !== 200) return reject(new Error(`Upload failed with status ${xhr.status}`))
+       // SAFETY: a 200 from `fs.write` is its declared success body, `Location.response(FileSystem.Write)`.
+       resolve((xhr.response as { data: { path: string } }).data.path)
+diff --git a/packages/app/src/composer/history/entry.ts b/packages/app/src/composer/history/entry.ts
+index 5414560..3b25d85 100644
+--- a/packages/app/src/composer/history/entry.ts
++++ b/packages/app/src/composer/history/entry.ts
+@@ -102,6 +102,10 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
+     if (partA.type === "session" && (partB.type !== "session" || partA.id !== partB.id)) return false
+ 
+     if (partA.type === "file") {
++      // A `media:` ref's captured source belongs to the fingerprint (issue #188): the same URL
++      // restored from another server is a different attachment.
++      if (partB.type !== "file" || partA.sourceServerKey !== partB.sourceServerKey || partA.url !== partB.url)
++        return false
+       if (partA.path !== (partB.type === "file" ? partB.path : "")) return false
+       const a = partA.selection
+       const b = partB.type === "file" ? partB.selection : undefined
+@@ -125,6 +129,11 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
+     }
+ 
+     if (isAttachment(partA) && partA.id !== (isAttachment(partB) ? partB.id : "")) return false
++
++    // An image's stored bytes are content-addressed, so the blob id IS the identity; the captured
++    // source rides with it (issue #188) — equal hashes from two servers are different attachments.
++    if (partA.type === "image" && (partB.type !== "image" || partA.blob.id !== partB.blob.id || partA.blob.sourceServerKey !== partB.blob.sourceServerKey))
++      return false
+   }
+ 
+   if (entryA.comments.length !== entryB.comments.length) return false
+diff --git a/packages/app/src/composer/media.ts b/packages/app/src/composer/media.ts
+index 1b9adef..3c8dff5 100644
+--- a/packages/app/src/composer/media.ts
++++ b/packages/app/src/composer/media.ts
+@@ -3,14 +3,14 @@ import { mediaHashFromUri } from "@/runtime/server/media"
+ import type { Prompt } from "./state"
+ 
+ /** {@link pinMediaBlob} for every `media:<hash>` image and file in a prompt, before its server copy can be swept. */
+-export async function pinPromptMedia(prompt: Prompt): Promise<Prompt> {
++export async function pinPromptMedia(prompt: Prompt, current?: () => boolean): Promise<Prompt> {
+   return Promise.all(
+     prompt.map(async (part) => {
+-      if (part.type === "image") return { ...part, blob: await pinMediaBlob(part.blob) }
++      if (part.type === "image") return { ...part, blob: await pinMediaBlob(part.blob, current) }
+       const url = part.type === "file" ? part.url : undefined
+ 
+       if (part.type !== "file" || !url || !mediaHashFromUri(url)) return part
+-      const pinned = await pinMediaBlob({ id: url, url })
++      const pinned = await pinMediaBlob({ id: url, url, sourceServerKey: part.sourceServerKey }, current)
+ 
+       return { ...part, url: await blobDataUrl(pinned, part.mime ?? "application/octet-stream") }
+     }),
+diff --git a/packages/app/src/composer/persistence.tsx b/packages/app/src/composer/persistence.tsx
+index ae53eda..94f0d5f 100644
+--- a/packages/app/src/composer/persistence.tsx
++++ b/packages/app/src/composer/persistence.tsx
+@@ -62,13 +62,17 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+     const serverSDK = useServerSDK()
+     const tabs = useTabs()
+     const cache = new Map<string, ComposerCacheEntry>()
++    let active = true
+ 
+     const disposeAll = () => {
+       for (const entry of cache.values()) entry.dispose()
+       cache.clear()
+     }
+ 
+-    onCleanup(disposeAll)
++    onCleanup(() => {
++      active = false
++      disposeAll()
++    })
+ 
+     const prune = () => {
+       while (cache.size > MAX_PROMPT_SESSIONS) {
+@@ -119,6 +123,10 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+     }
+ 
+     const session = createMemo(() => load(scope()))
++    // mobile(M-016, issue #188): the identity a queued/forked/restored operation must keep to be
++    // allowed to publish into this composer. Only existing seams take part: the routed scope, the
++    // server the route names, and the composer instance that scope currently resolves to.
++    const ownership = createMemo(() => ({ scope: scopeKey(scope()), server: serverKey(), state: session() }))
+ 
+     const pick = (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
+       scope ? load(scope, target) : session()
+@@ -139,6 +147,14 @@ export const { use: useComposerState, provider: ComposerPersistenceProvider } =
+ 
+     return {
+       ready,
++      // mobile(M-016, issue #188): captures this composer's ownership identity; the returned
++      // predicate is false once the provider was disposed, the routed scope/server changed, or
++      // the scope resolves to another composer instance. Callers stop publishing on false.
++      captureOwner() {
++        const owner = ownership()
++
++        return () => active && ownership() === owner
++      },
+       capture: (scope?: PromptScope, target?: { server?: ServerConnection.Key; scope: ServerScope }) =>
+         pick(scope, target).capture(),
+       current: withSuspense(() => session().current()),
+diff --git a/packages/app/src/composer/prompt-parts.ts b/packages/app/src/composer/prompt-parts.ts
+index e64fdee..752489a 100644
+--- a/packages/app/src/composer/prompt-parts.ts
++++ b/packages/app/src/composer/prompt-parts.ts
+@@ -30,7 +30,13 @@ export function isAttachment(part: ContentPart): part is ImageAttachmentPart | P
+ 
+ export function clonePrompt(prompt: Prompt): Prompt {
+   return prompt.map((part) =>
+-    part.type === "file" ? { ...part, selection: part.selection ? { ...part.selection } : undefined } : { ...part },
++    // An image's blob object can be replaced in place by a pin handoff (its #188 attribution rides
++    // the object), so a clone copies it too.
++    part.type === "image"
++      ? { ...part, blob: { ...part.blob } }
++      : part.type === "file"
++        ? { ...part, selection: part.selection ? { ...part.selection } : undefined }
++        : { ...part },
+   )
+ }
+ 
+diff --git a/packages/app/src/composer/prompt.ts b/packages/app/src/composer/prompt.ts
+index 7843401..f27e2dc 100644
+--- a/packages/app/src/composer/prompt.ts
++++ b/packages/app/src/composer/prompt.ts
+@@ -24,6 +24,7 @@ type Inline =
+         endChar: number
+       }
+       url?: string
++      sourceServerKey?: string
+       mime?: string
+       filename?: string
+       description?: string
+@@ -75,7 +76,14 @@ export type PromptSource = Omit<
+ // return as trailing mentions, and inline files as attachments.
+ export function extractPromptFromMessage(
+   message: PromptSource,
+-  opts?: { directory?: string; attachmentName?: string; sessionTitle?: (id: string) => string | undefined },
++  opts?: {
++    directory?: string
++    // mobile(M-016, issue #188): the server this message's media refs came from, so restored
++    // references resolve (and pin) against their own source instead of any registered server.
++    sourceServerKey?: string
++    attachmentName?: string
++    sessionTitle?: (id: string) => string | undefined
++  },
+ ): Prompt {
+   const presentation = readPromptPresentation(message.metadata)
+   const text = presentation?.displayText ?? message.text
+@@ -129,6 +137,7 @@ export function extractPromptFromMessage(
+         path: toRelative(mention.text.startsWith("@") ? mention.text.slice(1) : mention.text),
+         selection: selectionFromFileUrl(uri),
+         url: uri,
++        sourceServerKey: opts?.sourceServerKey,
+         mime: file.mime,
+         filename: file.name,
+         description: file.description,
+@@ -154,7 +163,7 @@ export function extractPromptFromMessage(
+       id: `${message.id}:file:${attachments.length}`,
+       filename: file.name ?? attachmentName,
+       mime: file.mime,
+-      blob: createLegacyBlobReference(dataUrl),
++      blob: createLegacyBlobReference(dataUrl, opts?.sourceServerKey),
+     })
+   }
+ 
+@@ -291,6 +300,7 @@ function buildPrompt(
+       path: item.path,
+       selection: item.selection,
+       url: item.url,
++      sourceServerKey: item.sourceServerKey,
+       mime: item.mime,
+       filename: item.filename,
+       description: item.description,
+diff --git a/packages/app/src/composer/request.test.ts b/packages/app/src/composer/request.test.ts
+index 1382d66..de27775 100644
+--- a/packages/app/src/composer/request.test.ts
++++ b/packages/app/src/composer/request.test.ts
+@@ -315,3 +315,77 @@ describe("buildPromptRequest", () => {
+     expect(result.files.map((file) => file.uri)).toEqual([row.uri])
+   })
+ })
++
++// mobile(M-016, issue #188): the wire floor. A `media:` reference is not attachment bytes —
++// queue/fork/recall must pin it on its captured source before this synchronous boundary — so an
++// unresolved ref is rejected here instead of reaching the server as an unowned reference.
++describe("buildPromptRequest media references", () => {
++  const mediaFilePrompt: Prompt = [
++    { type: "text", content: "see attached", start: 0, end: 11 },
++    {
++      type: "file",
++      path: "shot.png",
++      content: "@shot.png",
++      start: 12,
++      end: 21,
++      url: "media:" + "0".repeat(64),
++      mime: "image/png",
++      filename: "shot.png",
++    },
++  ]
++
++  test("rejects a file part whose url is an unresolved media ref", () => {
++    expect(() =>
++      buildPromptRequest({
++        prompt: mediaFilePrompt,
++        context: [],
++        images: [],
++        text: "see attached @shot.png",
++        sessionDirectory: "/repo",
++      }),
++    ).toThrow()
++  })
++
++  test("a pending media image rides the fingerprint mirror; the images floor is blobDataUrl's fail-closed refusal", () => {
++    // mobile(M-016, issue #188, recorded deviation): the guard covers file parts (their url
++    // reaches the wire verbatim). An image's wire dataUrl is always produced through
++    // `blobDataUrl`, which refuses an unresolved reference before any request is built — so the
++    // real send can never present a `media:` dataUrl. `retryFingerprint` legitimately mirrors a
++    // pending payload ("what would go out right now"), so buildPromptRequest admits that shape.
++    const result = buildPromptRequest({
++      prompt: [{ type: "text", content: "hi", start: 0, end: 2 }],
++      context: [],
++      images: [
++        { type: "image", id: "img", filename: "shot.png", mime: "image/png", dataUrl: "media:" + "1".repeat(64) },
++      ],
++      text: "hi",
++      sessionDirectory: "/repo",
++    })
++
++    expect(result.files.map((file) => file.uri)).toEqual(["media:" + "1".repeat(64)])
++  })
++
++  test("still admits a prompt whose media ref was pinned to stored bytes before the boundary", () => {
++    const result = buildPromptRequest({
++      prompt: [
++        { type: "text", content: "see attached", start: 0, end: 11 },
++        {
++          type: "file",
++          path: "notes.md",
++          content: "@notes.md",
++          start: 12,
++          end: 21,
++          mime: "text/plain",
++          filename: "notes.md",
++        },
++      ],
++      context: [],
++      images: [{ type: "image", id: "img", filename: "shot.png", mime: "image/png", dataUrl: "data:image/png;base64,AAA" }],
++      text: "see attached @notes.md",
++      sessionDirectory: "/repo",
++    })
++
++    expect(result.text).toContain("see attached")
++    expect(result.files.map((file) => file.uri)).toContain("data:image/png;base64,AAA")
++  })
++})
+diff --git a/packages/app/src/composer/request.ts b/packages/app/src/composer/request.ts
+index 7009d7a..6c82011 100644
+--- a/packages/app/src/composer/request.ts
++++ b/packages/app/src/composer/request.ts
+@@ -1,5 +1,6 @@
+ import { encodeFilePath, getFilename } from "@opencode/util/path"
+ import { parseSessionMention } from "@opencode/util/session-mention"
++import { ClientError } from "@opencode/client/promise"
+ import { serializePrompt } from "./prompt-parts"
+ import type { FileSelection } from "@/workspaces/files/model"
+ import type {
+@@ -124,6 +125,21 @@ export function quoteComment(item: QuoteContextItem) {
+ }
+ 
+ export function buildPromptRequest(input: BuildPromptRequestInput): PromptRequest {
++  // mobile(M-016, issue #188): a remote reference is not attachment bytes. Queue/fork/recall must
++  // pin it on its captured source before this synchronous wire boundary; unresolved old history
++  // stays editable. This is the last line of defense for references that never regained a source
++  // (the shared session-prompt containers are deliberately not attributed at decode).
++  //
++  // Scope note (recorded deviation): the guard covers file parts, whose `url` reaches the wire
++  // verbatim. Images are NOT re-checked here: both real producers of `input.images` derive their
++  // `dataUrl` through `blobDataUrl`, which now fails closed on an unresolved reference before any
++  // request is built — the images floor lives there, in the other half of the fail-closed pair.
++  // The one caller that can still present a `media:` dataUrl is `retryFingerprint`, whose
++  // fingerprint legitimately mirrors a pending payload ("what would go out right now", v2.2.7
++  // submit restore); rejecting it would break the failed-submit restore, so the byte-boundary
++  // floor is the enforcement point for images.
++  if (input.prompt.some((part) => part.type === "file" && part.url?.startsWith("media:")))
++    throw new ClientError("MalformedResponse")
+   const prompt = serializePrompt(input.prompt)
+ 
+   const text = input.prompt.some((part) => part.type === "session")
+diff --git a/packages/app/src/composer/schema.ts b/packages/app/src/composer/schema.ts
+index 0a67076..4d317ab 100644
+--- a/packages/app/src/composer/schema.ts
++++ b/packages/app/src/composer/schema.ts
+@@ -42,6 +42,8 @@ export const FileAttachmentPart = Persistence.struct({
+   filename: Persistence.optional(Schema.String),
+   description: Persistence.optional(Schema.String),
+   url: Persistence.optional(Schema.String),
++  // mobile(M-016, issue #188): the server a `media:` URL was captured on; bytes resolve only there.
++  sourceServerKey: Persistence.optional(Schema.String),
+   source: Persistence.optional(FilePartSource),
+ })
+ 
+@@ -79,7 +81,12 @@ const ImageFields = {
+ const Image = Persistence.struct({
+   ...ImageFields,
+   // An empty URL is an image whose bytes are still in the draft store; see `resolveBlobUrl`.
+-  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)) }),
++  blob: Schema.Struct({
++    id: Schema.NonEmptyString,
++    url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)),
++    // mobile(M-016, issue #188): the captured source of a `media:` id (issue #188).
++    sourceServerKey: Schema.optional(Schema.String),
++  }),
+ })
+ 
+ // Draft storage keeps content-addressed blobs in the store until an image is shown or sent; a
+@@ -87,7 +94,11 @@ const Image = Persistence.struct({
+ export const ImageAttachmentPart = Schema.Struct({
+   ...ImageFields,
+   blob: Persistence.optional(
+-    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String) }),
++    Schema.Struct({
++      id: Persistence.optional(Schema.String),
++      url: Persistence.optional(Schema.String),
++      sourceServerKey: Persistence.optional(Schema.String),
++    }),
+   ),
+   dataUrl: Persistence.optional(Schema.String),
+ }).pipe(
+@@ -104,6 +115,7 @@ export const ImageAttachmentPart = Schema.Struct({
+         mime: value.mime,
+         blob: {
+           id,
++          sourceServerKey: value.blob?.sourceServerKey,
+           url: url?.startsWith("blob:") || url?.startsWith("data:") ? url : id.startsWith("data:") ? id : "",
+         },
+       }
+diff --git a/packages/app/src/composer/state.ts b/packages/app/src/composer/state.ts
+index 7660291..ec0de4b 100644
+--- a/packages/app/src/composer/state.ts
++++ b/packages/app/src/composer/state.ts
+@@ -1,5 +1,7 @@
+ import { batch, getOwner, onCleanup, untrack, type Accessor } from "solid-js"
+ import { createStore, unwrap, type SetStoreFunction } from "solid-js/store"
++import { Predicate, Schema, SchemaGetter } from "effect"
++import { Persistence } from "@/runtime/persistence/schema"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { ServerScope } from "@/runtime/server/scope"
+ import type { Platform } from "@/runtime/platform/platform"
+@@ -232,8 +234,49 @@ function createPersistedComposer(
+   target: ReturnType<typeof composerTarget>,
+   initial?: InitialPrompt,
+   platform?: Platform,
++  legacySourceServerKey?: string,
+ ) {
+-  const [store, setStore, _, ready] = persisted(target, ComposerStore, initialComposerStore(initial), platform)
++  // mobile(M-016, issue #188): only a uniquely scoped persisted container may attribute an old
++  // remote reference at decode. A draft's storage is per-draft, so one key cannot contradict
++  // another instance sharing it. Session-prompt composers share a directory-keyed container
++  // (local scopes collapse into it), so they deliberately stay unresolved — their residual is
++  // fenced at the wire boundary (buildPromptRequest refuses unresolved `media:` refs) and such
++  // drafts remain editable.
++  const attribute = (value: unknown): unknown => {
++    if (Array.isArray(value)) return value.map(attribute)
++    if (!Predicate.isObject(value)) return value
++    if (
++      legacySourceServerKey &&
++      value.type === "image" &&
++      Predicate.isObject(value.blob) &&
++      typeof value.blob.id === "string" &&
++      value.blob.id.startsWith("media:") &&
++      !Object.hasOwn(value.blob, "sourceServerKey")
++    )
++      return { ...value, blob: { ...value.blob, sourceServerKey: legacySourceServerKey } }
++    if (
++      legacySourceServerKey &&
++      value.type === "file" &&
++      typeof value.url === "string" &&
++      value.url.startsWith("media:") &&
++      !Object.hasOwn(value, "sourceServerKey")
++    )
++      return { ...value, sourceServerKey: legacySourceServerKey }
++
++    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, attribute(entry)]))
++  }
++  const definition = legacySourceServerKey
++    ? Persistence.migrate(
++        ComposerStore,
++        Schema.Unknown.pipe(
++          Schema.decode({
++            decode: SchemaGetter.transform(attribute),
++            encode: SchemaGetter.transform((value) => value),
++          }),
++        ),
++      )
++    : ComposerStore
++  const [store, setStore, _, ready] = persisted(target, definition, initialComposerStore(initial), platform)
+ 
+   return { ready, ...createComposerStateValue(store, setStore) }
+ }
+@@ -244,7 +287,15 @@ export function createComposerState(
+   initial?: InitialPrompt,
+   platform?: Platform,
+ ) {
+-  return createPersistedComposer(composerTarget(serverScope, scope), initial, platform)
++  return createPersistedComposer(
++    composerTarget(serverScope, scope),
++    initial,
++    platform,
++    // A draft container is per-draft unique, so its stored refs all belong to the server the draft
++    // is routed against (local has no single key to attribute). Session-prompt scopes share their
++    // container and stay unattributed (see createPersistedComposer).
++    "draftID" in scope && serverScope !== ServerScope.local ? String(serverScope) : undefined,
++  )
+ }
+ 
+ export function createDraftComposerState(draftID: string, initial?: InitialPrompt) {
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 692ae11..3f3d39d 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -14,6 +14,7 @@ import en from "@/runtime/i18n/en"
+ import zh from "@/runtime/i18n/zh"
+ import pkg from "../package.json"
+ import {
++  createFilesClient,
+   createMobileHosts,
+   createProbeClient,
+   createSshHostKeyVerifier,
+@@ -22,10 +23,12 @@ import {
+   createVaultClient,
+   createVaultResolver,
+   createAndroidXVaultTransport,
++  createWebMessageFilesTransport,
+   createWebMessageProbeTransport,
+   createWebMessageSshTransport,
+   createBackHandlerBinding,
+   setActiveBackHandlerPort,
++  setActiveFilesPort,
+ } from "@opencode-mobile/mobile-hosts"
+ import { consumeBackChain } from "@/shell/back-chain"
+ 
+@@ -163,6 +166,26 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
+     // origin by platform construction). The port is captured into the transport closure and
+     // acked immediately; before that ack every ssh attempt fails explicitly
+     // (bridge-unavailable) — no tunnel can exist unverified.
++    // mobile(M-020): the files bridge (issue #16) — the FIFTH protocol-isolated sibling of
++    // the vault/probe/ssh bridges on the same window message events. Its handshake
++    // string ("opencode-mobile-files-handshake") is captured only by this transport
++    // (strict data equality + exactly one port), so none of the bridges can capture
++    // another's handshake; event.origin is never consulted (embedder-posted messages
++    // carry an empty origin by platform construction). The port is captured into the
++    // transport closure and acked immediately; before that ack the platform file
++    // capabilities stay fail-closed stubs (clipboardImage null / saveFile false /
++    // shareDataUrl false). Registration goes through the module-level files seam
++    // (setActiveFilesPort) so the runtime bootstrap contract stays unchanged.
++    setActiveFilesPort(
++      createFilesClient(
++        createWebMessageFilesTransport({
++          subscribe: (handler) => {
++            window.addEventListener("message", handler as EventListener)
++            return () => window.removeEventListener("message", handler as EventListener)
++          },
++        }),
++      ),
++    )
+     const hosts = createMobileHosts({
+       storage: window.localStorage,
+       fetch: globalThis.fetch.bind(globalThis),
+diff --git a/packages/app/src/runtime/persistence/drafts.test.ts b/packages/app/src/runtime/persistence/drafts.test.ts
+index b8e1143..f5e97ae 100644
+--- a/packages/app/src/runtime/persistence/drafts.test.ts
++++ b/packages/app/src/runtime/persistence/drafts.test.ts
+@@ -4,6 +4,7 @@ import {
+   createDraftStore,
+   draftTextChunk,
+   draftTextThreshold,
++  pinMediaBlob,
+   resolveBlobUrl,
+   setMediaBlobLoader,
+ } from "./drafts"
+@@ -447,15 +448,16 @@ describe("draft store media refs", () => {
+   const pngDataUrl = `data:image/png;base64,${png}`
+ 
+   // A server's media blobs, served through the authenticated loader the way the media cache does.
++  // mobile(M-016, issue #188): the loader registration returns its own unregister closure.
+   const serveMedia = (key: string, blobs: Map<string, string>) => {
+     const loads: string[] = []
+-    setMediaBlobLoader(key, async (uri) => {
++    const close = setMediaBlobLoader(key, async (uri) => {
+       loads.push(uri)
+ 
+       return blobs.get(uri.slice("media:".length))
+     })
+ 
+-    return { loads, close: () => setMediaBlobLoader(key, undefined) }
++    return { loads, close }
+   }
+ 
+   test("a media:<hash> ref is saved with its bytes, restored, and submitted as bytes after the server sweeps it", async () => {
+@@ -468,7 +470,8 @@ describe("draft store media refs", () => {
+       const memory = memoryDriver()
+       const store = createDraftStore(memory.driver)
+       // The composer holds the URL-neutral ref a restored message carries; `media:` is never fetched directly.
+-      const live = { id: ref, url: ref }
++      // mobile(M-016, issue #188): the ref names the server it was captured on.
++      const live = { id: ref, url: ref, sourceServerKey: "srv-draft-media" }
+       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }] })
+ 
+       const stored = JSON.parse(memory.documents.get("doc")!).prompt[0].blob
+@@ -494,7 +497,7 @@ describe("draft store media refs", () => {
+     }
+   })
+ 
+-  test("a media ref no server can serve saves without failing and submits as the ref", async () => {
++  test("an unresolved media ref preserves the draft but cannot be submitted as attachment bytes", async () => {
+     const ref = `media:${"b".repeat(64)}`
+     const media = serveMedia("srv-draft-media-gone", new Map())
+     const error = console.error
+@@ -504,12 +507,109 @@ describe("draft store media refs", () => {
+       const memory = memoryDriver()
+       const store = createDraftStore(memory.driver)
+       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: { id: ref, url: ref } }] })
+-      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ id: ref })
++      // mobile(M-016, issue #188): an unresolved remote reference persists as { mediaURI,
++      // sourceServerKey } — it does not claim local ownership, so the strict write is not blocked
++      // and the local-chunk GC stays coherent.
++      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ mediaURI: ref })
+       expect(await resolveBlobUrl({ id: ref, url: ref })).toBeUndefined()
+-      expect(await blobDataUrl({ id: ref, url: ref }, "image/png")).toBe(ref)
++      // The old `media:` passthrough is gone: a send without stored bytes fails closed here, and
++      // the wire boundary (buildPromptRequest) stops the submission instead.
++      await expect(blobDataUrl({ id: ref, url: ref }, "image/png")).rejects.toBeDefined()
++      expect(media.loads).toEqual([])
++
++      // Restored, the ref stays live with its (absent) source; the draft remains editable.
++      const restored = JSON.parse((await store.getItem("doc"))!).prompt[0].blob
++      expect(restored.id).toBe(ref)
+     } finally {
+       console.error = error
+       media.close()
+     }
+   })
++
++  test.each(["missing", "403", "404", "offline", "unknown"] as const)(
++    "source %s fails closed with zero calls to another server",
++    async (failure) => {
++      const ref = `media:${"c".repeat(64)}`
++      let a = 0
++      let b = 0
++      const closeA =
++        failure === "missing"
++          ? () => {}
++          : setMediaBlobLoader("failclosed-a", async () => {
++              a++
++              throw new Error(failure)
++            })
++      const closeB = setMediaBlobLoader("failclosed-b", async () => {
++        b++
++
++        return pngDataUrl
++      })
++      try {
++        const reference = { id: ref, url: "", sourceServerKey: failure === "unknown" ? undefined : "failclosed-a" }
++        await expect(pinMediaBlob(reference)).rejects.toBeDefined()
++        expect(await resolveBlobUrl(reference)).toBeUndefined()
++        expect(b).toBe(0)
++        expect(a).toBe(failure === "missing" || failure === "unknown" ? 0 : 2)
++      } finally {
++        closeA()
++        closeB()
++      }
++    },
++  )
++
++  test("equal remote hashes use source-scoped aliases and local copies remain usable offline", async () => {
++    const ref = `media:${"d".repeat(64)}`
++    let a = 0
++    let b = 0
++    const closeA = setMediaBlobLoader("alias-a", async () => {
++      a++
++
++      return "data:text/plain;base64,QQ=="
++    })
++    const closeB = setMediaBlobLoader("alias-b", async () => {
++      b++
++
++      return "data:text/plain;base64,Qg=="
++    })
++    const first = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-a" })
++    expect(a).toBe(1)
++    expect(b).toBe(0)
++    const second = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-b" })
++    expect(second.id).not.toBe(first.id)
++    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
++    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
++    closeA()
++    closeB()
++    // The local copies are page-lifetime: the captured bytes survive their loader going away.
++    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
++    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
++    expect(await resolveBlobUrl({ id: ref, sourceServerKey: "alias-unknown" })).toBeUndefined()
++  })
++
++  test("late same-key completion and old cleanup cannot publish aliases or unregister a successor", async () => {
++    const ref = `media:${"e".repeat(64)}`
++    let finish!: (value: string) => void
++    const pending = new Promise<string>((resolve) => {
++      finish = resolve
++    })
++    const closeOld = setMediaBlobLoader("generation", () => pending)
++    const old = pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
++    const rejected = old.then(
++      () => false,
++      () => true,
++    )
++    let successor = 0
++    const closeNew = setMediaBlobLoader("generation", async () => {
++      successor++
++
++      return "data:text/plain;base64,TkVX"
++    })
++    closeOld()
++    finish("data:text/plain;base64,T0xE")
++    expect(await rejected).toBe(true)
++    const current = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
++    expect(successor).toBe(1)
++    expect(await blobDataUrl(current, "text/plain")).toBe("data:text/plain;base64,TkVX")
++    closeNew()
++  })
+ })
+diff --git a/packages/app/src/runtime/persistence/drafts.ts b/packages/app/src/runtime/persistence/drafts.ts
+index b98acd5..0882452 100644
+--- a/packages/app/src/runtime/persistence/drafts.ts
++++ b/packages/app/src/runtime/persistence/drafts.ts
+@@ -16,7 +16,9 @@ import {
+ 
+ /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-known-value-widening -- the store walks opaque persisted JSON in every shape earlier releases wrote, and IndexedDB hands back untyped values */
+ 
+-export type BlobReference = { id: string; url: string }
++// mobile(M-016, issue #188): a media reference carries the key of the server it was captured on.
++// Bytes are only ever loaded from that server — never probed across every registered connection.
++export type BlobReference = { id: string; url: string; sourceServerKey?: string }
+ 
+ type Driver = {
+   get(key: string): Promise<string | null>
+@@ -58,7 +60,7 @@ const storeLoaders = new Map<number, (id: string) => Promise<string | undefined>
+ 
+ type MediaBlobLoader = (uri: string) => Promise<string | undefined>
+ 
+-const mediaLoaders = new Map<string, MediaBlobLoader>()
++const mediaLoaders = new Map<string, { load: MediaBlobLoader }>()
+ 
+ function dispatch(event: DraftRetentionEvent) {
+   const result = transitionDraftRetention(retention, event)
+@@ -81,35 +83,57 @@ function dispatch(event: DraftRetentionEvent) {
+   })
+ }
+ 
++// mobile(M-016, issue #188): the unregister closure lets a same-key replacement retire only its
++// own registration, so a late cleanup can never drop a successor's loader.
+ export function setMediaBlobLoader(key: string, next: MediaBlobLoader | undefined) {
+-  mediaLoaders.delete(key)
++  if (!next) {
++    mediaLoaders.delete(key)
+ 
+-  if (next) mediaLoaders.set(key, next)
+-}
++    return () => {}
++  }
++  const registration = { load: next }
++  mediaLoaders.set(key, registration)
+ 
+-async function loadMediaBlobUrl(uri: string, serverKey?: string) {
+-  if (serverKey) {
+-    const keyed = mediaLoaders.get(serverKey)
++  return () => {
++    if (mediaLoaders.get(key) === registration) mediaLoaders.delete(key)
++  }
++}
+ 
+-    if (keyed) {
+-      const url = await keyed(uri).catch(() => undefined)
++/**
++ * Runtime-only source lease (issue #188): captures the loader registration a media reference's
++ * server serves through right now. A same-key replacement invalidates the old completions and
++ * cleanup, so an operation started on one connection generation cannot publish into the next.
++ */
++export function captureMediaSource(sourceServerKey: string | undefined) {
++  const registration = sourceServerKey ? mediaLoaders.get(sourceServerKey) : undefined
+ 
+-      if (url) return url
+-    }
+-  }
++  return () => !!sourceServerKey && !!registration && mediaLoaders.get(sourceServerKey) === registration
++}
+ 
+-  for (const [key, candidate] of [...mediaLoaders.entries()].reverse()) {
+-    if (key === serverKey) continue
+-    const url = await candidate(uri).catch(() => undefined)
++// Aliases are scoped by the capturing server (issue #188): equal hashes from two servers never
++// share bytes, and a ref without a captured source never resolves against another server.
++function referenceID(blob: { id: string; sourceServerKey?: unknown }) {
++  return mediaHashFromUri(blob.id)
++    ? `${typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : ""}\0${blob.id}`
++    : blob.id
++}
+ 
+-    if (url) return url
+-  }
++// mobile(M-016, issue #188): fail-closed keying — no source key, no load. The old cross-server
++// fallback probed every registered connection for any `media:` ref; that let one server resolve
++// (and hand its bytes to) a reference another client captured on a different server.
++async function loadMediaBlobUrl(uri: string, serverKey?: string) {
++  if (!serverKey) return undefined
++  const registration = mediaLoaders.get(serverKey)
++  if (!registration) return undefined
++  const url = await registration.load(uri).catch(() => undefined)
++  if (mediaLoaders.get(serverKey) !== registration) return undefined
+ 
+-  return undefined
++  return url?.startsWith("blob:") || url?.startsWith("data:") ? url : undefined
+ }
+ 
+-// The bytes behind a `media:<hash>` ref, through the authenticated media loader; `media:` is not
+-// fetchable itself. Undefined once no server can serve it (swept, offline, or the flag is off).
++// The bytes behind a `media:<hash>` ref, through the authenticated media loader of the server the
++// reference was captured on; `media:` is not fetchable itself, and no other server is ever asked
++// (issue #188). Undefined once that server cannot serve it (swept, offline, or the flag is off).
+ async function loadMediaBlob(uri: string, serverKey?: string) {
+   const url = await loadMediaBlobUrl(uri, serverKey).catch(() => undefined)
+ 
+@@ -122,13 +146,13 @@ async function loadMediaBlob(uri: string, serverKey?: string) {
+ }
+ 
+ /** The object URL for an image reference, loading its bytes from the draft store on first use. */
+-export function resolveBlobUrl(blob: { id: string; url?: string; server?: string }) {
++export function resolveBlobUrl(blob: { id: string; url?: string; sourceServerKey?: string }) {
+   if (blob.url && !mediaHashFromUri(blob.url)) return Promise.resolve(blob.url)
+-  const existing = selectRetainedBlob(retention, blob.id)
++  const existing = selectRetainedBlob(retention, referenceID(blob))
+ 
+   if (existing) return Promise.resolve(existing.url)
+ 
+-  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.server)
++  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.sourceServerKey)
+ 
+   if (blob.url) return Promise.resolve(blob.url)
+ 
+@@ -166,7 +190,10 @@ function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
+   if (blob && typeof blob === "object" && !("kind" in blob)) {
+     const id = (blob as Record<string, unknown>).id
+ 
+-    if (typeof id === "string") into.add(id)
++    // A `media:<hash>` ref the draft store has not captured yet (issue #188: unresolved refs keep
++    // their `{ mediaURI, sourceServerKey }` form) is not a local chunk; keeping it out of these
++    // sets leaves the local-chunk GC to the ids a document actually stores bytes under.
++    if (typeof id === "string" && !mediaHashFromUri(id)) into.add(id)
+ 
+     return into
+   }
+@@ -328,32 +355,40 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+       if (
+         typeof blob.id === "string" &&
+         mediaHashFromUri(blob.id) &&
+-        !(retention.aliases.has(blob.id) && selectRetainedBlob(retention, blob.id))
++        !(
++          retention.aliases.has(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) &&
++          selectRetainedBlob(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
++        )
+       ) {
+-        const data = await loadMediaBlob(blob.id, typeof blob.server === "string" ? blob.server : undefined)
+-
+-        // Nothing serves the bytes anymore; the reference is dropped on read like any blob with no bytes.
+-        if (!data) return { ...item, blob: { id: blob.id } }
++        const sourceServerKey = typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : undefined
++        const current = captureMediaSource(sourceServerKey)
++        const data = await loadMediaBlob(blob.id, sourceServerKey)
++
++        // mobile(M-016, issue #188): an unresolved remote reference is not a missing local blob.
++        // Preserve it in the document without claiming local ownership, so strict writes can still
++        // save the rest of the draft; the ref keeps its captured source for a later attempt.
++        if (!data || !current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+         const id = await driver.putBlob(data)
++        if (!current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
+         pin(id)
+         blobUrl(id, data, grace)
+-        dispatch({ type: "alias.recorded", from: blob.id, to: id })
++        dispatch({ type: "alias.recorded", from: referenceID({ id: blob.id, sourceServerKey }), to: id })
+         sources.set(id, { blob: async () => data })
+ 
+-        return { ...item, blob: { id } }
++        return { ...item, blob: { id, sourceServerKey } }
+       }
+ 
+       if (typeof blob.id === "string") {
+         // A live reference keeps the id it was created with; publish the id its bytes now live under.
+-        const id = resolveBlobAlias(retention, blob.id)
+-        const retained = selectRetainedBlob(retention, id)
++        const id = resolveBlobAlias(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
++        const retained = selectRetainedBlob(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
+         const kept = retained?.blob
+         const url = typeof blob.url === "string" && !mediaHashFromUri(blob.url) ? blob.url : retained?.url
+ 
+         if (kept) sources.set(id, { blob: async () => kept })
+         else if (url) sources.set(id, { blob: () => fetch(url).then((response) => response.blob()) })
+ 
+-        return { ...item, blob: { id } }
++        return { ...item, blob: { id, sourceServerKey: blob.sourceServerKey } }
+       }
+ 
+       return { ...item, blob: { id: blob.id } }
+@@ -373,6 +408,11 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+     if (item.blob && typeof item.blob === "object") {
+       const ref = item.blob as Record<string, unknown>
+ 
++      // mobile(M-016, issue #188): an unresolved remote reference returns live as the `media:` ref
++      // it was saved from, keeping the source it was captured on (see resolveBlobUrl).
++      if (typeof ref.mediaURI === "string" && mediaHashFromUri(ref.mediaURI))
++        return { ...item, blob: { id: ref.mediaURI, url: "", sourceServerKey: ref.sourceServerKey } }
++
+       if (ref.kind === "text" && Array.isArray(ref.ids)) {
+         return (await Promise.all(ref.ids.map((id) => loadChunk(String(id))))).join("")
+       }
+@@ -380,9 +420,15 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
+       // Bytes stay in the store until something renders or sends the image (see resolveBlobUrl);
+       // only an image already pinned in this page gets its URL back immediately.
+       if (typeof ref.id === "string") {
+-        const url = selectRetainedBlob(retention, ref.id)?.url
+-
+-        return { ...item, blob: url ? { id: ref.id, url } : { id: ref.id } }
++        const url = selectRetainedBlob(
++          retention,
++          referenceID({ id: ref.id, sourceServerKey: ref.sourceServerKey }),
++        )?.url
++
++        return {
++          ...item,
++          blob: url ? { id: ref.id, url, sourceServerKey: ref.sourceServerKey } : { id: ref.id, sourceServerKey: ref.sourceServerKey },
++        }
+       }
+     }
+ 
+@@ -643,15 +689,16 @@ function referenced(json: string) {
+ }
+ 
+ // Submits always carry the bytes, so a send never depends on a server blob that may have been swept.
+-// A `media:` ref goes out only when no bytes are reachable here; the server still resolves it if it can.
++// A reference whose bytes are unreachable here fails closed (issue #188): the wire boundary turns
++// the throw into a stopped send instead of letting an unowned `media:` ref reach the server.
+ export async function blobDataUrl(blob: BlobReference, mime: string) {
+-  const kept = selectRetainedBlob(retention, blob.id)
++  const current = mediaHashFromUri(blob.id) ? captureMediaSource(blob.sourceServerKey) : undefined
++  const kept = selectRetainedBlob(retention, referenceID(blob))
+   const url = kept ? undefined : await resolveBlobUrl(blob)
+ 
+-  if (!kept && !url && mediaHashFromUri(blob.id)) return blob.id
+-
+   if (!kept && !url) throw new Error(`Attachment ${blob.id} has no stored bytes`)
+   const data = kept ? kept.blob : await fetch(url!).then((response) => response.blob())
++  if (!kept && current && !current()) throw new Error(`Attachment ${blob.id} has no stored bytes`)
+ 
+   return new Promise<string>((resolve, reject) => {
+     const reader = new FileReader()
+@@ -665,23 +712,31 @@ export async function blobDataUrl(blob: BlobReference, mime: string) {
+ }
+ 
+ /**
+- * A local copy of the bytes behind a `media:<hash>` reference, loaded through the media loader, for a draft about to
+- * outlive the server's copy: cancelling an inbox item sweeps blobs nothing else references. Other references return
+- * unchanged; a ref nothing serves anymore throws, so the caller can stop before dropping the last server copy.
++ * A local copy of the bytes behind a `media:<hash>` reference, loaded through the media loader of
++ * the server the reference carries (issue #188), for a draft about to outlive the server's copy:
++ * cancelling an inbox item sweeps blobs nothing else references. Other references return
++ * unchanged; a ref its own server cannot serve anymore throws, so the caller can stop before
++ * dropping the last server copy. `operationCurrent` lets a long load be abandoned: an owner that
++ * lost its lease mid-load stops without publishing.
+  */
+-export async function pinMediaBlob(blob: BlobReference): Promise<BlobReference> {
++export async function pinMediaBlob(blob: BlobReference, operationCurrent: () => boolean = () => true): Promise<BlobReference> {
++  if (!operationCurrent()) throw new DOMException("", "AbortError")
+   const ref = [blob.id, blob.url].find((uri) => mediaHashFromUri(uri))
+ 
+   if (!ref) return blob
+-  const data = await loadMediaBlob(ref)
++  const current = captureMediaSource(blob.sourceServerKey)
++  const data = await loadMediaBlob(ref, blob.sourceServerKey)
+ 
+-  if (!data) throw new Error(`Attachment ${ref} is no longer available`)
++  if (!data || !current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
++  const local = await createBlobReference(data)
++  if (!current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
++  dispatch({ type: "alias.recorded", from: referenceID({ ...blob, id: ref }), to: local.id })
+ 
+-  return createBlobReference(data)
++  return { ...local, sourceServerKey: blob.sourceServerKey }
+ }
+ 
+ // A `media:<hash>` ref is no URL a renderer can load, so it keeps the empty URL a draft-store id has and resolves
+ // through `resolveBlobUrl`; drafts saved this way stay readable by versions that predate media refs.
+-export function createLegacyBlobReference(dataUrl: string): BlobReference {
+-  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl }
++export function createLegacyBlobReference(dataUrl: string, sourceServerKey?: string): BlobReference {
++  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl, sourceServerKey }
+ }
+diff --git a/packages/app/src/runtime/platform/web.ts b/packages/app/src/runtime/platform/web.ts
+index fc1c863..315a5ab 100644
+--- a/packages/app/src/runtime/platform/web.ts
++++ b/packages/app/src/runtime/platform/web.ts
+@@ -1,5 +1,8 @@
+ import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
+-import { createSecureFetch } from "@opencode-mobile/mobile-hosts"
++// mobile(M-020): the platform file capabilities (issue #16) read the files bridge port
++// through the module-level seam at call time, so a bridge that comes up after bootstrap
++// is picked up without a re-render.
++import { activeFilesPort, createSecureFetch } from "@opencode-mobile/mobile-hosts"
+ import type { Platform } from "./platform"
+ 
+ export function createWebPlatform(version: string) {
+@@ -8,6 +11,20 @@ export function createWebPlatform(version: string) {
+     // mobile(M-011): validated-follow fetch rejects credential-bearing URLs, unsafe redirects
+     // and cross-host/downgrade final responses before the response body is consumed.
+     fetch: createSecureFetch(),
++    // mobile(M-020): completes the Platform faces that were desktop-only declarations on
++    // this platform. `readClipboardImage` fills the field whose comment anchor ("Read
++    // image from clipboard (desktop only)") had no web implementation in this closure;
++    // `saveFile` routes session exports and GUI-extension saves through the shell's SAF
++    // save dialog (the anchor.download fallback is a dead point inside the WebView shell:
++    // no DownloadListener is registered and blob:/data: URLs are not resolvable natively).
++    // Both read the port through the seam PER CALL; before the bridge acks the fail-closed
++    // stub answers (null / false) — saveFile false means "silently cancelled", an
++    // intentional, more honest change vs the absent-field fake-success anchor fallback
++    // (docs/design/units/attachments-artifacts.md, gate G27⑧). Platform TYPES are
++    // unchanged: both fields are pre-existing optional members. Rollback = reverting this
++    // one patch plus the entry wiring.
++    readClipboardImage: createPlatformClipboardReader(),
++    saveFile: createPlatformFileSaver(),
+     draftStore: createBrowserDraftStore(),
+     version,
+     openExternal(value) {
+@@ -49,6 +66,32 @@ export function createWebPlatform(version: string) {
+   }
+ }
+ 
++/**
++ * mobile(M-020): the clipboard reader face. Reads the files-bridge port through the seam
++ * per call and never throws (the upstream paste chain awaits it bare); the marker rides
++ * the returned function the same way the M-011 fetch wrapper carries its dist marker.
++ */
++function createPlatformClipboardReader(): Platform["readClipboardImage"] {
++  const readClipboardImage = () => activeFilesPort().clipboardImage()
++  ;(readClipboardImage as unknown as { marker: string }).marker =
++    "mobile(M-020): platform clipboard reader over the files bridge seam (issue #16)"
++  return readClipboardImage
++}
++
++/**
++ * mobile(M-020): the save face (Platform `saveFile?`). Contract per the Platform type:
++ * resolves true when the content reached the user-chosen location, false when the user
++ * cancelled the shell's SAF dialog, throws on hard failures (the callers' catch shows
++ * their failed toast).
++ */
++function createPlatformFileSaver(): Platform["saveFile"] {
++  const saveFile = (opts: { title?: string; defaultPath?: string }, content: string) =>
++    activeFilesPort().saveFile(opts, content)
++  ;(saveFile as unknown as { marker: string }).marker =
++    "mobile(M-020): platform file saver over the files bridge seam (issue #16)"
++  return saveFile
++}
++
+ function getCurrentServerUrl() {
+   if (import.meta.env.VITE_OPENCODE_SERVER_MODE === "none") return undefined
+ 
+diff --git a/packages/app/src/runtime/server/image.test.ts b/packages/app/src/runtime/server/image.test.ts
+index 70daa1c..b7a4408 100644
+--- a/packages/app/src/runtime/server/image.test.ts
++++ b/packages/app/src/runtime/server/image.test.ts
+@@ -201,14 +201,18 @@ describe("readLocalImage", () => {
+     expect(await pending).toBeUndefined()
+     expect(delayedCache.peek(`media:${hashA}`, "image/png")).toBeUndefined()
+ 
+-    // Per-server draft loader keying and cleanup
++    // Per-server draft loader keying and cleanup. mobile(M-016, issue #188): a ref resolves only
++    // through the key it was captured on — no cross-server fallback probes other servers.
+     setMediaBlobLoader("srv-1", async (uri) => `blob:srv1:${uri}`)
+     setMediaBlobLoader("srv-2", async (uri) => `blob:srv2:${uri}`)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}`, server: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBe(`blob:srv2:media:${hashA}`)
+     setMediaBlobLoader("srv-2", undefined)
+-    expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBe(`blob:srv1:media:${hashA}`)
+-    setMediaBlobLoader("srv-1", undefined)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-2" })).toBeUndefined()
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-3" })).toBeUndefined()
+     expect(await resolveBlobUrl({ id: `media:${hashA}` })).toBeUndefined()
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBe(`blob:srv1:media:${hashA}`)
++    setMediaBlobLoader("srv-1", undefined)
++    expect(await resolveBlobUrl({ id: `media:${hashA}`, sourceServerKey: "srv-1" })).toBeUndefined()
+   })
+ })
+diff --git a/packages/app/src/session/composer/queue.test.ts b/packages/app/src/session/composer/queue.test.ts
+index e67115c..b610b18 100644
+--- a/packages/app/src/session/composer/queue.test.ts
++++ b/packages/app/src/session/composer/queue.test.ts
+@@ -225,24 +225,29 @@ describe("queuedPromptAttachments", () => {
+     const blobs = new Map<string, Uint8Array>([[hash, pngBytes]])
+     const events: string[] = []
+ 
+-    const extracted = extractPromptFromMessage({
+-      id: "msg_queued_media",
+-      text: "queued with image",
+-      files: [
+-        {
+-          uri: mediaUri,
+-          mime: "image/png",
+-          source: { type: "inline" },
+-          width: 1,
+-          height: 1,
+-          bytes: pngBytes.byteLength,
+-          name: "shot.png",
+-        },
+-      ],
+-    })
++    // mobile(M-016, issue #188): the extract attributes its refs with the queue's own server, so
++    // the fail-closed loader resolves them from their captured source.
++    const extracted = extractPromptFromMessage(
++      {
++        id: "msg_queued_media",
++        text: "queued with image",
++        files: [
++          {
++            uri: mediaUri,
++            mime: "image/png",
++            source: { type: "inline" },
++            width: 1,
++            height: 1,
++            bytes: pngBytes.byteLength,
++            name: "shot.png",
++          },
++        ],
++      },
++      { sourceServerKey: "queue-test" },
++    )
+ 
+     expect(extracted.find((part) => part.type === "image")).toMatchObject({
+-      blob: { id: `media:${hash}`, url: "" },
++      blob: { id: `media:${hash}`, url: "", sourceServerKey: "queue-test" },
+     })
+     expect(JSON.stringify(extracted)).not.toContain("/api/")
+ 
+@@ -274,18 +279,29 @@ describe("queuedPromptAttachments", () => {
+       expect(imagePart.blob.id).not.toStartWith("media:")
+       expect(await blobDataUrl(imagePart.blob, imagePart.mime)).toBe(`data:image/png;base64,${pngBase64}`)
+ 
+-      // Media nothing serves anymore fails the pin, so the item is never cancelled.
++      // mobile(M-016, issue #188): media nothing serves anymore fails the pin, so the item is
++      // never cancelled. The first item's bytes are already local, so an unserved ref needs its
++      // own hash; and a ref with no captured source is not probed on any other server either.
++      const unservedUri = `media:${"f".repeat(64)}`
++      const unserved = extractPromptFromMessage(
++        {
++          id: "msg_queued_media_unserved",
++          text: "queued with image",
++          files: [{ uri: unservedUri, mime: "image/png", source: { type: "inline" }, name: "shot.png" }],
++        },
++        { sourceServerKey: "queue-test" },
++      )
+       const cancels = events.length
+ 
+       await expect(
+         undoQueuedPrompt({
+-          prompt: extracted,
++          prompt: unserved,
+           cancelInboxItem: async () => {
+             events.push("cancelInboxItem")
+           },
+         }),
+       ).rejects.toBeInstanceOf(Error)
+-      expect(events.slice(cancels)).toEqual([`load:${mediaUri}`])
++      expect(events.slice(cancels)).toEqual([`load:${unservedUri}`])
+ 
+       // An undo stopped while its media loads (past its bound, or on unmount) leaves the item queued.
+       const stopped = new AbortController()
+@@ -311,4 +327,63 @@ describe("queuedPromptAttachments", () => {
+       setMediaBlobLoader("queue-test", undefined)
+     }
+   })
++
++  test("undoQueuedPrompt backfills missing provenance with its own server key and never probes others", async () => {
++    // mobile(M-016, issue #188): queued items predate per-part provenance; the backfill attributes
++    // them with the queue's own server — never a cross-server probe.
++    const unsourced = extractPromptFromMessage({
++      id: "msg_queued_media_legacy",
++      text: "queued with image",
++      files: [
++        {
++          uri: `media:${"9".repeat(64)}`,
++          mime: "image/png",
++          source: { type: "inline" },
++          name: "shot.png",
++        },
++      ],
++    })
++    const legacy = unsourced.find((part) => part.type === "image")
++    expect(legacy?.type).toBe("image")
++    if (legacy?.type !== "image") return
++    expect(legacy.blob.sourceServerKey).toBeUndefined()
++    expect(legacy.blob.id).toStartWith("media:")
++
++    const loads: string[] = []
++    setMediaBlobLoader("legacy-queue-test", async (uri) => {
++      loads.push(uri)
++
++      return "data:image/png;base64,aGk="
++    })
++    const other: string[] = []
++    setMediaBlobLoader("other-server", async (uri) => {
++      other.push(uri)
++
++      return "data:image/png;base64,aGk="
++    })
++    try {
++      const pinned = await undoQueuedPrompt({
++        prompt: unsourced,
++        sourceServerKey: "legacy-queue-test",
++        cancelInboxItem: async () => undefined,
++      })
++      expect(loads).toEqual([`media:${"9".repeat(64)}`])
++      expect(other).toEqual([])
++      expect(pinned.find((part) => part.type === "image")).toMatchObject({ blob: { sourceServerKey: "legacy-queue-test" } })
++
++      // Without a backfill the same ref fails closed: no loader is consulted at all.
++      loads.length = 0
++      await expect(
++        undoQueuedPrompt({
++          prompt: unsourced,
++          cancelInboxItem: async () => undefined,
++        }),
++      ).rejects.toBeInstanceOf(Error)
++      expect(loads).toEqual([])
++      expect(other).toEqual([])
++    } finally {
++      setMediaBlobLoader("legacy-queue-test", undefined)
++      setMediaBlobLoader("other-server", undefined)
++    }
++  })
+ })
+diff --git a/packages/app/src/session/composer/queue.ts b/packages/app/src/session/composer/queue.ts
+index decbf1d..969edd3 100644
+--- a/packages/app/src/session/composer/queue.ts
++++ b/packages/app/src/session/composer/queue.ts
+@@ -1,16 +1,18 @@
+-import { createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
++import { createEffect, createMemo, createRoot, createSignal, onCleanup, untrack, type Accessor } from "solid-js"
+ import type { PromptAttachment } from "@opencode/client/promise"
+ import { SessionMessage } from "@opencode/schema/session-message"
+ import type { ComposerDelivery, ComposerSession } from "@/composer/adapter"
+ import type { ComposerStateTarget } from "@/composer/submission-state"
+-import type { ImageAttachmentPart, Prompt } from "@/composer/state"
++import type { ImageAttachmentPart, PathAttachmentPart, Prompt } from "@/composer/state"
+ import { clonePrompt, promptLength } from "@/composer/prompt-parts"
+ import { buildPromptRequest } from "@/composer/request"
+-import { type BlobReference, blobDataUrl } from "@/runtime/persistence/drafts"
++import { type BlobReference, blobDataUrl, captureMediaSource } from "@/runtime/persistence/drafts"
+ import { pinPromptMedia } from "@/composer/media"
+ import { extractPromptContext, extractPromptFromMessage } from "@/composer/prompt"
+ import { useData } from "@/runtime/server/current"
++import { useComposerState } from "@/composer/persistence"
+ import { useServerSDK } from "@/runtime/server/client"
++import { ServerConnection } from "@/runtime/server/registry"
+ import { useWorkspaceLocation } from "@/workspaces/location"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { showToast } from "@/shell/notifications/toast"
+@@ -32,6 +34,19 @@ import {
+   type QueuedPrompt,
+ } from "./queue-machine"
+ 
++// mobile(M-016, issue #188): one mutation attempt's captured ownership. `current` is false once
++// the queue unmounted, the composer instance was replaced, the connection rebuilt, or the media
++// lease was superseded — any of which invalidates the attempt's remaining publications.
++type QueueOwner = {
++  composerOwner: () => boolean
++  http: ServerConnection.HttpBase
++  serverKey: ServerConnection.Key
++  media: () => boolean
++  sessionID: string
++  directory: string
++  current: () => boolean
++}
++
+ export function createSessionQueue(input: {
+   sessionID: string
+   draft: ComposerStateTarget
+@@ -44,6 +59,36 @@ export function createSessionQueue(input: {
+   const server = useServerSDK()
+   const location = useWorkspaceLocation()
+   const language = useLanguage()
++  const composer = useComposerState()
++
++  // mobile(M-016, issue #188): every mutation, pin and undo runs on an owner captured when it
++  // starts. The owner binds the attempt to the composer instance, the connection and the media
++  // lease it started on; once any of those is lost the attempt stops publishing (and its existing
++  // abort checkpoints stop it) without ever touching a request already dispatched — the AbortSignal
++  // is not wired to any HTTP call, so an owner break cannot cancel a remote prompt (issue #188).
++  const sourceServerKey = ServerConnection.key(server.server)
++  let active = true
++  onCleanup(() => {
++    active = false
++  })
++
++  const captureOwner = (): QueueOwner => {
++    const composerOwner = composer.captureOwner()
++    const media = captureMediaSource(sourceServerKey)
++    const owner: Omit<QueueOwner, "current"> = {
++      composerOwner,
++      http: server.http,
++      serverKey: sourceServerKey,
++      media,
++      sessionID: input.sessionID,
++      directory: location().directory,
++    }
++
++    return Object.assign(owner, {
++      // The predicate closes over the captured identity itself.
++      current: () => active && composerOwner() && server.http === owner.http && media(),
++    })
++  }
+ 
+   const queued = createMemo(() =>
+     data.session.pending
+@@ -122,8 +167,12 @@ export function createSessionQueue(input: {
+ 
+     if (effect.type === "media.pin") {
+       // Images the user removed meanwhile stay removed; a pin for a row no longer open is rejected by the machine.
+-      void pinPromptMedia([...effect.attachments]).then(
+-        (pinned) =>
++      // The pin loads on the queue's own server lease (issue #188): a lost owner rejects the machine attempt
++      // (unchanged) and leaves the edit draft's unresolved refs alone.
++      const owner = captureOwner()
++      void pinPromptMedia(sourcedAttachments([...effect.attachments], sourceServerKey), owner.current).then(
++        (pinned) => {
++          if (!owner.current()) return
+           dispatch({
+             type: "edit.mediaPinned",
+             attempt: effect.attempt,
+@@ -132,7 +181,8 @@ export function createSessionQueue(input: {
+                 part.type === "image" ? [[part.id, part.blob]] : [],
+               ),
+             ),
+-          }),
++          })
++        },
+         () => undefined,
+       )
+ 
+@@ -141,10 +191,28 @@ export function createSessionQueue(input: {
+ 
+     if (effect.type === "mutation.run") {
+       const attempt = effect.operation.attempt
+-      const progress: MutationProgress = { controller: new AbortController(), hidden: [], stage: "running" }
++      const progress: MutationProgress = {
++        controller: new AbortController(),
++        hidden: [],
++        stage: "running",
++        owner: captureOwner(),
++      }
+       runs.set(attempt, progress)
++      // mobile(M-016, issue #188): an owner break aborts the attempt exactly like the machine's
++      // mutation.abort does. The signal is never wired to an HTTP call, so this cannot cancel a
++      // request already dispatched; the run's existing throwIfAborted checkpoints absorb the break.
++      const stopWatching = createRoot((dispose) => {
++        createEffect(() => {
++          if (!progress.owner.current()) runs.get(attempt)?.controller.abort()
++        })
++
++        return dispose
++      })
+ 
+-      return void run(effect.operation, progress).finally(() => runs.delete(attempt))
++      return void run(effect.operation, progress).finally(() => {
++        runs.delete(attempt)
++        stopWatching()
++      })
+     }
+ 
+     if (effect.type === "mutation.abort") return runs.get(effect.attempt)?.controller.abort()
+@@ -204,9 +272,13 @@ export function createSessionQueue(input: {
+   }
+ 
+   // Runs the operation in flight and reports its progress. Each report carries the operation's attempt, so the machine
+-  // ignores one that arrives after the operation stopped being current.
++  // ignores one that arrives after the operation stopped being current. Every publication is gated on the attempt's
++  // owner (issue #188): a result that lands after the composer, connection or media lease was lost is dropped, and
++  // the machine's timeout cleans the attempt up.
+   const run = async (operation: ActiveOperation, progress: MutationProgress) => {
+     const attempt = operation.attempt
++    const owner = progress.owner
++    const current = () => owner.current()
+ 
+     // SSE retracts and updates materialized timeline messages for a steer or removal, so neither re-syncs the queue.
+     if (operation.type === "steer") {
+@@ -216,17 +288,25 @@ export function createSessionQueue(input: {
+         .update({ sessionID: input.sessionID, inboxID: operation.id, delivery: "steer" })
+         .then(
+           () => {
++            if (!current()) return
+             void background?.move()
+             dispatch({ type: "mutation.succeeded", attempt })
+           },
+-          () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
++          () => {
++            if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
++          },
+         )
+     }
+ 
+     if (operation.type === "remove")
+       return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.id }).then(
+-        () => dispatch({ type: "mutation.succeeded", attempt }),
+-        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
++        () => {
++          if (!current()) return
++          dispatch({ type: "mutation.succeeded", attempt })
++        },
++        () => {
++          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
++        },
+       )
+ 
+     if (operation.type === "undo") {
+@@ -236,9 +316,11 @@ export function createSessionQueue(input: {
+       await undoQueuedPrompt({
+         prompt: extractPromptFromMessage(source, {
+           directory: location().directory,
++          sourceServerKey,
+           attachmentName: language.t("common.attachment"),
+           sessionTitle: (id) => data.session.get(id)?.title,
+         }),
++        sourceServerKey,
+         signal: progress.controller.signal,
+         cancelInboxItem: () => {
+           progress.stage = "committed"
+@@ -246,11 +328,15 @@ export function createSessionQueue(input: {
+           return server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.item.id })
+         },
+       }).then(
+-        (prompt) =>
+-          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] }),
+-        () => dispatch({ type: "mutation.failed", attempt, hidden: [] }),
++        (prompt) => {
++          if (!current()) return
++          dispatch({ type: "mutation.undone", attempt, prompt, context: [...context.comments, ...context.files] })
++        },
++        () => {
++          if (current()) dispatch({ type: "mutation.failed", attempt, hidden: [] })
++        },
+       )
+-      await data.session.pending.sync(input.sessionID).catch(() => undefined)
++      if (current()) await data.session.pending.sync(input.sessionID).catch(() => undefined)
+ 
+       return
+     }
+@@ -262,11 +348,14 @@ export function createSessionQueue(input: {
+       () => false,
+     )
+ 
++    if (!current()) return
++
+     if (settled) progress.stage = "settled"
+ 
+     if (operation.type === "reorder") data.session.pending.invalidate(input.sessionID)
+     // The rows keep their optimistic state until the server's queue has caught up.
+     await data.session.pending.sync(input.sessionID).catch(() => undefined)
++    if (!current()) return
+     dispatch(
+       settled ? { type: "mutation.succeeded", attempt } : { type: "mutation.failed", attempt, hidden: progress.hidden },
+     )
+@@ -274,6 +363,8 @@ export function createSessionQueue(input: {
+ 
+   const sendEdit = async (operation: EditOperation & { attempt: number }, progress: MutationProgress) => {
+     const signal = progress.controller.signal
++    const owner = progress.owner
++    const current = () => owner.current()
+ 
+     const replacement = await editedPromptInput(
+       input.sessionID,
+@@ -282,6 +373,7 @@ export function createSessionQueue(input: {
+       operation.prompt,
+       operation.raw,
+     )
++    if (!current()) throw new DOMException("", "AbortError")
+ 
+     // Admit before cancelling so a failed replacement never discards the original. A queued edit rebuilds its position
+     // in one rewrite, which leaves the queue unchanged if any admission fails.
+@@ -297,6 +389,7 @@ export function createSessionQueue(input: {
+     signal.throwIfAborted()
+     // Like a queued edit, an original the server delivered meanwhile keeps the edit draft instead of sending twice.
+     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
++    if (!current()) throw new DOMException("", "AbortError")
+ 
+     if (!pending.some((item) => item.id === operation.original && item.type === "user" && item.delivery === "queue"))
+       throw new Error("Queued prompt was delivered before the edit")
+@@ -305,12 +398,21 @@ export function createSessionQueue(input: {
+     // A steered replacement can be delivered before a withdrawal reaches it, so the bound waits for the admission and
+     // the edit returns to the composer only if it really did not go out.
+     progress.stage = "committed"
+-    await data.session.prompt(admission)
++    // The client's native prepare hook re-checks ownership just before the request goes out, so a
++    // lost owner never admits a new remote prompt (issue #188).
++    await data.session.prompt({
++      ...admission,
++      prepare: async () => {
++        if (!current()) throw new DOMException("", "AbortError")
++      },
++    })
++    if (!current()) throw new DOMException("", "AbortError")
+     void background?.move()
+     dispatch({ type: "mutation.admitted", attempt: operation.attempt })
+     // Cancelling is a no-op once the original is gone, so one retry is safe.
+     const cancel = () => server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: operation.original })
+     await cancel().catch(cancel)
++    if (!current()) throw new DOMException("", "AbortError")
+   }
+ 
+   // `replace` substitutes an edited prompt for the original at its position in the same rewrite.
+@@ -326,8 +428,12 @@ export function createSessionQueue(input: {
+     },
+   ) => {
+     const signal = progress.controller.signal
++    const owner = progress.owner
++    // `current` below is the queue's filtered row list, so the ownership predicate is `owned`.
++    const owned = () => owner.current()
+     signal.throwIfAborted()
+     const pending = await server.api.session.inbox.list({ sessionID: input.sessionID })
++    if (!owned()) throw new DOMException("", "AbortError")
+     signal.throwIfAborted()
+ 
+     if (pending.some((item) => item.delivery === "queue" && item.type !== "user"))
+@@ -351,7 +457,10 @@ export function createSessionQueue(input: {
+       Promise.all(
+         replacements.map((inboxID) =>
+           server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID }).then(
+-            () => void progress.hidden.push(inboxID),
++            () => {
++              // The hidden record feeds the machine's failure report, so it is a publication (issue #188).
++              if (owned()) progress.hidden.push(inboxID)
++            },
+             () => undefined,
+           ),
+         ),
+@@ -395,14 +504,27 @@ export function createSessionQueue(input: {
+       const id = admission.id ?? SessionMessage.ID.create()
+ 
+       await stopped()
++      if (!owned()) throw new DOMException("", "AbortError")
+       replacements.push(id)
+-      await data.session.prompt({ ...admission, id }).catch(async (error) => {
+-        await withdraw()
+-        throw error
+-      })
++      // The native prepare hook re-checks ownership just before each re-admission goes out (issue #188).
++      await data
++        .session.prompt({
++          ...admission,
++          id,
++          prepare: async () => {
++            if (!owned()) throw new DOMException("", "AbortError")
++          },
++        })
++        .catch(async (error) => {
++          if (!owned()) throw error
++          await withdraw()
++          throw error
++        })
++      if (!owned()) throw new DOMException("", "AbortError")
+     }
+ 
+     await stopped()
++    if (!owned()) throw new DOMException("", "AbortError")
+     // Every copy is in, so the originals must go, however long that takes, or the queue holds both.
+     progress.stage = "committed"
+ 
+@@ -414,6 +536,7 @@ export function createSessionQueue(input: {
+ 
+     for (const item of replace ? replaced.reverse() : replaced) {
+       await server.api.session.inbox.cancel({ sessionID: input.sessionID, inboxID: item.id })
++      if (!owned()) throw new DOMException("", "AbortError")
+       progress.hidden.push(item.id)
+     }
+   }
+@@ -482,7 +605,14 @@ export function createSessionQueue(input: {
+ export type SessionQueue = ReturnType<typeof createSessionQueue>
+ 
+ // What a running operation has done so far: the IDs it withdrew or cancelled, and how far it got.
+-type MutationProgress = { controller: AbortController; hidden: string[]; stage: QueueMutationStage }
++// mobile(M-016, issue #188): the owner captured at mutation.run binds every publication to the
++// composer, connection and media lease the attempt started on.
++type MutationProgress = {
++  controller: AbortController
++  hidden: string[]
++  stage: QueueMutationStage
++  owner: QueueOwner
++}
+ 
+ // The slice of the queue the panel renders and drives. Without `moved`, a replaced row closes and its replacement opens.
+ export type SessionQueueView = Pick<
+@@ -494,18 +624,50 @@ export type SessionQueueView = Pick<
+ // Pin `media:<hash>` attachments before cancelling: the cancel releases the item's blob refs and sweeps blobs
+ // nothing else references, so a pin that fails leaves the item queued.
+ // An undo stopped while its media loads leaves the item queued.
++// mobile(M-016, issue #188): `sourceServerKey` backfills refs that predate per-part provenance —
++// the queued items came from this queue's own server, so the attribution is the captured source,
++// not a cross-server fallback.
+ export async function undoQueuedPrompt<A>(input: {
+   prompt: Prompt
++  sourceServerKey?: string
+   signal?: AbortSignal
+   cancelInboxItem: () => Promise<A>
+ }): Promise<Prompt> {
+-  const pinned = await pinPromptMedia(input.prompt)
+-  input.signal?.throwIfAborted()
++  const signal = input.signal
++  const prompt = input.sourceServerKey
++    ? input.prompt.map((part) => {
++        if (part.type === "image" && !part.blob.sourceServerKey)
++          return { ...part, blob: { ...part.blob, sourceServerKey: input.sourceServerKey } }
++        if (part.type === "file" && !part.sourceServerKey) return { ...part, sourceServerKey: input.sourceServerKey }
++
++        return part
++      })
++    : input.prompt
++  let pinned: Prompt
++  try {
++    pinned = await pinPromptMedia(prompt, signal && (() => !signal.aborted))
++  } catch (error) {
++    // A stop that lands mid-load reads as the signal's abort, not a missing attachment: the caller
++    // stopped the undo, so the item stays queued exactly as an explicit abort does.
++    if (signal?.aborted) throw new DOMException("", "AbortError")
++    throw error
++  }
++  signal?.throwIfAborted()
+   await input.cancelInboxItem()
+ 
+   return pinned
+ }
+ 
++// mobile(M-016, issue #188): the machine's `queuedPromptAttachments` is source-neutral (the machine
++// keeps its upstream shape), so the queue attributes each image ref with the server the queue is
++// bound to before a pin loads the bytes. Data URLs are unaffected: `createLegacyBlobReference`
++// keeps them byte-exact.
++function sourcedAttachments(attachments: readonly (ImageAttachmentPart | PathAttachmentPart)[], sourceServerKey: string) {
++  return attachments.map((part) =>
++    part.type === "image" && !part.blob.sourceServerKey ? { ...part, blob: { ...part.blob, sourceServerKey } } : part,
++  )
++}
++
+ // A stored file re-admits by the URI it came from, as the TUI does, so a file:// reference keeps its
+ // provenance (review comment files stay recognizable) instead of turning into an inline snapshot.
+ function storedFileUri(file: PromptAttachment) {
+diff --git a/packages/app/src/session/composer/region.tsx b/packages/app/src/session/composer/region.tsx
+index d1432a6..1e93893 100644
+--- a/packages/app/src/session/composer/region.tsx
++++ b/packages/app/src/session/composer/region.tsx
+@@ -1,6 +1,9 @@
+ import type { SessionUserActions } from "@opencode/session-ui/message"
+ import type { ShellOutputInput } from "@opencode/client/promise"
+ import { getFilename, sameDirectory } from "@opencode/util/path"
++// mobile(M-021): the timeline attachment share face reads the files bridge through the
++// module-level seam (the M-012 vendor-import precedent; Platform types are untouched).
++import { activeFilesPort } from "@opencode-mobile/mobile-hosts"
+ import { useDialog } from "@opencode/ui/context/dialog"
+ import { isScrollKeyTarget, scrollKey, scrollKeyOwner } from "@opencode/ui/scroll-view"
+ import { makeEventListener } from "@solid-primitives/event-listener"
+@@ -132,6 +135,29 @@ export function createActiveSessionRegion(input: {
+       })
+     }
+ 
++    // mobile(M-021): the data: branch is the only branch where the DEVICE holds the bytes
++    // (the base64 rides the message part), so it is the only branch wired to the bridge
++    // share. The passed name is the SAME source as the anchor.download in download above
++    // (getFilename(file.name) || "attachment") and is sanitized again inside the first-party
++    // client. Success resolves true (done); cancel (false), a throw, or a bridge-less
++    // environment all fall back to the upstream anchor.download verbatim — behavior is
++    // never worse than upstream. The file:// branch below is REMOTELY-held identity: its
++    // bytes never entered the device, so no device-side share/path resolution is attempted
++    // for it (docs/design/units/attachments-artifacts.md identity separation).
++    const url = inlineUrl ?? ""
++    if (url.startsWith("data:")) {
++      const share = activeFilesPort()
++      ;(share as unknown as { marker?: string }).marker =
++        "mobile(M-021): timeline attachment share over the files bridge (issue #16)"
++      void share
++        .shareDataUrl(url, getFilename(file.name) || "attachment", file.mime)
++        .then((shared) => {
++          if (shared) return
++          download()
++        }, download)
++      return
++    }
++
+     const path = file.name ?? ""
+     const absolute = path.startsWith("/") || path.startsWith("\\\\") || /^[a-zA-Z]:[\\/]/.test(path)
+ 
+diff --git a/packages/app/src/session/fork.ts b/packages/app/src/session/fork.ts
+index 154d569..2f504c5 100644
+--- a/packages/app/src/session/fork.ts
++++ b/packages/app/src/session/fork.ts
+@@ -121,6 +121,9 @@ export function createSessionForkController(options: SessionForkControllerOption
+       draft: {
+         prompt: extractPromptFromMessage(message, {
+           directory,
++          // mobile(M-016, issue #188): the forked prompt's media refs resolve (and pin) against the
++          // server the message came from, now that loaders fail closed without a source.
++          sourceServerKey: server.key,
+           attachmentName: language.t("common.attachment"),
+           sessionTitle: (id) => data.session.get(id)?.title,
+         }),
+diff --git a/packages/app/src/session/revert.ts b/packages/app/src/session/revert.ts
+index b943008..cc1947f 100644
+--- a/packages/app/src/session/revert.ts
++++ b/packages/app/src/session/revert.ts
+@@ -11,6 +11,7 @@ import { extractPromptContext, extractPromptFromMessage } from "@/composer/promp
+ import { pinPromptMedia } from "@/composer/media"
+ import { clonePrompt, promptLength } from "@/composer/prompt-parts"
+ import { showToast } from "@/shell/notifications/toast"
++import { ServerConnection } from "@/runtime/server/registry"
+ import type { SessionModel } from "./model"
+ import {
+   createSessionRevertState,
+@@ -73,6 +74,9 @@ export function createSessionRevert(input: {
+   const messageDraft = (message: SessionMessageUser, directory: string) =>
+     extractPromptFromMessage(message, {
+       directory,
++      // mobile(M-016, issue #188): the restored prompt's media refs resolve (and pin) against the
++      // server this Session lives on, now that loaders fail closed without a source.
++      sourceServerKey: ServerConnection.key(server.server),
+       attachmentName: language.t("common.attachment"),
+       sessionTitle: (id) => data.session.get(id)?.title,
+     })

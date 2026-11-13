@@ -315,3 +315,77 @@ describe("buildPromptRequest", () => {
     expect(result.files.map((file) => file.uri)).toEqual([row.uri])
   })
 })
+
+// mobile(M-016, issue #188): the wire floor. A `media:` reference is not attachment bytes —
+// queue/fork/recall must pin it on its captured source before this synchronous boundary — so an
+// unresolved ref is rejected here instead of reaching the server as an unowned reference.
+describe("buildPromptRequest media references", () => {
+  const mediaFilePrompt: Prompt = [
+    { type: "text", content: "see attached", start: 0, end: 11 },
+    {
+      type: "file",
+      path: "shot.png",
+      content: "@shot.png",
+      start: 12,
+      end: 21,
+      url: "media:" + "0".repeat(64),
+      mime: "image/png",
+      filename: "shot.png",
+    },
+  ]
+
+  test("rejects a file part whose url is an unresolved media ref", () => {
+    expect(() =>
+      buildPromptRequest({
+        prompt: mediaFilePrompt,
+        context: [],
+        images: [],
+        text: "see attached @shot.png",
+        sessionDirectory: "/repo",
+      }),
+    ).toThrow()
+  })
+
+  test("a pending media image rides the fingerprint mirror; the images floor is blobDataUrl's fail-closed refusal", () => {
+    // mobile(M-016, issue #188, recorded deviation): the guard covers file parts (their url
+    // reaches the wire verbatim). An image's wire dataUrl is always produced through
+    // `blobDataUrl`, which refuses an unresolved reference before any request is built — so the
+    // real send can never present a `media:` dataUrl. `retryFingerprint` legitimately mirrors a
+    // pending payload ("what would go out right now"), so buildPromptRequest admits that shape.
+    const result = buildPromptRequest({
+      prompt: [{ type: "text", content: "hi", start: 0, end: 2 }],
+      context: [],
+      images: [
+        { type: "image", id: "img", filename: "shot.png", mime: "image/png", dataUrl: "media:" + "1".repeat(64) },
+      ],
+      text: "hi",
+      sessionDirectory: "/repo",
+    })
+
+    expect(result.files.map((file) => file.uri)).toEqual(["media:" + "1".repeat(64)])
+  })
+
+  test("still admits a prompt whose media ref was pinned to stored bytes before the boundary", () => {
+    const result = buildPromptRequest({
+      prompt: [
+        { type: "text", content: "see attached", start: 0, end: 11 },
+        {
+          type: "file",
+          path: "notes.md",
+          content: "@notes.md",
+          start: 12,
+          end: 21,
+          mime: "text/plain",
+          filename: "notes.md",
+        },
+      ],
+      context: [],
+      images: [{ type: "image", id: "img", filename: "shot.png", mime: "image/png", dataUrl: "data:image/png;base64,AAA" }],
+      text: "see attached @notes.md",
+      sessionDirectory: "/repo",
+    })
+
+    expect(result.text).toContain("see attached")
+    expect(result.files.map((file) => file.uri)).toContain("data:image/png;base64,AAA")
+  })
+})

@@ -121,6 +121,9 @@ export function createSessionForkController(options: SessionForkControllerOption
       draft: {
         prompt: extractPromptFromMessage(message, {
           directory,
+          // mobile(M-016, issue #188): the forked prompt's media refs resolve (and pin) against the
+          // server the message came from, now that loaders fail closed without a source.
+          sourceServerKey: server.key,
           attachmentName: language.t("common.attachment"),
           sessionTitle: (id) => data.session.get(id)?.title,
         }),

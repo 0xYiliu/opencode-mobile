@@ -16,7 +16,9 @@ import {
 
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-known-value-widening -- the store walks opaque persisted JSON in every shape earlier releases wrote, and IndexedDB hands back untyped values */
 
-export type BlobReference = { id: string; url: string }
+// mobile(M-016, issue #188): a media reference carries the key of the server it was captured on.
+// Bytes are only ever loaded from that server — never probed across every registered connection.
+export type BlobReference = { id: string; url: string; sourceServerKey?: string }
 
 type Driver = {
   get(key: string): Promise<string | null>
@@ -58,7 +60,7 @@ const storeLoaders = new Map<number, (id: string) => Promise<string | undefined>
 
 type MediaBlobLoader = (uri: string) => Promise<string | undefined>
 
-const mediaLoaders = new Map<string, MediaBlobLoader>()
+const mediaLoaders = new Map<string, { load: MediaBlobLoader }>()
 
 function dispatch(event: DraftRetentionEvent) {
   const result = transitionDraftRetention(retention, event)
@@ -81,35 +83,57 @@ function dispatch(event: DraftRetentionEvent) {
   })
 }
 
+// mobile(M-016, issue #188): the unregister closure lets a same-key replacement retire only its
+// own registration, so a late cleanup can never drop a successor's loader.
 export function setMediaBlobLoader(key: string, next: MediaBlobLoader | undefined) {
-  mediaLoaders.delete(key)
+  if (!next) {
+    mediaLoaders.delete(key)
 
-  if (next) mediaLoaders.set(key, next)
+    return () => {}
+  }
+  const registration = { load: next }
+  mediaLoaders.set(key, registration)
+
+  return () => {
+    if (mediaLoaders.get(key) === registration) mediaLoaders.delete(key)
+  }
 }
 
+/**
+ * Runtime-only source lease (issue #188): captures the loader registration a media reference's
+ * server serves through right now. A same-key replacement invalidates the old completions and
+ * cleanup, so an operation started on one connection generation cannot publish into the next.
+ */
+export function captureMediaSource(sourceServerKey: string | undefined) {
+  const registration = sourceServerKey ? mediaLoaders.get(sourceServerKey) : undefined
+
+  return () => !!sourceServerKey && !!registration && mediaLoaders.get(sourceServerKey) === registration
+}
+
+// Aliases are scoped by the capturing server (issue #188): equal hashes from two servers never
+// share bytes, and a ref without a captured source never resolves against another server.
+function referenceID(blob: { id: string; sourceServerKey?: unknown }) {
+  return mediaHashFromUri(blob.id)
+    ? `${typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : ""}\0${blob.id}`
+    : blob.id
+}
+
+// mobile(M-016, issue #188): fail-closed keying — no source key, no load. The old cross-server
+// fallback probed every registered connection for any `media:` ref; that let one server resolve
+// (and hand its bytes to) a reference another client captured on a different server.
 async function loadMediaBlobUrl(uri: string, serverKey?: string) {
-  if (serverKey) {
-    const keyed = mediaLoaders.get(serverKey)
+  if (!serverKey) return undefined
+  const registration = mediaLoaders.get(serverKey)
+  if (!registration) return undefined
+  const url = await registration.load(uri).catch(() => undefined)
+  if (mediaLoaders.get(serverKey) !== registration) return undefined
 
-    if (keyed) {
-      const url = await keyed(uri).catch(() => undefined)
-
-      if (url) return url
-    }
-  }
-
-  for (const [key, candidate] of [...mediaLoaders.entries()].reverse()) {
-    if (key === serverKey) continue
-    const url = await candidate(uri).catch(() => undefined)
-
-    if (url) return url
-  }
-
-  return undefined
+  return url?.startsWith("blob:") || url?.startsWith("data:") ? url : undefined
 }
 
-// The bytes behind a `media:<hash>` ref, through the authenticated media loader; `media:` is not
-// fetchable itself. Undefined once no server can serve it (swept, offline, or the flag is off).
+// The bytes behind a `media:<hash>` ref, through the authenticated media loader of the server the
+// reference was captured on; `media:` is not fetchable itself, and no other server is ever asked
+// (issue #188). Undefined once that server cannot serve it (swept, offline, or the flag is off).
 async function loadMediaBlob(uri: string, serverKey?: string) {
   const url = await loadMediaBlobUrl(uri, serverKey).catch(() => undefined)
 
@@ -122,13 +146,13 @@ async function loadMediaBlob(uri: string, serverKey?: string) {
 }
 
 /** The object URL for an image reference, loading its bytes from the draft store on first use. */
-export function resolveBlobUrl(blob: { id: string; url?: string; server?: string }) {
+export function resolveBlobUrl(blob: { id: string; url?: string; sourceServerKey?: string }) {
   if (blob.url && !mediaHashFromUri(blob.url)) return Promise.resolve(blob.url)
-  const existing = selectRetainedBlob(retention, blob.id)
+  const existing = selectRetainedBlob(retention, referenceID(blob))
 
   if (existing) return Promise.resolve(existing.url)
 
-  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.server)
+  if (mediaHashFromUri(blob.id)) return loadMediaBlobUrl(blob.id, blob.sourceServerKey)
 
   if (blob.url) return Promise.resolve(blob.url)
 
@@ -166,7 +190,10 @@ function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
   if (blob && typeof blob === "object" && !("kind" in blob)) {
     const id = (blob as Record<string, unknown>).id
 
-    if (typeof id === "string") into.add(id)
+    // A `media:<hash>` ref the draft store has not captured yet (issue #188: unresolved refs keep
+    // their `{ mediaURI, sourceServerKey }` form) is not a local chunk; keeping it out of these
+    // sets leaves the local-chunk GC to the ids a document actually stores bytes under.
+    if (typeof id === "string" && !mediaHashFromUri(id)) into.add(id)
 
     return into
   }
@@ -328,32 +355,40 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
       if (
         typeof blob.id === "string" &&
         mediaHashFromUri(blob.id) &&
-        !(retention.aliases.has(blob.id) && selectRetainedBlob(retention, blob.id))
+        !(
+          retention.aliases.has(referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey })) &&
+          selectRetainedBlob(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
+        )
       ) {
-        const data = await loadMediaBlob(blob.id, typeof blob.server === "string" ? blob.server : undefined)
+        const sourceServerKey = typeof blob.sourceServerKey === "string" ? blob.sourceServerKey : undefined
+        const current = captureMediaSource(sourceServerKey)
+        const data = await loadMediaBlob(blob.id, sourceServerKey)
 
-        // Nothing serves the bytes anymore; the reference is dropped on read like any blob with no bytes.
-        if (!data) return { ...item, blob: { id: blob.id } }
+        // mobile(M-016, issue #188): an unresolved remote reference is not a missing local blob.
+        // Preserve it in the document without claiming local ownership, so strict writes can still
+        // save the rest of the draft; the ref keeps its captured source for a later attempt.
+        if (!data || !current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
         const id = await driver.putBlob(data)
+        if (!current()) return { ...item, blob: { mediaURI: blob.id, sourceServerKey } }
         pin(id)
         blobUrl(id, data, grace)
-        dispatch({ type: "alias.recorded", from: blob.id, to: id })
+        dispatch({ type: "alias.recorded", from: referenceID({ id: blob.id, sourceServerKey }), to: id })
         sources.set(id, { blob: async () => data })
 
-        return { ...item, blob: { id } }
+        return { ...item, blob: { id, sourceServerKey } }
       }
 
       if (typeof blob.id === "string") {
         // A live reference keeps the id it was created with; publish the id its bytes now live under.
-        const id = resolveBlobAlias(retention, blob.id)
-        const retained = selectRetainedBlob(retention, id)
+        const id = resolveBlobAlias(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
+        const retained = selectRetainedBlob(retention, referenceID({ id: blob.id, sourceServerKey: blob.sourceServerKey }))
         const kept = retained?.blob
         const url = typeof blob.url === "string" && !mediaHashFromUri(blob.url) ? blob.url : retained?.url
 
         if (kept) sources.set(id, { blob: async () => kept })
         else if (url) sources.set(id, { blob: () => fetch(url).then((response) => response.blob()) })
 
-        return { ...item, blob: { id } }
+        return { ...item, blob: { id, sourceServerKey: blob.sourceServerKey } }
       }
 
       return { ...item, blob: { id: blob.id } }
@@ -373,6 +408,11 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
     if (item.blob && typeof item.blob === "object") {
       const ref = item.blob as Record<string, unknown>
 
+      // mobile(M-016, issue #188): an unresolved remote reference returns live as the `media:` ref
+      // it was saved from, keeping the source it was captured on (see resolveBlobUrl).
+      if (typeof ref.mediaURI === "string" && mediaHashFromUri(ref.mediaURI))
+        return { ...item, blob: { id: ref.mediaURI, url: "", sourceServerKey: ref.sourceServerKey } }
+
       if (ref.kind === "text" && Array.isArray(ref.ids)) {
         return (await Promise.all(ref.ids.map((id) => loadChunk(String(id))))).join("")
       }
@@ -380,9 +420,15 @@ export function createDraftStore(driver: Driver, options: { grace?: number } = {
       // Bytes stay in the store until something renders or sends the image (see resolveBlobUrl);
       // only an image already pinned in this page gets its URL back immediately.
       if (typeof ref.id === "string") {
-        const url = selectRetainedBlob(retention, ref.id)?.url
+        const url = selectRetainedBlob(
+          retention,
+          referenceID({ id: ref.id, sourceServerKey: ref.sourceServerKey }),
+        )?.url
 
-        return { ...item, blob: url ? { id: ref.id, url } : { id: ref.id } }
+        return {
+          ...item,
+          blob: url ? { id: ref.id, url, sourceServerKey: ref.sourceServerKey } : { id: ref.id, sourceServerKey: ref.sourceServerKey },
+        }
       }
     }
 
@@ -643,15 +689,16 @@ function referenced(json: string) {
 }
 
 // Submits always carry the bytes, so a send never depends on a server blob that may have been swept.
-// A `media:` ref goes out only when no bytes are reachable here; the server still resolves it if it can.
+// A reference whose bytes are unreachable here fails closed (issue #188): the wire boundary turns
+// the throw into a stopped send instead of letting an unowned `media:` ref reach the server.
 export async function blobDataUrl(blob: BlobReference, mime: string) {
-  const kept = selectRetainedBlob(retention, blob.id)
+  const current = mediaHashFromUri(blob.id) ? captureMediaSource(blob.sourceServerKey) : undefined
+  const kept = selectRetainedBlob(retention, referenceID(blob))
   const url = kept ? undefined : await resolveBlobUrl(blob)
-
-  if (!kept && !url && mediaHashFromUri(blob.id)) return blob.id
 
   if (!kept && !url) throw new Error(`Attachment ${blob.id} has no stored bytes`)
   const data = kept ? kept.blob : await fetch(url!).then((response) => response.blob())
+  if (!kept && current && !current()) throw new Error(`Attachment ${blob.id} has no stored bytes`)
 
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -665,23 +712,31 @@ export async function blobDataUrl(blob: BlobReference, mime: string) {
 }
 
 /**
- * A local copy of the bytes behind a `media:<hash>` reference, loaded through the media loader, for a draft about to
- * outlive the server's copy: cancelling an inbox item sweeps blobs nothing else references. Other references return
- * unchanged; a ref nothing serves anymore throws, so the caller can stop before dropping the last server copy.
+ * A local copy of the bytes behind a `media:<hash>` reference, loaded through the media loader of
+ * the server the reference carries (issue #188), for a draft about to outlive the server's copy:
+ * cancelling an inbox item sweeps blobs nothing else references. Other references return
+ * unchanged; a ref its own server cannot serve anymore throws, so the caller can stop before
+ * dropping the last server copy. `operationCurrent` lets a long load be abandoned: an owner that
+ * lost its lease mid-load stops without publishing.
  */
-export async function pinMediaBlob(blob: BlobReference): Promise<BlobReference> {
+export async function pinMediaBlob(blob: BlobReference, operationCurrent: () => boolean = () => true): Promise<BlobReference> {
+  if (!operationCurrent()) throw new DOMException("", "AbortError")
   const ref = [blob.id, blob.url].find((uri) => mediaHashFromUri(uri))
 
   if (!ref) return blob
-  const data = await loadMediaBlob(ref)
+  const current = captureMediaSource(blob.sourceServerKey)
+  const data = await loadMediaBlob(ref, blob.sourceServerKey)
 
-  if (!data) throw new Error(`Attachment ${ref} is no longer available`)
+  if (!data || !current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
+  const local = await createBlobReference(data)
+  if (!current() || !operationCurrent()) throw new Error(`Attachment ${ref} is no longer available`)
+  dispatch({ type: "alias.recorded", from: referenceID({ ...blob, id: ref }), to: local.id })
 
-  return createBlobReference(data)
+  return { ...local, sourceServerKey: blob.sourceServerKey }
 }
 
 // A `media:<hash>` ref is no URL a renderer can load, so it keeps the empty URL a draft-store id has and resolves
 // through `resolveBlobUrl`; drafts saved this way stay readable by versions that predate media refs.
-export function createLegacyBlobReference(dataUrl: string): BlobReference {
-  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl }
+export function createLegacyBlobReference(dataUrl: string, sourceServerKey?: string): BlobReference {
+  return { id: dataUrl, url: mediaHashFromUri(dataUrl) ? "" : dataUrl, sourceServerKey }
 }

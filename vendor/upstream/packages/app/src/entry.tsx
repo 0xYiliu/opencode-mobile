@@ -14,6 +14,7 @@ import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import pkg from "../package.json"
 import {
+  createFilesClient,
   createMobileHosts,
   createProbeClient,
   createSshHostKeyVerifier,
@@ -22,10 +23,12 @@ import {
   createVaultClient,
   createVaultResolver,
   createAndroidXVaultTransport,
+  createWebMessageFilesTransport,
   createWebMessageProbeTransport,
   createWebMessageSshTransport,
   createBackHandlerBinding,
   setActiveBackHandlerPort,
+  setActiveFilesPort,
 } from "@opencode-mobile/mobile-hosts"
 import { consumeBackChain } from "@/shell/back-chain"
 
@@ -163,6 +166,26 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     // origin by platform construction). The port is captured into the transport closure and
     // acked immediately; before that ack every ssh attempt fails explicitly
     // (bridge-unavailable) — no tunnel can exist unverified.
+    // mobile(M-020): the files bridge (issue #16) — the FIFTH protocol-isolated sibling of
+    // the vault/probe/ssh bridges on the same window message events. Its handshake
+    // string ("opencode-mobile-files-handshake") is captured only by this transport
+    // (strict data equality + exactly one port), so none of the bridges can capture
+    // another's handshake; event.origin is never consulted (embedder-posted messages
+    // carry an empty origin by platform construction). The port is captured into the
+    // transport closure and acked immediately; before that ack the platform file
+    // capabilities stay fail-closed stubs (clipboardImage null / saveFile false /
+    // shareDataUrl false). Registration goes through the module-level files seam
+    // (setActiveFilesPort) so the runtime bootstrap contract stays unchanged.
+    setActiveFilesPort(
+      createFilesClient(
+        createWebMessageFilesTransport({
+          subscribe: (handler) => {
+            window.addEventListener("message", handler as EventListener)
+            return () => window.removeEventListener("message", handler as EventListener)
+          },
+        }),
+      ),
+    )
     const hosts = createMobileHosts({
       storage: window.localStorage,
       fetch: globalThis.fetch.bind(globalThis),

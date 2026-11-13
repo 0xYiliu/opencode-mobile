@@ -1,5 +1,6 @@
 import { encodeFilePath, getFilename } from "@opencode/util/path"
 import { parseSessionMention } from "@opencode/util/session-mention"
+import { ClientError } from "@opencode/client/promise"
 import { serializePrompt } from "./prompt-parts"
 import type { FileSelection } from "@/workspaces/files/model"
 import type {
@@ -124,6 +125,21 @@ export function quoteComment(item: QuoteContextItem) {
 }
 
 export function buildPromptRequest(input: BuildPromptRequestInput): PromptRequest {
+  // mobile(M-016, issue #188): a remote reference is not attachment bytes. Queue/fork/recall must
+  // pin it on its captured source before this synchronous wire boundary; unresolved old history
+  // stays editable. This is the last line of defense for references that never regained a source
+  // (the shared session-prompt containers are deliberately not attributed at decode).
+  //
+  // Scope note (recorded deviation): the guard covers file parts, whose `url` reaches the wire
+  // verbatim. Images are NOT re-checked here: both real producers of `input.images` derive their
+  // `dataUrl` through `blobDataUrl`, which now fails closed on an unresolved reference before any
+  // request is built — the images floor lives there, in the other half of the fail-closed pair.
+  // The one caller that can still present a `media:` dataUrl is `retryFingerprint`, whose
+  // fingerprint legitimately mirrors a pending payload ("what would go out right now", v2.2.7
+  // submit restore); rejecting it would break the failed-submit restore, so the byte-boundary
+  // floor is the enforcement point for images.
+  if (input.prompt.some((part) => part.type === "file" && part.url?.startsWith("media:")))
+    throw new ClientError("MalformedResponse")
   const prompt = serializePrompt(input.prompt)
 
   const text = input.prompt.some((part) => part.type === "session")
