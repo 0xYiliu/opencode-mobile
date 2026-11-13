@@ -114,17 +114,17 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
 | Gate | 集合（cwd） | 基线（pristine，协调者在册） | 本轮 post-change | 归因 |
 | --- | --- | --- | --- | --- |
 | A | session-ui 9 文件（rows-current/projection/steer-arrival-machine/turn-phase-machine/user-runs/action-machine/compaction-entrance-machine/paced-text-machine/markdown-fragment-links；plain `bun test`） | **139 pass / 0 fail / 436 expect / 9 files** | **139 pass / 0 fail / 436 expect / 9 files** | 基线持平，零新失败 |
-| B | app 14 文件（精确命令见下；plain 与 `--conditions=browser --isolate` 两形同数） | **180 pass / 0 fail / 702 expect / 14 files** | **182 pass / 0 fail / 704 expect / 14 files** | 差额恰 +2 = 新增 isRTL throwing-WebView/RTL-support 两测试（`panel-motion.test.ts` 4→6），零失败；**清单口径见下方注** |
+| B | app 14 文件（canonical plan §4 B 命令，精确见下；plain 与 `--conditions=browser --isolate` 两形同数） | **180 pass / 0 fail / 702 expect / 14 files** | **182 pass / 0 fail / 704 expect / 14 files** | 差额恰 +2 = 新增 isRTL throwing-WebView/RTL-support 两测试（`panel-motion.test.ts` 4→6），零失败 |
 | C | `bun test --conditions=browser packages/mobile-hosts` | **446 pass / 0 fail / 3034 expect / 40 files** | **446 pass / 0 fail / 3034 expect / 40 files** | 基线持平，零新失败 |
 
 Gate B 精确命令（`vendor/upstream/packages/app`）：
 
 ```bash
-bun test src/composer/client-slash-command.test.ts src/composer/comment-focus-machine.test.ts src/composer/model-chip-machine.test.ts src/composer/model-label.test.ts src/composer/request.test.ts src/session/timeline/cold-mount.test.ts src/session/timeline/controller-projection.test.ts src/session/timeline/cursor-machine.test.ts src/session/timeline/history-machine.test.ts src/session/timeline/quote-machine.test.ts src/session/timeline/search-machine.test.ts src/session/timeline/turn-diffs.test.ts src/shell/commands/search-machine.test.ts src/shell/panel-motion.test.ts
-# 复核形：bun test --conditions=browser --isolate <同上 14 文件>
+bun test --conditions=browser --isolate src/session/timeline/cache-machine.test.ts src/session/timeline/cursor-machine.test.ts src/session/timeline/history-machine.test.ts src/session/timeline/reconnect-machine.test.ts src/session/timeline/search-machine.test.ts src/session/timeline/quote-machine.test.ts src/session/timeline/machine.test.ts src/session/timeline/cold-mount.test.ts src/session/timeline/controller-projection.test.ts src/session/timeline/model.test.ts src/session/timeline/turn-diffs.test.ts src/session/viewed-machine.test.ts src/session/message-id-from-hash.test.ts src/shell/panel-motion.test.ts
+# plain 复核形（两形同数）：bun test src/session/timeline/cache-machine.test.ts src/session/timeline/cursor-machine.test.ts src/session/timeline/history-machine.test.ts src/session/timeline/reconnect-machine.test.ts src/session/timeline/search-machine.test.ts src/session/timeline/quote-machine.test.ts src/session/timeline/machine.test.ts src/session/timeline/cold-mount.test.ts src/session/timeline/controller-projection.test.ts src/session/timeline/model.test.ts src/session/timeline/turn-diffs.test.ts src/session/viewed-machine.test.ts src/session/message-id-from-hash.test.ts src/shell/panel-motion.test.ts
 ```
 
-**Gate B 清单口径（诚实登记）**：实施简报引用「计划 §4 B 的逐字 14-file 命令」但未携带该清单；向协调者请求原始清单的答复在本轮收尾前未到。当轮按以下约束重建并执行：①与在册基线算术精确吻合（180 pass / 702 expect / 14 files，`panel-motion.test.ts` 以基线 4/12 计）；②必含 `panel-motion.test.ts`（+2 的唯一来源）；③覆盖计划点名存在的 `controller-projection.test.ts` 与 `turn-diffs.test.ts`；④全部文件落在 #187 审计路径族（session/timeline ×7、composer ×5、shell/commands ×1、shell/panel-motion ×1）。该清单与原始清单若不一致，仅影响 gate B 的复跑文件集，不影响任何代码/补丁/registry 事实；替换只需重跑本 gate。
+清单 = `session/timeline/{cache-machine,cursor-machine,history-machine,reconnect-machine,search-machine,quote-machine,machine,cold-mount,controller-projection,model,turn-diffs}.test.ts` + `session/{viewed-machine,message-id-from-hash}.test.ts` + `shell/panel-motion.test.ts`——canonical plan §4 B 集合（协调者提供，实施收尾轮对最终 HEAD 复跑 182/0/704 两形）。
 
 **build / APK**：
 
