@@ -131,7 +131,7 @@ bun test --conditions=browser --isolate src/session/timeline/cache-machine.test.
 - `bun run build:web`：**PASS**（rc=0，14.52s；existing chunk/dynamic-import warnings only）。
 - `bash scripts/copy-web-dist.sh`：**PASS**（**5520 files / 155,503,085 bytes** verified；文件数与上一代 5520 相同）。
 - `python3 scripts/android_web_assets.py verify`：**PASS**。
-- `web-dist/manifest.json`：已变更并提交（117 个 chunk 改名 + 27 个同名哈希刷新——含 141 个 `.map` sourcemap 与 `index.html`/`sw.js` 及面板族 chunk 的 panel-motion guard 内容级联；`isRTL` guard 产物实证：`dist/_assets/host-apis-*.js` 含 `try{return e.matches(':dir(rtl)')}catch{return!1}`，其 `.map` 携带 `timeline-messaging-v2-2-7` marker）。
+- `web-dist/manifest.json`：已变更并提交（117 个 chunk 改名 + 27 个同名哈希刷新——含 83 个 `.map` + 59 个 `.js`（另 `index.html`/`sw.js`）及面板族 chunk 的 panel-motion guard 内容级联；`isRTL` guard 产物实证：`dist/_assets/host-apis-*.js` 含 `try{return e.matches(':dir(rtl)')}catch{return!1}`，其 `.map` 携带 `timeline-messaging-v2-2-7` marker）。
 - `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**BUILD SUCCESSFUL**（36s，42 tasks）；JVM 单测 **47 tests / 0 failures / 0 skipped**（10 XML）；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 **`b5332707401a5da2584e753edf4559bf3fc98a2ec74b78e3cdd8dd7fd2d187dd`**（**66,052,781 bytes**）。**未安装**。
 
 **E2E / runtime boundaries**：Playwright e2e 为 audit-only（fixed-source spec/fixture byte-identical 登记），本轮未运行，不作为 Android APK 门禁。无 adb 设备、无真实运行会话、无授权远程服务；**WebView 114 真机 `:dir()` 崩溃场景回归、面板开合 RTL/RTL-less 实机走查、长历史会话 UX、menu 触摸、锚点跳转均 NOT RUN**（解除条件=授权设备/一次性长历史测试会话）。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
