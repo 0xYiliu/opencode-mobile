@@ -6,10 +6,12 @@
 
 | Desktop 基准 | 状态 | Mobile 参照 | 盘点/对齐程度 | 矩阵 |
 | --- | --- | --- | --- | --- |
-| v2.2.7 | **活跃目标，#185 worktree 未提交** | 当前 worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`，分支 `feat/185-home-new-session`，base `7a8ea8d`；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry 81 registered / 3 active / 19 absorbed / 59 deferred | Desktop/closure 审计、vendor 重建、补丁登记、版本身份、#184 focused tests 与 #185 Home focused/build-only tests 已有静态证据；typecheck、adb/device UI、QR、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN；不创建 PR/不合并 | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
+| v2.2.7 | **活跃目标，#186 fix 已提交** | 当前 worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac`，reviewed/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；当前 vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；patch registry **82 registered / 4 active / 19 absorbed / 59 deferred** | Desktop/closure 审计、vendor 重建、补丁登记、版本身份、#186 focused tests/build evidence 已有；typecheck、adb/device UI、QR、hardware back、safe-area、真实服务、JSch 与 Windows runtime 仍 BLOCKED/NOT RUN；提交已存在，尚未推送/PR/合并 | [矩阵](v2.2.7/matrix.md) · [基准](v2.2.7/baseline.md) · [变化总结](v2.2.7/changes.md) · [当前复核](v2.2.7/current-review.md) |
 | v2.2.1 | **冻结历史** | 历史检查与实现证据保留原提交/环境边界 | 不因 v2.2.7 新代码回填历史；原矩阵中的 PASS/BLOCKED/未验证只说明 v2.2.1 轮次 | [历史矩阵](v2.2.1/matrix.md) · [历史基准](v2.2.1/baseline.md) · [历史复核](v2.2.1/current-review.md) |
 
 当前 Android/mobile/About 声明身份为 `2.2.7`（versionCode `20207`），vendor app 为 `2.2.7`；Android asset verify、Gradle unit/APK build 已通过，adb、设备 UI 和覆盖安装尚未运行验证。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。
+
+**#186 provenance binding**：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）。当前最终 HEAD 由后续 provenance-only docs commit 继续可追溯，且不改变实现或 patch scope。
 
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 

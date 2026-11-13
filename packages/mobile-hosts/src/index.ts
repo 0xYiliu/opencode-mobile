@@ -328,8 +328,15 @@ export {
   StubBackHandlerPort,
   activeBackHandlerPort,
   backHandlerInjected,
+  createBackHandlerBinding,
+  isBackRequest,
   setActiveBackHandlerPort,
+  BACK_REQUEST_ID_MAX_BYTES,
+  BACK_REQUEST_TYPE,
+  BACK_REQUEST_VERSION,
   type BackHandlerPort,
+  type BackHandlerBinding,
+  type BackRequest,
 } from "./back-handler"
 // issue #26: GUI extension management — device-local disable records (`guiext.v1`) and the
 // settings manager face. The reactive records instance is created once by the vendored shell

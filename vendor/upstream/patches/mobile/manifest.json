@@ -2168,6 +2168,32 @@
       "rebase": "Generated after the #184 scoped overlay and inherited server-edit patch. No target overlap with either active patch; the allowlisted state-machine files that already match v2.2.7 remain absorbed and are not duplicated here.",
       "sha256": "fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d",
       "status": "active"
+    },
+    {
+      "id": "tabs-inbox-titlebar-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/app.tsx",
+        "packages/app/src/entry.tsx",
+        "packages/app/src/session/screen.tsx",
+        "packages/app/src/shell/back-chain.test.ts",
+        "packages/app/src/shell/back-chain.ts",
+        "packages/app/src/shell/mobile-panel-drawer.tsx",
+        "packages/app/src/shell/titlebar/history.ts",
+        "packages/app/src/shell/titlebar/titlebar.tsx"
+      ],
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "server-edit-touch-compatibility",
+        "home-new-session-v2-2-7"
+      ],
+      "reason": "Issue #186: fixed v2.2.1→v2.2.7 tabs/Inbox/titlebar/route/scroll/shelf/avatar/activity-ring production changes are already byte-identical in the v2.2.7 vendor tree and are recorded as absorbed, not copied into a second overlay. The required mobile delta is the app-side half of the existing Android back contract: a synchronous, ordered UI-layer chain with dialog/popover/panel-drawer/dock/titlebar-more/history ownership, a fixed request binding, and no session interrupt, inbox cancel, PTY removal, or process kill path. `entry.tsx` is a shared target with the #184 overlay; this payload contains only its distinct binding hunk and is generated after all three prior active replays.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Generated from the post-#184/server-edit/#185 v2.2.7 cumulative tree; target paths apply without copying prior hunks; app back-chain tests, mobile-hosts request/lifecycle tests, Android BackDispatchPolicy tests, patch refresh/verify/closure, focused tabs/Inbox/back tests, Web build, and Gradle unit/APK checks are recorded in the v2.2.7 #186 execution card. Device/adb back, safe-area, real running-session, and Android runtime evidence remain separately marked BLOCKED/NOT RUN when unavailable.",
+      "rebase": "#186 replay order is closure → #184 scoped overlay → inherited server-edit → #185 Home overlay → this patch. The production tabs/Inbox/titlebar allowlist is absorbed by the v2.2.7 pin; only the required back bridge is active. The entry.tsx overlap with #184 is an explicit same-file, different-hunk dependency and is not a copy of the #184 bridge hunk.",
+      "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
+      "status": "active"
     }
   ]
 }

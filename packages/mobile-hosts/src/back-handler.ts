@@ -1,4 +1,4 @@
-// Back-handler port (issue #145, plan T12) — the in-app back dispatch face and its
+// Back-handler port (issue #145/#186, plan T12) — the in-app back dispatch face and its
 // fail-closed default. Android's system back (deprecated onBackPressed face — the shell
 // is zero-androidx by registered constraint) asks the WebView whether the in-app back
 // chain consumed the press; `consume() -> true` means a layer (dialog, drawer, panel,
@@ -33,6 +33,91 @@ export interface BackHandlerPort {
    * the press (the activity stays); false when nobody handled it (Android default finish).
    */
   consume(): boolean
+}
+
+/**
+ * The only request shape accepted by the native back bridge. The request intentionally has
+ * no URL, origin, token, or credential fields: the native side already gates the WebView to
+ * the packaged app origin and passes only this opaque nonce to the main frame. The nonce is
+ * schema/duplicate-tracking data, not a security capability; this binding is trusted only
+ * because it is installed in the same-origin packaged app UI.
+ */
+export interface BackRequest {
+  readonly version: 1
+  readonly type: "back"
+  readonly requestId: string
+}
+
+export const BACK_REQUEST_VERSION = 1 as const
+export const BACK_REQUEST_TYPE = "back" as const
+export const BACK_REQUEST_ID_MAX_BYTES = 256
+export const BACK_REQUEST_ID_HISTORY_LIMIT = 64
+
+function isBackRequestId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false
+  return new TextEncoder().encode(value).byteLength <= BACK_REQUEST_ID_MAX_BYTES
+}
+
+/** Validate the fixed, bounded request before it reaches the synchronous chain. */
+export function isBackRequest(value: unknown): value is BackRequest {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+
+  if (keys.length !== 3 || !keys.every((key) => key === "version" || key === "type" || key === "requestId")) {
+    return false
+  }
+
+  if (record.version !== BACK_REQUEST_VERSION || record.type !== BACK_REQUEST_TYPE) return false
+  if (!isBackRequestId(record.requestId)) return false
+
+  return true
+}
+
+export interface BackHandlerBinding {
+  consume(request: unknown): boolean
+  dispose(): void
+}
+
+/**
+ * Build the window-facing binding around the existing port. Requests are synchronous, but
+ * the guard still rejects re-entry, reused recent request IDs, and calls after disposal so a
+ * stale native callback can never consume a later press. The duplicate window is deliberately
+ * bounded: native request IDs are unique per dispatch, while the binding retains only the
+ * most recent finite history.
+ */
+export function createBackHandlerBinding(port: BackHandlerPort): BackHandlerBinding {
+  let disposed = false
+  let pending = false
+  const recentRequestIds = new Set<string>()
+
+  return {
+    consume(request) {
+      if (disposed || pending || !isBackRequest(request)) return false
+      if (recentRequestIds.has(request.requestId)) return false
+
+      recentRequestIds.add(request.requestId)
+      if (recentRequestIds.size > BACK_REQUEST_ID_HISTORY_LIMIT) {
+        const oldest = recentRequestIds.values().next().value
+        if (typeof oldest === "string") recentRequestIds.delete(oldest)
+      }
+      pending = true
+
+      try {
+        return port.consume() === true
+      } catch {
+        return false
+      } finally {
+        pending = false
+      }
+    },
+    dispose() {
+      disposed = true
+      pending = false
+      recentRequestIds.clear()
+    },
+  }
 }
 
 /**

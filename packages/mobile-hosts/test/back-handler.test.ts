@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import {
+  BACK_REQUEST_ID_MAX_BYTES,
+  BACK_REQUEST_ID_HISTORY_LIMIT,
+  BACK_REQUEST_TYPE,
+  BACK_REQUEST_VERSION,
   StubBackHandlerPort,
   activeBackHandlerPort,
   backHandlerInjected,
+  createBackHandlerBinding,
+  isBackRequest,
   setActiveBackHandlerPort,
   type BackHandlerPort,
 } from "../src/back-handler"
@@ -39,5 +45,78 @@ describe("back handler port", () => {
     setActiveBackHandlerPort(undefined)
     expect(backHandlerInjected()).toBe(false)
     expect(activeBackHandlerPort().consume()).toBe(false)
+  })
+
+  test("the window request accepts only the fixed bounded back shape", () => {
+    const request = {
+      version: BACK_REQUEST_VERSION,
+      type: BACK_REQUEST_TYPE,
+      requestId: "opaque-request-1",
+    } as const
+
+    expect(isBackRequest(request)).toBe(true)
+    expect(isBackRequest({ ...request, version: 2 })).toBe(false)
+    expect(isBackRequest({ ...request, type: "forward" })).toBe(false)
+    expect(isBackRequest({ ...request, requestId: "" })).toBe(false)
+    expect(
+      isBackRequest({
+        ...request,
+        requestId: "x".repeat(BACK_REQUEST_ID_MAX_BYTES + 1),
+      }),
+    ).toBe(false)
+    expect(isBackRequest({ ...request, url: "http://user:secret@example.invalid" })).toBe(false)
+  })
+
+  test("the binding rejects duplicates, re-entry, and calls after disposal", () => {
+    const request = { version: 1, type: "back", requestId: "opaque-request-2" } as const
+    let calls = 0
+    let binding: ReturnType<typeof createBackHandlerBinding>
+    const port: BackHandlerPort = {
+      consume: () => {
+        calls += 1
+        expect(binding.consume(request)).toBe(false)
+        return true
+      },
+    }
+
+    binding = createBackHandlerBinding(port)
+    expect(binding.consume(request)).toBe(true)
+    expect(calls).toBe(1)
+    expect(binding.consume(request)).toBe(false)
+
+    binding.dispose()
+    expect(binding.consume({ version: 1, type: "back", requestId: "opaque-request-3" })).toBe(false)
+    expect(calls).toBe(1)
+  })
+
+  test("keeps duplicate protection for the recent bounded request window", () => {
+    let calls = 0
+    const binding = createBackHandlerBinding({
+      consume: () => {
+        calls += 1
+        return true
+      },
+    })
+
+    const ids = Array.from({ length: BACK_REQUEST_ID_HISTORY_LIMIT + 8 }, (_, index) => `window-${index}`)
+    for (const requestId of ids) {
+      expect(binding.consume({ version: 1, type: "back", requestId })).toBe(true)
+    }
+
+    expect(binding.consume({ version: 1, type: "back", requestId: ids[ids.length - 1] })).toBe(false)
+    expect(calls).toBe(ids.length)
+  })
+
+  test("does not treat an arbitrary requestId as a security capability", () => {
+    let calls = 0
+    const binding = createBackHandlerBinding({
+      consume: () => {
+        calls += 1
+        return true
+      },
+    })
+
+    expect(binding.consume({ version: 1, type: "back", requestId: "not-issued-by-native" })).toBe(true)
+    expect(calls).toBe(1)
   })
 })

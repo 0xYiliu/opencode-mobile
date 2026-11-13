@@ -9,7 +9,7 @@ v2.2.1 = 3ebcf9a32c7b28f658cfee80775448929361727a
 v2.2.7 = fedc6f208aa2bd54c1019227214568083f6380ad
 ```
 
-当前 v2.2.7 patch registry：**81 registered / 3 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch 与 #185 `home-new-session-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
+当前 v2.2.7 patch registry：**82 registered / 4 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch、历史 #185 `home-new-session-v2-2-7` patch 与当前 #186 `tabs-inbox-titlebar-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
 
 直接 Desktop 变化：
 
@@ -159,3 +159,67 @@ The real worktree was restored after the scratch trial; no partial v2.2.7 vendor
 - No Windows v2.2.7 runtime or installer was available during this audit.
 - No v2.2.7 vendor migration, Android build, device run or remote-service E2E has been claimed yet.
 - The direct Desktop commit list and fixed-tag git commands are the authoritative inventory; historical v2.2.1 evidence remains in the frozen v2.2.1 directory.
+
+## Issue #186：tabs / Inbox / titlebar crosswalk and allowlist
+
+本节是 #186 的固定上游审计，不改变冻结的 v2.2.1 文档。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`。
+
+### 可复现 fixed-source 命令
+
+```bash
+git -C /home/peterhan/repository/opencode log --format='%H%x09%s' \
+  3ebcf9a32c7b28f658cfee80775448929361727..fedc6f208aa2bd54c1019227214568083f6380ad \
+  -- packages/app/src/shell packages/app/src/runtime/plugin packages/app/src/session packages/ui/src
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727 fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/shell packages/app/src/runtime/plugin packages/app/src/session packages/ui/src \
+  packages/app/e2e/regression/tabs.spec.ts packages/app/e2e/regression/side-panels.spec.ts
+git -C /home/peterhan/repository/opencode show --stat --oneline <commit>
+```
+
+### 行为 crosswalk
+
+| fixed upstream commit | 目标行为 | #186 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `bb85c5414b203850110fa65a9a60c5c1fbea0c42` | New tab 才显示 side launchers；最后一个 side-region tab 关闭 region | **absorbed** | `runtime/plugin/panels.tsx`, `side-region.tsx`, `e2e/regression/side-panels.spec.ts` |
+| `f99bc074456a692e5f7e240f34951056073c213a` | close button 可见、tab menu、close actions 与 touched locale | **absorbed** | `shell/titlebar/tab-nav.tsx`, `tab-strip.tsx`, `titlebar.tsx`, 全部 touched `runtime/i18n/*.ts` |
+| `51625f7709fdddb95ff6abaad0b84e79ab53a3f0` | Inbox 打开 session 后保留 scroll anchor/scrollTop | **absorbed** | `shell/titlebar/inbox.tsx`, `e2e/regression/tabs.spec.ts`, `e2e/utils/mock-api.ts`, `mock-server.ts` |
+| `299975163276e850aca75a2828986bb87df7a71d` | Working shelf 按 run start time 稳定排序（至少两个 run） | **absorbed** | `inbox-working.ts`, `inbox-working.test.ts`, `inbox.tsx` |
+| `2bb49886d70f3da46a5f4e5193a974c56f5b7a53` | project-organized tabs、session preview、project/session row | **absorbed** | `shell/tabs/{tabs,preview,preview-machine,project-sessions}.ts*`, `titlebar/{sidebar-organized,sidebar-sessions,project-session-row}.tsx` |
+| `003d24ef8568f72410b1eb571c067bc913d84ded` | Inbox unread/read 分组、mock fixture、列表状态 | **absorbed** | `inbox-model.ts`, `inbox.tsx`, `inbox-list.stories.tsx`, `e2e/regression/tabs.spec.ts`, `runtime/i18n/en.ts` |
+| `7864a941527ad54e415d5875c98e038c5fc25697` | close other / close after、reopen/menu 行为 | **absorbed** | `shell/tabs/tabs.tsx`, `titlebar/{tab-nav,tab-strip,titlebar}.tsx`, `e2e/regression/tabs.spec.ts` |
+| `6838d9579564438d80e68ae28bd1e0629d28fe9f` | tab promotion、route-to-tab sync、load/hydration state machine | **absorbed** | `shell/tabs/{tabs,promotion-machine,hydration-machine}.ts*`, `titlebar/{route-machine,route-sync,titlebar}.ts*` |
+| `77a42852967a0ae271d5678a1be230bd0a6a6b73` | tab rename、tab load、palette/search handoff | **absorbed** | `titlebar/{tab-load-machine,tab-rename-machine,tab-nav,tab-strip}.ts*` |
+| `2ec64857375142a038623c16d29fe71cf1821a8e` | mobile tabs drawer machine、popover/tab preview lifecycle | **absorbed** | `titlebar/{mobile-tabs-machine,tab-popover-machine,tab-popover,titlebar}.ts*` |
+| `10db139dc437c12a3e8559b7268a560b826ccc00` | Inbox first load/delete/rename state machines | **absorbed** | `inbox-{model,settle-machine}.ts*`, `inbox.tsx`, `project-session-row.tsx` |
+| `cf69a0c53e11758c84b18c9492e5b3b9fd5ad216` + `d0045aaab5872df54da8723a6c43453b61e1ee90` + `d7d85817160120fd59fb27ee6ff354f45d18b994` | SessionTabAvatar 与 ActivityRing 分离、busy/failed indicator | **absorbed** | `layout/{project-avatar-state,session-tab-avatar}.ts*`, `titlebar/tab-nav.tsx`, `home/sessions/view.tsx`, `ui/activity-ring`, `session-progress-indicator-v2` |
+| `8eb3c0ceba97c2e41abd5acf1e2e800ff8cdbe24` | shell scroll pending flush | **absorbed** | `shell/state/scroll*.ts*` |
+| `6b9f21471f0501a7eee89b97a3746abdb4e28d5b`, `e6338d6783fcae2c1f7686a88e6ff07e7a41db6d` | timeline-cache / composer scroll 与 Timeline/Composer 行为 | **deny** | 明确排除 Timeline/Composer；只保留 Inbox scroll 与 shell state 的审计，不重放历史 payload |
+| `85dc877ea4755689f01969c24fc4b6a81f8bbdbc` | side-panel close-to-right 的 shared panel 部分与 `⌘W/⌘⇧T` native shortcut | **split** | shared `panels.tsx/side-region.tsx/closed-tabs.ts` 纳入 absorbed closure；Desktop/Electron/⌘W 部分 deny |
+
+结论：上述生产行为在 fixed v2.2.7 vendor 中逐文件 `git show fedc6f2:path` 与 `vendor/upstream/path` byte-compare 均为 **absorbed**；没有为 tabs/Inbox/titlebar 生产代码制造第二份 overlay。#186 唯一 active source delta 是必需 Android back bridge（见 `tabs-inbox-titlebar-v2-2-7.patch`），以及 root Android/first-party binding 接线。
+
+### 逐文件 allowlist（审计面；不是复制清单）
+
+```text
+packages/app/src/runtime/plugin/{closed-tabs.ts,closed-tabs-view.tsx,panel-trigger.tsx,panels.tsx,side-region.tsx}
+packages/app/src/shell/tabs/{tabs.tsx,preview.ts,preview-machine.ts,project-sessions.ts,promotion-machine.ts,promotion-machine.test.ts,hydration-machine.ts,hydration-machine.test.ts}
+packages/app/src/shell/state/{session-tabs.ts,scroll.ts,scroll-machine.ts}
+packages/app/src/shell/routes/{routes.tsx,session-ui-provider.tsx}
+packages/app/src/shell/titlebar/{history.ts,inbox.tsx,inbox-model.ts,inbox-working.ts,inbox-working.test.ts,inbox-list.stories.tsx,mobile-tabs-machine.ts,mobile-tabs-machine.test.ts,route-machine.ts,route-machine.test.ts,route-sync.ts,tab-load-machine.ts,tab-load-machine.test.ts,tab-nav.tsx,tab-nav.css,tab-popover.tsx,tab-popover.css,tab-popover-machine.ts,tab-rename-machine.ts,tab-rename-machine.test.ts,tab-strip.tsx,titlebar.tsx,titlebar.css,project-session-row.tsx,sidebar-organized.tsx,sidebar-sessions.ts}
+packages/app/src/shell/layout/{project-avatar-state.ts,session-tab-avatar.tsx}
+packages/app/src/session/screen.tsx
+packages/app/src/home/sessions/view.tsx
+packages/session-ui/src/v2/components/session-progress-indicator-v2.tsx
+packages/ui/src/feedback/activity-ring/activity-ring.tsx
+packages/app/e2e/regression/{tabs.spec.ts,side-panels.spec.ts,multi-server.spec.ts}
+packages/app/e2e/utils/{mock-api.ts,mock-server.ts}
+packages/app/src/runtime/i18n/{am,ar,az,bg,bn,br,bs,ca,cs,da,de,dv,dz,el,en,es,et,fa,fi,fo,fr,he,hi,hr,hu,hy,id,is,it,ja,ka,km,ko,lo,lt,lv,mk,mn,ms,my,ne,nl,no,pa,pl,ro,ru,si,sk,sl,sq,sr,sv,tg,th,tk,tr,uk,ur,uz,vi,zh,zht}.ts
+```
+
+### deny audit
+
+- **DENY** `packages/desktop/**`, Electron/native window/caption/menu/multiwindow/updater/WSL/window focus、`⌘W`/native close semantics；不因 shared panel 文件相邻而复制 Desktop runtime。
+- **DENY** #185 Home/new-session、Timeline、Composer、Files、Terminal、Notifications 与 #164–#168；`6b9f...` timeline cache、`e633...` composer scroll 等只登记为 scope deny。
+- **ALLOW（shared closure）** runtime/plugin panels/side-region/panel-trigger、tabs CSS、所有 touched locale、Inbox mock fixtures/tests、shell/titlebar/tabs/state/routes/session screen、avatar/activity ring；这些路径不能被“Desktop-only”规则错误 deny，但 fixed v2.2.7 已吸收，不能再复制。
+- **ALLOW（required mobile delta）** only app-side back chain/binding and the one MainActivity bridge hunk. It does not add navigation, does not call `session.interrupt`/`abort`, `inbox.cancel`, `pty.remove`, `kill`, and does not stop a remote task.

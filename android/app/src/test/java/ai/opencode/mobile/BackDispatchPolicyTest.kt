@@ -90,4 +90,49 @@ class BackDispatchPolicyTest {
             assertEquals(BackDispatchPolicy.Outcome.DEFAULT, BackDispatchPolicy.historyFallback(false))
         }
     }
+
+    @Test
+    fun backRequestShapeIsFixedAndBounded() {
+        assertEquals(true, BackDispatchPolicy.isValidRequest(1, "back", "opaque"))
+        assertEquals(false, BackDispatchPolicy.isValidRequest(2, "back", "opaque"))
+        assertEquals(false, BackDispatchPolicy.isValidRequest(1, "forward", "opaque"))
+        assertEquals(false, BackDispatchPolicy.isValidRequest(1, "back", ""))
+        assertEquals(
+            false,
+            BackDispatchPolicy.isValidRequest(1, "back", "x".repeat(BackDispatchPolicy.REQUEST_ID_MAX_BYTES + 1)),
+        )
+        assertEquals(
+            true,
+            BackDispatchPolicy.isValidRequest(BackDispatchPolicy.REQUEST_VERSION, BackDispatchPolicy.REQUEST_TYPE, "opaque"),
+        )
+    }
+
+    @Test
+    fun onlyThePackagedAppOriginMayReachTheBinding() {
+        val expected = "http://127.0.0.1:18090/"
+        assertEquals(true, BackDispatchPolicy.isTrustedOrigin(expected, expected))
+        assertEquals(true, BackDispatchPolicy.isTrustedOrigin("http://127.0.0.1:18090/session/abc?tab=1", expected))
+        assertEquals(false, BackDispatchPolicy.isTrustedOrigin("https://127.0.0.1:18090/", expected))
+        assertEquals(false, BackDispatchPolicy.isTrustedOrigin("http://127.0.0.1:18091/", expected))
+        assertEquals(false, BackDispatchPolicy.isTrustedOrigin("http://user:secret@127.0.0.1:18090/", expected))
+        assertEquals(false, BackDispatchPolicy.isTrustedOrigin("http://127.0.0.2:18090/", expected))
+        assertEquals(false, BackDispatchPolicy.isTrustedOrigin(null, expected))
+    }
+
+    @Test
+    fun staleDuplicateAndDestroyedRepliesAreRejected() {
+        assertEquals(true, BackDispatchPolicy.acceptsReply(7, 7, true))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(6, 7, true))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, false))
+        // A timeout or destroy clears pending before a late callback can arrive.
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 8, false))
+    }
+
+    @Test
+    fun callbackMustMatchTheNativePendingRequestId() {
+        assertEquals(true, BackDispatchPolicy.acceptsReply(7, 7, true, "native-7", "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, true, "unregistered", "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, true, null, "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, false, "native-7", "native-7"))
+    }
 }

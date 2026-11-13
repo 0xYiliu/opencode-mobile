@@ -1,7 +1,9 @@
 package ai.opencode.mobile
 
+import java.net.URI
+
 /**
- * Pure decision policy for the Android system back press in the WebView shell (issue #145,
+ * Pure decision policy for the Android system back press in the WebView shell (issue #145/#186,
  * plan T12; review B1 fix). JVM-only (no Android imports) so the whole decision surface is
  * unit-testable — same caliber as [CameraGrantPolicy].
  *
@@ -13,12 +15,13 @@ package ai.opencode.mobile
  * chain itself as its last layer (common.goBack semantics); the WebView history gate is
  * only the FALLBACK for non-SPA document navigations after the chain declines.
  *
- * Stage 1 — the chain answer arrives asynchronously from the WebView evaluation of
- * window.opencodeMobileBack.consume(): the JS expression is written to complete to a bare
- * JSON boolean, so "true" means a chain layer (topmost dialog, open drawer/panel, in-app
- * history) consumed the press and the activity stays. EVERYTHING ELSE — "false", null
- * (binding not installed yet, JS exception, page still loading, evaluation timeout), a
- * quoted string, any other payload — is a decline.
+ * Stage 1 — the chain answer arrives asynchronously from the main-frame WebView evaluation of
+ * window.opencodeMobileBack.consume({version:1,type:"back",requestId}). The request contains
+ * no URL, token, or credential and only the exact fixed request shape is accepted by the
+ * app-side binding. The JS expression is written to complete to a bare JSON boolean, so
+ * "true" means a chain layer consumed the press and the activity stays. EVERYTHING ELSE —
+ * "false", null, a malformed/stale/duplicate request, a JS exception, a foreign origin, or
+ * the 500ms evaluation timeout — is a decline.
  *
  * Stage 2 (only after a decline) — the WebView history fallback decides between a native
  * goBack (non-SPA document history) and the Android default (finish). The policy is
@@ -26,6 +29,10 @@ package ai.opencode.mobile
  * the user inside the app.
  */
 internal object BackDispatchPolicy {
+
+    internal const val REQUEST_VERSION: Int = 1
+    internal const val REQUEST_TYPE: String = "back"
+    internal const val REQUEST_ID_MAX_BYTES: Int = 256
 
     /** The exact serialized result that suppresses the activity finish. */
     internal const val CONSUMED_RESULT: String = "true"
@@ -54,4 +61,45 @@ internal object BackDispatchPolicy {
      */
     fun historyFallback(canGoBack: Boolean): Outcome =
         if (canGoBack) Outcome.WEBVIEW_BACK else Outcome.DEFAULT
+
+    /** Validate the fixed request before it is serialized into the main-frame expression. */
+    fun isValidRequest(version: Int, type: String?, requestId: String?): Boolean {
+        if (version != REQUEST_VERSION || type != REQUEST_TYPE || requestId.isNullOrEmpty()) return false
+        return requestId.toByteArray(Charsets.UTF_8).size <= REQUEST_ID_MAX_BYTES
+    }
+
+    /**
+     * Origin gate for the app-side binding. Paths and query strings are allowed, but a
+     * different scheme/host/port or any user-info authority is rejected.
+     */
+    fun isTrustedOrigin(url: String?, expectedUrl: String): Boolean {
+        if (url == null) return false
+
+        return try {
+            val actual = URI(url)
+            val expected = URI(expectedUrl)
+            actual.scheme == expected.scheme &&
+                actual.host == expected.host &&
+                actual.port == expected.port &&
+                actual.userInfo == null
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Accept a callback only for the one live dispatch; stale, duplicate and destroyed replies decline. */
+    fun acceptsReply(dispatchId: Int, activeDispatchId: Int, pending: Boolean): Boolean =
+        pending && dispatchId == activeDispatchId
+
+    /** Also require the callback to carry the exact requestId registered for that dispatch. */
+    fun acceptsReply(
+        dispatchId: Int,
+        activeDispatchId: Int,
+        pending: Boolean,
+        requestId: String?,
+        pendingRequestId: String?,
+    ): Boolean =
+        acceptsReply(dispatchId, activeDispatchId, pending) &&
+            requestId != null &&
+            requestId == pendingRequestId
 }

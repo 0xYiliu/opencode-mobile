@@ -27,6 +27,7 @@ import ai.opencode.mobile.svcops.ServiceOpsBridge
 import ai.opencode.mobile.vault.CredentialVaultBridge
 import fi.iki.elonen.NanoHTTPD
 import java.io.IOException
+import java.util.UUID
 
 /**
  * WebView shell: starts the loopback asset server and renders the packaged OpenCode
@@ -71,6 +72,8 @@ class MainActivity : Activity() {
      * main looper).
      */
     private var backConsumePending = false
+    /** The one requestId registered for the live native dispatch; late callbacks must match it exactly. */
+    private var backConsumeRequestId: String? = null
     /**
      * Dispatch generation guard (issue #145 review M1): the bounded timeout releases a
      * window whose evaluation reply never arrives (WebView teardown, renderer death);
@@ -190,6 +193,9 @@ class MainActivity : Activity() {
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                // A full-document navigation invalidates any reply for the previous main
+                // frame. The dispatch token makes the late callback a no-op.
+                cancelBackConsume()
                 vaultBridge?.onNavigationStarted()
                 sshBridge?.onNavigationStarted()
             }
@@ -585,13 +591,51 @@ class MainActivity : Activity() {
         // released by a bounded timeout (issue #145 review M1) so back can never wedge.
         // No binding yet / JS exception / false / timeout all decline the chain — the
         // fallback then decides, and the root keeps the exact pre-#145 finish behavior.
-        if (backConsumePending) return
-        backConsumePending = true
-        val dispatchId = ++backConsumeDispatchId
-        backConsumeTimeout.postDelayed({ onBackConsumeTimeout(dispatchId) }, BACK_CONSUME_TIMEOUT_MS)
-        webView.evaluateJavascript(BACK_CONSUME_SCRIPT) { result ->
-            onBackConsumeResult(dispatchId, result)
+        // evaluateJavascript always targets the WebView's main frame. The origin gate is
+        // still explicit: a page opened outside the packaged loopback shell can only use the
+        // old native history/default fallback and never receives a back request.
+        // requestId is an opaque correlation value, not a security capability; the app-side
+        // binding is trusted only inside the same-origin packaged UI and carries no secret data.
+        if (!isTrustedBackPage()) {
+            applyWebViewHistoryFallback()
+            return
         }
+        if (backConsumePending) return
+        val dispatchId = ++backConsumeDispatchId
+        val requestId = "back-$dispatchId-${UUID.randomUUID()}"
+        if (!BackDispatchPolicy.isValidRequest(BackDispatchPolicy.REQUEST_VERSION, BackDispatchPolicy.REQUEST_TYPE, requestId)) {
+            applyWebViewHistoryFallback()
+            return
+        }
+
+        val requestJson = JSONObject()
+            .put("version", BackDispatchPolicy.REQUEST_VERSION)
+            .put("type", BackDispatchPolicy.REQUEST_TYPE)
+            .put("requestId", requestId)
+            .toString()
+
+        backConsumePending = true
+        backConsumeRequestId = requestId
+        backConsumeTimeout.postDelayed({ onBackConsumeTimeout(dispatchId) }, BACK_CONSUME_TIMEOUT_MS)
+        try {
+            webView.evaluateJavascript(backConsumeScript(requestJson)) { result ->
+                onBackConsumeResult(dispatchId, requestId, result)
+            }
+        } catch (_: Throwable) {
+            // A destroyed or unavailable WebView is a decline, never a consumed press.
+            onBackConsumeResult(dispatchId, requestId, null)
+        }
+    }
+
+    private fun isTrustedBackPage(): Boolean =
+        BackDispatchPolicy.isTrustedOrigin(webView.url, START_URL)
+
+    private fun cancelBackConsume() {
+        if (!backConsumePending) return
+        backConsumeDispatchId += 1
+        backConsumePending = false
+        backConsumeRequestId = null
+        backConsumeTimeout.removeCallbacksAndMessages(null)
     }
 
     /**
@@ -600,9 +644,18 @@ class MainActivity : Activity() {
      * decline is the Android default. Stale replies (timeout already released the window)
      * are ignored. Private members so the super call stays in method scope.
      */
-    private fun onBackConsumeResult(dispatchId: Int, result: String?) {
-        if (dispatchId != backConsumeDispatchId || !backConsumePending) return
+    private fun onBackConsumeResult(dispatchId: Int, requestId: String, result: String?) {
+        if (
+            !BackDispatchPolicy.acceptsReply(
+                dispatchId,
+                backConsumeDispatchId,
+                backConsumePending,
+                requestId,
+                backConsumeRequestId,
+            )
+        ) return
         backConsumePending = false
+        backConsumeRequestId = null
         backConsumeTimeout.removeCallbacksAndMessages(null)
         if (BackDispatchPolicy.decide(result) == BackDispatchPolicy.Outcome.CONSUMED) return
         applyWebViewHistoryFallback()
@@ -614,8 +667,18 @@ class MainActivity : Activity() {
      * Android default. Stale timeouts (reply already applied) are ignored.
      */
     private fun onBackConsumeTimeout(dispatchId: Int) {
-        if (dispatchId != backConsumeDispatchId || !backConsumePending) return
+        val requestId = backConsumeRequestId
+        if (
+            !BackDispatchPolicy.acceptsReply(
+                dispatchId,
+                backConsumeDispatchId,
+                backConsumePending,
+                requestId,
+                backConsumeRequestId,
+            )
+        ) return
         backConsumePending = false
+        backConsumeRequestId = null
         applyWebViewHistoryFallback()
     }
 
@@ -674,7 +737,9 @@ class MainActivity : Activity() {
         // Issue #145 review M1: a back dispatch pending at destroy time has no callee left
         // — release the timeout window so it can never leak past the activity's death.
         backConsumeTimeout.removeCallbacksAndMessages(null)
+        backConsumeDispatchId += 1
         backConsumePending = false
+        backConsumeRequestId = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {
@@ -695,15 +760,18 @@ class MainActivity : Activity() {
         private val START_URL = "http://${WebAssetServer.LOOPBACK_HOST}:${WebAssetServer.DEFAULT_PORT}/"
 
         /**
-         * The in-app back chain probe (issue #145): completes to a bare JSON boolean —
-         * "true" when a chain layer consumed the press, "false" when the binding is absent,
-         * the chain declines, or the evaluation throws. No side effects; the chain walk in
-         * the shell is synchronous.
+         * The main-frame request wrapper (issue #186): only the fixed version/type/requestId
+         * shape reaches the app binding, and the expression still completes to a bare JSON
+         * boolean so BackDispatchPolicy's old fail-closed semantics remain unchanged.
          */
-        private const val BACK_CONSUME_SCRIPT =
-            "(function () { try { return window.opencodeMobileBack && " +
-                "typeof window.opencodeMobileBack.consume === 'function' ? " +
-                "window.opencodeMobileBack.consume() === true : false } catch (_) { return false } })()"
+        private fun backConsumeScript(requestJson: String): String =
+            "(function (request) { try { " +
+                "if (!request || request.version !== 1 || request.type !== 'back' || " +
+                "typeof request.requestId !== 'string' || request.requestId.length === 0) return false; " +
+                "return window.opencodeMobileBack && " +
+                "typeof window.opencodeMobileBack.consume === 'function' " +
+                "? window.opencodeMobileBack.consume(request) === true : false " +
+                "} catch (_) { return false } })($requestJson)"
 
         /**
          * Bound on the in-app back dispatch window (issue #145 review M1): well above a

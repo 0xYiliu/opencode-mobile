@@ -36,6 +36,7 @@ import { RecentlyClosedTabsMenu } from "./recently-closed-tabs-menu"
 import { useSettingsDialog } from "@/settings/command"
 import { TitlebarItems, useTitlebarItems } from "@/runtime/plugin/titlebar-items"
 import { createRouteTabSync } from "./route-sync"
+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
 import {
   INITIAL_MOBILE_TABS_STATE,
   selectMobileTabsOpen,
@@ -137,6 +138,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
   })
 
   const history = createTitlebarHistory()
+  onCleanup(registerBackLayer(BACK_LAYER_ORDER.goBack, history.consumeBack))
   const path = () => `${location.pathname}${location.search}${location.hash}`
 
   const titlebarItems = useTitlebarItems()
@@ -523,6 +525,15 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
             }
 
             const closeMobileTabs = () => dispatchMobileTabs({ type: "close" })
+
+            onCleanup(
+              registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
+                const state = untrack(mobileTabsState)
+                if (state.status === "closed") return false
+                closeMobileTabs()
+                return true
+              }),
+            )
 
             // The current tab's project avatar stays put; while it works, its activity ring shows beside the tab count.
             const currentStatus = useSessionTabAvatarState(
