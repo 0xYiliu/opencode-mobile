@@ -9,7 +9,7 @@ v2.2.1 = 3ebcf9a32c7b28f658cfee80775448929361727a
 v2.2.7 = fedc6f208aa2bd54c1019227214568083f6380ad
 ```
 
-当前 v2.2.7 patch registry：**82 registered / 4 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch、历史 #185 `home-new-session-v2-2-7` patch 与当前 #186 `tabs-inbox-titlebar-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
+当前 v2.2.7 patch registry：**83 registered / 5 active / 26 absorbed / 52 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch、历史 #185 `home-new-session-v2-2-7` patch、当前 #186 `tabs-inbox-titlebar-v2-2-7` patch 与本轮 #187 `timeline-messaging-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
 
 直接 Desktop 变化：
 
@@ -223,3 +223,52 @@ packages/app/src/runtime/i18n/{am,ar,az,bg,bn,br,bs,ca,cs,da,de,dv,dz,el,en,es,e
 - **DENY** #185 Home/new-session、Timeline、Composer、Files、Terminal、Notifications 与 #164–#168；`6b9f...` timeline cache、`e633...` composer scroll 等只登记为 scope deny。
 - **ALLOW（shared closure）** runtime/plugin panels/side-region/panel-trigger、tabs CSS、所有 touched locale、Inbox mock fixtures/tests、shell/titlebar/tabs/state/routes/session screen、avatar/activity ring；这些路径不能被“Desktop-only”规则错误 deny，但 fixed v2.2.7 已吸收，不能再复制。
 - **ALLOW（required mobile delta）** only app-side back chain/binding and the one MainActivity bridge hunk. It does not add navigation, does not call `session.interrupt`/`abort`, `inbox.cancel`, `pty.remove`, `kill`, and does not stop a remote task.
+
+## Issue #187：timeline / messaging crosswalk and allowlist
+
+本节是 #187 的固定上游审计，不改变冻结的 v2.2.1 文档与 #186 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--187-timeline-messaging`，分支 `feat/187-timeline-messaging`，base `a25ab51`。审计为两遍（pass-1 生产/测试主路径，pass-2 composer/e2e/i18n/context 辅路径）+ 一组 absence 负检，全部数字可由下列命令复现。
+
+### 可复现 fixed-source 命令
+
+```bash
+# pass-1 path set（session / shell commands / session-ui src）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/session packages/app/src/shell/commands packages/session-ui/src
+# pass-2 path set（composer / e2e / session-ui component-tests / ui context+i18n / runtime i18n）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/composer packages/app/e2e packages/session-ui/component-tests \
+  packages/ui/src/context packages/ui/src/i18n packages/app/src/runtime/i18n
+# 逐文件 byte-compare：`git -C <upstream> rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# absence 负检：pass-1/pass-2 的 D 条目与 rename 源路径在 vendored 树必须不存在
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **pass 1**：294 entries = 147 A + 138 M + 8 D + 1 R100（`use-session-hash-scroll.test.ts` → `message-id-from-hash.test.ts`）→ **286 present → 285 SAME + 1 DIFF**；唯一 DIFF = `packages/app/src/session/screen.tsx`，差异为 #186 back-chain hunk（active `tabs-inbox-titlebar-v2-2-7` 已登记载体），非 timeline/messaging 生产 delta。计划期审计记录为 285 present → 284 SAME + 1 DIFF，与本轮重放差 1 条清点口径（DIFF 文件一致、A/M/D/R 计数一致）；以上列命令与 vendored 树的当轮重放为准。
+- **pass 2**：357 entries = 219 M + 39 A + 84 D + 15 R（R091–R100 各 1–6 条）→ **273 present → 273 SAME + 0 DIFF**。
+- **absence 负检**：108 项（pass-1 8 D + 1 rename 源 + pass-2 84 D + 15 rename 源）在 vendored 树 **0 present**——上游删除/rename 移走的文件没有以任何历史 payload 形态滞留。
+
+结论：fixed v2.2.1→v2.2.7 timeline/messaging 生产 allowlist 在 vendored（v2.2.7 pin + 在册 active patches）树中逐文件 byte-identical，**absorbed by vendor pin，不复制第二份 overlay**。#187 唯一 active source delta 是 WebView 114 `:dir()` capability guard（`timeline-messaging-v2-2-7.patch`，重基于退役 `session-android-adaptation` 的 panel-motion hunk）。
+
+### 行为 crosswalk
+
+| fixed upstream commit | 目标行为 | #187 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `6b9f21471f0501a7eee89b97a3746abdb4e28d5b` | perf(app): keep each tab's timeline when switching directories (#59168)——每标签 timeline 缓存，切目录不丢 | **absorbed**（vendor pin） | `app/src/session/timeline/cache.ts`、`cache-machine.test.ts` 等 pass-1 SAME 集 |
+| `0bf67d540128459327ed6503887888175b660b52` | feat(app): page the timeline from the composer (#59426)——composer 分页时间线 | **absorbed**（vendor pin） | pass-1 `session/timeline` SAME 集 |
+| `589c62db60a4ae25e845e440eef64dd007101dc9` + `3ed47315d532391519198e90978c59bfe9e2eacb` + `f7cf3a10f48ae7632111fd494acca969531cc86d` + `8263ac0ec10827db82d8ff1db113c78ef18a83ac` | user message actions 菜单族：move into a menu (#60208)、explicit machine (#61657)、footer flicker fix (#62144)、Copy message full prompt (#62116) | **absorbed**（vendor pin） | `session-ui/src/message/*`（`action-machine.test.ts` 等）pass-1 SAME 集 |
+| `7ab721a97f383b89a8d901c87866b1565c1cfd9c` | fix(session-ui): scroll Markdown fragment links to their heading (#59550)——锚点跳转 | **absorbed**（vendor pin） | `session-ui/src/components/markdown-fragment-links.test.ts`（Set A 成员） |
+| `cf69a0c53e11758c84b18c9492e5b3b9fd5ad216` | fix(app): keep project avatars on busy session rows (#60384) | **absorbed**（#186 已核对，本 round 不重复登记 payload） | #186 crosswalk 行；pass-1 同树 byte-identity |
+| timeline machine family | `ae3de411ae`（timeline sync/quote toolbar/queue panel/scroll reconnect）、`4c8b83ff84`（follow mode）、`1e4ad07511`（cursor）、`c5105b8d81`（older-history paging）、`b6f3294e9d`（rewind/undo/redo）、`36bdbb8584`（cold reveal）、`4cb790123c`（Find fenced seek）、`24cddd1659`（hash targets）、`b4c5c9cae3`（turn diffs retry + compaction entrance）等 `app/src/session/timeline` 状态机族 | **absorbed**（vendor pin） | `session/timeline/{machine,cursor-machine,history-machine,search-machine,model,...}.test.ts` pass-1 SAME 集 |
+| session-ui machines | `f8b951cb38`（tool/message disclosures）、`6f725c68d1`（live turn phase）、`6f4fd90078`（shell runs/paced text/copy feedback）、`883249d729`（markdown readiness/steer grow-in/tool status titles）、`c9a9ac1ee8`（mentions/attachment media/review resize/diff mounts）、`1eea2d4d60`（pending steer model）等 `session-ui` 状态机族 | **absorbed**（vendor pin） | `session-ui/src/{timeline,message}/*machine*.test.ts` pass-1 SAME 集（`steer-arrival-machine`、`turn-phase-machine`、`paced-text-machine`、`compaction-entrance-machine` 等 Set A 成员） |
+| `ed0171f08ac4018ae648fcca7315b3d717989d50` | feat(app): mark sessions read or unread from their menus (#62889)——session_read menu | **absorbed**（vendor pin） | titlebar/inbox 面归 #186 allowlist；locale 键入 pass-2 SAME 集 |
+| session content search | `10db139dc4`（#62106 引入 `shell/commands/session-search-machine`）、`32ab1f3a9e`（#62170 stop loading every session for search，palette 检索索引化） | **absorbed**（vendor pin） | `shell/commands/{session-search-machine,search-machine}.test.ts` pass-1 SAME 集；#140 退役的 catalog 兼容差异不再回归 |
+
+### deny audit
+
+- **DENY（desktop-only）** `packages/desktop/**`、Electron/native window/菜单/updater/WSL；shared timeline 文件相邻不构成复制 Desktop runtime 的理由。
+- **ALLOW（audit-only）** `packages/app/e2e`（Playwright spec/fixture/mock-server）：作为 fixed-source 审计面 byte-identical 登记（pass-2 SAME），**不作为 Android 运行门禁**——Playwright 不是 Android APK 硬门禁；本轮未运行 e2e。
+- **DENY（routing）** 历史 M-021/files-bridge 类平台桥 payload 不由 #187 承载：`files-platform-bridge`/`attachments-share-bridge` 等 platform-bridge 家族保持 deferred，归 files/attachments 桥 owner 单元。
+- **routing notes（7 absorbed + 5 deferred）**：7 条 absorbed（rows 56/57/60/63/64/74/75）按「v2.2.7 vendor pin byte-identity / active `timeline-messaging-v2-2-7`（panel-motion guard）/ active `tabs-inbox-titlebar-v2-2-7`（row 75 back bridge）」三类载体登记；5 条 deferred（`session-goal-sources-panels`→goal/sources 单元、`session-media-source-safety`→composer/media 单元 #188/#196 lineage、`settings-experimental`→settings/experimental 单元、`gui-plugins-api-migration`→gui-plugins/extensions 单元、`project-identity-migration`→identity 单元 #140 lineage）加「本轮未触碰 + owner」routing note，状态不翻转。panel-motion `:dir()` guard 是本轮唯一 active delta，#197 不得双落。

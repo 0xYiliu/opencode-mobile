@@ -86,6 +86,56 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
 
 **E2E / runtime boundaries**：`bun run test:e2e -- e2e/regression/tabs.spec.ts e2e/regression/side-panels.spec.ts` was **BLOCKED / NOT RUN to PASS** in this worktree: Vite emitted the known dependency-scan JSX parser warning and the fixture run exceeded the 120s command budget with fixture session/title readiness failures; no E2E PASS is claimed. `bun run scripts/verify-interaction-quality.ts` remains **BLOCKED on a pre-existing false positive**: its broad `history.back` text scan matches unchanged `onSelect: history.back` application-controller wiring in `titlebar.tsx`, not a browser History API call; #186 did not change that line. No adb device, safe-area hardware run, hardware back, real running session, authorized remote service, Windows v2.2.7 runtime, or full typecheck was available; all remain **BLOCKED / NOT RUN** rather than inferred from build/static evidence.
 
+### issue #187 段（timeline / messaging crosswalk 与 panel-motion `:dir()` guard）——2026-11-14 当前 worktree
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--187-timeline-messaging`，分支 `feat/187-timeline-messaging`，base=`a25ab51`（origin/main）；implementation revision=`4b86f9b`（commit 1：panel-motion guard + `timeline-messaging-v2-2-7` 注册）→ `004ed54`（commit 2：7 条 deferred 翻转 absorbed + 5 条 routing note，registry 83/5/26/52）→ `c8163a3`（commit 3：web payload manifest 刷新）→ 本 docs 提交（final HEAD 由该 docs-only commit 追溯，交付报告记录完整 SHA）。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727a`。
+
+**fixed-source crosswalk / allowlist**：`docs/alignment/windows-desktop/v2.2.7/changes.md` 的 #187 section 记录 pass-1/pass-2 复现命令、审计数字（pass-1 294 entries=147A+138M+8D+1R100 → 286 present → 285 SAME + 1 DIFF=`session/screen.tsx` #186 hunk；pass-2 357 entries=219M+39A+84D+15R → 273 present → 273 SAME；absence 108 项 0 present——计划期 pass-1 清点为 285/284，与当轮重放差 1，DIFF 文件一致）、逐 commit crosswalk（6b9f21471f timeline cache、0bf67d5401 composer paging、589c62db60+3ed47315d5+f7cf3a10f4+8263ac0ec1 user-message actions 族、7ab721a97f markdown fragment links、cf69a0c53e 已 #186 absorbed、timeline machine family、session-ui machines、ed0171f08a session read menu、session content search）与 deny audit（Playwright e2e audit-only；desktop-only deny；M-021/files-bridge routing；7 absorbed + 5 deferred routing notes）。结论：timeline/messaging 生产 allowlist 全部 absorbed by v2.2.7 vendor pin，唯一 active delta 是 panel-motion `:dir()` guard。
+
+**patch replay / hashes**：
+
+```text
+closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
+        → server-edit-touch-compatibility
+        → home-new-session-v2-2-7 (#185)
+        → tabs-inbox-titlebar-v2-2-7 (#186)
+        → timeline-messaging-v2-2-7 (#187)
+```
+
+- `timeline-messaging-v2-2-7.patch` SHA-256=`602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99`；targets=`packages/app/src/shell/panel-motion.ts` + `panel-motion.test.ts`；从退役 `session-android-adaptation` 重基（历史 `mobile(A, issue #126)` marker 原文保留于该退役文件；重落 guard 带 `mobile(timeline-messaging-v2-2-7, issue #187)` marker）；前四 patch hash 不变量不变（#184 `6b3b7ab7…`、server-edit `89c79843…`、#185 `fa67c5df…`、#186 `1a267f74…`）。
+- `python3 scripts/mobile-patches.py`：**PASS**（83 registered / 5 active / 26 absorbed / 52 deferred；updated: none after refresh）。
+- `bun run patches:refresh`：**PASS**（两次：注册轮 + status 翻转轮，mirrors refreshed）。
+- `python3 scripts/test_mobile_patches.py`：**OK（9/9）**。
+- `bash scripts/verify-closure.sh`：**PASS**（pristine v2.2.7 + closure + 五个 active mobile patch 有序重放；V3(a) byte-identical、V3(b) DANGLING=0、V3(c) OK）。
+- `git diff --check origin/main...HEAD -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。
+
+**focused tests / baseline attribution**：
+
+| Gate | 集合（cwd） | 基线（pristine，协调者在册） | 本轮 post-change | 归因 |
+| --- | --- | --- | --- | --- |
+| A | session-ui 9 文件（rows-current/projection/steer-arrival-machine/turn-phase-machine/user-runs/action-machine/compaction-entrance-machine/paced-text-machine/markdown-fragment-links；plain `bun test`） | **139 pass / 0 fail / 436 expect / 9 files** | **139 pass / 0 fail / 436 expect / 9 files** | 基线持平，零新失败 |
+| B | app 14 文件（canonical plan §4 B 命令，精确见下；plain 与 `--conditions=browser --isolate` 两形同数） | **180 pass / 0 fail / 702 expect / 14 files** | **182 pass / 0 fail / 704 expect / 14 files** | 差额恰 +2 = 新增 isRTL throwing-WebView/RTL-support 两测试（`panel-motion.test.ts` 4→6），零失败 |
+| C | `bun test --conditions=browser packages/mobile-hosts` | **446 pass / 0 fail / 3034 expect / 40 files** | **446 pass / 0 fail / 3034 expect / 40 files** | 基线持平，零新失败 |
+
+Gate B 精确命令（`vendor/upstream/packages/app`）：
+
+```bash
+bun test --conditions=browser --isolate src/session/timeline/cache-machine.test.ts src/session/timeline/cursor-machine.test.ts src/session/timeline/history-machine.test.ts src/session/timeline/reconnect-machine.test.ts src/session/timeline/search-machine.test.ts src/session/timeline/quote-machine.test.ts src/session/timeline/machine.test.ts src/session/timeline/cold-mount.test.ts src/session/timeline/controller-projection.test.ts src/session/timeline/model.test.ts src/session/timeline/turn-diffs.test.ts src/session/viewed-machine.test.ts src/session/message-id-from-hash.test.ts src/shell/panel-motion.test.ts
+# plain 复核形（两形同数）：bun test src/session/timeline/cache-machine.test.ts src/session/timeline/cursor-machine.test.ts src/session/timeline/history-machine.test.ts src/session/timeline/reconnect-machine.test.ts src/session/timeline/search-machine.test.ts src/session/timeline/quote-machine.test.ts src/session/timeline/machine.test.ts src/session/timeline/cold-mount.test.ts src/session/timeline/controller-projection.test.ts src/session/timeline/model.test.ts src/session/timeline/turn-diffs.test.ts src/session/viewed-machine.test.ts src/session/message-id-from-hash.test.ts src/shell/panel-motion.test.ts
+```
+
+清单 = `session/timeline/{cache-machine,cursor-machine,history-machine,reconnect-machine,search-machine,quote-machine,machine,cold-mount,controller-projection,model,turn-diffs}.test.ts` + `session/{viewed-machine,message-id-from-hash}.test.ts` + `shell/panel-motion.test.ts`——canonical plan §4 B 集合（协调者提供，实施收尾轮对最终 HEAD 复跑 182/0/704 两形）。
+
+**build / APK**：
+
+- `bun run build:web`：**PASS**（rc=0，14.52s；existing chunk/dynamic-import warnings only）。
+- `bash scripts/copy-web-dist.sh`：**PASS**（**5520 files / 155,503,085 bytes** verified；文件数与上一代 5520 相同）。
+- `python3 scripts/android_web_assets.py verify`：**PASS**。
+- `web-dist/manifest.json`：已变更并提交（117 个 chunk 改名 + 27 个同名哈希刷新——含 83 个 `.map` + 59 个 `.js`（另 `index.html`/`sw.js`）及面板族 chunk 的 panel-motion guard 内容级联；`isRTL` guard 产物实证：`dist/_assets/host-apis-*.js` 含 `try{return e.matches(':dir(rtl)')}catch{return!1}`，其 `.map` 携带 `timeline-messaging-v2-2-7` marker）。
+- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**BUILD SUCCESSFUL**（36s，42 tasks）；JVM 单测 **47 tests / 0 failures / 0 skipped**（10 XML）；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 **`b5332707401a5da2584e753edf4559bf3fc98a2ec74b78e3cdd8dd7fd2d187dd`**（**66,052,781 bytes**）。**未安装**。
+
+**E2E / runtime boundaries**：Playwright e2e 为 audit-only（fixed-source spec/fixture byte-identical 登记），本轮未运行，不作为 Android APK 门禁。无 adb 设备、无真实运行会话、无授权远程服务；**WebView 114 真机 `:dir()` 崩溃场景回归、面板开合 RTL/RTL-less 实机走查、长历史会话 UX、menu 触摸、锚点跳转均 NOT RUN**（解除条件=授权设备/一次性长历史测试会话）。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
+
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-home-projects`，分支 `feat/221-home-projects`，base `3310b80`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d0ea30e`（feat FU-3 数据层迁移）→ `0a60814`（feat Home 页目标形 + M-017 重锚）→ `58f448b`（feat new-session/location/pin）→ `52b94cc`（feat project-icon generated 面 + location re-export 退役）→ `f109d12`（chore 补丁登记 65→67）→ `ec34aec`（chore 凭据探针 retarget + dist manifest 刷新），未 push。**源码对齐目标 = `3ebcf9a32c7b28f658cfee80775448929361727a`**（copy 优先，逐文件目标形核对），移动补丁语义经三条新补丁 + 存量补丁修剪重放。

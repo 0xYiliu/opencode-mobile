@@ -11,6 +11,12 @@ import {
   type PanelMotionEvent,
 } from "./panel-motion-machine"
 
+// mobile(timeline-messaging-v2-2-7, issue #187; re-based from the #126 session-android-adaptation
+// guard): the target's `anchorX` probes direction with `matches(":dir(rtl)")`, which older Android
+// WebViews (Chromium 114) reject with a SyntaxError that takes the whole shell to the error screen.
+// `isRTL` wraps that probe in a capability guard falling back to the LTR branch; desktop and
+// modern-browser behavior is unchanged (the query still matches there).
+
 // Panels in flight across the app, the size of `landings`. Native views, which no DOM box clips, stay hidden while any
 // panel moves.
 const [flights, setFlights] = createSignal(0)
@@ -421,10 +427,20 @@ export function guardClosingFocus(input: {
   })
 }
 
+/** Whether the document lays out right-to-left. Older WebViews (Chromium < 120) reject the `:dir()`
+ * pseudo-class, so a rejected query falls back to the LTR reading instead of throwing mid-flight. */
+export function isRTL(element: HTMLElement) {
+  try {
+    return element.matches(":dir(rtl)")
+  } catch {
+    return false
+  }
+}
+
 function anchorX(element: HTMLElement, anchor: Anchor) {
   const box = element.getBoundingClientRect()
 
   if (anchor === "center") return box.left + box.width / 2
 
-  return element.matches(":dir(rtl)") ? box.right : box.left
+  return isRTL(element) ? box.right : box.left
 }
