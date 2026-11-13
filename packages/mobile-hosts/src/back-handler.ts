@@ -38,7 +38,9 @@ export interface BackHandlerPort {
 /**
  * The only request shape accepted by the native back bridge. The request intentionally has
  * no URL, origin, token, or credential fields: the native side already gates the WebView to
- * the packaged app origin and passes only this opaque nonce to the main frame.
+ * the packaged app origin and passes only this opaque nonce to the main frame. The nonce is
+ * schema/duplicate-tracking data, not a security capability; this binding is trusted only
+ * because it is installed in the same-origin packaged app UI.
  */
 export interface BackRequest {
   readonly version: 1
@@ -49,6 +51,12 @@ export interface BackRequest {
 export const BACK_REQUEST_VERSION = 1 as const
 export const BACK_REQUEST_TYPE = "back" as const
 export const BACK_REQUEST_ID_MAX_BYTES = 256
+export const BACK_REQUEST_ID_HISTORY_LIMIT = 64
+
+function isBackRequestId(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false
+  return new TextEncoder().encode(value).byteLength <= BACK_REQUEST_ID_MAX_BYTES
+}
 
 /** Validate the fixed, bounded request before it reaches the synchronous chain. */
 export function isBackRequest(value: unknown): value is BackRequest {
@@ -62,9 +70,9 @@ export function isBackRequest(value: unknown): value is BackRequest {
   }
 
   if (record.version !== BACK_REQUEST_VERSION || record.type !== BACK_REQUEST_TYPE) return false
-  if (typeof record.requestId !== "string" || record.requestId.length === 0) return false
+  if (!isBackRequestId(record.requestId)) return false
 
-  return new TextEncoder().encode(record.requestId).byteLength <= BACK_REQUEST_ID_MAX_BYTES
+  return true
 }
 
 export interface BackHandlerBinding {
@@ -74,20 +82,26 @@ export interface BackHandlerBinding {
 
 /**
  * Build the window-facing binding around the existing port. Requests are synchronous, but
- * the guard still rejects re-entry, reused request IDs, and calls after disposal so a stale
- * native callback can never consume a later press.
+ * the guard still rejects re-entry, reused recent request IDs, and calls after disposal so a
+ * stale native callback can never consume a later press. The duplicate window is deliberately
+ * bounded: native request IDs are unique per dispatch, while the binding retains only the
+ * most recent finite history.
  */
 export function createBackHandlerBinding(port: BackHandlerPort): BackHandlerBinding {
   let disposed = false
   let pending = false
-  const seen = new Set<string>()
+  const recentRequestIds = new Set<string>()
 
   return {
     consume(request) {
       if (disposed || pending || !isBackRequest(request)) return false
-      if (seen.has(request.requestId)) return false
+      if (recentRequestIds.has(request.requestId)) return false
 
-      seen.add(request.requestId)
+      recentRequestIds.add(request.requestId)
+      if (recentRequestIds.size > BACK_REQUEST_ID_HISTORY_LIMIT) {
+        const oldest = recentRequestIds.values().next().value
+        if (typeof oldest === "string") recentRequestIds.delete(oldest)
+      }
       pending = true
 
       try {
@@ -101,7 +115,7 @@ export function createBackHandlerBinding(port: BackHandlerPort): BackHandlerBind
     dispose() {
       disposed = true
       pending = false
-      seen.clear()
+      recentRequestIds.clear()
     },
   }
 }

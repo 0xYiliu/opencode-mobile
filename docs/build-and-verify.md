@@ -11,12 +11,12 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 - 检查基线 `740ce386cd74569afc11722182247092b0b6390a`；工作树 `/home/peterhan/worktrees/opencode-mobile/docs--221-release-plan`，分支 `docs/221-release-plan`；固定上游 `3ebcf9a32c7b28f658cfee80775448929361727a`，从 git 对象比较 `vendor/upstream`。完整核实表与执行卡见 [E35](alignment/windows-desktop/v2.2.1/current-review.md)，E34 保留历史但不得用作当前结论。
 - Inbox/titlebar、queue+server/session 归属保护、composer/media 与 fork/revert、export 的 `mediaRefs: false`、Goal ComposerPill、backgroundActivity 消费、notification、voice-delegation 已迁入；S10 categories/commentary 与 compact/quiet 预设亦已更新。palette/session-search 仅 catalog 兼容差异。
 - 当前源码剩余：home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份、W18 子能力 usage.view、文件 stream HEAD/watch/unwatch/重连订阅，以及版本同步（Android `0.1.0` / code `1`、mobile app `0.1.0`、vendor app `2.1.4`）。Settings 已迁入部分继续补真实运行验收。
-- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节冻结 v2.2.1 历史 registry 的重放 PASS 不能作为当前 v2.2.7 发布通过；该历史段落的当时 v2.2.7 registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；当前 #185 worktree registry 已更新为 81 registered / 3 active / 19 absorbed / 59 deferred，#184 overlay scope 不变，另有继承自 origin/main 的 server-edit patch 与 #185 Home patch。
+- 本轮 E35 规划段 **无 build、APK、设备操作或运行测试**；其检查为源码/台账对照、稳定 ID、本地相对链接和 diff。该历史段落的 v2.2.7 registry 数字不作为当前事实；当前 #186 worktree registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**，replay 为 closure → #184 → inherited server-edit → 历史 #185 → 当前 #186，#184 overlay scope 与前三 patch hash/targets/order 不变。
 - 用户已授权先文档、后总 Issue/详细子 Issue/并行首批；已创建 [总任务 #139](https://github.com/0xYiliu/opencode-mobile/issues/139) 和 #140–#149 十个子项，API 回读确认全部正文、10 条原生子关系、26 条 blocked-by 与规划一致且无依赖环。首批 #140/#141/#143，完整分工回填 [矩阵](alignment/windows-desktop/v2.2.1/matrix.md)，实时状态以 GitHub 为准。子 Issue 边界经独立检查和定向复审通过，补齐 W12 压缩验收、明确纯验收零源码/零补丁，不新增功能完成声明。
 
-### issue #185 段（v2.2.7 Home 与新建会话）——2026-11-13 当前 worktree
+### 历史 issue #185 段（v2.2.7 Home 与新建会话）——2026-11-13
 
-**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`，分支 `feat/185-home-new-session`，base/current HEAD `7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`；固定上游 v2.2.7 `fedc6f208aa2bd54c1019227214568083f6380ad`。当前 diff 未提交、未创建 PR、未推送、未合并。
+**历史分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`，分支 `feat/185-home-new-session`，base/current HEAD `7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`；固定上游 v2.2.7 `fedc6f208aa2bd54c1019227214568083f6380ad`。该段记录当时 diff 未提交、未创建 PR、未推送、未合并，不代表当前状态。
 
 **范围与来源核对**：#185 50-file allowlist 与固定 v2.2.7 vendor tree 逐文件 byte-identical；Home server/project selection、session load/search/row、new-session location/project/workspace/branch、combobox/tree/queue/dialog/worktree picker 已由 v2.2.7 pin 携带。历史 `project-identity-migration`、`home-new-session-parity`、`ui-typeahead-export` 保持 deferred，不在本轮重放或作为新 feature source。唯一新增 source delta 是 `home-new-session-v2-2-7.patch`：`home/projects/fade.ts`、`fade.test.ts` 与 `view.tsx` direct import/use；patch SHA-256 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。
 
@@ -37,7 +37,7 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 | frozen install | `bun install --frozen-lockfile` | **PASS**（Bun 1.4.2；996 installs / 1115 packages checked；no changes） |
 | Web build | `bun run build:web` | **PASS**（14.96s；2806 PWA precache entries；保留既有 CSS/chunk/dynamic-import warnings） |
 | Web payload staging | `bun run copy:web-dist` | **PASS**（5518 files / 155,483,831 bytes；Android marker/Workbox integrity adapted） |
-| patch registry | `python3 scripts/mobile-patches.py` | **PASS**（81 registered；3 active / 19 absorbed / 59 deferred；updated: none） |
+| historical #185 patch registry | `python3 scripts/mobile-patches.py` | **historical PASS**（81 registered；3 active / 19 absorbed / 59 deferred；updated: none） |
 | closure | `bash scripts/verify-closure.sh` | **PASS**（pristine v2.2.7 + closure + #184 + server-edit + #185 ordered replay；DANGLING=0） |
 | Android assets | `python3 scripts/android_web_assets.py verify` | **PASS** |
 | Android unit/APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**；APK SHA-256 `273002cd7b701425e64223edca5a0a0111322fa25bac4c52063b87c1a4a474e9`，66,041,731 bytes |
@@ -47,7 +47,7 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 
 ### issue #186 段（tabs / Inbox / titlebar 与 Android back bridge）——2026-11-13 当前 worktree
 
-**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`，当前未提交、未推送、未创建 PR、未合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727`。
+**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727`。
 
 **fixed-source crosswalk / allowlist**：`docs/alignment/windows-desktop/v2.2.7/changes.md` 的 #186 section 记录 `git log/diff/show` 命令、commit/path crosswalk、逐文件 allowlist 与 deny audit。tabs/Inbox/titlebar/mobile-tabs/route/scroll/shelf/avatar/activity-ring production delta 与 fixed v2.2.7 vendor 逐文件 byte-compare 为 **absorbed**；没有复制历史 payload。唯一 active source patch 为 `tabs-inbox-titlebar-v2-2-7`，只承载 required app-side back bridge；root Android/first-party handler 为同一交付的移动边界接线。
 
@@ -60,27 +60,27 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
         → tabs-inbox-titlebar-v2-2-7 (#186)
 ```
 
-- `python3 scripts/mobile-patches.py`：**PASS**（82 registered / 4 active / 19 absorbed / 59 deferred；updated none）。
+- `python3 scripts/mobile-patches.py`：**PASS**（82 registered / 4 active / 19 absorbed / 59 deferred；updated none；修复后 #186 patch hash 已刷新）。
 - `bun run patches:refresh`：**PASS**（82；generated mirrors refreshed）。
 - `python3 scripts/test_mobile_patches.py`：**PASS**（9/9）。
 - `bash scripts/verify-closure.sh`：**PASS**（V3(a) byte-identical、V3(b) DANGLING=0、V3(c) OK）。
-- 前三 patch 不变量未变：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；#186 SHA-256=`1490c51926fa809a87ffd08897b9d0721317727a4e5ee850d28176dafba2098c`。#186 `entry.tsx` 与 #184 为 shared file，manifest 显式依赖前三 active patch，payload 无 #184 hunk copy。
+- 前三 patch 不变量未变：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；修复后 #186 SHA-256=`1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2`。#186 `entry.tsx` 与 #184 为 shared file，manifest 显式依赖前三 active patch，payload 无 #184 hunk copy。
 
 **focused tests**：
 
 - App tabs/Inbox/back machine subset（`back-chain`, mobile-tabs, route, tab load/rename, Inbox branch/settle/working, session rename, tabs/promotion/preview/hydration）：**138 pass / 0 fail / 383 expect / 13 files**。
-- `bun test --conditions=browser packages/mobile-hosts`：**444 pass / 0 fail / 2958 expect / 40 files**；back-handler focused：**6 pass / 0 fail / 21 expect**。
+- `bun test --conditions=browser packages/mobile-hosts`：**446 pass / 0 fail / 3034 expect / 40 files**；back-handler focused：**8 pass / 0 fail / 97 expect**，覆盖有限 recent-request LRU、dispose/pagehide 生命周期、重复与任意未登记 requestId 的 trusted-binding 行为。
 - Android `BackDispatchPolicyTest`（request shape, origin, exact true, fallback, stale/duplicate/destroy）与 `:app:testDebugUnitTest`：**PASS**。
 - running session + pending Inbox negative audit：back chain source/test has no `session.interrupt`/`abort`, `inbox.cancel`, `pty.remove`, or `kill` call; no remote task cancellation path added. **PASS (static + unit boundary; no real running session)**。
-- failure-injection drills：patch order/hash、Inbox scroll/sort/menu/New-tab launcher、malformed/wrong-origin/duplicate/timeout-stale-destroy back guards，以及 no-interrupt/no-cancel audit；每个注入均 **rc=1**，逐项精确恢复后 **rc=0**。
+- failure-injection drills：patch order/hash、Inbox scroll/sort/menu/New-tab launcher、malformed/wrong-origin/duplicate/timeout-stale-destroy back guards、有限 request-id 窗口与 no-interrupt/no-cancel audit；每个注入均 **rc=1**，逐项精确恢复后 **rc=0**。
 
 **build / APK**：
 
 - `bun install --frozen-lockfile`：**PASS**（Bun 1.4.2）。
-- `bun run build:web`：**PASS**（15.31s；2807 PWA precache entries；existing chunk/dynamic-import warnings only）。
-- `bash scripts/copy-web-dist.sh`：**PASS**（5520 files / 155,500,205 bytes verified）。
+- `bun run build:web`：**PASS**（15.28s；2807 PWA precache entries；existing chunk/dynamic-import warnings only）。
+- `bash scripts/copy-web-dist.sh`：**PASS**（5520 files / 155,502,148 bytes verified）。
 - `python3 scripts/android_web_assets.py verify`：**PASS**。
-- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**PASS**；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 `54e499abc92673f4c1d027fc3dfb34ac8b1e366a46a3c47d6a605d0cc9e136a9`（66,272,606 bytes）。
+- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**PASS**；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 `7e3d3624f4319dbd87c46e46e94de6ed636bb0b27197dac1584635c52d530cd5`（66,988,049 bytes）。
 
 **E2E / runtime boundaries**：`bun run test:e2e -- e2e/regression/tabs.spec.ts e2e/regression/side-panels.spec.ts` was **BLOCKED / NOT RUN to PASS** in this worktree: Vite emitted the known dependency-scan JSX parser warning and the fixture run exceeded the 120s command budget with fixture session/title readiness failures; no E2E PASS is claimed. `bun run scripts/verify-interaction-quality.ts` remains **BLOCKED on a pre-existing false positive**: its broad `history.back` text scan matches unchanged `onSelect: history.back` application-controller wiring in `titlebar.tsx`, not a browser History API call; #186 did not change that line. No adb device, safe-area hardware run, hardware back, real running session, authorized remote service, Windows v2.2.7 runtime, or full typecheck was available; all remain **BLOCKED / NOT RUN** rather than inferred from build/static evidence.
 
@@ -178,7 +178,7 @@ closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
 
 ### P126 session runtime copy cleanup (2026-11-05)
 
-Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. At that historical snapshot the registry was 80 registered / 2 active / 19 absorbed / 59 deferred; the current #185 registry is 81 registered / 3 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
+Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. At that historical snapshot the registry was 80 registered / 2 active / 19 absorbed / 59 deferred; the historical #185 registry was 81 registered / 3 active / 19 absorbed / 59 deferred; the current #186 registry is 82 registered / 4 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
 
 - Source target: upstream release `v2.2.1`, commit `3ebcf9a32c7b28f658cfee80775448929361727a`; package source pin and per-package override remain in `vendor/upstream/vendor-manifest.json`. The active patch order is the single `mobilePatches` list there; deferred source remains marked in `patches/mobile/manifest.json`.
 - The copied session runtime overlay remains upstream-first (session-workbench-upstream–session-media-source-safety); session-android-adaptation contains only the recorded Android adaptations. `patchmark` is a source-package addition carried by the client-compat patch, recorded separately as a patch-created package so source extraction stays pinned while workspace reference validation includes it.

@@ -2,11 +2,12 @@
 
 ## 版本与事实口径
 
-- 更新日期：**2026-11-13**；当前 Issue #185 worktree 为 `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`，分支 `feat/185-home-new-session`，base/current HEAD 为 `7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`；当前实现保持未提交、未创建 PR、未合并。父轮 v2.2.7 审计记录仅作历史锚点。
+- 更新日期：**2026-11-13**；当前 Issue #186 worktree 为 `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base 为 `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录；提交已存在，尚未推送、创建 PR 或合并。#185 worktree 只作为历史记录。
 - 上游目标：Windows Desktop **v2.2.7**，`fedc6f208aa2bd54c1019227214568083f6380ad`；前版为 v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`。
-- Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 81 registered / 3 active / 19 absorbed / 59 deferred；移动 replay 顺序为 #184 `v2-2-7-mobile-connection-pairing-ssh-closure.patch` → inherited `server-edit-touch-compatibility.patch` → #185 `home-new-session-v2-2-7.patch`，不改变 #184 的 24-target scope。
+- Vendor：当前 pin 为 **`fedc6f208aa2bd54c1019227214568083f6380ad`**；11 个 closure package 均来自 v2.2.7，当前 patch registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**；移动 replay 顺序为 #184 `v2-2-7-mobile-connection-pairing-ssh-closure.patch` → inherited `server-edit-touch-compatibility.patch` → 历史 #185 `home-new-session-v2-2-7.patch` → 当前 #186 `tabs-inbox-titlebar-v2-2-7.patch`。前三 patch 的顺序、hash 与 #184 的 24-target scope 不变。
+- Replay hash 不变量：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94` → server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0` → 历史 #185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；修复后 #186 patch `1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2`。
 - 架构：共享 Web UI + Kotlin 原生 WebView。v2.2.1 的局部 Android 证据只能作为历史参照，不能直接升级为 v2.2.7 通过；Windows v2.2.7 安装包尚未运行验证。
-- 保留全部 **93 个稳定 ID**；本表由 v2.2.1 工作表继承，旧版本证据仍按历史处理。当前 v2.2.7 closure、补丁和 focused-test 事实以 [execution-card.md](execution-card.md)、[current-review.md](current-review.md)、[changes.md](changes.md) 与本轮 Issue #185 记录为准。
+- 保留全部 **93 个稳定 ID**；本表由 v2.2.1 工作表继承，旧版本证据仍按历史处理。当前 v2.2.7 closure、补丁和 focused-test 事实以 [execution-card.md](execution-card.md)、[current-review.md](current-review.md)、[changes.md](changes.md) 与本轮 Issue #186 记录为准。
 
 [推进规则](../../workflow.md) · [v2.2.7 基准](baseline.md) · [v2.2.7 变化总结](changes.md) · [迁移执行卡](execution-card.md) · [v2.2.1 冻结历史](../v2.2.1/matrix.md) · [运行验证台账](../../../build-and-verify.md)
 
@@ -22,7 +23,7 @@
 
 本矩阵保留 v2.2.1 的 93 个稳定 ID 和用户可观察功能分组，作为迁移 crosswalk，而不是把旧行文字当作 v2.2.7 已验证事实。行内出现的 v2.2.1 源码、Issue、APK、真机或 Desktop 证据均属于前版历史；v2.2.7 当前共享连接/配对/SSH 迁移的静态事实见下方本轮覆盖和 [current-review.md](current-review.md)，运行期仍按本版本的 BLOCKED/未验证边界执行。
 
-> **Crosswalk 历史边界（适用于下方 A–E 继承行）**：行内出现的 v2.2.1 固定 pin、旧 vendor/app 版本、旧 APK、设备型号、真机截图或历史 PASS/BLOCKED，均明确属于 **v2.2.1 历史/迁移前证据**，用于定位迁移差异，不是 v2.2.7 当前事实。当前 v2.2.7 唯一 pin 为 `fedc6f208aa2bd54c1019227214568083f6380ad`，当前 registry 为 81 registered / 3 active / 19 absorbed / 59 deferred；其中 #184 overlay scope 不变，#185 只增加独立 Home fade seam，当前结论只取本节覆盖、[current-review.md](current-review.md) 与 execution card。
+> **Crosswalk 历史边界（适用于下方 A–E 继承行）**：行内出现的 v2.2.1 固定 pin、旧 vendor/app 版本、旧 APK、设备型号、真机截图或历史 PASS/BLOCKED，均明确属于 **v2.2.1 历史/迁移前证据**，用于定位迁移差异，不是 v2.2.7 当前事实。当前 v2.2.7 唯一 pin 为 `fedc6f208aa2bd54c1019227214568083f6380ad`，当前 registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**；#185 只作为历史 Home fade record，当前 #186 back bridge 与前置 replay 事实只取本节覆盖、[current-review.md](current-review.md) 与 execution card。
 
 ### #184 当前 v2.2.7 覆盖
 
@@ -31,7 +32,7 @@
 | connection / credentials | **已实现，静态验证通过** | v2.2.7 `ServerOriginal`/`ServerSaveAction` 上的 `credentialRef`、remember、vault ready/status/generation、memory-only persistence、probe/fetch URL 安全与失败分类已落位；最新 app stable connection/server/pairing selection 为 137 pass / 0 fail（16 files）。Android vault、真实服务和运行期凭据恢复未验证。 |
 | pairing | **已实现，静态验证通过** | pairing URL 解析、scheme/host/userinfo/TLS/redirect 边界、malformed/expired/replay 语义与确认动作保留；QR physical 与真实兑换服务未验证。 |
 | SSH shared closure | **已实现，静态验证通过** | GUI pairing/SSH machine tests 88 pass / 0 fail（11 files），mobile-hosts browser tests 442 pass / 0 fail（40 files）；host-key unknown/changed、auth/lifecycle/remote-task 不停止语义保留。真实 JSch tunnel/session/stream/permission/task survival 未验证。 |
-| vendor / patch closure | **已实现，可重放** | pristine v2.2.7 closure + 1 build-only closure patch + 3 active mobile patches 由 `verify-closure.sh` 重放通过；81 条登记中 19 absorbed、59 deferred、3 active；#184 overlay 仍为 24 targets，`mobilePatches` 依次含 inherited main server-edit patch 与 #185 Home fade patch。 |
+| vendor / patch closure | **已实现，可重放** | pristine v2.2.7 closure + 1 build-only closure patch + 4 active mobile patches 由 `verify-closure.sh` 重放通过；82 条登记中 19 absorbed、59 deferred、4 active；#184 overlay 仍为 24 targets，`mobilePatches` 依次含 inherited main server-edit patch、历史 #185 Home patch 与当前 #186 back bridge patch。 |
 | Android identity | **已同步，build-only 验证** | mobile/About/Gradle `2.2.7`，versionCode `20207`；Android asset verify、Gradle unit/APK build 已通过，APK 未安装，adb/device UI 尚未运行。 |
 | About/version current face | **已实现，静态验证通过** | v2.2.7 upstream About retains the `platform.version` row, and `entry.tsx` keeps the upstream `createWebPlatform(pkg.version)` face; the old v2.2.1 three-row base/server overlay is deferred with `settings-about-version` and is not part of the current replay. Current identity is Android/mobile/About `2.2.7`; old #149/About three-row and device evidence remain historical. |
 
@@ -40,7 +41,7 @@
 | 类别 | 关键结论 | 关联 ID |
 | --- | --- | --- |
 | 明确的版本增量缺口 | FU-1 provider 认证已随 #141 源码级收敛、文件 stream HEAD/watch/unwatch/重连订阅已随 #143 迁入（三者均为源码目标形，运行验收待设备门禁）；FU-2 模型选择器与 usage.view 用量全流程已随 issue #142 源码级收敛（模型选择器族目标形 + usage/** + usage.limits schema/protocol/client 闭合，运行验收待设备门禁）、FU-3 项目身份已随 issue #140 源码落地（运行待验） | W18/W25、S19/S21/S22/S24/S27–S30、W03/W16/M04 |
-| 已迁入、待完整运行验收 | Home/new-session/location/workspace state machines 已由固定 v2.2.7 vendor pin 携带，#185 仅增加 Home project-list fade helper 与 edge tests；Inbox/titlebar、queue+归属保护、media/fork/revert、导出 mediaRefs:false、Goal ComposerPill、backgroundActivity、notification/voice-delegation 亦已迁入；palette/session-search 的 catalog 兼容差异已随 issue #140 退役（目标形直读 ctx.projects.list） | W01/W08、S04/S09–S11/S18、W05/W06/W08/W11/W13/W15/W22/W26 |
+| 已迁入、待完整运行验收 | Home/new-session/location/workspace state machines 已由固定 v2.2.7 vendor pin 携带，历史 #185 仅增加 Home project-list fade helper 与 edge tests；当前 #186 已核对 tabs/Inbox/titlebar/mobile-tabs/route/scroll/shelf/avatar/activity-ring 并接入 Android back bridge；queue+归属保护、media/fork/revert、导出 mediaRefs:false、Goal ComposerPill、backgroundActivity、notification/voice-delegation 亦已迁入；palette/session-search 的 catalog 兼容差异已随 issue #140 退役（目标形直读 ctx.projects.list） | W01/W08、S04/S09–S11/S18、W05/W06/W08/W11/W13/W15/W22/W26 |
 | 已补齐的移动/版本能力 | gui-plugins 宿主、实验设置、减少动效/缩放、About、相机授权、原生外跳已有；Settings 崩溃、主机塌缩、管理器开关已修复并有局部真机复验 | S17/S38/S39/S41/S42、S27/S35/S43、N08/N11、D03 |
 | 最大验收缺口 | 当前集成版真实任务收发/权限/恢复双路由闭环，以及文件、Diff、PTY、Office、通知等运行门禁仍未全过 | W01–W20、M02–M05 |
 | 已确认范围差异 | 手机不托管本地服务/浏览器、无第三方 GUI 完整运行、无进程死亡通知；APK 更新/语音暂缓，外链唤起不实施 | N01–N03/N06/N07/N09、D01–D05、S40/W24 |
@@ -188,7 +189,7 @@
 
 1. Settings 主要已迁入，按下节保留的具体运行/整体对照缺口继续验收；Inbox、queue/media、导出参数、Goal、通知及搜索不得重复列为未迁移。
 2. 真实迁移工作为 home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份/恢复、W18 usage.view、文件流与订阅；按上表完整流程和共享写入边界推进。
-3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。当前 patch registry 为 81 registered / 3 active / 19 absorbed / 59 deferred；静态重放与 Gradle/APK build 通过不是 APK 安装、设备或真实服务发布结论。
+3. 版本同步与发布验收单列：Android/mobile/vendor 版本、当前 SSH/直连任务/权限/恢复、安全失败路径及整体验收。当前 patch registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**；静态重放与 Gradle/APK build 通过不是 APK 安装、设备或真实服务发布结论。
 4. #135 已合并，最终修复 `813e68d`，merge commit `bbd0b488`；Agent 及 Details 可见/切换/关闭局部通过。消息列宽度、密度、Composer 尺寸、工具卡片截图差异和完整竖屏键盘未验收。
 
 > **下方历史执行台账边界**：`下一实施工作单元：Settings 整体界面对齐` 及其后续推进记录承接冻结 v2.2.1/迁移前工作单元，包含的旧 pin、vendor、APK、设备和局部 PASS/BLOCKED 只用于历史追溯；它们不是 v2.2.7 当前实施状态。当前 v2.2.7 事实仍以本页 #184/#185 覆盖、current-review 和 execution card 为准。

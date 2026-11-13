@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   BACK_REQUEST_ID_MAX_BYTES,
+  BACK_REQUEST_ID_HISTORY_LIMIT,
   BACK_REQUEST_TYPE,
   BACK_REQUEST_VERSION,
   StubBackHandlerPort,
@@ -85,6 +86,37 @@ describe("back handler port", () => {
 
     binding.dispose()
     expect(binding.consume({ version: 1, type: "back", requestId: "opaque-request-3" })).toBe(false)
+    expect(calls).toBe(1)
+  })
+
+  test("keeps duplicate protection for the recent bounded request window", () => {
+    let calls = 0
+    const binding = createBackHandlerBinding({
+      consume: () => {
+        calls += 1
+        return true
+      },
+    })
+
+    const ids = Array.from({ length: BACK_REQUEST_ID_HISTORY_LIMIT + 8 }, (_, index) => `window-${index}`)
+    for (const requestId of ids) {
+      expect(binding.consume({ version: 1, type: "back", requestId })).toBe(true)
+    }
+
+    expect(binding.consume({ version: 1, type: "back", requestId: ids[ids.length - 1] })).toBe(false)
+    expect(calls).toBe(ids.length)
+  })
+
+  test("does not treat an arbitrary requestId as a security capability", () => {
+    let calls = 0
+    const binding = createBackHandlerBinding({
+      consume: () => {
+        calls += 1
+        return true
+      },
+    })
+
+    expect(binding.consume({ version: 1, type: "back", requestId: "not-issued-by-native" })).toBe(true)
     expect(calls).toBe(1)
   })
 })

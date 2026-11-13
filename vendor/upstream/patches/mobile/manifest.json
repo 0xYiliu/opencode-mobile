@@ -2192,7 +2192,7 @@
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "Generated from the post-#184/server-edit/#185 v2.2.7 cumulative tree; target paths apply without copying prior hunks; app back-chain tests, mobile-hosts request/lifecycle tests, Android BackDispatchPolicy tests, patch refresh/verify/closure, focused tabs/Inbox/back tests, Web build, and Gradle unit/APK checks are recorded in the v2.2.7 #186 execution card. Device/adb back, safe-area, real running-session, and Android runtime evidence remain separately marked BLOCKED/NOT RUN when unavailable.",
       "rebase": "#186 replay order is closure → #184 scoped overlay → inherited server-edit → #185 Home overlay → this patch. The production tabs/Inbox/titlebar allowlist is absorbed by the v2.2.7 pin; only the required back bridge is active. The entry.tsx overlap with #184 is an explicit same-file, different-hunk dependency and is not a copy of the #184 bridge hunk.",
-      "sha256": "1490c51926fa809a87ffd08897b9d0721317727a4e5ee850d28176dafba2098c",
+      "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
       "status": "active"
     }
   ]

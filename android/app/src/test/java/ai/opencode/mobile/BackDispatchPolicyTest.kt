@@ -127,4 +127,12 @@ class BackDispatchPolicyTest {
         // A timeout or destroy clears pending before a late callback can arrive.
         assertEquals(false, BackDispatchPolicy.acceptsReply(7, 8, false))
     }
+
+    @Test
+    fun callbackMustMatchTheNativePendingRequestId() {
+        assertEquals(true, BackDispatchPolicy.acceptsReply(7, 7, true, "native-7", "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, true, "unregistered", "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, true, null, "native-7"))
+        assertEquals(false, BackDispatchPolicy.acceptsReply(7, 7, false, "native-7", "native-7"))
+    }
 }

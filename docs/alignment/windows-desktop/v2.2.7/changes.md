@@ -9,7 +9,7 @@ v2.2.1 = 3ebcf9a32c7b28f658cfee80775448929361727a
 v2.2.7 = fedc6f208aa2bd54c1019227214568083f6380ad
 ```
 
-当前 v2.2.7 patch registry：**81 registered / 3 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch 与 #185 `home-new-session-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
+当前 v2.2.7 patch registry：**82 registered / 4 active / 19 absorbed / 59 deferred**；`mobilePatches` 按顺序重放 #184 scoped overlay、inherited main `server-edit-touch-compatibility` patch、历史 #185 `home-new-session-v2-2-7` patch 与当前 #186 `tabs-inbox-titlebar-v2-2-7` patch，构建传递依赖由独立 `closurePatches` 承载。
 
 直接 Desktop 变化：
 

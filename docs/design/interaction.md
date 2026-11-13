@@ -191,7 +191,7 @@ provider/model 配置面的失败反馈**全部复用上游既有通道**，不�
 
 #### #186 当前 v2.2.7 back bridge 事实（2026-11-13）
 
-上方 issue #145 段保留当时的提交与设备证据，不把它当作本轮证据。当前 fixed v2.2.7 worktree 的移动接线为：`MainActivity` 在 app-origin/main-frame 通过固定 `{version:1,type:"back",requestId}` request 调用 `window.opencodeMobileBack.consume(request)`；request 不携带 URL/token/credential，requestId UTF-8 ≤256 bytes。native one-pending token、500ms timeout、origin gate、stale/duplicate/destroy reject 均 fail-closed；只有 bare JSON `true` consumed，其他结果走原 `canGoBack → goBack → super` fallback。`BackDispatchPolicy` 的旧 `decide`/`historyFallback` 外部语义未改变。
+上方 issue #145 段保留当时的提交与设备证据，不把它当作本轮证据。当前 fixed v2.2.7 worktree 的移动接线为：`MainActivity` 在 app-origin/main-frame 通过固定 `{version:1,type:"back",requestId}` request 调用 `window.opencodeMobileBack.consume(request)`；request 不携带 URL/token/credential，requestId UTF-8 ≤256 bytes。native one-pending registry 现在同时登记当前 requestId，回调必须匹配该 pending requestId；500ms timeout、origin gate、stale/duplicate/destroy reject 均 fail-closed。JS binding 的 duplicate history 是有限 recent-request LRU，并在 pagehide/Solid cleanup 时 dispose。requestId 只用于 schema/correlation/有限去重，不是安全 capability；由于不扩大 Android bridge，binding 的信任边界是 packaged app same-origin trusted UI，任意未登记 ID 不携带敏感数据且其行为由测试明确记录。只有 bare JSON `true` consumed，其他结果走原 `canGoBack → goBack → super` fallback。`BackDispatchPolicy` 的旧 `decide`/`historyFallback` 外部语义未改变。
 
 当前 app chain 是单层优先序：IME（系统先消费）→ dialog 10 → popover 15 → mobile panel drawer 20 → wide dock 30 → mobile titlebar More 40 → titlebar history/goBack 90 → native fallback。每个 layer 只关闭自己拥有的现有 surface；不会触发 session interrupt/abort、inbox.cancel、pty.remove、kill 或远程任务停止。fixed v2.2.7 tabs/Inbox/titlebar production changes 逐文件已吸收，#186 active patch 只承载上述 back bridge。
 

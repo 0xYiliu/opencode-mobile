@@ -880,7 +880,7 @@
     {
       "id": "tabs-inbox-titlebar-v2-2-7",
       "path": "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
-      "sha256": "1490c51926fa809a87ffd08897b9d0721317727a4e5ee850d28176dafba2098c",
+      "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
       "status": "active"
     }
   ],

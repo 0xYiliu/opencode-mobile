@@ -72,6 +72,8 @@ class MainActivity : Activity() {
      * main looper).
      */
     private var backConsumePending = false
+    /** The one requestId registered for the live native dispatch; late callbacks must match it exactly. */
+    private var backConsumeRequestId: String? = null
     /**
      * Dispatch generation guard (issue #145 review M1): the bounded timeout releases a
      * window whose evaluation reply never arrives (WebView teardown, renderer death);
@@ -592,6 +594,8 @@ class MainActivity : Activity() {
         // evaluateJavascript always targets the WebView's main frame. The origin gate is
         // still explicit: a page opened outside the packaged loopback shell can only use the
         // old native history/default fallback and never receives a back request.
+        // requestId is an opaque correlation value, not a security capability; the app-side
+        // binding is trusted only inside the same-origin packaged UI and carries no secret data.
         if (!isTrustedBackPage()) {
             applyWebViewHistoryFallback()
             return
@@ -611,14 +615,15 @@ class MainActivity : Activity() {
             .toString()
 
         backConsumePending = true
+        backConsumeRequestId = requestId
         backConsumeTimeout.postDelayed({ onBackConsumeTimeout(dispatchId) }, BACK_CONSUME_TIMEOUT_MS)
         try {
             webView.evaluateJavascript(backConsumeScript(requestJson)) { result ->
-                onBackConsumeResult(dispatchId, result)
+                onBackConsumeResult(dispatchId, requestId, result)
             }
         } catch (_: Throwable) {
             // A destroyed or unavailable WebView is a decline, never a consumed press.
-            onBackConsumeResult(dispatchId, null)
+            onBackConsumeResult(dispatchId, requestId, null)
         }
     }
 
@@ -629,6 +634,7 @@ class MainActivity : Activity() {
         if (!backConsumePending) return
         backConsumeDispatchId += 1
         backConsumePending = false
+        backConsumeRequestId = null
         backConsumeTimeout.removeCallbacksAndMessages(null)
     }
 
@@ -638,9 +644,18 @@ class MainActivity : Activity() {
      * decline is the Android default. Stale replies (timeout already released the window)
      * are ignored. Private members so the super call stays in method scope.
      */
-    private fun onBackConsumeResult(dispatchId: Int, result: String?) {
-        if (!BackDispatchPolicy.acceptsReply(dispatchId, backConsumeDispatchId, backConsumePending)) return
+    private fun onBackConsumeResult(dispatchId: Int, requestId: String, result: String?) {
+        if (
+            !BackDispatchPolicy.acceptsReply(
+                dispatchId,
+                backConsumeDispatchId,
+                backConsumePending,
+                requestId,
+                backConsumeRequestId,
+            )
+        ) return
         backConsumePending = false
+        backConsumeRequestId = null
         backConsumeTimeout.removeCallbacksAndMessages(null)
         if (BackDispatchPolicy.decide(result) == BackDispatchPolicy.Outcome.CONSUMED) return
         applyWebViewHistoryFallback()
@@ -652,8 +667,18 @@ class MainActivity : Activity() {
      * Android default. Stale timeouts (reply already applied) are ignored.
      */
     private fun onBackConsumeTimeout(dispatchId: Int) {
-        if (!BackDispatchPolicy.acceptsReply(dispatchId, backConsumeDispatchId, backConsumePending)) return
+        val requestId = backConsumeRequestId
+        if (
+            !BackDispatchPolicy.acceptsReply(
+                dispatchId,
+                backConsumeDispatchId,
+                backConsumePending,
+                requestId,
+                backConsumeRequestId,
+            )
+        ) return
         backConsumePending = false
+        backConsumeRequestId = null
         applyWebViewHistoryFallback()
     }
 
@@ -714,6 +739,7 @@ class MainActivity : Activity() {
         backConsumeTimeout.removeCallbacksAndMessages(null)
         backConsumeDispatchId += 1
         backConsumePending = false
+        backConsumeRequestId = null
         assetServer?.stop()
         assetServer = null
         if (::webView.isInitialized) {

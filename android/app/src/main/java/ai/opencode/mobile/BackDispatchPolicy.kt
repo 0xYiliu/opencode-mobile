@@ -90,4 +90,16 @@ internal object BackDispatchPolicy {
     /** Accept a callback only for the one live dispatch; stale, duplicate and destroyed replies decline. */
     fun acceptsReply(dispatchId: Int, activeDispatchId: Int, pending: Boolean): Boolean =
         pending && dispatchId == activeDispatchId
+
+    /** Also require the callback to carry the exact requestId registered for that dispatch. */
+    fun acceptsReply(
+        dispatchId: Int,
+        activeDispatchId: Int,
+        pending: Boolean,
+        requestId: String?,
+        pendingRequestId: String?,
+    ): Boolean =
+        acceptsReply(dispatchId, activeDispatchId, pending) &&
+            requestId != null &&
+            requestId == pendingRequestId
 }

@@ -2,7 +2,7 @@
 
 - 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**82 registered / 4 active / 19 absorbed / 59 deferred**。
 - 当前 replay 顺序：`vendor-manifest.json#closurePatches` 先重放 build-only closure；`mobilePatches` 依次重放 `patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）、`patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch）、`patches/mobile/home-new-session-v2-2-7.patch`（#185 independent overlay）和 `patches/mobile/tabs-inbox-titlebar-v2-2-7.patch`（#186 required back bridge）。
-- 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。
+- 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。#185 Home patch 保留为历史前置 replay，当前 #186 back bridge 为本 worktree 的修复交付。
 - #184 active consolidated patch 只承载 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。#185 patch 独立承载 Home project-list fade helper 与 regression tests，不改变 #184 或 server-edit 的 targets。#186 的 tabs/Inbox/titlebar 生产 delta 已由 v2.2.7 vendor pin 吸收，active patch 只承载 app-side back chain/binding，不复制上游生产 hunk。
 
 | # | ID | 状态 | v2.2.7 处置 | 新 baseline | targets |
@@ -94,12 +94,12 @@
 
 - #185 的 50-file upstream allowlist 已逐文件与固定 v2.2.7 tree 对照；allowlist 内的 Home server/project selection、session load/search/row、new-session location/project/workspace/branch 及 picker machine 文件当前均已与目标字节一致，因此不再把它们复制进新的 mobile payload。
 - 历史 `project-identity-migration`、`home-new-session-parity` 与 `ui-typeahead-export` 继续保留为 `deferred` 身份；它们没有在本轮重放，也没有被当作新的 #185 feature source。项目身份/最近使用持久化仍按既有 issue #140 契约记录，#185 不改变其语义。
-- #185 的唯一 active source delta 是 `home-new-session-v2-2-7.patch` 的 fade helper、view import/use 与 edge-state tests；其 SHA-256 为 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。既有 #184 与 server-edit hashes 保持不变。
+- 历史 #185 的 source delta 是 `home-new-session-v2-2-7.patch` 的 fade helper、view import/use 与 edge-state tests；其 SHA-256 为 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。当前 #186 修复只更新 app-side back binding/lifecycle 与 native pending-request correlation；#184、server-edit、#185 的 hashes/targets/order 保持不变。
 
 ## 验证口径
 
-- 机器校验：`python3 scripts/mobile-patches.py`（81 registered）、`bash scripts/verify-closure.sh`。
-- 构建：`bun install --frozen-lockfile`、`bun run build:web` 与 `bun run copy:web-dist`（`vendor/upstream/packages/app`；当前 Web payload 5518 files / 155483831 bytes）。
+- 机器校验（修复后）：`python3 scripts/mobile-patches.py`（82 registered）、`bash scripts/verify-closure.sh`。
+- 构建（修复后）：`bun install --frozen-lockfile`、`bun run build:web` 与 `bun run copy:web-dist`（`vendor/upstream/packages/app`；最终 Web payload 与 APK hash 绑定于 #186 执行卡）。
 - 语义验证：连接/凭据/vault、URL/fetch、pairing、server lifecycle/health/queue/endpoint、SSH shared machine 的 focused tests。
-- #185 focused app selection：**204 pass / 0 fail / 704 expect / 18 files**；Android Gradle `:app:testDebugUnitTest :app:assembleDebug` **BUILD SUCCESSFUL**，APK/device installation and UI remain unverified。
+- 历史 #185 focused app selection：**204 pass / 0 fail / 704 expect / 18 files**；当前 #186 app/back focused 与 Android Gradle/APK 结果以修复后执行卡为准，APK/device installation and UI remain unverified。
 - 明确未升级：设备 UI、QR physical、真实服务、真实 JSch tunnel/session/stream/permission/task-survival；typecheck 仍受记录中的 baseline component-test/generated-type/rootDir issues 阻塞。

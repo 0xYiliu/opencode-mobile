@@ -18,10 +18,10 @@
 - 绝对工作目录：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`
 - 分支：`feat/186-tabs-inbox-titlebar`
 - 父轮审计起点：`5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`（#184/#185 已进入 main 的 v2.2.7 closure 基线）
-- 本次实施 base/current HEAD：base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；当前 #186 diff 未提交、未创建 PR、未推送、未合并
+- 本次实施 base：`5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`；修复后的 reviewed/current revision 以本次 fix commit 的完整 SHA 记录；提交已存在，尚未推送、创建 PR 或合并
 - 本次实施 worktree：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`
 - 本次实施分支：`feat/186-tabs-inbox-titlebar`
-- 开工状态：该 worktree 由本子工作单元独占；前三个 active patch payload/hash/order 作为硬不变量保留，新增 #186 active patch 与对应文档/验证记录
+- 开工状态：该 worktree 由本子工作单元独占；前三个 active patch payload/hash/order 作为硬不变量保留，#186 active patch 已在审核修复后更新 hash 与对应文档/验证记录
 - 上游旧目标：v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`
 - 上游新目标：v2.2.7 / `fedc6f208aa2bd54c1019227214568083f6380ad`
 - 新目标发布时间：2026-11-10
@@ -36,14 +36,14 @@
 - 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自 pristine v2.2.7 tree、closure patch、#184 scoped overlay、inherited main server-edit patch、#185 Home patch 与 #186 back bridge patch 的有序重放和等价性核对。
 - 当前 scope audit（`git status --porcelain=v1 -uall`）：#185 代码增量限于 Home fade helper/test、view import/use、patch registry/provenance/vendor order、生成 Web manifest 与本执行卡/设计记录；typecheck 产生的未跟踪 declaration artifacts 已清理，未保留 `.tsbuildinfo`、`node_modules`、`dist`、`.vite` 或 `.turbo` 作为交付文件。
 
-## #185 Home / new-session 执行卡
+## 历史 #185 Home / new-session 执行卡
 
-- 用户可观察目标：以 fixed v2.2.7 为来源，对齐 Home server/project selection、session load/search/row、new-session location/project/workspace/branch 与远端 worktree picker 的目标状态机；保持既有项目身份、最近使用和恢复契约，不把它们重复算作本轮新增语义。
+- 用户可观察目标（历史 #185）：以 fixed v2.2.7 为来源，对齐 Home server/project selection、session load/search/row、new-session location/project/workspace/branch 与远端 worktree picker 的目标状态机；保持既有项目身份、最近使用和恢复契约，不把它们重复算作当前 #186 新增语义。
 - 上游核对：Issue #185 的 50-file allowlist 已与 `fedc6f208aa2bd54c1019227214568083f6380ad` 逐文件 byte-compare；allowlist 内目标文件已由 v2.2.7 vendor pin 携带。历史 `project-identity-migration`、`home-new-session-parity`、`ui-typeahead-export` 保持 deferred，不作为本轮 source patch 重放。
 - 本次必要移动差异：`home-new-session-v2-2-7.patch` 只抽取 `home/projects` fade threshold，接入 `view.tsx`，并以 top/middle/bottom/one-pixel tests 锁定 DOM edge attributes；patch SHA-256 为 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。它排在 closure → #184 → server-edit 之后，targets 与既有 #184/server-edit active patches 不重叠。
 - 正常/失败/恢复范围：Home 覆盖 cached/stale/loading/error/retry、server/project identity 与 late-result disposal；session search 覆盖 found/missing/failed/timed-out/closed/disposed；row 覆盖 long-press/menu、rename cancel/failed/late answer；new-session/picker 覆盖 branch→worktree、location history/back/cancel、directory lookup queue、combobox/tree/selection、worktree/MCP/session timeout、rollback 与 stale attempt。项目身份/最近使用持久化不改写。
 - 验收：focused app selection baseline **200 pass / 0 fail / 700 expect / 17 files** → post-change **204 pass / 0 fail / 704 expect / 18 files**；Web build、patch registry、closure、Android asset verify、Gradle unit/APK 均通过。设备/真实服务的完整新建会话、worktree picker 触摸、重启/切网恢复和直连/SSH 双路由仍归 G19/G30，当前标为 BLOCKED/NOT RUN。
-- 授权与停止条件：不创建 PR、不推送、不合并；若出现需要改变项目身份/最近使用语义、Android 入口范围或安全策略的取舍，停止并记录，不在 #185 内私自扩展。
+- 授权与停止条件（历史 #185）：不创建 PR、不推送、不合并；若出现需要改变项目身份/最近使用语义、Android 入口范围或安全策略的取舍，停止并记录，不在 #185 内私自扩展。
 
 ## #186 tabs / Inbox / titlebar 执行卡
 
@@ -52,9 +52,9 @@
 - 本次必要移动差异：现有 `MainActivity`/`BackDispatchPolicy` 保留旧 `true`/fallback 外部语义，但补齐受控 main-frame app-origin request（version=1/type=back/opaque requestId≤256 bytes）、one-pending、stale/duplicate/destroy fail-closed 生命周期；新增 `tabs-inbox-titlebar-v2-2-7` 仅含 app-side back chain/binding。`entry.tsx` 与 #184 是 shared file，明确 `dependsOn` 三个前三 patch，payload 只含 distinct binding hunk。
 - back chain：IME 由系统优先；app chain 为 dialog→popover→panelDrawer→dockPanel→titlebarMore→goBack；每次只消费一层，所有 false/null/error/timeout 回到原 `canGoBack/goBack→super` fallback。chain 不调用 `session.interrupt`/`abort`、`inbox.cancel`、`pty.remove`、`kill`，running session + pending Inbox negative path 保持 no-op。
 - 正常/失败/恢复：tab close/menu/rename/reopen、New tab launcher、last side-region close、Inbox open-session scroll restore、two-run Working sort、mobile tabs drawer、route/history promotion/load/rename、avatar/ring separation 为 fixed-source absorbed behavior；back 的 malformed/wrong version/type/extra secret/oversize/wrong origin/timeout/stale/duplicate/destroy 均 decline 到原 fallback。
-- 验收：app focused tabs/Inbox/back **138 pass / 0 fail / 383 expect / 13 files**；mobile-hosts full **444 pass / 0 fail / 2958 expect / 40 files**；back-handler focused 6/0；Android BackDispatchPolicy + Gradle unit/APK PASS；Web build/copy/assets/closure/patch registry PASS；E2E tabs/side-panels 本轮受 fixture/dev-server 依赖与 120s budget 限制，未记为 PASS；设备/adb back/safe-area/real running session **BLOCKED / NOT RUN**。
-- 先前三 patch 硬不变量：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；#186 `1490c51926fa809a87ffd08897b9d0721317727a4e5ee850d28176dafba2098c`。前三 targets/order/behavior unchanged。
-- 授权与停止条件：只提交 conventional commit，不 push、不创建 PR、不合并；没有设备/真实服务时不声称 Android runtime、safe-area、hardware back、running session 或 Windows runtime 通过；不声称 full typecheck。
+- 验收（修复后 #186）：app focused tabs/Inbox/back **138 pass / 0 fail / 383 expect / 13 files**；mobile-hosts、back-handler、Android BackDispatchPolicy + Gradle unit/APK、Web build/copy/assets/closure/patch registry 结果绑定修复后 revision；E2E tabs/side-panels 本轮受 fixture/dev-server 依赖与 120s budget 限制，未记为 PASS；设备/adb back/safe-area/real running session/predictive back/full typecheck **BLOCKED / NOT RUN**。
+- 先前三 patch 硬不变量：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；修复后 #186 `1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2`。前三 targets/order/behavior unchanged。
+- 授权与停止条件：修复提交已存在，只保持不 push、不创建 PR、不合并；没有设备/真实服务时不声称 Android runtime、safe-area、hardware back、running session、predictive back 或 Windows runtime 通过；不声称 full typecheck。
 
 ## 稳定 focused-test 复跑记录（#184）
 
@@ -178,7 +178,7 @@ bun test --conditions=browser packages/mobile-hosts
 
 ## 当前结果 / 下一步
 
-- 当前状态：**Stage A/B 已完成；Stage C 静态门禁部分完成；Issue #185 实施待提交**。当前 worktree 保留未提交 #185 diff；vendor 本身可由 pristine v2.2.7 closure + build-only closure patch + 三个 active mobile replay 重建。
+- 历史状态（#185）：**Stage A/B 已完成；Stage C 静态门禁部分完成**。该历史 worktree 的未提交状态不代表当前；当前 vendor 由 pristine v2.2.7 closure + build-only closure patch + 四个 ordered mobile replay 重建，当前交付为已提交的 #186 修复。
 - 已完成：上游 tag 固定、差异规模盘点、Desktop commit/path 盘点、81 条补丁 disposition、目标闭包重建、upstream npm patch/lockfile 重算；连接/配对/SSH 共享状态机、凭据契约、健康/生命周期控制器和移动兼容接缝已落到源码，#185 Home fade seam 与测试已落位。
 - 关键发现：v2.2.7 已吸收部分旧移动差异；19 条 #184 历史语义明确标为 absorbed，59 条非 #184 历史 payload 保留为 deferred；#184 active overlay 只承载 scoped connection、配对、凭据/安全、server lifecycle/health 和 SSH 共享适配，继承自 origin/main 的 server-edit patch 独立重放；#185 allowlist 中的 Home/new-session state machines 已由 v2.2.7 pin 吸收，active #185 patch 只承载 fade helper/test；patchmark 与 workspace 修复仅作为 build-only closure 传递依赖重放。
 - 剩余：`bun run typecheck:tsc -- --pretty false`（在 `vendor/upstream/packages/app` 执行）仍有 component-test story module/implicit-any、WebView bridge cast、generated/plugin type、legacy fixture 与 app→mobile-hosts rootDir/TS6307 等 baseline errors；设备 UI、真实服务和真实 JSch 链路未运行。
@@ -188,7 +188,7 @@ bun test --conditions=browser packages/mobile-hosts
 
 - 当前状态：**共享语义实施完成 → 静态门禁部分完成**；共享连接、配对、SSH 状态机和移动兼容接线已实现，v2.2.7 closure 可重建并通过 closure gate；不声称 APK 可用或任何 Android/真实服务通过。
 - 已落地的关键面：`ServerOriginal`/`ServerSaveAction` 连接保存契约、credentialRef/remember/vault hydration、URL userinfo/TLS/redirect 安全边界、tagged plugin/health 状态与旧投影、server lifecycle/health/request queue/endpoint sync machine、pairing main machine、SSH main/window machine 与保留的移动 UI 兼容面。
-- 可复现验证：`python3 scripts/mobile-patches.py` PASS（81 条；3 active/19 absorbed/59 deferred）；build-only closure patch + 三个 active mobile replay 可重建；Web build、`verify:patches`、`verify:closure`、完整 server-page/app/GUI/mobile-hosts focused tests、#185 Home focused tests 与 Android Gradle build 均按当前记录执行；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
+- 可复现验证（修复后）：`python3 scripts/mobile-patches.py` PASS（82 条；4 active/19 absorbed/59 deferred）；build-only closure patch + 四个 ordered mobile replay 可重建；Web build、`verify:patches`、`verify:closure`、#186 app/back/mobile-hosts focused tests 与 Android Gradle build 均按修复后记录执行；历史 #185 Home focused tests 不作为当前事实；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
 - 已知失败/阻塞：direct `tsc` 仍报告 app→mobile-hosts 的 rootDir/TS6307、app→gui-plugins 的 TS6307、v2.2.7 generated/client 与旧 settings fixture 类型不一致，以及 closure 外的 Electron/GUI legacy 测试依赖；GUI `askpass.test.ts` 依赖未纳入 closure 的 `packages/core/test/lib/effect`。这些不能通过关闭 strict、引入 Electron 到 Android 或静默跳过来解决。
 - 下一步：完成 #185 文档/deny audit/diff review，按用户授权决定是否提交；不创建 PR、不推送、不合并；继续保持 typecheck 的 known-baseline、设备 UI 与真实链路的 BLOCKED/NOT RUN 边界。
 - 后置阻塞：真实 SSH tunnel/session/stream/permission/task survival、QR physical、设备 UI 与真实服务证据仍缺失；Android Gradle/APK 仅有本轮 build-only PASS，不能替代安装和受影响路径验证；解除条件为真实设备、授权 SSH 主机/服务端和完整链路证据，不能由静态或历史证据替代。

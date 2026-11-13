@@ -1,5 +1,5 @@
 diff --git a/packages/app/src/app.tsx b/packages/app/src/app.tsx
-index 78083534acfaeb9af76e7e56c94bc9de4624f581..8fee2cf4b910f113b737883bb7b2fd396bc4e08e 100644
+index 7808353..8fee2cf 100644
 --- a/packages/app/src/app.tsx
 +++ b/packages/app/src/app.tsx
 @@ -1,17 +1,18 @@
@@ -59,10 +59,18 @@ index 78083534acfaeb9af76e7e56c94bc9de4624f581..8fee2cf4b910f113b737883bb7b2fd39
                      <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                    </PluginRoot>
 diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
-index 3a7a4e34f69fe2c1f2151d1ae1d82a56f00b975d..af94cf6fd20afbd23924b355cedf379e33a14bf0 100644
+index 3a7a4e3..692ae11 100644
 --- a/packages/app/src/entry.tsx
 +++ b/packages/app/src/entry.tsx
-@@ -23,7 +23,10 @@ import {
+@@ -2,6 +2,7 @@
+ 
+ import "@/runtime/polyfills"
+ import { init } from "@sentry/solid"
++import { onCleanup } from "solid-js"
+ import { render } from "solid-js/web"
+ import { AppBaseProviders, AppInterface } from "@/app"
+ import { loadInitialLocale } from "@/runtime/i18n/language"
+@@ -23,7 +24,10 @@ import {
    createAndroidXVaultTransport,
    createWebMessageProbeTransport,
    createWebMessageSshTransport,
@@ -73,7 +81,7 @@ index 3a7a4e34f69fe2c1f2151d1ae1d82a56f00b975d..af94cf6fd20afbd23924b355cedf379e
  
  const getLocale = () => {
    if (typeof navigator === "undefined") return "en" as const
-@@ -70,6 +73,14 @@ const ssh = createWebMessageSshTransport({
+@@ -70,6 +74,26 @@ const ssh = createWebMessageSshTransport({
    },
  })
  
@@ -82,14 +90,34 @@ index 3a7a4e34f69fe2c1f2151d1ae1d82a56f00b975d..af94cf6fd20afbd23924b355cedf379e
 +// rejects malformed/duplicate/stale requests and the chain itself only closes owned layers.
 +const backPort = { consume: () => consumeBackChain() }
 +setActiveBackHandlerPort(backPort)
-+;(window as Window & { opencodeMobileBack?: ReturnType<typeof createBackHandlerBinding> }).opencodeMobileBack =
-+  createBackHandlerBinding(backPort)
++const backBinding = createBackHandlerBinding(backPort)
++const disposeBackBinding = () => backBinding.dispose()
++;(window as Window & { opencodeMobileBack?: ReturnType<typeof createBackHandlerBinding> }).opencodeMobileBack = backBinding
++window.addEventListener("pagehide", disposeBackBinding, { once: true })
++
++function BackHandlerLifecycle() {
++  onCleanup(() => {
++    backBinding.dispose()
++    setActiveBackHandlerPort(undefined)
++    window.removeEventListener("pagehide", disposeBackBinding)
++  })
++
++  return null
++}
 +
  if (import.meta.env.PROD && "serviceWorker" in navigator) {
    window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
  }
+@@ -159,6 +183,7 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
+         <PlatformProvider value={web.platform}>
+           <AppBaseProviders locale={locale}>
+             <AppInterface servers={hosts.upstreamConnections()}>
++              <BackHandlerLifecycle />
+               <KeyboardInsets />
+               {standalone && <PwaRoutePersistence />}
+             </AppInterface>
 diff --git a/packages/app/src/session/screen.tsx b/packages/app/src/session/screen.tsx
-index 34c609512de195c2b2432f67e8296a834f25cca9..93acc4f17cafece82c3ae7ded3e164fa2f1236cb 100644
+index 34c6095..93acc4f 100644
 --- a/packages/app/src/session/screen.tsx
 +++ b/packages/app/src/session/screen.tsx
 @@ -25,6 +25,7 @@ import { useLayout } from "@/shell/state/layout"
@@ -117,189 +145,9 @@ index 34c609512de195c2b2432f67e8296a834f25cca9..93acc4f17cafece82c3ae7ded3e164fa
    const drag = createPaneDrag({
      identity: session.layout.tabKey,
      shown: (pane) => (pane === "bottom" ? bottomOpen() : region.pane(pane).keys().length > 0),
-diff --git a/packages/app/src/shell/mobile-panel-drawer.tsx b/packages/app/src/shell/mobile-panel-drawer.tsx
-index 8f8a93f7511e11398f873e87e7bcdca61c463426..ecbeaf1484a83b2a83b39cabc06876ab97279bf6 100644
---- a/packages/app/src/shell/mobile-panel-drawer.tsx
-+++ b/packages/app/src/shell/mobile-panel-drawer.tsx
-@@ -1,8 +1,9 @@
--import { createEffect, on, Show, type JSX, type ParentProps } from "solid-js"
-+import { createEffect, on, onCleanup, Show, type JSX, type ParentProps } from "solid-js"
- import { createStore } from "solid-js/store"
- import { Button } from "@opencode/ui/button"
- import { DrawerContext } from "@opencode/plugin/gui/host"
- import { useLanguage } from "@/runtime/i18n/language"
-+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
- import { MobileDrawer, MobileDrawerClose, MobileDrawerContent, MobileDrawerLabel } from "./mobile-drawer"
- import "./mobile-panel-drawer.css"
- 
-@@ -41,6 +42,22 @@ export function MobilePanelDrawer(
-     },
-   }
- 
-+  createEffect(() => {
-+    if (!props.open) return
-+
-+    onCleanup(
-+      registerBackLayer(BACK_LAYER_ORDER.panelDrawer, () => {
-+        if (store.view) {
-+          navigation.back()
-+          return true
-+        }
-+        if (!props.open) return false
-+        props.onOpenChange(false)
-+        return true
-+      }),
-+    )
-+  })
-+
-   return (
-     <DrawerContext.Provider value={navigation}>
-       <MobileDrawer
-diff --git a/packages/app/src/shell/titlebar/history.ts b/packages/app/src/shell/titlebar/history.ts
-index 1a3a7fee693b0612ad229686a46dceb80f260b19..4f766bf13b10f3b96ec0a4071aa7a0058a810989 100644
---- a/packages/app/src/shell/titlebar/history.ts
-+++ b/packages/app/src/shell/titlebar/history.ts
-@@ -41,8 +41,17 @@ export function createTitlebarHistory() {
- 
-   onCleanup(() => dispatch({ type: "disposed" }))
- 
-+  const consumeBack = () => {
-+    const current = untrack(historyState)
-+    const cursor = current.status === "traversing" ? current.targetIndex : current.index
-+    if (!current.stack[cursor - 1]) return false
-+    dispatch({ type: "back" })
-+    return true
-+  }
-+
-   return {
-     back: () => dispatch({ type: "back" }),
-+    consumeBack,
-     forward: () => dispatch({ type: "forward" }),
-   }
- }
-diff --git a/packages/app/src/shell/titlebar/titlebar.tsx b/packages/app/src/shell/titlebar/titlebar.tsx
-index c138f2ddd142a54251cca7fc887005a399001c0a..c3b05bf9091a0656b942a58fc0bed59373091e86 100644
---- a/packages/app/src/shell/titlebar/titlebar.tsx
-+++ b/packages/app/src/shell/titlebar/titlebar.tsx
-@@ -36,6 +36,7 @@ import { RecentlyClosedTabsMenu } from "./recently-closed-tabs-menu"
- import { useSettingsDialog } from "@/settings/command"
- import { TitlebarItems, useTitlebarItems } from "@/runtime/plugin/titlebar-items"
- import { createRouteTabSync } from "./route-sync"
-+import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
- import {
-   INITIAL_MOBILE_TABS_STATE,
-   selectMobileTabsOpen,
-@@ -137,6 +138,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
-   })
- 
-   const history = createTitlebarHistory()
-+  onCleanup(registerBackLayer(BACK_LAYER_ORDER.goBack, history.consumeBack))
-   const path = () => `${location.pathname}${location.search}${location.hash}`
- 
-   const titlebarItems = useTitlebarItems()
-@@ -524,6 +526,15 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
- 
-             const closeMobileTabs = () => dispatchMobileTabs({ type: "close" })
- 
-+            onCleanup(
-+              registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
-+                const state = untrack(mobileTabsState)
-+                if (state.status === "closed") return false
-+                closeMobileTabs()
-+                return true
-+              }),
-+            )
-+
-             // The current tab's project avatar stays put; while it works, its activity ring shows beside the tab count.
-             const currentStatus = useSessionTabAvatarState(
-               () => currentTab()?.server,
-diff --git a/packages/app/src/shell/back-chain.ts b/packages/app/src/shell/back-chain.ts
-new file mode 100644
-index 0000000000000000000000000000000000000000..c154a3216b3083e6c3a62d17f50c33d8864b2d7e
---- /dev/null
-+++ b/packages/app/src/shell/back-chain.ts
-@@ -0,0 +1,78 @@
-+// mobile(tabs-inbox-titlebar-v2-2-7): the in-app back chain for the Android bridge.
-+//
-+// The native shell offers one request to this synchronous registry. Layers are tried from
-+// the topmost visible surface down; the first explicit true consumes one press. A decline
-+// leaves the native canGoBack/goBack fallback unchanged. This module deliberately has no
-+// navigation product or session side effects: it only closes the surface that already owns
-+// the current state.
-+
-+export type BackLayer = () => boolean
-+
-+export const BACK_LAYER_ORDER = {
-+  dialog: 10,
-+  popover: 15,
-+  panelDrawer: 20,
-+  dockPanel: 30,
-+  titlebarMore: 40,
-+  goBack: 90,
-+} as const
-+
-+const layers: Array<{ order: number; consume: BackLayer }> = []
-+
-+export function registerBackLayer(order: number, consume: BackLayer): () => void {
-+  const entry = { order, consume }
-+  layers.push(entry)
-+  layers.sort((a, b) => a.order - b.order)
-+
-+  return () => {
-+    const index = layers.indexOf(entry)
-+    if (index !== -1) layers.splice(index, 1)
-+  }
-+}
-+
-+export function consumeBackChain(): boolean {
-+  for (const layer of layers) {
-+    try {
-+      if (layer.consume() === true) return true
-+    } catch {
-+      // A failed layer declines. The next visible layer or native fallback still gets a turn.
-+    }
-+  }
-+
-+  return false
-+}
-+
-+export function backLayerOrders(): number[] {
-+  return layers.map((layer) => layer.order)
-+}
-+
-+/** Live open-state sentinels for Kobalte menus/popovers and the details flyout. */
-+export const POPOVER_OPEN_SELECTOR =
-+  '[role="menu"], [role="dialog"][data-expanded], .session-service-flyout[data-open]'
-+
-+/** Close one open floating surface through the existing Escape handlers. */
-+export function consumePopoverSurface(doc: Document): boolean {
-+  if (!doc.querySelector(POPOVER_OPEN_SELECTOR)) return false
-+  doc.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-+  return true
-+}
-+
-+export interface DockFaces {
-+  desktop: boolean
-+  side: { opened(): boolean; toggle(): void }
-+  bottom: { opened(): boolean; setOpened(open: boolean): void }
-+}
-+
-+/** Close exactly one existing wide-screen dock surface, side before bottom. */
-+export function consumeDockPanel(faces: DockFaces): boolean {
-+  if (!faces.desktop) return false
-+  if (faces.side.opened()) {
-+    faces.side.toggle()
-+    return true
-+  }
-+  if (faces.bottom.opened()) {
-+    faces.bottom.setOpened(false)
-+    return true
-+  }
-+  return false
-+}
 diff --git a/packages/app/src/shell/back-chain.test.ts b/packages/app/src/shell/back-chain.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..621ed341d35d0f62f8207734be8162a0c46a3b8d
+index 0000000..621ed34
 --- /dev/null
 +++ b/packages/app/src/shell/back-chain.test.ts
 @@ -0,0 +1,132 @@
@@ -435,3 +283,183 @@ index 0000000000000000000000000000000000000000..621ed341d35d0f62f8207734be8162a0
 +
 +// Keep the negative contract visible: this module never calls session interrupt/abort,
 +// inbox cancel, pty removal, or process kill. Back only consumes an owned UI surface.
+diff --git a/packages/app/src/shell/back-chain.ts b/packages/app/src/shell/back-chain.ts
+new file mode 100644
+index 0000000..c154a32
+--- /dev/null
++++ b/packages/app/src/shell/back-chain.ts
+@@ -0,0 +1,78 @@
++// mobile(tabs-inbox-titlebar-v2-2-7): the in-app back chain for the Android bridge.
++//
++// The native shell offers one request to this synchronous registry. Layers are tried from
++// the topmost visible surface down; the first explicit true consumes one press. A decline
++// leaves the native canGoBack/goBack fallback unchanged. This module deliberately has no
++// navigation product or session side effects: it only closes the surface that already owns
++// the current state.
++
++export type BackLayer = () => boolean
++
++export const BACK_LAYER_ORDER = {
++  dialog: 10,
++  popover: 15,
++  panelDrawer: 20,
++  dockPanel: 30,
++  titlebarMore: 40,
++  goBack: 90,
++} as const
++
++const layers: Array<{ order: number; consume: BackLayer }> = []
++
++export function registerBackLayer(order: number, consume: BackLayer): () => void {
++  const entry = { order, consume }
++  layers.push(entry)
++  layers.sort((a, b) => a.order - b.order)
++
++  return () => {
++    const index = layers.indexOf(entry)
++    if (index !== -1) layers.splice(index, 1)
++  }
++}
++
++export function consumeBackChain(): boolean {
++  for (const layer of layers) {
++    try {
++      if (layer.consume() === true) return true
++    } catch {
++      // A failed layer declines. The next visible layer or native fallback still gets a turn.
++    }
++  }
++
++  return false
++}
++
++export function backLayerOrders(): number[] {
++  return layers.map((layer) => layer.order)
++}
++
++/** Live open-state sentinels for Kobalte menus/popovers and the details flyout. */
++export const POPOVER_OPEN_SELECTOR =
++  '[role="menu"], [role="dialog"][data-expanded], .session-service-flyout[data-open]'
++
++/** Close one open floating surface through the existing Escape handlers. */
++export function consumePopoverSurface(doc: Document): boolean {
++  if (!doc.querySelector(POPOVER_OPEN_SELECTOR)) return false
++  doc.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
++  return true
++}
++
++export interface DockFaces {
++  desktop: boolean
++  side: { opened(): boolean; toggle(): void }
++  bottom: { opened(): boolean; setOpened(open: boolean): void }
++}
++
++/** Close exactly one existing wide-screen dock surface, side before bottom. */
++export function consumeDockPanel(faces: DockFaces): boolean {
++  if (!faces.desktop) return false
++  if (faces.side.opened()) {
++    faces.side.toggle()
++    return true
++  }
++  if (faces.bottom.opened()) {
++    faces.bottom.setOpened(false)
++    return true
++  }
++  return false
++}
+diff --git a/packages/app/src/shell/mobile-panel-drawer.tsx b/packages/app/src/shell/mobile-panel-drawer.tsx
+index 8f8a93f..ecbeaf1 100644
+--- a/packages/app/src/shell/mobile-panel-drawer.tsx
++++ b/packages/app/src/shell/mobile-panel-drawer.tsx
+@@ -1,8 +1,9 @@
+-import { createEffect, on, Show, type JSX, type ParentProps } from "solid-js"
++import { createEffect, on, onCleanup, Show, type JSX, type ParentProps } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { Button } from "@opencode/ui/button"
+ import { DrawerContext } from "@opencode/plugin/gui/host"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+ import { MobileDrawer, MobileDrawerClose, MobileDrawerContent, MobileDrawerLabel } from "./mobile-drawer"
+ import "./mobile-panel-drawer.css"
+ 
+@@ -41,6 +42,22 @@ export function MobilePanelDrawer(
+     },
+   }
+ 
++  createEffect(() => {
++    if (!props.open) return
++
++    onCleanup(
++      registerBackLayer(BACK_LAYER_ORDER.panelDrawer, () => {
++        if (store.view) {
++          navigation.back()
++          return true
++        }
++        if (!props.open) return false
++        props.onOpenChange(false)
++        return true
++      }),
++    )
++  })
++
+   return (
+     <DrawerContext.Provider value={navigation}>
+       <MobileDrawer
+diff --git a/packages/app/src/shell/titlebar/history.ts b/packages/app/src/shell/titlebar/history.ts
+index 1a3a7fe..4f766bf 100644
+--- a/packages/app/src/shell/titlebar/history.ts
++++ b/packages/app/src/shell/titlebar/history.ts
+@@ -41,8 +41,17 @@ export function createTitlebarHistory() {
+ 
+   onCleanup(() => dispatch({ type: "disposed" }))
+ 
++  const consumeBack = () => {
++    const current = untrack(historyState)
++    const cursor = current.status === "traversing" ? current.targetIndex : current.index
++    if (!current.stack[cursor - 1]) return false
++    dispatch({ type: "back" })
++    return true
++  }
++
+   return {
+     back: () => dispatch({ type: "back" }),
++    consumeBack,
+     forward: () => dispatch({ type: "forward" }),
+   }
+ }
+diff --git a/packages/app/src/shell/titlebar/titlebar.tsx b/packages/app/src/shell/titlebar/titlebar.tsx
+index c138f2d..c3b05bf 100644
+--- a/packages/app/src/shell/titlebar/titlebar.tsx
++++ b/packages/app/src/shell/titlebar/titlebar.tsx
+@@ -36,6 +36,7 @@ import { RecentlyClosedTabsMenu } from "./recently-closed-tabs-menu"
+ import { useSettingsDialog } from "@/settings/command"
+ import { TitlebarItems, useTitlebarItems } from "@/runtime/plugin/titlebar-items"
+ import { createRouteTabSync } from "./route-sync"
++import { BACK_LAYER_ORDER, registerBackLayer } from "@/shell/back-chain"
+ import {
+   INITIAL_MOBILE_TABS_STATE,
+   selectMobileTabsOpen,
+@@ -137,6 +138,7 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
+   })
+ 
+   const history = createTitlebarHistory()
++  onCleanup(registerBackLayer(BACK_LAYER_ORDER.goBack, history.consumeBack))
+   const path = () => `${location.pathname}${location.search}${location.hash}`
+ 
+   const titlebarItems = useTitlebarItems()
+@@ -524,6 +526,15 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
+ 
+             const closeMobileTabs = () => dispatchMobileTabs({ type: "close" })
+ 
++            onCleanup(
++              registerBackLayer(BACK_LAYER_ORDER.titlebarMore, () => {
++                const state = untrack(mobileTabsState)
++                if (state.status === "closed") return false
++                closeMobileTabs()
++                return true
++              }),
++            )
++
+             // The current tab's project avatar stays put; while it works, its activity ring shows beside the tab count.
+             const currentStatus = useSessionTabAvatarState(
+               () => currentTab()?.server,

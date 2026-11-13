@@ -2,6 +2,7 @@
 
 import "@/runtime/polyfills"
 import { init } from "@sentry/solid"
+import { onCleanup } from "solid-js"
 import { render } from "solid-js/web"
 import { AppBaseProviders, AppInterface } from "@/app"
 import { loadInitialLocale } from "@/runtime/i18n/language"
@@ -78,8 +79,20 @@ const ssh = createWebMessageSshTransport({
 // rejects malformed/duplicate/stale requests and the chain itself only closes owned layers.
 const backPort = { consume: () => consumeBackChain() }
 setActiveBackHandlerPort(backPort)
-;(window as Window & { opencodeMobileBack?: ReturnType<typeof createBackHandlerBinding> }).opencodeMobileBack =
-  createBackHandlerBinding(backPort)
+const backBinding = createBackHandlerBinding(backPort)
+const disposeBackBinding = () => backBinding.dispose()
+;(window as Window & { opencodeMobileBack?: ReturnType<typeof createBackHandlerBinding> }).opencodeMobileBack = backBinding
+window.addEventListener("pagehide", disposeBackBinding, { once: true })
+
+function BackHandlerLifecycle() {
+  onCleanup(() => {
+    backBinding.dispose()
+    setActiveBackHandlerPort(undefined)
+    window.removeEventListener("pagehide", disposeBackBinding)
+  })
+
+  return null
+}
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
@@ -170,6 +183,7 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
         <PlatformProvider value={web.platform}>
           <AppBaseProviders locale={locale}>
             <AppInterface servers={hosts.upstreamConnections()}>
+              <BackHandlerLifecycle />
               <KeyboardInsets />
               {standalone && <PwaRoutePersistence />}
             </AppInterface>
