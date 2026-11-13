@@ -23,7 +23,10 @@ import {
   createAndroidXVaultTransport,
   createWebMessageProbeTransport,
   createWebMessageSshTransport,
+  createBackHandlerBinding,
+  setActiveBackHandlerPort,
 } from "@opencode-mobile/mobile-hosts"
+import { consumeBackChain } from "@/shell/back-chain"
 
 const getLocale = () => {
   if (typeof navigator === "undefined") return "en" as const
@@ -69,6 +72,14 @@ const ssh = createWebMessageSshTransport({
     if (bootstrap && typeof bootstrap.postMessage === "function") bootstrap.postMessage(SSH_BOOTSTRAP_MESSAGE)
   },
 })
+
+// mobile(tabs-inbox-titlebar-v2-2-7): install the fail-closed app-side binding before the
+// async shell render. MainActivity passes only {version:1,type:"back",requestId}; the binding
+// rejects malformed/duplicate/stale requests and the chain itself only closes owned layers.
+const backPort = { consume: () => consumeBackChain() }
+setActiveBackHandlerPort(backPort)
+;(window as Window & { opencodeMobileBack?: ReturnType<typeof createBackHandlerBinding> }).opencodeMobileBack =
+  createBackHandlerBinding(backPort)
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })

@@ -41,8 +41,17 @@ export function createTitlebarHistory() {
 
   onCleanup(() => dispatch({ type: "disposed" }))
 
+  const consumeBack = () => {
+    const current = untrack(historyState)
+    const cursor = current.status === "traversing" ? current.targetIndex : current.index
+    if (!current.stack[cursor - 1]) return false
+    dispatch({ type: "back" })
+    return true
+  }
+
   return {
     back: () => dispatch({ type: "back" }),
+    consumeBack,
     forward: () => dispatch({ type: "forward" }),
   }
 }

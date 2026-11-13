@@ -1,9 +1,9 @@
 # v2.2.7 移动补丁处置记录
 
-- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**81 registered / 3 active / 19 absorbed / 59 deferred**。
-- 当前 replay 顺序：`vendor-manifest.json#closurePatches` 先重放 build-only closure；`mobilePatches` 依次重放 `patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）、`patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch）和 `patches/mobile/home-new-session-v2-2-7.patch`（#185 independent overlay）。
+- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**82 registered / 4 active / 19 absorbed / 59 deferred**。
+- 当前 replay 顺序：`vendor-manifest.json#closurePatches` 先重放 build-only closure；`mobilePatches` 依次重放 `patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）、`patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch）、`patches/mobile/home-new-session-v2-2-7.patch`（#185 independent overlay）和 `patches/mobile/tabs-inbox-titlebar-v2-2-7.patch`（#186 required back bridge）。
 - 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。
-- #184 active consolidated patch 只承载 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。#185 patch 独立承载 Home project-list fade helper 与 regression tests，不改变 #184 或 server-edit 的 targets。
+- #184 active consolidated patch 只承载 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。#185 patch 独立承载 Home project-list fade helper 与 regression tests，不改变 #184 或 server-edit 的 targets。#186 的 tabs/Inbox/titlebar 生产 delta 已由 v2.2.7 vendor pin 吸收，active patch 只承载 app-side back chain/binding，不复制上游生产 hunk。
 
 | # | ID | 状态 | v2.2.7 处置 | 新 baseline | targets |
 |---:|---|---|---|---|---|
@@ -88,6 +88,7 @@
 | 79 | `v2-2-7-mobile-connection-pairing-ssh-closure` | `active` | 直接从 pristine v2.2.7 生成的 #184 connection/pairing/SSH scoped overlay；不包含 providers/settings/session/files/terminal/notifications/generic UI/patchmark/无关 package 行为 | `fedc6f208aa2bd54c1019227214568083f6380ad` | 24 个 scoped targets（以 `manifest.json` 为准） |
 | 80 | `server-edit-touch-compatibility` | `active` | 继承自 origin/main `4961ec04`，重基到 pristine v2.2.7 后独立重放；保留 Android WebView host identity，并将服务器行 Edit 延迟 350ms 以避开触摸兼容 click；不计入 #184 overlay scope | `fedc6f208aa2bd06c8fa099c4175939a8ac7e2f` | packages/app/src/settings/servers/android-host.ts, packages/app/src/settings/servers/servers.tsx, packages/app/src/settings/servers/servers-page.test.tsx |
 | 81 | `home-new-session-v2-2-7` | `active` | #185 独立 Home/new-session overlay：v2.2.7 已吸收 allowlist 中的 Home selection/session/new-session/workspace state machines；当前 payload 只抽取 Home project-list fade threshold、接入直接 import 并增加 top/middle/bottom regression tests，不复制 project identity 或 recent persistence 语义；不与 #184/server-edit targets 重叠 | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/app/src/home/projects/fade.test.ts, packages/app/src/home/projects/fade.ts, packages/app/src/home/projects/view.tsx |
+| 82 | `tabs-inbox-titlebar-v2-2-7` | `active` | #186：固定 v2.2.1→v2.2.7 tabs/Inbox/titlebar/mobile-tabs/route/scroll/shelf/avatar/activity-ring allowlist 逐文件已被 v2.2.7 pin 吸收；仅保留 required Android back bridge 的 app-side chain/binding。`entry.tsx` 与 #184 为 shared file，依赖前三个 active replay，payload 只含不同 hunk，不复制 #184 bridge。 | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/app/src/app.tsx, packages/app/src/entry.tsx, packages/app/src/session/screen.tsx, packages/app/src/shell/back-chain.test.ts, packages/app/src/shell/back-chain.ts, packages/app/src/shell/mobile-panel-drawer.tsx, packages/app/src/shell/titlebar/history.ts, packages/app/src/shell/titlebar/titlebar.tsx |
 
 ## Issue #185 处置说明
 

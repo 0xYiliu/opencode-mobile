@@ -25,6 +25,7 @@ import { useLayout } from "@/shell/state/layout"
 import { SessionPanelFrame } from "@/session/session-frame"
 import { PluginLinks } from "@/runtime/plugin/render"
 import { createPanelSidebar, createRegion, MobilePanel } from "@/runtime/plugin/panels"
+import { BACK_LAYER_ORDER, consumeDockPanel, registerBackLayer } from "@/shell/back-chain"
 import { createMobileViews, MobileViewTabs } from "@/runtime/plugin/mobile"
 import { usePluginAttachment } from "@/runtime/plugin/host-apis"
 import { createMountedSession } from "@/runtime/plugin/mounted-session"
@@ -107,6 +108,16 @@ function SessionScreenContent(props: {
 
   const bottomTabs = createMemo(() => region.pane("bottom").keys().length > 0)
   const bottomOpen = createMemo(() => bottomTabs() && session.layout.view().bottom.opened())
+
+  onCleanup(
+    registerBackLayer(BACK_LAYER_ORDER.dockPanel, () =>
+      consumeDockPanel({
+        desktop: isDesktop(),
+        side: session.layout.view().side,
+        bottom: session.layout.view().bottom,
+      }),
+    ),
+  )
 
   const drag = createPaneDrag({
     identity: session.layout.tabKey,

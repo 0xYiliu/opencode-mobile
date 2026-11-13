@@ -45,6 +45,45 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 
 **运行边界**：未安装 APK、未操作设备/模拟器、未连接真实服务或真实 worktree；G19/G30 的新建会话、worktree picker 触摸、重启/切网恢复与直连/SSH 双路由仍 BLOCKED/NOT RUN。Gradle/APK build PASS 不等于 APK 可用或设备交互通过。
 
+### issue #186 段（tabs / Inbox / titlebar 与 Android back bridge）——2026-11-13 当前 worktree
+
+**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`，分支 `feat/186-tabs-inbox-titlebar`，base `5b7f1ac1d1b707db36f6fde6e768dc4f06e3063a`，当前未提交、未推送、未创建 PR、未合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；旧基准 v2.2.1=`3ebcf9a32c7b28f658cfee80775448929361727`。
+
+**fixed-source crosswalk / allowlist**：`docs/alignment/windows-desktop/v2.2.7/changes.md` 的 #186 section 记录 `git log/diff/show` 命令、commit/path crosswalk、逐文件 allowlist 与 deny audit。tabs/Inbox/titlebar/mobile-tabs/route/scroll/shelf/avatar/activity-ring production delta 与 fixed v2.2.7 vendor 逐文件 byte-compare 为 **absorbed**；没有复制历史 payload。唯一 active source patch 为 `tabs-inbox-titlebar-v2-2-7`，只承载 required app-side back bridge；root Android/first-party handler 为同一交付的移动边界接线。
+
+**patch replay / hashes**：
+
+```text
+closure → v2-2-7-mobile-connection-pairing-ssh-closure (#184)
+        → server-edit-touch-compatibility
+        → home-new-session-v2-2-7 (#185)
+        → tabs-inbox-titlebar-v2-2-7 (#186)
+```
+
+- `python3 scripts/mobile-patches.py`：**PASS**（82 registered / 4 active / 19 absorbed / 59 deferred；updated none）。
+- `bun run patches:refresh`：**PASS**（82；generated mirrors refreshed）。
+- `python3 scripts/test_mobile_patches.py`：**PASS**（9/9）。
+- `bash scripts/verify-closure.sh`：**PASS**（V3(a) byte-identical、V3(b) DANGLING=0、V3(c) OK）。
+- 前三 patch 不变量未变：#184 `6b3b7ab713189bdbfcce9ea3222aee480576ae55b3c504e35889a6c55d341b94`、server-edit `89c7984311d897935782f56708ca3ce7d34e83193af2bb60ff5670a1800fe6f0`、#185 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`；#186 SHA-256=`1490c51926fa809a87ffd08897b9d0721317727a4e5ee850d28176dafba2098c`。#186 `entry.tsx` 与 #184 为 shared file，manifest 显式依赖前三 active patch，payload 无 #184 hunk copy。
+
+**focused tests**：
+
+- App tabs/Inbox/back machine subset（`back-chain`, mobile-tabs, route, tab load/rename, Inbox branch/settle/working, session rename, tabs/promotion/preview/hydration）：**138 pass / 0 fail / 383 expect / 13 files**。
+- `bun test --conditions=browser packages/mobile-hosts`：**444 pass / 0 fail / 2958 expect / 40 files**；back-handler focused：**6 pass / 0 fail / 21 expect**。
+- Android `BackDispatchPolicyTest`（request shape, origin, exact true, fallback, stale/duplicate/destroy）与 `:app:testDebugUnitTest`：**PASS**。
+- running session + pending Inbox negative audit：back chain source/test has no `session.interrupt`/`abort`, `inbox.cancel`, `pty.remove`, or `kill` call; no remote task cancellation path added. **PASS (static + unit boundary; no real running session)**。
+- failure-injection drills：patch order/hash、Inbox scroll/sort/menu/New-tab launcher、malformed/wrong-origin/duplicate/timeout-stale-destroy back guards，以及 no-interrupt/no-cancel audit；每个注入均 **rc=1**，逐项精确恢复后 **rc=0**。
+
+**build / APK**：
+
+- `bun install --frozen-lockfile`：**PASS**（Bun 1.4.2）。
+- `bun run build:web`：**PASS**（15.31s；2807 PWA precache entries；existing chunk/dynamic-import warnings only）。
+- `bash scripts/copy-web-dist.sh`：**PASS**（5520 files / 155,500,205 bytes verified）。
+- `python3 scripts/android_web_assets.py verify`：**PASS**。
+- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**PASS**；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 `54e499abc92673f4c1d027fc3dfb34ac8b1e366a46a3c47d6a605d0cc9e136a9`（66,272,606 bytes）。
+
+**E2E / runtime boundaries**：`bun run test:e2e -- e2e/regression/tabs.spec.ts e2e/regression/side-panels.spec.ts` was **BLOCKED / NOT RUN to PASS** in this worktree: Vite emitted the known dependency-scan JSX parser warning and the fixture run exceeded the 120s command budget with fixture session/title readiness failures; no E2E PASS is claimed. `bun run scripts/verify-interaction-quality.ts` remains **BLOCKED on a pre-existing false positive**: its broad `history.back` text scan matches unchanged `onSelect: history.back` application-controller wiring in `titlebar.tsx`, not a browser History API call; #186 did not change that line. No adb device, safe-area hardware run, hardware back, real running session, authorized remote service, Windows v2.2.7 runtime, or full typecheck was available; all remain **BLOCKED / NOT RUN** rather than inferred from build/static evidence.
+
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-home-projects`，分支 `feat/221-home-projects`，base `3310b80`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d0ea30e`（feat FU-3 数据层迁移）→ `0a60814`（feat Home 页目标形 + M-017 重锚）→ `58f448b`（feat new-session/location/pin）→ `52b94cc`（feat project-icon generated 面 + location re-export 退役）→ `f109d12`（chore 补丁登记 65→67）→ `ec34aec`（chore 凭据探针 retarget + dist manifest 刷新），未 push。**源码对齐目标 = `3ebcf9a32c7b28f658cfee80775448929361727a`**（copy 优先，逐文件目标形核对），移动补丁语义经三条新补丁 + 存量补丁修剪重放。

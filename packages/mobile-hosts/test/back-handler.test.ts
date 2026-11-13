@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import {
+  BACK_REQUEST_ID_MAX_BYTES,
+  BACK_REQUEST_TYPE,
+  BACK_REQUEST_VERSION,
   StubBackHandlerPort,
   activeBackHandlerPort,
   backHandlerInjected,
+  createBackHandlerBinding,
+  isBackRequest,
   setActiveBackHandlerPort,
   type BackHandlerPort,
 } from "../src/back-handler"
@@ -39,5 +44,47 @@ describe("back handler port", () => {
     setActiveBackHandlerPort(undefined)
     expect(backHandlerInjected()).toBe(false)
     expect(activeBackHandlerPort().consume()).toBe(false)
+  })
+
+  test("the window request accepts only the fixed bounded back shape", () => {
+    const request = {
+      version: BACK_REQUEST_VERSION,
+      type: BACK_REQUEST_TYPE,
+      requestId: "opaque-request-1",
+    } as const
+
+    expect(isBackRequest(request)).toBe(true)
+    expect(isBackRequest({ ...request, version: 2 })).toBe(false)
+    expect(isBackRequest({ ...request, type: "forward" })).toBe(false)
+    expect(isBackRequest({ ...request, requestId: "" })).toBe(false)
+    expect(
+      isBackRequest({
+        ...request,
+        requestId: "x".repeat(BACK_REQUEST_ID_MAX_BYTES + 1),
+      }),
+    ).toBe(false)
+    expect(isBackRequest({ ...request, url: "http://user:secret@example.invalid" })).toBe(false)
+  })
+
+  test("the binding rejects duplicates, re-entry, and calls after disposal", () => {
+    const request = { version: 1, type: "back", requestId: "opaque-request-2" } as const
+    let calls = 0
+    let binding: ReturnType<typeof createBackHandlerBinding>
+    const port: BackHandlerPort = {
+      consume: () => {
+        calls += 1
+        expect(binding.consume(request)).toBe(false)
+        return true
+      },
+    }
+
+    binding = createBackHandlerBinding(port)
+    expect(binding.consume(request)).toBe(true)
+    expect(calls).toBe(1)
+    expect(binding.consume(request)).toBe(false)
+
+    binding.dispose()
+    expect(binding.consume({ version: 1, type: "back", requestId: "opaque-request-3" })).toBe(false)
+    expect(calls).toBe(1)
   })
 })
