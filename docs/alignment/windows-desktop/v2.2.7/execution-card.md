@@ -16,7 +16,7 @@
 - 绝对工作目录：`/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`
 - 分支：`feat/upstream-227-alignment`
 - 父轮审计起点：`fd898b8ea2107884729530aedfb9bf34e173a3bc`（仅历史审计，不作为本次实现基线）
-- 本次实施 base：`c7441f5e8109737a06f8e914ffa61e025e188a7d`；当前实际 HEAD：本次 merge resolution commit（parents 为 c7441f5e 与 origin/main `4961ec04fa1d22b06c8fa099c4175939a8ac7e2f`；已提交并推送）
+- 本次实施 base：`c7441f5e8109737a06f8e914ffa61e025e188a7d`；当前实际 HEAD 为本次 diff-check 口径修复提交（本轮验证基准为 `55df2e39f591369a01ce9647b2b4c7fe59ce11b5`；已提交并推送）
 - 本次实施 worktree：`/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`
 - 本次实施分支：`feat/upstream-227-alignment`
 - 开工状态：该 worktree 由本子工作单元独占；当前为已提交 merge-resolution 树，主工作树未修改，分支已推送
@@ -38,7 +38,7 @@
 
 以下四组是本轮实际执行、可在当前 worktree 直接复跑的稳定选择，不是从聚合日志推算的数字。
 
-- 公共环境：绝对工作目录 `/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`；当前 HEAD 为本次 merge resolution commit；Linux `7.0.0-38-generic x86_64`；Bun `1.4.2`（测试输出标识 `744846f84`）。测试使用仓库 fixture 与 Happy DOM preload，不使用真实凭据、Android 设备、QR physical、真实远程服务或 JSch/Windows runtime。
+- 公共环境：绝对工作目录 `/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`；本轮验证基准 HEAD `55df2e39f591369a01ce9647b2b4c7fe59ce11b5`，当前为其后的 diff-check 口径修复提交；Linux `7.0.0-38-generic x86_64`；Bun `1.4.2`（测试输出标识 `744846f84`）。测试使用仓库 fixture 与 Happy DOM preload，不使用真实凭据、Android 设备、QR physical、真实远程服务或 JSch/Windows runtime。
 
 ### App connection/server/pairing
 
@@ -67,7 +67,9 @@ bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/ser
 ### Diff-check boundary
 
 - `git diff --check origin/main...HEAD` 不能记为无条件 PASS：该命令对 6 个已登记的上游 npm 生成 patch 报告 **206 条既有 whitespace diagnostics**（trailing whitespace 或 space before tab）：`@ai-sdk%2Fmistral@3.0.51.patch`、`@ff-labs%2Ffff-bun@0.10.5.patch`、`@modelcontextprotocol%2Fclient@2.4.0.patch`、`@silvia-odwyer%2Fphoton-node@0.3.4.patch`、`app-builder-lib@26.15.7.patch`、`vite@8.2.4.patch`。这些是上游生成 patch 内容，本轮未改写；`mobilePatches` 机器校验与 closure replay 仍 PASS。
-- 源码/文档及非生成 patch diff 的边界命令 `git diff --check origin/main...HEAD -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。当前工作树同口径 `git diff --check -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。
+- 源码/文档 diff-check 口径命令 `git diff --check origin/main...HEAD -- . ':(exclude)vendor/upstream/patches/**'`：该命令仅验证源码/文档路径，结果 **PASS**。当前工作树同口径 `git diff --check -- . ':(exclude)vendor/upstream/patches/**'`：**PASS**。
+- 独立 mobile patch diff-check：`git diff --check origin/main...HEAD -- vendor/upstream/patches/mobile`，rc=0 / **PASS**。
+- 独立 closure patch diff-check：`git diff --check origin/main...HEAD -- vendor/upstream/patches/closure`，rc=0 / **PASS**。
 
 ### GUI pairing/SSH
 
