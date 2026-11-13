@@ -2,6 +2,33 @@
 
 本文承载跨单元交互约束、G1–G35 与 C1–C5 设备门禁完整枚举（issue #55 的 G36 为独立追加门禁）、失败路径处置协议与凭据 notice（修订：可选记住）。事实状态图例见 [README.md](README.md)。
 
+## W01/W08 / issue #185 Home 与新建会话交互核对
+
+### 当前事实状态
+
+- 固定 v2.2.7 vendor 已包含 Home server/project selection、session load/search/records/row 与 new-session location/project/workspace/branch、combobox/tree/queue/dialog/worktree picker machine。#185 的 50-file allowlist 与目标逐文件字节核对一致；旧 `project-identity-migration`、`home-new-session-parity`、`ui-typeahead-export` 不在本轮重放。
+- 当前 active `home-new-session-v2-2-7` patch 只把 Home project-list fade threshold 抽为直接 import 的 helper，并以四个 edge cases（top/middle/bottom/one-pixel tolerance）锁定现有 `data-fade-top`/`data-fade-bottom` 视觉状态。它不改项目身份、最近使用、会话搜索结果或新会话提交语义。
+
+### 状态与失败路径矩阵
+
+| 区域 | 正常与过程态 | 错误/边界态 | 恢复与验证边界 |
+| --- | --- | --- | --- |
+| Home project list | server/project selection；viewport 在 scroll、resize、mutation 后更新 top/middle/bottom edge mask | 空列表、远程列表刷新、同名项目按 server scope/path key 隔离；一像素滚动误差不提前显示 bottom fade | focused fade tests 锁定边界；设备窄屏、触摸滚动和真实多服务器隔离归 G19 |
+| Home session load/index | cached list 立即展示；stale list 刷新；延迟后才显示 placeholder；bounded index 保留每目录窗口 | server unavailable、connect hang、first-load failure、timeout、invalidation 中切换 server/project；错误不得伪装成 empty | Try again/错误状态由上游承载；late result 以 server/project key 拒绝；真实服务与双路由归 G19 |
+| Home search | 输入、tab out/in、exact ID lookup 只在 connected server 上进行 | missing/failed/timed-out/closed/disposed lookup 均结束；切 server/project 丢弃旧 exact match | machine focused tests 已覆盖；跨服务器搜索与 Android 实态未验证 |
+| Home row | rename、long-press/context menu、archive/delete action、focus restoration | Escape 取消挂起保存；save failure/timeout 回 editing 保留 draft；late answer 不覆盖新状态；row 离开列表结束 gesture | machine focused tests 已覆盖；真实 rename/archive/delete/触摸长按归 G19 |
+| New-session location/project | project → workspace/worktree drill-down；query/history/active row 恢复；Back/Escape 返回或关闭；branch selector 与 worktree picker 协同 | empty/failed directory listing、server controller 消失、取消 picker、stale lookup、disposed dialog 不得继续 select | queue/cache/tree/combobox/dialog tests 已覆盖；真实远程目录、取消/失败 toast 和触摸焦点归 G19 |
+| New-session start | existing directory 或 branch→new worktree；worktree → MCP prepare → session create → promote | 每阶段有 timeout、toast、attempt guard；worktree/MCP/session failure rollback draft；已创建 worktree 可作为 draft workspace 保留 | machine tests 覆盖 rollback/stale/dispose；真实 `POST /api/worktree`、MCP 和 session lifecycle 未验证 |
+
+### 文档-实现最小核对记录
+
+| 设计条目 | 实现位置 | 验证动作 | 结果/差异 |
+| --- | --- | --- | --- |
+| Home project edge fade | `vendor/upstream/packages/app/src/home/projects/fade.ts`, `view.tsx`, `index.css` | `fade.test.ts` top/middle/bottom/one-pixel + 18-file focused selection | PASS；视觉交互仍需设备滚动核对 |
+| Home load/search/row machines | `src/home/machine.ts`, `src/home/sessions/{load-machine,search-machine,row-machine}.ts` | focused machine tests | PASS；真实 server lifecycle 未验证 |
+| Location/worktree picker | `src/new-session/location/machine.ts`, `src/new-session/workspace/*`, `src/workspaces/selection/*` | focused selection including branch/queue/tree/combobox/domain/picker | PASS；远端 picker 运行态 BLOCKED |
+| Persistence/recovery boundary | `runtime/server/global-sync/*`, `new-session/workspace/controller.ts` | source/target comparison + existing recovery contract | unchanged；#185 不新增 persistence semantics，G19/G30 未运行 |
+
 ## G36 / G37 初始连接屏与 inline SSH 门禁
 
 G36（issue #55）的 Settings 例外与跳转入口由 connection-inline-ssh 撤销；其历史交付事实由 connection-initial-ssh-entry/connection-method-layout/connection-label-nowrap vendor 记录保留。当前连接屏在同一屏内切换 Pairing、服务地址/密码、SSH 三种模式。SSH 直接呈现现有主机表单，不增加 route；Pairing/地址/密码草稿在模式切换时保留，SSH 草稿在连接屏存活期间以隐藏但挂载的表单保留。AppShell 在主机发布前取得初始屏所有权，只允许指定代次的指定主机在 SSH tunnel 建立且 `/api/info` 返回健康、认证成功后交接；401/403 表示服务可达但要求服务认证，不交接、不拆 tunnel。

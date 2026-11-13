@@ -22,6 +22,14 @@
 
 凭据边界：secrets 永不进入上表除「凭据」行以外的任何恢复通道——持久化编码路径恒剥 password（connection-password-memory-only）、vault 是唯一设备侧持久形态且仅经 #4 契约存取；本文对凭据只做索引，零新增口径。
 
+## Issue #185 Home / new-session 恢复边界
+
+- **持久化不变**：Home 项目/会话选择继续使用既有 `ServerScope`、`pathKey`、`usedProjectIDs`/`lastProjectID`、tabs/drafts/scroll 契约；#185 不新增项目创建、最近项目或 session persistence payload，也不重放历史 `project-identity-migration`/`home-new-session-parity` 作为新版本 source。
+- **过程态不持久化**：location dialog 的 query/history/active row、directory cache、priority queue、combobox/tree loading attempt 与 new-session worktree/MCP/session attempt 属于当前流程内存态。关闭/取消/返回、timeout、server controller 消失或 dispose 后，迟到的 lookup/create 结果必须被 attempt/identity guard 丢弃，不能选中新的 server/project/worktree。
+- **新建会话失败恢复**：existing directory 失败回到 draft；new worktree 在 worktree 已创建后再遇 MCP/session 失败时保留已创建目录作为 draft workspace；toast 说明失败阶段并允许重新 start。创建过程的 `11m/2m/30s` phase budgets 只约束当前 attempt，不产生后台重放。
+- **Home refresh 恢复**：cached list 在 stale refresh 期间继续可见；unreachable/timeout/first-load error 保留错误态和 Try again，不降级为空态；切换 server/project 后旧 load/search/row 结果不得写回新 scope。Home fade 只反映当前 viewport 的裁切，不改变恢复选择或数据。
+- **验证状态**：#185 focused machine tests 与 v2.2.7 source comparison 已通过；冷启动、切网、重启后最近项目/会话、真实远程 worktree picker、直连/SSH 双路由恢复仍归 G19/G30，当前为 BLOCKED/NOT RUN，不以静态 machine tests 代替设备证据。
+
 ## 二、六场景处置表
 
 | 场景 | 触发 → 机制链 | 用户可见形态 | 门禁归属 |

@@ -1,6 +1,15 @@
 # 单元：projects-sessions（远程项目、工作区与会话生命周期）
 
-状态：**已实现（未验证）**（issue #8；项目身份与 home/new-session 目标形收口于 issue #140）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库增量以移动补丁承载：**session-home-archive**（home 会话行归档接线，替换上游 stub；issue #140 起随目标 controller 重写携带）、**project-identity-migration**（FU-3 项目身份目标形，详见下「项目身份（FU-3，issue #140）」节）、**home-new-session-parity**（home/new-session/location/pin 目标形 + en 7 键 + 图标接缝）与 **settings-ssh-entry-guard**（多服务器设置布局的 SSH hosts 入口 + 重定向守卫修订——此项是 [server-list.md](server-list.md) 预登记「已知入口缺口（settings-mobile-host-manager）」债务的承接，**不是 issue #8 的验收项本身**）。issue #55 的 connection-initial-ssh-entry 只补齐空/签出连接屏的首个 SSH hosts 入口，未改变项目/会话生命周期或 SSH 传输。全部能力未经设备运行验证；真机门禁见 **G19/G36**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
+状态：**已实现（未验证）**（issue #8；项目身份与 home/new-session 目标形收口于 issue #140；v2.2.7 Home/new-session 状态机核对见 issue #185）。浏览/选择远程目录、创建/打开/fork/重命名/归档会话、切换项目与工作区的能力由固定 v2.2.7 上游闭包携带的 UI 与生成客户端承载（未经任何新增平行界面）；本仓库已有移动语义继续由 **session-home-archive**、**project-identity-migration** 与 **settings-ssh-entry-guard** 等历史登记说明，历史 **home-new-session-parity** 不在本轮重放。#185 的唯一 active source delta 是 `home-new-session-v2-2-7`：直接 import Home project-list fade helper 并锁定 edge-state tests；不重复承载项目身份或最近使用持久化。issue #55 的 connection-initial-ssh-entry 只补齐空/签出连接屏的首个 SSH hosts 入口，未改变项目/会话生命周期或 SSH 传输。全部能力未经设备运行验证；真机门禁见 **G19/G36**（[interaction.md](../interaction.md)），双路由 lifecycle E2E BLOCKED。
+
+## v2.2.7 / issue #185 设计边界
+
+- **设计单元**：Home server/project rail 与 session list、new-session location/project/workspace flow、远端 worktree picker 是同一 projects-sessions 单元内的三个可观察区域；入口、数据契约和恢复键沿用上游，不建立 Android 平行流程。
+- **架构与数据来源**：Home 通过 `ctx.projects`、server scope 和 session index 读取远程项目/会话；new-session 通过 `location.get`、`project.list`、`worktree.list`、`vcs.*` 和 `file.list/file.find` 读取远端目录与 worktree。web/mobile picker 使用 server 语义，不能把手机文件系统路径当成项目路径。
+- **交互状态**：Home session load machine 区分 cached/stale/loading/unreachable/error/retry，search machine 的 found/missing/failed/timed-out/closed/disposed 均结束于可观察状态；row machine 覆盖 long-press/menu、rename cancel/failed save/late answer。location dialog 保留 query、active row 和 history，Escape/Back 从 worktree 返回上一步或取消；combobox/tree/queue/cache machine 对 loading、失败、取消、过期 attempt 和 dispose 做 stale-result 拒绝。new-session start machine 的 worktree → MCP → session 阶段有 timeout、toast 和 rollback，已创建 worktree 在失败后保留为 draft workspace。
+- **视觉与响应式**：Home project viewport 在 top/middle/bottom edge 通过 `data-fade-top`/`data-fade-bottom` mask 表达内容裁切；#185 把一像素容差集中在 `home/projects/fade.ts`，scroll/resize/mutation 三条更新路径共用同一判断。此为现有 v2.2.7 视觉契约的可测 seam，不改变行内容、选择结果或持久化；窄屏仍使用上游 Home/new-session 布局，设备触摸可达性归 G19。
+- **状态恢复**：项目身份、`usedProjectIDs`/`lastProjectID`、tabs/drafts/scroll 与 server scope 继续按 issue #140/本单元既有契约恢复；#185 不新增最近项目、项目创建或 session persistence 语义。picker 对话框 query/history 与 in-flight request 是过程态，取消、超时、dispose 后不得让迟到结果改写新目标；完整冷启动/切网/双路由恢复仍未运行验证。
+- **无障碍与文案**：键盘 Back/Escape、焦点行恢复、可重试错误和现有 i18n 文案由上游机器/组件承载；#185 不新增用户可见文案或键盘分支。edge mask 不承载唯一信息，项目/会话文本仍须可见；实际触摸目标、读屏和 reduced-motion 设备检查归 G19/G30。
 
 ## 能力来源（复用面，无新建第一方会话逻辑）
 

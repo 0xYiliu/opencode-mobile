@@ -11,8 +11,39 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 - 检查基线 `740ce386cd74569afc11722182247092b0b6390a`；工作树 `/home/peterhan/worktrees/opencode-mobile/docs--221-release-plan`，分支 `docs/221-release-plan`；固定上游 `3ebcf9a32c7b28f658cfee80775448929361727a`，从 git 对象比较 `vendor/upstream`。完整核实表与执行卡见 [E35](alignment/windows-desktop/v2.2.1/current-review.md)，E34 保留历史但不得用作当前结论。
 - Inbox/titlebar、queue+server/session 归属保护、composer/media 与 fork/revert、export 的 `mediaRefs: false`、Goal ComposerPill、backgroundActivity 消费、notification、voice-delegation 已迁入；S10 categories/commentary 与 compact/quiet 预设亦已更新。palette/session-search 仅 catalog 兼容差异。
 - 当前源码剩余：home/new-session/位置与 pin 音效、FU-1 provider 认证、FU-2 模型选择器、FU-3 项目身份、W18 子能力 usage.view、文件 stream HEAD/watch/unwatch/重连订阅，以及版本同步（Android `0.1.0` / code `1`、mobile app `0.1.0`、vendor app `2.1.4`）。Settings 已迁入部分继续补真实运行验收。
-- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节冻结 v2.2.1 历史 registry 的重放 PASS 不能作为当前 v2.2.7 发布通过；当前 v2.2.7 registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；#184 overlay scope 不变，另有继承自 origin/main 的 server-edit patch。
+- 本轮 **无 build、APK、设备操作或运行测试**；检查为源码/台账对照、稳定 ID、本地相对链接和 diff。下节冻结 v2.2.1 历史 registry 的重放 PASS 不能作为当前 v2.2.7 发布通过；该历史段落的当时 v2.2.7 registry 为 80 registered / 2 active / 19 absorbed / 59 deferred；当前 #185 worktree registry 已更新为 81 registered / 3 active / 19 absorbed / 59 deferred，#184 overlay scope 不变，另有继承自 origin/main 的 server-edit patch 与 #185 Home patch。
 - 用户已授权先文档、后总 Issue/详细子 Issue/并行首批；已创建 [总任务 #139](https://github.com/0xYiliu/opencode-mobile/issues/139) 和 #140–#149 十个子项，API 回读确认全部正文、10 条原生子关系、26 条 blocked-by 与规划一致且无依赖环。首批 #140/#141/#143，完整分工回填 [矩阵](alignment/windows-desktop/v2.2.1/matrix.md)，实时状态以 GitHub 为准。子 Issue 边界经独立检查和定向复审通过，补齐 W12 压缩验收、明确纯验收零源码/零补丁，不新增功能完成声明。
+
+### issue #185 段（v2.2.7 Home 与新建会话）——2026-11-13 当前 worktree
+
+**分支与基线**：worktree `/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`，分支 `feat/185-home-new-session`，base/current HEAD `7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`；固定上游 v2.2.7 `fedc6f208aa2bd54c1019227214568083f6380ad`。当前 diff 未提交、未创建 PR、未推送、未合并。
+
+**范围与来源核对**：#185 50-file allowlist 与固定 v2.2.7 vendor tree 逐文件 byte-identical；Home server/project selection、session load/search/row、new-session location/project/workspace/branch、combobox/tree/queue/dialog/worktree picker 已由 v2.2.7 pin 携带。历史 `project-identity-migration`、`home-new-session-parity`、`ui-typeahead-export` 保持 deferred，不在本轮重放或作为新 feature source。唯一新增 source delta 是 `home-new-session-v2-2-7.patch`：`home/projects/fade.ts`、`fade.test.ts` 与 `view.tsx` direct import/use；patch SHA-256 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。
+
+**Issue #185 focused command**（`vendor/upstream/packages/app`）：
+
+```bash
+bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/solid-jsx.ts --preload ./happydom.ts src/home/machine.test.ts src/home/sessions/index.test.ts src/home/sessions/load-machine.test.ts src/home/sessions/records.test.ts src/home/sessions/row-machine.test.ts src/home/sessions/search-machine.test.ts src/home/projects/fade.test.ts src/new-session/machine.test.ts src/new-session/location/machine.test.ts src/new-session/project/selector.test.tsx src/new-session/workspace/branch-machine.test.ts src/new-session/workspace/controller.test.ts src/workspaces/location-machine.test.ts src/workspaces/selection/combobox-machine.test.ts src/workspaces/selection/domain.test.ts src/workspaces/selection/picker.test.ts src/workspaces/selection/queue-machine.test.ts src/workspaces/selection/tree-machine.test.ts
+```
+
+- Baseline (17 files, before the #185 fade seam): **200 pass / 0 fail / 700 expect calls**.
+- Post-change (18 files): **204 pass / 0 fail / 704 expect calls**, 2.00s.
+- Covered behavior: Home selection/load/index/search/row machines; location history; project selector; branch/workspace controller; directory picker cache/queue/tree/combobox. The four added expectations are Home top/middle/bottom/one-pixel fade states.
+
+**工程门禁（本轮实跑）**：
+
+| 门禁 | 命令 | 结果 |
+| --- | --- | --- |
+| frozen install | `bun install --frozen-lockfile` | **PASS**（Bun 1.4.2；996 installs / 1115 packages checked；no changes） |
+| Web build | `bun run build:web` | **PASS**（14.96s；2806 PWA precache entries；保留既有 CSS/chunk/dynamic-import warnings） |
+| Web payload staging | `bun run copy:web-dist` | **PASS**（5518 files / 155,483,831 bytes；Android marker/Workbox integrity adapted） |
+| patch registry | `python3 scripts/mobile-patches.py` | **PASS**（81 registered；3 active / 19 absorbed / 59 deferred；updated: none） |
+| closure | `bash scripts/verify-closure.sh` | **PASS**（pristine v2.2.7 + closure + #184 + server-edit + #185 ordered replay；DANGLING=0） |
+| Android assets | `python3 scripts/android_web_assets.py verify` | **PASS** |
+| Android unit/APK | `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` | **BUILD SUCCESSFUL**；APK SHA-256 `273002cd7b701425e64223edca5a0a0111322fa25bac4c52063b87c1a4a474e9`，66,041,731 bytes |
+| typecheck | `bun run typecheck:tsc -- --pretty false`（app） | **BLOCKED / known baseline**：component-test story module + implicit-any、WebView bridge casts、generated/plugin/legacy fixture types、app→mobile-hosts rootDir/TS6307；no diagnostic points at the #185 fade helper/test |
+
+**运行边界**：未安装 APK、未操作设备/模拟器、未连接真实服务或真实 worktree；G19/G30 的新建会话、worktree picker 触摸、重启/切网恢复与直连/SSH 双路由仍 BLOCKED/NOT RUN。Gradle/APK build PASS 不等于 APK 可用或设备交互通过。
 
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
 
@@ -108,7 +139,7 @@ Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:we
 
 ### P126 session runtime copy cleanup (2026-11-05)
 
-Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. The current registry is 80 registered / 2 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
+Historical cleanup snapshot: the 63-active count and deferred status below describe that delivery only; this is frozen v2.2.1 migration evidence, not the current v2.2.7 registry. At that historical snapshot the registry was 80 registered / 2 active / 19 absorbed / 59 deferred; the current #185 registry is 81 registered / 3 active / 19 absorbed / 59 deferred. Removed M-064/M-066 entries are historical evidence, not identities awaiting migration.
 
 - Source target: upstream release `v2.2.1`, commit `3ebcf9a32c7b28f658cfee80775448929361727a`; package source pin and per-package override remain in `vendor/upstream/vendor-manifest.json`. The active patch order is the single `mobilePatches` list there; deferred source remains marked in `patches/mobile/manifest.json`.
 - The copied session runtime overlay remains upstream-first (session-workbench-upstream–session-media-source-safety); session-android-adaptation contains only the recorded Android adaptations. `patchmark` is a source-package addition carried by the client-compat patch, recorded separately as a patch-created package so source extraction stays pinned while workspace reference validation includes it.

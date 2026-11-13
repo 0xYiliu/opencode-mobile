@@ -8,18 +8,19 @@
 
 - GitHub Issue：[#182](https://github.com/0xYiliu/opencode-mobile/issues/182)
 - 当前子工作单元：[#184](https://github.com/0xYiliu/opencode-mobile/issues/184)（连接、配对与 SSH 共享闭包）
+- 当前子工作单元：[#185](https://github.com/0xYiliu/opencode-mobile/issues/185)（Home 与新建会话 v2.2.7 对齐）
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
 ## 基准与工作区
 
-- 绝对工作目录：`/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`
-- 分支：`feat/upstream-227-alignment`
-- 父轮审计起点：`fd898b8ea2107884729530aedfb9bf34e173a3bc`（仅历史审计，不作为本次实现基线）
-- 本次实施 base：`c7441f5e8109737a06f8e914ffa61e025e188a7d`；当前实际 HEAD 为本次 diff-check 口径修复提交（本轮验证基准为 `55df2e39f591369a01ce9647b2b4c7fe59ce11b5`；已提交并推送）
-- 本次实施 worktree：`/home/peterhan/worktrees/opencode-mobile/feat--upstream-227-alignment`
-- 本次实施分支：`feat/upstream-227-alignment`
-- 开工状态：该 worktree 由本子工作单元独占；当前为已提交 merge-resolution 树，主工作树未修改，分支已推送
+- 绝对工作目录：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`
+- 分支：`feat/185-home-new-session`
+- 父轮审计起点：`7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`（#184 已完成的 v2.2.7 closure 基线）
+- 本次实施 base/current HEAD：`7a8ea8dd9cb7ef8f0800534ff1b4f32d38a2858d`；#185 当前 diff 未提交、未创建 PR、未合并
+- 本次实施 worktree：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-home-new-session`
+- 本次实施分支：`feat/185-home-new-session`
+- 开工状态：该 worktree 由本子工作单元独占；保留既有 #184/server-edit 修改，新增 #185 active patch 与对应文档/验证记录
 - 上游旧目标：v2.2.1 / `3ebcf9a32c7b28f658cfee80775448929361727a`
 - 上游新目标：v2.2.7 / `fedc6f208aa2bd54c1019227214568083f6380ad`
 - 新目标发布时间：2026-11-10
@@ -28,11 +29,20 @@
 
 - 全局 vendor pin：`fedc6f208aa2bd54c1019227214568083f6380ad`（v2.2.7）
 - 当前 `packageSources`：空；11 个 closure package 均从固定 v2.2.7 目标提取
-- 当前移动补丁：80 registered / 2 active / 19 absorbed / 59 deferred；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay，再重放继承自 origin/main 的 `server-edit-touch-compatibility` patch；#184 overlay 仍只包含 24 个 scoped targets
+- 当前移动补丁：81 registered / 3 active / 19 absorbed / 59 deferred；`vendor-manifest.json#closurePatches` 先重放 build-only closure 修复，`vendor-manifest.json#mobilePatches` 按顺序重放 #184 consolidated overlay、继承自 origin/main 的 `server-edit-touch-compatibility` patch，再重放 #185 `home-new-session-v2-2-7` patch；#184 overlay 仍只包含 24 个 scoped targets
 - 当前客户端身份：Android/mobile `2.2.7`，versionCode `20207`；vendor app 包为 `2.2.7`
-- 当前补丁登记门禁：`python3 scripts/mobile-patches.py` PASS（80）
-- 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自实际 vendor 重建、closure patch + #184 scoped overlay + inherited main server-edit patch 的有序重放和 pristine v2.2.7 等价性核对。
-- 当前 merge-resolution scope audit（`git status --porcelain=v1 -uall`）：20 个预期 docs/vendor 路径（含 inherited `android-host.ts` helper），0 个 unresolved path；未发现 `.tsbuildinfo`、`.d.ts`、`node_modules`、`dist`、`.vite` 或 `.turbo` 临时产物。
+- 当前补丁登记门禁：`python3 scripts/mobile-patches.py` PASS（81）
+- 当前闭包门禁：`bash scripts/verify-closure.sh` PASS；该结果来自 pristine v2.2.7 tree、closure patch、#184 scoped overlay、inherited main server-edit patch 与 #185 Home patch 的有序重放和等价性核对。
+- 当前 scope audit（`git status --porcelain=v1 -uall`）：#185 代码增量限于 Home fade helper/test、view import/use、patch registry/provenance/vendor order、生成 Web manifest 与本执行卡/设计记录；typecheck 产生的未跟踪 declaration artifacts 已清理，未保留 `.tsbuildinfo`、`node_modules`、`dist`、`.vite` 或 `.turbo` 作为交付文件。
+
+## #185 Home / new-session 执行卡
+
+- 用户可观察目标：以 fixed v2.2.7 为来源，对齐 Home server/project selection、session load/search/row、new-session location/project/workspace/branch 与远端 worktree picker 的目标状态机；保持既有项目身份、最近使用和恢复契约，不把它们重复算作本轮新增语义。
+- 上游核对：Issue #185 的 50-file allowlist 已与 `fedc6f208aa2bd54c1019227214568083f6380ad` 逐文件 byte-compare；allowlist 内目标文件已由 v2.2.7 vendor pin 携带。历史 `project-identity-migration`、`home-new-session-parity`、`ui-typeahead-export` 保持 deferred，不作为本轮 source patch 重放。
+- 本次必要移动差异：`home-new-session-v2-2-7.patch` 只抽取 `home/projects` fade threshold，接入 `view.tsx`，并以 top/middle/bottom/one-pixel tests 锁定 DOM edge attributes；patch SHA-256 为 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。它排在 closure → #184 → server-edit 之后，targets 与既有 #184/server-edit active patches 不重叠。
+- 正常/失败/恢复范围：Home 覆盖 cached/stale/loading/error/retry、server/project identity 与 late-result disposal；session search 覆盖 found/missing/failed/timed-out/closed/disposed；row 覆盖 long-press/menu、rename cancel/failed/late answer；new-session/picker 覆盖 branch→worktree、location history/back/cancel、directory lookup queue、combobox/tree/selection、worktree/MCP/session timeout、rollback 与 stale attempt。项目身份/最近使用持久化不改写。
+- 验收：focused app selection baseline **200 pass / 0 fail / 700 expect / 17 files** → post-change **204 pass / 0 fail / 704 expect / 18 files**；Web build、patch registry、closure、Android asset verify、Gradle unit/APK 均通过。设备/真实服务的完整新建会话、worktree picker 触摸、重启/切网恢复和直连/SSH 双路由仍归 G19/G30，当前标为 BLOCKED/NOT RUN。
+- 授权与停止条件：不创建 PR、不推送、不合并；若出现需要改变项目身份/最近使用语义、Android 入口范围或安全策略的取舍，停止并记录，不在 #185 内私自扩展。
 
 ## 稳定 focused-test 复跑记录（#184）
 
@@ -104,7 +114,7 @@ bun test --conditions=browser packages/mobile-hosts
 1. 固定比较 v2.2.1→v2.2.7 的所有 Desktop 直接变化与共享前端闭包变化。
 2. 新建 v2.2.7 基准、变化总结和完整稳定 ID 矩阵。
 3. 按 v2.2.7 目标源码重新推导 closure、partial assets、上游 npm patch 子集和 lockfile。
-4. 对全部 80 条移动补丁逐条给出处置：2 条 active（#184 scoped overlay + inherited main server-edit patch）、19 条 #184 语义 absorbed、59 条 scope 外 deferred；保留重基、上游吸收、语义重写、退休或新增移动适配。
+4. 对全部 81 条移动补丁逐条给出处置：3 条 active（#184 scoped overlay + inherited main server-edit patch + #185 Home overlay）、19 条 #184 语义 absorbed、59 条 scope 外 deferred；保留重基、上游吸收、语义重写、退休或新增移动适配。
 5. 将 Android/mobile/About/vendor 身份同步到 2.2.7；远程服务版本继续独立展示。
 
 ### 本次不包含
@@ -134,15 +144,15 @@ bun test --conditions=browser packages/mobile-hosts
 
 - [x] v2.2.7 closure 与 partial assets 由目标源码推导完成。
 - [x] upstream npm patches 与 lockfile 按 v2.2.7 closure 重算。
-- [x] 80 条移动补丁逐条有 disposition、new baseline、targets、依赖和验证记录；19 条历史 payload 为 absorbed，59 条 scope 外历史补丁为 deferred，1 条 #184 scoped consolidated overlay 与 1 条 inherited main patch 为 active；build-only closure patch 单独登记。
+- [x] 81 条移动补丁逐条有 disposition、new baseline、targets、依赖和验证记录；19 条历史 payload 为 absorbed，59 条 scope 外历史补丁为 deferred，#184 scoped consolidated overlay、1 条 inherited main patch 与 #185 Home overlay 为 active；build-only closure patch 单独登记。
 - [x] pristine v2.2.7 closure + ordered mobile patches 可干净重放。
 - [x] Android/mobile/vendor/About 身份同步为 2.2.7 / 20207。
 
-**当前门禁状态：Stage B 已完成，Stage C 静态验证部分完成。** v2.2.7 pristine closure 已按目标源码重建，19 条 #184 历史语义由 scoped overlay 明确承载，59 条 scope 外历史差异保持 deferred；build-only closure 修复与两个 active mobile replay 分离重放；`credentialRef` 已接到 v2.2.7 的 `ServerOriginal`/`ServerSaveAction` 契约。未通过项集中在直接 `tsc` 的跨 package rootDir/TS6307、旧 settings fixture/生成类型与部分 legacy GUI 测试类型错误，不以关闭 strict 或扩大 Android 依赖解决。
+**当前门禁状态：Stage B 已完成，Stage C 静态验证部分完成。** v2.2.7 pristine closure 已按目标源码重建，19 条 #184 历史语义由 scoped overlay 明确承载，59 条 scope 外历史差异保持 deferred；build-only closure 修复与三个 active mobile replay 分离重放；`credentialRef` 已接到 v2.2.7 的 `ServerOriginal`/`ServerSaveAction` 契约。未通过项集中在直接 `tsc` 的跨 package rootDir/TS6307、旧 settings fixture/生成类型与部分 legacy GUI 测试类型错误，不以关闭 strict 或扩大 Android 依赖解决。
 
 ### Stage C：验证与交付
 
-- [ ] patch、closure、install、web build、typecheck、相关单测和 Android Gradle 门禁完成 before/after 对账（patch/closure/install/web/focused tests 已完成；typecheck 与 Android Gradle 尚未完成）。
+- [ ] patch、closure、install、web build、typecheck、相关单测和 Android Gradle 门禁完成 before/after 对账（patch/closure/install/web/focused tests/Android Gradle 已完成；typecheck 仍为已知 baseline failure set，需保留对账记录）。
 - [ ] 可用设备上完成数据保留覆盖安装和受影响路径验证；无环境项明确标记未验证/阻塞。
 - [ ] 远程服务版本、Windows 运行端缺失和 Desktop-only 能力边界均单独记录。
 - [ ] 新矩阵、设计文档、来源证明和实现状态一致后再提交。
@@ -156,18 +166,17 @@ bun test --conditions=browser packages/mobile-hosts
 
 ## 当前结果 / 下一步
 
-- 当前状态：**Stage A/B 已完成；Stage C 静态门禁部分完成**。当前 worktree 已提交并推送 merge-resolution commit；vendor 本身可由 pristine v2.2.7 closure + build-only closure patch + 两个 active mobile replay 重建。
-- 已完成：上游 tag 固定、差异规模盘点、Desktop commit/path 盘点、80 条补丁 disposition、目标闭包重建、upstream npm patch/lockfile 重算；连接/配对/SSH 共享状态机、凭据契约、健康/生命周期控制器和移动兼容接缝已落到源码。
-- 当前证据：`bun install` PASS；Web build PASS（14.47s，2806 PWA precache entries，保留既有 CSS、chunk/dynamic-import warnings）；完整 server-page regression + Android delay 9 pass / 0 fail；app focused selection 137 pass / 0 fail（16 files），GUI pairing/SSH 88 pass / 0 fail（11 files），mobile-hosts 442 pass / 0 fail（40 files）；`verify:patches`、`verify:closure`、`verify-about-version` PASS；源码/文档 diff-check PASS，上游 npm 生成 patch whitespace diagnostics 按上项边界保留。app/mobile-hosts/gui direct typecheck 仍按下方边界失败；Android Gradle/APK、设备 UI、真实服务和真实 JSch 链路继续未验证，不冒充通过。
-- 关键发现：v2.2.7 已吸收部分旧移动差异；19 条 #184 历史语义明确标为 absorbed，59 条非 #184 历史 payload 保留为 deferred；#184 active overlay 只承载 scoped connection、配对、凭据/安全、server lifecycle/health 和 SSH 共享适配，继承自 origin/main 的 server-edit patch 独立重放；patchmark 与 workspace 修复仅作为 build-only closure 传递依赖重放。
-- 剩余：`bunx tsc -b --pretty false`（在 `vendor/upstream/packages/app` 等项目目录执行）仍有本次 project-boundary/生成类型及 legacy fixture 错误；Android Gradle/APK、设备 UI、真实服务和真实 JSch 链路未运行。
+- 当前状态：**Stage A/B 已完成；Stage C 静态门禁部分完成；Issue #185 实施待提交**。当前 worktree 保留未提交 #185 diff；vendor 本身可由 pristine v2.2.7 closure + build-only closure patch + 三个 active mobile replay 重建。
+- 已完成：上游 tag 固定、差异规模盘点、Desktop commit/path 盘点、81 条补丁 disposition、目标闭包重建、upstream npm patch/lockfile 重算；连接/配对/SSH 共享状态机、凭据契约、健康/生命周期控制器和移动兼容接缝已落到源码，#185 Home fade seam 与测试已落位。
+- 关键发现：v2.2.7 已吸收部分旧移动差异；19 条 #184 历史语义明确标为 absorbed，59 条非 #184 历史 payload 保留为 deferred；#184 active overlay 只承载 scoped connection、配对、凭据/安全、server lifecycle/health 和 SSH 共享适配，继承自 origin/main 的 server-edit patch 独立重放；#185 allowlist 中的 Home/new-session state machines 已由 v2.2.7 pin 吸收，active #185 patch 只承载 fade helper/test；patchmark 与 workspace 修复仅作为 build-only closure 传递依赖重放。
+- 剩余：`bun run typecheck:tsc -- --pretty false`（在 `vendor/upstream/packages/app` 执行）仍有 component-test story module/implicit-any、WebView bridge cast、generated/plugin type、legacy fixture 与 app→mobile-hosts rootDir/TS6307 等 baseline errors；设备 UI、真实服务和真实 JSch 链路未运行。
 - 停止条件：出现需要改变产品范围、安全策略、远程服务承诺或删除既有移动适配的决策时暂停并记录。
 
 ### #184 当前执行状态
 
 - 当前状态：**共享语义实施完成 → 静态门禁部分完成**；共享连接、配对、SSH 状态机和移动兼容接线已实现，v2.2.7 closure 可重建并通过 closure gate；不声称 APK 可用或任何 Android/真实服务通过。
 - 已落地的关键面：`ServerOriginal`/`ServerSaveAction` 连接保存契约、credentialRef/remember/vault hydration、URL userinfo/TLS/redirect 安全边界、tagged plugin/health 状态与旧投影、server lifecycle/health/request queue/endpoint sync machine、pairing main machine、SSH main/window machine 与保留的移动 UI 兼容面。
-- 可复现验证：`python3 scripts/mobile-patches.py` PASS（80 条；2 active/19 absorbed/59 deferred）；build-only closure patch + 两个 active mobile replay 可重建；Web build、`verify:patches`、`verify:closure`、完整 server-page/app/GUI/mobile-hosts focused tests 与分层 diff-check 口径均按修订后实际结果记录；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
+- 可复现验证：`python3 scripts/mobile-patches.py` PASS（81 条；3 active/19 absorbed/59 deferred）；build-only closure patch + 三个 active mobile replay 可重建；Web build、`verify:patches`、`verify:closure`、完整 server-page/app/GUI/mobile-hosts focused tests、#185 Home focused tests 与 Android Gradle build 均按当前记录执行；closure patch 不计入 `mobilePatches`，只作为 build-only prerequisite。
 - 已知失败/阻塞：direct `tsc` 仍报告 app→mobile-hosts 的 rootDir/TS6307、app→gui-plugins 的 TS6307、v2.2.7 generated/client 与旧 settings fixture 类型不一致，以及 closure 外的 Electron/GUI legacy 测试依赖；GUI `askpass.test.ts` 依赖未纳入 closure 的 `packages/core/test/lib/effect`。这些不能通过关闭 strict、引入 Electron 到 Android 或静默跳过来解决。
-- 下一步：等待 reviewer/CI 复核 `feat/upstream-227-alignment`；PR #200 保持 OPEN/CLEAN/MERGEABLE，禁止合并；继续保持 typecheck/Android/真实链路的 BLOCKED/NOT RUN 边界。
-- 后置阻塞：真实 SSH tunnel/session/stream/permission/task survival、QR physical、Android Gradle/APK、设备 UI 与真实服务证据仍缺失；解除条件为真实设备、授权 SSH 主机/服务端和完整链路证据，不能由静态或历史证据替代。
+- 下一步：完成 #185 文档/deny audit/diff review，按用户授权决定是否提交；不创建 PR、不推送、不合并；继续保持 typecheck 的 known-baseline、设备 UI 与真实链路的 BLOCKED/NOT RUN 边界。
+- 后置阻塞：真实 SSH tunnel/session/stream/permission/task survival、QR physical、设备 UI 与真实服务证据仍缺失；Android Gradle/APK 仅有本轮 build-only PASS，不能替代安装和受影响路径验证；解除条件为真实设备、授权 SSH 主机/服务端和完整链路证据，不能由静态或历史证据替代。

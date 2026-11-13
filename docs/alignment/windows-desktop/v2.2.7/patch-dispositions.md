@@ -1,9 +1,9 @@
 # v2.2.7 移动补丁处置记录
 
-- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**80 registered / 2 active / 19 absorbed / 59 deferred**。
-- 当前 active replay：`patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）与 `patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch，独立于 #184 scope）。
+- 目标基线：`fedc6f208aa2bd54c1019227214568083f6380ad`；当前 registry：**81 registered / 3 active / 19 absorbed / 59 deferred**。
+- 当前 replay 顺序：`vendor-manifest.json#closurePatches` 先重放 build-only closure；`mobilePatches` 依次重放 `patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch`（#184 scoped overlay）、`patches/mobile/server-edit-touch-compatibility.patch`（inherited main baseline patch）和 `patches/mobile/home-new-session-v2-2-7.patch`（#185 independent overlay）。
 - 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。
-- active consolidated patch 只承载 #184 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。
+- #184 active consolidated patch 只承载 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。#185 patch 独立承载 Home project-list fade helper 与 regression tests，不改变 #184 或 server-edit 的 targets。
 
 | # | ID | 状态 | v2.2.7 处置 | 新 baseline | targets |
 |---:|---|---|---|---|---|
@@ -87,10 +87,18 @@
 | 78 | `files-tree-sidebar-fill` | `deferred` | 历史 payload 保留；位于 #184 scoped overlay 外，交由所属 follow-up 独立重基，不在当前 replay | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/session-ui/src/v2/components/session-review-v2.css |
 | 79 | `v2-2-7-mobile-connection-pairing-ssh-closure` | `active` | 直接从 pristine v2.2.7 生成的 #184 connection/pairing/SSH scoped overlay；不包含 providers/settings/session/files/terminal/notifications/generic UI/patchmark/无关 package 行为 | `fedc6f208aa2bd54c1019227214568083f6380ad` | 24 个 scoped targets（以 `manifest.json` 为准） |
 | 80 | `server-edit-touch-compatibility` | `active` | 继承自 origin/main `4961ec04`，重基到 pristine v2.2.7 后独立重放；保留 Android WebView host identity，并将服务器行 Edit 延迟 350ms 以避开触摸兼容 click；不计入 #184 overlay scope | `fedc6f208aa2bd06c8fa099c4175939a8ac7e2f` | packages/app/src/settings/servers/android-host.ts, packages/app/src/settings/servers/servers.tsx, packages/app/src/settings/servers/servers-page.test.tsx |
+| 81 | `home-new-session-v2-2-7` | `active` | #185 独立 Home/new-session overlay：v2.2.7 已吸收 allowlist 中的 Home selection/session/new-session/workspace state machines；当前 payload 只抽取 Home project-list fade threshold、接入直接 import 并增加 top/middle/bottom regression tests，不复制 project identity 或 recent persistence 语义；不与 #184/server-edit targets 重叠 | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/app/src/home/projects/fade.test.ts, packages/app/src/home/projects/fade.ts, packages/app/src/home/projects/view.tsx |
+
+## Issue #185 处置说明
+
+- #185 的 50-file upstream allowlist 已逐文件与固定 v2.2.7 tree 对照；allowlist 内的 Home server/project selection、session load/search/row、new-session location/project/workspace/branch 及 picker machine 文件当前均已与目标字节一致，因此不再把它们复制进新的 mobile payload。
+- 历史 `project-identity-migration`、`home-new-session-parity` 与 `ui-typeahead-export` 继续保留为 `deferred` 身份；它们没有在本轮重放，也没有被当作新的 #185 feature source。项目身份/最近使用持久化仍按既有 issue #140 契约记录，#185 不改变其语义。
+- #185 的唯一 active source delta 是 `home-new-session-v2-2-7.patch` 的 fade helper、view import/use 与 edge-state tests；其 SHA-256 为 `fa67c5df3ef687c397727106f3188e55933a5c51431b9cf2e1e25c7a29d0436d`。既有 #184 与 server-edit hashes 保持不变。
 
 ## 验证口径
 
-- 机器校验：`python3 scripts/mobile-patches.py`、`bash scripts/verify-closure.sh`。
-- 构建：`bun install` 与 `bun run build`（`vendor/upstream/packages/app`）。
+- 机器校验：`python3 scripts/mobile-patches.py`（81 registered）、`bash scripts/verify-closure.sh`。
+- 构建：`bun install --frozen-lockfile`、`bun run build:web` 与 `bun run copy:web-dist`（`vendor/upstream/packages/app`；当前 Web payload 5518 files / 155483831 bytes）。
 - 语义验证：连接/凭据/vault、URL/fetch、pairing、server lifecycle/health/queue/endpoint、SSH shared machine 的 focused tests。
-- 明确未升级：Android Gradle/APK、设备 UI、QR physical、真实服务、真实 JSch tunnel/session/stream/permission/task-survival。
+- #185 focused app selection：**204 pass / 0 fail / 704 expect / 18 files**；Android Gradle `:app:testDebugUnitTest :app:assembleDebug` **BUILD SUCCESSFUL**，APK/device installation and UI remain unverified。
+- 明确未升级：设备 UI、QR physical、真实服务、真实 JSch tunnel/session/stream/permission/task-survival；typecheck 仍受记录中的 baseline component-test/generated-type/rootDir issues 阻塞。
