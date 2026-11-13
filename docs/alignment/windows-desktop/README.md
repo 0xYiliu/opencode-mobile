@@ -11,6 +11,8 @@
 
 当前 Android/mobile/About 声明身份为 `2.2.7`（versionCode `20207`），vendor app 为 `2.2.7`；Android asset verify、Gradle unit/APK build 已通过，adb、设备 UI 和覆盖安装尚未运行验证。v2.2.7 迁移执行卡和逐阶段门禁见[v2.2.7 当前复核](v2.2.7/current-review.md)。
 
+**#186 provenance binding**：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）。当前最终 HEAD 由后续 provenance-only docs commit 继续可追溯，且不改变实现或 patch scope。
+
 本索引只记录阶段摘要，逐项状态以对应矩阵为准。状态分为：
 
 - **活跃**：当前目标，随代码与验收持续更新。默认只保留一个活跃目标。

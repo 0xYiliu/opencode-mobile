@@ -8,6 +8,8 @@
 - 稳定 ID 矩阵：[matrix.md](matrix.md)
 - GitHub 跟踪：[Issue #182](https://github.com/0xYiliu/opencode-mobile/issues/182)、[#185 Home/new-session（历史）](https://github.com/0xYiliu/opencode-mobile/issues/185)、[#186 tabs/Inbox/titlebar](https://github.com/0xYiliu/opencode-mobile/issues/186)
 
+**Provenance**：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）。本页及同轮事实入口的当前最终 HEAD 通过后续 docs-only provenance commit 追溯；不改代码、patch scope、registry、replay 或验证边界。
+
 ## 当前状态
 
 **Stage A/B：审计、文档与 vendor 重建已完成；Stage C：#186 修复后的静态验证部分完成。** 固定 tag/SHA、直接 Desktop 变化规模和 commit 盘点、共享 closure 变化规模、82 条移动补丁处置、v2.2.7 closure 重建、upstream npm patch/lockfile 重算、build-only closure patch 与四个 active mobile replay（#184 scoped overlay + inherited main server-edit patch + 历史 #185 Home overlay + 当前 #186 back bridge）均已完成；#185 worktree 仅保留为历史记录。reviewed/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；提交已存在，尚未推送、创建 PR 或合并。

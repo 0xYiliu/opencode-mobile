@@ -4,6 +4,8 @@
 
 本文件是按 issue/轮次积累的证据台账。结果只证明对应提交、构建和环境；历史 BLOCKED 不自动成为当前阻塞，历史 PASS 也不自动覆盖新实现。当前状态以[v2.2.7 功能矩阵](alignment/windows-desktop/v2.2.7/matrix.md)和[current-review](alignment/windows-desktop/v2.2.7/current-review.md)为入口；冻结 v2.2.1 只作为历史交叉引用，检查范围按[推进规则](alignment/workflow.md)和本次执行卡选择。
 
+**#186 provenance binding**：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）。本台账当前最终 HEAD 由后续 docs-only provenance commit 追溯；代码、patch scope、registry/replay 与 E2E/device/full-typecheck boundaries 不变。
+
 Web 构建入口为仓库根 `bun install --frozen-lockfile`、`bun run build:web`、`bun run copy:web-dist`；vendor 修改按需执行 `bun run verify:closure`。Android 使用已配置的 SDK 与本地 Gradle 发行版运行 `gradle -p android :app:assembleDebug`，相关单测按改动选择。最近清理轮的实际 Gradle 路径与构建结果见下节。仓库未提供 `android/gradlew`，不要直接照抄历史 wrapper 命令。安装后还须按本次验收核对资源与实际交互；构建成功不代表设备验收通过。
 
 ### E35 发布规划事实校准（2026-11-06；仅文档）

@@ -13,6 +13,12 @@
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
+## Provenance revision binding
+
+- implementation/fix revision：`9cafaba249efbe35110988b18e2977a9c9aac04e`
+- documentation/final revision：`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）
+- 当前最终 HEAD：由本次 docs-only provenance commit 产生并在交付报告中记录；不改变实现、patch scope、registry/replay 或 BLOCKED/NOT RUN 边界。
+
 ## 基准与工作区
 
 - 绝对工作目录：`/home/peterhan/.local/share/opencode/worktree/a66c79/feat-upstream-227-tabs-inbox-titlebar`

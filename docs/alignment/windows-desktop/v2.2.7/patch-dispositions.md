@@ -5,6 +5,8 @@
 - 旧补丁文件与语义 ID 全部保留；19 条历史 payload 被明确登记为 absorbed（由当前 #184 scoped overlay 承载），59 条与 #184 无关的历史补丁登记为 deferred。#185 Home patch 保留为历史前置 replay，当前 #186 back bridge 为本 worktree 的修复交付。
 - #184 active consolidated patch 只承载 connection/pairing/SSH scoped mobile delta；build-only closure 修复单独位于 `vendor-manifest.json#closurePatches`，不得混入 active mobile overlay。#185 patch 独立承载 Home project-list fade helper 与 regression tests，不改变 #184 或 server-edit 的 targets。#186 的 tabs/Inbox/titlebar 生产 delta 已由 v2.2.7 vendor pin 吸收，active patch 只承载 app-side back chain/binding，不复制上游生产 hunk。
 
+- Provenance：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）。本处置记录的当前最终 HEAD 由后续 docs-only provenance commit 追溯；不改变 patch payload/scope、前三 hash/order/targets 或 registry/replay。
+
 | # | ID | 状态 | v2.2.7 处置 | 新 baseline | targets |
 |---:|---|---|---|---|---|
 | 1 | `gui-plugins-native-test-deps` | `deferred` | 历史 payload 保留；位于 #184 scoped overlay 外，交由所属 follow-up 独立重基，不在当前 replay | `fedc6f208aa2bd54c1019227214568083f6380ad` | packages/gui-plugins/package.json |
