@@ -1,17 +1,22 @@
 // verify-diff.ts — static probe for issue #12 (remote Git review, diff browsing,
 // and worktree operations unit).
 //
-// Asserts, against the REAL vendored sources (pin b4525d79bf…), the structural
-// facts the diff unit document relies on:
+// Asserts, against the REAL vendored sources (v2.2.7 pin fedc6f208a…; re-anchored
+// for issue #190 — the v2.2.7 review model replaced its react-query data face with
+// a diff machine, revert/workspace/delete moved into machines, and the branch
+// candidate source moved its swallow into the branch-picker machine), the
+// structural facts the diff unit document relies on:
 //
 //   1. Data face wiring: review/model.ts serves the three modes (git/branch =
 //      vcs.diff working/branch, turn = session.diff) with the branch gate
-//      (current !== default) and the git-only turn gate, `refetchOnMount:
-//      "always"`, the server.connected enabled gate, the filesystem.changed
-//      refresh listener and the session-idle refresh, the bounded turn refetch
-//      (context: 3), vcs.init({ location, provider: "git" }) + requestFailed
-//      toast, the detailsQuery (mode: "working", demand-gated, catch → []),
-//      and the location-scoped file.read for media; the generated client
+//      (current !== default) and the git-only turn gate, the diff-machine
+//      context gates (no-vcs / waiting / offline + demanded) that replaced the
+//      react-query enabled gate, the query-cache retention comment that replaced
+//      `refetchOnMount: "always"`, the filesystem.changed refresh listener and
+//      the session-idle refresh triple, the bounded turn refetch (context: 3),
+//      vcs.init({ location, provider: "git" }) + requestFailed toast, the
+//      details slice (mode: "working", demand-gated, machine failure state with
+//      retryDetails), and the location-scoped file.read for media; the generated client
 //      declares vcs.init [400,401,404,409,501,503] and vcs.diff
 //      [400,401,404,503]; the protocol description is quoted verbatim (this
 //      pin carries the protocol group INSIDE the closure — dual-source note).
@@ -22,7 +27,9 @@
 //      vcs.diff → {settings/workspaces/workspaces.tsx, review/model.ts};
 //      vcs.status → {workspaces.tsx}; vcs.init → {review/model.ts};
 //      api.vcs.branch.list → {new-session/workspace/controller.ts};
-//      worktree.remove → {workspaces.tsx}; worktree.create →
+//      worktree.remove → {workspaces.tsx, details/workspace-menu.tsx} (the
+//      second is the recovery dialog's forced remove of a worktree whose move
+//      failed); worktree.create →
 //      {workspaces/create.ts, details/workspace-menu.tsx}; vcs.base and
 //      vcs.get → ZERO in this domain. Existence anchors: the sync.tsx worktree
 //      accessor, the inventory.ts wrappers, and (review M1) the HAND-WRITTEN
@@ -32,15 +39,16 @@
 //   3. Confirmation & failure recovery: the workspace delete preflight trio
 //      (vcs.status + vcs.diff(mode:"branch") adjacent pair),
 //      inspectWorkspaceDeletion, DialogDeleteWorkspace with the danger button
-//      disabled while pending/error (stale state never blind-confirms), the
-//      force chain transact(() => remove(workspace, true, …)), the failure
-//      toast, the three-state blocked interception; revert.ts
+//      disabled until the machine's preflight is ready (canDelete — stale state
+//      never blind-confirms), the machine force chain (confirm.accepted with
+//      preflight ready → force: true), the failure toast + machine skipped
+//      path, the three-state blocked interception; revert.ts execute()
 //      interrupt→wait→revert.stage adjacent steps + inbox.cancel diversion +
 //      revert.clear (redo) + draft restore + the verbatim "idle no-ops" /
 //      "stop at the first failure" comments; the settle-time auto commit
 //      verbatim in submit.ts; the NEGATIVE assertion — `\.revert\.commit\(`
-//      call-shape sites form exactly {composer/submit.ts,
-//      new-session/composer-adapter.ts} (no user entry point; the
+//      call-shape sites form exactly {composer/submit.ts} (v2.2.7 removed the
+//      composer-adapter site; no user entry point; the
 //      "revert-commit" mock strings in submit.test.ts carry a hyphen and must
 //      NOT match); session.undo/redo command anchors and disabled conditions.
 //   4. Large diff / binary / media: MAX_DIFF_CHANGED_LINES = 500, the verbatim
@@ -123,34 +131,50 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   const model = squash(await read(`${GUI_EXT}src/review/model.ts`))
   if (!model.includes(`exporttypeChangeMode="git"|"branch"|"turn"`))
     fail("1: the ChangeMode three-literal type changed")
-  if (!model.includes(`mode:value==="git"?"working":value`))
+  // #190 re-anchor: the target literal is `target.mode` on the v2.2.7 machine slice (was `value`).
+  if (!model.includes(`mode:target.mode==="git"?"working":target.mode`))
     fail("1: vcs.diff must map git→working / branch→branch (newline-tolerant match)")
-  if (!model.includes("session.diff({sessionID:view().id,context:3})"))
+  // #190 re-anchor: the bounded turn refetch moved from the details query into detail.load.
+  if (!model.includes("session.diff({sessionID:target.sessionID,context:3}"))
     fail("1: the bounded turn refetch (session.diff with context: 3) changed")
-  if (!model.includes('refetchOnMount:"always"'))
-    fail("1: diffQuery lost refetchOnMount: always (stale chain link 1)")
-  if (!model.includes("enabled:!!stored()&&view().server.connected&&wantsReview()&&!!view().project?.vcs"))
-    fail("1: diffQuery lost the server.connected/project.vcs enabled gate (offline face)")
+  // #190 re-anchor: react-query's refetchOnMount:"always" is superseded by the diff machine's
+  // query-cache retention (verbatim upstream comment, same stale-chain semantic).
+  if (!model.includes("stayinthequerycacheunder"))
+    fail("1: the diff machine lost the query-cache retention comment (refetchOnMount: always successor)")
+  // #190 re-anchor: the react-query enabled gate became the diff-machine context gates.
+  if (!model.includes("if(project&&!project.vcs)return{kind:\"no-vcs\"}"))
+    fail("1: diffContext lost the no-vcs gate (project.vcs face)")
+  if (!model.includes("if(!project)returnconnected?{kind:\"waiting\"}:{kind:\"offline\"}"))
+    fail("1: diffContext lost the offline face (server.connected gate)")
+  if (!model.includes("return{kind:\"ready\",target,connected,demanded:wantsReview()}"))
+    fail("1: diffContext lost the ready gate carrying connected + demanded (wantsReview)")
   if (!model.includes(`details.type==="filesystem.changed"&&details.location?.directory===current.directory)refresh()`))
     fail("1: the filesystem.changed listener must refresh only the matching directory")
   if (!model.includes("itseventstreamfollowsarestartedserver"))
     fail("1: the filesystem.changed comment anchor changed (verbatim 'its event stream follows a restarted server')")
-  if (!/goesidlehasfinisheditsturn[\s\S]{0,300}?refresh\(\)voidqueryClient\.invalidateQueries\(\{queryKey:turnKey\(\)\}\)/.test(model))
-    fail("1: the session-idle refresh block (refresh + turn invalidate) changed (adjacent pair)")
-  if (!model.includes("session.server.client.vcs.init({location,provider:\"git\"})"))
+  // #190 re-anchor: the idle refresh triple is refresh + turn-source dispatch + turn invalidate.
+  if (!/goesidlehasfinisheditsturn[\s\S]{0,200}?refresh\(\)dispatchDiff\(\{type:"refresh",source:"turn"\}\)voidqueryClient\.invalidateQueries\(\{queryKey:turnKey\(\)\}\)/.test(model))
+    fail("1: the session-idle refresh block (refresh + turn dispatch + invalidate) changed (adjacent triple)")
+  // #190 re-anchor: the init call is signal-threaded on this pin.
+  if (!model.includes("session.server.client.vcs.init({location,provider:\"git\"},{signal})"))
     fail("1: initializeGit must call vcs.init({ location, provider: \"git\" }) (newline-tolerant match)")
   if (!model.includes('ctx.t("common.requestFailed")'))
     fail("1: initializeGit lost the common.requestFailed toast")
-  if (!model.includes('.server.client.vcs.diff({location:{directory:view().directory},mode:"working"})'))
+  // #190 re-anchor: the details slice scopes the directory through the target/directory pair.
+  if (!model.includes('vcs.diff({location:{directory:target.kind==="vcs"?target.directory:directory()},mode:"working"}'))
     fail("1: detailsQuery must load the session directory's working diff (mode: working)")
-  if (!/failedtoloadsessiondetailsdiff[\s\S]{0,80}return\[\]/.test(model))
-    fail("1: detailsQuery lost its catch → [] swallow (upstream semantic, honestly registered)")
-  if (!model.includes("Oversizedfull-filepatchescomebackempty;boundedcontextusuallyfits"))
+  // #190 re-anchor: the catch→[] swallow became the diff machine's failure state; the retry
+  // dispatch is the recovery face (error state must be reachable, not swallowed silently).
+  if (!model.includes("retryDetails:()=>details.dispatch({type:\"retry\"})"))
+    fail("1: the details slice lost its retry recovery dispatch (catch → [] successor)")
+  // #190 re-anchor: the bounded-context comment was reworded upstream (verbatim re-anchor).
+  if (!model.includes("Oversizedfull-filepatchescomebackwithouthunks;thefile'sowndirectory,orboundedcontext,usuallyfits."))
     fail("1: the loadDiff bounded-context comment anchor changed (verbatim)")
   if (!model.includes("file.read({path,location:{directory:directory()}})"))
     fail("1: media preview must read through file.read with the location scope (never a local path)")
-  if (!model.includes("staleTime:Number.POSITIVE_INFINITY") || !model.includes("retry:2"))
-    fail("1: the loadDiff bounded fetch lost staleTime Infinity / retry 2")
+  // #190 re-anchor: staleTime/retry became the machine's abort deadline (REVIEW_DIFF_TIMEOUT_MS).
+  if (!model.includes("controller.abort()dispatch({type:\"fetch.timed-out\",attempt})") || !model.includes("REVIEW_DIFF_TIMEOUT_MS"))
+    fail("1: the bounded fetch lost its machine timeout (abort + fetch.timed-out)")
 
   const client = squash(await read(`${CLIENT}src/promise/generated/client.ts`))
   if (!/path:`\/api\/vcs\/init`[\s\S]{0,600}?declaredStatuses:\[400,401,404,409,501,503\]/.test(client))
@@ -219,7 +243,9 @@ const callSites = new Map<string, Set<string>>()
   expect("vcs.status", [`${APP}src/settings/workspaces/workspaces.tsx`])
   expect("vcs.init", [`${GUI_EXT}src/review/model.ts`])
   expect("vcs.branch.list", [`${APP}src/new-session/workspace/controller.ts`])
-  expect("worktree.remove", [`${APP}src/settings/workspaces/workspaces.tsx`])
+  // #190 re-anchor: v2.2.7's workspace-menu recovery dialog force-removes a worktree whose
+  // move failed (`force: true`), so the set gains the second site.
+  expect("worktree.remove", [`${APP}src/settings/workspaces/workspaces.tsx`, `${GUI_EXT}src/details/workspace-menu.tsx`])
   expect("worktree.create", [`${APP}src/workspaces/create.ts`, `${GUI_EXT}src/details/workspace-menu.tsx`])
   expect("vcs.base", [])
   expect("vcs.get", [])
@@ -254,9 +280,10 @@ const callSites = new Map<string, Set<string>>()
 // --- 3. Confirmation & failure recovery (delete chain, revert sequence, commit semantics) ---
 {
   const workspaces = squash(await read(`${APP}src/settings/workspaces/workspaces.tsx`))
+  // #190 re-anchor: the preflight feeds inspectWorkspaceDeletion from a Promise.all on this pin.
   if (
     !workspaces.includes(
-      'context.sdk.api.vcs.status({location:{directory:workspace.directory}}),context.sdk.api.vcs.diff({location:{directory:workspace.directory},mode:"branch"}),',
+      'serverSDK.api.vcs.status({location:{directory}},{signal}),serverSDK.api.vcs.diff({location:{directory},mode:"branch"},{signal}),',
     )
   )
     fail("3: the delete preflight must pair vcs.status with vcs.diff(mode: branch) (adjacent, newline-tolerant)")
@@ -270,34 +297,56 @@ const callSites = new Map<string, Set<string>>()
     fail("3: the single-workspace delete confirmation dialog changed")
   if (!workspaces.includes("workspace.delete.confirm"))
     fail("3: the confirmation dialog title key changed")
-  if (!workspaces.includes("disabled={status.isPending||status.isError}"))
-    fail("3: the danger button must be disabled while pending/error (stale state never blind-confirms)")
+  // #190 re-anchor: the danger button disables on the machine view's canDelete gate
+  // (the pending/error gate moved into delete-machine's workspaceConfirmView).
+  if (!workspaces.includes('variant="danger"disabled={!props.view.canDelete}'))
+    fail("3: the danger button must be disabled until the machine's preflight is ready (stale state never blind-confirms)")
   if (!workspaces.includes('variant="danger"'))
     fail("3: the confirm button lost its danger variant")
-  if (!workspaces.includes("transact(()=>remove(workspace,true,context))"))
-    fail("3: the confirmed path must force-execute (remove(workspace, true, …) inside transact)")
   if (!workspaces.includes("workspace.delete.failed.title"))
     fail("3: the delete failure recovery toast changed")
-  if (!workspaces.includes("consttransact=async(task:()=>Promise<void>)=>{"))
-    fail("3: the transact wrapper (catch → toast, finally clear) changed")
+  // #190 re-anchor: the transact wrapper became the machine's skipped/failed dispatch.
+  if (
+    !workspaces.includes(
+      'voidremoveWorkspace(effect).catch((error)=>dispatch({type:"delete.skipped",attempt,reason:{kind:"failed",message:errorinstanceofError?error.message:undefined},',
+    )
+  )
+    fail("3: the delete failure recovery path (machine delete.skipped with reason) changed")
+
+  // #190 re-anchor: the force decision lives in delete-machine.ts — confirm.accepted with the
+  // preflight ready starts a forced delete; the same readiness rule gates the dialog button.
+  const deleteMachine = squash(await read(`${APP}src/settings/workspaces/delete-machine.ts`))
+  if (!deleteMachine.includes('canDelete:state.preflight.status==="ready"'))
+    fail("3: the delete machine lost the canDelete preflight-ready gate (stale state never blind-confirms)")
+  if (!deleteMachine.includes("ThedialogdisablesDeleteuntilthecheckpasses;themachineholdsthesameruleforanyothercaller."))
+    fail("3: the delete machine lost the canDelete rule comment (verbatim)")
+  if (!deleteMachine.includes('state.preflight.status!=="ready")return{state,effects:NONE}'))
+    fail("3: the delete machine must refuse confirm.accepted before the preflight is ready")
+  if (!deleteMachine.includes("returnstart({issued:state.issued,force:true,active:state.active,current:state.target,queue:[],confirmed:"))
+    fail("3: the confirmed single-workspace path must force-execute (start({ force: true }) after preflight ready)")
 
   const revert = squash(await read(`${APP}src/session/revert.ts`))
+  // #190 re-anchor: revert is machine-driven — execute() runs the adjacent interrupt → wait →
+  // stage triple (wait moved to experimental.session.wait on this pin).
   if (
-    !/session\.interrupt\(\{sessionID\}\),current\)\)\)return[\s\S]{0,130}session\.wait\(\{sessionID\}\),current\)\)\)return[\s\S]{0,220}session\.revert\.stage\(\{sessionID,messageID:message\.id\}\),current\)\)\)return/.test(
+    !/awaitserver\.api\.session\.interrupt\(\{sessionID\},\{signal\}\)awaitserver\.api\.experimental\.session\.wait\(\{sessionID\},\{signal\}\)awaitserver\.api\.session\.revert\.stage\(\{sessionID,messageID:operation\.message\.id\},\{signal\}\)/.test(
       revert,
     )
   )
-    fail("3: the revert stage sequence must stay interrupt → wait → revert.stage (adjacent, each request()-wrapped)")
-  if (!revert.includes("session.inbox.cancel({sessionID,inboxID:message.id})"))
+    fail("3: the revert stage sequence must stay interrupt → wait → revert.stage (adjacent)")
+  // #190 re-anchor: the withdraw diversion targets the operation's message id.
+  if (!revert.includes("session.inbox.cancel({sessionID,inboxID:operation.message.id},{signal})"))
     fail("3: the undelivered-prompt diversion must go through inbox.cancel (not interrupt)")
-  if (!revert.includes("session.revert.clear({sessionID})"))
+  // #190 re-anchor: the clear call is signal-threaded on this pin.
+  if (!revert.includes("session.revert.clear({sessionID},{signal})"))
     fail("3: redo must clear the revert (revert.clear)")
-  // Re-anchored to the v2.2.1 form: restore() now also takes the origin directory.
-  if (!revert.includes("restore(target,message,restored,origin.directory)"))
+  // #190 re-anchor: restore() resolves the draft from the target's directory (origin dropped).
+  if (!revert.includes("constrestore=(target:RevertTarget,message:SessionMessageUser,restored=messageDraft(message,target.directory),)=>{"))
     fail("3: the staged prompt draft/context restore changed")
   if (!revert.includes("bothareidleno-ops"))
     fail("3: the idle no-op comment anchor changed (verbatim)")
-  if (!revert.includes("stopatthefirstfailureinsteadofwaitingonworkthatwasneverinterrupted"))
+  // #190 re-anchor: the comment wraps across a `//` continuation; tolerate it in the squash.
+  if (!/stopatthefirst(\/\/)?failureinsteadofwaitingonworkthatwasneverinterrupted/.test(revert))
     fail("3: the fail-fast comment anchor changed (verbatim)")
   if (!revert.includes("redorestoreseveryrevertedmessageatonce"))
     fail("3: the redo-restore-all comment anchor changed (verbatim)")
@@ -305,19 +354,21 @@ const callSites = new Map<string, Set<string>>()
   const submit = await read(`${APP}src/composer/submit.ts`)
   if (!submit.includes("if (session.current()?.revert) await session.api.revert.commit({ sessionID: session.id })"))
     fail("3: the settle-time auto commit line changed (verbatim in submit.ts)")
-  // Negative assertion (N2 call-shape anchor): exactly two sites, no user
-  // entry point. "revert-commit" mock strings (hyphen) must not match.
-  expectFromGroup2("revert.commit", [`${APP}src/composer/submit.ts`, `${APP}src/new-session/composer-adapter.ts`])
+  // Negative assertion (N2 call-shape anchor): exactly one site — the settle-time auto commit.
+  // v2.2.7 removed the new-session/composer-adapter.ts site (#190). "revert-commit" mock
+  // strings (hyphen) must not match.
+  expectFromGroup2("revert.commit", [`${APP}src/composer/submit.ts`])
 
   const commands = squash(await read(`${APP}src/session/commands/use-session-commands.tsx`))
   if (!commands.includes('id:"session.undo"') || !commands.includes('slash:"undo"'))
     fail("3: the session.undo command registration changed")
   if (!commands.includes('id:"session.redo"') || !commands.includes('slash:"redo"'))
     fail("3: the session.redo command registration changed")
-  if (!commands.includes("actions.session.history.visibleUserMessages().length===0"))
-    fail("3: the undo disabled condition (visible user messages) changed")
-  if (!commands.includes("!actions.session.data.revertMessageID()"))
-    fail("3: the redo disabled condition (revertMessageID present) changed")
+  // #190 re-anchor: the disabled conditions moved to the revert machine view (canUndo/canRedo).
+  if (!commands.includes("disabled:!actions.revert.canUndo()"))
+    fail("3: the undo disabled condition (revert machine canUndo) changed")
+  if (!commands.includes("disabled:!actions.revert.canRedo()"))
+    fail("3: the redo disabled condition (revert machine canRedo) changed")
 }
 
 // Group-2 helper: assert a scanned set against an expected list (defined after
@@ -337,8 +388,12 @@ function expectFromGroup2(name: string, files: string[]) {
 // --- 4. Large diff / binary / media ---
 {
   const review = await read(`${SESSION_UI}src/components/session-review.tsx`)
-  if (!review.includes("const MAX_DIFF_CHANGED_LINES = 500"))
-    fail("4: the 500-line large-diff threshold anchor changed")
+  // #190 re-anchor: the two thresholds moved to session-review-machine.ts (v2.2.7 machine split).
+  const reviewMachine = await read(`${SESSION_UI}src/components/session-review-machine.ts`)
+  if (!reviewMachine.includes("export const MAX_DIFF_CHANGED_LINES = 500"))
+    fail("4: the 500-line large-diff threshold anchor changed (session-review-machine.ts)")
+  if (!reviewMachine.includes("input.changedLines > MAX_DIFF_CHANGED_LINES"))
+    fail("4: the large-diff threshold comparison moved out of session-review-machine.ts")
   if (!review.includes("binary files have empty diffs that we can't render"))
     fail("4: the binary placeholder comment anchor changed (verbatim)")
   if (!review.includes("const diffCanRender = () => diff().additions !== 0 || diff().deletions !== 0"))
@@ -351,8 +406,8 @@ function expectFromGroup2(name: string, files: string[]) {
     fail("4: the large-diff placeholder title key changed")
   if (!review.includes("mediaKindFromPath"))
     fail("4: the media kind detection changed")
-  if (!review.includes("const REVIEW_MOUNT_MARGIN = 300"))
-    fail("4: the 300px virtual mount margin anchor changed")
+  if (!reviewMachine.includes("export const REVIEW_MOUNT_MARGIN = 300"))
+    fail("4: the 300px virtual mount margin anchor changed (session-review-machine.ts)")
 
   // Re-anchored to the v2.2.1 form: the threshold moved to pierre/virtualizer.ts
   // (virtualizeLineThreshold = 200) and the function reads `> virtualizeLineThreshold`.
@@ -407,11 +462,15 @@ function expectFromGroup2(name: string, files: string[]) {
   if (!locationMenu.includes('ctx.plural("ui.sessionTurn.diffs.changed"'))
     fail("5: the changes row plural label changed (issue #67: the row lives in location-menu)")
 
+  // #190 re-anchor: the candidate source resolves through the controller's projectRoot() and
+  // returns the data directly; the swallow-to-empty face moved to the branch-picker machine
+  // (selector.tsx branches.failed).
   const controller = squash(await read(`${APP}src/new-session/workspace/controller.ts`))
-  if (!controller.includes("branch.list({location:{directory},search,limit:50})"))
+  if (!controller.includes("branches:(search:string,signal?:AbortSignal)=>serverSDK.api.vcs.branch.list({location:{directory:projectRoot()},search,limit:50},{signal})"))
     fail("5: the branch candidate source anchor changed (newline-tolerant)")
-  if (!controller.includes(".catch(()=>({directory,search,data:[]}))"))
-    fail("5: the branch-list swallow-to-empty tail changed (#8 delivery face, honestly registered)")
+  const selector = squash(await read(`${APP}src/new-session/workspace/selector.tsx`))
+  if (!selector.includes('()=>settle(attempt,controller,{type:"branches.failed",attempt})'))
+    fail("5: the branch-picker machine lost the preload failure swallow (branches.failed)")
 }
 
 // --- 6. Mobile face & desktop gates ---
@@ -439,7 +498,12 @@ function expectFromGroup2(name: string, files: string[]) {
     fail("6: the wrap/scroll overflow toggle changed")
   if (!mobile.includes('"touchstart"'))
     fail("6: the scroll-restore interaction gate lost touchstart (N3: listener set lives in review/mobile.tsx)")
-  if (!mobile.includes('layout.scroll.get(props.session, "review")'))
+  // #190 re-anchor: the narrow review delegates scroll save/restore through the review model
+  // (requestRestore/saveScroll); the "review" storage key lives in review/model.ts.
+  if (!mobile.includes("review.saveScroll(props.session, event.currentTarget)") || !mobile.includes("review.requestRestore()"))
+    fail("6: the narrow review must delegate scroll save/restore through the review model")
+  const modelScroll = squash(await read(`${GUI_EXT}src/review/model.ts`))
+  if (!modelScroll.includes('layout.scroll.get(view(),"review")'))
     fail("6: the scroll restoration key (review) changed")
 
   const guiEn = await read(`${GUI_EXT}src/review/i18n/en.ts`)
@@ -466,16 +530,24 @@ function expectFromGroup2(name: string, files: string[]) {
   const menu = await read(`${GUI_EXT}src/details/workspace-menu.tsx`)
   if (!menu.includes('on("worktree.updated"'))
     fail("7: the move menu lost its worktree.updated listener")
-  if (!menu.includes('data().session.status(props.session.id) === "running"') || !menu.includes("blocked()"))
-    fail("7: the running-session lock (blocked()) changed")
+  // #190 re-anchor: the move controller is machine-based — the running lock is the
+  // session.status guard feeding view().disabled plus the move.blocked enforcement.
+  if (!menu.includes('props.session.server.data.session.status(props.session.id) === "running"'))
+    fail("7: the running-session status guard changed")
+  if (!menu.includes('{ type: "move.blocked", attempt: effect.attempt }'))
+    fail("7: the running-session lock (move.blocked enforcement) changed")
   if (!menu.includes('"move.failed"'))
     fail("7: the move failure toast changed")
-  if (!menu.includes("client.worktree.refresh({ projectID: props.project.id })"))
+  // #190 re-anchor: the worktree calls are signal-threaded through the move controller.
+  const menuCalls = squash(await read(`${GUI_EXT}src/details/workspace-menu.tsx`))
+  if (!menuCalls.includes("worktree.refresh({projectID:effect.projectID},{signal:ctx.signal}).catch(()=>undefined)"))
     fail("7: the move menu refresh call changed")
-  if (!menu.includes("client.worktree.create({ projectID: project.id, from: project.canonical })"))
+  if (!menuCalls.includes("worktree.create({projectID:project.id,from:project.canonical},{signal})"))
     fail("7: the move menu create call changed")
-  if (!menu.includes("client.session.move({ sessionID, directory: destination })"))
+  if (!menuCalls.includes("session.move({sessionID,directory:effect.directory},{signal})"))
     fail("7: the session.move execution changed")
+  if (!menuCalls.includes("worktree.remove({projectID:effect.projectID,directory:effect.directory,force:true},{signal})"))
+    fail("7: the recovery remove must stay forced (worktree.remove force: true)")
   if (!menu.includes("// Populate the client cache before the destination session mounts."))
     fail("7: the syncInfo cache-prefill comment anchor changed (verbatim)")
 
@@ -554,7 +626,8 @@ let osScanFiles = 0
   if (osScanFiles < 150) fail(`8: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
 }
 
-// --- 9. Pierre worker pool fallback seam (issue #163, diff-worker-pool-fallback.patch) ---
+// --- 9. Pierre worker pool fallback seam (issue #190, files-diff-review-v2-2-7.patch;
+//        re-derived from the retired diff-worker-pool-fallback.patch, issue #163) ---
 {
   const index = await read(`${SESSION_UI}src/pierre/index.ts`)
   if (!index.includes('preferredHighlighter: "shiki-js"'))
@@ -575,13 +648,11 @@ let osScanFiles = 0
   ])
     if (!worker.includes(anchor)) fail(`9: worker.ts lost the pool-failure guard anchor: ${anchor}`)
 
-  const fileViewer = await read(`${SESSION_UI}src/components/file.tsx`)
-  for (const anchor of [
-    "const [failed, setFailed] = createSignal(false)",
-    "settled() || failed()) return true",
-    'console.error("[diff] pierre worker pool init failed", cause)',
-  ])
-    if (!fileViewer.includes(anchor)) fail(`9: file.tsx lost the createPoolReady failure-bypass anchor: ${anchor}`)
+  // #190: the file.tsx createPoolReady failure-bypass anchors are DROPPED — v2.2.7's
+  // native viewer render machine owns the pool fallback (pool.settled / pool.timed-out
+  // → main-thread fallback), behavior-tested upstream in render-machine.test.ts:116-141
+  // ("a failed or hung pool falls back to the main thread"). The old mobile bypass hunk
+  // is superseded, not re-derived.
 
   const strategy = await read(`${SESSION_UI}src/pierre/pool-strategy.ts`)
   for (const anchor of ["export function observeSettlement", "export function watchPoolSettlement", "export type SettlementWatcher"])
@@ -592,16 +663,16 @@ let osScanFiles = 0
 
 console.log(
   "verify-diff: PASS (" +
-    "1: three-mode data face (git/branch→vcs.diff working/branch, turn→session.diff bounded context:3), gates, refetchOnMount always + connected gate, filesystem.changed + idle refresh, vcs.init + requestFailed, detailsQuery working/catch→[], location-scoped file.read, generated statuses init [400,401,404,409,501,503]/diff [400,401,404,503], protocol verbatim (in-closure); " +
-    "2: normalized exhaustive sets — vcs.diff {workspaces.tsx, review/model.ts}, vcs.status/vcs.init/vcs.branch.list/worktree.remove singletons, worktree.create {create.ts, workspace-menu.tsx}, vcs.base/vcs.get ZERO in app+gui-extensions (M1: handwritten data.ts vcs.get anchored outside), revert.commit negative deferred to group 3, wrapper layer anchored; " +
-    "3: delete confirmation chain (preflight trio, three-state interception, dialog, danger disabled while pending/error, force transact, failure toast) + revert interrupt→wait→stage + inbox.cancel + revert.clear + verbatim comments + settle auto-commit + revert.commit set {submit.ts, composer-adapter.ts} + undo/redo command anchors; " +
+    "1: three-mode data face (git/branch→vcs.diff working/branch, turn→session.diff bounded context:3), gates, bounded turn refetch (query-cache retention + connected gate), filesystem.changed + idle refresh, vcs.init + requestFailed, retryDetails machine form, location-scoped file.read, generated statuses init [400,401,404,409,501,503]/diff [400,401,404,503], protocol verbatim (in-closure); " +
+    "2: normalized exhaustive sets — vcs.diff {workspaces.tsx, review/model.ts}, vcs.status/vcs.init/vcs.branch.list singletons, worktree.remove {workspaces.tsx, workspace-menu.tsx recovery force}, worktree.create {create.ts, workspace-menu.tsx}, vcs.base/vcs.get ZERO in app+gui-extensions (M1: handwritten data.ts vcs.get anchored outside), revert.commit negative deferred to group 3, wrapper layer anchored; " +
+    "3: delete confirmation chain (preflight trio, three-state interception, dialog, canDelete gate, three-state interception, dialog, force transact, failure toast, delete.skipped dispatch) + revert interrupt→wait→stage + inbox.cancel + revert.clear + verbatim comments + settle auto-commit + revert.commit single-site {submit.ts} + undo/redo command anchors; " +
     "4: 500-line large-diff placeholder + renderAnyway, binary empty-diff disabled trigger (verbatim comment), mediaKind, 300px mount margin, shouldVirtualizeReviewDiff, largeDiff i18n; " +
-    "5: ChangeMode literals + branch/turn gates + per-session store pick + details watch pair + branch/basedOn rows + controller branch.list candidate with catch→[]; " +
+    "5: ChangeMode literals + branch/turn gates + per-session store pick + details watch pair + branch/basedOn rows + controller branch.list single-site with branches.failed; " +
     "6: mobile tab (order 10, kind tab), frame.placement mobile → MobileReview, narrow layout.open, review LinkHandler, mobile-diff settings page, unified/wrap/touchstart/scroll keying, en+zh i18n, openIn contract gate; " +
     "7: workspace-menu (updated listener, running lock, move.failed, create+refresh), create.ts, paths inspection trio, inventory event-driven Infinity, sync refetch adjacency, RemoveInput force schema; " +
     "8: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted files (review/details/session-review/v2/revert/settings-workspaces); " +
-    "9: pierre worker pool fallback seam — shiki-js engine selection, worker.ts failed-pool guard (12s probe via pool-strategy), file.tsx createPoolReady failure bypass + labeled [diff] console.error, pure pool-strategy module (#163); " +
+    "9: pierre worker pool fallback seam — shiki-js engine selection, worker.ts failed-pool guard (12s probe via pool-strategy), pure pool-strategy module (file.tsx bypass anchors dropped: native render-machine fallback, render-machine.test.ts:116-141) (#190, re-derived from #163); " +
     "STATIC check - diff rendering, mode switching, comments, worktree flows, undo/redo, stale timing, client-exit red line and touch/a11y adequacy are G23)",
 )

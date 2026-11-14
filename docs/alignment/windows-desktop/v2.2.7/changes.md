@@ -381,3 +381,67 @@ git -C /home/peterhan/repository/opencode ls-tree -r --name-only v2.2.7 -- packa
 - **DENY（routing）** `session-goal-sources-panels`（→goal/sources 单元）：本轮不触碰。
 - **DENY（routing）** notification delivery（→#195）：question/request 通知投递面不在本轮。
 - **EXCLUDED** `#168` 范围未触碰；`packages/core|server|schema` permission 服务端语义不在 vendored closure（同 #10 传统，引 pin cache）。
+
+## Issue #190：files / diff / review crosswalk and allowlist
+
+本节是 #190 的固定上游审计（files / diff / review / Office 面），不改变冻结的 v2.2.1 文档与前序 #186–#189 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--190-files-diff-review`，分支 `feat/190-files-diff-review`，base `818b14e`（#189 链尾）。本轮 landing 是 active `files-diff-review-v2-2-7`（row 85）：v2.2.7 重 derive 四条退役 payload（rows 40/59/77/78 全部翻转 absorbed）的 files/diff/review 在册载体面。
+
+### 可复现 fixed-source 命令
+
+```bash
+# 计划期审计命令（plan §1，2026-11-14 规划轮记录）：files/diff/review/Office surface
+#   `git -C /home/peterhan/repository/opencode diff --name-status 3ebcf9a3… fedc6f20… -- <domain paths>`
+#   逐文件 byte-compare：`git rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# 计划期记录结果：426 = 247 M + 175 A + 4 D → 422 present → 422 SAME + 0 DIFF；
+#   4 条上游删除 = session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts 家族
+#   （#188 section 已核对同一家族：上游删除文件在 vendored 树 0 present）。
+# 本轮重放命令（同法、明确 19-path 口径；计划期全集 path 清单未随计划文本存档，
+#   按 #187 先例以上列可复现命令与 vendored 树的当轮重放为准）：
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/session-ui/src \
+  packages/app/src/workspaces packages/app/src/settings/workspaces \
+  packages/app/src/session/revert.ts packages/app/src/session/revert-machine.ts \
+  packages/app/src/session/revert-machine.test.ts packages/app/src/composer/submit.ts \
+  packages/app/src/runtime/server/api.ts packages/app/src/runtime/server/api.test.ts \
+  packages/app/src/runtime/platform/web.ts \
+  packages/gui-plugins/src/file packages/gui-plugins/src/review packages/gui-plugins/src/microsoft-office \
+  packages/protocol/src/groups/fs.ts packages/protocol/src/groups/vcs.ts packages/protocol/src/groups/worktree.ts \
+  packages/client/src/promise/generated/client.ts packages/client/src/promise/generated/types.ts \
+  packages/schema/src
+# 逐文件 byte-compare：`git -C <upstream> rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# absence 负检：上列 D 条目在 vendored 树必须不存在
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（19-path 口径）**：284 entries = 146 M + 134 A + 4 D → 280 present → **277 SAME + 3 DIFF**。4 条 D = `session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts`（与计划期记录同一删除家族，vendored 树 0 present——#188 section 负检继续成立）。
+- 3 条 DIFF 全部为在册载体 hunks（与 #187 轮 `screen.tsx`、#188 轮 11 条 DIFF 同一处理方式）：`app/src/session/revert.ts`（#188 active `composer-queue-attachments-v2-2-7` 的 M-016 provenance hunk）、`app/src/workspaces/files/artifact.test.ts` 与 `session-ui/src/pierre/index.ts`（本轮 active `files-diff-review-v2-2-7` 的重 derive hunks）。其余 277 条保持 byte-identical，absorbed by vendor pin。
+- **补丁 targets 的澄清（诚实登记）**：`session-ui/src/pierre/worker.ts` 与 `app/src/runtime/platform/web.ts` 在 v2.2.1→v2.2.7 之间 byte-same（不在 diff entries 内，故不在 280 present 清单），其 vendored 形态与 pin 的差异完全来自在册 mobile 载体（#85 worker hunks；#184/#188 M-011/M-020 + #85 M-041）；`pierre/pool-strategy.ts` 为 vendored-new 文件（两个 pin 均不存在）。这三条由 `verify-closure.sh` 全树 byte-identity（V3 replay 含 #85 按序重放）覆盖，不重复计入本 allowlist。
+- 计划期审计（426 entries → 422 SAME）与本轮重放（284 entries → 277 SAME）的差额为清点口径差（计划期 path 全集更宽，含未随计划文本存档的目录面）；两类记录的 DIFF/删除归因一致，以上列可复现命令的当轮重放为准（#187「计划期 vs 当轮重放」同一先例）。
+
+### 逐 commit crosswalk（14 条）
+
+| fixed upstream commit | 目标行为 | #190 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `621f0ee53f` | fix(app): explicit review folder loads, render gate and narrow scroll restore (#61999)——review diff machine 族（folder/review-diff/scroll machine） | **absorbed**（vendor pin） | `gui-plugins/src/review/{machine,folder-machine,scroll-machine,render-machine}.test.ts`（baseline c 430/0 恒同集） |
+| `c9a9ac1ee8` | fix(session-ui): drive mentions, attachment media, review resize and diff mounts from machines (#62095) | **absorbed**（vendor pin） | `session-ui/src` machine 族 SAME 集 |
+| `c293e53511` | fix(session-ui): drive the Pierre viewer render lifecycle with one state machine (#61938)——viewer render machine 自持 pool fallback | **absorbed**（vendor pin）；#85 不再重 derive file.tsx createPoolReady hunk（superseded，render-machine.test.ts:116-141 行为级锁定） | `session-ui/src/pierre/render-machine{,.test}.ts`；baseline (b) 27/0 恒同 |
+| `fe19d9b799` | fix(session-ui): drive file media, find, sources expand and markdown parse jobs through state machines (#61980) | **absorbed**（vendor pin） | `session-ui/src` SAME 集 |
+| `5ea5c5e610` | fix(gui-plugins): drive the Pierre file tree through one state machine (#61954) | **absorbed**（vendor pin）；row 78 fill chain 的 native 基础（`packages/ui/src/styles/file-tree.css:15-27` `:has(> file-tree-container)`）在此形态内 | `gui-plugins/src/file/pierre-tree{,.test}.tsx`（baseline c SAME 集） |
+| `118d967743` | fix(gui-plugins): make file view scroll, Git init and Open in app explicit state machines (#62018) | **absorbed**（vendor pin） | `gui-plugins/src/file` SAME 集 |
+| `91202e6faf` | fix(session-ui): render partial diffs when review expand mode is on (#62241) | **absorbed**（vendor pin） | `session-ui/src/v2/components` SAME 集 |
+| `e23d54ca75` | fix(app): show Open in only in file and review headers (#62174) | **absorbed**（vendor pin）；OpenInApp contract gate 由 verify-diff 组 6 锚定 | `gui-plugins/src/review/panel.tsx`、`file/renderer.tsx`（SAME 集） |
+| `b8a9e8a73f` | fix(app): show load failures in review previews, details changes, file search and Word pages (#62114)——review diff machine 失败态 + retryDetails | **absorbed**（vendor pin）；verify-diff 组 1 的 details retry 锚即此形态 | `gui-plugins/src/review/model.ts`（SAME 集） |
+| `47cace689a` | fix(app): make settings account holds, worktree delete check, extension lists and picker cache explicit machines (#62103)——workspace delete machine（canDelete preflight gate + force 链） | **absorbed**（vendor pin）；verify-diff 组 3 重锚定锚（`canDelete: state.preflight.status === "ready"` + `start({ force: true })`） | `app/src/settings/workspaces/delete-machine{,.test}.ts`（SAME 集） |
+| `6469454d35` | fix(app): show failed and offline review diffs instead of a clean tree (#61862) | **absorbed**（vendor pin） | review diff machine offline/failure context（SAME 集） |
+| `602725f572` / `331a3b9c7f` / `d22f9b8eb3` | fix(session-ui): file line selection / focused review comment reveal / line comment drafts in explicit state machines (#61933/#61819/#61816) | **absorbed**（vendor pin） | `session-ui/src/pierre/selection-machine{,.test}.ts` 等（baseline b 27/0 恒同集） |
+| `c777f9a24e` / `e42ac691d5` | fix(app): reread a workspace file changed during its read (#61818) / reload a file tree directory changed during its listing (#61814) | **absorbed**（vendor pin）；files watcher 面 pin 携带（`server.connected` 重订阅、filesystem.changed 订阅） | `app/src/workspaces/files/{watcher,content-machine,tree-machine}.test.ts`（baseline a SAME 集） |
+| `66c278b559` | fix(session-ui): compute highlight styles once per subtree in Chromium (#60513) | **absorbed**（vendor pin）；#85 的 shiki-js 引擎 + pierre 内置主题对适配与其正交（引擎选择是 WebView wasm 面，不是样式计算面） | `session-ui/src/pierre/index.ts`（DIFF = #85 在册载体） |
+
+### deny audit
+
+- **DENY（routing）** `gui-plugins-api-migration`（@pierre/trees beta.6 基线族）不是 #190 的 payload：其 beta.6 baseline 锚由 `verify-pierre-webview-compat` dependency-baseline 测试与 verify-files 组 10 继续锁定，本轮零改动；#190 注册 reason 不承载该 patch 的 targets。
+- **DENY（routing）** `session-workbench-upstream` overlap：其与 review/files 面的重叠 hunks 已随前序轮 absorbed（#188 已核对 session-workbench 面），本轮不重复登记、不翻转。
+- **ALLOW（audit-only）** `packages/app/e2e` specs：作为 fixed-source 审计面 byte-identical 登记，**不作为 Android 运行门禁**（Playwright 不是 Android APK 硬门禁）；本轮未运行 e2e。
+- **EXCLUDED** `packages/core|server` vcs/fs 服务端实现不在 vendored closure（同 #12 probe 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。

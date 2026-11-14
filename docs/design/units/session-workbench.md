@@ -1,6 +1,6 @@
 # 单元：session-workbench（会话工作台——流式消息、上下文、工具与子任务）
 
-状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑；当前 v2.2.7/#186/#187/#188 仍以 copy 上游实现并做必要 Android 适配为主；**issue #188 起队列/草稿归属保护不再纯上游闭包承载**——active `composer-queue-attachments-v2-2-7`（registry **84 registered / 6 active / 29 absorbed / 49 deferred**）在 `session/composer/queue.ts` 落地 per-attempt owner 捕获（composer 实例/连接/media lease 任一丢失 → 仅停止该 attempt 尚未派发的远端步骤：undo 由 abort watcher 按 machine dispose 契约停止于 cancel 前，re-admission 由客户端原生 `prepare` 钩子拦截；已提交相位与终态报告按基线无条件运行——machine 的 disposed-return 契约恢复内容；signal 不接 HTTP 调用，远端任务不受影响），queue-machine.ts 保持零改动（review 修复轮后语义）。旧的迁移轮次 registry 数字只属于冻结 v2.2.1 历史，不是当前事实。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
+状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑；当前 v2.2.7/#186/#187/#188 仍以 copy 上游实现并做必要 Android 适配为主；**issue #188 起队列/草稿归属保护不再纯上游闭包承载**——active `composer-queue-attachments-v2-2-7`（registry **85 registered / 7 active / 33 absorbed / 45 deferred**——#190 起新增 `files-diff-review-v2-2-7`、rows 40/59/77/78 翻转 absorbed）在 `session/composer/queue.ts` 落地 per-attempt owner 捕获（composer 实例/连接/media lease 任一丢失 → 仅停止该 attempt 尚未派发的远端步骤：undo 由 abort watcher 按 machine dispose 契约停止于 cancel 前，re-admission 由客户端原生 `prepare` 钩子拦截；已提交相位与终态报告按基线无条件运行——machine 的 disposed-return 契约恢复内容；signal 不接 HTTP 调用，远端任务不受影响），queue-machine.ts 保持零改动（review 修复轮后语义）。旧的迁移轮次 registry 数字只属于冻结 v2.2.1 历史，不是当前事实。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
 
 行号声明：本文部分旧行号来自迁移前 vendor pin `b4525d79bf`，仅作为冻结 v2.2.1/迁移前历史定位；它们不是当前 v2.2.7 来源事实。当前源码事实以固定 pin `fedc6f208aa2bd54c1019227214568083f6380ad` 和引号内源文本锚为准。
 
@@ -71,7 +71,7 @@
 
 1. **`session/composer/adapter.ts`**——`interrupt: () => server.api.session.interrupt({ sessionID: id, resume: true }).then(() => undefined).catch(() => undefined)`（跨行书写、`resume: true`、吞错）。消费入口为 composer 停止按钮与 working 态空提交：`composer/submit.ts` 的两处 **adapter 方法触发面**（非线级）——`void input.adapter.interrupt()`（working 态空提交）与 `stop: () => (…input.adapter.interrupt()…)`（停止按钮）。
 2. **`session/header/session-running-menu.tsx`**——`sdk.api.session.interrupt({ sessionID: item.sessionID })`（后台任务菜单中的 subagent 子会话；旁注锚「A subagent can only be interrupted once its child session exists.」）。
-3. **`session/revert.ts`**（`stage()` 内）——undo/rewind 前置序列：`interrupt({ sessionID })` → `session.wait` → `revert.stage`（注释锚：「…both are idle no-ops.」逐字）。同函数对**未投递 prompt** 走 `inbox.cancel` 而非 interrupt（`data.session.input.has(...)` 分支）——排队输入撤销不经 interrupt。
+3. **`session/revert.ts`**（`execute()` 内，v2.2.7 machine 形）——undo/rewind 前置序列：`interrupt({ sessionID })` → `experimental.session.wait`（wait 移至 experimental 命名空间）→ `revert.stage`（注释锚：「…both are idle no-ops.」逐字，#190 verify-diff 重锚定容忍 `//` 续行）。同函数对**未投递 prompt** 走 `inbox.cancel` 而非 interrupt（withdraw 分支）——排队输入撤销不经 interrupt。
 
 三处均为**显式用户动作**（停止按钮/空提交入口/后台任务菜单/undo-rewind），无任何断连触发路径。
 

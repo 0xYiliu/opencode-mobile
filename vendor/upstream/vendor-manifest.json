@@ -64,7 +64,8 @@
     "patches/mobile/home-new-session-v2-2-7.patch",
     "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
     "patches/mobile/timeline-messaging-v2-2-7.patch",
-    "patches/mobile/composer-queue-attachments-v2-2-7.patch"
+    "patches/mobile/composer-queue-attachments-v2-2-7.patch",
+    "patches/mobile/files-diff-review-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -340,7 +341,7 @@
       "id": "files-open-external",
       "path": "patches/mobile/files-open-external.patch",
       "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-framework-dependencies",
@@ -454,7 +455,7 @@
       "id": "files-stream-watch",
       "path": "patches/mobile/files-stream-watch.patch",
       "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-android-adaptation",
@@ -562,13 +563,13 @@
       "id": "diff-worker-pool-fallback",
       "path": "patches/mobile/diff-worker-pool-fallback.patch",
       "sha256": "e5ca4876238c8d784ca38709d698c312440eb702fc687669dc7e8014edbf8fe2",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "files-tree-sidebar-fill",
       "path": "patches/mobile/files-tree-sidebar-fill.patch",
       "sha256": "660bc0c356fd89bfe66df7399a0a749712ab5ef40a0b95c2c1bedf29502f5629",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "v2-2-7-mobile-connection-pairing-ssh-closure",
@@ -604,6 +605,12 @@
       "id": "composer-queue-attachments-v2-2-7",
       "path": "patches/mobile/composer-queue-attachments-v2-2-7.patch",
       "sha256": "508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da",
+      "status": "active"
+    },
+    {
+      "id": "files-diff-review-v2-2-7",
+      "path": "patches/mobile/files-diff-review-v2-2-7.patch",
+      "sha256": "7b452f943601e632418776e9df0525475b970f211ab82c71ff7ef1c9b12dcd81",
       "status": "active"
     }
   ],
@@ -729,12 +736,6 @@
       "status": "deferred"
     },
     {
-      "id": "files-open-external",
-      "path": "patches/mobile/files-open-external.patch",
-      "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
-      "status": "deferred"
-    },
-    {
       "id": "settings-framework-dependencies",
       "path": "patches/mobile/settings-framework-dependencies.patch",
       "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
@@ -825,12 +826,6 @@
       "status": "deferred"
     },
     {
-      "id": "files-stream-watch",
-      "path": "patches/mobile/files-stream-watch.patch",
-      "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
-      "status": "deferred"
-    },
-    {
       "id": "session-agent-selector",
       "path": "patches/mobile/session-agent-selector.patch",
       "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
@@ -888,18 +883,6 @@
       "id": "settings-ssh-row-runtime-actions",
       "path": "patches/mobile/settings-ssh-row-runtime-actions.patch",
       "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
-      "status": "deferred"
-    },
-    {
-      "id": "diff-worker-pool-fallback",
-      "path": "patches/mobile/diff-worker-pool-fallback.patch",
-      "sha256": "e5ca4876238c8d784ca38709d698c312440eb702fc687669dc7e8014edbf8fe2",
-      "status": "deferred"
-    },
-    {
-      "id": "files-tree-sidebar-fill",
-      "path": "patches/mobile/files-tree-sidebar-fill.patch",
-      "sha256": "660bc0c356fd89bfe66df7399a0a749712ab5ef40a0b95c2c1bedf29502f5629",
       "status": "deferred"
     }
   ],
@@ -1019,6 +1002,12 @@
       "status": "absorbed"
     },
     {
+      "id": "files-open-external",
+      "path": "patches/mobile/files-open-external.patch",
+      "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
+      "status": "absorbed"
+    },
+    {
       "id": "connection-pairing-url",
       "path": "patches/mobile/connection-pairing-url.patch",
       "sha256": "04e56d1eb9c0fb184d8b87f4bfda64494ae994328ef581cf63d18e38dfe0f6ac",
@@ -1034,6 +1023,12 @@
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
       "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
+      "status": "absorbed"
+    },
+    {
+      "id": "files-stream-watch",
+      "path": "patches/mobile/files-stream-watch.patch",
+      "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
       "status": "absorbed"
     },
     {
@@ -1076,6 +1071,18 @@
       "id": "session-android-back-bridge",
       "path": "patches/mobile/session-android-back-bridge.patch",
       "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
+      "status": "absorbed"
+    },
+    {
+      "id": "diff-worker-pool-fallback",
+      "path": "patches/mobile/diff-worker-pool-fallback.patch",
+      "sha256": "e5ca4876238c8d784ca38709d698c312440eb702fc687669dc7e8014edbf8fe2",
+      "status": "absorbed"
+    },
+    {
+      "id": "files-tree-sidebar-fill",
+      "path": "patches/mobile/files-tree-sidebar-fill.patch",
+      "sha256": "660bc0c356fd89bfe66df7399a0a749712ab5ef40a0b95c2c1bedf29502f5629",
       "status": "absorbed"
     }
   ],

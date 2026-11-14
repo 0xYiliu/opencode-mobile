@@ -881,8 +881,8 @@
       "verification": "V3 closure round-trip (git apply --check over the whole 39-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: files-open-external git apply --check rc=0 against the pin + packageSources + gui-plugins-native-test-deps..settings-about-version intermediate tree, then applied and byte-compared == working tree); scripts/verify-open-external.ts (new probe: JS gate lines verbatim + bridge call + mobile(M-041) anchor + web.ts zero window.open( negative + FilesPort four-member/stub-false/ never-throw shapes + native policy/bridge/Toast anchors + manifest dual registration witness); scripts/verify-browser.ts group 7 window.open literal anchor replaced by the new-shape anchor same commit (21/20 RAW exhaustive count unchanged - both the definition and the new call shape are NON-HIT under the receiver pattern); scripts/verify-provider-models.ts group 3 window.open literal anchor replaced same commit, protocol gate/mailto lock + openBrowser negative lock + browserFailed-unreachable kept; verify-about-version/verify-attachments-artifacts/verify-commands-menus 38->39 counters + dist baselines backfilled same commit; bun test --conditions=browser packages/mobile-hosts (FilesPort four members, stub false, never-throw mapping matrix); gradle JVM ExternalOpenPolicyTest decision matrix; bun run build:web + copy-web-dist with refreshed dist baseline; device QA (allowed domain via the tabs-drawer Help feedback link, refused domain via native policy, no-handler path) registered in docs/build-and-verify.md issue #76.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed: the JS hunk (web.ts openExternal over the files bridge, mobile(M-041)) is carried by files-diff-review-v2-2-7 (#85); the native face from issue #76 is unchanged (ExternalOpenPolicy enforced layer, files bridge stub). Historical payload and identity retained for audit."
     },
     {
       "id": "settings-framework-dependencies",
@@ -1700,8 +1700,8 @@
       "verification": "Full-chain replay: pristine + 66 patches (this patch at position 58) applies cleanly and the six target files byte-match the vendored tree; bash scripts/verify-closure.sh PASS (V3(a) byte-identical, V3(b) DANGLING=0) re-run at the fix HEAD; bun run patches:refresh / verify:patches and python3 scripts/test_mobile_patches.py 8/8 at registration; app typecheck tsc -b totals 419 -> 417 (mounted-session watch/unwatch TS2339 pair resolved, zero new errors in touched files); vendored test subset src/workspaces/files + src/runtime/server 159 pass / 6 baseline failures unchanged.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed: the v2.2.7 pin carries the whole protocol/client/api face (native fs.watch/unwatch endpoints, generated file.watch/file.unwatch wrappers, fileStreamUrl, server.connected re-watch); the first-party artifact.test.ts test content is re-derived in files-diff-review-v2-2-7 (#85). Historical payload and identity retained for audit."
     },
     {
       "id": "session-android-adaptation",
@@ -2077,11 +2077,11 @@
       ],
       "reason": "Make the pierre worker pool observable and non-gating on failure, and switch the highlight engine to one that loads on the Android WebView (issue #163). Step-0 diagnosis on the bf3fdc8 baseline: with the upstream preferredHighlighter \"highlights\", @pierre/highlights' default entry compiles its 183 KiB oniguruma wasm synchronously at module load (init(new WebAssembly.Module(bytes))), which Chromium forbids on the main thread for buffers >4 KiB - every boot rejects the pool's initialize() with that RangeError (two console.error + one unhandled rejection captured via CDP), terminateWorkers() runs, and both FileDiff and PierreFile stay on the sprite + empty-pre face with zero console output afterwards (12s MutationObserver window flat). The patch (a) switches highlightOptions to \"shiki-js\" - pierre's own default engine per resolveHighlighterType, pure JS, no wasm, loads on main thread and workers alike, syntax highlighting preserved; (b) adds pierre/pool-strategy.ts (pure promise/setTimeout state machine, no solid or ?worker&url imports, bun-testable) exporting observeSettlement/settle-with-timeout + watchPoolSettlement; (c) worker.ts records a failed pool (reject or no settle within 12s - pierre's own init timeout is 10s, probe keeps a margin) in a WeakSet and getWorkerPool returns undefined for it so viewers construct without a pool; (d) file.tsx createPoolReady marks the gate failed on catch with a labeled [diff] console.error and stops holding the render gate, letting VirtualizedFileDiff/FileDiff/PierreFile render on the main-thread path. Deprecates the plan's files-panel-lazy-resilience premise (its H1 lazy-factory hang was refuted by the same diagnosis: chunks load, /api/fs/list fires, tree mounts; the file-tree breakage was the @pierre/trees beta.4 dependency-baseline gap, fixed separately by revising gui-plugins-api-migration.patch).",
       "verification": "Step-0 CDP probes (docs/build-and-verify.md #162/#163 section): diffs-container shadowRoot = sprite+empty PRE, host height 0, m6 12s window = 0 childList mutations; Worker constructor hook logged 2 module-worker spawns, errors [], messages 0; initdoc capture pinned the RangeError to _assets/highlights-*.js top-level. Post-fix device round: pool initializes with shiki-js, diff body renders rows (longline.txt +1/-0 visible + scrollable), file viewer shows normal.txt contents; verify-pierre-webview-compat.test.ts anchor + behavior matrix green. Post-review type-level revision (2026-11-08): pool-strategy.ts observeSettlement's clearTimeout default is now a pure type-level cast (clearTimeout as (handle: unknown) => void) resolving the lone tsc -b --force delta (272 -> 271 = baseline); runtime behavior unchanged, patch content hash refreshed.",
-      "status": "deferred",
+      "status": "absorbed",
       "dependsOn": [],
       "sha256": "e5ca4876238c8d784ca38709d698c312440eb702fc687669dc7e8014edbf8fe2",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed",
+      "disposition": "absorbed: hunks a/b/c (shiki-js engine + bundled theme pair, pool-strategy.ts, worker.ts failed-pool guard) are carried by files-diff-review-v2-2-7 (#85); hunk d (file.tsx createPoolReady bypass) is superseded by the native render-machine pool fallback, behavior-tested upstream in render-machine.test.ts:116-141. Historical payload and identity retained for audit.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2093,11 +2093,11 @@
       ],
       "reason": "Make the sidebar pierre file tree actually fill the sidebar viewport (issue #162, step-0 follow-up). The tree wrapper ([data-component=file-tree-v2], a content-sized custom element host) sits in the :has(file-tree-container) tree viewport (column flex, overflow hidden) with nothing in the fill chain giving it a height: :host(height:100%) inside it resolves against a content-sized parent, so the whole shadow flex chain collapsed to its content minimum (~12px scroller / 8px visible sliver) and every row clipped out of view - the Open-file panel rendered header + filter but a visually empty tree. Verified on-device: one CDP-injected rule with exactly this selector takes the wrapper 12px -> 601px and the scroller to 597px, and all repo rows render. The fix mirrors the app's own sizing pattern for the same component shape in the directory picker (.directory-picker-tree { height: 100% }): let the wrapper flex-fill the viewport. Semantic layout fix in the vendored session-ui css; registered separately from diff-worker-pool-fallback (independent purpose per the one-purpose-one-patch rule).",
       "verification": "Device probe (fixcss.js via CDP) wrapper 12 -> 601px, scroll 597px, all 5 fixture rows visible in the Open-file sidebar; post-rebuild QA round re-measures and screenshots the rendered tree (see docs/build-and-verify.md #162/#163 section).",
-      "status": "deferred",
+      "status": "absorbed",
       "dependsOn": [],
       "sha256": "660bc0c356fd89bfe66df7399a0a749712ab5ef40a0b95c2c1bedf29502f5629",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed",
+      "disposition": "absorbed: v2.2.7's native fill chain basis (file-tree.css:15-27 `:has(> file-tree-container)` plus the session-review-v2.css viewport rules) covers the sidebar fill fix; the old selector-removal payload no longer applies to this pin. Historical payload and identity retained for audit.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2257,6 +2257,33 @@
       "sha256": "508818a4f729dd4b5d2f5f1161d33eb04d0506e4fedc8b54267f4d279ebd73da",
       "status": "active",
       "disposition": "active; sole carrier of the re-derived #12/#19/#20 payloads and the composer-side face of #58"
+    },
+    {
+      "id": "files-diff-review-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/files-diff-review-v2-2-7.patch",
+      "targets": [
+        "packages/session-ui/src/pierre/index.ts",
+        "packages/session-ui/src/pierre/worker.ts",
+        "packages/session-ui/src/pierre/pool-strategy.ts",
+        "packages/app/src/runtime/platform/web.ts",
+        "packages/app/src/workspaces/files/artifact.test.ts"
+      ],
+      "reason": "Files / diff / review consolidated payload at v2.2.7 (issue #190): re-derives the whole files/diff/review/Office surface the v2.2.7 pin absorbed from the mobile layer (recorded audit 426 = 247 M + 175 A + 4 D -> 422/422 SAME, four upstream deletions are the markdown-worker-{queue,transport}{,.test} family). Carries the re-derived payloads of four retired patches (files-stream-watch, files-tree-sidebar-fill, diff-worker-pool-fallback, files-open-external — all four flip to absorbed with this registration): (a) diff-worker-pool-fallback hunks a/b/c re-derived — pierre/index.ts highlightOptions moves to pierre's bundled shiki theme pair + the \"shiki-js\" engine (the @pierre/diffs 1.6.1 pin ships resolveHighlighterType's shiki-js fallback and the bundled pierre-dark/pierre-light themes), pierre/pool-strategy.ts re-added verbatim (pure settle/timeout/reject matrix, bun-testable), pierre/worker.ts failedPools WeakSet + watchPoolSettlement + getWorkerPool returning undefined for failed pools, regenerated against the v2.2.7 two-pool plain/diff shape; the superseded file.tsx createPoolReady hunk is NOT carried — v2.2.7's native viewer render machine owns the pool fallback (pool.settled / pool.timed-out -> main-thread fallback), behavior-tested upstream in render-machine.test.ts:116-141; (b) files-stream-watch retired — the v2.2.7 pin carries the native fs.watch/unwatch endpoints, generated client wrappers and server.connected re-watch; only the first-party #143 artifact.test.ts streamedFileContent/streamedKinds cases are re-derived (import line adapted to the v2.2.7 headStreamedFile describe); (c) files-tree-sidebar-fill retired WITHOUT a replacement hunk — the native fill chain basis is file-tree.css:15-27 (`:has(> file-tree-container)`) plus the session-review-v2.css viewport rules, NOT selector removal; (d) files-open-external retired into this patch — native face from issue #76 unchanged (ExternalOpenPolicy enforced layer); the JS hunk (web.ts openExternal routes through the files bridge, mobile(M-041), instead of window.open) is carried by the consolidated patch verbatim, its context carrying the M-011/M-020 markers from #184/#188. Five targets, one purpose: the files/diff/review WebView face. Rollback = revert this one patch.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Apply-check of the patch against the pre-patch chain tree (git HEAD state of the five targets) rc=0 with byte-identical results for all five targets; verify-closure.sh V3 replay of the 7-active chain byte-identical, DANGLING=0; bun run patches:refresh + python3 scripts/mobile-patches.py PASS(85) + python3 scripts/test_mobile_patches.py 9/9; app files-domain bun test set with artifact.test +N first-party cases and everything else constant; session-ui pierre machines set constant; gui-plugins files/review/microsoft-office set constant; scripts/verify-diff.ts rc=0 (section 9 re-anchored to this patch), scripts/verify-pierre-webview-compat.test.ts GREEN (five-target registration test), scripts/verify-open-external.ts rc=0 (registry-lock re-anchor), scripts/verify-files.ts PASS; bun run build:web + copy:web-dist + android_web_assets.py verify.",
+      "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/190-files-diff-review.",
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "server-edit-touch-compatibility",
+        "home-new-session-v2-2-7",
+        "tabs-inbox-titlebar-v2-2-7",
+        "timeline-messaging-v2-2-7",
+        "composer-queue-attachments-v2-2-7"
+      ],
+      "sha256": "7b452f943601e632418776e9df0525475b970f211ab82c71ff7ef1c9b12dcd81",
+      "status": "active",
+      "disposition": "active; sole carrier of the re-derived files/diff/review payloads of #143, #162, #163 and the files-open-external JS face of issue #76"
     }
   ]
 }
