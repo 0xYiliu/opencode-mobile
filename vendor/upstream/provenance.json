@@ -910,7 +910,7 @@
     {
       "id": "settings-v2-2-7",
       "path": "patches/mobile/settings-v2-2-7.patch",
-      "sha256": "c5c1bce825d6157e14a79b134e9fe9b2049ff86f451d7662ef60984ba7fc94bf",
+      "sha256": "caf6b2bd270edd73fa308066f8c23187f4226d44d3df2e1d061d3d318d4c4c45",
       "status": "active"
     }
   ],

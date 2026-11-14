@@ -2337,7 +2337,7 @@
       "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/193-settings (post-#184/#186/#187/#188/#189/#190/#191/#192 active chain).",
       "disposition": "active; sole carrier of the re-derived settings-family payloads (rows 1-20 of the #193 disposition table: W1 host manager, W2 add-menu, W3 gui manager + disabled union, W4 SSH row actions, W5 zoom deviation, W6 test re-derivations)",
       "status": "active",
-      "sha256": "c5c1bce825d6157e14a79b134e9fe9b2049ff86f451d7662ef60984ba7fc94bf"
+      "sha256": "caf6b2bd270edd73fa308066f8c23187f4226d44d3df2e1d061d3d318d4c4c45"
     }
   ]
 }

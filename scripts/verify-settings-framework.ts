@@ -373,7 +373,7 @@ const exists = async (path: string) => await Bun.file(new URL(path, repoRoot)).e
   ]) {
     if (!en.includes(key)) fail(`9: en.ts lost the settings-framework key: ${key}`)
   }
-  // old->new: settings.tab.sshHosts is upstream-native at v2.2.7 (live consumer
+  // old->new: settings.tab.sshHosts is defined here (pristine v2.2.7 has none); live consumer in the applied tree
   // servers/connect/screen.tsx); the ssh-entry-guard row's key obligation closed natively.
   if (!en.includes('"settings.tab.sshHosts":')) fail("9: en.ts lost the native settings.tab.sshHosts key")
   const screen = await read(`${APP}src/servers/connect/screen.tsx`)

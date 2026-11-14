@@ -40,7 +40,7 @@
 #       mock entry (dependsOn server-edit-touch-compatibility; generated against its
 #       replayed output — the pinned source strings of that patch are untouched).
 # The i18n half of settings-ssh-entry-guard re-derives as well: en/zh gain the
-# settings.tab.sshHosts key (v2.2.7 upstream consumes it at servers/connect/screen.tsx:161
+# settings.tab.sshHosts key (pristine v2.2.7 has none; the applied tree consumes it at servers/connect/screen.tsx:161 via v2-2-7-mobile-connection-pairing-ssh-closure
 # without defining it — the SSH entry button label would render empty); the row's
 # redirect/entry halves are obsolete-native (see its disposition).
 # The remaining v2.2.7 settings surface (framework, general/experimental, appearance,
