@@ -83,8 +83,12 @@ test("dependency baseline: @pierre/trees stays 1.0.0-beta.6 (v2.2.1 extraction),
 
 test("tree chain: pierre-tree keeps the beta.6-only API call sites the baseline must serve", async () => {
   const src = await read(FILES.tree)
-  expect(src).toContain("tree.applyGitStatusPatch(patch)")
-  expect(src).toContain("tree.getVisibleRows(startIndex, endIndex)")
+  // #190 re-anchor (surfaced once the pool-strategy import stopped masking this file):
+  // v2.2.7 renamed the local receiver/argument (`tree.applyGitStatusPatch(patch)` ->
+  // `current.applyGitStatusPatch(effect.patch)`); the beta.6-only API call SHAPES are
+  // unchanged, so the anchors pin the method shapes, not the local names.
+  expect(src).toContain(".applyGitStatusPatch(")
+  expect(src).toContain(".getVisibleRows(startIndex, endIndex)")
 })
 
 test("migration patch: the stale beta.6→beta.4 downgrade hunk stays removed", async () => {

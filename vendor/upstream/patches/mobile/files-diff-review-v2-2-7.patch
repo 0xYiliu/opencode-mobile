@@ -1,0 +1,256 @@
+# mobile(files-diff-review-v2-2-7, issue #190 of the registry / GitHub issue #190): files / diff /
+# review consolidated payload — the v2.2.7 re-derivation carrying the whole files/diff/review
+# surface that the v2.2.7 pin absorbed from the mobile layer (422/422 SAME audit, four upstream
+# deletions are the markdown-worker-{queue,transport}{,.test} family). Regenerated against the
+# CURRENT chain tree (post-#184/#186/#187/#188/#189), like the #185/#186/#188 precedents.
+#
+# Carries, re-derived from four retired payloads (all four flip deferred -> absorbed; their old
+# .patch files stay untouched on disk for audit):
+#   - diff-worker-pool-fallback (#163): hunks a/b/c — pierre/index.ts highlightOptions moves to
+#     pierre's bundled shiki theme pair + the "shiki-js" engine (resolveHighlighterType falls back
+#     to it; @pierre/diffs 1.6.1 ships DEFAULT_THEMES pierre-dark/pierre-light and
+#     DEFAULT_HIGHLIGHTER shiki-js), pierre/pool-strategy.ts re-added verbatim (pure
+#     settle/timeout/reject matrix, bun-testable), pierre/worker.ts failedPools WeakSet +
+#     watchPoolSettlement + getWorkerPool hands back undefined for failed pools. Hunk d
+#     (file.tsx createPoolReady failure bypass) is SUPERSEDED, not re-derived: v2.2.7's native
+#     viewer render machine owns the pool fallback (pool.settled / pool.timed-out ->
+#     main-thread fallback), behavior-tested upstream in render-machine.test.ts:116-141.
+#   - files-stream-watch (#143): the v2.2.7 pin carries the native fs.watch/unwatch endpoints,
+#     the generated client wrappers and server.connected re-watch; only the first-party
+#     artifact.test.ts streamedFileContent/streamedKinds cases are re-derived (import line
+#     adapted to the v2.2.7 headStreamedFile describe).
+#   - files-tree-sidebar-fill (#162): retired WITHOUT a replacement hunk — v2.2.7's native fill
+#     chain basis is file-tree.css:15-27 (`:has(> file-tree-container)`) plus the
+#     session-review-v2.css viewport rules; the old selector-removal payload no longer applies.
+#   - files-open-external (#76): the native face is unchanged from issue #76 (ExternalOpenPolicy
+#     enforced layer); the JS hunk — web.ts openExternal routes through the files bridge
+#     (mobile(M-041)) instead of window.open — is carried by this patch verbatim (the context
+#     carries the M-011/M-020 markers from #184/#188).
+#
+# Five targets, one purpose: the files/diff/review WebView face. Rollback = revert this one patch.
+diff --git a/packages/app/src/runtime/platform/web.ts b/packages/app/src/runtime/platform/web.ts
+index 315a5ab..0cd6944 100644
+--- a/packages/app/src/runtime/platform/web.ts
++++ b/packages/app/src/runtime/platform/web.ts
+@@ -32,7 +32,14 @@ export function createWebPlatform(version: string) {
+       const url = new URL(value)
+ 
+       if (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "mailto:") return
+-      window.open(url.href, "_blank", "noopener,noreferrer")
++      // mobile(M-041): the shell's outbound face (issue #76). window.open is a
++      // same-WebView navigation inside the shell (no setSupportMultipleWindows) — the
++      // URL crosses the files bridge instead and the native side is the ENFORCED layer
++      // (ACTION_VIEW over ExternalOpenPolicy: http/https only, userinfo refused; mailto
++      // passes the gate above and is refused natively — a registered first-party
++      // delta). Before the bridge acks the fail-closed stub answers false and the void
++      // face ignores it. Rollback = revert this one patch.
++      void activeFilesPort().openExternal(url.href)
+     },
+     restart: async () => window.location.reload(),
+     async notify(title, description, onClick) {
+diff --git a/packages/app/src/workspaces/files/artifact.test.ts b/packages/app/src/workspaces/files/artifact.test.ts
+index a09548d..b4ec306 100644
+--- a/packages/app/src/workspaces/files/artifact.test.ts
++++ b/packages/app/src/workspaces/files/artifact.test.ts
+@@ -1,5 +1,5 @@
+ import { afterEach, describe, expect, jest, test } from "bun:test"
+-import { fileContentFromBytes, headStreamedFile, MAX_MEDIA_BYTES } from "./artifact"
++import { fileContentFromBytes, headStreamedFile, MAX_MEDIA_BYTES, streamedFileContent, streamedKinds } from "./artifact"
+ import { approxBytes } from "./content-cache"
+ 
+ describe("fileContentFromBytes", () => {
+@@ -101,3 +101,28 @@ describe("headStreamedFile", () => {
+     await expect(response).rejects.toMatchObject({ name: "AbortError" })
+   })
+ })
++
++describe("streamedFileContent", () => {
++  test("versions the URL from the HEAD's content-length and last-modified, with the artifact mime", () => {
++    const modified = "Mon, 02 Jan 2026 03:04:05 GMT"
++    const response = new Response(null, { headers: { "content-length": "1024", "last-modified": modified } })
++    const url = "http://127.0.0.1:4096/api/fs/read/a.png?location%5Bdirectory%5D=%2Fwork%2Fapp"
++    expect(streamedFileContent("a.png", url, response)).toEqual({
++      type: "binary",
++      content: "",
++      size: 1024,
++      mimeType: "image/png",
++      url: `${url}&v=1024-${Date.parse(modified)}`,
++    })
++  })
++
++  test("a HEAD without caching headers sizes zero and versions v=0-0", () => {
++    const content = streamedFileContent("clip.mp4", "http://127.0.0.1:4096/api/fs/read/clip.mp4", new Response(null))
++    expect(content).toMatchObject({ type: "binary", content: "", size: 0, mimeType: "video/mp4" })
++    expect(new URL(content.url!).searchParams.get("v")).toBe("0-0")
++  })
++})
++
++test("streamedKinds is exactly the image/audio/video set", () => {
++  expect([...streamedKinds].sort()).toEqual(["audio", "image", "video"])
++})
+diff --git a/packages/session-ui/src/pierre/index.ts b/packages/session-ui/src/pierre/index.ts
+index c2bb36e..ce88630 100644
+--- a/packages/session-ui/src/pierre/index.ts
++++ b/packages/session-ui/src/pierre/index.ts
+@@ -14,7 +14,22 @@ import quoteHighlightStyles from "../components/quote-highlight.css?inline"
+ registerCustomTheme(OpenCodeTheme.name, () => Promise.resolve(OpenCodeTheme), "zed")
+ 
+ // Viewers and worker pools must agree: the pool's options win whenever it renders.
+-export const highlightOptions = { theme: OpenCodeTheme.name, preferredHighlighter: "highlights" } as const
++// mobile(diff-worker-pool-fallback): the upstream "highlights" engine compiles its oniguruma wasm
++// synchronously at module load (`init(new WebAssembly.Module(bytes))` in @pierre/highlights'
++// default entry), which Chromium forbids on the main thread for buffers >4 KiB — on the Android
++// WebView every boot rejects the pool's initialize() with that RangeError and both diff and file
++// viewers stay on the sprite + empty-pre face (#163). "shiki-js" is pierre's own default engine
++// (resolveHighlighterType falls back to it) — pure JS, no wasm — and loads on the main thread and
++// inside workers alike; syntax highlighting itself is unchanged. The theme moves to pierre's
++// bundled pair: the shiki path cannot consume the Highlights-palette "OpenCode" registration
++// (themeResolver only serves it to the highlights engine), while pierre-dark/pierre-light are
++// the bundled shiki themes the app palette was modelled on — the code pane follows the app
++// appearance again; the exact token colours are pierre's, not the app palette's (registered
++// adaptation in docs/design/units/diff.md).
++export const highlightOptions = {
++  theme: { dark: "pierre-dark", light: "pierre-light" },
++  preferredHighlighter: "shiki-js",
++} as const
+ 
+ export type DiffProps<T = {}> = FileDiffOptions<T, undefined> & {
+   before: FileContents
+diff --git a/packages/session-ui/src/pierre/pool-strategy.ts b/packages/session-ui/src/pierre/pool-strategy.ts
+new file mode 100644
+index 0000000..f73c6b4
+--- /dev/null
++++ b/packages/session-ui/src/pierre/pool-strategy.ts
+@@ -0,0 +1,80 @@
++// mobile(diff-worker-pool-fallback): pure helpers that make a pierre worker pool's first
++// initialize() observable and bounded, so a pool that rejects — or never settles — can release
++// the render gate instead of leaving viewers on the sprite + empty-pre face (#163). Nothing in
++// this module may import viewer code, solid, or any worker-script module: it must stay loadable
++// from a plain bun test (scripts/verify-pierre-webview-compat.test.ts exercises the matrix).
++
++export type PoolLike = {
++  initialize(): Promise<unknown>
++}
++
++export type SettlementOutcome<T> =
++  | { ok: true; value: T }
++  | { ok: false; reason: "timeout" }
++  | { ok: false; reason: "rejected"; cause: unknown }
++
++/**
++ * Resolves with the promise's settlement outcome, or `{ ok: false, reason: "timeout" }` when it
++ * neither resolves nor rejects within `ms`. Never rejects. `timer`/`clear` are injectable so
++ * tests run without real clocks.
++ */
++export function observeSettlement<T>(
++  promise: Promise<T>,
++  ms: number,
++  timer: (callback: () => void, ms: number) => unknown = setTimeout,
++  // mobile(diff-worker-pool-fallback): the handle we hand back is whatever `timer` returned
++  // (a Timeout object under bun, a number in test fakes), so the contract stays unknown and
++  // the platform clearTimeout default is a type-level cast only — runtime is untouched.
++  clear: (handle: unknown) => void = clearTimeout as (handle: unknown) => void,
++): Promise<SettlementOutcome<T>> {
++  return new Promise((resolve) => {
++    let done = false
++    const finish = (outcome: SettlementOutcome<T>) => {
++      if (done) return
++      done = true
++      clear(handle)
++      resolve(outcome)
++    }
++    const handle = timer(() => finish({ ok: false, reason: "timeout" }), ms)
++    promise.then(
++      (value) => finish({ ok: true, value }),
++      (cause) => finish({ ok: false, reason: "rejected", cause }),
++    )
++  })
++}
++
++export type SettlementWatcher = {
++  /** True once initialize() rejected or failed to settle within the timeout. */
++  isFailed(): boolean
++}
++
++/**
++ * Watches a pool's first initialize(): `onError` fires with the cause on rejection, or with a
++ * timeout marker error when the promise does not settle within `timeoutMs`; `onSettled` fires
++ * on a healthy settle. Pierre's own initialization timeout (10s) still runs inside the pool,
++ * so the probe keeps a margin over it and pool-side timeouts surface as rejections, not probe
++ * timeouts.
++ */
++export function watchPoolSettlement(
++  pool: PoolLike,
++  options: {
++    timeoutMs: number
++    onSettled?: () => void
++    onError?: (cause: unknown) => void
++    timer?: (callback: () => void, ms: number) => unknown
++    clear?: (handle: unknown) => void
++  },
++): SettlementWatcher {
++  let failed = false
++  void observeSettlement(pool.initialize(), options.timeoutMs, options.timer, options.clear).then((outcome) => {
++    if (outcome.ok) {
++      options.onSettled?.()
++      return
++    }
++    failed = true
++    options.onError?.(
++      outcome.reason === "rejected" ? outcome.cause : new Error(`pool initialize did not settle within ${options.timeoutMs}ms`),
++    )
++  })
++  return { isFailed: () => failed }
++}
+diff --git a/packages/session-ui/src/pierre/worker.ts b/packages/session-ui/src/pierre/worker.ts
+index 3f59e52..a004be1 100644
+--- a/packages/session-ui/src/pierre/worker.ts
++++ b/packages/session-ui/src/pierre/worker.ts
+@@ -1,7 +1,19 @@
+ import { WorkerPoolManager } from "@pierre/diffs/worker"
+ import DiffsWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
++import { watchPoolSettlement } from "./pool-strategy"
+ import { highlightOptions } from "./index"
+ 
++// mobile(diff-worker-pool-fallback): pierre gives up on its own initialization after 10s; probe
++// with a margin over that so pool-side timeouts surface as rejections rather than probe timeouts.
++const POOL_PROBE_TIMEOUT_MS = 12_000
++
++// mobile(diff-worker-pool-fallback): a pool whose first initialize() rejects — or never settles —
++// must not gate rendering forever (#163). Such a pool is recorded here and getWorkerPool() hands
++// back undefined, so viewers construct without a pool and render rows on the main-thread path
++// (word-level diff/highlight semantics degrade to pierre's no-pool face; registered in
++// docs/design/units/diff.md). The probe lives in pool-strategy.ts so bun tests can exercise it.
++const failedPools = new WeakSet<WorkerPoolManager>()
++
+ function createPool(lineDiffType: "none" | "word-line") {
+   const pool = new WorkerPoolManager(
+     {
+@@ -22,6 +34,14 @@ function createPool(lineDiffType: "none" | "word-line") {
+     },
+   )
+ 
++  watchPoolSettlement(pool, {
++    timeoutMs: POOL_PROBE_TIMEOUT_MS,
++    onError: (cause) => {
++      failedPools.add(pool)
++      console.error("[diff] pierre worker pool init failed", cause)
++    },
++  })
++
+   void pool.initialize()
+ 
+   return pool
+@@ -37,10 +57,10 @@ export function getWorkerPool(lineDiffType: "none" | "word-line" = "word-line"):
+   if (lineDiffType === "none") {
+     if (!plain) plain = createPool("none")
+ 
+-    return plain
++    return failedPools.has(plain) ? undefined : plain
+   }
+ 
+   if (!diff) diff = createPool("word-line")
+ 
+-  return diff
++  return failedPools.has(diff) ? undefined : diff
+ }
