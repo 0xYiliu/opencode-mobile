@@ -9,7 +9,7 @@ import { useProviders } from "@/providers/catalog/providers"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { usePlatform, type Platform } from "@/runtime/platform/platform"
-import { hasCustomAgent, resolveAgent } from "./agent"
+import { hasCustomAgent, resolveAgent, shouldShowAgentSelector } from "./agent"
 import {
   createModelSelectionState,
   editSelection,
@@ -42,6 +42,7 @@ import { normalizeAgentList } from "@/runtime/server/global-sync/utils"
 import { useServerSDK } from "@/runtime/server/client"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
 import { useConfiguredModel } from "./configured"
+import { isAndroidMobileHost } from "@/settings/servers/android-host"
 
 const ModelKeySchema = Schema.Struct({
   providerID: Schema.String,
@@ -334,7 +335,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       void data.location.agent.sync({ directory }).catch(() => undefined)
     })
 
-    const agentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
+    const desktopAgentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
+    // mobile(providers-models-usage-v2-2-7, issue #192): Android has no Desktop preference preset
+    // that makes the built-in Build/Plan selector visible. Keep the Desktop setting semantics
+    // intact, but do not make Android users discover a hidden control before they can choose the
+    // server-provided agents.
+    const agentsVisible = createMemo(() =>
+      shouldShowAgentSelector({
+        android: isAndroidMobileHost(),
+        preference: settings.visibility.customAgents(),
+        agents: list(),
+      }),
+    )
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
     // The location object is rebuilt whenever its info loads, so key on the folder: reopening the same workspace
@@ -425,7 +437,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       list,
       visible: agentsVisible,
       current() {
-        return pickAgent(scope()?.agent ?? durable()?.agent ?? (agentsVisible() ? list()[0]?.name : "build"))
+        return pickAgent(scope()?.agent ?? durable()?.agent ?? (desktopAgentsVisible() ? list()[0]?.name : "build"))
       },
       set(name: string | undefined) {
         const item = pickAgent(name)

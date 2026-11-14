@@ -1,0 +1,128 @@
+# mobile(providers-models-usage-v2-2-7, issue #192 of the registry / GitHub issue #192): the
+# agent-visibility re-base at v2.2.7 — the ONLY mobile delta left in the provider/model/usage
+# surface after the v2.2.7 pin absorbed the deferred payloads of provider-connect-flow-redesign
+# (row 69) and model-selector-usage-parity (row 71). Carries the re-derived payload of
+# session-agent-selector (row 65): the mobile-invented shouldShowAgentSelector({android,
+# preference, agents}) helper (b-blob c97ec4f has no upstream ancestor) re-landed in agent.ts,
+# selection.tsx split into desktopAgentsVisible (v2.2.7 desktop semantics, now also gating the
+# v2.2.7 list()[0]?.name default-agent fallback) and the Android-aware agentsVisible, and the
+# three first-party behavior cases appended to the (pristine, upstream) agent.test.ts. The rest
+# of the provider/usage surface (connect state-machine family, usage/**, selector target forms,
+# usage-limits schema/protocol/client closure) is pin-absorbed pristine — NOT carried here, so
+# this patch stays narrow: 3 targets in packages/app/src/providers/models/. The android-host
+# import rides server-edit-touch-compatibility (declared dependency).
+diff --git a/packages/app/src/providers/models/agent.test.ts b/packages/app/src/providers/models/agent.test.ts
+index eff21b1dfa981874552bb9686bdf79e33853de60..a9d42aaf76dafed5bc88dbb6112658b7248a7618 100644
+--- a/packages/app/src/providers/models/agent.test.ts
++++ b/packages/app/src/providers/models/agent.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, test } from "bun:test"
+-import { hasCustomAgent, resolveAgent } from "./agent"
++import { hasCustomAgent, resolveAgent, shouldShowAgentSelector } from "./agent"
+ 
+ test("hasCustomAgent detects only explicitly custom agents", () => {
+   expect(hasCustomAgent([{ native: true }, { native: false }])).toBe(true)
+@@ -23,3 +23,25 @@ const rows: { name: string; agents: { name: string }[]; requested?: string; expe
+ test.each(rows)("resolveAgent uses $name", (row) => {
+   expect(resolveAgent(row.agents, row.requested)?.name).toBe(row.expected)
+ })
++
++// mobile(providers-models-usage-v2-2-7, issue #192): the agent-visibility re-base cases.
++test("shouldShowAgentSelector keeps the selector visible on the Android host", () => {
++  expect(shouldShowAgentSelector({ android: true, preference: false, agents: [{ name: "build", native: true }] })).toBe(
++    true,
++  )
++})
++
++test("shouldShowAgentSelector hides the built-in agents on Desktop without the preference", () => {
++  expect(shouldShowAgentSelector({ android: false, preference: false, agents: [{ name: "build", native: true }] })).toBe(
++    false,
++  )
++})
++
++test("shouldShowAgentSelector shows a custom agent on every host", () => {
++  expect(shouldShowAgentSelector({ android: false, preference: false, agents: [{ name: "custom", native: false }] })).toBe(
++    true,
++  )
++  expect(shouldShowAgentSelector({ android: true, preference: true, agents: [{ name: "custom", native: false }] })).toBe(
++    true,
++  )
++})
+diff --git a/packages/app/src/providers/models/agent.ts b/packages/app/src/providers/models/agent.ts
+index f5c76d146955a3f3a0036c5e6dce5d0b1a60dbd3..186e3aaa2713e478633286944d446ffc4c6095c6 100644
+--- a/packages/app/src/providers/models/agent.ts
++++ b/packages/app/src/providers/models/agent.ts
+@@ -2,6 +2,23 @@ export function hasCustomAgent(items: Array<{ native?: boolean }>) {
+   return items.some((item) => item.native === false)
+ }
+ 
++// mobile(providers-models-usage-v2-2-7, issue #192): re-landed from session-agent-selector
++// (b-blob c97ec4f is the mobile delta — no upstream ancestor).
++/**
++ * The Desktop preference hides the selector for the built-in agents by default. Android's
++ * composer has no equivalent desktop-wide preference expectation, so its session workbench
++ * keeps the selector available while still requiring a non-empty server catalog at the view
++ * boundary. The Android marker is passed in by the platform adapter rather than inferred from
++ * the WebView user agent.
++ */
++export function shouldShowAgentSelector(input: {
++  android: boolean
++  preference: boolean
++  agents: Array<{ native?: boolean }>
++}) {
++  return input.android || input.preference || hasCustomAgent(input.agents)
++}
++
+ export function resolveAgent<T extends { name: string }>(items: T[], name?: string) {
+   return items.find((item) => item.name === name) ?? items.find((item) => item.name === "build") ?? items[0]
+ }
+diff --git a/packages/app/src/providers/models/selection.tsx b/packages/app/src/providers/models/selection.tsx
+index 93591a5e8f56f032799abd486d1c4209935287c2..95aa187a2869eba9528d3c571f01a981e5a761fb 100644
+--- a/packages/app/src/providers/models/selection.tsx
++++ b/packages/app/src/providers/models/selection.tsx
+@@ -9,7 +9,7 @@ import { useProviders } from "@/providers/catalog/providers"
+ import { Persist, persisted } from "@/runtime/persistence/storage"
+ import { Persistence } from "@/runtime/persistence/schema"
+ import { usePlatform, type Platform } from "@/runtime/platform/platform"
+-import { hasCustomAgent, resolveAgent } from "./agent"
++import { hasCustomAgent, resolveAgent, shouldShowAgentSelector } from "./agent"
+ import {
+   createModelSelectionState,
+   editSelection,
+@@ -42,6 +42,7 @@ import { normalizeAgentList } from "@/runtime/server/global-sync/utils"
+ import { useServerSDK } from "@/runtime/server/client"
+ import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
+ import { useConfiguredModel } from "./configured"
++import { isAndroidMobileHost } from "@/settings/servers/android-host"
+ 
+ const ModelKeySchema = Schema.Struct({
+   providerID: Schema.String,
+@@ -334,7 +335,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
+       void data.location.agent.sync({ directory }).catch(() => undefined)
+     })
+ 
+-    const agentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
++    const desktopAgentsVisible = createMemo(() => settings.visibility.customAgents() || hasCustomAgent(list()))
++    // mobile(providers-models-usage-v2-2-7, issue #192): Android has no Desktop preference preset
++    // that makes the built-in Build/Plan selector visible. Keep the Desktop setting semantics
++    // intact, but do not make Android users discover a hidden control before they can choose the
++    // server-provided agents.
++    const agentsVisible = createMemo(() =>
++      shouldShowAgentSelector({
++        android: isAndroidMobileHost(),
++        preference: settings.visibility.customAgents(),
++        agents: list(),
++      }),
++    )
+     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
+ 
+     // The location object is rebuilt whenever its info loads, so key on the folder: reopening the same workspace
+@@ -425,7 +437,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
+       list,
+       visible: agentsVisible,
+       current() {
+-        return pickAgent(scope()?.agent ?? durable()?.agent ?? (agentsVisible() ? list()[0]?.name : "build"))
++        return pickAgent(scope()?.agent ?? durable()?.agent ?? (desktopAgentsVisible() ? list()[0]?.name : "build"))
+       },
+       set(name: string | undefined) {
+         const item = pickAgent(name)
