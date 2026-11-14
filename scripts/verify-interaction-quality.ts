@@ -280,9 +280,16 @@ function walk(dir: string, out: string[] = []): string[] {
     fail("3: entry.tsx lost the KeyboardInsets mount")
 
   // CROSS-REFERENCE re-checks (referencing, NOT first locks — first-locked by
-  // verify-terminal.ts group 6 :452-453; kept here so the interaction document's
-  // premises fail loudly in one place too): the dock viewport store syncs to
-  // the visual viewport height (soft-keyboard awareness).
+  // verify-terminal.ts group 6 on the pre-v2.2.7 pin). v2.2.7 status (issue
+  // #191 re-anchor): the panels.tsx visualViewport sync assertions below are
+  // STALE on this pin — panels.tsx no longer carries the sync, and the
+  // terminal-face viewport state is recorded in verify-terminal.ts group 6 as
+  // a ZERO-hit visualViewport scan over gui-plugins/src/terminal (the
+  // terminal face carries no viewport sync of its own). The assertions stay
+  // pending this probe's own re-anchor; they are unreachable at c0 because
+  // group 2 fails first (titlebar history.back). Kept so the interaction
+  // document's premises fail loudly in one place too: the dock viewport store
+  // syncs to the visual viewport height (soft-keyboard awareness).
   const panels = await read(`${APP}src/runtime/plugin/panels.tsx`)
   const vvCount = panels.split("window.visualViewport?.height ?? window.innerHeight").length - 1
   if (vvCount < 2)
@@ -599,7 +606,7 @@ console.log(
   "verify-interaction-quality: PASS (" +
     "1: back-key trio + predictive-back comment + single WebView + LAUNCHER + INTERNET+POST_NOTIFICATIONS+CAMERA triple (issues #23/#71) + enableOnBackInvokedCallback=false, NEGATIVE zero configChanges + zero multi-window faces, CROSS-REFERENCE onSaveInstanceState TODO (verify-recovery group 4); " +
     "2: NEGATIVE zero History-API writes across the four upstream src trees (FIRST-PARTY drift sentinel, issue #75 domain note) + pwa.ts replaceState sole FIRST-PARTY touchpoint + exactly two target=\"_blank\" tool-link anchors (full-page same-window navigation class paths); " +
-    "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (verify-terminal group 6); " +
+    "3: viewport meta four segments + theme-color, keyboard.ts four listeners + safe-area set/remove pair + > 100 threshold + isContentEditable, entry.tsx KeyboardInsets mount, CROSS-REFERENCE panels.tsx visualViewport sync (stale on v2.2.7 pending this probe's own re-anchor; terminal-face viewport state recorded in verify-terminal group 6); " +
     "4: isDesktop verbatim + 768/767 media-query FILE-SET equality over app/src + gui-extensions/src (8/13 hits, 19 files + host-apis comment anchor = 22 hits / 20 files; session-ui consumption sites outside the domain by design), CROSS-REFERENCE 767px blur (vsw) + sorted([\"menu\",\"drawer\"]) (verify-terminal group 6), MobileViewTabs comment anchor (mount anchor stays with verify-agent-capabilities), mobileTitlebarPosition four anchors; " +
     "5: DEFAULT_PALETTE_KEYBIND + three hidden command.palette registrations + slash set equality (8-key + 3-key files, undo/redo pair CROSS-REFERENCE verify-diff group 3) + GLOBAL sentinel exactly 11 registrations in exactly 2 files + DialogCommandPalette /open route; " +
     "6: settings.v3 key + seven schema segments + mobileTitlebarPosition default + language store/loadInitialLocale/setLocale + oc-theme-preload three localStorage keys + Persist.global(\"model\") CROSS-REFERENCE (verify-provider-models); " +
