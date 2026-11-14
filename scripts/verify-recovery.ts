@@ -44,12 +44,19 @@
 //      above) and the NEW structural lock: every `durable` occurrence in
 //      connection.ts sits inside the `options.log?.debug?.("event"` block —
 //      NO durable.seq gap detection exists; the snapshot is the only recovery
-//      authority (upstream design, honestly registered).
+//      authority (upstream design, honestly registered). Plus the v2.2.7 NEW
+//      lock (issue #196): data.ts's 404 eviction — evictMissing routes a
+//      session-not-found response through markDeleted (local cache eviction)
+//      and rethrows; the refresh path early-returns on the same predicate.
 //   4. Cold-start recovery chain: HOSTS_STORAGE_KEY, storageVolatile surfacing,
-//      the connection-credential-hydration hydration block (mobile marker + vault.get + never-reach-a-
-//      persistent-backend comment), the five tabs Persist.window keys, the
-//      IndexedDB draft store, the shell's unimplemented onSaveInstanceState
-//      TODO — and the NEGATIVE auto-reconnect sentinels: entry.tsx carries
+//      the connection-credential-hydration hydration block (v2.2.7 form: the
+//      persistence.ts M-002/M-005 marker scheme + the reworded "Credential
+//      references are safe to persist" comment + vault.get + the
+//      only-if-referenced-and-unset guard), the five tabs Persist.window keys,
+//      the IndexedDB draft store, the entry.tsx runtime/polyfills import + the
+//      feature-gated URL.canParse/URL.parse shims (runtime-data-v2-2-7, issue
+//      #196), the shell's unimplemented onSaveInstanceState TODO — and the
+//      NEGATIVE auto-reconnect sentinels: entry.tsx carries
 //      ZERO `.connect(` calls and runtime.ts keeps the "never an auto-connect"
 //      comment (a future auto-reconnect must fail here and force a
 //      recovery.md/G30④ re-review first).
@@ -58,14 +65,16 @@
 //      throw, RECONNECT_MAX_RETRIES = 3 + reconnectExhausted, the T9
 //      "remote keeps running" comment, the managed:true + OFFLINE_ENDPOINT +
 //      reconnect-forwarding trio in upstream-map.ts, and direct connections
-//      having NO reconnect hook (extension/sidecar only ternary in
-//      runtime/server/client.tsx).
+//      having NO reconnect hook (the v2.2.7 `const reconnect =
+//      resolveEndpoint(server)` binding — plugin resolves through
+//      server.reconnect with a ready-endpoint fallback, sidecar passes it
+//      through, direct falls through to undefined).
 //   6. Recovery presentation: the host-manager action Match set (offline→retry,
 //      ready→disconnect, idle|failed|incompatible|authRequired→connect, in
 //      order), the host-key-changed danger recovery pair, PendingSessionState
-//      (skeleton fallback + component), and the svcops B1 watcher adjacent pair
-//      (ready→offline/reconnecting → notifyConnectionLost) with the
-//      survivedDisconnect evidence-bit comment.
+//      (v2.2.7 form: the resolving Match arm + component), and the svcops B1
+//      watcher adjacent pair (ready→offline/reconnecting → notifyConnectionLost)
+//      with the survivedDisconnect evidence-bit comment.
 //   7. Docs closure anchors (anti drift between docs and code): recovery.md
 //      exists and carries the six-scenario table, the data-class table, the
 //      survival-check section, the four honest-state sentences (no auto
@@ -75,6 +84,42 @@
 //      network-switch row is no longer 未开始 and points at recovery.md + G30;
 //      interaction.md carries the G30 gate row, the sixteenth honest wording
 //      and the recovery failure-path subsection.
+//
+// v2.2.7 re-anchor ledger (issue #196; sequential reveals recorded per the
+// #194 precedent — each old→new pair below is a form migration, not a
+// semantic weakening; every re-anchored form keeps the original invariant):
+//   (a) group 2 save-debounce: `export const persistSaveDelay = 100` →
+//       `const persistSaveDelay = 100` (the export dropped when the save
+//       lifecycle moved onto the pin-native persist-machine; the 100ms window
+//       is unchanged). c0 FAIL string preserved.
+//   (b) group 2 dirty-value-priority guard: persist.ts's inline
+//       `if (dirty) { remote = data.newValue … }` → persist-machine.ts's
+//       settle() form: a remote write received while dirty is HELD (stored in
+//       `state.remote`, never applied), and settle() adopts it only when the
+//       edit was a no-op (`serialized === baseline || serialized === last` →
+//       `const adopted = remote ?? last`); a real change wins over both and is
+//       written. Same stale-snapshot stance, machine form.
+//   (c) group 4 marker/comment: registry.tsx's literal `mobile(M-010)` marker
+//       string + "can never reach a persistent backend" comment → the pin's
+//       persistence.ts M-002/M-005 marker scheme (`mobile(M-002): password
+//       stripped at encode (memory-only)` + `mobile(M-005)`) + registry.tsx's
+//       reworded "Credential references are safe to persist" comment.
+//       Marker-string restoration stays #184-legacy routing, consistent with
+//       verify-credential-vault's routing. The vault.get/guard anchors are
+//       unchanged.
+//   (d) group 5 reconnect ternary:
+//       `server.type === "plugin" || server.type === "sidecar" ? … : undefined`
+//       → `const reconnect = resolveEndpoint(server)` (the discriminator moved
+//       into resolveEndpoint; direct connections still fall through to
+//       undefined — hook-free-for-direct unchanged).
+//   (e) group 6 PendingSessionState:
+//       `<Show when={directory()} fallback={<PendingSessionState … />}>` →
+//       `<Match when={view().type === "resolving"}>` + the PendingSessionState
+//       component pair. Reveal order: (a)+(b) → (c) → (d) → (e) → PASS.
+//   (f) NEW group 4 anchor: entry.tsx `import "@/runtime/polyfills"` + the
+//       `if (!URL.canParse)` / `if (!URL.parse)` feature gates (row 90,
+//       issue #196) — the WebView shim must install before first use.
+//   (g) NEW group 3 anchor: data.ts 404 eviction (see group 3 above).
 //
 // HONEST BOUNDARY (same tradition as verify-session-workbench.ts /
 // verify-artifacts.ts): this is a static STRUCTURE check (text anchors / regex
@@ -177,7 +222,9 @@ const HOSTS = "packages/mobile-hosts/"
 
   // Persistence flush timing (app/src/runtime/persistence/persist.ts).
   const persist = await read(`${APP}src/runtime/persistence/persist.ts`)
-  if (!persist.includes("export const persistSaveDelay = 100"))
+  // v2.2.7 re-anchor (ledger a): the constant lost its `export` when the save lifecycle moved
+  // onto the pin-native persist-machine; the 100ms window is unchanged.
+  if (!persist.includes("const persistSaveDelay = 100"))
     fail("2: persist.ts lost the 100ms save-debounce constant")
   if (!persist.includes("export function flushPersisted"))
     fail("2: persist.ts lost the flushPersisted export")
@@ -186,11 +233,20 @@ const HOSTS = "packages/mobile-hosts/"
   if (!persist.includes('if (document.visibilityState === "hidden") flushPersisted()'))
     fail("2: persist.ts lost the hidden → flushPersisted pair (backgrounding must force-flush)")
   // F-R1: the dirty guard is the stale-snapshot mechanism recovery.md's matrix row
-  // references ("本地脏值优先（persist dirty 守卫）") — first-locked HERE (RAW
-  // whitespace-tolerant; persist.ts is not in verify-session-workbench's domain,
-  // so this is no duplicate).
-  if (!/if \(dirty\) \{\s*remote = data\.newValue\s*return\s*\}/.test(persist))
-    fail("2: persist.ts lost the dirty-value-priority guard (a real unsaved local change must win over another window's write — the stale-snapshot stance recovery.md relies on)")
+  // references ("本地脏值优先（persist dirty 守卫）") — first-locked HERE.
+  // v2.2.7 re-anchor (ledger b): the guard moved from persist.ts's inline
+  // `if (dirty) { remote = data.newValue … }` into the pin-native persist-machine's
+  // settle(): a remote write received while dirty is HELD (stored, never applied) and a
+  // no-op edit adopts it (`remote ?? last`), while a real change wins over both and is
+  // written. Same stale-snapshot stance, machine form (persist.ts is not in
+  // verify-session-workbench's domain, so this stays no duplicate).
+  const persistMachine = await read(`${APP}src/runtime/persistence/persist-machine.ts`)
+  if (!persistMachine.includes("a real change wins over both and is written"))
+    fail("2: persist-machine.ts lost the dirty-value-priority doc line (a real unsaved local change must win over another window's write — the stale-snapshot stance recovery.md relies on)")
+  if (!/if \(serialized === baseline \|\| serialized === last\) \{\s*\n\s*const adopted = remote \?\? last/.test(persistMachine))
+    fail("2: persist-machine.ts lost the settle() no-op-adoption pair (dirty-value-priority, machine form)")
+  if (!persistMachine.includes("return { state: { ...state, remote: event.raw }, effects: EMPTY_EFFECTS }"))
+    fail("2: persist-machine.ts lost the dirty-state remote hold (a remote write received while dirty must be stored, never applied)")
 }
 
 // --- 3. Snapshot-authority cross-checks + the seq-gap NEGATIVE ---
@@ -204,6 +260,19 @@ const HOSTS = "packages/mobile-hosts/"
   // CROSS-REFERENCE re-check (first lock: verify-session-workbench group 2).
   if (!/status\(\) === "connected"\) return\s*\n\s*sync\.invalidate\(\)/.test(data))
     fail("3: data.ts disconnect invalidation adjacent pair changed (cross-reference with verify-session-workbench group 2)")
+
+  // v2.2.7 NEW lock (issue #196 ledger g): a session-not-found (404) response evicts the
+  // session's local cache through markDeleted instead of surfacing as an error — recovery
+  // treats a deleted remote session as eviction, not a failure state (both the catch-helper
+  // and the refresh path).
+  if (
+    !/function evictMissing\(error: unknown\): never \{\s*\n\s*if \(isSessionNotFoundError\(error\)\) markDeleted\(error\.sessionID\)\s*\n\s*throw error\s*\n\s*\}/.test(
+      data,
+    )
+  )
+    fail("3: data.ts lost the evictMissing 404-eviction shape (a missing-session response must evict via markDeleted, not surface as an error)")
+  if (!/if \(isSessionNotFoundError\(error\)\) \{\s*\n\s*markDeleted\(error\.sessionID\)\s*\n\s*return\s*\n\s*\}/.test(data))
+    fail("3: data.ts lost the refresh-path 404 eviction (isSessionNotFoundError → markDeleted + early return)")
 
   // NEW: every `durable` occurrence in connection.ts sits inside the debug-log
   // block — no sequence-number gap detection exists; the snapshot is the only
@@ -232,10 +301,18 @@ const HOSTS = "packages/mobile-hosts/"
     fail("4: runtime.ts lost the never-an-auto-connect comment (cold-start hosts must stay manual)")
 
   // connection-credential-hydration hydration: in-memory-only password injection after hydrate.
+  // v2.2.7 re-anchor (ledger c): the literal mobile(M-010) marker string is no longer carried by
+  // registry.tsx (marker-string restoration stays #184-legacy routing, consistent with
+  // verify-credential-vault's routing); the marker SCHEME lives on the pin's persistence.ts
+  // M-002/M-005 markers and the hydration comment is the reworded target form.
+  const persistenceSchema = await read(`${APP}src/runtime/server/persistence.ts`)
+  if (!persistenceSchema.includes('marker: "mobile(M-002): password stripped at encode (memory-only)"'))
+    fail("4: persistence.ts lost the mobile(M-002) marker scheme (memory-only password strip — the hydration memory-only argument depends on it)")
+  if (!persistenceSchema.includes("mobile(M-005)"))
+    fail("4: persistence.ts lost the mobile(M-005) non-secret credentialRef marker")
   const registry = await read(`${APP}src/runtime/server/registry.tsx`)
-  if (!registry.includes("mobile(M-010)")) fail("4: registry.tsx lost the mobile(M-010) patch marker")
-  if (!registry.includes("can never reach a persistent backend"))
-    fail("4: registry.tsx lost the never-reach-a-persistent-backend comment")
+  if (!registry.includes("Credential references are safe to persist"))
+    fail("4: registry.tsx lost the reworded credential-reference hydration comment (the v2.2.7 form of the never-reach-a-persistent-backend anchor)")
   if (!registry.includes("await vault.get(conn.http.credentialRef)"))
     fail("4: registry.tsx lost the vault-backed hydration resolution")
   if (!registry.includes("conn.http.password || !conn.http.credentialRef"))
@@ -259,6 +336,15 @@ const HOSTS = "packages/mobile-hosts/"
   const connectHit = /\.connect\(/.exec(entry)
   if (connectHit)
     fail(`4: entry.tsx gained a startup connect call ("${connectHit[0]}") — hosts recover as idle with MANUAL reconnect; re-review recovery.md and G30④ before keeping an auto-reconnect`)
+
+  // v2.2.7 NEW lock (issue #196 ledger f, row 90): the URL.canParse/URL.parse shims ride the
+  // entry assembly so a WebView below Chrome 120 installs them before any consumer runs; the
+  // gates are feature tests, so a native implementation keeps its identity.
+  if (!entry.includes('import "@/runtime/polyfills"'))
+    fail("4: entry.tsx lost the runtime/polyfills import (URL.canParse/URL.parse must install before first use)")
+  const polyfills = await read(`${APP}src/runtime/polyfills.ts`)
+  if (!polyfills.includes("if (!URL.canParse)") || !polyfills.includes("if (!URL.parse)"))
+    fail("4: polyfills.ts lost the feature-gated URL.canParse/URL.parse shims (runtime-data-v2-2-7, issue #196)")
 
   // Shell instance-state restoration stays honestly unimplemented.
   const mainActivity = await read("android/app/src/main/java/ai/opencode/mobile/MainActivity.kt")
@@ -318,15 +404,16 @@ const HOSTS = "packages/mobile-hosts/"
   if (!map.includes("...(input.reconnect ? { reconnect: input.reconnect } : {})"))
     fail("5: upstream-map.ts lost the reconnect hook forwarding")
 
-  // Direct connections have NO reconnect hook (plugin/sidecar only; the conn
-  // discriminator renamed extension→plugin with the gui-plugins-api-migration gui-plugins move).
+  // Direct connections have NO reconnect hook. v2.2.7 re-anchor (ledger d): the
+  // plugin/sidecar-only ternary moved into resolveEndpoint — a plugin resolves through
+  // server.reconnect (with a ready-endpoint fallback), a sidecar passes reconnect through, and
+  // a direct connection falls through to undefined. Same invariant: direct connections stay
+  // hook-free.
   const clientAssembly = await read(`${APP}src/runtime/server/client.tsx`)
-  if (
-    !clientAssembly.includes(
-      'const reconnect = server.type === "plugin" || server.type === "sidecar" ? server.reconnect : undefined',
-    )
-  )
-    fail("5: client.tsx lost the plugin/sidecar-only reconnect ternary (direct connections must stay hook-free)")
+  if (!clientAssembly.includes("const reconnect = resolveEndpoint(server)"))
+    fail("5: client.tsx lost the resolveEndpoint reconnect binding (direct connections must stay hook-free)")
+  if (!/if \(server\.type === "sidecar"\) return server\.reconnect\s*\n\s*\n\s*return undefined/.test(clientAssembly))
+    fail("5: client.tsx resolveEndpoint lost the direct-connection undefined fallthrough (the hook-free-for-direct invariant)")
 }
 
 // --- 6. Recovery presentation ---
@@ -369,10 +456,14 @@ const HOSTS = "packages/mobile-hosts/"
   if (!keyRecovery.includes('{t("hostKey.changed.confirmRemove")}'))
     fail("6: host-key-recovery.tsx lost the hostKey.changed.confirmRemove explicit confirmation")
 
-  // Pending session skeleton (not blank, not an error).
+  // Pending session skeleton (not blank, not an error). v2.2.7 re-anchor (ledger e): the
+  // skeleton moved from the <Show when={directory()} fallback={…}> form to the resolving Match
+  // arm; the component stays.
   const route = await read(`${APP}src/session/route.tsx`)
-  if (!route.includes('<Show when={directory()} fallback={<PendingSessionState sessionID={params.id} />}>'))
-    fail("6: session/route.tsx lost the PendingSessionState fallback")
+  if (!route.includes('<Match when={view().type === "resolving"}>'))
+    fail("6: session/route.tsx lost the resolving Match arm (the pending-session skeleton entry)")
+  if (!route.includes("<PendingSessionState sessionID={params.id} />"))
+    fail("6: session/route.tsx lost the PendingSessionState mount")
   if (!route.includes("function PendingSessionState(props: { sessionID: string })"))
     fail("6: session/route.tsx lost the PendingSessionState component")
 
@@ -451,11 +542,11 @@ const HOSTS = "packages/mobile-hosts/"
 console.log(
   "verify-recovery: PASS (" +
     "1: connection constants 2s/1s/45s/20s verbatim, attempt-reset rule, forced-resync bypass comment+block, per-retry reconnect hook, fixed-wait anchor + NEGATIVE zero exponential form; " +
-    "2: four lifecycle/network listeners, pageshow→start, network-restored resync, CROSS-REFERENCE pagehide→stop + foreground resync (vsw first locks), NEGATIVE zero offline listener (file domain: connection.ts), persist flush timing (100ms debounce + hidden/pagehide force-flush) + dirty-value-priority guard (F-R1); " +
-    "3: CROSS-REFERENCE capacity 4096 + data.ts adjacent pair (vsw first locks), NEGATIVE durable consumed only inside the debug-log block (no seq-gap detection); " +
-    "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + connection-credential-hydration hydration block + five tabs stores + IndexedDB drafts + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
-    "5: ensureTunnel bounded loop (ready/non-offline/retry) + ssh-tunnel-unavailable throw + RECONNECT_MAX_RETRIES budget + T9 remote-keeps-running + OFFLINE_ENDPOINT/managed/reconnect-forwarding + direct connections hook-free; " +
-    "6: host-manager action Match set in order + host-key-changed danger recovery + PendingSessionState skeleton + svcops B1 watcher + survivedDisconnect evidence bit; " +
+    "2: four lifecycle/network listeners, pageshow→start, network-restored resync, CROSS-REFERENCE pagehide→stop + foreground resync (vsw first locks), NEGATIVE zero offline listener (file domain: connection.ts), persist flush timing (100ms debounce + hidden/pagehide force-flush) + dirty-value-priority in the persist-machine settle() form (F-R1, issue #196 re-anchor); " +
+    "3: CROSS-REFERENCE capacity 4096 + data.ts adjacent pair (vsw first locks), NEGATIVE durable consumed only inside the debug-log block (no seq-gap detection), NEW data.ts 404-eviction pair (evictMissing/refresh → markDeleted, issue #196); " +
+    "4: HOSTS_STORAGE_KEY + storageVolatile surfacing + connection-credential-hydration hydration block (persistence.ts M-002/M-005 marker scheme + reworded safe-to-persist comment, issue #196 re-anchor) + five tabs stores + IndexedDB drafts + entry polyfills import + feature-gated URL.canParse/URL.parse shims (runtime-data-v2-2-7, issue #196) + shell onSaveInstanceState TODO, NEGATIVE zero .connect( in entry.tsx + never-an-auto-connect comment; " +
+    "5: ensureTunnel bounded loop (ready/non-offline/retry) + ssh-tunnel-unavailable throw + RECONNECT_MAX_RETRIES budget + T9 remote-keeps-running + OFFLINE_ENDPOINT/managed/reconnect-forwarding + direct connections hook-free via resolveEndpoint (issue #196 re-anchor); " +
+    "6: host-manager action Match set in order + host-key-changed danger recovery + PendingSessionState resolving-Match pair (issue #196 re-anchor) + svcops B1 watcher + survivedDisconnect evidence bit; " +
     "7: recovery.md structure + four honest-state sentences + four 不得声称 red lines + idle-hook-spin sentence, architecture.md network-switch row pointing at recovery.md/G30, interaction.md G1–G35 enumeration (issue #26 revision) + G30 row + sixteenth honest wording + recovery failure path; " +
     "STATIC check - retry cadence, resync/flush timing, cold-start chains, tunnel re-resolution, credential/host-key recovery presentation and remote-task survival on a device are G30)",
 )
