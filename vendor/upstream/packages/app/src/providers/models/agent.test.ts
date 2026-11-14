@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { hasCustomAgent, resolveAgent } from "./agent"
+import { hasCustomAgent, resolveAgent, shouldShowAgentSelector } from "./agent"
 
 test("hasCustomAgent detects only explicitly custom agents", () => {
   expect(hasCustomAgent([{ native: true }, { native: false }])).toBe(true)
@@ -22,4 +22,26 @@ const rows: { name: string; agents: { name: string }[]; requested?: string; expe
 
 test.each(rows)("resolveAgent uses $name", (row) => {
   expect(resolveAgent(row.agents, row.requested)?.name).toBe(row.expected)
+})
+
+// mobile(providers-models-usage-v2-2-7, issue #192): the agent-visibility re-base cases.
+test("shouldShowAgentSelector keeps the selector visible on the Android host", () => {
+  expect(shouldShowAgentSelector({ android: true, preference: false, agents: [{ name: "build", native: true }] })).toBe(
+    true,
+  )
+})
+
+test("shouldShowAgentSelector hides the built-in agents on Desktop without the preference", () => {
+  expect(shouldShowAgentSelector({ android: false, preference: false, agents: [{ name: "build", native: true }] })).toBe(
+    false,
+  )
+})
+
+test("shouldShowAgentSelector shows a custom agent on every host", () => {
+  expect(shouldShowAgentSelector({ android: false, preference: false, agents: [{ name: "custom", native: false }] })).toBe(
+    true,
+  )
+  expect(shouldShowAgentSelector({ android: true, preference: true, agents: [{ name: "custom", native: false }] })).toBe(
+    true,
+  )
 })
