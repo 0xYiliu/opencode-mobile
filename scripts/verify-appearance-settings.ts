@@ -1,8 +1,11 @@
-// verify-appearance-settings.ts — static probe for issues #65/#193 (S17+S42: the
+// verify-appearance-settings.ts — static probe for issues #65/#193/#197 (S17+S42: the
 // reduced-motion three-state setting and the interface zoom setting). Issue #193
-// re-anchor: at v2.2.7 (fedc6f208a) the setting faces are pin-absorbed NATIVE; the
-// appearance-motion-zoom patch is DEFERRED (39 targets, not replayed) and the mobile
-// delta that survives is the W5 M-035 search-catalog deviation inside settings-v2-2-7.
+// re-anchor: at v2.2.7 (fedc6f208a) the setting faces are pin-absorbed NATIVE. Issue #197
+// re-anchor: the 39-target appearance-motion-zoom patch is ABSORBED (row 35) — the pin
+// carries the reduce-motion family, the CSS flips and the settings/zoom setting faces —
+// and the mobile delta that survives is the W5 M-035 search-catalog deviation inside
+// settings-v2-2-7 PLUS the web zoom face, now implemented by the ACTIVE
+// appearance-zoom-web-v2-2-7 patch (row 91, the payload's web.ts hunk re-derived verbatim).
 //
 // Asserts, against the REAL applied sources (vendored pin fedc6f208a… + the active
 // patch chain incl. settings-v2-2-7), the structural facts the S17/S42 record relies on:
@@ -28,8 +31,9 @@
 //      upstream v2.2.7 controllers.ts is plugin-free.
 //   3. Settings face (settings/appearance/appearance.tsx): reduceMotionOptions three
 //      items in order; the zoom row is wrapped in <Show when={appearance.zoom.available()}>
-//      (on this client the web platform does not implement zoomLevel yet — the deferred
-//      patch face — so the row stays platform-gated, not deleted).
+//      (the pin's platform-gated shape; with the row-91 web face landed the web platform
+//      now answers available() true, so the gate passes on this client — the row stays
+//      platform-gated, not deleted).
 //   4. Zoom levels (shell/commands/desktop-menu.ts): old->new (issue #193 re-anchor) —
 //      v2.2.7 re-based the menu on Chromium levels (eleven, 0.5–2, new comment) and ships
 //      nextDesktopZoomLevel NATIVELY (the #144-era registered rc=1 "overlay carried the
@@ -39,9 +43,15 @@
 //   5. Platform faces: old->new (issue #193 re-anchor) — the zoom capability moved INTO
 //      the Platform TYPE file natively (platform.tsx :94/:97 optional members + the
 //      DesktopZoomLevel import; the #65-era "type file zero zoom content" negative is
-//      absorbed), while runtime/platform/web.ts carries ZERO zoom implementation (the
-//      deferred appearance-motion-zoom web face — CSS zoom + localStorage key — stays out
-//      until its owner round, #197 direction).
+//      absorbed). old->new (issue #197 re-anchor): runtime/platform/web.ts now IMPLEMENTS
+//      the faces through the ACTIVE appearance-zoom-web-v2-2-7 patch — the
+//      ...createUiZoomLevel() spread after the saveFile anchor and the file-end helper
+//      (M-035 marker text verbatim; CSS zoom on documentElement, the
+//      opencode-ui-zoom-level localStorage key validated against the eleven-level
+//      desktopZoomLevels with fallback 1); the web import set stays EXHAUSTIVELY
+//      createSignal/Accessor + desktopZoomLevels/DesktopZoomLevel (nextDesktopZoomLevel
+//      must not appear in web.ts — verify-pinch-shell-settings pins its file set to
+//      desktop-menu.ts + its test).
 //   6. Motion consumption chain — NATIVE at v2.2.7 and larger than the old patch face.
 //      old->new: the per-file enumeration re-derives over the pin's own 30 CSS files /
 //      34 :root[data-motion="reduce"] blocks; exactly two files (composer-lane.css,
@@ -85,12 +95,15 @@
 //      test (the v2.2.7 schema dropped the keys — verify-experimental-settings
 //      negative-pins terminalPlacement in model.tsx); the settings-experimental
 //      newIcons/foldUserMessages defaults rows stay.
-//  12. Patch/manifest face: appearance-motion-zoom registered in BOTH manifests with
-//      status DEFERRED and patch face == manifest targets (39 files at #193; the
-//      search-catalog/search-results targets moved to settings-v2-2-7's active W5 face);
-//      platform.tsx is not among them (5); go-upsell-hero-art.ts is not among them; web.ts
-//      IS among them (the deferred implementation rides the patch file for its owner
-//      round). settings-v2-2-7 is ACTIVE with the W5 search face.
+//  12. Patch/manifest face (issue #197 re-anchor): appearance-motion-zoom registered in
+//      BOTH manifests with status ABSORBED (row 35; the historical patch file retains its
+//      full 39-target face for audit — platform.tsx/go-upsell-hero-art.ts absent from it,
+//      web.ts + the historical search targets present); the ACTIVE appearance-zoom-web-
+//      v2-2-7 patch (row 91) has patch face == manifest targets == exactly web.ts, with
+//      the three web.ts carriers declared in dependsOn; BOTH manifests carry the new
+//      registration and the vendor-manifest mobilePatches order array contains the new
+//      patch (and not the absorbed row-35 payload). settings-v2-2-7 is ACTIVE with the W5
+//      search face.
 //  13. First-party negative: packages/mobile-hosts carries ZERO reduceMotion /
 //      prefers-reduced-motion / zoomLevel / opencode-ui-zoom references (S17+S42 are
 //      vendor-side only).
@@ -104,8 +117,10 @@
 // Negative injections (issue #193 re-anchor round, run inject->FAIL->restore->PASS):
 //   A1 (group 2): append an `api.plugin.list(` reference to controllers.ts -> the
 //      plugin-host write-face negative fires.
-//   A2 (group 5): add a `zoomLevel:` implementation line to web.ts -> the deferred-web-face
-//      negative fires.
+//   A2 (group 5, issue #197 re-anchor): neutralize the landed web zoom face — delete the
+//      `...createUiZoomLevel(),` spread line from web.ts (or neutralize the
+//      `opencode-ui-zoom-level` UI_ZOOM_KEY constant) -> the landed-face positive anchors
+//      fail.
 //   A3 (group 6): delete one :root[data-motion="reduce"] block from settings/settings.css
 //      -> the per-file enumeration fails.
 //   A4 (group 9): re-add `available: "desktop",` to the zoom catalog entry -> the W5
@@ -136,7 +151,10 @@ const SESSION_UI = "vendor/upstream/packages/session-ui/"
 const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const HOSTS = "packages/mobile-hosts/"
 const PATCHES = "vendor/upstream/patches/mobile/"
-const M035_PATCH = `${PATCHES}appearance-motion-zoom.patch`
+// Issue #197 re-anchor: the ACTIVE web zoom face patch (row 91). The absorbed row-35
+// historical payload stays on disk under its own name and is read separately in group 12.
+const ZOOM_WEB_PATCH = `${PATCHES}appearance-zoom-web-v2-2-7.patch`
+const M035_HISTORICAL_PATCH = `${PATCHES}appearance-motion-zoom.patch`
 
 // Native v2.2.7 data-motion conversion set (issue #193 re-anchor of the old patch-face
 // enumeration): [file, :root[data-motion="reduce"] blocks in the file]. Counts re-derived
@@ -360,14 +378,37 @@ const WHITELIST = new Set([
     if (!platformType.includes(anchor)) fail(`5: platform.tsx lost the native zoom declaration ${JSON.stringify(anchor)}`)
   }
 
-  // The web platform implements NO zoom face: the appearance-motion-zoom implementation
-  // (CSS zoom + opencode-ui-zoom-level localStorage) is the DEFERRED patch's face and
-  // stays out until its owner round (#197 direction).
+  // old->new (issue #197 re-anchor): the web platform now IMPLEMENTS the zoom faces via
+  // the ACTIVE appearance-zoom-web-v2-2-7 patch (row 91). The landed-face positive
+  // anchors: the exhaustive import set, the spread after the saveFile anchor, the
+  // opencode-ui-zoom-level key, the desktopZoomLevels validation with fallback 1, the
+  // documentElement.style application and the M-035 marker text (preserved verbatim).
   const web = await read(`${APP}src/runtime/platform/web.ts`)
-  for (const token of ["zoomLevel", "setZoomLevel", "opencode-ui-zoom", "createUiZoomLevel"]) {
-    if (web.includes(token))
-      fail(`5: web.ts carries the deferred zoom face token ${JSON.stringify(token)} (appearance-motion-zoom is not replayed — the web implementation belongs to its owner round)`)
+  for (const anchor of [
+    'import { createSignal, type Accessor } from "solid-js"',
+    'import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"',
+    "...createUiZoomLevel(),",
+    'const UI_ZOOM_KEY = "opencode-ui-zoom-level"',
+    "localStorage.getItem(UI_ZOOM_KEY)",
+    "(desktopZoomLevels as readonly number[]).includes(parsed) ? (parsed as DesktopZoomLevel) : 1",
+    "document.documentElement.style.removeProperty(\"zoom\")",
+    'document.documentElement.style.setProperty("zoom", String(level))',
+    "mobile(M-035)",
+    "mobile(appearance-zoom-web-v2-2-7, issue #197)",
+  ]) {
+    if (!web.includes(anchor)) fail(`5: web.ts lost the landed zoom-face anchor ${JSON.stringify(anchor)} (appearance-zoom-web-v2-2-7 face)`)
   }
+  // Order: the spread joins the platform object right after the saveFile anchor (the
+  // re-derivation's declared position).
+  const saveAt = web.indexOf("saveFile: createPlatformFileSaver(),")
+  const spreadAt = web.indexOf("...createUiZoomLevel(),")
+  if (saveAt < 0 || spreadAt < 0 || !(saveAt < spreadAt))
+    fail("5: web.ts ...createUiZoomLevel() spread is not positioned after the saveFile anchor")
+  // R3 exhaustive-import lock: nextDesktopZoomLevel must not be imported or referenced in
+  // web.ts (verify-pinch-shell-settings pins that symbol's file set to exactly
+  // desktop-menu.ts + its test).
+  if (web.includes("nextDesktopZoomLevel"))
+    fail("5: web.ts references nextDesktopZoomLevel (R3: the web import set stays exhaustively createSignal/Accessor + desktopZoomLevels/DesktopZoomLevel; the pinch helper's file set is pinned to desktop-menu.ts + its test)")
 }
 
 // --- 6. Consumption chain per-file enumeration ---
@@ -622,31 +663,62 @@ const WHITELIST = new Set([
 {
   const manifest = await read(`${PATCHES}manifest.json`)
   const parsed = JSON.parse(manifest)
+  // Row 35: appearance-motion-zoom ABSORBED (issue #197 re-anchor). The absorbed row keeps
+  // its full historical face for audit: both manifests still register it, and the
+  // historical patch file on disk still equals its manifest targets (39 files).
   const row = parsed.patches.find((p: { id: string }) => p.id === "appearance-motion-zoom")
   if (!row || !manifest.includes("patches/mobile/appearance-motion-zoom.patch"))
     fail("12: patches/mobile/manifest.json does not register appearance-motion-zoom")
-  if (row.status !== "deferred")
-    fail(`12: appearance-motion-zoom manifest status is ${row.status}, expected deferred (the v2.2.7 pin absorbed the setting faces; the web/CSS implementation round is #197 direction)`)
+  if (row.status !== "absorbed")
+    fail(`12: appearance-motion-zoom manifest status is ${row.status}, expected absorbed (the v2.2.7 pin carries the setting/CSS/motion faces; the surviving web face is ACTIVE appearance-zoom-web-v2-2-7)`)
   const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
   if (!vendorManifest.includes("patches/mobile/appearance-motion-zoom.patch"))
     fail("12: vendor-manifest.json does not register appearance-motion-zoom")
 
-  const patch = await read(M035_PATCH)
-  const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
+  const historical = await read(M035_HISTORICAL_PATCH)
+  const historicalTouched = [...historical.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
   const manifestTargets = row.targets as string[]
-  if (JSON.stringify([...touched].sort()) !== JSON.stringify([...manifestTargets].sort()))
-    fail("12: appearance-motion-zoom patch face does not equal its manifest targets (39 files)")
-  if (touched.includes("packages/app/src/runtime/platform/platform.tsx"))
-    fail("12: appearance-motion-zoom patch face touches platform.tsx (the type members are native at v2.2.7 — group 5)")
-  if (touched.includes("packages/app/src/providers/connect/go-upsell-hero-art.ts"))
-    fail("12: appearance-motion-zoom patch face touches go-upsell-hero-art.ts (registered non-converted boundary)")
-  if (!touched.includes("packages/app/src/runtime/platform/web.ts"))
-    fail("12: appearance-motion-zoom patch face lost web.ts (the deferred implementation rides the patch file for its owner round)")
-  // The deferred row retains its full historical face including the search targets (not
+  if (JSON.stringify([...historicalTouched].sort()) !== JSON.stringify([...manifestTargets].sort()))
+    fail("12: appearance-motion-zoom historical patch face does not equal its manifest targets (39 files retained for audit)")
+  if (historicalTouched.includes("packages/app/src/runtime/platform/platform.tsx"))
+    fail("12: appearance-motion-zoom historical patch face touches platform.tsx (the type members are native at v2.2.7 — group 5)")
+  if (historicalTouched.includes("packages/app/src/providers/connect/go-upsell-hero-art.ts"))
+    fail("12: appearance-motion-zoom historical patch face touches go-upsell-hero-art.ts (registered non-converted boundary)")
+  if (!historicalTouched.includes("packages/app/src/runtime/platform/web.ts"))
+    fail("12: appearance-motion-zoom historical patch face lost web.ts (the surviving face re-derived into appearance-zoom-web-v2-2-7)")
+  // The absorbed row retains its full historical face including the search targets (not
   // replayed); the W5 content actually applied comes from ACTIVE settings-v2-2-7.
-  for (const historical of ["packages/app/src/settings/search-catalog.ts", "packages/app/src/settings/search-results.test.ts"]) {
-    if (!touched.includes(historical))
-      fail(`12: appearance-motion-zoom deferred face lost the historical target ${historical} (the deferred row keeps its full face; the applied W5 form is settings-v2-2-7's)`)
+  for (const historicalSearch of ["packages/app/src/settings/search-catalog.ts", "packages/app/src/settings/search-results.test.ts"]) {
+    if (!historicalTouched.includes(historicalSearch))
+      fail(`12: appearance-motion-zoom historical face lost the historical target ${historicalSearch} (the absorbed row keeps its full face; the applied W5 form is settings-v2-2-7's)`)
+  }
+
+  // Row 91: appearance-zoom-web-v2-2-7 ACTIVE — the sole surviving face (issue #197).
+  const zoomRow = parsed.patches.find((p: { id: string }) => p.id === "appearance-zoom-web-v2-2-7")
+  if (!zoomRow || !manifest.includes("patches/mobile/appearance-zoom-web-v2-2-7.patch"))
+    fail("12: patches/mobile/manifest.json does not register appearance-zoom-web-v2-2-7")
+  if (zoomRow.status !== "active")
+    fail(`12: appearance-zoom-web-v2-2-7 manifest status is ${zoomRow.status}, expected active (the web zoom face has no other carrier)`)
+  if (!vendorManifest.includes("patches/mobile/appearance-zoom-web-v2-2-7.patch"))
+    fail("12: vendor-manifest.json does not register appearance-zoom-web-v2-2-7")
+  const vendor = JSON.parse(vendorManifest)
+  if (!(vendor.mobilePatches as string[]).includes("patches/mobile/appearance-zoom-web-v2-2-7.patch"))
+    fail("12: vendor-manifest.json mobilePatches order array does not contain appearance-zoom-web-v2-2-7")
+  if ((vendor.mobilePatches as string[]).includes("patches/mobile/appearance-motion-zoom.patch"))
+    fail("12: vendor-manifest.json mobilePatches order array still replays the absorbed appearance-motion-zoom payload")
+  const patch = await read(ZOOM_WEB_PATCH)
+  const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
+  const zoomTargets = zoomRow.targets as string[]
+  if (JSON.stringify([...touched].sort()) !== JSON.stringify([...zoomTargets].sort()))
+    fail("12: appearance-zoom-web-v2-2-7 patch face does not equal its manifest targets")
+  if (JSON.stringify([...zoomTargets].sort()) !== JSON.stringify(["packages/app/src/runtime/platform/web.ts"]))
+    fail("12: appearance-zoom-web-v2-2-7 targets are not exactly [packages/app/src/runtime/platform/web.ts] (the sole surviving face)")
+  // dependsOn: the three active web.ts carriers this hunk layers over (R1
+  // full-predecessor convention for the shared target).
+  const deps = (zoomRow.dependsOn ?? []) as string[]
+  for (const carrier of ["v2-2-7-mobile-connection-pairing-ssh-closure", "composer-queue-attachments-v2-2-7", "files-diff-review-v2-2-7"]) {
+    if (!deps.includes(carrier))
+      fail(`12: appearance-zoom-web-v2-2-7 dependsOn lost the web.ts carrier ${carrier}`)
   }
 
   // The active consolidated patch carries the W5 search face.
@@ -687,16 +759,16 @@ console.log(
   "verify-appearance-settings: PASS (" +
     "1: reduceMotion three-value literal + system default + withFallback + createMediaQuery + verbatim dataset.motion arbiter, backgroundActivity/timelineWidth/interfaceEnabled/tabLayout/mobileTitlebarPosition literals all pin-native (issue #193 re-anchor: the #103/#101 restored-by-patch faces are absorbed); " +
     "2: verbatim zoom/reduceMotion controller blocks, the NATIVE experimental.config.update shell write (issue #193 re-anchor: the pin adopted the experimental config API), the rewritten plugin-migration negative (api.plugin./PluginSettingsSections/usePluginHost/pluginHost write faces stay out of controllers.ts — plugin contribution lives in general.tsx + the extension runtime, settings-v2-2-7 W3); " +
-    "3: reduceMotionOptions three items, zoom row Show-gated before reduceMotion row, no sidebarOpen row; " +
+    "3: reduceMotionOptions three items, zoom row Show-gated before reduceMotion row (the pin's platform-gated shape — with the row-91 web face landed the gate passes on this client), no sidebarOpen row; " +
     "4: eleven-level Chromium desktopZoomLevels + type, nextDesktopZoomLevel NATIVE (issue #193 re-anchor: the #144 registered rc=1 discharges — the pinch helper is pin content; the S12 mobile contract lives in the group-9 search gates + verify-pinch-shell-settings), DESKTOP_MENU intact; " +
-    "5: platform.tsx native optional zoomLevel/setZoomLevel declarations (issue #193 re-anchor: the type members are pin content), web.ts zero zoom tokens (the deferred appearance-motion-zoom web face stays out, #197 direction); " +
+    "5: platform.tsx native optional zoomLevel/setZoomLevel declarations (issue #193 re-anchor: the type members are pin content), web.ts IMPLEMENTS the faces via the ACTIVE appearance-zoom-web-v2-2-7 patch (issue #197 re-anchor: the exhaustive import set, the spread after the saveFile anchor, the opencode-ui-zoom-level key, desktopZoomLevels validation with fallback 1, the documentElement.style application, M-035 marker text verbatim, nextDesktopZoomLevel kept out of web.ts — R3 exhaustive-import lock); " +
     "6: native consumption chain — 30 CSS files / 34 data-motion blocks per-file (no bare @media reduce outside the two registered dual-form files composer-lane/question-prompt), 3 TS consumers on prefersReducedMotion with no bare matchMedia reduce read, reduced.ts query/override/prefersReducedMotion/attributeFilter/observeReducedMotion anchors, motion/index.ts full native re-export set (spring/loop/velocity/reduced/waapi/slider; solid separate — issue #193 re-anchor absorbs the #67 minimized closure), ui package.json ./motion + solid + tuning exports; " +
     "7: whole-tree prefers-reduced-motion file set EXACTLY the fourteen native members {home/sessions/controller.tsx (native bare matchMedia read), go-upsell-hero-art.ts (unconverted boundary), composer-lane.css + question-prompt.css (dual-form), settings/model.tsx (the createMediaQuery mechanism), palette-menu.css + shell/search-list.css + forms/search-list.css + menu-scroll.css + tabs.css + session-compaction.css + project-icon-styles.stories.tsx (unconverted faces), test-browser/motion-dom.test.ts (native browser test), motion/reduced.ts (the mechanism)}; " +
     "8: tailwind comment + two custom variants + the v2.2.7 @source roots (stories line native, stories package unvendored — issue #193 re-anchor absorbs the old no-stories negative), verbatim timeline-width token block; " +
     "9: W5 zoom entry without available line in the settings-v2-2-7 three-comment form + reduceMotion entry after terminalFont, search-results 'font' length 4 with mobile(M-035) comment, zoom advertised on both platform shapes (the not.toContain lock retired), S12 pinch-zoom desktop gates, target capsule -> settings-background-activity (the timeline-width/sounds-interface test assertions retired — catalog rows pinned by verify-settings-framework group 5); " +
     "10: seven en keys between interfaceMode.inbox and notifications block (issue #193 re-anchor), zero keys in zh/zht/ko/de/fr, en base-first typed spread; " +
     "11: both model.test.ts reduceMotion expectations + settings-experimental newIcons/foldUserMessages rows, the dropped showFileTree/terminalPlacement rows kept out (issue #193 re-anchor); " +
-    "12: appearance-motion-zoom in BOTH manifests DEFERRED with patch face == manifest targets (39 files), platform.tsx/go-upsell absent, web.ts + the historical search targets carried in the deferred face (not replayed) while the applied W5 form is ACTIVE settings-v2-2-7's; " +
+    "12: appearance-motion-zoom in BOTH manifests ABSORBED (row 35, issue #197) with the historical 39-target face retained for audit (platform.tsx/go-upsell absent, web.ts + the historical search targets carried in the face), ACTIVE appearance-zoom-web-v2-2-7 (row 91) with patch face == manifest targets == exactly web.ts and the three web.ts carriers in dependsOn, present in the vendor-manifest mobilePatches order array while the absorbed payload is not, and the applied W5 form is ACTIVE settings-v2-2-7's; " +
     "13: packages/mobile-hosts zero reduceMotion/prefers-reduced-motion/zoomLevel/opencode-ui-zoom references; " +
     "STATIC check — system-mapping on WebView, first-frame gap, zoom × system font-size (Chromium 41297766), KeyboardInsets and the go-upsell hero boundary are device-QA items registered in docs/build-and-verify.md)",
 )
