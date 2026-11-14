@@ -1,11 +1,17 @@
-// verify-pierre-webview-compat.test.ts — issue #162/#163 regression seam.
+// verify-pierre-webview-compat.test.ts — issue #162/#163 regression seam, re-anchored for #190.
 //
-// Static anchors (main): the diff-worker-pool-fallback patch seams must stay in the vendored
-// sources, and the @pierre/trees dependency baseline must stay at 1.0.0-beta.6 (the v2.2.1
-// extraction). Drift on any of these anchors is exactly the failure shape that blanked the
-// Open-file tree (#162: applyGitStatusPatch/getVisibleRows TypeErrors from a beta.4 baseline)
-// and the diff body (#163: sprite + empty PRE after the pool's initialize() rejects on the
-// WebView main thread). See docs/build-and-verify.md, issue #162/#163 section.
+// Static anchors (main): the files-diff-review-v2-2-7 patch seams must stay in the vendored
+// sources (the consolidated #190 re-derivation of diff-worker-pool-fallback + files-stream-watch
+// + files-open-external), and the @pierre/trees dependency baseline must stay at 1.0.0-beta.6
+// (the v2.2.1 extraction). Drift on any of these anchors is exactly the failure shape that
+// blanked the Open-file tree (#162: applyGitStatusPatch/getVisibleRows TypeErrors from a beta.4
+// baseline) and the diff body (#163: sprite + empty PRE after the pool's initialize() rejects
+// on the WebView main thread). See docs/build-and-verify.md, issue #162/#163 and #190 sections.
+//
+// #190: the file.tsx createPoolReady viewer-gate test is DROPPED — v2.2.7's native viewer
+// render machine owns the pool fallback (pool.settled / pool.timed-out → main-thread
+// fallback), behavior-tested upstream in render-machine.test.ts:116-141 ("a failed or hung
+// pool falls back to the main thread"). The old mobile bypass hunk is superseded.
 //
 // Pure-module behavior tests (secondary): pierre/pool-strategy.ts is the only newly extracted
 // module; its settle/timeout/reject × gate matrix is exercised here with injected clocks.
@@ -19,7 +25,6 @@ const repo = (path: string) => join(repoRoot, path)
 const read = async (path: string) => await Bun.file(repo(path)).text()
 
 const FILES = {
-  viewer: "vendor/upstream/packages/session-ui/src/components/file.tsx",
   worker: "vendor/upstream/packages/session-ui/src/pierre/worker.ts",
   index: "vendor/upstream/packages/session-ui/src/pierre/index.ts",
   strategy: "vendor/upstream/packages/session-ui/src/pierre/pool-strategy.ts",
@@ -28,19 +33,10 @@ const FILES = {
   tree: "vendor/upstream/packages/gui-plugins/src/file/pierre-tree.tsx",
   rootPkg: "package.json",
   migrationPatch: "vendor/upstream/patches/mobile/gui-plugins-api-migration.patch",
-  poolPatch: "vendor/upstream/patches/mobile/diff-worker-pool-fallback.patch",
+  poolPatch: "vendor/upstream/patches/mobile/files-diff-review-v2-2-7.patch",
 }
 
 // --- static anchors ---
-
-test("viewer gate: failed pool releases createPoolReady and logs a labeled [diff] error", async () => {
-  const src = await read(FILES.viewer)
-  expect(src).toContain("const [failed, setFailed] = createSignal(false)")
-  expect(src).toContain("settled() || failed()) return true")
-  expect(src).toContain('console.error("[diff] pierre worker pool init failed", cause)')
-  // The silent swallow shape must not come back.
-  expect(src).not.toContain(".catch(() => undefined)")
-})
 
 test("worker guard: failed pools are recorded and getWorkerPool hands back undefined", async () => {
   const src = await read(FILES.worker)
@@ -96,13 +92,14 @@ test("migration patch: the stale beta.6→beta.4 downgrade hunk stays removed", 
   expect(patch.includes('+    "@pierre/trees": "1.0.0-beta.4",')).toBe(false)
 })
 
-test("patch registration: diff-worker-pool-fallback.patch exists and covers its four targets", async () => {
+test("patch registration: files-diff-review-v2-2-7.patch exists and covers its five targets", async () => {
   const patch = await read(FILES.poolPatch)
   for (const target of [
-    "a/packages/session-ui/src/components/file.tsx",
     "a/packages/session-ui/src/pierre/index.ts",
     "a/packages/session-ui/src/pierre/pool-strategy.ts",
     "a/packages/session-ui/src/pierre/worker.ts",
+    "a/packages/app/src/runtime/platform/web.ts",
+    "a/packages/app/src/workspaces/files/artifact.test.ts",
   ])
     expect(patch).toContain(target)
   expect(patch).toContain("new file mode")
