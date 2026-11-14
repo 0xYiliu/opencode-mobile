@@ -362,7 +362,7 @@ git -C /home/peterhan/repository/opencode ls-tree -r --name-only v2.2.7 -- packa
 | `bc7da10f3d` | fix(app): keep question options and submit controls reachable on mobile (#60335)——question 控件移动可达性 | **absorbed（=上游自身的 mobile fix）**：v2.2.7 已自带移动可达修复，vendored 树 byte-identical，无需移动补丁 | classic/experimental dock（SAME 集） |
 | `7ed1f96e29` | feat(app): allow selecting question answer text (#60372)——答案文本可选中 | **absorbed**（vendor pin） | question dock/css（SAME 集） |
 
-- **inbox note（a35d91bb8b，v2.2.1 pin 内既入）**：`shell/titlebar/inbox-model.ts` 的显式决策路径 `decide(entry, decision) → entry.ctx.data.session.permission.reply({…decision}).catch(requestFailed)`（v2.2.7 :450-458）由 a35d91bb8b「turn Home into a session inbox (#57281)」引入（2026-10-20，随 v2.2.1 pin 入树）。旧探针 pin `b4525d79bf`（2026-10-23 dev pin）早于该 merge，「wrapper 零 in-app caller」断言在 v2.2.1 时点已实质过期，但被探针 fail-fast 的前置断言（linear 闭集缺 auto-approve.ts）掩盖至本轮才暴露；#189 重锚定为 EXACT-SET {auto-approve.ts, shell/titlebar/inbox-model.ts}。
+- **inbox note（a35d91bb8b，v2.2.1 pin 内既入）**：`shell/titlebar/inbox-model.ts` 的显式决策路径 `decide(entry, decision) → entry.ctx.data.session.permission.reply({…decision}).catch(requestFailed)`（v2.2.7 :450-458）由 a35d91bb8b「turn Home into a session inbox (#57281)」引入（2026-10-20，随 v2.2.1 pin 入树）。旧探针 pin `b4525d79bf` 不在该 merge 血统内（pin 晚于 a35d91bb8b），「wrapper 零 in-app caller」断言在 v2.2.1 时点已实质过期，但被探针 fail-fast 的前置断言（linear 闭集缺 auto-approve.ts）掩盖至本轮才暴露；#189 重锚定为 EXACT-SET {auto-approve.ts, shell/titlebar/inbox-model.ts}。
 
 ### 行为 crosswalk
 

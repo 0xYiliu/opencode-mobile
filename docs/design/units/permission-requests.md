@@ -4,7 +4,7 @@
 
 行号声明：本文引用的行号为 vendor pin `b4525d79bf` 时点值，仅供定位；权威以引号内源文本锚为准。**来源边界**：服务端语义（`packages/core/src/permission.ts`、`packages/server/src/handlers/permission.ts`、`packages/schema/src/permission.ts`）**不在 vendored 闭包内**，引自上游 pin 提交树采集缓存 `~/.cache/opencode-upstream` @ `b4525d79bf`（同 [architecture.md](../architecture.md) CORS 节「来源表述」先例）；vendored 侧仅生成类型/端点/事件消费面可静态断言。pin 更新时缓存引文需随 PROVENANCE 演练同步。
 
-**#189 事实同步（2026-11-14，v2.2.7 pin `fedc6f208a`）**：request docks 域 50 文件对 v2.2.7 **byte-identical**（50/50 SAME + 0 DIFF，见 changes.md #189 section）；本文 F1/F2/决策/auto-approve 各节按 v2.2.7 机器化形同步（旧→新事实映射表见文末）。探针 `scripts/verify-permission-requests.ts` 已同步重锚定（14 条 fact 级 old→new，全部 v2.2.7-context 漂移、非契约违约），本文仍是该探针声明的事实源。行号凡标「v2.2.7 :N」者为 v2.2.7 时点值；未标者仍为 b4525d79bf 时点值仅供定位。
+**#189 事实同步（2026-11-14，v2.2.7 pin `fedc6f208a`）**：request docks 域 50 文件对 v2.2.7 **byte-identical**（50/50 SAME + 0 DIFF，见 changes.md #189 section）；本文 F1/F2/决策/auto-approve 各节按 v2.2.7 机器化形同步（旧→新事实映射表见文末）。探针 `scripts/verify-permission-requests.ts` 已同步重锚定（12 行（#188 表中 2+5、6+7 各并作一行；合计 14 条 fact 级） fact 级 old→new，全部 v2.2.7-context 漂移、非契约违约），本文仍是该探针声明的事实源。行号凡标「v2.2.7 :N」者为 v2.2.7 时点值；未标者仍为 b4525d79bf 时点值仅供定位。
 
 ## 能力来源（复用面，无新建第一方逻辑）
 
@@ -129,7 +129,7 @@ app/session-ui/ui 三包内 linear 调用恰 model.ts 一处成立；session-ui/
 ## 门禁与验证
 
 - **G21**（[interaction.md](../interaction.md) 新设）：权限/提问运行期真机清单九项（呈现充分性、三决策、duplicate/stale/expired 三态、断连恢复、client exit 红线机械核对、auto-approve opt-in、通知设置呈现、窄屏/读屏/焦点/触摸目标首项核对、SSH/直连双路由）。G21 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
-- **V-probe**：`scripts/verify-permission-requests.ts`（静态结构检查，对运行时行为零证明力）——断言组 1 决策调用面穷举集合（linear 闭集 {model.ts} + data 层 EXACT-SET {auto-approve.ts, inbox-model.ts} + F1 两包零命中负断言）、组 2 duplicate/stale/expired 分层锚（v2.2.7 机器化：NotFound→reply.succeeded / reply.failed→toast + thin router 双形态 guards + controller mutations + ScopedKey caches）、组 3 恢复链四处触发、组 4 无歧义默认审批四锚、组 5 事件与端点契约抽样。**#189 重锚定**：14 条 fact 级 old→new（v2.2.7-context 漂移，非契约违约）+ 6 条负注入全部 rc=1（见 [build-and-verify.md #189 段](../../build-and-verify.md)）。
+- **V-probe**：`scripts/verify-permission-requests.ts`（静态结构检查，对运行时行为零证明力）——断言组 1 决策调用面穷举集合（linear 闭集 {model.ts} + data 层 EXACT-SET {auto-approve.ts, inbox-model.ts} + F1 两包零命中负断言）、组 2 duplicate/stale/expired 分层锚（v2.2.7 机器化：NotFound→reply.succeeded / reply.failed→toast + thin router 双形态 guards + controller mutations + ScopedKey caches）、组 3 恢复链四处触发、组 4 无歧义默认审批四锚、组 5 事件与端点契约抽样。**#189 重锚定**：12 行（#188 表中 2+5、6+7 各并作一行；合计 14 条 fact 级） fact 级 old→new（v2.2.7-context 漂移，非契约违约）+ 6 条负注入全部 rc=1（见 [build-and-verify.md #189 段](../../build-and-verify.md)）。
 - **V-upstream**：app 子集追加 3 文件（`session/requests/websearch.test.ts`、`settings/model.test.ts`、`runtime/server/global-sync/utils.test.ts`）首跑逐例归因门；既有三包子集（app 46 + client 8 + session-ui 6）回归——client 的 `solid-eviction`（permission store 家族存活于 eviction）/`shared-events`（permission.asked fan-out）覆盖事件层语义。
 - **覆盖口径**：`requests/model.ts`/`auto-approve.ts`/三个 dock 组件上游**无单测**（装配层）——覆盖 = 探针（结构）+ V2（构建）+ G21（真机）三层，与 #8 session-home-archive 覆盖口径同型。
 
