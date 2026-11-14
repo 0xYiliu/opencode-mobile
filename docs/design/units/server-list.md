@@ -1,5 +1,7 @@
 # 单元：server-list（服务器列表与项目选择）
 
+
+> **#193 校准（2026-11-14，v2.2.7）**：v2.2.7 重基后 servers 移动面由 active `settings-v2-2-7`（issue #193）重 derive——W1 MobileHostManager settings→servers 标签页 lazy mount（settings-mobile-host-manager 语义恢复，row 8 absorbed；settings-ssh-entry-guard disposition=redirect 半 obsolete + entry 半 overlaps W1）、W2 add-menu N12 face（WSL disabled row + 350ms-guarded Add-SSH item）、W4 mobile SSH row-menu adapter（`settings/servers/mobile-ssh.tsx` 驱动 runtime connect/retry/remove/confirmHostKey；credentials memory-only；row 76 absorbed）。下方「issue #124 之前的历史挂载」注记继续适用于表格历史行；当前挂载面以 W1 为准。
 当前 Settings Server 契约以本页 **issue #124** 段为准；其余早期管理界面/门禁记录是历史能力说明，不再描述 Settings 的当前挂载面。真实连接与设备证据见 [构建与验证](../../build-and-verify.md)，不得把历史未验证概括套用到后续已验证构建，也不得把历史设备结果套用到本次产物。
 
 ## 字段契约（已实现）

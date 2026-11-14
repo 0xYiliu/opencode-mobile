@@ -4,6 +4,8 @@
 
 **状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/settings-servers-migration）、General/Experimental 偏好页内面（#103/settings-general-experimental-migration，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/settings-providers-models-extensions，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/settings-workspaces-migration）、**Notifications 页内面（#107/settings-notifications-migration，见下方「通知页内面」单元）**与 **Shortcuts 页内面（#108/settings-keybinds-command-catalog，见下方「快捷键页内面」单元）已交付**；**About 页内面已交付（#110 复验 + 链接/暂缓态验收补齐，见下方「About 页内面」单元）**；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107/#108/#110 段](../../build-and-verify.md)。
 
+> **#193 校准（2026-11-14，v2.2.7）**：settings 域已完成 v2.2.7 重基——框架/页面内面为 pin 原生（settings-framework 三 patch + 12 条 settings-family rows 翻转 absorbed，54/24），移动 delta 由 active `settings-v2-2-7`（issue #193）重 derive：W1 MobileHostManager servers-tab mount、W2 add-menu WSL disabled row + 350ms-guarded Add-SSH item、W3 gui-extensions tab + ExtensionManager + disabled union、W4 mobile SSH row-menu adapter（connect/retry/remove/confirmHostKey）、W5 M-035 zoom catalog deviation（standing deviation，#197 不得回退门控）、W6 测试重 derive。六探针 v2.2.7 重锚定 rc=0（见 build-and-verify.md #193 段）；上文各 Issue 段的 v2.2.1 目标形描述保留为历史定位记录。
+
 ## 单元边界（A/F 分界）
 
 - **A（本单元，issue #101）**：设置外层壳（`settings/shell.tsx` 单一 RootSettings 布局）、导航（`settings/navigation.tsx`）、路由/视图模型（`settings/route.ts`）、surface 与服务器上下文（`settings/surface.tsx` 的 `surface.server()`/`selectServer`/`openServers`）、搜索（index/catalog/results/UI/focus-reveal）、设置→命令面板桥（`settings/palette.ts` + `shell/commands/palette.ts`）、共享设置 CSS、以及依赖闭包（settings-framework-dependencies：sidebar-toggle/sidebar-peek/servers-registry label/ui slash + registry label/hint 块）。
