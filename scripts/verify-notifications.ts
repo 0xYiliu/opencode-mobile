@@ -57,7 +57,9 @@
 //         CATEGORIES mirror + the channelTitle questions branch, issue #195 commit 1).
 //      g. dist constants 5520/155572926 (issue #190) -> 5630/155881892 (issue #195 measured;
 //         prior pin 5630/155863020 = issue #194; the #193 settings rebuild moved the file
-//         count 5520 -> 5630 between those pins).
+//         count 5520 -> 5630 between those pins) -> 5630/155884460 (issue #196 measured;
+//         same 5630 file count, +2568 bytes — the runtime-data-v2-2-7 polyfill shims inside
+//         the existing entry chunk).
 //
 // SCOPE NOTE: group 9 anchors the four commit-1 documents (units/notifications.md /
 // interaction.md / architecture.md / design README.md) + recovery.md (commit 1). The
@@ -734,10 +736,14 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // the commit-1 four-category mobile-hosts constant rebuilt the payload to
   // 5630/155881892 — same 5630 file count as the #194 build, +18872 bytes of source
   // delta inside existing chunks; prior pin 5630/155863020 = issue #194.
+  // Issue #196 measured (commit-3 rebuild): the runtime-data polyfill shims
+  // (runtime-data-v2-2-7, issue #196: URL.canParse/URL.parse inside the existing entry chunk)
+  // rebuilt the payload to 5630/155884460 — same 5630 file count, +2568 bytes; prior pin
+  // 5630/155881892 = issue #195.
   if (distManifest.fileCount !== 5630)
     fail(`8: current web-dist fileCount drifted (expected 5630, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 155881892)
-    fail(`8: current web-dist totalBytes drifted (expected 155881892, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 155884460)
+    fail(`8: current web-dist totalBytes drifted (expected 155884460, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
@@ -844,7 +850,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-3 permissions (INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71) + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 verbatim helpers + all four switches wrapped (questions via the hideLabel+children form) + status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces (sound+system x agent/errors/requests on the unified handleRequest form) + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5630/155881892; issue #195 measured commit-3 rebuild — same 5630 file count as the #194 build, +18872 bytes of source delta inside existing chunks; prior pin 5630/155863020 = issue #194 gui-plugins rebuild; prior 5520/155572926 = issue #190 files/diff/review rebuild — the #193 settings rebuild moved the file count 5520->5630 between those pins; older chain in build-and-verify.md) + staged dist markers; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5630/155884460; issue #196 measured commit-3 rebuild — same 5630 file count, +2568 bytes: the runtime-data-v2-2-7 polyfill shims inside the existing entry chunk; prior pin 5630/155881892 = issue #195 notifications rebuild — same 5630 file count as the #194 build, +18872 bytes of source delta inside existing chunks; prior pin 5630/155863020 = issue #194 gui-plugins rebuild; prior 5520/155572926 = issue #190 files/diff/review rebuild — the #193 settings rebuild moved the file count 5520->5630 between those pins; older chain in build-and-verify.md) + staged dist markers; " +
     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + app-notifications-bridge/notifications-platform-delivery/settings-notification-permission, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )
