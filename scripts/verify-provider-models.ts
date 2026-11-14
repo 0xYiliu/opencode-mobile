@@ -10,7 +10,25 @@
 // OPENAI_COMPATIBLE positive anchor with the deleted credentials/form.ts;
 // groups 2/7 re-measure the domain at 48 code files.
 //
-// Asserts, against the REAL vendored sources (pin b4525d79bf…), the structural
+// Issue #192 (v2.2.7 provider/model/usage absorption) re-anchor: the pin moved
+// b4525d79bf… → fedc6f208a… and absorbed the v2.2.1-era connect flow and the
+// model-selector/usage payloads natively (rows 69/71 of the registry flipped
+// absorbed; the agent-selector re-base rides providers-models-usage-v2-2-7).
+// The v2.2.7 connect surface is a state-machine family (machine.ts /
+// dialog-machine.ts / form-machine.ts / mcp-machine.ts / go-upsell-hero-
+// machine.ts) behind a thin controller, so the group 3 command-auth and cancel
+// anchors moved from the controller into machine.ts effect emission (the
+// controller now dispatches cancel through ONE unified site per API with a
+// machine-owned target tag, and the machine owns stale-generation
+// compensation + teardown), the poll cadence gained command/Console 500ms
+// tiers, the credential.remove set grew by connect/controller.ts (the
+// dialog-machine "claude.replace" effect), data.ts grew the usage-limits
+// refresh prefix, and selection.tsx moved the model-selection persistence
+// into a per-workspace opener keyed by ScopedKey.from(scope,
+// pathKey(directory)). 33 anchors re-derived old→new (fail-fast, closed-set
+// semantics preserved; cancel-site counts 2→1 per API); no anchor weakened.
+//
+// Asserts, against the REAL vendored sources (pin fedc6f208a…), the structural
 // facts the providers-models unit document relies on:
 //
 //   1. Credential unidirectional flow (exhaustive sets): across the four
@@ -19,7 +37,9 @@
 //      `.credential.list(`/`.credential.create(` hits are ZERO and
 //      `.credential.remove(`/`.credential.activate(`/`.credential.update(`
 //      hits equal exactly {settings/providers/providers.tsx (remove),
-//      settings/providers/account-actions.ts (activate/remove/update)} — all
+//      settings/providers/account-actions.ts (activate/remove/update),
+//      providers/connect/controller.ts (remove — the claude.replace effect
+//      drops the credentials a Claude Agent re-check replaces)} — all
 //      metadata operations, never value reads. The integration group anchors
 //      (connect.key/external, oauth.connect/status/complete/cancel) and the
 //      credential.list OpenAPI warning ("including its secret value") are
@@ -37,42 +57,49 @@
 //      booleans) and "chatgpt-plan-welcome.v1" (global — seen boolean). None
 //      carries a credential-shaped payload (selection schema fields =
 //      providerID/modelID/variant/agent; the other two are booleans).
-//      SCAN CALIBER: .ts/.tsx code files only — 48 measured on this pin
-//      (providers/ 41 + settings/providers 6 + settings/models 1; the three
-//      non-code files — one svg, two css — are excluded; 51 counting them;
-//      issue #141: −3 providers/credentials/ deletion, +1
-//      connect/connect-methods.test.ts), lower-bound assertion 45 so both
+//      SCAN CALIBER: .ts/.tsx code files only — 72 measured on this pin
+//      (providers/ 65 + settings/providers 6 + settings/models 1; the three
+//      non-code files — one svg, two css — are excluded; issue #141: 48;
+//      issue #192: the v2.2.7 connect state-machine family + mcp/go-upsell
+//      surfaces grew the providers/ domain), lower-bound assertion 45 so both
 //      calibers stay honest.
-//   3. OAuth flow shape: the openBrowser/openExternal seam, the 1s poll
-//      interval, the four AttemptStatus branches (complete/failed/expired +
-//      polling failure), the Console-specific expired_token/access_denied
-//      mappings, BOTH oauth.cancel call sites (dialog teardown + stale
-//      generation compensation), the desktop-only return_window gate, the
-//      mode "auto"/"code" view split, the copy-link and user_code fallbacks,
-//      the web platform's openExternal allowlist (http/https/mailto →
-//      window.open _blank noopener) and the browserFailed-unreachable-on-web
-//      fact (web.ts has NO openBrowser), the RemoteAuthNotice loopback
-//      exclusion, and the Attempt schema (mode Literals ["auto","code"],
-//      time.expires).
+//   3. OAuth flow shape: the openBrowser/openExternal seam (two effect sites:
+//      open.browser + form.open.browser, both `effect.url`), the poll cadence
+//      (command and Console 500ms, oauth 1s), the complete/failed/expired
+//      polled-outcome branches, the Console-specific
+//      expired_token/access_denied mappings, the ONE oauth.cancel and ONE
+//      command.cancel call site each in the controller (the machine owns
+//      cancellation as target-tagged cancel effects: stale-generation
+//      compensation in transitionProviderConnect + cleanup()), the
+//      dispatched-disposition teardown (onCleanup → disposed event → machine
+//      cleanup effects), the desktop-only return_window gate, the
+//      mode "auto"/"code" split (machine.ts decides the signIn kind; the
+//      dialog renders code/browser screens), the copy-link and user_code
+//      fallbacks, the web platform's openExternal allowlist (http/https/
+//      mailto → files bridge) and the browserFailed-unreachable-on-web fact
+//      (web.ts has NO openBrowser), the RemoteAuthNotice loopback exclusion,
+//      and the Attempt schema (mode Literals ["auto","code"], time.expires).
 //   4. Server authority & event refresh: client/src/solid/data.ts handles
-//      credential.updated (integration invalidate+sync) and
+//      credential.updated (integration catalog refresh) and
 //      credential.switched (connections reorder + model/provider invalidate)
-//      in ONE adjacent block, and integration.updated as a three-directory
+//      in ONE adjacent block (both prefixed by the usage-limits refresh), and
+//      integration.updated as a usage-limits refresh + three-directory
 //      invalidate+sync — credential refresh only touches catalog data, never
 //      host/project/session state keys; the Connection.Status needs_auth
 //      schema comment and the RemoteAuthNotice en sentence are verbatim.
 //   5. Model scope: the per-server+directory selection persistence
-//      (Persist.serverWorkspace … "model-selection"), the handoff
-//      ScopedKey.from composite key, the session.model.selected /
-//      session.agent.selected reconcile subscriptions and the session.deleted
-//      key cleanup, the settings models serverGlobal key, the
-//      createGlobalModels `Persist.global("model")` cross-server preference
-//      EXCEPTION (honest anti-overclaim anchor), the settings dual-layout
-//      anchors (serverTabs / nestedServerTabs / the five-entry redirect
-//      guard / two SettingsServerDataScope mounts with providers+models
-//      Tabs.Content in each), the SettingsServerDataScope composition, the
-//      tooltip limit.context presentation, the free/paid grouping anchor and
-//      the default-visibility rules.
+//      (Persist.serverWorkspace … "model-selection", opened per workspace),
+//      the ScopedKey.from(scope, pathKey(directory)) composite key, the
+//      session.model.selected / session.agent.selected reconcile
+//      subscriptions and the session.deleted workspace dispatch, the settings
+//      models serverGlobal key, the createGlobalModels
+//      `Persist.global("model")` cross-server preference EXCEPTION (honest
+//      anti-overclaim anchor), the settings dual-layout anchors (serverTabs /
+//      nestedServerTabs / the five-entry redirect guard / two
+//      SettingsServerDataScope mounts with providers+models Tabs.Content in
+//      each), the SettingsServerDataScope composition, the tooltip
+//      limit.context presentation, the free/paid grouping anchor and the
+//      default-visibility rules.
 //   6. No local model/tool execution: `from "@opencode/ai"` /
 //      `from "@ai-sdk/…"` / `from "@anthropic-ai/…"` / `from "openai"`
 //      IMPORT-STATEMENT shapes are ZERO across the four packages' src
@@ -84,11 +111,11 @@
 //      and the global-sync utils.test.ts fixture. The measured data-string
 //      surfaces do NOT match `from "…"` shapes. The POSITIVE anchor
 //      `OPENAI_COMPATIBLE = "@ai-sdk/openai-compatible"` (credentials/form.ts)
-//      is asserted: the npm package name is a SERVER-SIDE load declaration —
-//      the exact opposite of local execution. app/package.json carries zero
-//      ai/@ai-sdk/openai/anthropic dependency keys, and packages/mobile-hosts
-//      must stay provider-face-free (zero credential/integration/provider API
-//      call shapes).
+//      is RETIRED (issue #141): the npm package name was a SERVER-SIDE load
+//      declaration — the exact opposite of local execution — and the file is
+//      deleted. app/package.json carries zero ai/@ai-sdk/openai/anthropic
+//      dependency keys, and packages/mobile-hosts must stay provider-face-free
+//      (zero credential/integration/provider API call shapes).
 //   7. Zero host-OS conditionals (whitelist scan, #8 N-5 / #11 / #12 / #13
 //      pattern): the provider domain of group 2 must contain ZERO
 //      process.platform / navigator.platform / node:os / require("os") /
@@ -173,6 +200,9 @@ let osScanFiles = 0
   const expectRemove = new Set([
     `${APP}src/settings/providers/providers.tsx`,
     `${APP}src/settings/providers/account-actions.ts`,
+    // issue #192 re-anchor: the v2.2.7 connect controller's "claude.replace" effect removes the
+    // credentials a Claude Agent re-check replaces (metadata operation, no value read).
+    `${APP}src/providers/connect/controller.ts`,
   ])
   const expectActivate = new Set([`${APP}src/settings/providers/account-actions.ts`])
   const expectUpdate = new Set([`${APP}src/settings/providers/account-actions.ts`])
@@ -228,9 +258,9 @@ let osScanFiles = 0
       if (persist.test(source)) hits.push({ file: rel, source })
     }
   }
-  // Scan caliber: .ts/.tsx code files; 48 measured (51 counting the three
-  // non-code files; issue #141 re-measure), lower bound 45 keeps both calibers
-  // honest.
+  // Scan caliber: .ts/.tsx code files; 72 measured (issue #141: 48; issue #192
+  // re-measure — the v2.2.7 connect state-machine family grew providers/),
+  // lower bound 45 keeps both calibers honest.
   if (domainFiles < 45) fail(`2: provider domain scan covered only ${domainFiles} files — the directory set looks wrong`)
 
   const findKey = (file: string, key: string) => {
@@ -238,7 +268,9 @@ let osScanFiles = 0
     if (!hit) fail(`2: the expected Persist call site is missing: ${file}`)
     if (!hit!.source.includes(key)) fail(`2: the Persist key "${key}" changed shape in ${file}`)
   }
-  findKey(`${APP}src/providers/models/selection.tsx`, 'Persist.serverWorkspace(serverSDK.scope,sdk().directory,"model-selection")')
+  // issue #192 re-anchor: the persistence moved into openWorkspace — the scope/directory pair is
+  // carried by the per-workspace opener's parameters, not read from sdk() inline.
+  findKey(`${APP}src/providers/models/selection.tsx`, 'Persist.serverWorkspace(scope,directory,"model-selection")')
   findKey(`${APP}src/settings/models/models.tsx`, 'Persist.serverGlobal(serverSdk.scope,"settings-v2.models.providers")')
   findKey(`${APP}src/providers/connect/dialog.tsx`, 'Persist.global("chatgpt-plan-welcome.v1")')
   if (hits.length !== 3)
@@ -261,17 +293,34 @@ let osScanFiles = 0
 // --- 3. OAuth flow shape ---
 {
   const controller = squash(await read(`${APP}src/providers/connect/controller.ts`))
-  // Browser-open seam: openBrowser takes precedence, openExternal is the void
-  // fallback that reports success (web: browserFailed unreachable).
-  if (!controller.includes("if(platform.openBrowser)returnplatform.openBrowser(url)"))
+  const machine = squash(await read(`${APP}src/providers/connect/machine.ts`))
+  // Browser-open seam (issue #192 re-anchor): the machine emits open.browser /
+  // form.open.browser effects and the controller runs BOTH sites with the same
+  // body — openBrowser takes precedence, openExternal is the void fallback
+  // that reports success (web: browserFailed unreachable).
+  const seam = "if(platform.openBrowser)returnplatform.openBrowser(effect.url)platform.openExternal(effect.url)returntrue"
+  const seams = controller.split(seam).length - 1
+  if (seams !== 2)
+    fail(`3: controller.ts must run the openBrowser/openExternal seam at exactly 2 effect sites (got ${seams})`)
+  if (!controller.includes("if(platform.openBrowser)returnplatform.openBrowser(effect.url)"))
     fail("3: the platform.openBrowser seam changed")
-  if (!controller.includes("platform.openExternal(url)returntrue"))
+  if (!controller.includes("platform.openExternal(effect.url)returntrue"))
     fail("3: the openExternal fallback (void call, always true) changed")
-  // Poll cadence and the four status branches.
-  if (!controller.includes("options.pollInterval??1_000")) fail("3: the 1s OAuth poll interval changed")
-  if (!controller.includes('result.status.status==="complete"')) fail("3: the complete branch changed")
-  if (!controller.includes('result.status.status==="failed"')) fail("3: the failed branch changed")
-  if (!controller.includes('result.status.status==="expired"')) fail("3: the expired branch changed")
+  // Poll cadence (issue #192 re-anchor): the interval lives in the controller's poll effect —
+  // command sign-ins and the Console requeue at 500ms, plain oauth at 1s.
+  if (!controller.includes('constinterval=effect.signIn.kind==="command"?500:isConsole?500:1_000'))
+    fail("3: the poll cadence tiers (command/Console 500ms, oauth 1s) changed")
+  // The polled outcome branches (controller → machine events; the machine's polled() consumes them).
+  if (!controller.includes('if(status.status==="complete")returnpolled({status:"complete"})'))
+    fail("3: the complete branch changed")
+  if (!controller.includes('status.status==="failed"?status.message:language.t("provider.connect.command.expired")'))
+    fail("3: the failed branch changed")
+  if (
+    !controller.includes(
+      'if(status.status==="expired")returnpolled({status:"failed",error:language.t(isConsole?"provider.connect.console.expired":"provider.connect.oauth.expired"),})',
+    )
+  )
+    fail("3: the expired branch changed")
   if (!controller.includes('message.includes("expired_token")') || !controller.includes('message.includes("access_denied")'))
     fail("3: the Console-specific expired_token/access_denied message mappings changed")
   if (!controller.includes("provider.connect.console.statusFailed")) fail("3: the console statusFailed copy key moved")
@@ -282,31 +331,64 @@ let osScanFiles = 0
   if (!controller.includes("provider.connect.console.refreshFailed")) fail("3: the console refreshFailed copy key moved")
   if (!controller.includes("provider.connect.oauth.code.invalid")) fail("3: the oauth code invalid copy key moved")
   if (!controller.includes("provider.connect.method.apiKey")) fail("3: the apiKey method fallback label moved")
-  // statusFailed retry resumes polling the EXISTING attempt.
-  if (!controller.includes("Theattemptisstillopenontheserver;aretryresumespollingit"))
-    fail("3: the statusFailed retry comment (resume polling the open attempt) changed (verbatim)")
-  // Cancellation: exactly two oauth.cancel call sites (teardown + stale
-  // generation compensation), plus the onCleanup disposition pair.
+  // statusFailed retry semantics (issue #192 re-anchor, machine.ts verbatim): only an OAuth
+  // attempt stays open on the server after its status request fails, so only it resumes polling.
+  if (!machine.includes("Thestatusrequestfailed;theattemptmaystillbeopenontheserver."))
+    fail("3: the unreachable-outcome comment (attempt may still be open) changed (verbatim)")
+  if (!machine.includes("OnlyanOAuthattemptstaysopenontheserverafteritsstatusrequestfails,soonlyitcanresume."))
+    fail("3: the statusFailed retry comment (only oauth resumes polling) changed (verbatim)")
+  // Cancellation (issue #192 re-anchor): the controller dispatches ONE unified cancel site per
+  // API (machine-owned target tag); the machine emits the target-tagged cancel effects —
+  // stale-generation compensation for server attempts opened after the dialog moved on, plus the
+  // cleanup() teardown.
   const cancels = controller.match(/oauth\.cancel\(/g) ?? []
-  if (cancels.length !== 2)
-    fail(`3: controller.ts must call oauth.cancel at exactly 2 sites (got ${cancels.length})`)
-  if (!controller.includes("onCleanup(()=>{polling.disposed=truecancelPolling()cancelAttempt()")
-    )
-    fail("3: the onCleanup disposition (disposed flag + cancelPolling + cancelAttempt) changed")
+  if (cancels.length !== 1)
+    fail(`3: controller.ts must call oauth.cancel at exactly 1 unified site (got ${cancels.length})`)
+  const commandCancels = controller.match(/command\.cancel\(/g) ?? []
+  if (commandCancels.length !== 1)
+    fail(`3: controller.ts must call command.cancel at exactly 1 unified site (got ${commandCancels.length})`)
+  if (!controller.includes('effect.target==="command"?serverSDK.api.integration.command.cancel(request):serverSDK.api.integration.oauth.cancel(request)'))
+    fail("3: the unified target-tagged cancel dispatch changed")
+  if (
+    !machine.includes('if(event.type==="oauth.started"&&!startedHere(state,event.attempt,"oauth"))returnunchanged(state,[{type:"cancel",target:"oauth",attemptID:event.authorization.attemptID}])') ||
+    !machine.includes('if(event.type==="command.started"&&!startedHere(state,event.attempt,"command"))returnunchanged(state,[{type:"cancel",target:"command",attemptID:event.command.attemptID}])')
+  )
+    fail("3: the machine stale-generation cancel compensation changed")
+  if (
+    !machine.includes('if(signIn?.kind==="browser"||signIn?.kind==="code")return[...stop,{type:"cancel",target:"oauth",attemptID:signIn.authorization.attemptID}]') ||
+    !machine.includes('if(signIn?.kind==="command")return[...stop,{type:"cancel",target:"command",attemptID:signIn.command.attemptID}]')
+  )
+    fail("3: the machine cleanup cancel emission changed")
+  // Teardown disposition (issue #192 re-anchor): onCleanup dispatches "disposed" and the machine
+  // turns it into the cleanup effects (poll stop + attempt cancel).
+  if (!controller.includes('onCleanup(()=>dispatch({type:"disposed"}))'))
+    fail("3: the onCleanup disposition (dispatch disposed) changed")
+  if (!machine.includes('if(event.type==="disposed")return{state:{status:"disposed"},effects:cleanup(state)}'))
+    fail("3: the machine disposed transition (cleanup effects) changed")
   // Desktop-only return_window gate (web never triggers it).
-  if (!controller.includes('platform.platform==="desktop"')) fail("3: the desktop-only gate changed")
+  if (!controller.includes('platform.platform!=="desktop"')) fail("3: the desktop-only gate changed")
   if (!controller.includes('"client_id","opencode-desktop"') || !controller.includes('"return_window",platform.windowID'))
     fail("3: the Console return_window desktop parameters changed")
   if (!controller.includes("Lets the Console return link focus the window that started the sign-in.".replace(/\s+/g, "")))
     fail("3: the return_window comment changed (verbatim)")
-  // auto/code mode split.
-  if (!controller.includes('result.authorization.mode==="auto"')) fail("3: the auto-mode polling trigger changed")
+  // auto/code mode split (issue #192 re-anchor): the machine decides the signIn kind from the
+  // authorization mode; the dialog renders the matching screen.
+  if (!machine.includes('if(authorization.mode==="code")'))
+    fail("3: the machine code-mode split changed")
+  if (!machine.includes("Sameas`opencodeauthlogin`:handtheuserstraighttothebrowserinsteadofaskingthemtoclickalink."))
+    fail("3: the machine auto-mode browser-first comment changed (verbatim)")
   const dialog = squash(await read(`${APP}src/providers/connect/dialog.tsx`))
-  if (!dialog.includes('controller.authorization()?.mode==="code"')) fail("3: the code-mode view dispatch changed")
+  if (!dialog.includes('<Matchwhen={kind("code")}><OAuthCodeView/>') || !dialog.includes('<Matchwhen={kind("browser")}>'))
+    fail("3: the code-mode view dispatch changed")
   if (!dialog.includes("functionOAuthCodeView()")) fail("3: the OAuthCodeView (code paste form) moved")
   if (!dialog.includes("functionOAuthAutoView()")) fail("3: the OAuthAutoView (waiting + confirmation code) moved")
   if (!dialog.includes("<ConsoleAuthorization")) fail("3: the Console authorization view moved")
-  if (!dialog.includes("platform.writeClipboardText?platform.writeClipboardText(url):navigator.clipboard.writeText(url)"))
+  // issue #192 re-anchor: copy-link lives in the controller's copyLink() over the authorization url.
+  if (
+    !controller.includes(
+      "platform.writeClipboardText?platform.writeClipboardText(authorization.url):navigator.clipboard.writeText(authorization.url)",
+    )
+  )
     fail("3: the copy-link fallback chain changed")
   if (!dialog.includes('searchParams.get("user_code")')) fail("3: the user_code confirmation-code extraction changed")
   // The one-shot welcome flag (persistence group 2 counts it; shape here).
@@ -349,49 +431,72 @@ let osScanFiles = 0
     if (!integration.includes(`status:Schema.Literal(${status})`)) fail(`3: the AttemptStatus ${status} literal moved`)
   }
 
-  // Command authentication chain (issue #141 / FU-1, target v2.2.1 verbatim):
-  // command methods connect without a form, poll via command.status, and
-  // cancel exactly like OAuth (two sites: dialog teardown + stale generation
-  // compensation). Attempt identity is a tagged union, not a bare
-  // Authorization.
-  const commandCancels = controller.match(/command\.cancel\(/g) ?? []
-  if (commandCancels.length !== 2)
-    fail(`3: controller.ts must call command.cancel at exactly 2 sites (got ${commandCancels.length})`)
-  if (!controller.includes("integration.command.connect({integrationID:options.provider(),methodID:selected.id,location:location()"))
+  // Command authentication chain (issue #141 → issue #192 re-anchor): the
+  // v2.2.7 state machine owns the command sign-in — the controller runs
+  // machine effects (command.connect on "start", command.status in the poll
+  // effect, ONE unified cancel site); machine.ts carries the attempt identity
+  // (ProviderCommandAttempt), the command signIn state with its output
+  // transcript, and the delayed requeue emission the controller's 500ms
+  // command tier re-enters.
+  if (!controller.includes("integration.command.connect({integrationID,methodID:effect.method.id,location})"))
     fail("3: the command.connect call shape changed")
-  if (!controller.includes("integration.command.status({integrationID:options.provider(),attemptID:attempt.attemptID,location:location()"))
+  if (!controller.includes("integration.command.status({integrationID,attemptID:effect.signIn.command.attemptID,location})"))
     fail("3: the command.status poll call shape changed")
-  if (!controller.includes("integration.command.cancel({integrationID:options.provider(),attemptID:started.attempt.attemptID,location:location()"))
-    fail("3: the command.cancel stale-generation call shape changed")
-  if (!controller.includes('typeCommandAttempt=IntegrationCommandConnectOutput["data"]'))
+  if (!machine.includes('exporttypeProviderCommandAttempt=IntegrationCommandConnectOutput["data"]'))
     fail("3: the CommandAttempt type moved")
-  if (!controller.includes("command?:{attempt:CommandAttempt;output:string}"))
-    fail("3: the controller store command field moved")
-  if (!controller.includes('type:"command.waiting"'))
-    fail("3: the command.waiting dispatch moved")
-  if (!controller.includes("constpollCommand="))
-    fail("3: the command polling loop moved")
+  if (
+    !machine.includes(
+      'readonlykind:"command"readonlymethod:Extract<ProviderConnectMethod,{type:"command"}>readonlycommand:ProviderCommandAttemptreadonlyoutput:string',
+    )
+  )
+    fail("3: the command signIn state (attempt + output transcript) moved")
+  // The machine writes each pending command.status message into the signIn output…
+  if (!machine.includes('state.signIn.kind==="command"?{...state,signIn:{...state.signIn,output:outcome.output??""}}:state'))
+    fail("3: the machine command output write moved")
+  if (!controller.includes('polled({status:"pending",output:status.message??""})'))
+    fail("3: the command pending poll outcome (output transcript) changed")
+  // …and requeues the poll effect (the controller's 500ms command tier re-enters).
+  if (!machine.includes('effects:[{type:"poll",attempt:state.attempt,signIn:next.signIn,delay:true}]'))
+    fail("3: the command polling requeue emission moved")
   if (!controller.includes('provider.connect.command.expired'))
     fail("3: the command expired copy key moved")
-  if (!controller.includes('attempt?:{type:"oauth";attemptID:string}|{type:"command";attemptID:string}'))
-    fail("3: the tagged Polling attempt union changed")
-  if (!controller.includes('{type:"oauth",attemptID:') || !controller.includes('{type:"command",attemptID:'))
+  // Attempt identity is a machine-tagged cancel union, not a bare Authorization.
+  if (!machine.includes('readonlytype:"cancel";readonlytarget:"oauth"|"command";readonlyattemptID:string'))
+    fail("3: the tagged cancel-effect union changed")
+  if (
+    !machine.includes('{type:"cancel",target:"oauth",attemptID:event.authorization.attemptID}') ||
+    !machine.includes('{type:"cancel",target:"command",attemptID:event.command.attemptID}')
+  )
     fail("3: the tagged attempt wrappers (oauth/command) changed")
   // Method ordering: same order as the TUI — browser/command first, API key
-  // last; env methods never reach the connect surface.
-  if (!controller.includes('toSorted((a,b)=>Number(a.type==="key")-Number(b.type==="key"))'))
+  // last; env methods never reach the connect surface. (issue #192 re-anchor:
+  // connectMethods lives in machine.ts; the controller wires it into the load
+  // effect with the apiKey fallback.)
+  if (!machine.includes("//SameorderastheTUI:browserandcommandsign-insfirst,APIkeyslast."))
+    fail("3: the connectMethods same-order-as-the-TUI comment moved (verbatim)")
+  if (!machine.includes('toSorted((a,b)=>Number(a.type==="key")-Number(b.type==="key"))'))
     fail("3: the connectMethods key-last ordering changed")
-  if (!controller.includes('(method):methodisProviderConnectMethod=>method.type!=="env"'))
+  if (!machine.includes('(method):methodisProviderConnectMethod=>method.type!=="env"'))
     fail("3: the connectMethods env filter changed")
+  if (
+    !controller.includes(
+      'methods:integration?connectMethods(integration):[{type:"key",label:language.t("provider.connect.method.apiKey")}]',
+    )
+  )
+    fail("3: the controller load-effect connectMethods wiring changed")
   // Console/Go unmapping (issue #141): Go connects with its own methods, the
   // same as the TUI — the Console provider set, the consoleIntegration mapping
-  // and the keyProvider re-routing option are gone; only CONSOLE_INTEGRATION
-  // remains as the "opencode" identity.
+  // and the keyProvider re-routing option are gone. (issue #192 re-anchor:
+  // CONSOLE_INTEGRATION is defined in dialog-machine.ts and imported by the
+  // controller alongside the dialog state machine.)
   for (const banned of ["keyProvider", "CONSOLE_PROVIDERS", "consoleIntegration"]) {
     if (controller.includes(banned)) fail(`3: controller.ts must NOT carry the Console/Go mapping symbol ${banned} (issue #141 unmapping)`)
   }
-  if (!controller.includes('CONSOLE_INTEGRATION="opencode"'))
+  const dialogMachine = squash(await read(`${APP}src/providers/connect/dialog-machine.ts`))
+  if (!dialogMachine.includes('CONSOLE_INTEGRATION="opencode"'))
     fail("3: the CONSOLE_INTEGRATION identity moved")
+  if (!controller.includes("CLAUDE_AGENT_INTEGRATION,CONSOLE_INTEGRATION,createProviderDialogState,"))
+    fail("3: the controller CONSOLE_INTEGRATION import (dialog-machine) changed")
   if (controller.includes("exporttypeProviderConnectionController="))
     fail("3: the ProviderConnectionController type export came back (target-removed)")
   // Command waiting copy rides the dialog's CommandView (issue #141).
@@ -415,13 +520,21 @@ let osScanFiles = 0
   const data = squash(await read(`${CLIENT}src/solid/data.ts`))
   if (!data.includes('if(event.type==="credential.updated"||event.type==="credential.switched")'))
     fail("4: the credential.updated/switched event block moved")
-  if (!data.includes('if(event.type==="credential.updated"){result.location.integration.invalidate(location)refresh(()=>result.location.integration.sync(location))'))
-    fail("4: credential.updated must invalidate+resync the integration catalog (adjacent pair)")
+  // Issue #192 re-anchor (v2.2.7 restructure, data.ts): the pair is keyed per stored location,
+  // both events refresh usage limits first, and credential.updated refreshes the integration
+  // catalog via refreshLocation.
+  if (!data.includes('if(event.type==="credential.updated"){refreshLocation("integration",result.location.integration,location)return}'))
+    fail("4: credential.updated must refresh the integration catalog (adjacent pair)")
   if (!data.includes("connections:[active,...integration.connections.filter((connection)=>connection!==active)]"))
     fail("4: credential.switched must reorder connections (active first)")
-  // Issue #142: the integration.updated case now opens with the usage-limits refresh
-  // (target-verbatim first statement); the three catalog invalidations stay adjacent.
-  if (!data.includes('case"integration.updated":refreshUsageLimits(location)result.location.integration.invalidate(location)result.location.model.invalidate(location)result.location.provider.invalidate(location)'))
+  // Issue #142 → #192 re-anchor: the integration.updated case opens with the usage-limits
+  // refresh, then measures whether the catalogs are mounted (hasLocation guard) before the
+  // three invalidations; the three-catalog adjacency is preserved.
+  if (
+    !data.includes(
+      'case"integration.updated":{refreshUsageLimits(location)constactive=hasLocation("integration",location)||hasLocation("model",location)||hasLocation("provider",location)result.location.integration.invalidate(location)result.location.model.invalidate(location)result.location.provider.invalidate(location)',
+    )
+  )
     fail("4: integration.updated must refresh usage limits and invalidate the three catalogs (adjacent block)")
 
   const connection = squash(await read(`${SCHEMA}src/connection.ts`))
@@ -444,15 +557,24 @@ let osScanFiles = 0
 // --- 5. Model scope ---
 {
   const selection = squash(await read(`${APP}src/providers/models/selection.tsx`))
-  if (!selection.includes('Persist.serverWorkspace(serverSDK.scope,sdk().directory,"model-selection")'))
+  // Issue #192 re-anchor: the selection persistence opens per workspace — acquireWorkspace keys
+  // on ScopedKey.from(scope, pathKey(directory)) and openWorkspace persists with the same
+  // scope/directory pair (one machine per server+directory).
+  if (!selection.includes('Persist.serverWorkspace(scope,directory,"model-selection")'))
     fail("5: the per-server+directory model-selection persistence moved")
-  if (!selection.includes("consthandoffKey=(scope:ServerScope,dir:string,id:string)=>ScopedKey.from(scope,dir,id)"))
-    fail("5: the handoff ScopedKey composite key changed")
+  if (!selection.includes("constkey=ScopedKey.from(scope,pathKey(directory))"))
+    fail("5: the ScopedKey composite workspace key changed")
   if (!selection.includes('serverSDK.event.on("session.model.selected",(event)=>reconcile(event.data.sessionID))'))
     fail("5: the session.model.selected reconcile subscription moved")
   if (!selection.includes('serverSDK.event.on("session.agent.selected",(event)=>reconcile(event.data.sessionID))'))
     fail("5: the session.agent.selected reconcile subscription moved")
-  if (!selection.includes('serverSDK.event.on("session.deleted",(event)=>{')) fail("5: the session.deleted cleanup moved")
+  // Issue #192 re-anchor: session.deleted now dispatches into the owning workspace's machine.
+  if (
+    !selection.includes(
+      'serverSDK.event.on("session.deleted",(event)=>workspace().dispatch({type:"session.deleted",sessionID:event.data.sessionID})',
+    )
+  )
+    fail("5: the session.deleted workspace dispatch moved")
 
   const runtime = squash(await read(`${APP}src/runtime/server/runtime.tsx`))
   // issue #140 merge repair: the target-form runtime restores upstream's ModelState
@@ -583,18 +705,18 @@ console.log(
   "verify-provider-models: PASS (" +
     "1: credential unidirectional flow — .credential.list/create ZERO across four-package src (" +
     fourPkgFiles +
-    " files), .credential.remove/activate/update sets exactly {providers.tsx, account-actions.ts}, integration protocol descriptions + credential.list secret-value warning verbatim; " +
+    " files), .credential.remove/activate/update sets exactly {providers.tsx, account-actions.ts, connect/controller.ts (claude.replace)}, integration protocol descriptions + credential.list secret-value warning verbatim; " +
     "2: persistence-key exhaustion — exactly 3 Persist sites in the provider domain (" +
     domainFiles +
     " code files): model-selection (serverWorkspace) / settings-v2.models.providers (serverGlobal) / chatgpt-plan-welcome.v1 (global), selection schema zero credential-shaped fields; " +
-    "3: OAuth flow shape — openBrowser/openExternal seam, 1s poll, complete/failed/expired branches, expired_token/access_denied mappings, exactly 2 oauth.cancel sites, onCleanup disposition, desktop-only return_window gate, auto/code view split, copy-link + user_code fallbacks, web openExternal allowlist + browserFailed unreachable, RemoteAuthNotice loopback exclusion, Attempt schema; command auth chain (issue #141) — exactly 2 command.cancel sites, command.connect/status shapes, CommandAttempt type + store field, tagged attempt union, connectMethods key-last ordering + env filter, Console/Go unmapping absences, CommandView output face, custom-provider stub absence (credentials/ deleted); " +
-    "4: server authority — credential.updated invalidate+resync, credential.switched reorder, integration.updated three-catalog block, needs_auth + CredentialInfo/Credential.Entry shapes, RemoteAuthNotice en sentence verbatim; " +
-    "5: model scope — serverWorkspace model-selection, handoff ScopedKey, model/agent/deleted event reconcile, Persist.global(\"model\") preference exception, dual-layout shell anchors (guard, nestedServerTabs, 2x Tabs.Content pairs, SettingsServerDataScope), pages/search-catalog registration, tooltip limits, free/paid grouping, default-visibility rules; " +
+    "3: OAuth flow shape — openBrowser/openExternal seam at exactly 2 effect sites, poll cadence tiers (command/Console 500ms, oauth 1s), complete/failed/expired polled branches, expired_token/access_denied mappings, exactly 1 unified oauth.cancel + 1 command.cancel site (machine-owned target-tagged cancel effects: stale-generation compensation + cleanup), disposed-dispatch teardown, desktop-only return_window gate, machine auto/code split + dialog screen dispatch, copy-link + user_code fallbacks, web openExternal allowlist + browserFailed unreachable, RemoteAuthNotice loopback exclusion, Attempt schema; command auth chain (issue #192 machine-form) — command.connect/status shapes, ProviderCommandAttempt type + command signIn output transcript, machine output write + delayed poll requeue, tagged cancel-effect union, connectMethods same-order-as-the-TUI ordering + env filter in machine.ts, Console/Go unmapping absences, CONSOLE_INTEGRATION via dialog-machine, CommandView output face, custom-provider stub absence (credentials/ deleted); " +
+    "4: server authority — credential.updated/switched usage-limits-prefixed per-location block, credential.switched reorder, integration.updated usage-limits refresh + three-catalog block, needs_auth + CredentialInfo/Credential.Entry shapes, RemoteAuthNotice en sentence verbatim; " +
+    "5: model scope — serverWorkspace model-selection, ScopedKey.from(scope, pathKey(directory)) workspace key, model/agent event reconcile + session.deleted workspace dispatch, Persist.global(\"model\") preference exception, dual-layout shell anchors (guard, nestedServerTabs, 2x Tabs.Content pairs, SettingsServerDataScope), pages/search-catalog registration, tooltip limits, free/paid grouping, default-visibility rules; " +
     "6: no local model/tool execution — zero AI SDK import shapes across " +
     aiScanFiles +
     " four-package files, app/package.json zero AI deps, OPENAI_COMPATIBLE positive anchor retired with credentials/ (issue #141), mobile-hosts provider-face-free; " +
     "7: zero host-OS conditionals across " +
     osScanFiles +
-    " whitelisted code files (.ts/.tsx caliber; 48 measured); " +
+    " whitelisted code files (.ts/.tsx caliber; 72 measured); " +
     "STATIC check — OAuth round-trip, the outbound authorize hand-off inside the Android WebView shell (G25 first item; files-open-external routes it over the files-bridge external-open face, issue #76), token refresh, needs_auth presentation, real provider services and scope isolation on live servers are G25)",
 )
