@@ -667,10 +667,16 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // +7915 bytes of vendor delta inside existing chunks (the pierre comment block and
   // the shiki engine switch ride the existing session-ui/review chunks); prior pin
   // 5622/150022223 = issue #149.
-  if (distManifest.fileCount !== 5520)
-    fail(`8: current web-dist fileCount drifted (expected 5520, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 155572926)
-    fail(`8: current web-dist totalBytes drifted (expected 155572926, got ${String(distManifest.totalBytes)})`)
+  // Issue #195 measured (commit-3 rebuild): the notifications re-base
+  // (notifications-v2-2-7: M-022 entry registration + M-023 bridge-delivery faces +
+  // M-024 POST_NOTIFICATIONS face/status row + the five en/zh android.* keys) plus
+  // the commit-1 four-category mobile-hosts constant rebuilt the payload to
+  // 5630/155881892 — same 5630 file count as the #194 build, +18872 bytes of source
+  // delta inside existing chunks; prior pin 5630/155863020 = issue #194.
+  if (distManifest.fileCount !== 5630)
+    fail(`8: current web-dist fileCount drifted (expected 5630, got ${String(distManifest.fileCount)})`)
+  if (distManifest.totalBytes !== 155881892)
+    fail(`8: current web-dist totalBytes drifted (expected 155881892, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
