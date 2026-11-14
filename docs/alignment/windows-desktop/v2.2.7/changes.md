@@ -502,3 +502,68 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **DENY（routing）** `gui-plugins-api-migration`（deferred）：targets 逐条核对**零 terminal 目标**（无 `gui-plugins/src/terminal/**`）——本轮不触碰，owner 不变。
 - **DENY（routing）** `ghostty-web` 升级/替换 payload → `#199`（依赖升级类，同 #190 deny audit 口径）：本轮不触碰；vendored `ghostty-web@0.3.0` 由 build-dependency closure 承载（`Ghostty.load()` 加载面归 G24①）。
 - **EXCLUDED / zero-touch** `app-ssh-bridge`（absorbed）：targets 恰 {`entry.tsx`}，终端面零触碰（SSH 隧道 ws 帧透传论证沿 units/terminal.md 专节）；`packages/core|server` persistent-pty 服务端实现（daemon/checkpoint/ticket 语义）不在 vendored closure（从 pin cache 引证，不在探针断言内）。
+
+## Issue #192：provider / model / usage crosswalk and absorption audit
+
+本节是 #192 的固定上游审计（provider 连接流 / 模型选择器 / usage 面的 v2.2.7 吸收核对），不改变冻结的 v2.2.1 文档与前序 #186–#191 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--192-provider-model-usage`，分支 `feat/192-provider-model-usage`，base `ad88e80`（#191 链尾）。本轮 landing = **agent-selector 重基（唯一幸存 mobile delta，#86 patch）+ verify-provider-models v2.2.7 连接状态机面全量重锚定（33 条 old→new）+ rows 65/69/71 翻转 absorbed**；registry **86 registered / 8 active / 36 absorbed / 42 deferred**。
+
+### 可复现 fixed-source 命令
+
+```bash
+# provider/model/usage target surface（2026-11-14 本轮重放）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/providers packages/app/src/usage \
+  packages/app/src/session/usage-exceeded-dialogs.tsx \
+  packages/schema/src packages/protocol/src packages/client/src
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；post-#192 差异恰为 #86 载体 3 文件。
+# blob-ancestry：`git -C <upstream> rev-parse <b-side-blob>^{blob}` +
+#   `git log --all --find-object=<blob> --oneline`（rows 69/71 处置证据）。
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（target surface 口径）**：**85 entries = 30 A + 50 M + 2 D + R061/R071/R087（62 commits 触及）→ 83 present → 82 SAME + 1 DIFF（selection.tsx = #86 在册载体）+ 2 absent（D）**。口径注记：计划期记录「74 commits / 45 files 39M+8A+2D/R+1R071」为 plan-review 范围口径，本轮以本节命令实测为准——两口径的结论一致（见下）。
+- **base（ad88e80）target-area DIFF = 0**：83 条 present 逐文件 byte-compare 全 SAME（reviewer 在册事实，本轮 byte-compare 复核一致）——v2.2.1→v2.2.7 的 provider/usage 重组 **absorbed by vendor pin**。post-#192 与 pin 的差异恰为 `providers-models-usage-v2-2-7` 的 3 targets（agent.ts / agent.test.ts / selection.tsx——前两者两 tag 间 byte-same、不入 tag-diff 集）。
+- 验证面：13-file vendor provider/usage 集（双条件形）**136 pass / 0 fail / 389 expect**（c0 133/0/385 + agent.test +3 用例）；verify-provider-models 重锚定后 **rc=0**（fourPkgFiles=2204 / domainFiles=72 / osScanFiles=72）；mobile-hosts **446/0/3034**、session-ui 9-file **139/0/436** 恒同。
+
+### commit crosswalk（上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体（vendored 形态） |
+| --- | --- | --- | --- |
+| `eb06c3cfd2`（#59976） | feat(app): redesign the integrations dialog | **absorbed**（vendor pin） | connect/dialog.tsx 集成对话框重设计 origin（b-side 28b2830b 的前身） |
+| `d9d3548548`（#60200） | fix(app): match search dialog radius and background | **absorbed**（vendor pin） | connect/dialog.tsx b-side blob `28b2830b` 引入者（present SAME） |
+| `c8746a1c14`（#58238） | refactor(app): remove unused re-exports, dead helpers, internal-only exports | **absorbed**（vendor pin） | go-upsell-hero-art.ts `HeroPalette` unexport / controller 导出清理 origin |
+| `8505041881`（#60603） | feat(app): guide Claude Agent setup before connecting | **absorbed**（vendor pin） | connect/controller.ts b-side blob `22e3c74e` 引入者 + **claude.replace 凭据移除面**（探针 G1 remove 集第三站点） |
+| `5f0d45c779`（#61998） | fix(app): drive the Go hero loop, model picker flyout and drawer… through state machines | **absorbed**（vendor pin） | go-upsell-hero-machine.ts + models/select-dialog-machine.ts 新增；go-upsell-hero-art.ts b-side blob `a19c515d` 引入者 |
+| `404259b212`（#61929） | fix(app): drive model selection through one workspace state machine | **absorbed**（vendor pin） | models/selection-machine.ts 新增 + selection.tsx per-workspace opener（探针 G2/G5 重锚目标） |
+| `6eb22e77b7`（#61974） | fix(app): drive usage, worktree delete, MCP toggles and the QR scanner through state machines | **absorbed**（vendor pin） | usage/machine.ts + connect/mcp-machine.ts 新增 |
+| `b9e8b04d21`（#61917） | fix(app): drive the connect-provider dialog and Console catalog wait with explicit state machines | **absorbed**（vendor pin） | connect/dialog-machine.ts 新增（`CONSOLE_INTEGRATION="opencode"` 现址） |
+| `7f24020fb2`（#61610） | fix(app): drive provider connection from an explicit state machine | **absorbed**（vendor pin） | connect/machine.ts 新增（connectMethods「Same order as the TUI」:165-170、tagged cancel 效应、command signIn 状态现址） |
+| `f39aa60608`（#62102） | fix(app): recover MCP sign-in and provider form steps that could get stuck | **absorbed**（vendor pin） | connect/form-machine.ts 新增（providerFormDefaults 行为测试现址；connect-methods.test.ts 的取代面） |
+| `e42f6d1016`（#58694） | feat(core): read OpenCode Console usage limits and classify budget refusals | **absorbed**（vendor pin） | **schema/src/usage-limits.ts blob `c8b6566`（76 行）引入者**——blob-ancestry 修正：非 `3eb834b85a`（后者 #57897 触碰 `packages/tui/src/util/usage-limits.ts`） |
+| `33ffc3e58d`（#58714） | feat(app): show Console budgets and Go usage where they stop you | **absorbed**（vendor pin） | usage/**（dialog/format/limits/model）+ usage-exceeded 面 origin；usage-limits schema 同 blob 在册 |
+| `3eb834b85a`（#57897） | fix: type the Go and ChatGPT usage limits | **negative attribution（修正）** | 仅触及 `packages/tui/src/util/usage-limits.ts`；app schema blob 引入者为其后继 e42f6d1016/33ffc3e58d——本轮 audit record 纠正该归因 |
+
+### rows 69/71 blob-ancestry 处置表（翻转 absorbed 的证据）
+
+| row | b-side blob 判定（逐 target，`git rev-parse 3ebcf9a3:<path>` 对照） |
+| --- | --- |
+| 69 `provider-connect-flow-redesign` | chatgpt-usage-limit.stories.tsx（233bff92）与 chatgpt-welcome.stories.tsx（679f2a17）**byte-identical 于 pristine pin**；controller.ts（22e3c74e）/ dialog.tsx（28b2830b）/ dialog.stories.tsx（fecb69ce）/ go-upsell-hero-art.ts（a19c515d）**== v2.2.1 目标树 blob** 且 v2.2.7 演进面在册（行为概念 native 于 machine/dialog-machine/form-machine/mcp-machine/go-upsell-hero-machine 族）；credentials/ 三件**两 tag 均缺席**；connect-methods.test.ts（mobile 自创 d88ff605，两 tag 均无）**superseded**（form-machine.test.ts 默认值覆盖）；en.ts b-side 为 mobile i18n delta——25 键中 24 键 byte-identical 重落于 v2.2.7 en.ts，`dialog.provider.group.mcp` design-superseded（v2.2.7 将 MCP 移出 connect 流——dialog.tsx 过滤 `metadata.source !== "mcp"`，**MCP sign-in UI 面路由 #193**；计划期「3 i18n keys design-superseded」口径按本轮实测 1 键修正登记） |
+| 71 `model-selector-usage-parity` | 11 条 new-file b-side 全部为上游内容：8 条 **byte-identical 于 pristine pin**（details.tsx bb84cf6 / usage/dialog.css a36d458 / usage/format.ts c8c101a / usage/limits.test.ts 833c3b9 / usage/limits.ts aba16c1 / usage/model.tsx 33c2a28 / protocol/groups/usage.ts 5c0528d / schema/usage-limits.ts c8b6566）+ 3 条 == v2.2.1 目标树（manage.css 3e2f97e / usage/dialog.stories.tsx f09f75a / usage/dialog.tsx bb94788，v2.2.7 演进面在册——usage/dialog.tsx:103/147-151 原生 signed-out 分支即本 pin 现形）；全部 modified-file b-side == v2.2.1 目标 blob（manage/provider-group/search/select-dialog 族/unpaid 族/usage-exceeded-dialogs）；generated client.ts/types.ts/data.ts/api.ts b-side 两 tag 均无——由 v2.2.7 pin 自有 usage-limits 闭合承载（vendored client/protocol/schema 面 byte-identical 于 pristine）；en.ts 86 键全部 native 重落；v2.2.7 另增 select-dialog-machine / selection-machine / usage-machine |
+| 65 `session-agent-selector` | agent.ts b-side `c97ec4f` **无上游祖先（mobile delta）**；selection.tsx b-side `b3c9b69` 基于旧 v2.2.1 邻域（`store.current` 回退形）——payload 由 **#86 `providers-models-usage-v2-2-7` 重 derive 承载**（v2.2.7 形态重基：`desktopAgentsVisible` 拆分 + `list()[0]?.name` 回退门控 + android-host import）；历史 payload 与语义 ID 保留 |
+
+### agent-selector 重基记录（#86）
+
+- 重基点：v2.2.7 selection.tsx:337 `agentsVisible = settings.visibility.customAgents() || hasCustomAgent(list())`（desktop 语义，无 Android 感知）拆分为 `desktopAgentsVisible`（原表达式）+ `agentsVisible = shouldShowAgentSelector({android: isAndroidMobileHost(), preference: …, agents: list()})`；v2.2.7:428 的默认 agent 回退已从旧 payload 的 `store.current` 变为 `list()[0]?.name`——`current()` 门控对象改为 `desktopAgentsVisible()`，回退形保持 v2.2.7 原样。
+- import 依赖：`isAndroidMobileHost()` 来自 `@/settings/servers/android-host`（`server-edit-touch-compatibility` 在册模块；导出名已核验）→ manifest `dependsOn: ["server-edit-touch-compatibility"]`（validator 支持：依赖必须 active 且序位在前）。
+- 测试：pristine `agent.test.ts`（v2.2.7 上游已有）追加 3 条第一方用例（android=true → 可见；desktop 无偏好且无 custom → 隐藏；custom agent 在场 → 恒可见）——#185 fade.test.ts / #187 panel-motion.test.ts via-patch 回归测试先例。
+
+### deny audit
+
+- **DENY（routing）** **MCP sign-in UI 面 → #193**：v2.2.7 将 MCP 移出 connect 流——connect/dialog.tsx:247-253 过滤 `metadata.source !== "mcp"`（注释逐字「MCP servers are connected and managed from the MCP dialog, not here.」）；provider-connect-flow-redesign（row 69）历史 payload 中的 MCP picker 分组/`dialog.provider.group.mcp` 键不重 derive；MCP 连接/管理 UI 的移动适配归 issue #193。
+- **DENY（ai fixes）** row 69/71 与 ai 包相关修复 **pin-carried，不重实现**：vendored `packages/ai` 为 pin 形（verify-closure byte-identity 在册）；mobile-hosts 全域 `@opencode/ai` import 零命中（探针组 6 rc=0 在册）——无移动侧 ai 载体 hunks。
+- **DENY（routing）** `settings-providers-models-extensions`（row 47，deferred）：targets 中 provider 侧（`providers/connect/mcp.ts` mcp.connect/disconnect 命名 hunk、`settings/providers|models` 目标形）已被 pin 吸收或属 #86/#193 范围——provider-side targets absorbed by pin；其余 targets（extension/plugins 面）**路由 #193**，本轮不触碰。
+- **DENY（routing）** `gui-plugins-api-migration`（row 37，deferred）：provider/connect 相邻 targets（`providers/connect/remote.test.ts`）属 pin 吸收面；本体（extension/plugin API 迁移）**路由 #193**，本轮零触碰。
+- **EXCLUDED** 真实凭据链/设备面：no-credential 态 = v2.2.7 原生 `usage/dialog.tsx:103`（`limits === null → { kind: "signed-out" }`）+ :147-151 signed-out 分支（`usage.signedOut.title/body`）——**native，非移动补丁**；真实凭据链与设备走查 BLOCKED 边界原样保留（解除条件=真实凭据 / 授权设备）。
