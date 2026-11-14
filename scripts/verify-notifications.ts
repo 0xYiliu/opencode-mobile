@@ -61,7 +61,12 @@
 //         same 5630 file count, +2568 bytes — the runtime-data-v2-2-7 polyfill shims inside
 //         the existing entry chunk) -> 5630/155888644 (issue #197 measured; same 5630 file
 //         count, +4184 bytes — the ui/theme source faces + the M-035 web.ts zoom face inside
-//         the renamed entry chunk index-DoY3Cqzj.js -> index-0cplS7fk.js, zero new chunks).
+//         the renamed entry chunk index-DoY3Cqzj.js -> index-0cplS7fk.js, zero new chunks) ->
+//         5630/155852436 (issue #198 measured; same 5630 file count, -36208 bytes — the
+//         excluded v2.2.7 web-updates face (upstream 4fa365faf5 #61995, issue #198 ruling b /
+//         registry row 92 updater-web-exclusion-v2-2-7) drops out of the renamed entry chunk
+//         index-0cplS7fk.js -> index-C0y_-_zg.js + renamed root chunk root-DLIEGG7o.js ->
+//         root-BZlG4VYJ.js, zero new chunks).
 //
 // SCOPE NOTE: group 9 anchors the four commit-1 documents (units/notifications.md /
 // interaction.md / architecture.md / design README.md) + recovery.md (commit 1). The
@@ -748,10 +753,17 @@ const DIST_ASSETS = "vendor/upstream/packages/app/dist/_assets/"
   // 5630/155888644 — same 5630 file count, +4184 bytes; the delta ships inside the renamed
   // entry chunk index-DoY3Cqzj.js -> index-0cplS7fk.js (css index-Q7koRpsf.css ->
   // index-D_I6wsj-.css), zero new chunks; prior pin 5630/155884460 = issue #196.
+  // Issue #198 measured (commit-3 rebuild): the excluded v2.2.7 web-updates face (upstream
+  // 4fa365faf5 #61995, issue #198 ruling b / registry row 92 updater-web-exclusion-v2-2-7)
+  // rebuilt the payload to 5630/155852436 — same 5630 file count, -36208 bytes; the delta
+  // ships inside the renamed entry chunk index-0cplS7fk.js -> index-C0y_-_zg.js + the renamed
+  // root chunk root-DLIEGG7o.js -> root-BZlG4VYJ.js (the mobile(updater-web-exclusion-v2-2-7,
+  // issue #198) marker on the root chunk sourcemap; the webUpdates identifier is absent from
+  // the whole staged dist), zero new chunks; prior pin 5630/155888644 = issue #197.
   if (distManifest.fileCount !== 5630)
     fail(`8: current web-dist fileCount drifted (expected 5630, got ${String(distManifest.fileCount)})`)
-  if (distManifest.totalBytes !== 155888644)
-    fail(`8: current web-dist totalBytes drifted (expected 155888644, got ${String(distManifest.totalBytes)})`)
+  if (distManifest.totalBytes !== 155852436)
+    fail(`8: current web-dist totalBytes drifted (expected 155852436, got ${String(distManifest.totalBytes)})`)
   // Dist markers, staged on a built dist (skipped when no build exists).
   const distUrl = new URL(DIST_ASSETS, repoRoot).pathname
   let distFiles: string[] = []
@@ -858,7 +870,7 @@ console.log(
     "5: POST_NOTIFICATIONS manifest line + exactly-3 permissions (INTERNET + POST_NOTIFICATIONS + CAMERA; issue #71) + requestPermissions/areNotificationsEnabled/foreground anchors + granted->focus->dialog ordering + M-024 verbatim helpers + all four switches wrapped (questions via the hideLabel+children form) + status row + five en/zh i18n keys; " +
     "6: sessionHref/base64Encode verbatim + requireServerKey round-trip + route mount + onNewIntent/pendingRoute paired anchor (double-probe mutual confirmation with verify-pairing group 3) + consumePendingRoute loadUrl + PendingIntent IMMUTABLE/CLEAR_TOP/SINGLE_TOP + tag=category id=route.hashCode() + NEGATIVE zero VIEW intent-filter + deep-links comment preserved; " +
     "7: exactly-6 coordinator once-call faces (sound+system x agent/errors/requests on the unified handleRequest form) + connection.ts page-suspension verbatim + native hasWindowFocus second layer + recovery.md claim-table row; " +
-    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5630/155888644; issue #197 measured commit-3 rebuild — same 5630 file count, +4184 bytes: the ui/theme source faces + the M-035 web.ts zoom face inside the renamed entry chunk index-DoY3Cqzj.js->index-0cplS7fk.js; prior pin 5630/155884460 = issue #196 runtime-data rebuild — same 5630 file count, +2568 bytes: the runtime-data-v2-2-7 polyfill shims inside the existing entry chunk; prior pin 5630/155881892 = issue #195 notifications rebuild — same 5630 file count as the #194 build, +18872 bytes of source delta inside existing chunks; prior pin 5630/155863020 = issue #194 gui-plugins rebuild; prior 5520/155572926 = issue #190 files/diff/review rebuild — the #193 settings rebuild moved the file count 5520->5630 between those pins; older chain in build-and-verify.md) + staged dist markers; " +
+    "8: gradle dependency baseline + pinned AndroidX WebKit vault listener + current dist fileCount/totalBytes (5630/155852436; issue #198 measured commit-3 rebuild — same 5630 file count, -36208 bytes: the excluded v2.2.7 web-updates face (row 92) inside the renamed entry chunk index-0cplS7fk.js->index-C0y_-_zg.js + renamed root chunk root-DLIEGG7o.js->root-BZlG4VYJ.js; prior pin 5630/155888644 = issue #197 ui/theme rebuild — same 5630 file count, +4184 bytes: the ui/theme source faces + the M-035 web.ts zoom face inside the renamed entry chunk index-DoY3Cqzj.js->index-0cplS7fk.js; prior pin 5630/155884460 = issue #196 runtime-data rebuild — same 5630 file count, +2568 bytes: the runtime-data-v2-2-7 polyfill shims inside the existing entry chunk; prior pin 5630/155881892 = issue #195 notifications rebuild — same 5630 file count as the #194 build, +18872 bytes of source delta inside existing chunks; prior pin 5630/155863020 = issue #194 gui-plugins rebuild; prior 5520/155572926 = issue #190 files/diff/review rebuild — the #193 settings rebuild moved the file count 5520->5630 between those pins; older chain in build-and-verify.md) + staged dist markers; " +
     "9: units/notifications.md status line + ten sections + key sentences, interaction.md G1–G35 + G33 row + nineteenth wording + failure path, architecture.md unit row + exact six bridge inventory anchors + app-notifications-bridge/notifications-platform-delivery/settings-notification-permission, design README index + baseline; " +
     "STATIC check - foreground suppression reality, background delivery, tap routing, permission dialogs, sound, lock-screen redaction and process-death behavior are G33)",
 )
