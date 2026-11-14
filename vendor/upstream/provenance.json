@@ -88,199 +88,34 @@
     "packageSourcesReason": "All closure packages, including gui-plugins, are extracted from the fixed v2.2.7 target."
   },
   "mobilePatches": [
-    {
-      "id": "gui-plugins-native-test-deps",
-      "file": "patches/mobile/gui-plugins-native-test-deps.patch",
-      "targets": [
-        "packages/gui-plugins/package.json"
-      ],
-      "summary": "devDependencies: remove electron, @lydell/node-pty, devtools-protocol (gui-plugins package)",
-      "reason": "Electron-only dev tooling (own tests/typecheck); electron postinstall pulls ~110MB binaries.",
-      "verification": "V2 web build succeeds.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
-    },
-    {
-      "id": "connection-password-memory-only",
-      "file": "patches/mobile/connection-password-memory-only.patch",
-      "targets": [
-        "packages/app/src/runtime/server/persistence.ts"
-      ],
-      "summary": "Server persistence encode path strips password (memory-only); marker string 'mobile(M-002): password stripped at encode (memory-only)' embedded in reachable encode code (M002.stripped counter).",
-      "reason": "Web platform default storage is localStorage; persisting credentials there violates AGENTS.md. Default delivery state must be memory-only. Keystore persistence is owned by issue #4.",
-      "verification": "V-cred(a) source grep + semantic probe against effect@4.0.1 (strip on encode, tolerance on decode); V-cred(b) marker found in built dist; G9 device check BLOCKED (no device).",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
-    },
-    {
-      "id": "workspace-dependency-closure",
-      "file": "patches/mobile/workspace-dependency-closure.patch",
-      "targets": [
-        "packages/client/package.json",
-        "packages/plugin/package.json",
-        "packages/ai/package.json"
-      ],
-      "summary": "Remove dangling workspace refs: client devDep @opencode/httpapi-codegen; plugin devDep+peerDep+peerDependenciesMeta @opencode/theme; ai devDep @opencode/http-recorder",
-      "reason": "Referenced packages are outside the acquired closure (generated code committed; theme not in runtime closure; http-recorder is a test tool). Bun 1.4.2 hard-errors on dangling workspace devDependencies and unsatisfied workspace peerDependencies.",
-      "verification": "V1 install succeeds; V3(b) workspace scan reports DANGLING=0.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43"
-    },
-    {
-      "id": "connection-initial-ssh-entry",
-      "file": "patches/mobile/connection-initial-ssh-entry.patch",
-      "targets": [
-        "packages/app/src/servers/connect/screen.tsx",
-        "packages/app/src/shell/routes/routes.tsx",
-        "packages/app/src/shell/routes/connection-route.ts",
-        "packages/app/src/shell/routes/connection-route.test.ts"
-      ],
-      "reason": "Initial SSH entry (issue #55, T3 v4). The mobile ConnectServerScreen adds a localized SSH hosts action that navigates to the exact /settings?tab=servers root view. AppShell permits that root servers view while the server list is empty or the sole HTTP server is signed out, while preserving the signed-out ConnectServerScreen url anchor. The route helper delegates parsing to parseSettingsView and rejects other paths/scopes/subtabs. settings-mobile-host-manager/settings-ssh-entry-guard MobileHostManager remains the management face; no SSH transport changes.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "V3 layered round-trip after settings-mobile-gui-plugins; connection-route.test.ts; targeted upstream route test; web build smoke; device behavior BLOCKED (G36).",
-      "rebase": "New LAYERED patch (issue #55); generated against pin b4525d79bf + gui-plugins-native-test-deps..settings-mobile-gui-plugins, including the settings-mobile-gui-plugins settings layer. Targets are the ConnectServerScreen footer, AppShell in shell/routes/routes.tsx, and the new connection-route helper/test.",
-      "summary": "Mobile connection screen SSH hosts action and exact root servers route guard for empty/signed-out AppShell."
-    },
-    {
-      "id": "connection-method-layout",
-      "file": "patches/mobile/connection-method-layout.patch",
-      "targets": [
-        "packages/app/src/servers/connect/screen.tsx"
-      ],
-      "reason": "Mobile-only connection method layout (issue #55): the pairing-link prompt is centered on its own row and Use password plus SSH hosts share the following row. Desktop ConnectMethodSwitch, connection behavior, pairing/QR/password logic, the SSH hosts route, and SSH transport are unchanged; the shared dialog is untouched.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "verification": "V3 layered round-trip after connection-initial-ssh-entry; focused source assertions; web build smoke; verify-gui-extensions.ts, verify-notifications.ts, and verify-commands-menus.ts; verify-artifacts.ts; verify-closure.sh; JSON and diff checks. Device layout verification remains part of G36.",
-      "rebase": "New LAYERED patch generated against pin b4525d79bf + gui-plugins-native-test-deps..connection-initial-ssh-entry; target is the mobile method-switch branch in ConnectServerScreen.",
-      "summary": "Mobile initial connection method prompt/actions use two centered rows."
-    },
-    {
-      "id": "gui-plugins-api-migration",
-      "file": "patches/mobile/gui-plugins-api-migration.patch",
-      "targets": 172,
-      "summary": "gui-extensions -> gui-plugins@v2.2.1 package replacement + plugin/src/gui host library + app runtime/plugin + util/abort + consumer token surgery + ui motion-tuning/search-list/typeahead/cascade",
-      "reason": "Issue #67 S41+N11 (see patches/mobile/manifest.json gui-plugins-api-migration entry for the full statement).",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins = 3ebcf9a32c7b28f658cfee80775448929361727a"
-    },
-    {
-      "id": "connection-initial-credential-persistence",
-      "file": "patches/mobile/connection-initial-credential-persistence.patch",
-      "targets": 1,
-      "summary": "Initial connection saves the authenticated server credential through the Android vault so subsequent launches reuse the stored connection",
-      "reason": "Android connection persistence: preserve Desktop-style sign-in reuse without putting the password in WebView persistence; vault-unavailable environments retain the explicit memory-only fallback.",
-      "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70"
-    },
-    {
-      "id": "connection-vault-ready-wait",
-      "file": "patches/mobile/connection-vault-ready-wait.patch",
-      "targets": 2,
-      "summary": "Registry hydration awaits a feature-detected bounded vault.ready() before restoring credentials into memory (issue #128 cold-start restore half of connection-initial-credential-persistence); carries the new registry-hydration.test.tsx regression",
-      "reason": "The connection-credential-hydration hydration raced the AndroidX vault transport's async native ready roundtrip and restored nothing on cold start, sending the app back to the Connect screen; the bounded wait keeps the restore deterministic while a timeout preserves today's explicit re-entry path.",
-      "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288"
-    },
-    {
-      "id": "session-workbench-upstream",
-      "file": "patches/mobile/session-workbench-upstream.patch",
-      "targets": 358,
-      "summary": "Fixed v2.2.1 session-workbench runtime overlay (composer, timeline, tabs, requests and session UI dependencies).",
-      "reason": "Fixed upstream v2.2.1 session-workbench source overlay. This remains copy-first upstream UI/runtime; it does not introduce a mobile-only Agent product, Extensions store, or semantic expansion. The full file-level hunk/add/delete ledger is in provenance.json#p126RuntimePatchSources.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "999102046b0b9e559875e9afcc0aa734558e6e8c4087d11daacdb160ce1b5fb1"
-    },
-    {
-      "id": "session-client-compatibility",
-      "file": "patches/mobile/session-client-compatibility.patch",
-      "targets": 45,
-      "summary": "Target client/runtime compatibility and media API contract.",
-      "reason": "Client/runtime compatibility source and media API contract. Test files not present in the fixed target were excluded from this patch; generated media client files remain required by the runtime.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "c685b28dbcebe8136633b5a60bbce2971cca5d56c46c6552dfc6d306b5b60330"
-    },
-    {
-      "id": "session-project-open-compatibility",
-      "file": "patches/mobile/session-project-open-compatibility.patch",
-      "targets": [
-        "packages/app/src/runtime/plugin/host-apis.tsx"
-      ],
-      "summary": "Adapt the host project picker to the real projects.open API.",
-      "reason": "The session-workbench host API called projects.add, while the runtime exposes projects.open(directory); the production adapter preserves the selected server key and draft directory.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 + packageSources gui-plugins=3ebcf9a32c7b28f658cfee80775448929361727a + original active set excluding connection-initial-credential-persistence/connection-vault-ready-wait + session-workbench-upstream + session-client-compatibility",
-      "verification": "Production adapter only; the host API opens the selected directory through the owning server context and then creates the draft.",
-      "sha256": "afe2cc951547c87470b99ab3e0a0ba647d17d6909cc0106097e8f6e6cec883db"
-    },
-    {
-      "id": "session-media-source-safety",
-      "file": "patches/mobile/session-media-source-safety.patch",
-      "targets": 18,
-      "summary": "Session media-source safety, queue/fork/revert and ownership.",
-      "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323"
-    },
-    {
-      "id": "session-android-adaptation",
-      "file": "patches/mobile/session-android-adaptation.patch",
-      "targets": 4,
-      "summary": "Minimal Android adaptation; VoiceComposer remains deferred per ADR 0006.",
-      "reason": "Minimal Android adaptation layer: retain mobile-hosts initialScreenOwned gating, keep the dev/Beta components lab out of this client, and guard the older WebView :dir() selector. Its composer hunk removes the target VoiceComposer wrapper and preserves the non-voice Composer fallback in accordance with ADR 0006; it does not enable voice calls.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73"
-    },
-    {
-      "id": "session-agent-selector",
-      "file": "patches/mobile/session-agent-selector.patch",
-      "targets": 2,
-      "summary": "Android visibility for the existing server-provided Agent selector.",
-      "reason": "Show the existing server-provided agent selector on the Android host while retaining Desktop visibility and existing selection fallback semantics.",
-      "upstreamBaseline": "b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43",
-      "sha256": "f82b2b480e60662975039c7b673033f7e7079922d4f161088ed2752a8513dc4b",
-      "status": "active"
-    },
-    {
-      "id": "session-e2e-runtime-compatibility",
-      "file": "patches/mobile/session-e2e-runtime-compatibility.patch",
-      "targets": [
-        "packages/app/e2e/utils/mock-server.ts"
-      ],
-      "summary": "Fixed upstream mockPluginsActivating E2E helper source copy.",
-      "reason": "Copy the helper byte-identical to the fixed v2.2.1 source; no Vite optimizer or runtime configuration is changed.",
-      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
-      "verification": "The helper remains available to upstream Composer E2E cases.",
-      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc"
-    },
-    {
-      "id": "session-composer-test-fixture",
-      "file": "patches/mobile/session-composer-test-fixture.patch",
-      "targets": [
-        "packages/app/e2e/utils/app-direction.fixture.tsx"
-      ],
-      "summary": "Fixed upstream app-direction fixture source copy.",
-      "reason": "Copy the v2.2.1 GUI plugin host fixture byte-identically; no Composer seed adaptation is included.",
-      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
-      "verification": "Byte-identical to the file at the fixed upstream target.",
-      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe"
-    },
-    {
-      "id": "extensions-flyout-webview",
-      "file": "patches/mobile/extensions-flyout-webview.patch",
-      "targets": 1,
-      "summary": "Android WebView Extensions flyout CSS nesting compatibility.",
-      "reason": "Flatten the existing flyout-open ancestor selector so Android WebView parses the same opacity and transition rules; no interaction or data changes.",
-      "upstreamBaseline": "3ebcf9a32c7b28f658cfee80775448929361727a",
-      "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
-      "status": "active"
-    }
+    "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
+    "patches/mobile/server-edit-touch-compatibility.patch",
+    "patches/mobile/home-new-session-v2-2-7.patch",
+    "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
+    "patches/mobile/timeline-messaging-v2-2-7.patch",
+    "patches/mobile/composer-queue-attachments-v2-2-7.patch",
+    "patches/mobile/files-diff-review-v2-2-7.patch",
+    "patches/mobile/providers-models-usage-v2-2-7.patch",
+    "patches/mobile/settings-v2-2-7.patch",
+    "patches/mobile/gui-plugins-v2-2-7.patch",
+    "patches/mobile/notifications-v2-2-7.patch",
+    "patches/mobile/runtime-data-v2-2-7.patch",
+    "patches/mobile/appearance-zoom-web-v2-2-7.patch",
+    "patches/mobile/updater-web-exclusion-v2-2-7.patch",
+    "patches/mobile/gui-plugins-native-test-deps.patch",
+    "patches/mobile/plugin-electron-devdep-prune.patch"
   ],
   "upstreamPatches": {
-    "derivationRule": "carried = (packages resolved by upstream bun.lock at the active pin) intersect (patchedDependencies segment recorded in upstream bun.lock at the active pin). Upstream package.json declares 17 patchedDependencies at both pins; the lock segment holds 13 at both; the closure dependency graph uses 9 (identical set and versions at both pins).",
+    "derivationRule": "carried = (packages resolved by the mobile bun.lock patchedDependencies segment) intersect (patch files on disk). At the #199 recompute the segment holds 9 keys, byte-matched by 9 files under patches/: @modelcontextprotocol/client@2.4.0, @tanstack/virtual-core@3.17.8, pacote@21.5.1, @npmcli/agent@4.0.2, @pierre/trees@1.0.0-beta.6, vite@8.2.4, @corvu/drawer@0.2.4, @dnd-kit/dom@0.5.0, solid-js@1.9.17. The three previous-pin files ghostty-web@0.3.0 / solid-js@1.9.15 / vite@8.2.2 were pruned at #199 (prunedAtIssue199 below); the mobile-only additions to the root patchedDependencies (@modelcontextprotocol/client@2.4.0 key carried at 2.3.1 upstream) are the #184-era records.",
     "carried": {
       "@corvu/drawer@0.2.4": "patches/@corvu%2Fdrawer@0.2.4.patch",
       "@dnd-kit/dom@0.5.0": "patches/@dnd-kit%2Fdom@0.5.0.patch",
       "@npmcli/agent@4.0.2": "patches/@npmcli%2Fagent@4.0.2.patch",
-      "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
       "@tanstack/virtual-core@3.17.8": "patches/@tanstack%2Fvirtual-core@3.17.8.patch",
-      "ghostty-web@github:anomalyco/ghostty-web#83c0a07": "patches/ghostty-web@0.3.0.patch",
       "pacote@21.5.1": "patches/pacote@21.5.1.patch",
-      "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
-      "vite@8.2.2": "patches/vite@8.2.2.patch"
+      "@pierre/trees@1.0.0-beta.6": "patches/@pierre%2Ftrees@1.0.0-beta.6.patch"
     },
-    "applicationStatus": "effective: V1 (bun install, rc=0, 1057 packages) recorded all 9 keys in bun.lock patchedDependencies segment (PATCH_SEGMENT_MATCH=true) and store contents confirm applied patches (e.g. solid-js dist marker); no silent skip",
+    "applicationStatus": "effective: bun install rc=0 at the #199 recompute (5 packages removed; 1115 -> 1010 packages checked), then bun install --frozen-lockfile twice -> rc=0 both, no changes, identical bun.lock sha256; lock patchedDependencies segment == the 9 configured keys (no silent skip); the electron-updater@6.8.9 key was EMPIRICALLY DROPPED from the segment by the recompute (segment 10 -> 9 keys) after the gui-plugins devDependency prune, matching the app-builder-lib precedent for declared-but-unresolved patches",
     "notCarried": [
       {
         "patch": "gcp-metadata@8.1.2",
@@ -313,20 +148,45 @@
       {
         "patch": "@ai-sdk/openai-compatible@2.0.41",
         "reason": "In the upstream lock patchedDependencies segment but outside the closure dependency graph (server-side AI providers)."
+      },
+      {
+        "patch": "@brendonovich/vite-plugin-opencode@0.1.3",
+        "reason": "declared in the root patchedDependencies (upstream-carried file on disk) but absent from the bun.lock patchedDependencies segment at both the pre-#199 and post-#199 recomputes: the closure dependency graph never resolves @brendonovich/vite-plugin-opencode, so bun never materializes the patch (same declared-but-unresolved class as app-builder-lib; recorded explicitly at #199)"
+      },
+      {
+        "patch": "electron-updater@6.8.9 (since #199)",
+        "reason": "the key WAS in the lock patchedDependencies segment while gui-plugins declared the electron-updater devDependency; after row 1 re-based (#199) removed that devDependency, the recompute dropped the key from the segment (10 -> 9). The root declaration and patches/electron-updater@6.8.9.patch stay on disk as upstream-carried config records; the red line targets dependency entries, and the mobile root deps/devDependencies remain empty. trustedDependencies \"electron\" is likewise inert after the prune (no electron package in the graph, so its postinstall never runs)"
       }
-    ]
+    ],
+    "prunedAtIssue199": {
+      "ghostty-web@github:anomalyco/ghostty-web#83c0a07": {
+        "file": "patches/ghostty-web@0.3.0.patch",
+        "prunedAt": "issue #199 (2026-11-15)",
+        "reason": "stale previous-pin record: upstream v2.2.7 resolves different versions for this dependency (solid-js 1.9.17 / vite 8.2.4 / ghostty-web#e91e38a), the v2.2.7-era equivalents are carried instead, and the file was unreferenced by patches/mobile/manifest.json, vendor-manifest.json, bunfig.toml, bun.lock and all machine gates; referenced only by stale provenance rows fixed in this round"
+      },
+      "solid-js@1.9.15": {
+        "file": "patches/solid-js@1.9.15.patch",
+        "prunedAt": "issue #199 (2026-11-15)",
+        "reason": "stale previous-pin record: upstream v2.2.7 resolves different versions for this dependency (solid-js 1.9.17 / vite 8.2.4 / ghostty-web#e91e38a), the v2.2.7-era equivalents are carried instead, and the file was unreferenced by patches/mobile/manifest.json, vendor-manifest.json, bunfig.toml, bun.lock and all machine gates; referenced only by stale provenance rows fixed in this round"
+      },
+      "vite@8.2.2": {
+        "file": "patches/vite@8.2.2.patch",
+        "prunedAt": "issue #199 (2026-11-15)",
+        "reason": "stale previous-pin record: upstream v2.2.7 resolves different versions for this dependency (solid-js 1.9.17 / vite 8.2.4 / ghostty-web#e91e38a), the v2.2.7-era equivalents are carried instead, and the file was unreferenced by patches/mobile/manifest.json, vendor-manifest.json, bunfig.toml, bun.lock and all machine gates; referenced only by stale provenance rows fixed in this round"
+      }
+    }
   },
   "gitDependencies": {
     "ghostty-web": {
-      "spec": "github:anomalyco/ghostty-web#83c0a07b8628b748aed073b232cb4b52a6ca11c1",
-      "resolvedCommit": "83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+      "spec": "github:anomalyco/ghostty-web#e91e38a9ceb13c566ddfa15185a9393849f712a9",
+      "resolvedCommit": "e91e38a9ceb13c566ddfa15185a9393849f712a9",
       "installedVersion": "0.3.0",
-      "note": "Resolved commit from the package.json spec at pin; bun install fetched the git dep successfully (V1 at both pins)."
+      "note": "v2.2.7 pin spec (packages/gui-plugins dependencies ghostty-web); resolved from the package.json spec at the fedc6f208a pin. Upstream v2.2.7 dropped the ghostty patch (patches/ghostty-web@0.3.0.patch referenced the previous 83c0a07 pin); the stale patch file was pruned at #199."
     }
   },
   "lockfile": {
-    "bunLockSha256": "05b7cf62b016aa79c8e8c38e45b8df86892d09f8c037877475bdb78bdcdde6a4",
-    "bunLockOrigin": "initial lock copied from the upstream bun.lock at the active pin, then reconciled by bun 1.4.2 install (extraneous workspace entries pruned); re-reconciliation after the rollback demo reproduced the identical sha256 (deterministic)",
+    "bunLockSha256": "9748d5e7528d14d82bcbc8273e1087f59f29b6911a981d2f135dae4f0b9e4024",
+    "bunLockOrigin": "initial lock copied from the upstream bun.lock at the active pin, then reconciled by bun 1.4.2 installs; recomputed at #199 after the desktop-only devDependency prune (rows 1/93): bun install rc=0 (5 packages removed, 1115 -> 1010 packages), then bun install --frozen-lockfile twice with rc=0/no changes both and the identical sha256 9748d5e7 (deterministic); lock patchedDependencies segment 10 -> 9 keys (electron-updater dropped, app-builder-lib precedent)",
     "lockfileVersion": 1
   },
   "license": {
