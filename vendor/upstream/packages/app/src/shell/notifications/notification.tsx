@@ -10,6 +10,10 @@ import { Persist, persisted, removePersisted } from "@/runtime/persistence/stora
 import { Persistence } from "@/runtime/persistence/schema"
 import { playSoundById } from "@/shell/notifications/sound"
 import type { createNotificationCoordinator } from "@/shell/notifications/coordinator"
+// mobile(M-023): the system-notification delivery face (issue #23) reads the notifications
+// bridge port through the module-level seam at call time; sessionHref builds the tap route.
+import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
+import { sessionHref } from "@/shell/routes/session"
 import { ServerConnection } from "@/runtime/server/registry"
 import { sessionIDHasOpenTab, useTabs } from "@/shell/tabs/tabs"
 import { useServer } from "@/runtime/server/current"
@@ -323,9 +327,18 @@ export function createServerNotificationState(input: {
 
       if (hasOpenTab && settings.notifications.agent()) {
         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
-          platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
-            openNotificationSession(tabs, input.key, sessionID),
-          ),
+          // mobile(M-023): deliver through the notifications bridge (issue #23) — the
+          // platform.notify Web Notification API is a structural dead point in the shell
+          // WebView. The route is built HERE (only this scope knows the server key and
+          // session; the onClick closure could not cross the bridge — the native side
+          // constructs the tap navigation from the route instead). The body is the session
+          // title, never event payload content.
+          activeNotificationsPort().notify({
+            category: "agent",
+            title: language.t("notification.session.responseReady.title"),
+            body: session.title ?? sessionID,
+            route: sessionHref(input.key, sessionID),
+          }),
         )
       }
     })
@@ -347,9 +360,14 @@ export function createServerNotificationState(input: {
 
       if (hasOpenTab && settings.notifications.errors()) {
         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
-          platform.notify(language.t("notification.session.error.title"), description, () =>
-            openNotificationSession(tabs, input.key, sessionID),
-          ),
+          // mobile(M-023): bridge delivery (see the agent branch) — the description stays
+          // the session title or the generic fallback, never the error payload.
+          activeNotificationsPort().notify({
+            category: "errors",
+            title: language.t("notification.session.error.title"),
+            body: description,
+            route: sessionHref(input.key, sessionID),
+          }),
         )
       }
     })
@@ -393,9 +411,19 @@ export function createServerNotificationState(input: {
     void input.coordinator.system(key, () => {
       if (!pending()) return
 
-      return platform.notify(language.t(requestTitles[kind]), session.title ?? sessionID, () =>
-        openNotificationSession(tabs, input.key, target),
-      )
+      // mobile(M-023): bridge delivery (see the agent branch). The request face passes
+      // `target` — the upstream-resolved root session — NOT sessionID: the open-tab
+      // check above already resolved the tapped session to the root that upstream
+      // navigation opens, and the tap route must match that navigation exactly. The
+      // category is the upstream two-value map result (question/mcp-elicitation ->
+      // "questions", every other kind -> "permissions"); issue #195 adds the matching
+      // "questions" category on the bridge whitelist.
+      return activeNotificationsPort().notify({
+        category,
+        title: language.t(requestTitles[kind]),
+        body: session.title ?? sessionID,
+        route: sessionHref(input.key, target),
+      })
     })
   }
 

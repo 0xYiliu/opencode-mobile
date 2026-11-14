@@ -320,8 +320,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; dist markers mobile(M-022)/mobile(notifications-v1)/opencode-mobile-notifications-handshake (marker constants) found in the built assets; scripts/verify-notifications.ts (entry seam registration + six-handshake pairwise isolation); mobile-hosts test/notifications-client.test.ts locks the stub semantics; device behavior BLOCKED (G33).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (#195): M-022 re-derived — the notifications bridge registration (imports at alphabetical position + setActiveNotificationsPort(createNotificationsClient(createWebMessageNotificationsTransport)) after the files block, before createMobileHosts) is carried by active notifications-v2-2-7 with the original marker comment verbatim; the fail-closed stub interregnum since the #144-era retirement ends here; probe verify-notifications re-anchored rc=0"
     },
     {
       "id": "notifications-platform-delivery",
@@ -335,8 +335,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-notifications.ts groups 1/2/4 (upstream face anchors, permission dead-switch completion set, safety negatives: zero .reply( in the notification domain, zero addAction in the bridge); approval-path exhaustion stays exactly two wire-level call sites (verify-permission-requests); device behavior BLOCKED (G33).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (#195): M-023 re-derived — agent/errors/request faces reroute platform.notify (the WebView structural dead point) through the bridge port with JS-built sessionHref routes, carried by active notifications-v2-2-7; the old payload's permission fourth-branch listener (handlePermissionAsked + permission.asked dispatch) is superseded by upstream's v2.2.7 unified handleRequest whose own guard chain (open-tab x settings toggle x autoApproves) and two-value category map (question/mcp-elicitation -> questions) subsume it; the request face passes `target` (the upstream-resolved root session), not sessionID, so tap routing matches upstream navigation exactly"
     },
     {
       "id": "notifications-webview-focus-gate",
@@ -350,8 +350,8 @@
       "verification": "Device-measured reproduction (2026-11-07): two backgrounded agent completions produced ZERO system notifications (dumpsys negative x10 + shade screencap) with the focus trace showing hasFocus=true/visibility=hidden at both edges; after the fix + rebuild the same flow delivers the notification (build-and-verify #148). Gates: app subset baseline byte-identical; mobile-hosts 442/0; gradle 9/39/0; verify:closure PASS; probe re-anchored (group 1 anchors backgrounded() + visibility gates).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (#195): G33① re-derived on the v2.2.7 focus-lock-machine lifecycle (focus-lock-machine.ts untouched) — the backgrounded() helper (visibilityState !== visible OR !hasFocus, the #148 measured-2026-11-07 Android WebView defect), syncFocus dispatching focused: !backgrounded() and the system() delivery gate joining visibility are carried by active notifications-v2-2-7; the native hasWindowFocus re-check stays the second layer; the gate only widens delivery to the hidden-but-hasFocus state a real blur already covered upstream"
     },
     {
       "id": "settings-notification-permission",
@@ -367,8 +367,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; the new i18n keys present in the built language chunks; scripts/verify-notifications.ts group 5 (switch onChange wiring + user-in-foreground-only anchor); device behavior BLOCKED (G33 item 5).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed | issue #193 routing: stays deferred -> #195 (Android POST_NOTIFICATIONS face); not re-derived by the settings-v2-2-7 consolidated re-derivation."
+      "status": "absorbed",
+      "disposition": "absorbed (#195): M-024 re-derived over the v2.2.7 four-switch page — requestAndroidPermissionIfNeeded/onNotificationSwitch/androidPermissionDescription verbatim from the historical payload, all four switches wrapped (agent/permissions/errors direct; questions via the hideLabel+children form, wrapper touching only onChange), the explicit status row after the errors row, plus the five settings.general.notifications.android.* en/zh keys; carried by active notifications-v2-2-7; issue #193 routing fulfilled by this flip"
     },
     {
       "id": "gui-plugins-disabled-merge",
@@ -1103,7 +1103,7 @@
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
       "status": "absorbed",
-      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the notifications/sounds page target form natively — the sounds-interface SettingsRow + data-action anchor + settings.sounds.interfaceEnabled wiring and the search-catalog settings-sounds-interface row all exist at fedc6f208a."
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the notifications/sounds page target form natively — the sounds-interface SettingsRow + data-action anchor + settings.sounds.interfaceEnabled wiring and the search-catalog settings-sounds-interface row all exist at fedc6f208a. #195 note: the target-form hasRunningChild guard is likewise pin-native at fedc6f208a (upstream notification.tsx definition); the #148-era session-workbench-upstream trimmed hunks that carried it are absorbed by the same pin."
     },
     {
       "id": "settings-keybinds-command-catalog",
@@ -1992,7 +1992,7 @@
       "verification": "Post-copy app directed subset (registry/registry-hydration/persistence consumers+storage/notification/helpers/composer queue/session-ownership/panel-motion) 58 pass / 0 fail — identical counts to the pre-change baseline; app.tsx delta vs target reduces to the two excluded Voice import lines plus the VoiceProvider subtree; session tab avatar persistence face re-verified on the device QA round.",
       "status": "deferred",
       "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed",
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed #195 note: 490739afe7 itself touched toast.tsx (its quota-failure notice createEffect via localStorageNoticePending + the toast.storage.writeFailed.* keys is pin-native at fedc6f208a); the vendored toast.tsx is byte-identical to the pin (V3 closure replay), so no mobile toast.tsx carrier is owed and row 72 stays deferred.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2366,6 +2366,33 @@
       "disposition": "active; sole carrier of the re-derived gui-plugins narrow-screen payloads (rows 36 sources/settings half, 37 sources faces, 38 D1-D4, 66 open-state flatten); rows 36 goal half / 37 migration body / session-ui sources subsystem are pin-absorbed with no carrier hunk",
       "status": "active",
       "sha256": "d5ce7ea207428c1c58f87f316b1da2ee9724686644c816ba5ea5f1e8e01a3fe8"
+    },
+    {
+      "id": "notifications-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/notifications-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/entry.tsx",
+        "packages/app/src/shell/notifications/coordinator.ts",
+        "packages/app/src/shell/notifications/notification.tsx",
+        "packages/app/src/settings/notifications/notifications.tsx",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "tabs-inbox-titlebar-v2-2-7",
+        "composer-queue-attachments-v2-2-7",
+        "settings-v2-2-7",
+        "gui-plugins-v2-2-7"
+      ],
+      "reason": "Issue #195: the notifications mobile faces re-derived on the v2.2.7 surface (6 targets; registry rows 21/22/23/24 flip deferred -> absorbed and this patch is their sole carrier). (1) entry.tsx M-022: the notifications bridge registration re-derived — imports at alphabetical position, the setActiveNotificationsPort block after the files block / before createMobileHosts, the original marker comment verbatim. (2) coordinator.ts G33①: the visibilityState gate re-derived on the focus-lock-machine lifecycle — backgrounded() helper (visibilityState OR hasFocus; the #148 measured Android WebView defect), syncFocus -> focused: !backgrounded(), system() gate joins visibility; focus-lock-machine.ts untouched; native hasWindowFocus stays the second re-check. (3) notification.tsx M-023: agent/errors/request faces reroute platform.notify (WebView structural dead point) through activeNotificationsPort().notify with JS-built sessionHref routes; the request face passes `target` (the upstream-resolved root session), NOT sessionID (tap routing must match upstream navigation exactly); the old permission fourth-branch is superseded by upstream's unified handleRequest; guard chains, sound paths and the once=6 invariants zero-changed. (4) settings/notifications/notifications.tsx M-024: the POST_NOTIFICATIONS face re-based over the v2.2.7 four-switch page — all four switches wrapped (questions via the hideLabel+children form, wrapper touches only onChange), status row + verbatim request/apply/describe helpers. (5)+(6) en/zh: five settings.general.notifications.android.* keys verbatim. D05 red lines unchanged: zero keepalive/foreground-service/push, op whitelist exactly {notify, requestPermission}; the questions category (issue #195's first-party mobile-hosts + Kotlin half) rides the commit-1 carriers, not this patch.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/195-notifications (post-#184/#186-#194 active chain, base 21531ad).",
+      "verification": "Apply-check of the patch against the pre-patch chain tree (scratch pristine pin fedc6f208a + closure patch + the 10 prior active mobile patches) with the applied result byte-identical (cmp) to the working tree for all 6 targets; bun run patches:refresh + python3 scripts/mobile-patches.py PASS(89) + python3 scripts/test_mobile_patches.py OK (9 tests); bash scripts/verify-closure.sh PASS (11-patch replay byte-identical, DANGLING=0); git diff --check clean. Suites at the round constants: vendored shell/notifications focused set 29 pass / 0 fail / 87 expect / 3 files (machine.test + focus-lock-machine.test + notification.test; coordinator G33① re-derivation and the M-023 reroute do not perturb it); mobile-hosts 447 pass / 0 fail / 3038 expect / 40 files (c0 446/0/3034/40 + exactly the #195 questions case: four-category order lock + questions deliverable); Gradle :app:assembleDebug build-only PASS (36 tasks) with the questions channel carrier.",
+      "disposition": "active; sole carrier of the re-derived notifications payloads (rows 21/22/23/24: M-022 registration, M-023 reroute with the request-face target pin, G33① visibilityState gate on the focus-lock-machine lifecycle, M-024 four-switch re-base)",
+      "status": "active",
+      "sha256": "23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087"
     }
   ]
 }

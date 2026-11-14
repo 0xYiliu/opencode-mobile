@@ -699,3 +699,47 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 
 - **DENY（hard constraints 全域零触碰）**：updater/wsl gui-plugins 文件、mainEntry 注册、bridge.manager、Electron menubar/IPC 本轮零改动（→ #198 owner）；app runtime 无 `@opencode/plugin|gui-plugins` 新 import（agent-capabilities 组 3 specifier map 恒同 rc=0）；android/Kotlin 零改动（Gradle 42 tasks 与 JVM 10 suites/47 tests 恒同）；四条历史 patch 文件磁盘零触碰；#165 不在本轮范围（未修复，零声称）。
 - **EXCLUDED** 设备面：btw 窄屏入口/sources 抽屉入口/Settings 行开关的真实触摸走查归 G25/G28/G35 设备门禁，本轮 NOT RUN；不声称任何设备验证。
+
+## Issue #195：notifications crosswalk and absorption audit
+
+本节是 #195 的固定上游审计（通知面 v2.2.7 吸收核对 + 幸存移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#194 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--195-notifications`，分支 `feat/195-notifications`，base `21531ad`（#194 链尾，stacked chain main a25ab51 → #187 → … → #194；PR #203–#210 open）。本轮 landing = **consolidated active patch `notifications-v2-2-7`（6 targets：M-022 entry 注册重 derive、G33① 在 focus-lock-machine 生命周期上重 derive、M-023 三面桥投递重 derive（request 面传上游根会话 `target`）、M-024 四开关 POST_NOTIFICATIONS 面 re-base、en/zh 五条 android.* 键）+ 第一方面（commit 1 两笔，本轮 Android 侧首改）：mobile-hosts `NOTIFICATION_CATEGORIES` 恰四类（questions 紧邻 permissions）+ Kotlin `CATEGORIES` 镜像与 `notifications-questions` 频道**；registry **89 registered / 11 active / 62 absorbed / 16 deferred**（4 rows 翻转 absorbed：rows 21/22/23/24 + row 89 注册 active）。
+
+### 审计数字与 byte-compare 重放（可复现口径）
+
+- 上游通知域 commit 面：`git -C /home/peterhan/repository/opencode log --format='%h %s' v2.2.1..v2.2.7 -- packages/app/src/shell/notifications packages/app/src/settings/notifications packages/app/e2e/utils/notifications.ts` = **7 commits**（下表 7 行 + 1 条机器族聚合行 = 8 行表）。
+- v2.2.7 通知面目标形变化（pin 原生）：`isSessionUnread` 水位迁入 `shell/notifications/machine.ts`（notification.tsx 改 import/消费，`session.view` 报告面增 `idle: effect.idle`）；permission 第四支监听被**统一 `handleRequest(kind, sessionID, requestID)`** superseded（两值 category 映射：question/mcp-elicitation → `questions`，其余 → `permissions`；request 面经 open-tab 检查解析根会话 `target`）；coordinator 重写为 focus-lock-machine 生命周期（`INITIAL_FOCUS_LOCK_STATE`/`transitionFocusLock`，shared FOCUS_LOCK + exclusive-ifAvailable DELIVERY_LOCK）；设置页三开关变四开关（questions 行，hideLabel+children 形）；zh.ts 无 questions 键（上游 en 回退在册，非本侧缺陷）。
+- **byte-compare 重放证明**：`bash scripts/verify-closure.sh`（pristine pin fedc6f208a + closure patch + 11 active mobile patches 按序重放）→ V3(a) **byte-identical / DANGLING=0**；定向证明：scratch 链树 `packages/app/src/shell/notifications/` 9 文件 `cmp` 全 SAME + entry.tsx/settings/notifications/notifications.tsx + en.ts/zh.ts 逐 target byte-identical（`notifications-v2-2-7.patch` apply-check rc=0 后与工作树逐字节一致）。
+- 套件：mobile-hosts **447 pass / 0 fail / 3038 expect / 40 files**（c0 446/0/3034/40 + 恰 #195 增用例：四类别序锁 + questions 投递用例）；vendored shell/notifications 焦点集 **29/0/87/3** 恒同（machine.test + focus-lock-machine.test + notification.test——M-023 重路由与 G33① 重 derive 不扰动）。
+
+### commit crosswalk 表（7 上游提交 + 1 聚合行 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `d09e2c6c8d`（#60358） | feat(app): add question notifications and sounds | **absorbed**（vendor pin） | questions 通知/声音类别、`requestTitles` 两值映射、设置页 questions 行（上游 question/en 键；zh 缺键=en 回退在册）——第一方面四类别白名单/questions 频道与之对齐 |
+| `53ad857b7a`（#60378） | fix(app): preserve simultaneous request notifications | **absorbed**（vendor pin） | 同会话同类替换语义的键域上游改造（kind:requestID 复合 key + `handleContext` 保留）；移动侧 Android 层 `tag=category, id=route.hashCode()` 反替换语义不变（四类别均适用），once=6 声路/门路不变量保持 |
+| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin；本行取代 db6633d 初稿的错误归因——勘误随 #195 docs 修正轮在册） | 该提交**本体触及 toast.tsx**（quota-failure 通知 createEffect：`localStorageNoticePending` + `toast.storage.writeFailed.*` 键，均为 pin 原生面）；vendored toast.tsx 与 pin **byte-identical**（V3 closure 重放），无需移动侧 toast.tsx carrier——row 72 注记在册、保持 deferred |
+| `452cfb579c`（#61809） | fix(app): retry failed mark-viewed reports for every caller | **absorbed**（vendor pin） | ViewReportState/`idle: effect.idle` 报告面重试语义原生；notification.tsx sendView 锚在探针组 1 在册 |
+| `2ec6485737`（#62005） | fix(app): make tab preview, crash page actions, notification focus lock and mobile tabs drawer explicit state machines | **absorbed**（vendor pin） | coordinator 重写为 focus-lock-machine 生命周期本体；G33① 门/锁语义由 active `notifications-v2-2-7` 在新生命周期上重 derive（focus-lock-machine.ts 零触碰） |
+| `ed0171f08a`（#62889） | feat(app): mark sessions read or unread from their menus | **absorbed**（vendor pin） | markUnread/manual-unread 面原生（unread 水位消费族）；与桥投递面零交 |
+| `2e64b9fc3b`（#60459） | fix(client): evict missing sessions on 404 instead of retrying or toasting | **absorbed**（vendor pin，client 包） | `data.session.sync` 404 驱逐改变 `lookup()` 失败路径形态；通知触发链（lookup→session 缺席早退）语义保持 |
+| 机器族聚合行 | focus-lock-machine（machine.ts+test）、notification machine（machine.ts isSessionUnread/selectSessionUnread/selectLegacyHiddenReports + machine.test） | **absorbed**（vendor pin） | v2.2.7 通知域状态机化本体；M-023/M-024/G33① 的幸存 delta 全部按机器形落位，不复制任何上游生产 hunk |
+
+### 两条降级模式（R1 口径，设计结论不变）
+
+questions 投递若无白名单扩展存在**两条明确的失败形态**：其一，`client.ts validate()`（:147/:163-164）在任何过桥行为之前 JS 层拒绝，应答 `{posted:false, code:"io"}`；其二，若 questions 被折叠进既有类别，才进入 Kotlin 同 tag 替换形态（`tag=category, id=route.hashCode()`，NotificationsBridge.kt:332-333 原语义）。设计结论不变：**两侧白名单同时加入 "questions"**（commit 1 两笔），使 questions 成为独立频道、独立替换域，不与前两者共享 tag。
+
+### per-patch verdict 表（4 flips + row 89 注册）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 21 | `app-notifications-bridge` | deferred→absorbed | M-022 注册面由 row 89 重 derive（marker 逐字）；#144 retirement 后的 stub 悬置期结束 |
+| 22 | `notifications-platform-delivery` | deferred→absorbed | M-023 三面桥投递由 row 89 重 derive；旧 permission 第四支被上游统一 handleRequest superseded；request 面 `target` 路由 pin（R3） |
+| 23 | `notifications-webview-focus-gate` | deferred→absorbed | G33① 由 row 89 在 focus-lock-machine 生命周期上重 derive（machine 零触碰；门只向 hidden-but-hasFocus 放行） |
+| 24 | `settings-notification-permission` | deferred→absorbed | M-024 四开关 re-base + 状态行 + en/zh 五键逐字，由 row 89 承载；#193 routing note 履行完毕 |
+| 89 | `notifications-v2-2-7` | 新注册 active | 6 targets；`dependsOn: ["v2-2-7-mobile-connection-pairing-ssh-closure", "tabs-inbox-titlebar-v2-2-7", "composer-queue-attachments-v2-2-7", "settings-v2-2-7", "gui-plugins-v2-2-7"]`（entry.tsx 载体 78/81/83、i18n 载体 86/87 的全同目标前序集；mobilePatches 第 11 项）；SHA-256=`23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087` |
+
+### platform boundary（红线复核）
+
+- **D05 不变**：零 keepalive、零前台服务、零推送通道——本轮 Kotlin 改动恰为 `CATEGORIES` 白名单扩展 + `channelTitle` questions 分支；`OPERATIONS` 恰 `{notify, requestPermission}` 不变；hasWindowFocus 前台拒绝、`areNotificationsEnabled()` → `"permission"` 静默降级、PendingIntent 路由链零变更；通知面零 `.reply(`/addAction/RemoteViews/网络面（探针组 4 负锁在册）。
+- **频道不可变注记**：`notifications-questions` 在首投递时经 `ensureChannel` 懒创建；既有三频道零触碰——Android 频道创建后不可变（升级安装不重写既有频道名/重要性）。
+- 门只收紧不放松：G33① 重 derive 后前台抑制语义对「真聚焦+可见」不变，仅向「hidden-but-hasFocus」的 WebView 缺陷态放行（负注入 (i) 钉定）。

@@ -1,0 +1,351 @@
+# mobile(notifications-v2-2-7, issue #195 of the registry / GitHub issue #195): the
+# notifications mobile faces re-derived at v2.2.7 — rows 21/22/23/24 (the four deferred
+# notification payloads) flip absorbed and this active patch is their sole carrier:
+# (1) entry.tsx M-022 re-derived: the notifications bridge registration (imports at
+#     alphabetical position + the setActiveNotificationsPort block after the files block,
+#     before createMobileHosts) with the original marker comment verbatim — the app was
+#     shipped with a fail-closed stub port since #144's session-workbench retirement of the
+#     registration; (2) coordinator.ts G33① re-derived on the v2.2.7 focus-lock-machine
+#     lifecycle (focus-lock-machine.ts itself untouched): the backgrounded() helper
+#     (visibilityState OR hasFocus, the #148 device-measured Android WebView defect),
+#     syncFocus dispatching focused: !backgrounded(), and the system() delivery gate
+#     joining visibility — the native hasWindowFocus re-check stays the second layer;
+#     (3) notification.tsx M-023 re-derived: agent/errors/request faces reroute
+#     platform.notify (the WebView structural dead point) through the bridge port with
+#     JS-built sessionHref routes; the request face passes `target` — the upstream-resolved
+#     root session — NOT sessionID, so tap routing matches upstream navigation exactly; the
+#     old payload's permission fourth-branch listener is superseded by upstream's unified
+#     handleRequest (question/mcp-elicitation -> "questions" two-value map, issue #195 adds
+#     the matching bridge category) with its own guard chain intact; (4)
+#     settings/notifications/notifications.tsx M-024 re-derived over the v2.2.7 four-switch
+#     page: every notification switch (agent/permissions/errors direct, questions via the
+#     hideLabel+children form — the wrapper touches only onChange) requests the Android
+#     POST_NOTIFICATIONS permission when switched on, with the explicit status row; (5)+(6)
+#     en/zh gain the five settings.general.notifications.android.* keys verbatim. Upstream
+#     guard chains, sound paths and the once-dedup invariants are zero-changed.
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 3f3d39dc67042baa6475d4c127fa902547d088dc..170100b243fed2ec075d8cd3896c396d74ebc46f 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -16,6 +16,7 @@ import pkg from "../package.json"
+ import {
+   createFilesClient,
+   createMobileHosts,
++  createNotificationsClient,
+   createProbeClient,
+   createSshHostKeyVerifier,
+   createSshHostTransport,
+@@ -24,11 +25,13 @@ import {
+   createVaultResolver,
+   createAndroidXVaultTransport,
+   createWebMessageFilesTransport,
++  createWebMessageNotificationsTransport,
+   createWebMessageProbeTransport,
+   createWebMessageSshTransport,
+   createBackHandlerBinding,
+   setActiveBackHandlerPort,
+   setActiveFilesPort,
++  setActiveNotificationsPort,
+ } from "@opencode-mobile/mobile-hosts"
+ import { consumeBackChain } from "@/shell/back-chain"
+ 
+@@ -186,6 +189,31 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
+         }),
+       ),
+     )
++    // mobile(M-022): the notifications bridge (issue #23) — the SIXTH protocol-isolated
++    // sibling of the vault/probe/ssh/svcops/files bridges on the same window message
++    // events. Its handshake string ("opencode-mobile-notifications-handshake") is captured
++    // only by this transport (strict data equality + exactly one port), so none of the six
++    // bridges can capture another's handshake; event.origin is never consulted
++    // (embedder-posted messages carry an empty origin by platform construction). The port
++    // is captured into the transport closure and acked immediately; before that ack the
++    // notifications port stays a fail-closed stub — the exact pre-issue state (the Web
++    // Notification API behind platform.notify does not exist in the Android WebView), so
++    // the in-app faces carry on either way. Registration goes through the module-level
++    // notifications seam (setActiveNotificationsPort) so the runtime bootstrap contract
++    // stays unchanged — the same shape as the files registration directly above. The
++    // bridge is notification-ONLY: its op whitelist {notify, requestPermission} has no
++    // reply/cancel/interrupt face, so a notification can never approve a permission or
++    // stop a task (issue #23 acceptance 3).
++    setActiveNotificationsPort(
++      createNotificationsClient(
++        createWebMessageNotificationsTransport({
++          subscribe: (handler) => {
++            window.addEventListener("message", handler as EventListener)
++            return () => window.removeEventListener("message", handler as EventListener)
++          },
++        }),
++      ),
++    )
+     const hosts = createMobileHosts({
+       storage: window.localStorage,
+       fetch: globalThis.fetch.bind(globalThis),
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index b7621b0ef77d125d5ad28eef9f67fbd5d59cb072..758da17b3f97dd48ec57717cde66b0a5347f1c88 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -1145,6 +1145,14 @@ export const dict = {
+   "settings.general.notifications.questions.description": "Show system notification when the agent asks a question",
+   "settings.general.notifications.errors.title": "Errors",
+   "settings.general.notifications.errors.description": "Show system notification when an error occurs",
++  "settings.general.notifications.android.title": "System notifications (Android)",
++  "settings.general.notifications.android.description":
++    "Turning a notification switch on asks Android for the notification permission when needed",
++  "settings.general.notifications.android.granted": "Android notification permission granted",
++  "settings.general.notifications.android.denied":
++    "Android notification permission denied — in-app sounds and badges still work",
++  "settings.general.notifications.android.unavailable":
++    "System notifications are unavailable in this environment — in-app faces still work",
+ 
+   "settings.general.sounds.agent.title": "Agent",
+   "settings.general.sounds.agent.description": "Play sound when the agent is complete or needs attention",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index fc1d6f60f021bb75ab7f30b8d53ef6acab7d8780..d0985900ffaa6eec1b2bf8d7e69c2b98b0f823f9 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -501,6 +501,11 @@ export const dict = {
+   "settings.general.notifications.permissions.description": "当需要权限时显示系统通知",
+   "settings.general.notifications.errors.title": "错误",
+   "settings.general.notifications.errors.description": "发生错误时显示系统通知",
++  "settings.general.notifications.android.title": "系统通知（Android）",
++  "settings.general.notifications.android.description": "开启任一通知开关时，按需向 Android 请求通知权限",
++  "settings.general.notifications.android.granted": "已获得 Android 通知权限",
++  "settings.general.notifications.android.denied": "Android 通知权限被拒绝——应用内声音与徽标仍然可用",
++  "settings.general.notifications.android.unavailable": "此环境不支持系统通知——应用内提示仍然可用",
+   "settings.general.sounds.agent.title": "智能体",
+   "settings.general.sounds.agent.description": "当智能体完成或需要注意时播放声音",
+   "settings.general.sounds.permissions.title": "权限",
+diff --git a/packages/app/src/settings/notifications/notifications.tsx b/packages/app/src/settings/notifications/notifications.tsx
+index e0a658bae6bfe2eccfc05d1136f0ccfa75b436d9..a40a79c00a7b87de97ae230e5b79eff755200429 100644
+--- a/packages/app/src/settings/notifications/notifications.tsx
++++ b/packages/app/src/settings/notifications/notifications.tsx
+@@ -1,4 +1,4 @@
+-import { Component } from "solid-js"
++import { Component, createSignal } from "solid-js"
+ import { Select } from "@opencode/ui/select"
+ import { Switch } from "@opencode/ui/switch"
+ import { useLanguage } from "@/runtime/i18n/language"
+@@ -10,6 +10,9 @@ import {
+   soundOptions,
+   type SoundSettingsController,
+ } from "@/settings/general/controllers"
++// mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23) reads the notifications
++// bridge port through the module-level seam at call time.
++import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
+ import "@/settings/settings.css"
+ 
+ const soundSettings = {
+@@ -63,6 +66,43 @@ export const SettingsNotifications: Component = () => {
+   const language = useLanguage()
+   const settings = useSettings()
+   const sounds = createSoundSettingsController()
++  // mobile(M-024): the Android POST_NOTIFICATIONS face (issue #23). Turning a notification
++  // switch ON is the user-in-foreground moment: if the bridge is available and the platform
++  // still needs the runtime permission (API 33+, enforced by the native side — below 33 or
++  // already granted it answers granted without a dialog), request it right here. Every
++  // outcome (granted / denied / bridge unavailable) surfaces in the explicit status row
++  // below; a denial degrades to the in-app faces only (no retry loop, no fabricated
++  // success). A request arriving while the app is backgrounded would be refused by the
++  // native side with code "foreground" — this face never triggers in the background.
++  const [androidPermission, setAndroidPermission] = createSignal<"idle" | "granted" | "denied" | "unavailable">("idle")
++
++  const requestAndroidPermissionIfNeeded = async () => {
++    try {
++      const outcome = await activeNotificationsPort().requestPermission()
++      if (outcome.granted) setAndroidPermission("granted")
++      else setAndroidPermission(outcome.code === "unavailable" ? "unavailable" : "denied")
++    } catch {
++      setAndroidPermission("unavailable")
++    }
++  }
++
++  const onNotificationSwitch = (apply: (checked: boolean) => void) => (checked: boolean) => {
++    apply(checked)
++    if (checked) void requestAndroidPermissionIfNeeded()
++  }
++
++  const androidPermissionDescription = () => {
++    switch (androidPermission()) {
++      case "granted":
++        return "settings.general.notifications.android.granted"
++      case "denied":
++        return "settings.general.notifications.android.denied"
++      case "unavailable":
++        return "settings.general.notifications.android.unavailable"
++      default:
++        return "settings.general.notifications.android.description"
++    }
++  }
+ 
+   return (
+     <>
+@@ -88,7 +128,7 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-agent">
+                 <Switch
+                   checked={settings.notifications.agent()}
+-                  onChange={(checked) => settings.notifications.setAgent(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setAgent(checked))}
+                 />
+               </div>
+             </SettingsRow>
+@@ -100,7 +140,7 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-permissions">
+                 <Switch
+                   checked={settings.notifications.permissions()}
+-                  onChange={(checked) => settings.notifications.setPermissions(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setPermissions(checked))}
+                 />
+               </div>
+             </SettingsRow>
+@@ -113,7 +153,7 @@ export const SettingsNotifications: Component = () => {
+                 <Switch
+                   hideLabel
+                   checked={settings.notifications.questions()}
+-                  onChange={(checked) => settings.notifications.setQuestions(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setQuestions(checked))}
+                 >
+                   {language.t("settings.general.notifications.questions.title")}
+                 </Switch>
+@@ -127,10 +167,20 @@ export const SettingsNotifications: Component = () => {
+               <div data-action="settings-notifications-errors">
+                 <Switch
+                   checked={settings.notifications.errors()}
+-                  onChange={(checked) => settings.notifications.setErrors(checked)}
++                  onChange={onNotificationSwitch((checked) => settings.notifications.setErrors(checked))}
+                 />
+               </div>
+             </SettingsRow>
++
++            <SettingsRow
++              title={language.t("settings.general.notifications.android.title")}
++              description={language.t(androidPermissionDescription())}
++            >
++              {/* mobile(M-024): status-only row — the SettingsRow contract requires a
++                  control slot; the Android permission face has none (the request fires
++                  from the notification switches above). */}
++              <></>
++            </SettingsRow>
+           </SettingsList>
+         </div>
+ 
+diff --git a/packages/app/src/shell/notifications/coordinator.ts b/packages/app/src/shell/notifications/coordinator.ts
+index 66d5494f20f03a7d0e785e80015c4a3d71e292f6..bbf9edc3de274ba242c17b7c642edde324811913 100644
+--- a/packages/app/src/shell/notifications/coordinator.ts
++++ b/packages/app/src/shell/notifications/coordinator.ts
+@@ -13,6 +13,14 @@ export function createNotificationCoordinator() {
+ 
+   const claimed = new Set<string>()
+ 
++  // mobile(#148 G33①): the Android WebView keeps document.hasFocus() TRUE while the
++  // activity is backgrounded (measured 2026-11-07, MatePad DBY2-AL00: 0 false samples
++  // across a backgrounded window with visibilityState "hidden"), so the focus gate and
++  // its lock must also follow document.visibilityState — a hidden page releases (and
++  // never acquires) the lock, exactly the state a real blur produces upstream.
++  const backgrounded = () =>
++    typeof document !== "undefined" && (document.visibilityState !== "visible" || !document.hasFocus())
++
+   if (typeof window !== "undefined" && locks) {
+     let focusState = INITIAL_FOCUS_LOCK_STATE
+     const releases = new Map<number, VoidFunction>()
+@@ -48,7 +56,7 @@ export function createNotificationCoordinator() {
+       })
+     }
+ 
+-    const syncFocus = () => dispatch({ type: "focus.changed", focused: document.hasFocus() })
++    const syncFocus = () => dispatch({ type: "focus.changed", focused: !backgrounded() })
+ 
+     window.addEventListener("focus", syncFocus)
+     window.addEventListener("blur", syncFocus)
+@@ -80,7 +88,12 @@ export function createNotificationCoordinator() {
+     },
+     system<T>(eventID: string, run: () => Promise<T> | void) {
+       return once("system", eventID, async () => {
+-        if (typeof document !== "undefined" && document.hasFocus()) return
++        // mobile(#148 G33①): the hasFocus gate alone never opens on the Android WebView
++        // (focus stuck true while backgrounded) — visibility joins the gate so a
++        // backgrounded shell proceeds; the native bridge re-check (activity
++        // hasWindowFocus → {posted:false, code:"foreground"}) stays the second layer,
++        // so a truly focused shell still never posts.
++        if (typeof document !== "undefined" && !backgrounded()) return
+ 
+         if (!locks) return run()
+         // Another alert holding the focus lock must not look like a focused app window.
+diff --git a/packages/app/src/shell/notifications/notification.tsx b/packages/app/src/shell/notifications/notification.tsx
+index c9c703818bb14df69354b78fcecc0f6f5a8da73f..a2a4db562c5aa09cf2ed61349ff8c4cefd0e3dcd 100644
+--- a/packages/app/src/shell/notifications/notification.tsx
++++ b/packages/app/src/shell/notifications/notification.tsx
+@@ -10,6 +10,10 @@ import { Persist, persisted, removePersisted } from "@/runtime/persistence/stora
+ import { Persistence } from "@/runtime/persistence/schema"
+ import { playSoundById } from "@/shell/notifications/sound"
+ import type { createNotificationCoordinator } from "@/shell/notifications/coordinator"
++// mobile(M-023): the system-notification delivery face (issue #23) reads the notifications
++// bridge port through the module-level seam at call time; sessionHref builds the tap route.
++import { activeNotificationsPort } from "@opencode-mobile/mobile-hosts"
++import { sessionHref } from "@/shell/routes/session"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import { sessionIDHasOpenTab, useTabs } from "@/shell/tabs/tabs"
+ import { useServer } from "@/runtime/server/current"
+@@ -323,9 +327,18 @@ export function createServerNotificationState(input: {
+ 
+       if (hasOpenTab && settings.notifications.agent()) {
+         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+-          platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
+-            openNotificationSession(tabs, input.key, sessionID),
+-          ),
++          // mobile(M-023): deliver through the notifications bridge (issue #23) — the
++          // platform.notify Web Notification API is a structural dead point in the shell
++          // WebView. The route is built HERE (only this scope knows the server key and
++          // session; the onClick closure could not cross the bridge — the native side
++          // constructs the tap navigation from the route instead). The body is the session
++          // title, never event payload content.
++          activeNotificationsPort().notify({
++            category: "agent",
++            title: language.t("notification.session.responseReady.title"),
++            body: session.title ?? sessionID,
++            route: sessionHref(input.key, sessionID),
++          }),
+         )
+       }
+     })
+@@ -347,9 +360,14 @@ export function createServerNotificationState(input: {
+ 
+       if (hasOpenTab && settings.notifications.errors()) {
+         void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+-          platform.notify(language.t("notification.session.error.title"), description, () =>
+-            openNotificationSession(tabs, input.key, sessionID),
+-          ),
++          // mobile(M-023): bridge delivery (see the agent branch) — the description stays
++          // the session title or the generic fallback, never the error payload.
++          activeNotificationsPort().notify({
++            category: "errors",
++            title: language.t("notification.session.error.title"),
++            body: description,
++            route: sessionHref(input.key, sessionID),
++          }),
+         )
+       }
+     })
+@@ -393,9 +411,19 @@ export function createServerNotificationState(input: {
+     void input.coordinator.system(key, () => {
+       if (!pending()) return
+ 
+-      return platform.notify(language.t(requestTitles[kind]), session.title ?? sessionID, () =>
+-        openNotificationSession(tabs, input.key, target),
+-      )
++      // mobile(M-023): bridge delivery (see the agent branch). The request face passes
++      // `target` — the upstream-resolved root session — NOT sessionID: the open-tab
++      // check above already resolved the tapped session to the root that upstream
++      // navigation opens, and the tap route must match that navigation exactly. The
++      // category is the upstream two-value map result (question/mcp-elicitation ->
++      // "questions", every other kind -> "permissions"); issue #195 adds the matching
++      // "questions" category on the bridge whitelist.
++      return activeNotificationsPort().notify({
++        category,
++        title: language.t(requestTitles[kind]),
++        body: session.title ?? sessionID,
++        route: sessionHref(input.key, target),
++      })
+     })
+   }
+ 
