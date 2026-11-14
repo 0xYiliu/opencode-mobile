@@ -215,6 +215,74 @@ bun test --conditions=solid --conditions=browser --isolate --preload ../ui/test/
 
 **E2E / runtime boundaries**：无 adb 设备、无真实运行会话、无授权远程服务；**SAF 保存/分享/剪贴板设备行为（G27）、queue 归属保护真服务竞态（W15 乐观编辑/重排/撤回 + owner 丢失中止路径）、drafts fail-closed 真机恢复走查均 NOT RUN**（解除条件=授权真机（直连或 SSH）与 QA server）。Playwright e2e 为 audit-only，本轮未运行。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
 
+### issue #189 段（request docks 静态轮：verify-permission-requests v2.2.7 重锚定 + 单元事实同步——feat/189-request-docks 零 vendor 轮）——2026-11-14 实测记录
+
+**分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--189-request-docks`，分支 `feat/189-request-docks`，base=`31f8399`（#188 链尾，stacked chain）；implementation revision=`058141f`（commit 1：fix(probes) probe re-anchor——唯一代码改动）；docs revision=本轮 docs-only commit（final HEAD 由该 docs commit 追溯，交付报告记录完整 SHA）。**commit 2（build 验证轮）为 no-op**：vendor 未触碰、web-dist 对 HEAD 净 diff 为零（见下），按计划不创建 payload commit。提交已存在，尚未推送、创建 PR 或合并。固定上游 v2.2.7=`fedc6f208aa2bd54c1019227214568083f6380ad`；上游只读引用 `/home/peterhan/repository/opencode`。
+
+**c0 基线（coordinator 在 pristine stacked base 记录；引用不重 derive）**：docks 9-file machine 集 **115 pass / 0 fail / 375 expect / 9 files**；Set A **396 pass / 5 fail / 1793 expect / 30 files**（5 条 pre-existing：submit.test ×4「a failed quote send retains…」「restores and retries an unacknowledged admission」「restores first-prompt comments…」「moves a first prompt…」+ editor/actions.test.ts ×1「prepends a skill mention…」）；component spec question-dock **0 pass / 1 fail**（environment-level import error，RECORDED ONLY 非门禁）；C test-browser **13/0/35**；D session-ui **38/0/126**；E mobile-hosts **446/0/3034**；`verify-permission-requests` pre-existing FAIL「1: expected linear permission.reply call site missing from the scan: vendor/upstream/packages/app/src/session/requests/auto-approve.ts」（=本轮重锚定目标）；五条 pre-existing rc=1 probe：verify-interaction-quality「2: …titlebar.tsx gained a History API write/listener (\"history.back\")…」、verify-agent-capabilities「1: unexpected mcp connect/disconnect call site … providers/connect/mcp.tsx」、verify-notifications「1: notification.tsx lost the isSessionUnread server-authoritative watermark」、verify-commands-menus「1: DesktopMenuRole union set: missing expected member \"resetZoom\"…」、verify-service-ops「vendored entry.tsx: app-service-operations-bridge wiring missing…」——domain ownership：titlebar-back→#75/G31 链、mcp-connect→gui-plugins/connection 域、isSessionUnread→#195 域、resetZoom→#197/commands 域、entry.tsx→svcops bridge 域。registry/closure PASS(84)。
+
+**静态 re-verify（read-only，Stop-on-DIFF 未触发）**：全树核算 `diff -rq` pristine v2.2.7 packages ↔ vendor/upstream/packages = **54 Files differing = 50 条 active-target union 成员 + 4 条 closure-trim package.json**（`ai/client/patchmark/plugin`；50 条全部 ⊆ 六 active patch 58-target 并集，0 清单外）；docks surface 50 文件（34 `session/requests` + 16 extras）**50/50 SAME + 0 DIFF + 0 MISSING**。
+
+**probe 重锚定记录（old → new，14 条；全部 v2.2.7-context 漂移，非契约违约；无 STOP 触发）**：
+
+| # | old（b4525d79bf/v2.2.1 形） | new（v2.2.7 形） | 依据 |
+| --- | --- | --- | --- |
+| 1 | linear `api.permission.reply(` 闭集 = {model.ts, auto-approve.ts}（size 2） | 闭集 = {model.ts}（size 1；machine reply effect `.reply({ sessionID: effect.sessionID, requestID, decision: effect.decision }, { signal })`） | auto-approve 调用迁往 data 层（v2.2.7 :117） |
+| 2 | wrapper caller ban「app 内零调用者」 | EXACT-SET ban = {auto-approve.ts, shell/titlebar/inbox-model.ts}（负注入保 teeth） | data 层两真实 caller（a35d91bb8b inbox 路径 v2.2.1 pin 既入；旧断言在 v2.2.1 起已被 fail-fast 掩盖） |
+| 3 | 「decide() 无吞错：catch → requestFailed toast」 | 语义重分类（计划内）：NotFound 显式分类为已答复 `isPermissionNotFoundError(error) → { type: "reply.succeeded" }`（model.ts :249-257）；真实失败 → `reply.failed` 携带 error.message → machine toast-failed effect（:219-222） | `2b9216a002` permission-machine |
+| 4 | auto-approve 形锚：`responded` Set 去重（2 锚） | 删除 responded 锚（0 hits）；保留 `decision: "once"`（:117）+ `covers()`（:29-30/:266）；新增 machine dispatch 锚 `dispatch(permission.id, { type: "approve", …, runId: uuid() })` | auto-approve-machine（`e5f2dde373`/`50971aedbf`） |
+| 5 | inbox-model.ts 无锚 | 新增 `decide: (entry, decision: "once" \| "always" \| "reject")` + squashed `.reply({sessionID:request.sessionID,requestID:request.id,decision}).catch(requestFailed)` | a35d91bb8b inbox 决策路径 |
+| 6 | 单文件 session-question-dock anchors：sending() ≥8、disabled ≥5、`ScopedKey.from(serverSDK.scope, props.request.id)`、dock 直调 form.cancel、failure toast | thin router `settings.general.newQuestionUI()` + classic/experimental 双形态（`sending()` 各 19、`if (sending()) return` 5/6、`disabled={sending()}` 9/10、`const reject = form.dismiss` + `aria-keyshortcuts="Escape"` 两形态、classic nav `event.key === "Escape"`）+ `createQuestionDock` 共享 controller | `7d0f79d2ca` + `9d89512e93` |
+| 7 | dock 直调 form.reply/cancel mutation | `question-controller.ts:76-77`（`serverSDK.api.session.form.reply({ …target, answer }, { signal })` / `form.cancel(target, { signal })`）+ `request.succeeded/failed` dispatch + controller toast | `9d89512e93` |
+| 8 | elicitation dock 四锚（mutation/guard/toast 在 dock 内） | `elicitation-controller.ts`（`input.forms.reply({ …target, answer }, request.location)` / `input.forms.cancel(target, request.location)`、ScopedKey :49、request.succeeded/failed、toast）+ `elicitation-machine` cache/toast effects + dock wiring（`dock.reply()/dismiss()`；dock 自身 sending()=0） | `50971aedbf` |
+| 9 | data.ts wrapper 三锚 | byte-SAME 保留（`.permission.reply(input)` / NotFound swallow / `removePermission`） | 机械存活 |
+| 10 | model.ts 三 connected-gate 相邻对（sessionTreeIDs 直 map 形） | 形状等同位移：:48-55 保持；:68-71 → `formSessions().map((sessionID) => data.session.form.sync(sessionID))`；:84-89 保持 | memo 化（running 过滤） |
+| 11 | tab-strip：`permission.sync(value.id)`/`form.sync(value.id)` + 裸 `300 + props.index * 50` | `...(running ? [ctx.data.session.permission.sync(id), ctx.data.session.form.sync(id)] : [])` + `window.setTimeout(…, 300 + props.index * 50)` + `Promise.allSettled(` | v2.2.1 起既入（2141b1ba35 #57617）——旧锚在书写 pin 成立、v2.2.1 起 stale，fail-fast 掩盖 |
+| 12 | sweep：squashed `api.permission.request.list({location:{directory:location.directory}})` + `async function sweepLocations()` | squashed `…list({location:{directory:location.directory}},{signal})` + `async function sweepLocations(signal: AbortSignal)`（:217）+ machine `dispatchSweep(on ? { type: "sweep.start", runId: uuid() } : { type: "sweep.cancel" })` + `input.data.session.permission.list(session.id)`（:74）；「never loaded」注释逐字保留（:213-216）；「sweep on every connect while the setting is on」注释逐字保留 | sweep machine 化 |
+| 13 | 组 4：settings 默认 / dock 形 / disabled=3 / onKeyDown 负 / autoFocus 负 / toast en-zh | 全部机械存活（`autoApprove: false` :316；ghost/neutral/submit 正则命中；disabled count=3；负断言 0 hits；en/zh 四键成对 + project.* en-only） | byte-same |
+| 14 | 组 5：六事件 + 类型 + endpoint paths | 全部机械存活（generated 面 byte-same；`grep -F` 各 1） | byte-same |
+
+**六条负注入证明（注入 → rc=1 → revert → 复跑 rc=0；逐条留档）**：
+
+| # | 注入 | FAIL（verbatim 摘要） |
+| --- | --- | --- |
+| (i) | 无关文件 `src/session/timeline/model.ts` 追加 linear `api.permission.reply(` | `1: unexpected linear permission.reply call site outside the closed set: vendor/upstream/packages/app/src/session/timeline/model.ts` |
+| (ii) | 同文件追加 data 层 `session.permission.reply(` | `1: data.ts permission.reply wrapper gained an unexpected caller: src/session/timeline/model.ts — re-review the F2 layering` |
+| (iii) | `session-ui/src/components/dock-prompt.tsx` 注入 `permission.reply` | `1: session-ui/src must stay free of permission.reply references, found in: components/dock-prompt.tsx` |
+| (iv) | `settings/model.tsx` 默认 autoApprove false→true | `4: settings default must keep autoApprove: false (opt-in only)` |
+| (v) | `auto-approve.ts` decision `"once"→"always"` | `1: auto-approve.ts data-layer reply call lost its `{ decision: "once" }` shape` |
+| (vi) | `question-state.ts` `questionCache` 导出变异 | `2: question-state.ts lost the questionCache draft cache export` |
+
+**门禁 attribution（c0 → post，逐条 base-same 证明）**：
+
+| Gate | c0（pristine stacked base） | 本轮 post（`058141f` + docs） | 归因 |
+| --- | --- | --- | --- |
+| docks machine 9-file | 115/0/375/9 | **115 pass / 0 fail / 375 expect / 9 files** | 基线持平（恒同门） |
+| Set A（30 文件，精确命令同 #188 在册形） | 396/5/1793/30 | **396 pass / 5 fail / 1793 expect / 30 files** | 恒同；5 条 pre-existing 失败同文件同名同断言位（submit ×4 + editor/actions ×1），零新失败 |
+| C test-browser 4 文件（composer-attachment-errors/ownership/drag-cancel/file-search，app preload 形） | 13/0/35 | **13 pass / 0 fail / 35 expect / 4 files** | 基线持平 |
+| D session-ui 3 文件 | 38/0/126 | **38 pass / 0 fail / 126 expect / 3 files**（`message/attachment-media-machine + message/current-message + timeline/projection`；c0 记录仅含数字，全 52 文件单跑计数 + 组合核算显示恰三组候选组合同数，实测取此组合——如实登记） | 基线持平 |
+| E mobile-hosts | 446/0/3034 | **446 pass / 0 fail / 3034 expect / 40 files** | 基线持平 |
+| component spec question-dock | 0/1（recorded-not-gate） | **0 pass / 1 fail / 1 error**（plain 形 `bun test ./test-browser/question-dock.test.ts`：solid-sonner client-only API import 期 error——与 c0 同为 environment-level import 失败，RECORDED ONLY；附观察：app preload 形 3 pass / 0 fail / 11 expect 全绿） | recorded-not-gate |
+| verify-permission-requests | FAIL「1: expected linear … auto-approve.ts missing」 | **PASS（rc=0）**（重锚定后） | 计划内 14 条 old→new 重锚定（上表）+ 语义重分类（#3） |
+| verify-direct-connection | rc=0 | **PASS（rc=0）**（`4 OK` 行 + dist 5496 assets 标记核对） | 基线持平（committed payload 字节扫描） |
+| verify-ssh | rc=0 | **PASS（rc=0）**（taxonomy/fingerprint/known_hosts/bridge/android negatives/native assertions/vendor markers 全 OK） | 基线持平 |
+| verify-interaction-quality | rc=1（pre-existing） | rc=1，首 FAIL 与 c0 逐字恒同 | #75/G31 链域（非本轮） |
+| verify-agent-capabilities | rc=1（pre-existing） | rc=1，首 FAIL 与 c0 逐字恒同 | gui-plugins/connection 域（非本轮） |
+| verify-notifications | rc=1（pre-existing） | rc=1，首 FAIL 与 c0 逐字恒同 | #195 域（非本轮） |
+| verify-commands-menus | rc=1（pre-existing） | rc=1，首 FAIL 与 c0 逐字恒同 | #197/commands 域（非本轮） |
+| verify-service-ops | rc=1（pre-existing） | rc=1，首 FAIL 与 c0 逐字恒同 | svcops bridge 域（非本轮） |
+| registry / closure | PASS(84) | **PASS**：`mobile-patches.py` PASS (84 registered; updated: none)；`test_mobile_patches.py` OK；`verify-closure.sh` PASS | 恒同 |
+
+**build / payload（no-op 轮）**：
+
+- `bun run build:web`：**PASS**（rc=0；同环境连跑两次 manifest **byte-identical**——构建在本环境确定）。
+- `web-dist/manifest.json` 对 HEAD 出现 272 行 diff：`generatedAt`（构建时间戳）+ `totalBytes` + 14 条同名 `.map` hash 刷新 + 117 条 chunk 改名（.js+.js.map 对；文件清单 5525 槽位两侧相等、5390 hash 相同）。**vendor delta 排除**：`git diff 31f8399..HEAD -- vendor/upstream/packages` 为空 + docks 50/50 SAME + registry hash 不变——归因构建环境差异（工作树路径等跨 worktree 非确定性；`generatedAt` 时间戳本身使跨环境 byte 级零 diff 不可能，#188 在册惯例亦为「每轮构建刷新」）。按计划**不提交任何 payload 变更**：manifest `git checkout` 还原，android payload 与 vendor `dist/` 以 #188 worktree 的在册字节（committed manifest 所证实的字节；对 #188 worktree 只读复制）还原，还原后 `python3 scripts/android_web_assets.py verify` → **verified（rc=0，payload == committed manifest）**；探针扫描面与 c0 同字节。
+- `bun run copy:web-dist`：rc=0（copy 期实测 5520 files / 155,565,316 bytes——随后按上条还原，不在 git 面留痕）。
+- `ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug`：**BUILD SUCCESSFUL in 25s（42 tasks）**；JVM 单测 **10 suites / 47 tests / 0 failures / 0 skipped**；APK `android/app/build/outputs/apk/debug/app-debug.apk` SHA-256 **`a39ebb3b638d826630ae9b5b1f8460bf00d349d1d20b030acb71b8bf823b215f`**（**66,072,093 bytes**）——与 #188 记录**逐字节相同**（同源码 + 同 payload 的确定性正证）。**未安装**。
+- `git diff 31f8399..HEAD --name-only -- vendor/upstream/packages` = **空**；`-- vendor/upstream/patches/` = **空**；`git diff --check 31f8399..HEAD` rc=0；`git status` clean（docs commit 前 = 仅 probe 文件改动）。`patches:refresh` 全程未运行。
+
+**E2E / runtime boundaries**：无 adb 设备、无真实运行会话、无授权远程服务；**G21 运行期九项（呈现①/三决策②/提问向导③/三态④/恢复⑤/client exit 红线⑥/auto-approve⑦/读屏触摸⑧/通知设置⑨）+ 真模型 live E2E（直连+SSH 双路由）+ G31⑨ 读屏 walkthrough（docks 面）均 NOT RUN**（解除条件=授权设备与 QA server）。e2e `session-request-docks.spec.ts` 为 audit-only，本轮未运行，不作为 Android APK 门禁。typecheck 维持在册 known-baseline 失败集，本轮未声称通过。构建成功不代表设备验收通过。
+
 ### issue #140 段（Home/新建会话与项目状态对齐：FU-3 项目身份 + home/new-session 目标形）——2026-11-06 实测记录
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--221-home-projects`，分支 `feat/221-home-projects`，base `3310b80`（origin/main，#150 合入后）；vendor pin `b4525d79bf` + gui-plugins `3ebcf9a`（目标 v2.2.1）；实施提交链 `d0ea30e`（feat FU-3 数据层迁移）→ `0a60814`（feat Home 页目标形 + M-017 重锚）→ `58f448b`（feat new-session/location/pin）→ `52b94cc`（feat project-icon generated 面 + location re-export 退役）→ `f109d12`（chore 补丁登记 65→67）→ `ec34aec`（chore 凭据探针 retarget + dist manifest 刷新），未 push。**源码对齐目标 = `3ebcf9a32c7b28f658cfee80775448929361727a`**（copy 优先，逐文件目标形核对），移动补丁语义经三条新补丁 + 存量补丁修剪重放。
