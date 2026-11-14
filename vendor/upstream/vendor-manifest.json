@@ -71,7 +71,8 @@
     "patches/mobile/gui-plugins-v2-2-7.patch",
     "patches/mobile/notifications-v2-2-7.patch",
     "patches/mobile/runtime-data-v2-2-7.patch",
-    "patches/mobile/appearance-zoom-web-v2-2-7.patch"
+    "patches/mobile/appearance-zoom-web-v2-2-7.patch",
+    "patches/mobile/updater-web-exclusion-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -653,6 +654,12 @@
       "id": "appearance-zoom-web-v2-2-7",
       "path": "patches/mobile/appearance-zoom-web-v2-2-7.patch",
       "sha256": "68bfbfa1c02069846614227077a40965739cfeef8603b8083f2768d29ef94630",
+      "status": "active"
+    },
+    {
+      "id": "updater-web-exclusion-v2-2-7",
+      "path": "patches/mobile/updater-web-exclusion-v2-2-7.patch",
+      "sha256": "bc62f2bda9d6884e58e221b34f506fff4fab15ff54f425e6ac64e535f2337e1e",
       "status": "active"
     }
   ],

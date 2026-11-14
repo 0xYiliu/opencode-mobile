@@ -11,7 +11,6 @@ import {
   type WindowUpdaterEffect,
   type WindowUpdaterEvent,
 } from "./window-machine"
-import { webUpdates } from "./web"
 import {
   initWhatsNew,
   transitionWhatsNew,
@@ -26,7 +25,14 @@ const setup: Plugin.Setup<typeof definition> = (ctx) => {
   whatsNew(ctx)
   betaNotes(ctx)
 
-  if (!ctx.desktop) return webUpdates(ctx)
+  // mobile(updater-web-exclusion-v2-2-7, issue #198): deliberate mobile exclusion of the upstream
+  // web-updates face — the service-worker update checks, the general-page Updates SettingsPage, the
+  // titlebar pending item and the hidden check command — per the S40/N09 recorded boundary and ADR
+  // 0005 (APK update deferred; activation condition = ADR 0005 revisited). whatsNew/betaNotes above
+  // run BEFORE this guard and stay active: the exclusion scope is the web-updates face ONLY, not the
+  // What's New face. The upstream web face (web.tsx/web-driver.ts/web-machine.ts) stays upstream
+  // untouched, orphaned by this guard.
+  if (!ctx.desktop) return
   const updater = ctx.main(Updater)
   // Undefined until main's updater is up and has sent its state, and again while it is gone.
   const state = () => updater.state()

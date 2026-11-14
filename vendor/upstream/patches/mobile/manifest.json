@@ -2428,6 +2428,21 @@
       "disposition": "active; sole carrier of the surviving appearance-motion-zoom web face (row 35) and the discharge of the #193 W5 standing note — the search-catalog gate stays dropped under settings-v2-2-7 ownership and this patch adds no search-gate content. dependsOn is the full-predecessor set for the shared web.ts target (the three active carriers), not a semantic dependency.",
       "status": "active",
       "sha256": "68bfbfa1c02069846614227077a40965739cfeef8603b8083f2768d29ef94630"
+    },
+    {
+      "id": "updater-web-exclusion-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/updater-web-exclusion-v2-2-7.patch",
+      "targets": [
+        "packages/gui-plugins/src/updater/renderer.tsx"
+      ],
+      "reason": "Issue #198 (coordinator ruling b): the v2.2.7 pin grew a web-updates face inside the shared updater plugin (upstream 4fa365faf5 feat(app): update the web app and PWA in place, #61995) — web.tsx/web-driver.ts/web-machine.ts register the service-worker update checks, a general-page Updates SettingsPage (entries {settings-release-notes, settings-check-updates, settings-reload-from-server}), a titlebar pending item and a hidden check command; renderer.tsx:29 routed to it with `if (!ctx.desktop) return webUpdates(ctx)` and general.tsx:356 mounts the plugin-owned general sections, so the face ACTIVATED on the Android shell (v2.2.1-era 'zero Updates page' was a pin-era fact, not a v2.2.7 one). This patch converts the routing into the pairing/renderer.tsx:8 bare early-exit form and removes the now-unused webUpdates import (gui-plugins noUnusedLocals). Deliberate mobile exclusion per the S40/N09 recorded boundary and ADR 0005 (APK update deferred; activation condition = ADR 0005 revisited). Scope is the web-updates face ONLY: whatsNew(ctx)/betaNotes(ctx) run BEFORE the guard and stay active — the surviving What's New face is not a failed exclusion. The upstream web face files stay upstream untouched, orphaned by this guard. The ExtensionManager DESKTOP_HOST_EXTENSIONS presentation row (browser/pairing/ssh/updater) is unchanged — updater stays presented as a desktop-host row.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "rebase": "v2.2.7: first registration against the fedc6f208a pin; hunks generated against the cumulative chain tree (pristine pin + closure patches + the 13 prior active mobile patches) — the single target is carried by no other active patch (the only registry 'updater' target hit is absorbed row 37's packages/plugin/src/gui/updater.ts, a different file), so the pre-image is the pristine pin state and dependsOn is validated empty.",
+      "verification": "Patch apply-check on a scratch pristine-pin tree (git init rooted at the vendor/upstream layout, pre-image = fedc6f208a blob 47b03edf1b21) applied cleanly and the result is byte-identical (cmp) to the working tree; bun run patches:refresh PASS(92) + python3 scripts/mobile-patches.py PASS (92 registered; updated: none) + python3 scripts/test_mobile_patches.py OK (9/9) + bash scripts/verify-closure.sh PASS (14-active-patch replay byte-identical, DANGLING=0, V3(b)/V3(c) OK); vendored gui-plugins tsc (bun run typecheck:tsc) stash-double-run vs base b070d16: output byte-identical (2 pre-existing errors ssh/askpass.test.ts TS2307 + ssh/controller.ts TS2353, zero TS6133, zero new kinds — the webUpdates import and its only use were removed in the same edit). Gates recorded in docs/build-and-verify.md issue #198 section.",
+      "sha256": "bc62f2bda9d6884e58e221b34f506fff4fab15ff54f425e6ac64e535f2337e1e",
+      "status": "active",
+      "disposition": "active; sole carrier of the issue #198 ruling-b exclusion (row 92) — the v2.2.7 web-updates face is excluded on mobile with zero changes to web.tsx/web-driver.ts/web-machine.ts; the guard-table updater row and the S41 line-98 claim ('pairing and updater both register SettingsPages only after the if (!ctx.desktop) return') are restored true by this guard"
     }
   ]
 }
