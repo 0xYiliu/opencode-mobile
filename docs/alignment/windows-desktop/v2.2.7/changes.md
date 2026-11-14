@@ -445,3 +445,60 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **DENY（routing）** `session-workbench-upstream` overlap：其与 review/files 面的重叠 hunks 已随前序轮 absorbed（#188 已核对 session-workbench 面），本轮不重复登记、不翻转。
 - **ALLOW（audit-only）** `packages/app/e2e` specs：作为 fixed-source 审计面 byte-identical 登记，**不作为 Android 运行门禁**（Playwright 不是 Android APK 硬门禁）；本轮未运行 e2e。
 - **EXCLUDED** `packages/core|server` vcs/fs 服务端实现不在 vendored closure（同 #12 probe 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。
+
+## Issue #191：terminal / PTY crosswalk and allowlist
+
+本节是 #191 的固定上游审计（terminal / persistent-PTY 面），不改变冻结的 v2.2.1 文档与前序 #186–#190 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--191-terminal-pty`，分支 `feat/191-terminal-pty`，base `018a60a`（#190 链尾）。本轮 landing 方式 = **纯静态轮（零新 mobile patch、零 vendor delta）**：terminal surface 全部 byte-identical 于 v2.2.7 pin（v2.2.1→v2.2.7 的 persistent-PTY 重组 **absorbed by vendor pin**），交付物为 `verify-terminal` 探针的 v2.2.7 全量重锚定（issue #13 的旧 pty 面探针退役、persistent-PTY 面新锚 + 6 条 in-memory 负注入 drill）+ `docs/design/units/terminal.md` 重写为 persistent-PTY 契约；`patches:refresh` 未运行（登记面零改动），registry 保持 **85 registered / 7 active / 33 absorbed / 45 deferred** 不变。
+
+### 可复现 fixed-source 命令
+
+```bash
+# terminal / persistent-PTY surface（9-path 口径，2026-11-14 本轮重放）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/gui-plugins/src/terminal \
+  packages/client/src/solid/pty.ts \
+  packages/client/test/solid-pty-protocol.test.ts \
+  packages/client/test/solid-pty.test.ts \
+  packages/protocol/src/groups/persistent-pty.ts \
+  packages/protocol/src/groups/pty.ts \
+  packages/protocol/src/errors.ts \
+  packages/schema/src/persistent-pty.ts \
+  packages/app/e2e/utils/persistent-pty.ts
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；absence 负检：上列 4 条 D
+#   （gui-plugins/src/terminal/{serialize,state}{,.test}.ts）在 vendored 树必须 0 present
+#   （上游删除家族，同 #188/#190 markdown-worker 先例）。
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（9-path 口径）**：**106 entries = 22 A + 4 D + 80 M → 102 present → 102 SAME + 0 DIFF（vendored 0 absent）**。4 条 D = `gui-plugins/src/terminal/{serialize,state}{,.test}.ts`（客户端序列化快照家族：上游删除，vendored 树 0 present——客户端持久快照被服务端 snapshot/checkpoint 取代）。
+- **terminal surface DIFF = 0 vs pristine**：全部 102 条 present（含 `client/test/solid-pty{,-protocol}.test.ts`、`app/e2e/utils/persistent-pty.ts` 审计面）逐文件 `git rev-parse fedc6f2:<path>` ≡ `git hash-object vendor/upstream/<path>`；零 mobile 载体 hunks、零 vendored-new——终端面本轮**纯吸收**（对比 #190 轮 3 DIFF 在册载体形态）。
+- `packages/protocol/src/groups/pty.ts`（旧 pty 协议组）在两 pin 之间 byte-same（0-entry 路径入 9-path 集作**退役面记录**）；`client/src/solid/{data,index}.ts`、`schema/src/{pty,pty-ticket}.ts` 同为 byte-same 不入集。
+
+### commit crosswalk（上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体（vendored 形态） |
+| --- | --- | --- | --- |
+| `067b741783`（2026-10-29，#60323） | refactor(client): share the persistent pty protocol | **absorbed**（vendor pin） | `client/src/solid/pty.ts` 协议共享面（PersistentPtyMessage 7 变体 + persistentPtyFrame 5 字节帧 + createPersistentPtyClient）+ `client/test/solid-pty-protocol.test.ts` 新增（SAME 集） |
+| `a070e11643`（2026-10-29，#60327） | test(app): mock persistent pty routes | **absorbed**（vendor pin） | `app/e2e/utils/persistent-pty.ts` 新增（SAME 集；e2e audit-only，不作为 Android 门禁） |
+| `ef712d3a78`（2026-10-30，#60346） | feat(app): move the desktop terminal to persistent PTYs | **absorbed**（vendor pin） | terminal UI 整体迁移：`terminal/{terminal,model,panel,renderer,tab}.tsx(x)` 重写、`{serialize,state}{,.test}.ts` 删除（4 D）、`connection.ts`+`connection.test.ts` 新增；e2e `terminal{,-input,-focus}` spec 重排（e2e-only） |
+| `65c0d83f4d`（2026-10-30，#60329） | feat(core): rename persistent terminals | **absorbed**（vendor pin） | rename + 501 面：`protocol/src/groups/persistent-pty.ts` update 描述（"Renaming fails with 501…"）+ `errors.ts` `PtyFeatureUnsupportedError`（httpApiStatus 501）+ `schema/src/persistent-pty.ts` |
+| machine family（`0c441474bd`/`8f3f7b74c9`/`fff729917e`/`ee6b87031c`/`5e76d6a9b1`/`2a9c54c04f`，2026-11-04/05，#61650/#61847/#61852/#61940/#61941/#62004） | 终端面状态机化（server-list machine / surface remount / focus+rename / connection-machine / pane-machine / dispatch+quote-machine） | **absorbed**（vendor pin） | 22 A 中 18 条 machine/props 文件（machine/surface/focus/rename/pane/connection/quote 六 machine 族 + dispatch + inline-rename + props）+ machine.ts 的 stale-answer 拒绝/failed-list retry 链（SAME 集） |
+
+### 行为 crosswalk
+
+- **persistent-PTY 协议面**（`067b741783`）：`PersistentPtyMessage` 7 变体（attached/replay_complete/resized/controller_changed/exited/title_changed/foreground_process_changed）；`persistentPtyFrame` 二进制帧 = byte0（data?1:0）+ u16BE cols + u16BE rows + payload@5；`createPersistentPtyClient`：ticket header `x-opencode-ticket: "1"`、ws 路径 `api/experimental/persistent-pty/:ptyID/connect`、query `cursor`/`attachment_id`/`takeover`/`input_protocol`、`binaryType="arraybuffer"`、`openSocket?` 注入 seam。旧 `pty` 协议组在 `protocol/src/groups/pty.ts:9-12` 逐字存活为退役面（常量由 persistent-pty 组 re-export）——决策：**保留为退役面记录**（探针组 1 断言常量，旧端点描述退役）。
+- **snapshot/cursor/takeover connect**（`ef712d3a78`）：connect 链 = `persistentPty.snapshot({ptyID})` → `connection.restore({size: snapshot.info.size, checkpoint: snapshot.checkpoint})` → `createPersistentPtyClient(...).connect({ptyID, cursor: snapshot.info.output.tail, attachmentID, takeover: true})`——快照先恢复屏幕、cursor=服务端 output.tail、takeover 显式接管；`inputProtocol !== 1` → `outdated` 分类（serverOutdated 文案）。
+- **rename + 501**（`65c0d83f4d`）：`persistentPty.update({ptyID, title})`（null 清除恢复 shell 标题）；`PtyFeatureUnsupportedError`（501）→ `rename.failed kind:"unsupported"` → `toast-rename-failed` → `rename.unsupported` toast（en 逐字"Terminal renaming will be available after OpenCode's terminal service restarts"）；socket `title_changed` 消息被 connection machine **刻意忽略**（connection-machine.test「ignores what changes nothing」在册），标题经 `persistent-pty.updated` 事件 → `terminal.updated` 分发到达 UI。
+- **never-reconnects**（machine family）：connection-machine.ts:19 逐字「One WebSocket attachment to a persistent PTY. It never reconnects: after a failure the surface mounts a new terminal with a new attachment and a new state.」——旧退避重连/探活 clone 家族整体退役；恢复 = surface-machine remount（missing → issued+1 → mounted；failed mount 在更新的 server connection 列表后恰重挂一次）+ failed-list retry（panel retry 按钮 → model `session.retry` → 仅 failed 列表可重试）+ stale 拒绝（list attempt 守卫 + rename attempt 守卫）。
+- **disconnect 红线（v2.2.7 形态）**：terminal.tsx 零 `persistentPty.remove`/`kill(`；`close(1000)` 恰 2 处（stop() 在途 socket + aborted-connect；**旧 pin 计 3 → 本 pin 计 2 的回落如实登记**——onCleanup persist-close 随 persistTerminal 退役）；cleanup = `connection.dispose()` + `dispatch({type:"disposed"})`（dispose-only，零持久化零终止）；`persistentPty.remove` 全域恰 {model.ts close-terminal}（close.requested 单入口 + `isPtyNotFoundError → close.succeeded` 吞错配对——已退出终端的 close 不算失败）。
+- **mobile face**（上游原生）：`frame.placement() === "mobile"` 分支（panel.tsx:40）+ 移动 Panel 注册 order 30/kind menu/icon terminal（renderer.tsx:230-238）+ session.panel 菜单 order 20（renderer.tsx:155-171）+ mod+w close 命令 presence（face，非调用集）；queue-resize 效应（connection-machine 3 处发射 + connection.ts writer 排序含 `\x1bc` reset + base64 checkpoint）+ pane-machine 100ms debounce/seq 守卫/首测即用/pendingInput 顺序冲刷；en+zh 终端 i18n 键（loading/close/tab.title/command.new 宽容键型）；终端目录 visualViewport 零命中记录（app 壳软键盘锚归 verify-interaction-quality，其组 3 断言 stale-on-v2.2.7 待自身重锚）。
+
+### deny audit
+
+- **DENY（deny replay）** `session-workbench-upstream`（absorbed）terminal sections：其 v2.2.1 目标集不含 gui-plugins/terminal 生产路径；上游终端 e2e（`terminal-input.spec.ts`/`terminal-focus.spec.ts` 删除 → `terminal.spec.ts`/`component-tests/terminal.spec.ts` 新增，`ef712d3a78`）为 **e2e-only old/new-shape**——旧形 spec 不入 vendored 回放（deny replay），新形 spec 为 audit-only（Playwright 不是 Android APK 硬门禁，本轮未运行）。
+- **DENY（routing）** `gui-plugins-api-migration`（deferred）：targets 逐条核对**零 terminal 目标**（无 `gui-plugins/src/terminal/**`）——本轮不触碰，owner 不变。
+- **DENY（routing）** `ghostty-web` 升级/替换 payload → `#199`（依赖升级类，同 #190 deny audit 口径）：本轮不触碰；vendored `ghostty-web@0.3.0` 由 build-dependency closure 承载（`Ghostty.load()` 加载面归 G24①）。
+- **EXCLUDED / zero-touch** `app-ssh-bridge`（absorbed）：targets 恰 {`entry.tsx`}，终端面零触碰（SSH 隧道 ws 帧透传论证沿 units/terminal.md 专节）；`packages/core|server` persistent-pty 服务端实现（daemon/checkpoint/ticket 语义）不在 vendored closure（从 pin cache 引证，不在探针断言内）。
