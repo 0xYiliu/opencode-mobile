@@ -717,7 +717,7 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 | --- | --- | --- | --- |
 | `d09e2c6c8d`（#60358） | feat(app): add question notifications and sounds | **absorbed**（vendor pin） | questions 通知/声音类别、`requestTitles` 两值映射、设置页 questions 行（上游 question/en 键；zh 缺键=en 回退在册）——第一方面四类别白名单/questions 频道与之对齐 |
 | `53ad857b7a`（#60378） | fix(app): preserve simultaneous request notifications | **absorbed**（vendor pin） | 同会话同类替换语义的键域上游改造（kind:requestID 复合 key + `handleContext` 保留）；移动侧 Android 层 `tag=category, id=route.hashCode()` 反替换语义不变（四类别均适用），once=6 声路/门路不变量保持 |
-| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin；**R4 归因修正**） | toast face 为 **pin 原生 byte-identical——该提交的 quota-failure 键经 persistence 层面呈现（`runtime/persistence` 域），不是 toast.tsx diff**（row 72 注记在册；verify-notifications 组 2 重锚定确认无需 toast.tsx carrier hunk） |
+| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin；本行取代 db6633d 初稿的错误归因——勘误随 #195 docs 修正轮在册） | 该提交**本体触及 toast.tsx**（quota-failure 通知 createEffect：`localStorageNoticePending` + `toast.storage.writeFailed.*` 键，均为 pin 原生面）；vendored toast.tsx 与 pin **byte-identical**（V3 closure 重放），无需移动侧 toast.tsx carrier——row 72 注记在册、保持 deferred |
 | `452cfb579c`（#61809） | fix(app): retry failed mark-viewed reports for every caller | **absorbed**（vendor pin） | ViewReportState/`idle: effect.idle` 报告面重试语义原生；notification.tsx sendView 锚在探针组 1 在册 |
 | `2ec6485737`（#62005） | fix(app): make tab preview, crash page actions, notification focus lock and mobile tabs drawer explicit state machines | **absorbed**（vendor pin） | coordinator 重写为 focus-lock-machine 生命周期本体；G33① 门/锁语义由 active `notifications-v2-2-7` 在新生命周期上重 derive（focus-lock-machine.ts 零触碰） |
 | `ed0171f08a`（#62889） | feat(app): mark sessions read or unread from their menus | **absorbed**（vendor pin） | markUnread/manual-unread 面原生（unread 水位消费族）；与桥投递面零交 |
@@ -736,7 +736,7 @@ questions 投递若无白名单扩展存在**两条明确的失败形态**：其
 | 22 | `notifications-platform-delivery` | deferred→absorbed | M-023 三面桥投递由 row 89 重 derive；旧 permission 第四支被上游统一 handleRequest superseded；request 面 `target` 路由 pin（R3） |
 | 23 | `notifications-webview-focus-gate` | deferred→absorbed | G33① 由 row 89 在 focus-lock-machine 生命周期上重 derive（machine 零触碰；门只向 hidden-but-hasFocus 放行） |
 | 24 | `settings-notification-permission` | deferred→absorbed | M-024 四开关 re-base + 状态行 + en/zh 五键逐字，由 row 89 承载；#193 routing note 履行完毕 |
-| 89 | `notifications-v2-2-7` | 新注册 active | 6 targets；`dependsOn: ["v2-2-7-mobile-connection-pairing-ssh-closure", "tabs-inbox-titlebar-v2-2-7", "composer-queue-attachments-v2-2-7", "settings-v2-2-7", "gui-plugins-v2-2-7"]`（entry.tsx 载体 78/81/83、i18n 载体 86/87 的全同目标前序集；mobilePatches 第 11 项）；SHA-256=`5d19f55c2a8a8ea5c93738b0a685938e415d0ffb647375f8c787fdfa356df003` |
+| 89 | `notifications-v2-2-7` | 新注册 active | 6 targets；`dependsOn: ["v2-2-7-mobile-connection-pairing-ssh-closure", "tabs-inbox-titlebar-v2-2-7", "composer-queue-attachments-v2-2-7", "settings-v2-2-7", "gui-plugins-v2-2-7"]`（entry.tsx 载体 78/81/83、i18n 载体 86/87 的全同目标前序集；mobilePatches 第 11 项）；SHA-256=`23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087` |
 
 ### platform boundary（红线复核）
 

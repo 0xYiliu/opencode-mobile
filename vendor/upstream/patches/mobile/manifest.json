@@ -1992,7 +1992,7 @@
       "verification": "Post-copy app directed subset (registry/registry-hydration/persistence consumers+storage/notification/helpers/composer queue/session-ownership/panel-motion) 58 pass / 0 fail — identical counts to the pre-change baseline; app.tsx delta vs target reduces to the two excluded Voice import lines plus the VoiceProvider subtree; session tab avatar persistence face re-verified on the device QA round.",
       "status": "deferred",
       "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed #195 note: the toast face is pin-native byte-identical (490739afe7's quota-failure keys surface via the persistence layer, not a toast.tsx diff) — the notification-domain probe re-anchor (verify-notifications group 2) confirms no toast.tsx carrier is owed.",
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed #195 note: 490739afe7 itself touched toast.tsx (its quota-failure notice createEffect via localStorageNoticePending + the toast.storage.writeFailed.* keys is pin-native at fedc6f208a); the vendored toast.tsx is byte-identical to the pin (V3 closure replay), so no mobile toast.tsx carrier is owed and row 72 stays deferred.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2392,7 +2392,7 @@
       "verification": "Apply-check of the patch against the pre-patch chain tree (scratch pristine pin fedc6f208a + closure patch + the 10 prior active mobile patches) with the applied result byte-identical (cmp) to the working tree for all 6 targets; bun run patches:refresh + python3 scripts/mobile-patches.py PASS(89) + python3 scripts/test_mobile_patches.py OK (9 tests); bash scripts/verify-closure.sh PASS (11-patch replay byte-identical, DANGLING=0); git diff --check clean. Suites at the round constants: vendored shell/notifications focused set 29 pass / 0 fail / 87 expect / 3 files (machine.test + focus-lock-machine.test + notification.test; coordinator G33① re-derivation and the M-023 reroute do not perturb it); mobile-hosts 447 pass / 0 fail / 3038 expect / 40 files (c0 446/0/3034/40 + exactly the #195 questions case: four-category order lock + questions deliverable); Gradle :app:assembleDebug build-only PASS (36 tasks) with the questions channel carrier.",
       "disposition": "active; sole carrier of the re-derived notifications payloads (rows 21/22/23/24: M-022 registration, M-023 reroute with the request-face target pin, G33① visibilityState gate on the focus-lock-machine lifecycle, M-024 four-switch re-base)",
       "status": "active",
-      "sha256": "5d19f55c2a8a8ea5c93738b0a685938e415d0ffb647375f8c787fdfa356df003"
+      "sha256": "23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087"
     }
   ]
 }

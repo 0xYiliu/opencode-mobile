@@ -638,7 +638,7 @@
     {
       "id": "notifications-v2-2-7",
       "path": "patches/mobile/notifications-v2-2-7.patch",
-      "sha256": "5d19f55c2a8a8ea5c93738b0a685938e415d0ffb647375f8c787fdfa356df003",
+      "sha256": "23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087",
       "status": "active"
     }
   ],

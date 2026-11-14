@@ -24,7 +24,6 @@
 #     en/zh gain the five settings.general.notifications.android.* keys verbatim. Upstream
 #     guard chains, sound paths and the once-dedup invariants are zero-changed.
 diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
-diff --git a/packages/app/src/entry.tsx b/vendor/upstream/packages/app/src/entry.tsx
 index 3f3d39dc67042baa6475d4c127fa902547d088dc..170100b243fed2ec075d8cd3896c396d74ebc46f 100644
 --- a/packages/app/src/entry.tsx
 +++ b/packages/app/src/entry.tsx
@@ -82,7 +81,7 @@ index 3f3d39dc67042baa6475d4c127fa902547d088dc..170100b243fed2ec075d8cd3896c396d
      const hosts = createMobileHosts({
        storage: window.localStorage,
        fetch: globalThis.fetch.bind(globalThis),
-diff --git a/packages/app/src/runtime/i18n/en.ts b/vendor/upstream/packages/app/src/runtime/i18n/en.ts
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
 index b7621b0ef77d125d5ad28eef9f67fbd5d59cb072..758da17b3f97dd48ec57717cde66b0a5347f1c88 100644
 --- a/packages/app/src/runtime/i18n/en.ts
 +++ b/packages/app/src/runtime/i18n/en.ts
@@ -101,7 +100,7 @@ index b7621b0ef77d125d5ad28eef9f67fbd5d59cb072..758da17b3f97dd48ec57717cde66b0a5
  
    "settings.general.sounds.agent.title": "Agent",
    "settings.general.sounds.agent.description": "Play sound when the agent is complete or needs attention",
-diff --git a/packages/app/src/runtime/i18n/zh.ts b/vendor/upstream/packages/app/src/runtime/i18n/zh.ts
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
 index fc1d6f60f021bb75ab7f30b8d53ef6acab7d8780..d0985900ffaa6eec1b2bf8d7e69c2b98b0f823f9 100644
 --- a/packages/app/src/runtime/i18n/zh.ts
 +++ b/packages/app/src/runtime/i18n/zh.ts
@@ -117,7 +116,7 @@ index fc1d6f60f021bb75ab7f30b8d53ef6acab7d8780..d0985900ffaa6eec1b2bf8d7e69c2b98
    "settings.general.sounds.agent.title": "智能体",
    "settings.general.sounds.agent.description": "当智能体完成或需要注意时播放声音",
    "settings.general.sounds.permissions.title": "权限",
-diff --git a/packages/app/src/settings/notifications/notifications.tsx b/vendor/upstream/packages/app/src/settings/notifications/notifications.tsx
+diff --git a/packages/app/src/settings/notifications/notifications.tsx b/packages/app/src/settings/notifications/notifications.tsx
 index e0a658bae6bfe2eccfc05d1136f0ccfa75b436d9..a40a79c00a7b87de97ae230e5b79eff755200429 100644
 --- a/packages/app/src/settings/notifications/notifications.tsx
 +++ b/packages/app/src/settings/notifications/notifications.tsx
@@ -230,7 +229,7 @@ index e0a658bae6bfe2eccfc05d1136f0ccfa75b436d9..a40a79c00a7b87de97ae230e5b79eff7
            </SettingsList>
          </div>
  
-diff --git a/packages/app/src/shell/notifications/coordinator.ts b/vendor/upstream/packages/app/src/shell/notifications/coordinator.ts
+diff --git a/packages/app/src/shell/notifications/coordinator.ts b/packages/app/src/shell/notifications/coordinator.ts
 index 66d5494f20f03a7d0e785e80015c4a3d71e292f6..bbf9edc3de274ba242c17b7c642edde324811913 100644
 --- a/packages/app/src/shell/notifications/coordinator.ts
 +++ b/packages/app/src/shell/notifications/coordinator.ts
@@ -272,7 +271,7 @@ index 66d5494f20f03a7d0e785e80015c4a3d71e292f6..bbf9edc3de274ba242c17b7c642edde3
  
          if (!locks) return run()
          // Another alert holding the focus lock must not look like a focused app window.
-diff --git a/packages/app/src/shell/notifications/notification.tsx b/vendor/upstream/packages/app/src/shell/notifications/notification.tsx
+diff --git a/packages/app/src/shell/notifications/notification.tsx b/packages/app/src/shell/notifications/notification.tsx
 index c9c703818bb14df69354b78fcecc0f6f5a8da73f..a2a4db562c5aa09cf2ed61349ff8c4cefd0e3dcd 100644
 --- a/packages/app/src/shell/notifications/notification.tsx
 +++ b/packages/app/src/shell/notifications/notification.tsx
