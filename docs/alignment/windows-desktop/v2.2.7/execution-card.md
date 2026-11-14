@@ -16,6 +16,7 @@
 - 当前子工作单元：[#194](https://github.com/0xYiliu/opencode-mobile/issues/194)（gui plugins 窄屏面 crosswalk）
 - 当前子工作单元：[#195](https://github.com/0xYiliu/opencode-mobile/issues/195)（notifications crosswalk + 四类别白名单 Android 侧首改）
 - 当前子工作单元：[#196](https://github.com/0xYiliu/opencode-mobile/issues/196)（runtime/data crosswalk：URL canParse polyfill + 四 payload 收口）
+- 当前子工作单元：[#199](https://github.com/0xYiliu/opencode-mobile/issues/199)（依赖基线核对：catalog/overrides/bunfig/patchedDependencies + devDep 剪除 + bun.lock 重算 + uuid-safety 锁）
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
@@ -385,3 +386,12 @@ bun test --conditions=browser packages/mobile-hosts
 - 排除范围声明（防误读）：whatsNew/betaNotes 在 guard 前运行且**保持激活**——What's New 外联面不在 row 92 排除范围（S40「当前只保留已有 What's New 外联面」边界不变）；幸存面不是「排除失败」。
 - BLOCKED/NOT RUN（解除条件）：**updates-face 设备实态**（row 92 排除后 Updates 页/SW 更新 toast/titlebar 更新项在 Android WebView 的呈现缺失走查）**解除条件=授权设备一轮**；触屏/返回键 × 弹层 re-walk（G30/G42）unchanged 继承 #197 BLOCKED；本轮不声称任何设备/真实服务/runtime 验证。
 - 授权与停止条件：不推送；不创建 PR；无设备主张。STOP 条款（第二轮 web-activation 泄漏 / probe census drift / registry 或 closure 失败 / vendored tsc 失败）本轮零触发。
+
+### #199 当前执行状态
+
+- 目标：v2.2.7 依赖基线核对与收口——catalog/overrides/bunfig/patchedDependencies 对上游 pin 程序化核对；row 1 `gui-plugins-native-test-deps` re-base 转 active（5 desktop/main-side-only devDep 移除，#194 routing 履行）；新 row 93 `plugin-electron-devdep-prune`（plugin electron devDep 剪除，optional peer 保留）；row 3 `workspace-dependency-closure` 翻转 absorbed（closure patch 三 hunk 逐字承载）；bun.lock 重算（desktop-only 依赖树剪除）+ frozen ×2 幂等 + R2 负 grep 分段实证；`verify-webview-uuid-safety.test.ts` 图导出锁（W19 randomUUID residual closed）。无设备工作。
+- 基准与绝对工作目录：`/home/peterhan/worktrees/opencode-mobile/feat--199-deps-baseline`，分支 `feat/199-deps-baseline`，base `a77f225`（#198 链尾，stacked chain main a25ab51 → #187 → … → #198；PR #203–#214 open）；上游只读引用 `/home/peterhan/repository/opencode`（tags）+ `~/.cache/opencode-upstream`。
+- 范围：两 patch 目标（gui-plugins/plugin package.json）+ 两 patch 文件（re-based row 1 + 新 row 93）+ manifest/mirrors/provenance/PROVENANCE.md + bunfig 头注 + 三陈旧 upstream patch 文件修剪 + bun.lock + 新探针 + web-dist/manifest.json + docs；旧 patch 文件（除三修剪）零触碰；packageManager 不动（bun@1.4.2）；AbortSignal.any/randomUUID 零 polyfill；web.tsx/web-machine 未触碰。
+- 验收与结果：registry **93 registered / 16 active / 70 absorbed / 7 deferred**（中间态 commit 2 = 92/15/69/8 诚实入账）；`mobile-patches.py` PASS(93)/`test_mobile_patches.py` OK(9/9)/`verify-closure.sh` PASS（16-active byte-identical、DANGLING=0）；apply-check 位置 15/16 各 PASS；frozen-install ×2 sha 恒同（commit 1 期 `483b78b5…`×2 无变化；commit 4 重算后 `9748d5e7…`×2）；负 grep 6 键段内外全 0 + electron-updater 键经验性丢弃（10→9，app-builder-lib 先例）；探针普查 **25 rc=0 / 12 rc=1** 首 FAIL 逐字恒同；套件 Set A 396/5/1793/30、mobile-hosts 447/0/3038/40、terminal 131/0、files 430/0/1337/36、pierre 14/0、url-compat 4/0；dist 5630/155,852,436 == #198 值（manifest delta = 29 条 .map hash churn）；tsc 双跑 838=838 零新 kind；Gradle 47/0 + APK `5ac687a2…`（66,210,471 bytes）**未安装**；负注入 1 条（uuid 探针双 FAIL→restore→PASS）。
+- BLOCKED/NOT RUN（解除条件）：无新增加门禁项；设备/真实服务运行面维持各轮既有 BLOCKED（本轮零设备工作）；gui-plugins main-side fresh-install 类型姿态登记为非门禁（build-only，由 build:web rc=0 覆盖）；typecheck 维持 known-baseline 失败集（838 行，双跑零差），本轮未声称通过。
+- 授权与停止条件：PR 由协调者创建（不合并）；不推送；无设备主张。registry 语义、补丁 scope 或安全策略需要变化时停止并记录；本轮零 S 类触发。

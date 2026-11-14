@@ -912,3 +912,77 @@ grep -rn 'type: "sidecar"' vendor/upstream/packages/app/src   # 恰 registry.tsx
 # platform === "desktop" 普查（实测 23 处 / 17 文件）
 grep -rn 'platform === "desktop"' vendor/upstream/packages/app/src --include='*.ts' --include='*.tsx' | grep -v '\.test\.'   # 23 hits / 17 files
 ```
+
+## Issue #199：依赖基线核对（catalog/overrides/bunfig/patchedDependencies + 两 devDep 补丁 + bun.lock 重算 + uuid-safety 探针锁）
+
+本节是 #199 的依赖基线轮记录（静态 + 机器门禁轮，无设备工作）。审计对象 = 移动根 `package.json`（workspaces.catalog / overrides / patchedDependencies / trustedDependencies）、根 `bunfig.toml`、根 `bun.lock` 与 vendored 两处 devDependency 清单，对上游 pin `fedc6f208aa2bd54c1019227214568083f6380ad` 的同名面。实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--199-deps-baseline`，分支 `feat/199-deps-baseline`，base `a77f225`（#198 链尾，stacked chain main a25ab51 → #187 → … → #198；PR #203–#214 open，PR #215 = 本轮、不推送不创建不合并）。本轮 landing = **row 1 `gui-plugins-native-test-deps` re-base 转 active（5 devDep 移除，mobilePatches 第 15 项）+ 新 row 93 `plugin-electron-devdep-prune`（1 devDep 移除，mobilePatches 第 16 项）+ row 3 `workspace-dependency-closure` 翻转 absorbed + `bun.lock` 重算（desktop-only 依赖树剪除）+ 新探针 `verify-webview-uuid-safety.test.ts`**；registry **93 registered / 16 active / 70 absorbed / 7 deferred**。本节内 file:line 均为本 worktree 实测行号。
+
+### §0 依赖面核对表（程序化 diff，逐项引用不重 derive）
+
+| 面 | 移动实态 | 上游 pin 实态 | 结论 |
+| --- | --- | --- | --- |
+| workspaces.catalog | 72 键 | 66 键 | 66 共享键**零版本失配**（程序化 diff 实测）；移动多出 6 键 = `@hono/standard-validator`、`@hono/zod-validator`、`ai`、`hono-openapi`、`remend`、`ulid`（mobile-only；client/protocol 生成面与 mobile-hosts 所需）；上游多出 0 键 |
+| overrides | 10 键 | 12 键 | 10 共享键逐键相等；上游多出 `astro` + `@astrojs/starlight`（docs 站工具链）不携带 |
+| bunfig.toml `[install]` | 与上游 pin **byte-identical**（本轮程序化核对） | 同左 | exact=true + minimumReleaseAge 259200 + excludes 全集恒同；头注在 commit 1 由陈旧 `b4525d79` 字样更正为 `fedc6f208a (release: v2.2.7)`，并落字上游 `[test]` 节（`root = "./do-not-run-tests-from-root"`）**蓄意不携带**（mobile 按包跑 focused 套件，不守 workspace 根） |
+| patchedDependencies（根声明） | 19 键（全部 upstream-carried 文件在盘） | 17 键声明 / lock 段 13 | 差集 = mobile-only 增键 `@modelcontextprotocol/client@2.4.0`（上游 2.3.1 时代记录）与声明但图未解析类（见 §0.1） |
+| bun.lock patchedDependencies 段 | 重算前 10 键 → **重算后 9 键** | — | electron-updater@6.8.9 键随 devDep 剪除被 bun **经验性丢弃**（§0.1 R2 实证）；余 9 键 = `@modelcontextprotocol/client@2.4.0`、`@tanstack/virtual-core@3.17.8`、`pacote@21.5.1`、`@npmcli/agent@4.0.2`、`@pierre/trees@1.0.0-beta.6`、`vite@8.2.4`、`@corvu/drawer@0.2.4`、`@dnd-kit/dom@0.5.0`、`solid-js@1.9.17`，与在盘 9 个 patch 文件一一对应 |
+| trustedDependencies | `esbuild`、`node-pty`、`protobufjs`、`electron` | — | `electron` 条目重算后 **inert-after-prune**（图内零 electron 包，postinstall 不再运行）；声明原样保留（upstream-carried 记录） |
+
+§0.1（声明但图未解析 / R2 实证）：`app-builder-lib@26.15.7` 在重算前后都**不在** bun.lock 段（先例）；本轮实证 bun 对 `electron-updater@6.8.9` 采取同一行为——devDep 剪除后 recompute 把该键从 lock 段丢掉（10→9），根声明与 `vendor/upstream/patches/electron-updater@6.8.9.patch` **按裁定保留在盘**（upstream-carried config 记录；红线目标是 dependency entries，移动根 deps/devDependencies 保持 `{}`）；`@brendonovich/vite-plugin-opencode@0.1.3` 声明在根、重算前后都不在 lock 段（closure 图从不解析），显式登记为 declared-but-unresolved（provenance.json notCarried 两条新记录在册）。
+
+### §1 行 1 re-base 落地记录（5 devDep，逐行依据）
+
+`gui-plugins-native-test-deps`（row 1，同语义 ID、同单 target `packages/gui-plugins/package.json`）`deferred → active`——#194 routing note（独立重基归 #199/browser follow-up 单元）就此履行完毕。re-based against pristine pin（v2.2.7 devDependencies 块在保留项之间携带 `@opencode/protocol`，pre-rebase hunk 不知情）；移除 **5** 条（每行依据，全部满足「renderer import 图零命中」reviewer 核验事实）：
+
+1. `electron "44.9.1"` — desktop 运行时；trustedDependencies postinstall 拉 ~110MB 二进制，web 构建永不需要。
+2. `@lydell/node-pty "catalog:"` — main-side PTY 宿主（historical 3）。
+3. `devtools-protocol "0.0.1687809"` — desktop-side 工具 CDP 类型（historical 3）。
+4. `electron-updater "6.8.9"` — desktop 自动更新通道；v2.2.7 web-updates 面已被 row 92 `updater-web-exclusion-v2-2-7` 蓄意排除（#198），ADR 0005 暂缓 APK 更新。
+5. `lighthouse "13.4.1"` — desktop-only 审计工具（chrome-launcher/puppeteer-core/@sentry/node 树；自身传递再引入 devtools-protocol）。
+
+`@happy-dom/global-registrator` 保留（canonical 包目录测试形经包 bunfig happydom preload）。逐行依据同时落字于 patch 头注。**catalog 键 `@lydell/node-pty` 保留**（catalog diff 66/66+6 不动）——本轮只动 devDependencies 条目。SHA-256=`3379113e0a13e6e14c7c96bca785b2afa90dbf48bdc8d7588e564c9f88813efb`。
+
+### §2 行 93 落地记录 + 行 3 翻转 absorbed
+
+- **row 93 `plugin-electron-devdep-prune`**（新，active，1 target `packages/plugin/package.json`，无 dependsOn，mobilePatches 第 16 项）：只移除 devDependencies 的 `"electron": "44.9.1"`；pin 原生 optional peer `electron: "*"` + `peerDependenciesMeta.optional` **零触碰**（desktop 消费方包形保留；plugin gui host 库对 electron 为 type-only import——`src/gui/main.ts:1`）。pre-image = post-closure vendored 形（pre-image blob `bd188ca` == closure patch post-image blob；无任何 active mobile patch 触碰该文件）。SHA-256=`501b5ae0b0a22c32d900c1be9322951444ed5098bc2f60c6001f042bfad4912a`。
+- **row 3 `workspace-dependency-closure` 翻转 absorbed**（reviewer 逐 hunk 核验）：三条 hunk 全部由 closure patch `patches/closure/v2-2-7-build-dependency-closure.patch` 逐字承载——ai hunk（closure patch 文件 **L1**，devDependencies 移除 `@opencode/http-recorder`，@@ -158,7）、client hunk（**L13**，移除 `@opencode/httpapi-codegen`，@@ -54,7，上下文行 `@modelcontextprotocol/client "2.4.0"` 在册）、plugin hunk（**L4124**，`@opencode/theme` 三处移除）；语义与 row 3 三条移除清单逐字同。16-active verify-closure 重放 byte-identical/DANGLING=0 即承载证据。
+
+### §3 W4：bun.lock 重算与幂等证据（R2 实证）
+
+- `bun install`（recompute，非 frozen）：rc=0，「5 packages removed」，lock delta **19 insertions / 291 deletions**；被剪 lock 条目恰映射五个 desktop/main-side 依赖族——electron 树（`@electron/get`、sumchecker 等）、electron-updater 树（builder-util-runtime、tiny-typed-emitter、when-exit 等）、devtools-protocol（直连 + lighthouse/puppeteer-core 两条 nested）、lighthouse 树（chrome-launcher、puppeteer-core、@puppeteer/browsers、@sentry/node、axe-core、tldts、csp_evaluator、speedline-core 等）、@lydell/node-pty（+5 平台二进制）；packages 计数 **1115 → 1010**（6 条 cjs 别名键重解析为净差异：138 removed / 6 added）。
+- **headline 验收**：`bun install --frozen-lockfile` ×2 → 双 rc=0、双「Checked 887 installs across 1010 packages (no changes)」、`sha256sum bun.lock` 两次同值 **9748d5e7528d14d82bcbc8273e1087f59f29b6911a981d2f135dae4f0b9e4024**、`git diff` bun.lock 空。
+- **负 grep（R2，分段实证）**：`"electron@"` / `"electron-updater@"` / `"devtools-protocol@"` / `"lighthouse@"` / `"@lydell/node-pty@"` / `"app-builder-lib@"` 在 bun.lock 内**含 patchedDependencies 段内外均 0 命中**；经验性结论 = bun 在图内无解析方时把 electron-updater 补丁键从段中丢弃（10→9），与 app-builder-lib 先例同形。
+- provenance.json 随重算刷新：lockfile sha → `9748d5e7…`；ghostty-web resolvedCommit `83c0a07` → **`e91e38a9ceb13c566ddfa15185a9393849f712a9`**（v2.2.7 spec；上游 v2.2.7 丢弃 ghostty patch，陈旧 patch 文件于本轮修剪）；顶层 `mobilePatches` 陈旧 17 项列表替换为 **live 16 项重放序**（== vendor-manifest——AGENTS.md 唯一重放顺序）；`upstreamPatches.carried` 三条陈旧文件行重写（R4：prunedAtIssue199 逐条带因）+ `@pierre/trees` 键更正为在盘 `1.0.0-beta.6` 文件；notCarried 增 @brendonovich 与 electron-updater 两条。
+
+### §4 W5：randomUUID 收口证据链（W19 residual closed）
+
+- **图导出锁（R1，非手列 allowlist）**：新探针 `scripts/verify-webview-uuid-safety.test.ts` 从 renderer 入口面（`gui-plugins/src/renderer.ts` + `plugin/src/gui/builtin.ts`）行走静态相对 import 闭包（bare=外边界、动态 import()=文档化 lazy 链不跟随、type-only 跳过、`.js`→`.ts` 与 `?inline` 解析），断言闭包内 **0** randomUUID 调用点（bare `crypto.randomUUID(` 与 main-side trio 的 named `import { randomUUID }` 双形）；closure size >50 防退化 witness。
+- **confined-set 等价**：gui-plugins/src 内（*.test.ts 豁免）randomUUID-bearing 文件恰 = FULL inventory `{browser/{chromium,diagnostics,files,pane,profiling}, ssh/askpass, wsl/{servers,sidecar}}`，双向断言 + 每文件调用形钉定（browser 域 bare 1/1/2/3/3、trio named 2/2/1）；12 browser-domain 站点 reachable ONLY via `browser/main.ts` lazy chain（静态 import 图实证：chromium/diagnostics/files/pane/profiling 的静态 importer 集只在 main-side 簇内）、`packages/client/src/pty-handoff.ts:56` 在 webview payload 图外（node-side PTY handoff）。
+- **dist 级**：staged assets（`android/app/src/main/assets/web`）对 4 个 main-side 模块 marker（`src/browser/main`/`src/ssh/askpass`/`src/wsl/servers`/`src/wsl/sidecar`）全 0 命中（sourcemap sources 出现即证明 main-side 代码被打进 bundle）；`webUpdates` 全 dist 缺席（row 92 排除面 intact）。探针存在性守卫（R5）：staging 前跳过、staging 后硬断言——本轮 commit 6 后复跑 3 pass / 0 fail。
+- **负注入 ≥1**：向 renderer 闭包文件 `renderer.ts` 注入裸 `crypto.randomUUID()` → closure 测试与 confined-set 测试双 FAIL rc=1（诊断串逐字在册：`the renderer import closure gained a randomUUID call site … renderer.ts bare=1 namedImport=0 namedCall=1`）→ restore byte-identical → 3 pass / 0 fail。
+- **上游规则已满足**：upstream `fef232392d`（v2.2.7 pin 在册）对 renderer-side randomUUID 已建立 feature-detected fallback 规则——staged dist 内 randomUUID 出现全部为该 fallback 形（#198 在册「18 处 randomUUID 全 feature-detected fallbacks」继续成立），无 bare renderer 调用；本轮零 polyfill、零源码改动。
+
+### §5 W6：AbortSignal.any 记录（R6 口径）
+
+`AbortSignal.any` 普查 = **gui-plugins 20 + plugin adapter 1 = 21**（reviewer 核验事实，本轮实测复核同值；`grep -rn "AbortSignal.any" vendor/upstream/packages/gui-plugins/src` = 20、`plugin/src` = 1）。**不 polyfill**（红线）；WebView 114 缺该 API 的运行期劣化维持 #148 在册记录（goal pill BLOCKED，owner #165）——本轮零触碰。
+
+### §6 探针普查 / 套件 / 构建与 Gradle
+
+- **探针普查**：**25 rc=0 / 12 rc=1**（新探针入 rc=0 侧）；12 条 rc=1 首 FAIL 串与 #198 台账**逐字恒同**（verify-artifacts「probe error: start fence not found…」、verify-commands-menus「1: DesktopMenuRole union set: missing expected member "resetZoom"…」、verify-connection-inline-ssh「missing in-place connection mode "ssh"」、verify-credential-ref「SyntaxError: Export named 'serverState' not found…」、verify-credential-vault「hydration injection block not found in registry.tsx」、verify-inline-ssh-device「TypeError: Unable to connect…（CDP refused，设备依赖）」、verify-interaction-quality「2: …titlebar.tsx gained a History API write/listener ("history.back")…」、verify-pairing「2: scanner.tsx lost the rejected-codes map declaration」、verify-password-keyboard.test 2/2 @:23/:38、verify-projects-sessions「session-home-archive: the archive stub text is still present…」、verify-service-ops「vendored entry.tsx: app-service-operations-bridge wiring missing…」、verify-session-workbench「1: unexpected linear interrupt call site outside the closed set…」）——本轮 rc=1 探针 input 文件与 vendor delta（两 package.json + bun.lock + bunfig 头注 + 三陈旧 patch 文件删除）**零交集**，构造性恒同成立。STOP 条款零触发。
+- **套件**：Set A 30-file **396/5/1793/30**（5 条 pre-existing 同名同位）；mobile-hosts **447/0/3038/40**；gui-plugins terminal（canonical 包目录形）**131/0/820/12** + files 域 **430/0/1337/36**；verify-pierre-webview-compat **14/0**；verify-webview-url-compat **4/0**。
+- **构建**：seam 前置（R5；`@opencode/*` workspace 链接 setup 期已在场，补建 mobile-hosts app seam——gitignored 面）→ `build:web` rc=0 → `copy:web-dist` rc=0 → `android_web_assets.py verify` rc=0；staged **5630 files / 155,852,436 bytes** == #198 在册值（payload 图零源码变化——package.json-only 轮）；committed manifest delta = 29 条 .map hash 对（sourcemap 工作树路径 re-embed churn），零 chunk 改名/hash 变化、零文件数变化；dist-constant 三探针回填不需要（总量未变）。
+- **tsc 双跑**：vendored app `typecheck:tsc` 两跑（各清 tsbuildinfo）各 **838 error TS 行**，归一（文件,消息）kind diff **零差**；tsc 可见源输入对 #198 终态 byte-identical（`git diff a77f225 HEAD` 于 app/gui-plugins/mobile-hosts/session-ui/ui/client/plugin 源为零）——known-baseline 失败集恒同，不声称通过；gui-plugins 包内 tsc 口径诚实记录：本 worktree store 链接在场时恰 2 条 pre-existing（askpass.test TS2307 core/test/lib/effect + controller TS2353 stage），symlink 隐藏实验（fresh-install 姿态）下 main-side 9 文件 TS2307 + 总 36 条——**非移动门禁**（build-only，由 build:web rc=0 覆盖；v2.2.1 payload 同姿态）。
+- **Gradle**：`:app:testDebugUnitTest :app:assembleDebug` BUILD SUCCESSFUL（42 tasks），**47 tests / 0 failures / 0 errors**（10 XML）；APK `app-debug.apk` SHA-256 = **`5ac687a2b98d6d25a0db90fbc3f1b733113e1377720ec704ac12e2c053b6867a`**（66,210,471 bytes）；**未安装**——本轮为依赖基线轮，无设备工作。
+
+### §7 劣化项台账（本轮登记 / 继承边界）
+
+| 项 | 状态 | owner / 激活条件 |
+| --- | --- | --- |
+| `AbortSignal.any` 缺席（WebView 114） | 继承劣化，不 polyfill（红线）；普查 20+1=21 在册 | #165 / goal pill 运行面；解除条件 = WebView ≥116 或 polyfill 决策 |
+| CSS 嵌套渐进损失（details flyout `&:dir(rtl)`/`[data-motion]` 嵌套） | 继承边界（#194 在册），本轮零触碰 |gui-plugins 视觉域后续轮 |
+| 首帧 zoom flash（`opencode-ui-zoom-level` localStorage → documentElement CSS zoom 应用时序） | 继承边界（#197 在册记录），本轮零触碰 | 授权设备复验轮 |
+| gui-plugins main-side 类型姿态（electron/devtools-protocol/lighthouse/@lydell types 从 fresh install 起缺席） | 本轮新登记，**非移动门禁**；build-only 由 build:web rc=0 覆盖 | 若上游 gui-plugins main-side 进入移动构建范围时再评 |
+
+### §8 提交链与门禁
+
+`5748181` chore(vendor)（bunfig 头注更正 + 三陈旧 patch 文件修剪 + catalog/overrides 程序化记录 + fresh frozen-install ×2 幂等证据）→ `1694b8f` feat(vendor)（row 1 re-base 转 active，registry 92/15/69/8，15-active closure PASS，terminal 131/0 + files 430/0）→ `d69d73e` feat(vendor)（row 93 注册 + row 3 翻转 absorbed，registry 93/16/70/7，16-active closure PASS，apply-check 位置 16 PASS）→ `ed11c02` chore(deps)（bun.lock 重算 + frozen ×2 + R2 负 grep + provenance 刷新）→ `c110863` test(probes)（uuid-safety 探针 + 负注入）→ `4ce7171` chore(web)（5630/155,852,436 + marker greps + 普查 25/12 + 套件 + tsc 双跑 + Gradle 47/0）→ 本轮 docs commit。每提交门禁：`mobile-patches.py` PASS（commit 2 后 92 registered、commit 3 后 **93 registered**）/ `test_mobile_patches.py` OK（9/9）/ `verify-closure.sh` PASS（byte-identical 重放、DANGLING=0）/ apply-check scratch PASS / `git diff --check` 干净。registry 中间态（R3 诚实口径）：commit 2 = 92 total / 15 active / 69 absorbed / 8 deferred；commit 3 = 93/16/70/7。冻结安装幂等证据（commit 1 基线 + commit 4 重算后）双轮在册（§3）。BLOCKED 边界：无设备/真实服务主张；Playwright 非 Android APK 硬门禁。

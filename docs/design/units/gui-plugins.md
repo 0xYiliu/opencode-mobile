@@ -75,7 +75,7 @@
 - **Build 四字段**：`Build { version, channel: "local"|"dev"|"beta"|"prod", platform: "web"|"desktop", packaged }`（core.ts；packaged 注释逐字「A packaged desktop app, not a development run. Always false on the web.」）；app 侧取值=host-apis.tsx `channel: (import.meta.env.VITE_OPENCODE_CHANNEL ?? "local")`、`packaged: platform.extensions?.packaged ?? false`。
 - **dev/source manager**（桌面 DEV 三件套）：settings-page-dev 设置页 + hmr.tsx（「Development only: reloads…」）+ builtins.ts `BUILTINS_UPDATED`/`import.meta.hot.accept`。
 - **packaged install 面**（桌面 bridge 专属）：`bridge.manager.install(source)/remove`（remove 注释逐字「Built-ins refuse.」）/source/asset——**全部 desktop bridge，web undefined**；root.tsx 注释逐字「Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.」。
-- **移动信任模型**：内建扩展随应用编译进 dist（vendored pin+gui-plugins-native-test-deps 剥 Electron 依赖在册），无第三方代码装载路径——**移动零安装/零移除/零商店面（marketplace）结构性成立并落字**；本单元与 #15 的「零 GUI 扩展安装入口」声明衔接：启停入口自本期新增，安装入口保持为零。
+- **移动信任模型**：内建扩展随应用编译进 dist（vendored pin+gui-plugins-native-test-deps 剥 Electron 依赖在册并于 #199 转 active（5 devDep 移除：electron/@lydell/node-pty/devtools-protocol/electron-updater/lighthouse）），无第三方代码装载路径——**移动零安装/零移除/零商店面（marketplace）结构性成立并落字**；本单元与 #15 的「零 GUI 扩展安装入口」声明衔接：启停入口自本期新增，安装入口保持为零。
 
 ## 八、与远程 Agent/MCP 配置的区分（#15 承接）
 
