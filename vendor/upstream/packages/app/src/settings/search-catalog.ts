@@ -162,7 +162,9 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     label: "settings.appearance.row.zoom.title",
     target: "settings-zoom",
     keywords: "scale size text font larger bigger accessibility",
-    available: "desktop",
+    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
+    // on this mobile client (registered deviation, matrix S42 / issue #144; the later
+    // appearance-motion-zoom rebase must not re-add the gate).
   },
   {
     tab: "appearance",

@@ -257,14 +257,15 @@ export function useServerRowItems(server: () => string) {
   )
 }
 
-/** MenuItem "server.add" contributions, in order. */
-export function useServerAddItems() {
+/** MenuItem "server.add" contributions, in order. The mobile shell excludes one plugin's
+ * contribution (N12: the WSL add face is replaced by the disabled row there). */
+export function useServerAddItems(excludePlugin?: () => string | undefined) {
   const host = usePluginHost()
 
   return createMemo(() =>
     host
-      .list(MenuItem)
-      .flatMap((item) => (item.menu === "server.add" ? [item] : []))
+      .items(MenuItem)
+      .flatMap((item) => (item.plugin !== excludePlugin?.() && item.value.menu === "server.add" ? [item.value] : []))
       .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   )
 }
