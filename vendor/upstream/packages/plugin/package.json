@@ -83,7 +83,6 @@
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
-    "electron": "44.9.1",
     "solid-js": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

@@ -407,7 +407,7 @@
       "id": "workspace-dependency-closure",
       "path": "patches/mobile/workspace-dependency-closure.patch",
       "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "app-mobile-hosts-alias",
@@ -942,15 +942,15 @@
       "path": "patches/mobile/updater-web-exclusion-v2-2-7.patch",
       "sha256": "bc62f2bda9d6884e58e221b34f506fff4fab15ff54f425e6ac64e535f2337e1e",
       "status": "active"
+    },
+    {
+      "id": "plugin-electron-devdep-prune",
+      "path": "patches/mobile/plugin-electron-devdep-prune.patch",
+      "sha256": "501b5ae0b0a22c32d900c1be9322951444ed5098bc2f60c6001f042bfad4912a",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
-    {
-      "id": "workspace-dependency-closure",
-      "path": "patches/mobile/workspace-dependency-closure.patch",
-      "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565",
-      "status": "deferred"
-    },
     {
       "id": "app-service-operations-bridge",
       "path": "patches/mobile/app-service-operations-bridge.patch",
@@ -3821,6 +3821,12 @@
       "id": "connection-password-memory-only",
       "path": "patches/mobile/connection-password-memory-only.patch",
       "sha256": "27ad5b0789df3aec50c3ad968f114608f2815d838b2940bfb537aa2549eee913",
+      "status": "absorbed"
+    },
+    {
+      "id": "workspace-dependency-closure",
+      "path": "patches/mobile/workspace-dependency-closure.patch",
+      "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565",
       "status": "absorbed"
     },
     {

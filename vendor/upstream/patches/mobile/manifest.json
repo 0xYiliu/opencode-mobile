@@ -43,8 +43,8 @@
       "verification": "V1 (bun install) succeeds and V3(b) workspace-reference scan reports zero dangling refs.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "085d4b7f5dc4603b0b0a38eaa071ed73d01bceae315fb0cc4f428e8eab263565",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "历史 payload 保留；#199 翻转 absorbed（reviewer 逐 hunk 核验）：三条 hunk 全部由 closure patch patches/closure/v2-2-7-build-dependency-closure.patch 明确承载——ai hunk（closure patch 文件 L1，devDependencies 移除 @opencode/http-recorder workspace:*，@@ -158,7）、client hunk（L13，移除 @opencode/httpapi-codegen workspace:*，@@ -54,7，上下文行 @modelcontextprotocol/client \"2.4.0\" 在册）、plugin hunk（L4124，devDependencies/peerDependencies/peerDependenciesMeta 三处移除 @opencode/theme）；语义逐字同 row 3 的三条移除清单；16-active verify-closure replay byte-identical/DANGLING=0 即承载证据；不独立重放"
     },
     {
       "id": "app-mobile-hosts-alias",
@@ -2443,6 +2443,20 @@
       "sha256": "bc62f2bda9d6884e58e221b34f506fff4fab15ff54f425e6ac64e535f2337e1e",
       "status": "active",
       "disposition": "active; sole carrier of the issue #198 ruling-b exclusion (row 92) — the v2.2.7 web-updates face is excluded on mobile with zero changes to web.tsx/web-driver.ts/web-machine.ts; the guard-table updater row and the S41 line-98 claim ('pairing and updater both register SettingsPages only after the if (!ctx.desktop) return') are restored true by this guard"
+    },
+    {
+      "id": "plugin-electron-devdep-prune",
+      "patch": "patches/mobile/plugin-electron-devdep-prune.patch",
+      "targets": [
+        "packages/plugin/package.json"
+      ],
+      "reason": "Remove the single \"electron\": \"44.9.1\" devDependency from packages/plugin. The plugin gui host library uses electron type-only (src/gui/main.ts:1 import type), the optional peer record (\"electron\": \"*\" + optional peerDependenciesMeta) is pin-native and stays, and zero renderer-import-graph usage of the electron runtime exists (reviewer-verified at the #199 audit); the devDep only forces the ~110MB electron postinstall tree into the mobile web build host.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "V2 (bun run build:web) rc=0 without the electron devDependency (#199 round); bun.lock recompute drops the electron tree; 16-active verify-closure replay byte-identical, DANGLING=0.",
+      "rebase": "#199 new patch: pre-image = the post-closure vendored plugin/package.json (closure patch already removed @opencode/theme; no active mobile patch touches the file; pre-image blob bd188ca == closure post-image blob).",
+      "sha256": "501b5ae0b0a22c32d900c1be9322951444ed5098bc2f60c6001f042bfad4912a",
+      "status": "active",
+      "disposition": "active since #199: new row 93, 1 target, no dependsOn, appended to vendor-manifest mobilePatches position 16; the desktop-consumer package shape is preserved via the untouched optional peerDependencies/peerDependenciesMeta records."
     }
   ]
 }

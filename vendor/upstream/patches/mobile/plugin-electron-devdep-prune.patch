@@ -1,0 +1,26 @@
+# mobile(plugin-electron-devdep-prune, issue #199 of the registry): remove the single
+# "electron": "44.9.1" entry from packages/plugin/package.json devDependencies.
+# The optional peer dependency entry ("electron": "*" in peerDependencies plus the
+# optional:true peerDependenciesMeta record) is pin-native and stays untouched: the
+# plugin gui host library imports electron type-only (src/gui/main.ts:1 `import type`)
+# so the renderer/web build needs no electron types at all, and the peer record keeps
+# the upstream package shape for the desktop consumer. Pre-image = the post-closure
+# vendored state (the build-only closure patch already removed @opencode/theme from
+# this file; no active mobile patch touches it). Zero renderer-import-graph usage of
+# the electron runtime in packages/plugin (reviewer-verified at the #199 audit);
+# gui-plugins imports of plugin gui faces are type-level and unaffected.
+# Verification: 16-active verify-closure replay byte-identical, apply-check on
+# scratch pristine-pin + closure + 15 prior active patches, bun run build:web rc=0
+# in the same round, bun.lock recompute drops the electron tree (#199 commit 4).
+diff --git a/packages/plugin/package.json b/packages/plugin/package.json
+index bd188ca..86d0eaf 100644
+--- a/packages/plugin/package.json
++++ b/packages/plugin/package.json
+@@ -83,7 +83,6 @@
+     "@tsconfig/bun": "catalog:",
+     "@types/bun": "catalog:",
+     "@types/node": "catalog:",
+-    "electron": "44.9.1",
+     "solid-js": "catalog:",
+     "typescript": "catalog:",
+     "vite": "catalog:",
