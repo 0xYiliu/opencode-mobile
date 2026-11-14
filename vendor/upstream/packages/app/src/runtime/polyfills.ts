@@ -37,3 +37,45 @@ if (!Promise.try) {
     return new Promise<T>((resolve) => resolve(callback(...args)))
   } as typeof Promise.try
 }
+
+// Chrome before 120 (Android WebView; the Android floor this app ships on predates it) and Safari
+// before 17.4 lack URL.canParse and URL.parse. Electron's Chromium has both, so like the shims
+// above these only matter for the web app.
+// mobile(runtime-data-v2-2-7, issue #196)
+if (!URL.canParse) {
+  // Same contract as the native statics: a missing argument throws, string conversion of either
+  // input happens before the parse (so a throwing conversion propagates instead of answering
+  // false), a URL-object base rides the same conversion, and a parse failure answers false.
+  URL.canParse = function canParse(url: string | URL, base?: string | URL) {
+    if (arguments.length === 0)
+      throw new TypeError("Failed to execute 'canParse' on 'URL': 1 argument required, but only 0 present.")
+
+    const input = String(url)
+    const baseInput = base === undefined ? undefined : String(base)
+
+    try {
+      new URL(input, baseInput)
+
+      return true
+    } catch {
+      return false
+    }
+  } as typeof URL.canParse
+}
+
+if (!URL.parse) {
+  // The parse twin: a parse failure answers null instead of throwing, everything else as above.
+  URL.parse = function parse(url: string | URL, base?: string | URL) {
+    if (arguments.length === 0)
+      throw new TypeError("Failed to execute 'parse' on 'URL': 1 argument required, but only 0 present.")
+
+    const input = String(url)
+    const baseInput = base === undefined ? undefined : String(base)
+
+    try {
+      return new URL(input, baseInput)
+    } catch {
+      return null
+    }
+  } as typeof URL.parse
+}

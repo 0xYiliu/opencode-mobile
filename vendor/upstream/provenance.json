@@ -713,7 +713,7 @@
       "id": "webview-url-polyfill",
       "path": "patches/mobile/webview-url-polyfill.patch",
       "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-server-menu",
@@ -737,7 +737,7 @@
       "id": "session-media-source-safety",
       "path": "patches/mobile/session-media-source-safety.patch",
       "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "files-stream-watch",
@@ -791,7 +791,7 @@
       "id": "project-identity-migration",
       "path": "patches/mobile/project-identity-migration.patch",
       "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "home-new-session-parity",
@@ -924,6 +924,12 @@
       "path": "patches/mobile/notifications-v2-2-7.patch",
       "sha256": "23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087",
       "status": "active"
+    },
+    {
+      "id": "runtime-data-v2-2-7",
+      "path": "patches/mobile/runtime-data-v2-2-7.patch",
+      "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
@@ -979,24 +985,6 @@
       "id": "connection-password-keyboard",
       "path": "patches/mobile/connection-password-keyboard.patch",
       "sha256": "674ad06ee1fb1211dddd43e8c065bd0403d0f9ed33d7e6903e289c63b795acd5",
-      "status": "deferred"
-    },
-    {
-      "id": "webview-url-polyfill",
-      "path": "patches/mobile/webview-url-polyfill.patch",
-      "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
-      "status": "deferred"
-    },
-    {
-      "id": "session-media-source-safety",
-      "path": "patches/mobile/session-media-source-safety.patch",
-      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
-      "status": "deferred"
-    },
-    {
-      "id": "project-identity-migration",
-      "path": "patches/mobile/project-identity-migration.patch",
-      "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
       "status": "deferred"
     },
     {
@@ -4112,6 +4100,12 @@
       "status": "absorbed"
     },
     {
+      "id": "webview-url-polyfill",
+      "path": "patches/mobile/webview-url-polyfill.patch",
+      "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
+      "status": "absorbed"
+    },
+    {
       "id": "settings-server-menu",
       "path": "patches/mobile/settings-server-menu.patch",
       "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
@@ -4127,6 +4121,12 @@
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
       "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-media-source-safety",
+      "path": "patches/mobile/session-media-source-safety.patch",
+      "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
       "status": "absorbed"
     },
     {
@@ -4175,6 +4175,12 @@
       "id": "extensions-flyout-webview",
       "path": "patches/mobile/extensions-flyout-webview.patch",
       "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
+      "status": "absorbed"
+    },
+    {
+      "id": "project-identity-migration",
+      "path": "patches/mobile/project-identity-migration.patch",
+      "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
       "status": "absorbed"
     },
     {

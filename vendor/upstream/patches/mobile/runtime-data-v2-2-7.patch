@@ -1,0 +1,58 @@
+# mobile(runtime-data-v2-2-7, issue #196 of the registry / GitHub issue #196): the v2.2.7
+# runtime-data follow-up — the URL.canParse/URL.parse feature-gated shims for Android WebViews
+# older than Chrome 120 (the WebView floor the Android shell ships on), where the sources
+# domain's URL.canParse uses and the pairing flow would otherwise throw at load. Generated from
+# the retired webview-url-polyfill payload's intent (row 54): core-js is NOT a v2.2.7 dependency,
+# so the shims are inline in polyfills.ts in the file's existing Map.groupBy/Promise.* style,
+# feature-gated so a native implementation keeps its identity. One target in
+# packages/app/src/runtime/polyfills.ts; no dependsOn (the target is carried by no active patch).
+diff --git a/packages/app/src/runtime/polyfills.ts b/packages/app/src/runtime/polyfills.ts
+index edf61c83dc4f2a3a6ce3186a429317a06f335829..83ab0c7b057229fdec034815145ed084b9684af5 100644
+--- a/packages/app/src/runtime/polyfills.ts
++++ b/packages/app/src/runtime/polyfills.ts
+@@ -37,3 +37,45 @@ if (!Promise.try) {
+     return new Promise<T>((resolve) => resolve(callback(...args)))
+   } as typeof Promise.try
+ }
++
++// Chrome before 120 (Android WebView; the Android floor this app ships on predates it) and Safari
++// before 17.4 lack URL.canParse and URL.parse. Electron's Chromium has both, so like the shims
++// above these only matter for the web app.
++// mobile(runtime-data-v2-2-7, issue #196)
++if (!URL.canParse) {
++  // Same contract as the native statics: a missing argument throws, string conversion of either
++  // input happens before the parse (so a throwing conversion propagates instead of answering
++  // false), a URL-object base rides the same conversion, and a parse failure answers false.
++  URL.canParse = function canParse(url: string | URL, base?: string | URL) {
++    if (arguments.length === 0)
++      throw new TypeError("Failed to execute 'canParse' on 'URL': 1 argument required, but only 0 present.")
++
++    const input = String(url)
++    const baseInput = base === undefined ? undefined : String(base)
++
++    try {
++      new URL(input, baseInput)
++
++      return true
++    } catch {
++      return false
++    }
++  } as typeof URL.canParse
++}
++
++if (!URL.parse) {
++  // The parse twin: a parse failure answers null instead of throwing, everything else as above.
++  URL.parse = function parse(url: string | URL, base?: string | URL) {
++    if (arguments.length === 0)
++      throw new TypeError("Failed to execute 'parse' on 'URL': 1 argument required, but only 0 present.")
++
++    const input = String(url)
++    const baseInput = base === undefined ? undefined : String(base)
++
++    try {
++      return new URL(input, baseInput)
++    } catch {
++      return null
++    }
++  } as typeof URL.parse
++}

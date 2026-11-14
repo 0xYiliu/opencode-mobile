@@ -1176,7 +1176,7 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "674ad06ee1fb1211dddd43e8c065bd0403d0f9ed33d7e6903e289c63b795acd5",
       "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed. Issue #196 round status: the payload's web half is still absent from the pin/#184-overlay/main trees (connect/screen.tsx carries no normalPasswordKeyboard gate), while the Android half is alive at WebAssetServer.kt:25 (/mobile-keyboard-config.json serving {passwordKeyboard} from BuildConfig.PASSWORD_KEYBOARD) — so the config endpoint outlives its only web consumer until the connection follow-up re-lands the screen half; scripts/verify-password-keyboard.test.ts (2 pass / 2 fail @:38 patch-manifest registration face) is the connection-follow-up's re-anchor, untouched this round."
     },
     {
       "id": "webview-url-polyfill",
@@ -1190,8 +1190,8 @@
       "verification": "See docs/build-and-verify.md for URL regressions and device verification status.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed; issue #194 audit: the payload is context-stale — the v2.2.7 polyfills.ts provides Map.groupBy/Promise.withResolvers/Promise.try only, no URL.canParse, and the sources domain's URL.canParse use plus the gui-plugins browser domain's 12 crypto.randomUUID sites (secure-context-gated, unavailable over the SSH plain-HTTP tunnel) stay an open platform prerequisite owned by the #199/browser line; disposition deferred/not-fixed"
+      "status": "absorbed",
+      "disposition": "absorbed by the active runtime-data-v2-2-7 patch (row 90, issue #196): the URL.canParse/URL.parse gap in the v2.2.7 pin's polyfills.ts is now closed by inline feature-gated shims in the file's existing Map.groupBy/Promise.* style — the historical payload's core-js import form is superseded because core-js is not a v2.2.7 app dependency (its imports would break the build); the payload's application-window scope is carried as-is with workers still out of scope; verified by scripts/verify-webview-url-compat.test.ts 4 pass / 0 fail (native identity preserved, ToString conversion errors propagate, parse-fail -> canParse=false / parse=null, no-arg TypeError) with zero probe changes. Historical payload and identity retained."
     },
     {
       "id": "settings-server-menu",
@@ -1678,10 +1678,10 @@
       "reason": "Session media-source and ownership safety layer: draft media remains local when required, queue/fork/revert ownership remains server-scoped, and disconnect does not gain remote stop semantics.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
-      "status": "deferred",
+      "status": "absorbed",
       "verification": "Replay and owning media/drafts/composer/queue/fork/revert/ownership tests are recorded in docs/build-and-verify.md; source patch bytes are pinned independently.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: composer/media unit (#188/#196 lineage).",
-      "disposition": "deferred; partial carry by composer-queue-attachments-v2-2-7 (#84), which re-derives the composer-side set at v2.2.7 context: composer provenance (schema.ts, prompt.ts, prompt-parts.ts, history/entry.ts, media.ts, persistence.tsx, state.ts), the drafts.ts fail-closed foundation, the request.ts wire floor, the queue.ts ownership face, fork/revert provenance threading, and the drafts/queue/image/request test set. Superseded, not pending: the runtime/server/client.tsx capture/generation/mediaApi seam (superseded by the queue.ts-local owner lease plus the native client.tsx:89 media-loader wiring), runtime/server/media.ts type re-parenting (superseded — the v2.2.7 media cache keeps its upstream shape), and session-ownership.test.ts (deleted upstream; superseded by the #84 test set). The fork/revert lifecycle-guard suites route to #196. Historical payload and identity retained."
+      "disposition": "absorbed (issue #196 closure of the #188/#196 lineage): the composer-side set was already carried by active composer-queue-attachments-v2-2-7 (#84, re-derived at v2.2.7 context; the tree form carries the mobile(M-016, issue #188) marker scheme on composer provenance, drafts, request wire floor, queue and image/fork/revert attribution), and the surviving fork/revert lifecycle-guard obligation is superseded by the pin's machine attempt-currency form: fork-machine.ts settles every fork by attempt number (a stale attempt's result is dropped, fork.ts dispatches fork.requested and reads the outcome through the attempt's runs entry), and revert.ts:205 dispatches every outcome through revert-machine which \"drops a result whose attempt is no longer current\" — the payload's inline captureOwner/generation closure form is superseded, its obligation (a stale-source result never publishes) held by the machines plus #84's sourceServerKey attribution (fork.ts:121-123, revert.ts:77-79). Superseded, not pending: the runtime/server/client.tsx capture/generation/mediaApi seam (superseded — the pin's client.tsx keeps the media cache/loader wiring native and the owner lease lives queue.ts-local per the #84 disposition), runtime/server/media.ts type re-parenting (superseded — the v2.2.7 media cache keeps its upstream shape), and session-ownership.test.ts (deleted upstream; superseded by the #84 test set). The drafts source lease is the tree's captureMediaSource registration form (drafts.ts:86-108: the unregister closure retires only its own registration, so a late cleanup can never drop a successor's loader). Residual note preserved verbatim: rewrite 重入队按 stored payload uri 原样重发不经 wire floor（#188 前入队 item 的 `media:` uri 可经重入队/undo 重发——server-echo 面，非 client 构建请求）. Historical payload and identity retained."
     },
     {
       "id": "files-stream-watch",
@@ -1846,8 +1846,8 @@
       "verification": "V3 closure byte-level replay with the patch registered; targeted regression src/runtime/server/{registry,persistence}.test.ts, registry-hydration.test.tsx, global-sync tests, runtime/persistence/consumers.test.ts under the in-record browser-condition command; scripts/verify-projects-sessions.ts static probe; issue #140 record in docs/build-and-verify.md.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: identity unit (issue #140 lineage).",
       "sha256": "3b1857ee8acf442487094589ba03fd29640ed7234b9255ee69a0ab75b29a30f6",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed Issue #187 routing: not touched this round; owner: identity unit (issue #140 lineage)."
+      "status": "absorbed",
+      "disposition": "absorbed (FU-3, issue #196): superseded by pin — the v2.2.7 vendor pin IS the target project-identity model this payload was carrying: runtime/server/persistence.ts pins the target ServerState face directly (usedProjectIDs/lastProjectID/hostnames records + the migrated `projects` directory bucket with the drop-on-decode comment, persistence.ts:68-95 pin numbering), the pin-native schema drops stored recentlyClosed/lastProject exactly as the payload's decode did, and registry.tsx consumes the used/use/touch/hide/legacy/migrate face natively. The mobile security layers that rode above it are re-asserted on the pin at their pin lines: mobile(M-002) memory-only password strip (persistence.ts:6-18, MemoryOnlyPassword codec + M002.stripped/M002.marker) and mobile(M-005) non-secret credentialRef (persistence.ts:39-44) — the payload's behavioral re-assertions in persistence.test.ts/registry.test.ts are superseded by the pin-form test set carrying the same strip/credentialRef assertions (persistence.test.ts encode-drop block, registry.test.ts credentialRef round-trip). Consumers retire their old-model compat natively (home close=hide mapping, project-options settings close -> context().projects.hide). The M-010 hydration block and vault-ready wait ride the pin via connection-credential-hydration + connection-vault-ready-wait (active #184 overlay carriers). Historical payload and identity retained."
     },
     {
       "id": "home-new-session-parity",
@@ -2393,6 +2393,21 @@
       "disposition": "active; sole carrier of the re-derived notifications payloads (rows 21/22/23/24: M-022 registration, M-023 reroute with the request-face target pin, G33① visibilityState gate on the focus-lock-machine lifecycle, M-024 four-switch re-base)",
       "status": "active",
       "sha256": "23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087"
+    },
+    {
+      "id": "runtime-data-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/runtime-data-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/runtime/polyfills.ts"
+      ],
+      "reason": "Issue #196 runtime/data follow-up: URL.canParse and URL.parse are missing on Android WebViews older than Chrome 120 (the floor the Android shell ships on), and the v2.2.7 pin's sources domain and pairing flow call both. Adds inline feature-gated shims to polyfills.ts in the file's existing Map.groupBy/Promise.* style — core-js is not a v2.2.7 app dependency, so the retired webview-url-polyfill payload's core-js import form (row 54, absorbed this round) cannot be replayed as-is. The shims keep the native contract: native identity preserved when present, ToString conversion errors propagate, parse failure answers canParse=false / parse=null, no-arg TypeError, URL-object base passed through the same conversion.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "scripts/verify-webview-url-compat.test.ts 4 pass / 0 fail (was 1 pass / 3 fail) with zero probe changes; patch apply-check on a scratch pristine pin tree + byte-identical result; verify-closure.sh replay PASS; gates recorded in docs/build-and-verify.md issue #196 section.",
+      "rebase": "v2.2.7: first registration against the fedc6f208a pin; dependsOn validated empty — the single target is carried by no active patch (row 54 was deferred).",
+      "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
+      "status": "active",
+      "disposition": "active; the runtime-data polyfill face of issue #196. Rows 54/58/67 flip absorbed in the same round; row 53 keeps its deferred identity with a #196-round status note."
     }
   ]
 }
