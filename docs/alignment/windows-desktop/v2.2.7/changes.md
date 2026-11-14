@@ -801,7 +801,7 @@ questions 投递若无白名单扩展存在**两条明确的失败形态**：其
 | --- | --- | --- | --- |
 | 54 | `webview-url-polyfill` | deferred→absorbed | pin 的 URL-polyfill 缺口由 **row 90 内联 shims** 关闭（core-js 非 v2.2.7 依赖，历史 core-js import 形不可重放）；application-window 范围原样承载、workers 仍域外；verify-webview-url-compat.test **4 pass / 0 fail**（1/3→4/0）零探针改动 |
 | 58 | `session-media-source-safety` | deferred→absorbed | composer 侧集合 = #84 在册承载；fork/revert 生命周期守卫义务被 pin 机器 attempt-currency 形 supersede（fork-machine 按 attempt settle、revert.ts:205「drops a result whose attempt is no longer current」+ #84 M-016 sourceServerKey attribution）；client.tsx seam / media.ts 重挂 / session-ownership.test.ts 三项 superseded（在册）；rewrite 重入队残留注记逐字保留 |
-| 67 | `project-identity-migration` | deferred→absorbed | **FU-3 superseded-by-pin**：v2.2.7 pin 即目标 project-identity 模型（ServerState usedProjectIDs/lastProjectID/hostnames 原生，persistence.ts 树 :68-95；迁移注记 :69-71）；M-002/M-005 以 marker scheme 在 pin 行重申（:6-18/:39-44）；行为重申测试由 pin-form 测试集承载；M-010 hydration/vault-ready 由 #79 active 载体在册 |
+| 67 | `project-identity-migration` | deferred→absorbed | **FU-3 superseded-by-pin**：v2.2.7 pin 即目标 project-identity 模型（ServerState usedProjectIDs/lastProjectID/hostnames 原生，persistence.ts 树 :68-89（struct 止于 :89）；迁移注记 :69-71）；M-002/M-005 以 marker scheme 在 pin 行重申（:6-18/:39-44）；行为重申测试由 pin-form 测试集承载；M-010 hydration/vault-ready 由 #79 active 载体在册 |
 | 53 | `connection-password-keyboard` | deferred（不翻转）+ **#196-round 注记** | payload web 半仍不在 pin/#184/main 树；Android 半存活于 WebAssetServer.kt:25（/mobile-keyboard-config.json → BuildConfig.PASSWORD_KEYBOARD）——config 端点比其唯一 web 消费者长存，直到 connection follow-up 重落 screen 半；verify-password-keyboard.test = connection follow-up 的重锚（2 pass / 2 fail @:38），本轮零触碰 |
 
 ### polyfill 语义与 WebView floor 证据
