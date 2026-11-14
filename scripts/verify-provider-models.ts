@@ -694,7 +694,7 @@ let osScanFiles = 0
       }
     }
   }
-  // Lower bound (real count on this pin: 48 .ts/.tsx code files — providers/
+  // Lower bound (real count on this pin: 72 .ts/.tsx code files — providers/
   // 41 + settings/providers 6 + settings/models 1; 51 counting the svg/css;
   // issue #141 re-measure: −3 credentials deletion, +1 connect test).
   if (osScanFiles < 45) fail(`7: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
