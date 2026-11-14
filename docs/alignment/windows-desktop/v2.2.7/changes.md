@@ -848,3 +848,67 @@ questions 投递若无白名单扩展存在**两条明确的失败形态**：其
 ### deny audit（本轮零触碰边界）
 
 `git diff 7a13992..HEAD` 构造性核对：**零 back-chain 改动**（back-chain.ts/.test 与 #186 域零交集，focused back-chain 15/0 恒同）、**零 Kotlin/android 改动**（android/ 空 diff）、**零 entry.tsx 改动**、**零 search-catalog.ts/search-results.test.ts 改动**（W5 M-035 门弃置形原样，standing deviation 不回退）、**零 identity-migration.json 改动**、**旧 patch 文件零改写**（patches/mobile/*.patch 唯一 delta = 新增 appearance-zoom-web-v2-2-7.patch +102 行）；#193 W5 standing note（「appearance-motion-zoom 重基不得回退门控」）随 row 35 翻转 discharge——门保持弃置且 row 91 面零 search-gate 内容；verify-appearance-settings 的 A2 注入（web.ts 加 zoom token）在重锚定后翻转为正锁（组 5 断言 row 91 面存在），探针 rc=0 保持。
+
+## Issue #198：Desktop-only 边界核查（41 desktop commits 逐能力裁定 + row 92 web-updates 排除面）
+
+本节是 #198 的 desktop-only 边界审计（范围裁定 + 一条排除补丁），不改变冻结的 v2.2.1 文档与前序 #186–#197 section。审计对象 = 上游区间 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad` 中触及 `packages/desktop` 的 **41 个 commit**（`git -C ~/.cache/opencode-upstream log --oneline 3ebcf9a32c..fedc6f208a -- packages/desktop`，本轮实跑 = 41）；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--198-desktop-audit`，分支 `feat/198-desktop-audit`，base `b070d16`（#197 链尾，stacked chain main a25ab51 → #187 → … → #197）。本轮 landing = **排除补丁 `updater-web-exclusion-v2-2-7`（row 92，1 target：`packages/gui-plugins/src/updater/renderer.tsx` 两 hunk）**——coordinator ruling (b)：v2.2.7 pin 在共享 updater 插件内新长的 web-updates 面在移动端**蓄意排除**；registry **92 registered / 14 active / 69 absorbed / 9 deferred**（零翻转，新增 row 92 为 mobilePatches 第 14 项）。本节内 file:line 均为本 worktree 实测行号。
+
+### §0.1 逐能力 18 行裁定表
+
+| # | 能力（desktop-range commit 族） | 裁定 | 证据（本 worktree 实测 file:line + 门原文） |
+| --- | --- | --- | --- |
+| 1 | spellcheck 开关（`bf94de965d` #59129） | **不渲染**（双门结构性成立） | `general.tsx:247` capability 门 `source: () => (desktop() && "getSpellcheckEnabled" in platform) \|\| undefined`（web 平台无该成员 → undefined → 行不渲染）+ `general.tsx:278` `<Show when={desktop()}>` 双行包裹——capability 门与平台门双闸；platform.web 成员集零 spellcheck 面（web.ts:12-82 实测） |
+| 2 | 系统语言 dictionaries / 原生菜单翻译（同 commit） | **结构性无关**（desktop-native i18n 面） | `bf94de965d` 的共享触点 = `app/src/runtime/i18n/desktop-native.ts` + 5 个 typed locale（hr/hu/is/lt/en）；desktop-native 键仅被桌面原生菜单消费，web 语言链回退 en，零移动面 |
+| 3 | 多窗口 permission 保持（`f807ffeccb` #60458） | **结构性无关** | platform.tsx:144 类型行 `\| { platform: "web"; os?: never; windowID?: never }`——web 平台无 `windowID`，desktop-only 共享会话权限面无 web 构造点 |
+| 4 | 原生右键菜单翻译（`23f96c6efa` #62252） | **结构性无关** | packages/desktop 独占（Electron nativeMenu 域），vendor 树零共享 hunk |
+| 5 | open-path 失败错误呈现（`088682cb1e` #62572） | **结构性无关** | packages/desktop 独占；移动 openExternal 失败路径由 M-041 fail-closed 面承载（#76 在册） |
+| 6 | review 快捷键恢复（`dc71d5f94b` #62567） | **结构性无关** | packages/desktop 独占（全局快捷键注册域） |
+| 7 | deep link 单窗口投递（`dd9a5ab6ab` #61648） | **结构性无关**（共享树零接线） | 共享闭包仅两条注释提及 deep link（`runtime/plugin/stores.ts:283`、`runtime/plugin/session-store-machine.ts:6`），零 wiring；移动外跳边界归 [ADR 0007](../../decisions/0007-external-link.md)（外链唤起不实施） |
+| 8 | 更新交接失败重启插件（`4a6067d85c` #61649） | **结构性无关**（共享 diff 仅注释） | 唯一共享触点 = `plugin/src/gui/builtin.ts` Lifecycle 接口 doc comment（`git show 4a6067d85c` 本轮实读：行为语义零变更，仅补「other plugins start again…」文字） |
+| 9 | plugin host / CLI 重试（`1a8a369af7` #61720） | **结构性无关** | packages/desktop 独占；移动 web builtins only（root.tsx「The web runs built-ins only」），无 plugin host 装载路径（D4/§七零安装面） |
+| 10 | startup machine family ×12（`6666acc12c`/`dbc3f507ad`/`d8cb7c73d0`/`a4ce0b0989`/`36f40c852c`/`0d18f558b0`/`483969a884`/`1a2505118f`/`2e5d757adc`/`ce5c980f8b`/`d356b9b249`/`2047c0d4fd`） | **结构性无关**（sidecar 零构造点） | 12 commit 逐一实跑 `git show --name-only`：除 `2047c0d4fd` 外全为 packages/desktop 独占（`dbc3f507ad` 唯一共享触点 = `runtime/persistence/README.md` 注释）；`2047c0d4fd` 的共享 hunk = `runtime/server/client.tsx:145` `if (server.type === "plugin" \|\| server.type === "sidecar")` 与 `:205` 分支——**闭包内 `type: "sidecar"` 全树恰 1 处 = registry.tsx:164 类型声明**，零运行时构造点 → 分支结构性不可达 |
+| 11 | 窗口最大化/显示器恢复（`7b67adf7e1` #60482） | **结构性无关** | packages/desktop 独占（窗口管理域） |
+| 12 | force-focus 串行化 + debug bar 修复（`d1da4264a9` #61885） | **禁用 + 原因**（三重门锁定 + <768px 结构性隐藏） | 共享触点 = `gui-plugins/src/debug/{bar.tsx,focus-machine.ts}`；dispatchFocus `if (!desktop) return` 函数门为三重门之一（verify-debug-bar FOCUS triple gate 实测 :219-229：devTools Show 嵌套 + desktop Show + 函数门）；bar 本体 `pointer-events-auto hidden … md:block`（bar.tsx:202，verify-debug-bar :190-191）——<768px 结构性隐藏，生产 web 构建无 DEV → 移动端 debug bar 面缺席为**上游 web 同构事实**，非移动特判 |
+| 13 | 100% 以下缩放（`e4e55bd8eb` #61788，区间前已入 pin） | **边界注记** | 十一级 Chromium 目录共享（`desktop-menu.ts:63` `[0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`）；desktop 应用面 = Electron webContents 窗口机器，mobile = **#197 row 91 CSS zoom 面**（appearance-zoom-web-v2-2-7）——同一目录、两种应用机制；S42 边界句保持 |
+| 14 | updater desktop main 面（DESKTOP_HOST 行） | **禁用 + 原因** | ExtensionManager 能力行：`extension-manager.tsx:48` `DESKTOP_HOST_EXTENSIONS = new Set(["browser", "pairing", "ssh", "updater"])`——updater 呈现「桌面专属」禁用行不可启停（行是呈现不是可用性声明）；本轮新字面量锁 = verify-gui-plugins 组 7 集合等式（NEGATIVE 11 删 "updater" → FAIL，本轮 inject→FAIL→restore→PASS 在册） |
+| 15 | **updater web 面**（`4fa365faf5` #61995，**pin 新面**） | **EXCLUDED by row 92（ruling b）** | web.tsx/web-driver.ts/web-machine.ts 于 v2.2.1 缺席、pin 在册（`git log --diff-filter=A` 实证 = 4fa365faf5 区间内新增）；pre-patch `renderer.tsx:29` `if (!ctx.desktop) return webUpdates(ctx)` 使 webUpdates 面（SW checks + SettingsPage {id:"updates", page:"general"} + entries {settings-release-notes, settings-check-updates, settings-reload-from-server}（web.tsx:80-100 实测）+ titlebar pending item（web.tsx:66-78 webUpdatePending）+ hidden check command（web.tsx:100））在移动**激活**——general.tsx:356 `<PluginSettingsSections page="general" />` 挂载插件自有 general sections；row 92 改为 pairing/renderer.tsx:8 裸早退形 + 删 webUpdates import，web.tsx/web-driver.ts/web-machine.ts **上游原样不动**（守卫孤儿化） |
+| 16 | macOS packaging / ZIP descriptor / require 碰撞 / strobe（`1bf82105f0`/`1f67129936`/`2c49a18436`/`644d41f37a`/`a6212cb1b5`/`fe04656465`/`6973d89bf5`/`c64fff5bcb`） | **结构性无关**（`c64fff5bcb` ui file-icon 面除外——pin 原生吸收） | 全部 packages/desktop 或打包域独占；`a6212cb1b5` 共享触点 = desktop-native i18n（同行 2）；`fe04656465` 共享触点 = debug i18n 表 + `session/timeline/search-controller.ts` + perf fixtures（e2e/performance 目录不在 vendor 重放闭包；debug bar.tsx 面同行 12）；`c64fff5bcb` 的 `ui/src/components/file-icon.tsx` + `file-icons/choose-icon-name.ts` 为 pin 原生共享功能（vendored byte-identical，无移动 delta 欠账） |
+| 17 | worktree picker 快捷键 / shell mode 切换（`171dbd6abe` #60713） | **共享功能，不在排除范围** | 共享触点 = composer/model.ts、new-session location dialog/workspace selector、ui menu-scroll/typeahead——全部为 pin 原生共享功能，随 vendor 携带；快捷键触发依赖物理键盘（G34 域），非 desktop-only 排除面 |
+| 18 | server lifecycle machine（`9a7f22a776` #61595） | **共享 refactor**（#192/#196 域） | 共享触点 34 文件（runtime/server machine 族 + settings/shell 消费者）——server controllers 状态机化属共享演进，非 desktop-only 边界；verify-provider-models 已于 #192 在该状态机面上重锚定 rc=0，health/runtime 面由 #196 域覆盖 |
+
+### §0.2 41 desktop commits 的共享闭包触达（实跑口径）
+
+`git -C ~/.cache/opencode-upstream show --name-only` 逐 commit 对 vendored 闭包（app/client/protocol/schema/session-ui/ui/util/gui-plugins/plugin-browser/plugin，剔除 e2e/performance、component-tests、test 文件）实跑清点：**41 commit 中 7 个 release 版本号 bump（仅 package.json）+ 8 个非 release commit 触达共享闭包** = `bf94de965d`（spellcheck/search-catalog 新门）、`2047c0d4fd`（client.tsx sidecar 分支，零构造点结构性不可达）、`d1da4264a9`（debug-bar dispatchFocus 门）、`4a6067d85c`（builtin.ts 注释 only）、`9a7f22a776`（server lifecycle 共享 refactor）、`171dbd6abe`（worktree picker 共享功能）、`a6212cb1b5`（desktop-native i18n）、`fe04656465`（strobe：debug i18n + search-controller + perf，e2e/performance 不在闭包）；另有 `c64fff5bcb`（ui file-icon pin 原生吸收）与 `6973d89bf5`（session-ui component-tests 不在闭包）。**plan 审计口径的 8-commit 主张在剔除 release-bump 后实测成立；本表把 `c64fff5bcb` 的 ui 面单列为 pin 原生吸收注记**。updater web 面 commit `4fa365faf5` 不触及 packages/desktop（属 app 域 commit），是本轮 FINDING 的载体，不计入 41-commit 触达表。
+
+### FINDING 与裁定（v2.2.7 web-updates 面 + ruling b）
+
+- **FINDING**：v2.2.1 → v2.2.7 区间内，上游以 `4fa365faf5`（feat(app): update the web app and PWA in place，#61995）在**共享** updater 插件内新增 web 更新面：`web.tsx`（webUpdates：SW checks + SettingsPage {id:"updates", page:"general"}，entries {settings-release-notes, settings-check-updates, settings-reload-from-server}，web.tsx:80-100 实测）+ titlebar pending item（webUpdatePending，web.tsx:66-78）+ hidden check command（web.tsx:100）+ `web-driver.ts`/`web-machine.ts` 状态机；三文件 v2.2.1 缺席、pin 在册。pre-patch 的 `renderer.tsx:29` `if (!ctx.desktop) return webUpdates(ctx)` 使该面在 web 平台**激活**，而 general.tsx:356 挂载插件自有 general sections——**S40 的 #110「零 Updates 页」是 v2.2.1 时代事实，在 v2.2.7 pin 上已 drift-false**。
+- **裁定（coordinator ruling b）**：该面在移动端**蓄意排除**（非吸收、非适配），落为 row 92 `updater-web-exclusion-v2-2-7`（1 target、无 dependsOn）：guard 改 pairing/renderer.tsx:8 裸早退形 + 删除 webUpdates import（gui-plugins tsconfig noUnusedLocals=true，保留 import 即 TS6133）。依据 = S40/N09 在册暂缓边界 + [ADR 0005](../../decisions/0005-apk-update.md)（APK 更新暂缓；**激活条件 = ADR 0005 重启评估**——首个对外可下载已签名 release + 版本清单）。
+- **排除范围声明（防误读）**：`whatsNew(ctx)`/`betaNotes(ctx)` 在 guard 之前（renderer.tsx:26-27）运行且**保持激活**——What's New 外联面（release highlights/beta notes）不在排除范围；S40「当前只保留已有 What's New 外联面」的记录边界**不变**。幸存的 What's New 面不是「排除失败」：row 92 的排除 scope = SW checks + general 页 Updates SettingsPage + titlebar pending item + hidden check command 恰四项，patch 注释与探针锁均按此落字。
+- **上游文件零触碰**：web.tsx/web-driver.ts/web-machine.ts 不在任何 patch targets 内——web 面在上游原样保留，由 guard 孤儿化（dist 实证：`webUpdates` 标识符全 dist 缺席，row 92 marker 存活于 root chunk sourcemap）。
+
+### 探针台账（verify-gui-plugins #198 revision）
+
+- **group-1 早退守卫锚 UNCHANGED（诚实入账）**：`if (!ctx.desktop) return` 子串锚 pre-patch 对 `if (!ctx.desktop) return webUpdates(ctx)` 即为真——**pre-patch 的 substring-true 是假信心**（web-updates 面经该路由在移动激活）；该断言一字未改，**排除锁 = 新增内容**：① `!includes("webUpdates")` 负锁（web 面被重路由即 FAIL）；② 裸早退形锚（pairing/renderer.tsx:8 形）；③ `mobile(updater-web-exclusion-v2-2-7, issue #198)` marker 锚；④ pre-guard `whatsNew(ctx)` 排序 witness（What's New 面保持激活的范围声明锚）。
+- **新 witness 锚**：ExtensionManager `DESKTOP_HOST_EXTENSIONS` 恰 {browser,pairing,ssh,updater} 集合等式（组 7）；general.tsx:356 mount 标记 **witness-only**（注册点，非可用性主张——updates SettingsPage 注册已被 row 92 排除）。
+- **负注入 2 条（inject→FAIL→restore→PASS，日志 `.probe-logs/negex/`）**：NEGATIVE 10 revert guard 为 `return webUpdates(ctx)` → `1: updater/renderer.tsx still references webUpdates …` FAIL rc=1 → restore PASS rc=0；NEGATIVE 11 删 DESKTOP_HOST_EXTENSIONS 的 "updater" → `7: DESKTOP_HOST_EXTENSIONS must be exactly {browser,pairing,ssh,updater} … missing=["updater"]` FAIL rc=1 → restore PASS rc=0。
+- **其余探针零触碰**：12 条 rc=1 首 FAIL 字符串与 #197 台账逐字恒同（verify-commands-menus 组 8 常量随 commit 3 回填 5630/155852436，总体 rc 保持 1、首 FAIL 不变——#190 前例）；24 条 rc=0 保持 rc=0（verify-gui-plugins 回填后 rc=0；verify-notifications rc=0；verify-commands-menus rc=1 resetZoom 不变）。
+
+### 可复现命令（本轮实测口径）
+
+```sh
+# 41 desktop commits 清单
+git -C ~/.cache/opencode-upstream log --oneline 3ebcf9a32c..fedc6f208a -- packages/desktop   # = 41
+# 每 commit 共享闭包触达清点（逐 commit）
+git -C ~/.cache/opencode-upstream show --name-only --format= <sha>
+# updater web 面 pin 新增实证
+git -C ~/.cache/opencode-upstream log --oneline --diff-filter=A \
+  3ebcf9a32c..fedc6f208a -- packages/gui-plugins/src/updater/web.tsx \
+  packages/gui-plugins/src/updater/web-driver.ts packages/gui-plugins/src/updater/web-machine.ts  # 4fa365faf5
+# web 面 SettingsPage/titlebar/command 原文
+sed -n '66,100p' vendor/upstream/packages/gui-plugins/src/updater/web.tsx
+# sidecar 零构造点
+grep -rn 'type: "sidecar"' vendor/upstream/packages/app/src   # 恰 registry.tsx:164 类型声明 1 处
+# platform === "desktop" 普查（实测 23 处 / 17 文件）
+grep -rn 'platform === "desktop"' vendor/upstream/packages/app/src --include='*.ts' --include='*.tsx' | grep -v '\.test\.'   # 23 hits / 17 files
+```
