@@ -4,14 +4,16 @@
 
 行号声明：本文引用的行号为 vendor pin `b4525d79bf` 时点值，仅供定位；权威以引号内源文本锚为准。**来源边界**：服务端语义（`packages/core/src/permission.ts`、`packages/server/src/handlers/permission.ts`、`packages/schema/src/permission.ts`）**不在 vendored 闭包内**，引自上游 pin 提交树采集缓存 `~/.cache/opencode-upstream` @ `b4525d79bf`（同 [architecture.md](../architecture.md) CORS 节「来源表述」先例）；vendored 侧仅生成类型/端点/事件消费面可静态断言。pin 更新时缓存引文需随 PROVENANCE 演练同步。
 
+**#189 事实同步（2026-11-14，v2.2.7 pin `fedc6f208a`）**：request docks 域 50 文件对 v2.2.7 **byte-identical**（50/50 SAME + 0 DIFF，见 changes.md #189 section）；本文 F1/F2/决策/auto-approve 各节按 v2.2.7 机器化形同步（旧→新事实映射表见文末）。探针 `scripts/verify-permission-requests.ts` 已同步重锚定（14 条 fact 级 old→new，全部 v2.2.7-context 漂移、非契约违约），本文仍是该探针声明的事实源。行号凡标「v2.2.7 :N」者为 v2.2.7 时点值；未标者仍为 b4525d79bf 时点值仅供定位。
+
 ## 能力来源（复用面，无新建第一方逻辑）
 
 | 面 | 上游实现锚（`vendor/upstream/packages/...`） | 状态 |
 | --- | --- | --- |
 | 呈现（权限 dock） | `app/src/session/requests/session-permission-dock.tsx` → `session-ui/src/components/dock-prompt.tsx`（`kind="permission"`，`DockShell`/`DockTray` 纯 div 容器）：header（warning 图标 + `notification.permission.title`「Permission required」，本地化全集 66 locale 在册）+ `settings.permissions.tool.<action>.description` 操作说明（en.ts:980-999 起 read/edit/glob/grep/list/bash/task/skill/lsp/todowrite 等十余动作键；dock 侧缺键回退空串）+ `request.resources` 逐行 `<code>` 列出 + footer 三按钮 | 已实现（未验证） |
-| 呈现（提问 dock 三家族） | `app/src/session/requests/session-question-dock.tsx`（多问题向导：进度 segment `aria-current="step"`、选项按钮 `role="radio"/"checkbox"` + `aria-checked` + `aria-keyshortcuts`、数字键 1-9 直选、方向键/Home/End、Esc=reject、Cmd/Ctrl+Enter=next/submit、纯 Enter 永不提交、自定义输入框 Enter 仅 commit 编辑）+ `session-elicitation-dock.tsx`（MCP 表单 text/number/flag/multiselect）+ `session-websearch-dock.tsx`（provider 同意） | 已实现（未验证） |
-| 决策（权限） | `app/src/session/requests/model.ts` `decide(response: "once" \| "always" \| "reject")` → `serverSDK.api.permission.reply({ sessionID, requestID, decision })`（源码跨行书写）；`once`=本次放行、`always`=本次放行 + 服务端项目级持久规则（`saved.add({projectID, action, resources: request.save})`，core @ 缓存）、`reject`=拒绝（可带 `message`，服务端转 `CorrectedError` 进模型工具失败输出） | 已实现（未验证） |
-| 决策（提问） | POST `/api/session/:sessionID/form/:formID/reply`（`FormAnswer` 键值 map）与 `form.cancel`；MCP elicitation 走 location 作用域（`"global"` sentinel + location ref，data.ts global 分支 GET `/api/form`） | 已实现（未验证） |
+| 呈现（提问 dock 三家族） | v2.2.7：`session-question-dock.tsx` 为 **thin router**（`settings.general.newQuestionUI()` 默认 false → `session-question-dock-classic.tsx`，true → `session-question-dock-experimental.tsx`；`7d0f79d2ca` opt-in 双形态），guards 与 Esc reject live 于两形态（classic/experimental 各 19 处 `sending()`）；选项 `role="radio"/"checkbox"` + `aria-checked` + `aria-keyshortcuts`、Esc=reject（`const reject = form.dismiss` + `aria-keyshortcuts="Escape"`）等交互锚两形态同在 + `session-elicitation-dock.tsx`（MCP 表单 text/number/flag/multiselect；mutation 移入 `elicitation-controller.ts`）+ `session-websearch-dock.tsx`（provider 同意） | 已实现（未验证） |
+| 决策（权限） | v2.2.7 三调用点（F1）：① `app/src/session/requests/model.ts` machine reply effect——`decide(decision)` dispatch machine `decide` 事件 → `execute()` 内 `serverSDK.api.permission\n.reply({ sessionID: effect.sessionID, requestID, decision: effect.decision }, { signal: controller.signal })`（v2.2.7 :244-245，源码跨行书写）；② `app/src/session/requests/auto-approve.ts` data 层 `input.data.session.permission.reply({…, decision: "once" })`（v2.2.7 :117，opt-in 代答）；③ `app/src/shell/titlebar/inbox-model.ts` `decide(entry, decision)` → `entry.ctx.data.session.permission\n.reply({…decision}).catch(requestFailed)`（v2.2.7 :453-455，Inbox 显式决策，a35d91bb8b 起）。`once`=本次放行、`always`=本次放行 + 服务端项目级持久规则（`saved.add({projectID, action, resources: request.save})`，core @ 缓存）、`reject`=拒绝（可带 `message`，服务端转 `CorrectedError` 进模型工具失败输出） | 已实现（未验证） |
+| 决策（提问） | POST `/api/session/:sessionID/form/:formID/reply`（`FormAnswer` 键值 map）与 `form.cancel`——v2.2.7 调用点在 `question-controller.ts:76-77`（`serverSDK.api.session.form.reply({ …target, answer }, { signal })` / `form.cancel(target, { signal })` + `request.succeeded/failed` dispatch）与 `elicitation-controller.ts:86-87`（data 层 `input.forms.reply/cancel`，location 作用域由 data.ts global 分支承载，GET `/api/form`） | 已实现（未验证） |
 | 请求会话树 | `app/src/session/requests/session-request-tree.ts`：`sessionTreeIDs` 让父会话视图呈现子代理（subagent）会话的请求；`sessionTreeRequest` 每会话 dock 一次只呈现树内第一条（`find`）；kind ∈ `question` \| `websearch.provider` \| `mcp-elicitation` 过滤 | 已实现（未验证） |
 | 恢复（快照） | 见恢复链专节（事件 ephemeral → HTTP 快照四处触发） | 已实现（未验证） |
 | 留痕 | 见留痕专节（`permission.replied` 广播 / `always` → PermissionSaved / reject+message → CorrectedError / durable `session.permissions`） | 已实现（未验证） |
@@ -53,24 +55,24 @@
 | 状态 | 上游锚点与语义 |
 | --- | --- |
 | pending | dock 呈现于 composer 区位（`session-composer-region.tsx`）；请求上下文完整：标题 + 操作说明（`settings.permissions.tool.<action>.description`）+ resources 逐行 + 三决策按钮。**模态范围按视图类型（F5）**：primary 会话视图请求 pending 时 `blocked` 为真 → composer 隐藏（`session-composer-region-controller.ts:22` `showComposer: () => !input.state.blocked() || !!input.parentID()`）；subagent 子会话视图（`parentID()` 非空）dock 与 composer 并存；父会话视图经 `sessionTreeIDs` 呈现子代理请求时 composer 同样隐藏（主路径不受影响）。Working shimmer 同步抑制（`message-timeline.tsx:344` permission/form 列表非空即 `return false`） |
-| responding（in-flight） | `store.responding === perm.id` 早退（幂等）+ 三按钮全部 `disabled={props.responding}`；question dock `sending()`（`replyMutation.isPending || rejectMutation.isPending`）早退所有动作并 disable 全部按钮——快速连点仅发出一次 reply |
+| responding（in-flight） | v2.2.7：responding 态由 permission-machine 承载（`replies[requestID]` 状态 `isPermissionResponding`，model.ts `permissionResponding` memo），三按钮全部 `disabled={props.responding}`（count=3）+ machine `decide` 事件幂等（responding 中重复 decide 不再派发 reply effect）；question dock v2.2.7：classic/experimental 两形态各自 `sending()` 19 处早退/disable（共享 `createQuestionDock` controller 的 machine busy 态）——快速连点仅发出一次 reply |
 | decided | dock 移除 + `permission.replied` 广播；`always` 另落服务端项目级规则（durable `session.permissions` 广播同步）；`reject`（带 message）→ `CorrectedError.feedback` 进模型可见工具失败输出 |
-| stale / expired | **分层（F2）**：①form 侧——`settleForm` 吞 `FormNotFoundError`/`FormAlreadySettledError`（且 `error.id === input.formID` 才吞）+ invalidate/resync 自愈（data.ts:328-338；reply/cancel 确经 settleForm）；②permission 决策侧——**无吞错**：`decide()` catch → `common.requestFailed` toast（model.ts:176-181），请求行随后经 `permission.replied` 广播移除；G21④ 核对 toast 呈现充分性。data.ts 的 `isPermissionNotFoundError` 吞错包装（data.ts:1815-1817）在 app 内**零调用者**（归一扫描实证），单列为包装层事实、不作决策侧统一语义。服务端侧 expired = awaiting fiber 死亡/中断 → `Effect.ensuring(pending.delete)` 清条目（core @ 缓存；任务取消/会话结束即过期，无定时器过期语义）；外部 API `session.permission.create` 可在空闲会话驻留请求 |
+| stale / expired | **分层（F2）**：①form 侧——`settleForm` 吞 `FormNotFoundError`/`FormAlreadySettledError`（且 `error.id === input.formID` 才吞）+ invalidate/resync 自愈（data.ts:328-338；reply/cancel 确经 settleForm）；②permission 决策侧——**v2.2.7 机器化重分类**：NotFound 显式分类为「已答复」而非静默吞——machine reply effect 中 `isPermissionNotFoundError(error) → { type: "reply.succeeded" }`（model.ts v2.2.7 :249-257，他端/TUI 已答计数为 replied，行经 `permission.replied` 广播移除）；真实失败 → `{ type: "reply.failed" }` 携带 `error.message`，machine toast-failed effect 呈现 `common.requestFailed` toast（model.ts v2.2.7 :219-222）。data.ts 的 `isPermissionNotFoundError` 吞错包装（data.ts:1815-1817）在 app 内**恰两调用者**（v2.2.7 F2：auto-approve.ts 代答 + inbox-model.ts 显式决策；归一扫描实证），单列为包装层事实——决策侧语义以 machine 事件面为准。服务端侧 expired = awaiting fiber 死亡/中断 → `Effect.ensuring(pending.delete)` 清条目（core @ 缓存；任务取消/会话结束即过期，无定时器过期语义）；外部 API `session.permission.create` 可在空闲会话驻留请求 |
 | offline | composer 隐藏照旧（blocked 态不依赖连接）；决策动作失败 → 失败 toast（请求保留待重试）；快照读失效（`status() !== "connected"` gate） |
 | reconnect | 恢复链四处触发（见下节）；事件流 live-only 不重放，快照为恢复权威（与 session-workbench 恢复口径同构） |
-| auto-approve-on | 显式 opt-in（默认关）：会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页；开启/关闭均有 toast 明示（en/zh `toast.permissions.autoaccept.on/off.*` 四键成对；`project.*` 两键仅 en 在册，zh 回退 en——上游 i18n 缺键回退语义）。开启时 dock 隐藏（`permissionRequest()` 返回 undefined）且 auto-approve 以 `decision: "once"` 代答（`auto-approve.ts:148-149`），`state.responded.has(permission.id)` 去重、`covers(projectID)` 项目门 |
+| auto-approve-on | 显式 opt-in（默认关）：会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页；开启/关闭均有 toast 明示（en/zh `toast.permissions.autoaccept.on/off.*` 四键成对；`project.*` 两键仅 en 在册，zh 回退 en——上游 i18n 缺键回退语义）。开启时 dock 隐藏（`permissionRequest()` 返回 undefined）且 auto-approve 以 `decision: "once"` 代答（v2.2.7：`auto-approve.ts:117` data 层 `session.permission.reply`）。**v2.2.7 机器化状态面**：auto-approve-machine 承载 per-request 生命周期（pending/responding/replied/**gave-up** 等状态；`gave-up`/重试耗尽经 `needsUser(state, enabled)` 重新呈现给用户——`443878def0`/`e5f2dde373`），去重由 machine 状态转移承载（旧 `responded` Set 退役）；`covers(projectID)` 项目门保留（v2.2.7 :29-30/:266）；connect sweep = machine `sweep.start/sweep.cancel` dispatch + `sweepLocations(signal)`（v2.2.7 :217-251） |
 | 多请求队列 | 客户端每会话 dock 一次只呈现树内第一条；`reply("reject")` 服务端把同会话**全部** pending 一并拒绝并逐个广播 Replied（批量扩散，core @ 缓存注释「Feedback applies to the whole batch, so parallel asks don't end the step」）；`always` 同型扩散到此后 evaluate=allow 的同会话请求 |
 
 ### 恢复链（事件 ephemeral，快照为恢复权威）
 
 权限/表单事件是 ephemeral（不落盘、无重放，schema @ 缓存）——恢复只能靠 HTTP 快照，与 session-workbench「SSE live-only、快照为恢复权威」结论同构。四个触发点：
 
-1. `requests/model.ts:25-26` 会话 gate：`status() !== "connected"` 早退紧邻 `permission.sync(id)`；
-2. `requests/model.ts:33-35` 会话树 gate：`sessionTreeIDs` 逐子会话 `form.sync`；
-3. `requests/model.ts:53-54` elicitation location gate：`form.sync("global", ref)`；
-4. `shell/titlebar/tab-strip.tsx:163-171` 非活跃 tab 错峰同步：`300 + index*50`ms 后 `Promise.allSettled([...permission.sync(value.id), form.sync(value.id), ...])`——后台 tab 的 pending 恢复不依赖前台。
+1. `requests/model.ts`（v2.2.7 :48-55）会话 gate：`status() !== "connected"` 早退紧邻 `data.session.permission.sync(id)`（与 `data.shell.sync` 并列）；
+2. `requests/model.ts`（v2.2.7 :68-71）会话树 gate：`formSessions()`（`sessionTreeIDs` 过滤 running 态）逐子会话 `form.sync`；
+3. `requests/model.ts`（v2.2.7 :84-89）elicitation location gate：`form.sync("global", ref)`；
+4. `shell/titlebar/tab-strip.tsx`（v2.2.7 :256-270，v2.2.1 起形同——2141b1ba35 #57617）非活跃 tab 错峰同步：`window.setTimeout(…, 300 + index*50)`ms 后 `Promise.allSettled([...，...(running ? [permission.sync(id), form.sync(id)] : []), ...])`——后台 tab 的 pending 恢复不依赖前台（running 态才同步 permission/form）。
 
-auto-approve 开启时另有 connect sweep（`auto-approve.ts:35-39` 注释「sweep on every connect while the setting is on」）：事件流不重放断连期间的请求，故每次连接全量列举后逐条补答。**该列举是 per-location 聚合（F3）**：sweepLocations = 活跃会话 ∪ 本地已知会话按 location 去重（`auto-approve.ts:93-127`），**不是全服列举**；上游注释自认残例「A detached request on a session this client never loaded is the one case that stays uncovered」（:91-92）——该残例非不可恢复：打开该会话时触发点 1 的 connected-gate 仍会补齐。
+auto-approve 开启时另有 connect sweep（v2.2.7 `auto-approve.ts:56-59` 注释「sweep on every connect while the setting is on」逐字保留）：事件流不重放断连期间的请求，故每次连接经 machine `sweep.start` dispatch（:60-64）全量列举后逐条补答。**该列举是 per-location 聚合（F3）**：`sweepLocations(signal)`（v2.2.7 :217-251）= 活跃会话 ∪ 本地已知会话按 location 去重，**不是全服列举**；上游注释自认残例「A detached request on a session this client never loaded is the one case that stays uncovered」（v2.2.7 :213-216，逐字保留）——该残例非不可恢复：打开该会话时触发点 1 的 connected-gate 仍会补齐。
 
 ## 安全语义专节（验收第 2/4 条权威落字）
 
@@ -80,26 +82,27 @@ auto-approve 开启时另有 connect sweep（`auto-approve.ts:35-39` 注释「sw
 
 ### duplicate / stale / expired（分层口径，F2）
 
-- **duplicate**：客户端 `permission.asked`/`form.created` 按 ID 去重（见事件表）；UI 层 responding/sending 幂等守卫防重复提交。
-- **stale/expired 客户端**：form 侧 `settleForm` 吞错自愈；permission 决策侧**无吞错**——失败 toast + `permission.replied` 广播移除（详见状态矩阵行）。
+- **duplicate**：客户端 `permission.asked`/`form.created` 按 ID 去重（见事件表）；UI 层 responding/sending 幂等守卫防重复提交（v2.2.7：permission responding 态由 machine 承载，question classic/experimental `sending()` guards）。
+- **stale/expired 客户端**：form 侧 `settleForm` 吞错自愈；permission 决策侧 v2.2.7 机器化——NotFound 显式分类为已答复（`reply.succeeded`），真实失败 `reply.failed` → machine toast（非静默丢弃；详见状态矩阵行）。
 - **stale/expired 服务端**：pending 存于服务端内存 Map；awaiting fiber 死亡/被中断 → 清条目；服务关闭（close finalizer，core @ 缓存 ~:120-133）把全部 pending 以 **reject** 结案并广播（`Deferred.fail(DeclinedError)`，uninterruptible）——**shutdown 也绝不批准**。
 
 ### reject 批量扩散与 auto-approve 竞态隔离
 
-`reply("reject")` 批量扩散同会话全部 pending（见状态矩阵）；auto-approve 与用户决策结构性隔离：autoApprove 开启 → dock 隐藏（`permissionRequest()` 返回 undefined）；settings 为 client-local；`covers()` 门护 retry 路径 + `responded` 集合去重。多客户端并发（他端先答）呈现归 G21④ 可选子项。
+`reply("reject")` 批量扩散同会话全部 pending（见状态矩阵）；auto-approve 与用户决策结构性隔离：autoApprove 开启 → dock 隐藏（`permissionRequest()` 返回 undefined）；settings 为 client-local；`covers()` 门护 retry 路径（v2.2.7 :266），per-request 状态/去重由 auto-approve-machine 状态转移承载（旧 `responded` Set 已退役——machine `pending/responding/replied/gave-up` 状态面 + `needsUser` 重呈现）。多客户端并发（他端先答）呈现归 G21④ 可选子项。
 
 ### client exit 零副作用（红线；`permission.reply` 全仓调用点分层穷举，F1）
 
-换行容忍归一后（`permission\s*\.\s*reply`），全 vendored 树恰 **6 文件**，分四层：
+换行容忍归一后（v2.2.7 形态），**linear `api.permission.reply(` 全仓恰 1 文件 + data 层 `session.permission.reply(` 调用者恰 2 文件**，分四层：
 
-1. **app 线级调用点恰两处**（决策通道的全部入口）：
-   - `app/src/session/requests/model.ts` `decide()`——决策按钮，显式用户动作（源码跨行书写 `serverSDK.api.permission\n      .reply(`）；
-   - `app/src/session/requests/auto-approve.ts` `approve()`——显式 opt-in 设置开启时的代答。
-2. **client 包装层**：`client/src/solid/data.ts` `data.session.permission.reply`（含 `isPermissionNotFoundError` 吞错 + `removePermission`；**app 内零调用者**——归一扫描实证）+ generated 传输（`client/src/promise|effect/generated/client.ts`）。
+1. **app 决策通道恰三调用点**（全部入口）：
+   - `app/src/session/requests/model.ts` machine reply effect（`execute()`）——决策按钮的显式用户动作经 machine 派发（linear `serverSDK.api.permission\n      .reply(`，v2.2.7 :244-245，唯一 linear 调用面）；
+   - `app/src/session/requests/auto-approve.ts`——显式 opt-in 设置开启时的 data 层代答（`decision: "once"`，v2.2.7 :117）；
+   - `app/src/shell/titlebar/inbox-model.ts`——Inbox 显式决策（`decision` 三值透传 + `.catch(requestFailed)` toast，v2.2.7 :453-455）。
+2. **client 包装层**：`client/src/solid/data.ts` `data.session.permission.reply`（含 `isPermissionNotFoundError` 吞错 + `removePermission`；**app 内恰两调用者**——auto-approve 代答 + inbox 显式决策，归一扫描实证）+ generated 传输（`client/src/promise|effect/generated/client.ts`）。
 3. **protocol 端点定义**：`protocol/src/groups/permission.ts`（端点声明，非调用）。
 4. **plugin 适配面**：`plugin/src/promise/adapter.ts`（服务端插件 host 面；app 零 import、不打包进 web）。
 
-app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/connection.ts` 全文零 `permission`/`reply`/`form`/`interrupt` 引用（stop/resync/pagehide 路径不触碰响应通道）；`app/src/runtime/server/client.tsx` 无 `.permission`。**无任何断连/退出/生命周期触发路径**：杀 App → SSE 断开零副作用，远端任务保持等待。反向佐证：服务端 close finalizer 全部 pending 以 reject 结案（非 approve）并广播——即使服务重启也不静默批准；请求 pending 时远端执行 fiber 挂在 `Deferred.await` 上，客户端断开不影响其存活（真机核对归 G21⑥）。静态探针锁定（`scripts/verify-permission-requests.ts` 断言组 1：集合相等 + session-ui/ui 两包零命中负断言）。
+app/session-ui/ui 三包内 linear 调用恰 model.ts 一处成立；session-ui/ui 两包仍零 `permission.reply` 命中（负断言）。`client/src/solid/connection.ts` 全文零 `permission`/`reply`/`form`/`interrupt` 引用（stop/resync/pagehide 路径不触碰响应通道）；`app/src/runtime/server/client.tsx` 无 `.permission`。**无任何断连/退出/生命周期触发路径**：杀 App → SSE 断开零副作用，远端任务保持等待。反向佐证：服务端 close finalizer 全部 pending 以 reject 结案（非 approve）并广播——即使服务重启也不静默批准；请求 pending 时远端执行 fiber 挂在 `Deferred.await` 上，客户端断开不影响其存活（真机核对归 G21⑥）。静态探针锁定（`scripts/verify-permission-requests.ts` 断言组 1：linear 闭集 {model.ts} 相等 + data 层 EXACT-SET {auto-approve.ts, inbox-model.ts} 相等 + session-ui/ui 两包零命中负断言；#189 六条负注入证明全部 rc=1）。
 
 ### 留痕（验收第 3 条「record response outcome」）
 
@@ -113,7 +116,7 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 
 1. **无键盘默认审批**：`DockPrompt` 无内建按键语义（仅透传 `onKeyDown`，permission dock **不传**）；`requests/` 目录零 `autoFocus`——焦点不会自动落在任何决策按钮上，回车/物理键盘无法触发 approve。
 2. **`variant="submit"` 仅视觉样式**（`ui/src/actions/button/button.tsx` data-variant 属性 + css），无表单 submit/默认按钮行为；三按钮均为 `onClick` 显式动作（Deny `variant="ghost"` | Allow Always `variant="neutral"` | Allow Once `variant="submit"`）。
-3. **自动批准默认关闭且显式 opt-in**：settings 默认 `permissions: { autoApprove: false, autoApproveProjects: {} }`（`settings/model.tsx:289`）；开启路径 = 会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页，开启/关闭均有 toast 明示（`toast.permissions.autoaccept.on.description`「Permission requests will be automatically approved」）；开启时以 `decision: "once"` 代答。 项目级逐项目覆写行 = `settings/workspaces/project.tsx` `AutoAcceptPermissionsSetting`（`settings-project-auto-accept-permissions` 锚，default/on/off 三值 Select 写服务端项目配置；**#106 settings-workspaces-migration 后行代码为 target 形**：`<Show when={key()}>` 由 `projectSettingsKey(scope, project.id)` 门控——pin 形运行期项目无 `id`，行在设备上呈潜伏面，数据供给随 FU-3（运行期项目持久层目标形）落地；决策三值/auto-approve 执行语义仍归本单元，零契约变更）。
+3. **自动批准默认关闭且显式 opt-in**：settings 默认 `permissions: { autoApprove: false, autoApproveProjects: {} }`（v2.2.7 `settings/model.tsx:316`）；开启路径 = 会话命令 `permissions.autoaccept`（keybind `mod+shift+a`）或设置页，开启/关闭均有 toast 明示（`toast.permissions.autoaccept.on.description`「Permission requests will be automatically approved」）；开启时以 `decision: "once"` 代答（data 层）。 项目级逐项目覆写行 = `settings/workspaces/project.tsx` `AutoAcceptPermissionsSetting`（`settings-project-auto-accept-permissions` 锚，default/on/off 三值 Select 写服务端项目配置；**#106 settings-workspaces-migration 后行代码为 target 形**：`<Show when={key()}>` 由 `projectSettingsKey(scope, project.id)` 门控——pin 形运行期项目无 `id`，行在设备上呈潜伏面，数据供给随 FU-3（运行期项目持久层目标形）落地；决策三值/auto-approve 执行语义仍归本单元，零契约变更）。
 4. **服务端无静默批准路径**：规则缺省 effect=`ask`（`evaluate` 回退 `{action, resource:"*", effect:"ask"}`）、agent 未配置权限=deny-all（`missingAgentPermissions`）、服务关闭 close finalizer 全部 pending 以 reject 结案（core @ 缓存）。
 
 移动端**不改变**该语义的声明：本期零补丁、零运行时代码——auto-approve opt-in 语义、决策三值、服务端缺省 ask/shutdown 全拒在移动构建与桌面构建同源。请求上下文呈现（标题/操作说明/resources/决策集）与 composer 阻断共同保证「display request context, affected operation and available decisions」；运行期呈现归 G21①②。
@@ -126,7 +129,7 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 ## 门禁与验证
 
 - **G21**（[interaction.md](../interaction.md) 新设）：权限/提问运行期真机清单九项（呈现充分性、三决策、duplicate/stale/expired 三态、断连恢复、client exit 红线机械核对、auto-approve opt-in、通知设置呈现、窄屏/读屏/焦点/触摸目标首项核对、SSH/直连双路由）。G21 未过前本期交付只声称「文档/探针/单测级已验证，运行期已实现（未验证）」。
-- **V-probe**：`scripts/verify-permission-requests.ts`（静态结构检查，对运行时行为零证明力）——断言组 1 决策调用面穷举集合（含 F1 两包零命中负断言）、组 2 duplicate/stale/expired 分层锚、组 3 恢复链四处触发、组 4 无歧义默认审批四锚、组 5 事件与端点契约抽样；负例控制演示留档。
+- **V-probe**：`scripts/verify-permission-requests.ts`（静态结构检查，对运行时行为零证明力）——断言组 1 决策调用面穷举集合（linear 闭集 {model.ts} + data 层 EXACT-SET {auto-approve.ts, inbox-model.ts} + F1 两包零命中负断言）、组 2 duplicate/stale/expired 分层锚（v2.2.7 机器化：NotFound→reply.succeeded / reply.failed→toast + thin router 双形态 guards + controller mutations + ScopedKey caches）、组 3 恢复链四处触发、组 4 无歧义默认审批四锚、组 5 事件与端点契约抽样。**#189 重锚定**：14 条 fact 级 old→new（v2.2.7-context 漂移，非契约违约）+ 6 条负注入全部 rc=1（见 [build-and-verify.md #189 段](../../build-and-verify.md)）。
 - **V-upstream**：app 子集追加 3 文件（`session/requests/websearch.test.ts`、`settings/model.test.ts`、`runtime/server/global-sync/utils.test.ts`）首跑逐例归因门；既有三包子集（app 46 + client 8 + session-ui 6）回归——client 的 `solid-eviction`（permission store 家族存活于 eviction）/`shared-events`（permission.asked fan-out）覆盖事件层语义。
 - **覆盖口径**：`requests/model.ts`/`auto-approve.ts`/三个 dock 组件上游**无单测**（装配层）——覆盖 = 探针（结构）+ V2（构建）+ G21（真机）三层，与 #8 session-home-archive 覆盖口径同型。
 
@@ -139,3 +142,22 @@ app/session-ui/ui 三包内线级调用恰两处成立。`client/src/solid/conne
 - **dock 装配层无上游单测**：model/auto-approve/dock 组件的 Solid 装配未在运行时执行；探针为静态结构检查。
 - **session-ui component-tests/playwright**（dock-prompt.stories 等浏览器级）——需浏览器环境——BLOCKED。
 - 终端（PTY，G7）与文件与 Diff 两个单元仍为 architecture.md TODO 行，本期不声称已交付；#9 诚实边界中「权限确认独立单元不在本期验收」的保留项由本期承接。
+
+## #189 事实同步：old → new 映射表（v2.2.7 pin `fedc6f208a`，2026-11-14）
+
+下表是探针重锚定与本文各节同步所依据的事实映射；全部为 v2.2.7-context 漂移（上游机器化重构），**非契约违约**——决策三值、层界、红线、默认关、批量扩散等契约事实全部保持。
+
+| # | 事实（v2.2.7 前 = b4525d79bf/v2.2.1 形） | v2.2.7 形 | 探针锚位 |
+| --- | --- | --- | --- |
+| 1 | linear `api.permission.reply(` 闭集 = {model.ts, auto-approve.ts}（2 文件） | 闭集 = {model.ts}（1 文件；machine reply effect，`decision: effect.decision` + abort signal） | 组 1 集合相等 + model.ts 形锚 |
+| 2 | wrapper `session.permission.reply(` app 内零调用者 | EXACT-SET = {auto-approve.ts（data 层 `decision: "once"`，:117）, shell/titlebar/inbox-model.ts（`decide` 三值 + `.catch(requestFailed)`，:453-455）} | 组 1 集合相等（2 文件）+ 负注入 (i)(ii) |
+| 3 | 「decide() 无吞错：catch → requestFailed toast」 | NotFound 显式分类为已答复：`isPermissionNotFoundError(error) → { type: "reply.succeeded" }`（machine 事件，非静默吞）；真实失败 → `reply.failed` 携带 error.message → machine toast-failed effect | 组 2 reply chain 正则 |
+| 4 | auto-approve：`responded` Set 去重 + 直连 reply | auto-approve-machine 状态面（pending/responding/replied/gave-up）+ `needsUser()`；`decision: "once"` data 层调用保留；`covers()` 项目门保留 | 组 1 形锚（responded 锚删除） |
+| 5 | 单文件 session-question-dock anchors（sending() ≥8、Esc reject 直调 form.cancel、ScopedKey drafts） | thin router（`newQuestionUI()`）+ classic/experimental 双形态（各 `sending()` 19 处）；mutation 在 question-controller.ts:76-77；draft = question-state.ts `questionCache` + controller `ScopedKey.from(serverSDK.scope, untrack(input.request).id)` | 组 2 router/双形态/controller 锚 |
+| 6 | elicitation dock 四锚（form.reply/cancel mutation、guard、toast） | mutation 移入 elicitation-controller.ts:86-87（data 层 `input.forms.reply/cancel`）+ machine cache/toast effects；dock 只剩 wiring（`dock.reply()/dismiss()`） | 组 2 controller/machine 锚 |
+| 7 | data.ts wrapper 三锚 | byte-SAME 保留（`.permission.reply(input)` / NotFound swallow / `removePermission`） | 组 1（不变） |
+| 8 | model.ts 三 connected-gate 相邻对 | 形状等同位移：:48-55（shell.sync + permission.sync(id)）、:68-71（`formSessions().map(form.sync)`）、:84-89（`form.sync("global", ref)`） | 组 3 三正则 |
+| 9 | tab-strip：`permission.sync(value.id)` + 裸列表 | `sync(id)` + `running` 条件化 spread + `window.setTimeout(…, 300 + props.index * 50)`（v2.2.1 起形同——2141b1ba35，非 v2.2.1..v2.2.7 delta） | 组 3 tab-strip 锚 |
+| 10 | auto-approve sweep：linear `api.permission.request.list({location:…})` + 无 signal | squashed `api.permission.request.list({location:{directory:location.directory}},{signal})` + `sweepLocations(signal)`（:217-251）+ machine `sweep.start/cancel` dispatch + `permission.list(session.id)` approve loop（:74）；「never loaded」注释逐字保留（:213-216） | 组 3 sweep 锚 |
+| 11 | settings 默认 / dock 形 / autoFocus / onKeyDown / toast keys | 全部机械存活（byte-same；`autoApprove: false` :316、ghost/neutral/submit + disabled count=3、零 autoFocus、零 onKeyDown、en/zh 四键成对 + project.* en-only） | 组 4（不变） |
+| 12 | 六事件 + PermissionRequest/FormInfo + tagged errors + endpoint paths | 全部机械存活（byte-same generated 面） | 组 5（不变） |

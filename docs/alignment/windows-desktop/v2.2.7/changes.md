@@ -318,3 +318,66 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **DENY（routing）** `#196` runtime/server/client.tsx capture/generation/mediaApi seam 与 fork/revert 生命周期守卫套件：本轮明确不落（superseded-by-design 记录在 row 58 处置：queue.ts 本地 owner lease + 原生 client.tsx:89 media-loader 接线已覆盖其意图）。
 - **DENY（routing）** `#199` 依赖升级类 payload（workspace-dependency-closure 等依赖面）：本轮不触碰。
 - **EXCLUDED** `packages/core|server|schema|protocol` fs/media 服务端语义不在 vendored closure（同 #11 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。
+
+## Issue #189：request docks crosswalk and allowlist
+
+本节是 #189 的固定上游审计（session/requests 请求 dock 面），不改变冻结的 v2.2.1 文档与前序 #186/#187/#188 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--189-request-docks`，分支 `feat/189-request-docks`，base `31f8399`（#188 链尾）。本轮 landing 方式 = **纯静态轮（零新 mobile patch）**：request docks 域 50 文件全部 byte-identical 于 v2.2.7 pin（v2.2.1-parity 性质），交付物为 `verify-permission-requests` 探针的 v2.2.7 重锚定（14 条 fact 级 old→new，全部「v2.2.7-context 漂移，非契约违约」）+ 单元文档事实同步；`patches:refresh` 未运行（登记面零改动），registry 保持 **84 registered / 6 active / 29 absorbed / 49 deferred** 不变。
+
+### 可复现 fixed-source 命令
+
+```bash
+# ① 50 文件 docks surface 清单（canonical）
+git -C /home/peterhan/repository/opencode ls-tree -r --name-only v2.2.7 -- packages/app/src/session/requests   # 34 files
+# +16 extras：session-ui/src/components/{question-prompt.css,question-prompt-experimental.css,dock-prompt.tsx,message-part.css}、
+#   session-ui/src/styles/index.css、ui/src/data-display/keybind/{keybind.css,keybind.tsx}、
+#   app/src/session/composer/session-composer-region.tsx、app/src/session/question-switch.stories.tsx、
+#   app/src/settings/experimental/experimental.tsx、app/src/settings/{model.tsx,model.test.ts,search-catalog.ts,search-results.test.ts}、
+#   app/src/runtime/i18n/en.ts、ui/src/i18n/en.ts
+# ② 逐文件 byte-compare：`git archive v2.2.7 packages | tar -x` 后 `cmp` 50 文件（vendor/upstream/<同路径>）
+# ③ 全树核算：`diff -rq <v2.2.7 packages> vendor/upstream/packages` → Files differing 清单
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **docks surface：50/50 SAME + 0 DIFF + 0 MISSING**（34 requests 文件 + 16 extras 全部 byte-identical）。
+- **全树核算：54 Files differing = 50 条 active-target union 成员 + 4 条 closure-trim package.json**（`ai/client/patchmark/plugin`）；50 条 DIFF 全部 ⊆ 六个 active patch 的 58-target 并集（其余 8 条为 vendor 侧新增文件，不在 pristine v2.2.7 清单内），0 条清单外 DIFF。
+- 结论：request docks 域在当前链树上与 v2.2.7 上游 **零 delta**；唯一非 SAME 面与 #184–#188 在册载体完全重合（由 verify-closure.sh 全树 byte-identity 覆盖）。
+
+### 逐 commit crosswalk（14 条 + inbox note）
+
+| fixed upstream commit | 目标行为 | #189 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `7d0f79d2ca` | feat(app): make redesigned question dock opt-in (#59723)——question dock 重设计 opt-in 双形态 + question-state LRU 草稿缓存 | **absorbed**（vendor pin）；`newQuestionUI` 默认 false=classic 形 | `session-question-dock.tsx` thin router + `session-question-dock-{classic,experimental}.tsx` + `question-state.ts`（50-file SAME 集） |
+| `9d89512e93` | fix(app): drive pane sizing and the question dock through state machines (#61949)——question/question-switch machine + 共享 controller | **absorbed**（vendor pin） | `question-machine.test.ts`/`question-switch-machine.test.ts`/`question-controller.ts`（machine 9-file 集 115/0/375） |
+| `2b9216a002` | fix(app): settle permission replies and the session header fit through state machines (#61942)——permission-machine + model.ts machine reply effect + NotFound→reply.succeeded 计数 | **absorbed**（vendor pin） | `permission-machine.test.ts`；model.ts:244 reply effect、:249-257 NotFound 分类（探针组 1/2 重锚定锚） |
+| `e5f2dde373` | fix(app): surface exhausted auto-approve permission requests (#61584)——auto-approve-machine | **absorbed**（vendor pin） | `auto-approve-machine.test.ts`；gave-up/idle 状态 + `needsUser` |
+| `50971aedbf` | fix(app): bound MCP elicitation and auto-approve requests with explicit machines (#62111)——elicitation machine/controller + auto-approve sweep machine | **absorbed**（vendor pin） | `elicitation-machine.test.ts`/`elicitation-controller.ts`；auto-approve `dispatchSweep(sweep.start/cancel)` + `sweepLocations(signal)` |
+| `12c371e08d` | fix(app): drive the web search consent dock through one state machine (#61962)——websearch machine | **absorbed**（vendor pin）；#188 deny audit 移交本单元的 routing 在此落地（零补丁需求） | `websearch-machine.test.ts`（SAME 集） |
+| `443878def0` | fix(app): badge permission requests that auto-approve gave up on (#61736)——gave-up 徽标 | **absorbed**（vendor pin） | `auto-approve-machine.ts` `status: "gave-up"` + model.ts `needsUser` 消费（SAME 集） |
+| `bd420e0b84` | fix(app): name the MCP tool and its input in the permission dock (#60548)——permission dock 命名 | **absorbed**（vendor pin） | `session-permission-dock.tsx`（byte-identical；三决策 ghost/neutral/submit 形在册） |
+| `f73e2847ba` | fix(app): make URLs in questions, MCP prompts and errors clickable (#61514)——question 内 URL 可点 | **absorbed**（vendor pin） | dock classic/experimental byte-identical（SAME 集） |
+| `d09e2c6c8d` | feat(app): add question notifications and sounds (#60358)——question 通知与声音 | **absorbed**（vendor pin）；通知投递面归 #195 | `notification.tsx`/i18n en.ts（SAME/在册集） |
+| `53ad857b7a` | fix(app): preserve simultaneous request notifications (#60378)——并发请求通知保持 | **absorbed**（vendor pin） | 同上（SAME 集） |
+| `524afbb2bb` | fix(session-ui): show the picked question answer as a raised card (#62896)——已选答案卡 | **absorbed**（vendor pin） | `question-prompt.css`/`question-prompt-experimental.css`/`dock-prompt.tsx`（SAME 集） |
+| `bc7da10f3d` | fix(app): keep question options and submit controls reachable on mobile (#60335)——question 控件移动可达性 | **absorbed（=上游自身的 mobile fix）**：v2.2.7 已自带移动可达修复，vendored 树 byte-identical，无需移动补丁 | classic/experimental dock（SAME 集） |
+| `7ed1f96e29` | feat(app): allow selecting question answer text (#60372)——答案文本可选中 | **absorbed**（vendor pin） | question dock/css（SAME 集） |
+
+- **inbox note（a35d91bb8b，v2.2.1 pin 内既入）**：`shell/titlebar/inbox-model.ts` 的显式决策路径 `decide(entry, decision) → entry.ctx.data.session.permission.reply({…decision}).catch(requestFailed)`（v2.2.7 :450-458）由 a35d91bb8b「turn Home into a session inbox (#57281)」引入（2026-10-20，随 v2.2.1 pin 入树）。旧探针 pin `b4525d79bf`（2026-10-23 dev pin）早于该 merge，「wrapper 零 in-app caller」断言在 v2.2.1 时点已实质过期，但被探针 fail-fast 的前置断言（linear 闭集缺 auto-approve.ts）掩盖至本轮才暴露；#189 重锚定为 EXACT-SET {auto-approve.ts, shell/titlebar/inbox-model.ts}。
+
+### 行为 crosswalk
+
+- **question dock opt-in 双形态**（`7d0f79d2ca`）：thin router `settings.general.newQuestionUI()`（默认 false→classic），guards live 于 classic+experimental（各自 `sending()` 19 处、`if (sending()) return` 5/6 处、`disabled={sending()}` 9/10 处，grep 计数在案）；Esc reject 两形态均为 `const reject = form.dismiss` + `aria-keyshortcuts="Escape"`；draft 缓存 = `question-state.ts` `questionCache`（LRU 100），key = `ScopedKey.from(serverSDK.scope, untrack(input.request).id)`。
+- **permission 三决策 once/always/reject**：dock 标签↔值映射如实登记——Deny 按钮文本标签为「Deny」，其 wired decision value = `reject`；Allow Always（neutral）= `always`；Allow Once（submit）= `once`。三按钮全部 `disabled={props.responding}`（count=3），responding 态由 permission-machine `isPermissionResponding` 承载。
+- **六 machine 家族（pin 携带）**：permission（`2b9216a002`）、question/question-switch（`9d89512e93`）、auto-approve（`e5f2dde373`+`50971aedbf` sweep）、elicitation（`50971aedbf`）、websearch（`12c371e08d`）+ steer-background/question-keys（v2.2.1 既入，byte-same）。机器 9-file 测试集 **115 pass / 0 fail / 375 expect / 9 files** 恒同。
+- **NotFound 显式计数为已答复**（`2b9216a002`，v2.2.7 语义重分类）：machine reply effect 中 `isPermissionNotFoundError(error) → { type: "reply.succeeded" }`（model.ts:249-257）——他端/TUI 已答的请求计为 replied 而非失败；真实失败 → `reply.failed` 携带 `error.message`，machine toast-failed effect 呈现 `common.requestFailed`。
+- **auto-approve gave-up**（`443878def0`/`e5f2dde373`）：machine 状态 `gave-up` + `needsUser()` 让被放弃请求重新呈现给用户；sweep = `sweepLocations(signal)`（session.active ∪ 本地已知会话按 location 去重）+ machine `sweep.start/sweep.cancel` dispatch；「never loaded」残例注释逐字保留（:213-216）。
+- **tab-strip 错峰同步（v2.2.1 pin 既入，非 v2.2.1..v2.2.7 delta）**：`running` 条件化的 `permission.sync(id)/form.sync(id)` spread + `window.setTimeout(…, 300 + props.index * 50)` + `Promise.allSettled`（2141b1ba35「defer inactive-tab sync…」#57617 引入，早于 v2.2.1）；tab-strip.tsx 不在 54-DIFF 清单（v2.2.1→v2.2.7 byte-same）。旧探针的 `permission.sync(value.id)` 锚在其书写 pin（b4525d79bf，早于 2141b1ba35 merge）成立，v2.2.1 起已实质过期，被 fail-fast 掩盖至本轮重锚定（`sync(id)` + running-conditioned 形）。
+
+### deny audit
+
+- **audit-only Playwright**：`e2e/regression/session-request-docks.spec.ts` 在册 byte-identical（vendor pin），本轮未运行、不作为 Android APK 门禁（#188 同口径）。
+- **DENY（routing）** `appearance-motion-zoom`（→#197）：本轮不承载；其 pin 更新须同步 rebase `session-ui/src/components/question-prompt.css`/`message-part.css` 的载量（本轮 50-file SAME 集成员），#197 落地时按在册 targets 处理。
+- **DENY（routing）** `settings-experimental`（→settings 单元 follow-up）：本轮不承载（`experimental/experimental.tsx`、`settings/model.tsx`、`search-catalog.ts` 等 SAME 集成员由 pin 携带）。
+- **DENY（routing）** `session-goal-sources-panels`（→goal/sources 单元）：本轮不触碰。
+- **DENY（routing）** notification delivery（→#195）：question/request 通知投递面不在本轮。
+- **EXCLUDED** `#168` 范围未触碰；`packages/core|server|schema` permission 服务端语义不在 vendored closure（同 #10 传统，引 pin cache）。
