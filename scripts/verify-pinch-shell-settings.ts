@@ -1,69 +1,85 @@
-// verify-pinch-shell-settings.ts — static probe for issue #74 (S12 pinch-zoom
-// disposition + S37 per-server shell selection equivalence check; a ZERO-code
-// round — verification + registration + ruling only, no vendor/first-party/
-// shell change; the patch chain was 38=38 at the #74 era, 50=50 since issue
-// #109's settings-gui-plugins-tab-label — issue #110 errata, narration-only).
+// verify-pinch-shell-settings.ts — static probe for issues #74/#193 (S12 pinch-zoom
+// disposition + S37 per-server shell selection equivalence check). Issue #193 re-anchor:
+// at v2.2.7 (fedc6f208a) the general rows moved onto the createOptimisticSetting machine
+// and the desktop zoom chain (nextDesktopZoomLevel) is native pin content in
+// desktop-menu.ts — the S12 contract itself is unchanged: desktop-only pinch (and
+// spellcheck) settings stay gated away from mobile.
 //
-// Asserts, against the REAL sources (vendored pin b4525d79bf… + packageSources
-// + gui-plugins-native-test-deps..settings-gui-plugins-tab-label, M-019/M-039 reserved-absent; first-party android/, and this
-// round's registration docs),
+// Asserts, against the REAL sources (vendored pin fedc6f208a… + the active patch chain,
+// M-019/M-039 reserved-absent; first-party android/, and this round's registration docs),
 // the structural facts the S12 ruling ("keep the WebView default, register —
 // option (a)") and the S37 equivalence conclusion (implementation.md E30)
 // rely on:
 //
-//   1. S12 pinch face: the vendored pinch setting row is byte-identical to the
-//      pin generation and to v2.2.1 (pin→v2.2.1 delta = ZERO for this domain,
-//      E30) — general.tsx gate line verbatim (`desktop() && "getPinchZoomEnabled"
-//      in platform`), the optimistic-set/rollback pair, `<Show when={desktop()}>`
-//      wrapping the row (desktop-only, invisible on mobile — interaction-quality
-//      §四 in the register); platform.tsx optional members verbatim with their
-//      "(desktop only)" comments; the search-catalog entry keeps
+//   1. S12 pinch face: old->new (issue #193 re-anchor) — the hand-rolled
+//      optimistic-set/rollback pair is ABSORBED by the createOptimisticSetting machine;
+//      the gate survives as the machine source
+//      (`(desktop() && "getPinchZoomEnabled" in platform) || undefined`) with the load
+//      `(await platform.getPinchZoomEnabled?.()) ?? false`; the spellcheck row rides the
+//      SAME shape and the SAME <Show when={desktop()}> block (general.tsx :239/:247/:278 —
+//      the coordinator-cited spellcheck desktop-gate evidence); failure rollback is
+//      machine-owned (machine.ts write.failed -> settled(state, state.confirmed, ...) +
+//      controllers.ts notify.error -> options.onError). platform.tsx optional members
+//      verbatim with their "(desktop only)" comments; the search-catalog entry keeps
 //      `available: "desktop"` (#65 ruling A2 precedent — zoom was adopted for
 //      mobile search, pinch is NOT); the en.ts pinchZoom keys verbatim.
 //      NEGATIVE set (the ruling's "keep the default" half): MainActivity.kt
 //      carries NO zoom configuration; index.html viewport sets NO
-//      maximum-scale; settings.css has no zoom/pinch/touch-action/overscroll
-//      rule; packages/mobile-hosts/src has NO pinch capability at all (the web
+//      maximum-scale; settings.css has no zoom/pinch/touch-action token and its only
+//      overscroll face is the native `overscroll-behavior: contain` @keyframes line
+//      (old->new: the #74-era blanket overscroll negative is re-scoped — the v2.2.7 pin
+//      ships the nav-containment keyframe, which does not touch the WebView pinch
+//      default); packages/mobile-hosts/src has NO pinch capability at all (the web
 //      platform never declares getPinchZoomEnabled/setPinchZoomEnabled —
 //      upstream web has no pinch face either, the host decides); the desktop
-//      zoom chain (nextDesktopZoomLevel) stays unported across the whole
-//      vendored app/src tree.
+//      zoom chain (nextDesktopZoomLevel) is NATIVE and scoped to desktop-menu.ts exactly
+//      (old->new: the #144-era registered rc=1 full-domain unported negative discharges
+//      with the rebase — the helper is pin content; a port landing in ANY OTHER file
+//      still trips).
 //      WITNESS ONLY — first locks elsewhere (drift double-FAIL by design,
 //      ownership NOT re-locked): MainActivity setSupportZoom zero-hit +
 //      index.html user-scalable zero-hit (verify-commands-menus group 4, fail
 //      strings "...zoom ruling re-review required" / "...zoom/pinch ruling
 //      re-review required"); the four-segment viewport meta verbatim
-//      (verify-interaction-quality group 3); the desktop-menu.ts-scoped
-//      nextDesktopZoomLevel negative (verify-appearance-settings group 4 —
-//      this probe extends the same negative to the FULL app/src domain, a
-//      complementary lock for a future port landing in any other file).
+//      (verify-interaction-quality group 3); desktop-menu.ts scoped
+//      nextDesktopZoomLevel (verify-appearance-settings group 4 —
+//      this probe extends the same lock to the REST of the app/src domain).
 //   2. S37 shell contract face (+ the wire-protocol anchors, review MAJOR-2
-//      merged G3): controllers.ts createServerShellController read path
-//      (config.get().catch + config.shells().catch, the directory boundary
-//      global segment, the .at(-1) last-info.shell pick), the no-op guard,
-//      the optimistic mutate and the rollback→showToast order;
+//      merged G3): old->new (issue #193 re-anchor) — the shell write is the native
+//      experimental config API (`await context.sdk.api.experimental.config.update({
+//      shell: value || null })`, controllers.ts :127; the #65-era `.sdk.api.config.update`
+//      positive + experimental negative witness pair is absorbed — the non-experimental
+//      write form must NOT come back); the no-op guard / optimistic mutate /
+//      rollback→showToast legs moved into createOptimisticSetting + machine.ts
+//      (machine-owned optimism: the write.failed -> settled(confirmed) restore and the
+//      notify.error -> options.onError -> showToast chain); the read path survives
+//      (config.get().catch + config.shells().catch, the directory boundary global segment,
+//      the .at(-1) ?? "" last-info.shell pick);
 //      behavior.ts createShellOptions (auto first item verbatim
 //      {id:"auto",value:"",name:"",terminalOnly:false}, terminalOnly:
 //      !shell.acceptable, the current-not-listed tail push); general.tsx
-//      ShellSetting (the v2.2.1 optional `action` prop with its doc comment,
+//      ShellSetting (the optional `action` prop with its doc comment,
 //      `data-action={props.action ?? "settings-shell"}`, the ?? options()[0]
 //      current fallback, the autoDefault key, the terminalOnly label suffix);
 //      servers.tsx ServerShell wiring (createServerShellController(() =>
 //      props.server) + <ShellSetting controller={controller}
-//      action={props.action} />) with the v2.2.1 per-row search naming
+//      action={props.action} />) with the per-row search naming
 //      `action={entry.key === props.selected ? undefined :
-//      `settings-shell:${entry.key}`}` carried since #102 (settings-servers-migration); en.ts shell keys ×4
+//      `settings-shell:${entry.key}`}` carried since #102 (settings-servers-migration),
+//      mounted under the v2.2.7 serverPagesConnection availability projection (old->new:
+//      the #102-era single/list health-gate anchors are absorbed by
+//      serverPagesConnection(entry.availability) — pinned by verify-settings-framework
+//      group 4); en.ts shell keys ×4
 //      verbatim; the wire contract — protocol config.ts GET /api/config/shell
 //      (config.shells) + PATCH /api/experimental/config (config.update) +
 //      Schema.Array(ConfigShell.Option), schema shell.ts ConfigShell.Option
-//      with exactly path/name/acceptable (both files are byte-identical
-//      pin=v2.2.1, blob c6f6693f / 52278b27, E30 — the probe locks THIS
+//      with exactly path/name/acceptable (the probe locks THIS
 //      tree's bytes so a future patch cannot silently break the contract
 //      anchors).
 //      WITNESS ONLY — first lock verify-appearance-settings group 2: the
-//      pin-form `.sdk.api.config.update({ shell: value || null })` positive
-//      AND the `api.experimental.config.update` cherry-pick negative AND the
-//      behavior re-export line (drift double-FAIL by design).
+//      native `experimental.config.update` write positive
+//      AND the rewritten plugin-migration write-face negative (drift
+//      double-FAIL by design).
 //      ISSUE #102 REVISION (settings-servers-migration): the servers page is now target-verbatim —
 //      general.tsx ShellSetting carries the optional `action` prop and renders
 //      `data-action={props.action ?? "settings-shell"}` (the General page
@@ -102,8 +118,13 @@
 // `setBuiltInZoomControls(true)` into MainActivity.kt → group 1 NEW negative
 // FAIL; ③ inject a `getPinchZoomEnabled` face into the vendored web platform
 // (runtime/platform/web.ts) → group 1 zero-hit FAIL; ④ delete the auto first
-// item in behavior.ts → group 2 FAIL; ⑤ rewrite the save call to
-// `api.experimental.config.update` in controllers.ts → group 2 witness FAIL.
+// item in behavior.ts → group 2 FAIL; ⑤ rewrite the shell write to a
+// plugin-host face in controllers.ts → group 2 negative FAIL.
+// Issue #193 re-anchor round re-runs (all inject → FAIL → restore → PASS,
+// logged in docs/build-and-verify.md): ⑥ remove the `<Show when={desktop()}>`
+// wrapper around the pinch/spellcheck rows → group 1 FAIL; ⑦ re-add
+// `nextDesktopZoomLevel` outside desktop-menu.ts → group 1 scoped negative
+// FAIL; ⑧ drop the spellcheck desktop gate source line → group 1 FAIL.
 //
 // Usage:
 //   bun run scripts/verify-pinch-shell-settings.ts
@@ -141,25 +162,45 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
   const general = await read(GENERAL_TSX)
   const flat = squash(general)
 
-  // The pinch row is byte-identical to the pin generation and to v2.2.1
-  // (pin→v2.2.1 delta = ZERO for this domain, E30): gate line + fetcher
-  // verbatim, optimistic set + failure rollback.
-  if (!flat.includes('()=>desktop()&&"getPinchZoomEnabled"inplatform'))
-    fail("1: general.tsx lost the pinch gate line (desktop() && 'getPinchZoomEnabled' in platform)")
-  if (!flat.includes("()=>Promise.resolve(platform.getPinchZoomEnabled?.()??false).catch(()=>false)"))
-    fail("1: general.tsx lost the pinch fetcher line (getPinchZoomEnabled?.() ?? false)")
-  if (!general.includes("void update.catch(() => setPinchZoom(!checked))"))
-    fail("1: general.tsx lost the pinch failure rollback (setPinchZoom(!checked))")
+  // old->new (issue #193 re-anchor): the hand-rolled optimistic-set/rollback pair is
+  // absorbed by createOptimisticSetting; the gate survives as the machine source and the
+  // failure rollback is machine-owned.
+  if (!flat.includes('()=>(desktop()&&"getPinchZoomEnabled"inplatform)||undefined'))
+    fail("1: general.tsx lost the pinch gate line ((desktop() && 'getPinchZoomEnabled' in platform) || undefined)")
+  if (!flat.includes("load:async()=>({value:(awaitplatform.getPinchZoomEnabled?.())??false,meta:undefined})"))
+    fail("1: general.tsx lost the pinch fetcher line ((await platform.getPinchZoomEnabled?.()) ?? false)")
+  if (!flat.includes("write:(checked)=>platform.setPinchZoomEnabled?.(checked)"))
+    fail("1: general.tsx lost the pinch write line (platform.setPinchZoomEnabled?.(checked))")
 
-  // desktop-only wrapping: the pinch row sits inside <Show when={desktop()}>.
+  // The spellcheck row rides the SAME gate shape (the second desktop-only row in the
+  // same Show block — the mobile-leak surface).
+  if (!flat.includes('()=>(desktop()&&"getSpellcheckEnabled"inplatform)||undefined'))
+    fail("1: general.tsx lost the spellcheck gate line ((desktop() && 'getSpellcheckEnabled' in platform) || undefined)")
+  if (!flat.includes("load:async()=>({value:(awaitplatform.getSpellcheckEnabled?.())??true,meta:undefined})"))
+    fail("1: general.tsx lost the spellcheck fetcher line ((await platform.getSpellcheckEnabled?.()) ?? true)")
+
+  // Failure rollback is machine-owned (old->new: the #74-era
+  // `void update.catch(() => setPinchZoom(!checked))` line is absorbed — the optimistic
+  // machine restores the confirmed value on write.failed and reports via onError).
+  const machine = await read(`${APP}src/settings/general/machine.ts`)
+  if (!machine.includes("return settled(state, state.confirmed, reread, state.queued ? [] : [{ type: \"notify.error\", failure }])"))
+    fail("1: machine.ts lost the write.failed restore (settled(state, state.confirmed, ...) + notify.error)")
+  const controllersForGate = await read(CONTROLLERS_TS)
+  if (!controllersForGate.includes("if (effect.type === \"notify.error\") return options.onError?.(effect.failure)"))
+    fail("1: controllers.ts lost the notify.error -> options.onError dispatch (machine-owned failure face)")
+
+  // desktop-only wrapping: the pinch AND spellcheck rows sit inside <Show when={desktop()}>.
   const pinchTitleIdx = general.indexOf('language.t("settings.general.row.pinchZoom.title")')
   const showIdx = general.lastIndexOf("<Show when={desktop()}>", pinchTitleIdx)
   const dataActionIdx = general.indexOf('data-action="settings-pinch-zoom"')
+  const spellActionIdx = general.indexOf('data-action="settings-spellcheck"')
   const showEndIdx = general.indexOf("</Show>", dataActionIdx)
   if (pinchTitleIdx === -1 || showIdx === -1 || dataActionIdx === -1 || showEndIdx === -1)
     fail("1: general.tsx lost the pinch row anchors (title/data-action)")
   if (!(showIdx < pinchTitleIdx && pinchTitleIdx < dataActionIdx && dataActionIdx < showEndIdx))
     fail("1: general.tsx pinch row must stay wrapped in <Show when={desktop()}> (desktop-only, mobile invisible)")
+  if (!(showEndIdx > spellActionIdx && spellActionIdx > dataActionIdx))
+    fail("1: general.tsx spellcheck row must stay inside the same <Show when={desktop()}> block (desktop-only, mobile invisible)")
   if (!general.includes('data-action="settings-pinch-zoom"'))
     fail("1: general.tsx lost the settings-pinch-zoom data-action")
 
@@ -217,18 +258,25 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
   if (!indexHtml.includes('content="width=device-width, initial-scale=1, interactive-widget=resizes-content, viewport-fit=cover"'))
     fail("1: index.html lost the four-segment viewport meta (WITNESS — first lock: verify-interaction-quality group 3)")
 
-  // settings.css: no zoom/pinch/touch-action/overscroll rule on either side
-  // (pin = v2.2.1 = vendored, E30) — a new rule here is a pinch-ruling face.
+  // settings.css: no zoom/pinch/touch-action token, and the ONLY overscroll face is the
+  // native `overscroll-behavior: contain` @keyframes line (old->new, issue #193
+  // re-anchor: the #74-era blanket overscroll negative is re-scoped — the v2.2.7 pin
+  // ships the settings-nav-contain keyframe, an inner-scroll containment that does not
+  // touch the WebView page-level pinch default).
   const css = await read(SETTINGS_CSS)
-  if (/zoom|pinch|touch-action|overscroll/i.test(css))
-    fail("1: settings.css gained a zoom/pinch/touch-action/overscroll rule (S12 ruling re-review required, E30)")
+  if (/zoom|pinch|touch-action/i.test(css))
+    fail("1: settings.css gained a zoom/pinch/touch-action rule (S12 ruling re-review required, E30)")
+  const overscrolls = [...css.matchAll(/overscroll-behavior\s*:\s*([^;]+);/g)].map((m) => m[1].trim())
+  if (JSON.stringify(overscrolls) !== JSON.stringify(["contain"]))
+    fail(`1: settings.css overscroll face drifted — got ${JSON.stringify(overscrolls)}, expected exactly ["contain"] (the native nav-containment keyframe)`)
 
   // The web platform never declares a pinch face: zero "pinch" (any case)
   // across packages/mobile-hosts/src AND in the vendored web platform
-  // (runtime/platform/web.ts — the actual web platform this app runs, pin
-  // form + appearance-motion-zoom zoom additions; its zoom face is #65/S42's CSS-zoom domain,
-  // NOT a pinch capability) — upstream web has no pinch face either, the host
-  // browser/WebView decides (E30 mechanism-isomorphism premise).
+  // (runtime/platform/web.ts — the actual web platform this app runs; at v2.2.7 it
+  // carries no zoom face either — that implementation is the deferred
+  // appearance-motion-zoom face, verify-appearance-settings group 5) — upstream web has
+  // no pinch face either, the host browser/WebView decides (E30 mechanism-isomorphism
+  // premise).
   const webPlatform = await read(`${APP}src/runtime/platform/web.ts`)
   if (/pinch/i.test(webPlatform))
     fail("1: vendored web.ts gained a pinch face — the web platform must stay pinch-free (E30: keep the WebView default; a platform pinch capability is ruling (b) territory)")
@@ -242,25 +290,21 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
   if (hostPinchHits !== 0)
     fail(`1: packages/mobile-hosts/src carries ${hostPinchHits} file(s) matching /pinch/i — the web platform must have NO pinch face (E30: keep the WebView default; a host-side pinch capability is ruling (b) territory)`)
 
-  // The desktop zoom chain stays unported across the WHOLE vendored app/src
-  // tree (complementary lock: verify-appearance-settings group 4 first-locks
-  // the desktop-menu.ts-scoped negative — drift double-FAIL by design there;
-  // this guard catches a future zoom.ts port landing in ANY other file).
-  // REGISTERED rc=1 (issue #144): the session-workbench overlay (patch 54) flipped
-  // desktop-menu.ts into the tree as a target-form .ts and session-client-compatibility
-  // (patch 55) brought `nextDesktopZoomLevel` with it — the R2 out-of-scope item. Issue
-  // #144 does NOT fix or re-prune the overlay (owner: the session/Android interaction
-  // unit, #145/N10 direction). Discharge condition: the owner round re-prunes the hunk
-  // (this group returns to rc=0) or re-registers the lock with the new owner contract.
+  // The desktop zoom chain is NATIVE pin content and scoped to desktop-menu.ts exactly.
+  // old->new (issue #193 re-anchor): the #144-era registered rc=1 full-domain
+  // "must stay unported" negative discharges — v2.2.7 ships nextDesktopZoomLevel in
+  // desktop-menu.ts itself. The scoped lock remains: a port landing in ANY OTHER file
+  // still trips (complementary lock: verify-appearance-settings group 4 first-locks the
+  // desktop-menu.ts-scoped positive — drift double-FAIL by design there).
   const appFiles = readdirSync(new URL(`${APP}src`, repoRoot).pathname, { recursive: true }) as string[]
-  let zoomLevelHits = 0
+  const zoomLevelFiles: string[] = []
   for (const file of appFiles) {
     if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue
     const text = readFileSync(new URL(`${APP}src/${file}`, repoRoot).pathname, "utf8")
-    if (text.includes("nextDesktopZoomLevel")) zoomLevelHits++
+    if (text.includes("nextDesktopZoomLevel")) zoomLevelFiles.push(file)
   }
-  if (zoomLevelHits !== 0)
-    fail(`1: vendored app/src carries ${zoomLevelHits} file(s) with nextDesktopZoomLevel — the desktop pinch/zoom chain must stay unported (S12/#74 ruling; scoped first lock: verify-appearance-settings group 4; registered rc=1 by issue #144 — R2, owner #145/N10)`)
+  if (JSON.stringify(zoomLevelFiles.sort()) !== JSON.stringify(["shell/commands/desktop-menu.test.ts", "shell/commands/desktop-menu.ts"]))
+    fail(`1: vendored app/src nextDesktopZoomLevel file set drifted — got ${JSON.stringify(zoomLevelFiles.sort())}, expected exactly ["shell/commands/desktop-menu.test.ts", "shell/commands/desktop-menu.ts"] (the native pinch/zoom chain stays scoped to the desktop menu module + its pin test; S12/#74 ruling)`)
 }
 
 // --- 2. S37 shell contract face (+ wire-protocol anchors, MAJOR-2 merged) ---
@@ -278,23 +322,32 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     fail("2: controllers.ts lost the directory boundary (global segment before the first directory)")
   if (!flat.includes('entry.type==="document"&&entry.info.shell!==undefined?[entry.info.shell]:[]'))
     fail("2: controllers.ts lost the document info.shell extraction")
-  if (!flat.includes(".at(-1),"))
-    fail("2: controllers.ts lost the .at(-1) last-global-shell pick")
-  if (!flat.includes('if(value===(state.latest.shell??""))return'))
-    fail("2: controllers.ts lost the no-op guard (select to the same value returns)")
-  if (!flat.includes("actions.mutate({...previous,shell:value||undefined})"))
-    fail("2: controllers.ts lost the optimistic mutate (shell: value || undefined)")
-  const rollbackIdx = controllers.indexOf("actions.mutate(previous)")
-  const toastIdx = controllers.indexOf("showToast({", rollbackIdx === -1 ? 0 : rollbackIdx)
-  if (rollbackIdx === -1 || toastIdx === -1 || rollbackIdx > toastIdx)
-    fail("2: controllers.ts lost the rollback→showToast failure order (actions.mutate(previous) must precede showToast)")
+  if (!flat.includes('.at(-1)??""'))
+    fail("2: controllers.ts lost the .at(-1) ?? '' last-global-shell pick")
+  // old->new (issue #193 re-anchor): the no-op guard / optimistic mutate /
+  // rollback→showToast legs moved into createOptimisticSetting + machine.ts — the
+  // machine-owned optimism face is pinned here (dispatch on source.synced, the
+  // write.failed restore, the notify.error -> onError -> showToast chain).
+  if (!flat.includes("exportfunctioncreateOptimisticSetting<T,M,S>(options:{"))
+    fail("2: controllers.ts lost the createOptimisticSetting export (machine-owned optimism)")
+  if (!flat.includes("onError:(failure)=>showToast({"))
+    fail("2: controllers.ts lost the shell controller onError -> showToast failure face")
+
+  // The shell write face. old->new (issue #193 re-anchor): the v2.2.7 pin adopted the
+  // experimental config API natively — the #65-era witness pair (`.sdk.api.config.update`
+  // positive + experimental negative) is absorbed; the non-experimental write form must
+  // NOT come back.
+  if (!controllers.includes("await context.sdk.api.experimental.config.update({ shell: value || null })"))
+    fail("2: controllers.ts lost the native experimental.config.update shell write (WITNESS — first lock: verify-appearance-settings group 2)")
+  if (controllers.includes(".sdk.api.config.update({"))
+    fail("2: controllers.ts carries the pre-adoption non-experimental sdk.api.config.update write (superseded at v2.2.7)")
 
   // WITNESS ONLY (first lock: verify-appearance-settings group 2 — the
-  // cherry-pick boundary: pin form stays, experimental namespace stays out).
-  if (!controllers.includes(".sdk.api.config.update({ shell: value || null })"))
-    fail("2: controllers.ts lost the pin sdk.api.config.update call (WITNESS — first lock: verify-appearance-settings group 2)")
-  if (controllers.includes("api.experimental.config.update"))
-    fail("2: controllers.ts adopted api.experimental.config.update (WITNESS — first lock: verify-appearance-settings group 2; drift double-FAIL by design)")
+  // plugin-migration write face stays out of vendored controllers.ts).
+  for (const pluginFace of ["api.plugin.", "PluginSettingsSections", "usePluginHost", "pluginHost"]) {
+    if (controllers.includes(pluginFace))
+      fail(`2: controllers.ts adopted the plugin-migration write face ${JSON.stringify(pluginFace)} (WITNESS — first lock: verify-appearance-settings group 2; drift double-FAIL by design)`)
+  }
 
   // behavior.ts createShellOptions — candidates shape (v2.2.1 delta = export
   // type→type only, E30; the re-export line is a group-2 witness).
@@ -329,6 +382,10 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     fail("2: general.tsx lost the auto → autoDefault label branch")
   if (!gflat.includes("`${option.name}(${language.t(\"settings.general.row.shell.terminalOnly\")})`"))
     fail("2: general.tsx lost the terminalOnly label suffix")
+  // old->new (issue #193 re-anchor): the v2.2.7 suffix adds the space before the paren
+  // (`${option.name} (...)`) — pin the current form.
+  if (!general.includes('`${option.name} (${language.t("settings.general.row.shell.terminalOnly")})`'))
+    fail("2: general.tsx lost the v2.2.7 terminalOnly label suffix (with the space before the paren)")
   if (!gflat.includes("onSelect={(option)=>option&&props.controller.select(option.value)}"))
     fail("2: general.tsx lost the onSelect → controller.select wiring")
 
@@ -345,10 +402,12 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
     fail("2: servers.tsx lost the ServerShell action prop (settings-servers-migration)")
   if (!servers.includes("action={entry.key === props.selected ? undefined : `settings-shell:${entry.key}`}"))
     fail("2: servers.tsx lost the per-row `settings-shell:<key>` search action (settings-servers-migration)")
-  if (!servers.includes('entry.connection && health()?.healthy !== false ? props.entry.connection : undefined'))
-    fail("2: servers.tsx lost the single-view health gate on the Shell section (settings-servers-migration)")
-  if (!servers.includes("entry.connection && controller.collection.health()[entry.key]?.healthy !== false"))
-    fail("2: servers.tsx lost the list-view health gate on the Shell section (settings-servers-migration)")
+  // old->new (issue #193 re-anchor): the #102-era single/list health-gate anchors are
+  // absorbed — the v2.2.7 page mounts ServerShell under the serverPagesConnection
+  // availability projection (the projection itself is pinned by verify-settings-framework
+  // group 4).
+  if (!servers.includes("<Show when={serverPagesConnection(entry.availability)} keyed>"))
+    fail("2: servers.tsx lost the serverPagesConnection availability gate on the Shell section (v2.2.7 projection)")
 
   // en.ts shell keys ×4, verbatim (vendored :876-879; pin :820-823;
   // v2.2.1 :968-971 — byte-identical across all three sides, E30).
@@ -433,8 +492,8 @@ const MOBILE_HOSTS_SRC = "packages/mobile-hosts/src/"
 
 console.log(
   "verify-pinch-shell-settings: PASS (" +
-    "1: S12 pinch face — general.tsx gate/fetcher/rollback verbatim inside <Show when={desktop()}>, platform.tsx optional members + (desktop only) comments, search-catalog available:'desktop' kept, en.ts pinchZoom keys verbatim; NEW negatives: MainActivity zero setBuiltInZoomControls/setDisplayZoomControls/textZoom/useWideViewPort/loadWithOverviewMode, index.html zero maximum-scale, settings.css zero zoom/pinch/touch-action/overscroll, mobile-hosts zero /pinch/i, app/src zero nextDesktopZoomLevel (full-domain extension; desktop-menu.ts scoped first lock: verify-appearance-settings group 4); witnesses double-FAIL by design: MainActivity setSupportZoom + index.html user-scalable (verify-commands-menus group 4), four-segment viewport (verify-interaction-quality group 3); " +
-    "2: S37 contract face — controllers read path (config.get/config.shells catch, directory boundary, .at(-1)), no-op guard, optimistic mutate + rollback→showToast order, behavior auto-first-item/terminalOnly/tail-push, ShellSetting target signature (optional action + doc comment) + data-action={props.action ?? \"settings-shell\"} + ?? options()[0] + autoDefault + terminalOnly suffix, ServerShell wiring + action thread (settings-servers-migration: `settings-shell:<key>` for non-selected rows, single/list health gates) + en.ts shell keys ×4, protocol GET /api/config/shell + PATCH /api/experimental/config + Schema.Array(ConfigShell.Option), schema ConfigShell.Option path/name/acceptable; witness (first lock: verify-appearance-settings group 2): pin sdk.api.config.update call + experimental negative; " +
+    "1: S12 pinch face (issue #193 re-anchor) — general.tsx pinch+spellcheck createOptimisticSetting gates ((desktop() && member-check) || undefined) + fetchers + writes, rows inside the shared <Show when={desktop()}>, failure rollback machine-owned (machine.ts write.failed settled(confirmed) + notify.error -> controllers.ts options.onError), platform.tsx optional members + (desktop only) comments, search-catalog available:'desktop' kept, en.ts pinchZoom keys verbatim; negatives: MainActivity zero setBuiltInZoomControls/setDisplayZoomControls/textZoom/useWideViewPort/loadWithOverviewMode, index.html zero maximum-scale, settings.css zero zoom/pinch/touch-action + overscroll-behavior exactly [contain] (the native nav-containment keyframe), mobile-hosts zero /pinch/i, app/src nextDesktopZoomLevel scoped EXACTLY to desktop-menu.ts + its pin test (native pin content — the #144 registered rc=1 discharges with the rebase); witnesses double-FAIL by design: MainActivity setSupportZoom + index.html user-scalable (verify-commands-menus group 4), four-segment viewport (verify-interaction-quality group 3); " +
+    "2: S37 contract face (issue #193 re-anchor) — controllers read path (config.get/config.shells catch, directory boundary, .at(-1) ?? \"\"), machine-owned optimism (createOptimisticSetting + onError -> showToast), the NATIVE experimental.config.update shell write (the pre-adoption non-experimental write form negative-pinned), plugin-migration write face negative (witness — first lock: verify-appearance-settings group 2), behavior auto-first-item/terminalOnly/tail-push, ShellSetting target signature (optional action + doc comment) + data-action={props.action ?? \"settings-shell\"} + ?? options()[0] + autoDefault + v2.2.7 terminalOnly suffix, ServerShell wiring + action thread (settings-servers-migration: `settings-shell:<key>` for non-selected rows, serverPagesConnection availability gate) + en.ts shell keys ×4, protocol GET /api/config/shell + PATCH /api/experimental/config + Schema.Array(ConfigShell.Option), schema ConfigShell.Option path/name/acceptable; " +
     "3: docs closure — matrix S12/S37 terminal rows anchored to the post-#102 row texts (E30, no 待核对; S12 migration-did-not-touch clause, S37 settings-servers-migration migration + ShellSetting action clause + dynamic write/rollback BLOCKED mark; three stale #74-era pins repaired in this revision because fail() exits first), implementation.md E30 row/narrative/section, interaction-quality.md ruling sentence; " +
     "STATIC check — the on-device pinch outcome (Android WebView default state), the shell select round-trip against a real server and the settings-search face are QA items registered in docs/build-and-verify.md issue #74 (QA-1..QA-3); static equivalence does not prove server-side shell execution semantics (same endpoint + same field = equivalence by construction, E30 boundary note)",
 )

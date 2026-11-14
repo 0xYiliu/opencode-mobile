@@ -159,9 +159,14 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     if (!model.includes(anchor)) fail(`3: model.tsx lost the schema anchor ${JSON.stringify(anchor.slice(0, 60))}`)
   }
 
-  // Defaults are false.
-  if (!model.includes("    newIcons: false,\n    foldUserMessages: false,\n    mobileTitlebarPosition: \"top\","))
-    fail("3: model.tsx defaults no longer carry newIcons: false / foldUserMessages: false before mobileTitlebarPosition")
+  // Defaults are false. old->new (issue #193 v2.2.7 re-anchor): the pin-era adjacency
+  // `...foldUserMessages: false,\n    mobileTitlebarPosition: "top",` no longer holds —
+  // the v2.2.7 defaults carry newQuestionUI/sidebarOrganize between them, so the anchor is
+  // the adjacent pair itself plus the mobileTitlebarPosition default separately.
+  if (!model.includes("    newIcons: false,\n    foldUserMessages: false,"))
+    fail("3: model.tsx defaults no longer carry the adjacent newIcons: false / foldUserMessages: false pair")
+  if (!model.includes('    mobileTitlebarPosition: "top",'))
+    fail("3: model.tsx lost the mobileTitlebarPosition default")
 
   // Effect pushes the experiment to the Icon renderer layer.
   if (!model.includes("const newIcons = withFallback(() => store.general?.newIcons, defaultSettings.general.newIcons)"))
@@ -193,9 +198,13 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // block (Persistence.optional decode stubs). The schema lines stay pinned in their retired
   // form: old stored values must still decode and round-trip (no readers).
   if (!model.includes("  showFileTree: Persistence.optional(Schema.Boolean),"))
-    fail("3: model.tsx showFileTree is not the retired-block Persistence.optional decode form (issue #144: consumers retired by the session rework, schema kept for old-storage decode)")
-  if (!model.includes("  // Mobile-only placement preference without a remaining reader; kept so stored values still decode.\n  terminalPlacement: Persistence.optional(Schema.Literals([\"side\", \"bottom\"])),"))
-    fail("3: model.tsx lost the terminalPlacement decode stub with its mobile-only comment (issue #144 retired-block form)")
+    fail("3: model.tsx showFileTree is not the retired-block Persistence.optional decode form (native at v2.2.7)")
+  // old->new (issue #193 v2.2.7 re-anchor): the #144-era terminalPlacement decode stub is
+  // SUPERSEDED — the v2.2.7 pin dropped the key from the schema entirely (no readers
+  // upstream either); the pin is authoritative, so the stub must NOT be carried and old
+  // stored values fall away per-field with the recovery contract.
+  if (model.includes("terminalPlacement"))
+    fail("3: model.tsx resurrected terminalPlacement (v2.2.7 dropped the key; the #144 stub is superseded)")
 }
 
 // --- 4. Test sync (settings/model.test.ts) ---
@@ -269,12 +278,14 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!content.includes(anchor)) fail(`5: message-content.tsx lost the fold anchor ${anchor.trim().slice(0, 60)}`)
   }
-  // props + store + fallback pair + Show wrapper.
+  // props + disclosure + Show wrapper. old->new (issue #193 v2.2.7 re-anchor): the
+  // graduated upstream fold rides createDisclosure (the timeline still owns the open state
+  // through props.expanded/onExpandedChange, so the row-recycling survival contract is
+  // unchanged) instead of the #64-era local store fallback pair.
   for (const anchor of [
     "  /** Folds a long message to its first lines with a Read more toggle. Omitted, the message always shows in full. */\n  fold?: boolean",
     "  /** Whether a folded message is open. The timeline owns it so it survives row recycling. */\n  expanded?: boolean",
-    "  const expanded = () => props.expanded ?? state.expanded",
-    "    if (props.onExpandedChange) return props.onExpandedChange(value)\n    setState(\"expanded\", value)",
+    "  const fold = createDisclosure({\n    open: () => props.expanded,\n    onOpenChange: (expanded) => props.onExpandedChange?.(expanded),\n  })",
     "            <Show\n              when={props.fold}",
     "              <UserMessageFold\n                id={`${props.message.id}-text`}",
   ]) {
@@ -291,7 +302,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 {
   const newIcons = await read(`${UI}src/icons/new-icons.ts`)
 
-  // Table shape: 42 new artwork bodies, 70 replacements.
+  // Table shape: 42 new artwork bodies, 71 replacements. old->new (issue #193 v2.2.7
+  // re-anchor): upstream grew the replacements table 70 -> 71 (outline-globe-plus) and the
+  // experiment's graduated table is the pin's authority.
   const artwork = newIcons.match(/const newIcons = \{([\s\S]*?)\n\}/)
   const replacements = newIcons.match(
     /const replacements: Partial<Record<IconName, \{ name: NewIconName; rotate\?: number \}>> = \{([\s\S]*?)\n\}/,
@@ -300,7 +313,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   const artworkNames = [...(artwork?.[1].matchAll(/^\s*"?([\w-]+)"?: `/gm) ?? [])].map((m) => m[1])
   const replacementKeys = [...(replacements?.[1].matchAll(/^\s*"?([\w-]+)"?: \{ name:/gm) ?? [])].map((m) => m[1])
   if (artworkNames.length !== 42) fail(`6: new-icons.ts artwork count is ${artworkNames.length}, expected the verbatim 42`)
-  if (replacementKeys.length !== 70) fail(`6: new-icons.ts replacement count is ${replacementKeys.length}, expected the verbatim 70`)
+  if (replacementKeys.length !== 71) fail(`6: new-icons.ts replacement count is ${replacementKeys.length}, expected the v2.2.7 verbatim 71`)
 
   // Every replacement key must be a real catalog name (primary ∪ additional ∪ the two adopted keys).
   const catalog = await read(`${UI}src/icons/catalog.ts`)
@@ -384,7 +397,9 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     '  "settings.experimental.row.newIcons.title": "New icons",',
     '  "settings.experimental.row.newIcons.description": "Preview the updated icon set",',
     '  "settings.experimental.row.foldUserMessages.title": "Fold long messages",',
-    '  "settings.experimental.row.foldUserMessages.description": "Fold your messages past 12 lines behind a Read more button",',
+    // old->new (issue #193 v2.2.7 re-anchor): the v2.2.7 dict wraps this value on the
+    // next line (prettier print width) — the anchor is the wrapped two-line form.
+    '  "settings.experimental.row.foldUserMessages.description":\n    "Fold your messages past 12 lines behind a Read more button",',
   ]) {
     if (!en.includes(key)) fail(`8: app en.ts lost or reshaped ${key.split(":")[0].trim()}`)
   }
@@ -417,8 +432,10 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 
   // The fallback chain anchors themselves, verbatim on both packages.
   const language = await read(`${APP}src/runtime/i18n/language.tsx`)
-  if (!language.includes("const base = flatten({ ...en, ...dict })"))
-    fail("8: app language.tsx lost the en base-first flatten")
+  // old->new (issue #193 v2.2.7 re-anchor): the en base-first merge is the flat spread
+  // (`{ ...en, ...dict }` typed as Dictionary) instead of the pin-era flatten() call.
+  if (!language.includes("const base: Dictionary = { ...en, ...dict }"))
+    fail("8: app language.tsx lost the en base-first spread")
   const uiI18n = await read(`${UI}src/context/i18n.tsx`)
   if (!uiI18n.includes("const value = en[key as UiI18nKey] ?? String(key)"))
     fail("8: ui context/i18n.tsx lost the en[key] ?? String(key) fallback")
@@ -483,6 +500,11 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   m034Files.add("vendor/upstream/packages/app/src/session/timeline/virtualizer.tsx")
   m034Files.add("vendor/upstream/packages/session-ui/src/timeline/session-timeline-row.tsx")
   m034Files.add("vendor/upstream/packages/session-ui/src/message/message-content.tsx")
+  // Issue #193 v2.2.7 re-anchor: the pin's own e2e regression suite exercises the
+  // graduated fold face — a native in-set exception.
+  m034Files.add("vendor/upstream/packages/app/e2e/regression/timeline-geometry.spec.ts")
+  // Same re-anchor: the pin ships a stories file for the graduated fold — native in-set.
+  m034Files.add("vendor/upstream/packages/session-ui/src/timeline/user-message-fold.stories.tsx")
   const skipDirs = new Set(["node_modules", "dist", ".vite", ".turbo"])
   async function scan(dir: string): Promise<void> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -526,12 +548,12 @@ console.log(
   "verify-experimental-settings: PASS (" +
     "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
-    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree+terminalPlacement pinned at the retired-block Persistence.optional decode-stub form (issue #144: consumers retired by the session rework, schema kept for old-storage decode); " +
+    "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree at the native retired-block decode-stub form; terminalPlacement SUPERSEDED (the v2.2.7 pin dropped the key; negative-pinned, issue #193 re-anchor); " +
     "4: model.test.ts defaults +2 lines, the target discards-retired-preferences assertion pinned (issue #144: the #103 retained decode lines left with the retired deviations), plugins copy-out test name (issue #103 target form); " +
-    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop), the target user-runs faces (run={joined()}/UserRun/link segments) pinned positive — the S38-era rewrite negatives retired with the target convergence, issue #144; " +
-    "6: new-icons.ts verbatim 42+70 table, all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog at the graduated v2.2.1 form (all 17 additions adopted, sidebar-right deleted, graduated trash/copy bodies) — the pre-graduation rejection negatives retired, issue #144; " +
+    "5: fold chain message-timeline→row(disclosure user-expanded)→current→content (USER_MESSAGE_FOLD {over:12,show:8}, ResizeObserver, 8lh, aria toggle, flip/scrollParent/viewportTop; the graduated createDisclosure form, issue #193 re-anchor), the target user-runs faces (run={joined()}/UserRun/link segments) pinned positive — the S38-era rewrite negatives retired with the target convergence, issue #144; " +
+    "6: new-icons.ts verbatim 42+71 table (v2.2.7 grew outline-globe-plus, issue #193 re-anchor), all replacement keys real catalog names (∪ minus/outline-chevron-right), icon.tsx signal+setNewIcons+dual sprite+pixelSize next(), catalog at the graduated v2.2.1 form (all 17 additions adopted, sidebar-right deleted, graduated trash/copy bodies) — the pre-graduation rejection negatives retired, issue #144; " +
     "7: fold CSS two selector blocks in on the target form (data-run-folded block pinned positive — rewrite-companion negative retired, issue #144); " +
-    "8: six en keys (app 4 after settings.experimental.description, ui 2 after ui.message.collapse), zh/zht/ko/de/fr key-free, both fallback anchors verbatim; " +
+    "8: six en keys (app 4 after settings.experimental.description; the fold description at the v2.2.7 wrapped form), ui 2 after ui.message.collapse, zh/zht/ko/de/fr key-free, both fallback anchors verbatim (the en base-first spread); " +
     "9: settings-experimental in BOTH manifests, patch face exactly the fourteen S38 files, no other patch references the face, no vendor source outside the set mentions it; " +
     "10: packages/mobile-hosts zero newIcons/foldUserMessages/experimental references; " +
     "STATIC check - switch flipping, sprite swap, real fold visuals, disclosure survival, lh-unit WebView behavior and settings.v3 persistence are device-QA items registered in docs/build-and-verify.md)",
