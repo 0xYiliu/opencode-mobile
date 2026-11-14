@@ -15,6 +15,7 @@
 - 当前子工作单元：[#193](https://github.com/0xYiliu/opencode-mobile/issues/193)（settings 域 crosswalk 与 absorption audit）
 - 当前子工作单元：[#194](https://github.com/0xYiliu/opencode-mobile/issues/194)（gui plugins 窄屏面 crosswalk）
 - 当前子工作单元：[#195](https://github.com/0xYiliu/opencode-mobile/issues/195)（notifications crosswalk + 四类别白名单 Android 侧首改）
+- 当前子工作单元：[#196](https://github.com/0xYiliu/opencode-mobile/issues/196)（runtime/data crosswalk：URL canParse polyfill + 四 payload 收口）
 - 旧版本矩阵：[v2.2.1](../v2.2.1/matrix.md)
 - 新版本目录：[v2.2.7](.)
 
@@ -26,6 +27,7 @@
 - #192 轮 implementation revision：`c57f238`（commit 1，#86 `providers-models-usage-v2-2-7` 注册 + rows 65/69/71 翻转 absorbed）；probe 重锚定 revision=`3da3e72`（commit 2）；web payload revision=`be1cfd7`（commit 3）；documentation/final revision=本轮 docs-only commit（完整 SHA 在交付报告记录）；不改变 BLOCKED/NOT RUN 边界。
 - #193 轮 implementation revision：`c5e83db`（commit 1，#87 `settings-v2-2-7` 注册 + 18 rows 翻转 absorbed）；probe 重锚定 revision=`38a9ef5`（commit 2，settings 域六探针 + 负注入）；web payload revision=`9bd974b`（commit 3，5630 files / 155,851,603 bytes）；documentation/final revision=本轮 docs-only commit（完整 SHA 在交付报告记录）；不改变 BLOCKED/NOT RUN 边界。
 - #195 轮 implementation revision：`8f91de3`+`298db34`（commit 1 两笔，mobile-hosts 四类别 + Kotlin 桥 questions 类别/频道）；vendor/registry revision=`09e3773`（commit 2，#89 patch 注册 + rows 21/22/23/24 翻转 absorbed）；web payload revision=`059e7d1`（commit 3，5630 files / 155,881,892 bytes + 三探针 dist 常量回填）；probe 重锚定 revision=`93e6235`（commit 4）；documentation/final revision=本轮 docs-only commit（完整 SHA 在交付报告记录）；不改变 BLOCKED/NOT RUN 边界。
+- #196 轮 implementation revision：`bb5a159`（commit 1，row 90 `runtime-data-v2-2-7` 注册 + rows 54/58/67 翻转 absorbed + row 53 注记）；probe 重锚定 revision=`df02841`（commit 2，verify-recovery v2.2.7 重锚定 ledger a–g + 6 条负注入）；web payload revision=`fa31770`（commit 3，5630 files / 155,884,460 bytes + 三探针组 8 dist 常量回填）；documentation/final revision=本轮 docs-only commit（完整 SHA 在交付报告记录）；不改变 BLOCKED/NOT RUN 边界。
 - 前轮（#186）binding：implementation/fix revision=`9cafaba249efbe35110988b18e2977a9c9aac04e`；documentation/final revision=`b6568fe`（完整 SHA `b6568fefef7de076b1f9fcd617130ebd63fc432e`）——保持历史有效。
 
 ## 基准与工作区
@@ -79,6 +81,20 @@
 - 构建与 payload：`bun run build:web` rc=0 → `bun run copy:web-dist` → **5630 files / 155,881,892 bytes (verified)**（committed 前值 5630/155,863,020 = #194，同文件数 +18,872 bytes 入既有 chunks）；`python3 scripts/android_web_assets.py verify` → verified rc=0；web payload revision=`059e7d1`。
 - Gradle（未安装）：commit 1 门 `:app:assembleDebug` → **BUILD SUCCESSFUL in 10s**（36 tasks）；commit 3 门 `:app:testDebugUnitTest :app:assembleDebug` → **BUILD SUCCESSFUL in 5s**（42 tasks）；JVM **10 suites / 47 tests / 0 failures / 0 errors / 0 skipped**；debug APK SHA-256 **`7823972604ec83d2d1e09ccef19ce2110ce7bf279f17c27618ca67b8b8e71d6d`**（67,003,608 bytes）；**未安装**。
 - BLOCKED/NOT RUN（解除条件）：questions 通知真实投递/声音/tap 路由、前台抑制/后台到达、四开关真实翻转与状态行、notifications-questions 频道呈现——归 **G33②③④⑤⑩ 设备门禁，解除条件＝授权设备 + 授权远程服务**；本轮不声称任何设备/真实服务/runtime 验证。
+- 授权与停止条件：PR 由协调者创建（不合并）；不推送；无设备主张。registry 语义、补丁 scope 或安全策略需要变化时停止并记录；本轮零 S 类触发。
+
+### #196 当前执行状态
+
+- 目标：runtime/data 域 v2.2.7 crosswalk 收口——URL.canParse/URL.parse WebView 前置（active `runtime-data-v2-2-7` row 90，1 target polyfills.ts 内联 feature-gated shims，无 dependsOn）+ 四条 payload 处置（rows 54/58/67 翻转 absorbed、row 53 保持 deferred + #196-round 注记）+ verify-recovery v2.2.7 全量重锚定（ledger a–g + 6 条负注入）+ dist/Gradle/tsc 门禁。
+- 基准与绝对工作目录：`/home/peterhan/worktrees/opencode-mobile/feat--196-runtime-data`，分支 `feat/196-runtime-data`，base `9b2e5dd`（#195 链尾，stacked chain main a25ab51 → #187 → … → #195；PR #203–#211 open）；上游只读引用 `/home/peterhan/repository/opencode`（v2.2.1=`3ebcf9a3…`、v2.2.7=`fedc6f208a…`）。历史 payload（webview-url-polyfill/project-identity-migration/session-media-source-safety/connection-password-keyboard.patch）全量读过再处置；旧 patch 文件磁盘零触碰。
+- c0 基线（coordinator 记录，引用不重 derive；当轮首跑逐字复现）：verify-recovery FAIL「2: persist.ts lost the 100ms save-debounce constant」（rc=1；reviewer-verified sequential reveals 组 2→组 4 M-010 marker→组 5 reconnect 三元→组 6 PendingSessionState fallback→PASS；本轮实跑补 reveal：组 2 dirty 守卫旧形同失，ledger (b) 同组重锚）；verify-webview-url-compat.test（bun test）**1 pass / 3 fail**；registry PASS(89)/closure PASS；探针普查 25 rc=0 / 14 rc=1；套件 (a) 143/0/494/14、(b) 89/0/280/5（browser 必须）、(c) 197/0/625、(d) mobile-hosts 447/0/3038/40（browser）、(e) Set A 396/5/1793/30——精确命令与文件清单见 build-and-verify #196 段（R2/R3 钉定）。
+- 评审修正折入（R1–R4）：R1 verify-recovery old→new ledger 预注册组 4/5/6 新锚（persistence.ts M-002/M-005 marker scheme + 改写注、`const reconnect = resolveEndpoint(server)`、`<Match when={view().type === "resolving"}>` + 组件对）+ 可选新锚（data.ts 404 驱逐、polyfills canParse gates）clean 落地；R2 c0 精确文件清单/命令发布于 build-and-verify #196 段；(b) 组 2 dirty 守卫 persist-machine settle() 形为本轮实跑补充 reveal（reviewer 列表外，如实登记）；R3 harness flags 按集钉定（browser 集与双条件集分列）；R4 全载体归属（platform/web.ts=#79+#84+#85、i18n en/zh=#87+#88+#89）+ 引用卫生（persistence.ts 树行号 :42-46，旧 vendored :69-82 口径注记；helpers 路径 = shell/layout/helpers.ts）。
+- 交付物：commit 1=`bb5a159` feat(vendor)（row 90 patch 1 target——shims 语义 native 身份保持/ToString 传播/parse 失败 false·null/无参 TypeError/base URL 对象透传；registry 90/12/65/13 + patches:refresh；3 rows 翻转 absorbed + row 53 注记）；commit 2=`df02841` fix(probes)（verify-recovery 重锚定，6 条负注入各 inject→FAIL→restore→PASS）；commit 3=`fa31770` chore(web)（payload 5630/155,884,460 + verify-gui-plugins/verify-notifications/verify-commands-menus 组 8 回填——回填面勘误：计划仅列 gui-plugins，另两探针为保 25 rc=0 门与交叉引用诚实之必要回填，#195 三探针前例）；commit 4=本轮 docs commit（changes.md #196 section、matrix 增量、patch-dispositions row 90 + 3 行翻转 + row 53 注记、current-review #195→#196、build-and-verify.md #196 段、units/projects-sessions.md 404 驱逐 + FU-3 pin-native 注记、本卡）。
+- 停止条件结果：零 S 类触发——closure replay 一次通过；verify-webview-url-compat 由 patch 转绿（4/0）未动探针（STOP 条款「探针不改不转绿」未触发）；12 条 rc=1 首 FAIL 字符串恒同（无不可归因失败）；红线零触碰（polyfill-only patch、零 stop 路径、vault 生命周期未动、Electron excluded）。
+- 门禁结果（verbatim）：`python3 scripts/mobile-patches.py` → **PASS (90 registered; updated: none)**；`python3 scripts/test_mobile_patches.py` → **OK（9/9）**；`bash scripts/verify-closure.sh` → **PASS**（V3(a) byte-identical 含 row 90 按序重放、DANGLING=0）；`git diff --check` PASS（mobile patches 口径 1 条预存 notifications patch EOF 诊断，#187 卡前例）；verify-recovery **rc=0**（重锚定后）+ verify-webview-url-compat.test **4 pass / 0 fail** + verify-permission-requests rc=0 保持；套件 (a)–(e) 全恒同（数字见 c0 行）；tsc 双跑零新错误种类（838=838 行、372 kinds 恒同；57 个未跟踪 .d.ts 清理）。
+- 构建与 payload：`bun run build:web` rc=0 → `bun run copy:web-dist` → **5630 files / 155,884,460 bytes (verified)**（committed 前值 5630/155,881,892 = #195，同文件数 +2,568 bytes 入既有 entry chunk index-DoY3Cqzj.js，零新 chunk）；`python3 scripts/android_web_assets.py verify` → verified rc=0；web payload revision=`fa31770`。
+- Gradle（未安装）：commit 3 门 `:app:testDebugUnitTest :app:assembleDebug` → **BUILD SUCCESSFUL in 14s**（42 tasks）；JVM **10 suites / 47 tests / 0 failures / 0 errors / 0 skipped**；debug APK SHA-256 **`48a108a9967301cb7500e5466be2ae3b3ef3fc63cb3688930efc741582af6264`**（66,219,767 bytes）；**未安装**。
+- BLOCKED/NOT RUN（解除条件）：URL.canParse 真机 WebView <120 行为、persist flush/脏窗口/冷启动/隧道重解析/凭据与 host-key 恢复呈现/远端任务存活实测——归 **G30 设备门禁，解除条件＝授权设备 + 授权远程服务**；本轮不声称任何设备/真实服务/runtime 验证。
 - 授权与停止条件：PR 由协调者创建（不合并）；不推送；无设备主张。registry 语义、补丁 scope 或安全策略需要变化时停止并记录；本轮零 S 类触发。
 
 ## 历史 #185 Home / new-session 执行卡

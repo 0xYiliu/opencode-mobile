@@ -743,3 +743,69 @@ questions 投递若无白名单扩展存在**两条明确的失败形态**：其
 - **D05 不变**：零 keepalive、零前台服务、零推送通道——本轮 Kotlin 改动恰为 `CATEGORIES` 白名单扩展 + `channelTitle` questions 分支；`OPERATIONS` 恰 `{notify, requestPermission}` 不变；hasWindowFocus 前台拒绝、`areNotificationsEnabled()` → `"permission"` 静默降级、PendingIntent 路由链零变更；通知面零 `.reply(`/addAction/RemoteViews/网络面（探针组 4 负锁在册）。
 - **频道不可变注记**：`notifications-questions` 在首投递时经 `ensureChannel` 懒创建；既有三频道零触碰——Android 频道创建后不可变（升级安装不重写既有频道名/重要性）。
 - 门只收紧不放松：G33① 重 derive 后前台抑制语义对「真聚焦+可见」不变，仅向「hidden-but-hasFocus」的 WebView 缺陷态放行（负注入 (i) 钉定）。
+
+## Issue #196：runtime/data crosswalk and absorption audit（URL canParse polyfill + 四 payload 收口）
+
+本节是 #196 的 runtime/data 域审计（polyfills URL.canParse/URL.parse 前置 + rows 53/54/58/67 四条 payload 处置 + verify-recovery v2.2.7 重锚定），不改变冻结的 v2.2.1 文档与前序 #186–#195 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--196-runtime-data`，分支 `feat/196-runtime-data`，base `9b2e5dd`（#195 链尾，stacked chain main a25ab51 → #187 → … → #195；PR #203–#211 open）。本轮 landing = **consolidated active patch `runtime-data-v2-2-7`（row 90，1 target：polyfills.ts 内联 feature-gated URL.canParse/URL.parse shims）**；registry **90 registered / 12 active / 65 absorbed / 13 deferred**（rows 54/58/67 翻转 absorbed；row 53 保持 deferred + #196-round 注记）。
+
+### §0.1 accounting（16-diff map，R4 全载体归属）
+
+审计口径：runtime/data 域路径全集上，v2.2.1→v2.2.7 上游有变化的路径与「上游不变但树≠pin」的移动专用 diff 路径合并清点；每条 DIFF 路径归属其**全部**承载行（R4：shared 文件按 active patch 全列，不归单行）。域全集 82 条上游变化路径中 70 条 tree==pin（SAME，vendor pin 原生承载，零移动面）；**16 条 DIFF**：
+
+| # | 路径（`vendor/upstream/` 前缀省略） | 上游 v2.2.1→v2.2.7 | 树≠pin 形态 | 全部承载行（R4） |
+| --- | --- | --- | --- | --- |
+| 1 | `packages/app/src/runtime/i18n/en.ts` | M | active 五键族 + 本轮零增量 | **settings-v2-2-7 (#87) + gui-plugins-v2-2-7 (#88) + notifications-v2-2-7 (#89)**（#87/#88/#89 三行全列——connection-remember-credential 等 absorbed 行的 payload 由 pin/overlay 承载，不在此列） |
+| 2 | `packages/app/src/runtime/i18n/zh.ts` | M | 同上 | **#87 + #88 + #89** |
+| 3 | `packages/app/src/runtime/persistence/drafts.test.ts` | M | #84 重 derive 测试集 | **composer-queue-attachments-v2-2-7 (#84)** |
+| 4 | `packages/app/src/runtime/persistence/drafts.ts` | M | #84 fail-closed/lease 面（`captureMediaSource` registration form，drafts.ts:86-108） | **#84** |
+| 5 | `packages/app/src/runtime/server/health-machine.ts` | A | #184 overlay 健康机扩展 | **v2-2-7-mobile-connection-pairing-ssh-closure (#79)** |
+| 6 | `packages/app/src/runtime/server/health.ts` | M | #184 overlay 健康面 | **#79** |
+| 7 | `packages/app/src/runtime/server/machine.test.ts` | A | #184 overlay 机器测试 | **#79** |
+| 8 | `packages/app/src/runtime/server/registry.test.ts` | M | #184 credentialRef round-trip 断言 | **#79** |
+| 9 | `packages/app/src/runtime/server/registry.tsx` | M | #184 M-010 hydration 面 + vault-ready wait | **#79** |
+| 10 | `packages/app/src/session/composer/queue.ts` | M | #84 queue-local owner lease | **#84** |
+| 11 | `packages/app/src/session/fork.ts` | M | #84 attribution（machine 化 fork + `mobile(M-016, issue #188)` sourceServerKey，fork.ts:121-123） | **#84** |
+| 12 | `packages/app/src/session/revert.ts` | M | #84 attribution（revert-machine attempt-currency + `mobile(M-016)` origin，revert.ts:77-79/:205） | **#84** |
+| 13 | `packages/app/src/runtime/server/persistence.ts` | **S（v2.2.1==v2.2.7）** | M-002/M-005 marker scheme + MemoryOnlyPassword codec + credentialRef 字段（树 :6-18/:39-44，credentialRef 字段 :44；对应旧 vendored 树 :69-82 区段——pin numbering 引用：**:42-46 = 树行号**） | **#79** |
+| 14 | `packages/app/src/runtime/server/persistence.test.ts` | **S** | encode-drop/credentialRef 断言 | **#79** |
+| 15 | `packages/app/src/runtime/platform/web.ts` | **S** | 三行共载（drafts store + files openExternal + connection probe 桥） | **#79 + #84 + files-diff-review-v2-2-7 (#85)**（R4 钉定：三行全列） |
+| 16 | `packages/app/src/runtime/polyfills.ts` | **S** | **本轮新落**：feature-gated URL.canParse/URL.parse shims（row 90 载体） | **runtime-data-v2-2-7 (row 90)** |
+
+引用卫生（R4）：helpers 路径为 `packages/app/src/shell/layout/helpers.ts`（树实测存在；row 67 目标表内同名条目）；persistence.ts 引用一律树行号（:42-46 = credentialRef 字段区段），不与旧 vendored :69-82 混用。
+
+### §0.2 commit crosswalk 表（15 行，含 6000b7c51b 勘误注记）
+
+| commit | 主题（上游） | 判定 | 载体 / 本轮关系 |
+| --- | --- | --- | --- |
+| `0cb3d68f6e`（#61766） | fix(app): retry failed namespace writes and settle load and clear races | **absorbed**（vendor pin） | persist-machine/namespace-machine/storage-machine 本体；F-R1 脏值优先的 machine 形（settle()）为其中间语义，verify-recovery 组 2 重锚（ledger b）钉定 |
+| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin） | persist.ts write.failed 语义（#195 行已核对 toast 面）；本轮组 2 flush/debounce 锚钉定其 persist.ts 形态 |
+| `2e64b9fc3b`（#60459） | fix(client): evict missing sessions on 404 instead of retrying or toasting | **absorbed**（vendor pin，client 包） | data.ts 404 驱逐 = 本轮 **NEW 组 3 锚**（ledger g：evictMissing/refresh → markDeleted）；恢复语义：已删远端会话按驱逐处理非失败态 |
+| `6000b7c51b`（#58916） | perf(core): write each assistant part as its own row instead of rewriting the message | **absorbed**（vendor pin，client 包） | **勘误注记（typo note）**：本行 hash 以全串 `6000b7c51be5491e01c3c846ec969d35d2019f03` 为准钉定（计划初稿表格行存在笔误面，评审修正随本表在册）；协议面 = generated/types.ts `+part_rows?: boolean`（pin :2556）——W12 增量按 byte-identity 判定 |
+| `fef232392d`（#60462） | fix(app,gui-plugins): port renderer UUID generation to HTTP-safe uuid() | **absorbed**（vendor pin） | renderer 站点 6 处已迁移；gui-plugins browser 域 12 处 crypto.randomUUID 保持 recorded not fixed，owner #199/browser（W23 口径不变） |
+| `9a7f22a776`（#61595） | fix(app): derive server controllers from an explicit lifecycle machine | **absorbed**（vendor pin） | runtime.tsx server controller 生命周期机本体（row 67 目标域 pin 形） |
+| `eab8f49022`（#61763） | fix(app): drive server health and plugin server state with explicit machines | **absorbed**（vendor pin） | health-machine 本体；移动 delta（#79 载体）在 DIFF 13 表 |
+| `f12abcaf39`（#61765） | fix(app): sync the event stream only when live and keep the newest endpoint | **absorbed**（vendor pin） | sync.tsx/data.ts connected 门 + endpoint 保持——verify-recovery 组 3 adjacent pair 锚的来源面 |
+| `8a8a9d4af3`（#61753） | refactor(app): replace dead directory bootstrap with a directory cache machine | **absorbed**（vendor pin） | global-sync bootstrap/cache machine 本体（row 67 目标域 pin 形；bootstrap.test 的 server-order 断言为 pin 原生） |
+| `008619ae06`（#61963） | fix(app): select the session route view from one resolution machine | **absorbed**（vendor pin） | session/route.tsx resolution machine——组 6 重锚（ledger e）的 `resolving` Match 臂来源 |
+| `ef712d3a78`（#60346） | feat(app): move the desktop terminal to persistent PTYs | **absorbed**（vendor pin；域归属 #191） | persistent PTY 本体归 #191（matrix W04 在册）；Electron 桌面壳 excluded 不复制 |
+| `067b741783`（#60323） | refactor(client): share the persistent pty protocol | **absorbed**（vendor pin，client 包；域归属 #191） | pty 协议共享面；`solid/pty.ts` tree==pin（SAME，零移动面） |
+| `c6056f3931`（#60651） | chore: upgrade effect to 4.1.0 and fix a SQLite lock-up on interrupt | **absorbed**（vendor pin） | effect 4.1 为 Schema/SchemaGetter 编解码形（MemoryOnlyPassword/catchDecoding 族）的底座；#184 连接/凭据生命周期与 #192 provider 契约按 pin 形消费 |
+| `a88d3ca0bc`（#60460） | fix(app): match own server loopback port before treating http servers as local | **absorbed**（vendor pin） | registry isLocalHost 判定（#184 连接生命周期消费面） |
+| `0d226daccf`（#61679） | fix(client): clear pending prompts the transcript shows were delivered | **absorbed**（vendor pin，client 包） | data.ts pending 清算面（#188 drafts/queue attribution 的协议消费侧） |
+
+跨域消费注记：#184 连接/凭据生命周期（M-002/M-005/M-010 面 + #79 载体）、#188 drafts/queue attribution（#84 载体 + M-016 markers）、#192 provider 契约（usage-limits/agent 契约按 pin 形消费，#86 在册）、#199 schema/protocol consumption index（generated types/media.ts/promise 面 tree==pin SAME，part_rows 等 flag 位按 byte-identity 消费）；persistent PTY = #191（表内两行只记域归属）；Electron excluded（零 desktop 复制）。
+
+### §0.3 四 payload 处置（verbatims 见 manifest.json/patch-dispositions.md）
+
+| row | patch | 旧→新 | 判定核心 |
+| --- | --- | --- | --- |
+| 54 | `webview-url-polyfill` | deferred→absorbed | pin 的 URL-polyfill 缺口由 **row 90 内联 shims** 关闭（core-js 非 v2.2.7 依赖，历史 core-js import 形不可重放）；application-window 范围原样承载、workers 仍域外；verify-webview-url-compat.test **4 pass / 0 fail**（1/3→4/0）零探针改动 |
+| 58 | `session-media-source-safety` | deferred→absorbed | composer 侧集合 = #84 在册承载；fork/revert 生命周期守卫义务被 pin 机器 attempt-currency 形 supersede（fork-machine 按 attempt settle、revert.ts:205「drops a result whose attempt is no longer current」+ #84 M-016 sourceServerKey attribution）；client.tsx seam / media.ts 重挂 / session-ownership.test.ts 三项 superseded（在册）；rewrite 重入队残留注记逐字保留 |
+| 67 | `project-identity-migration` | deferred→absorbed | **FU-3 superseded-by-pin**：v2.2.7 pin 即目标 project-identity 模型（ServerState usedProjectIDs/lastProjectID/hostnames 原生，persistence.ts 树 :68-95；迁移注记 :69-71）；M-002/M-005 以 marker scheme 在 pin 行重申（:6-18/:39-44）；行为重申测试由 pin-form 测试集承载；M-010 hydration/vault-ready 由 #79 active 载体在册 |
+| 53 | `connection-password-keyboard` | deferred（不翻转）+ **#196-round 注记** | payload web 半仍不在 pin/#184/main 树；Android 半存活于 WebAssetServer.kt:25（/mobile-keyboard-config.json → BuildConfig.PASSWORD_KEYBOARD）——config 端点比其唯一 web 消费者长存，直到 connection follow-up 重落 screen 半；verify-password-keyboard.test = connection follow-up 的重锚（2 pass / 2 fail @:38），本轮零触碰 |
+
+### polyfill 语义与 WebView floor 证据
+
+- **语义（与 verify-webview-url-compat.test 逐条对齐）**：native 在场时身份保持（feature-gate，`if (!URL.canParse)` / `if (!URL.parse)`）；ToString 转换错误传播（`String(url)`/`String(base)` 在 try 块外转换，抛错透传不吞成 false）；parse 失败 → `canParse=false` / `parse=null`；无参 TypeError（`arguments.length === 0` 检查，与 WebIDL required-argument 形一致）；base 作 URL 对象经同一 String 转换透传（URL.toString → href）。
+- **WebView floor**：设备在册实测 WebView **114.0.5735.196**（MatePad DBY2-AL00，[connection.md](../../../design/units/connection.md) QA-0 判定记录，2026-10-30）；`minSdk = 29`（android/app/build.gradle.kts:44）；Chrome 120 起 URL.canParse/URL.parse 原生——114 floor 落在 shim 需求区间；**壳层无 WebView 最低版本门**（零版本 gate，低版本 WebView 直接加载 web 资产，shim 在 entry 装配安装）。settings.md:136 在册的「设备实测 system 档在 WebView 114 退化 full」同源证实 114 为当前设备实态版本。
+- **红线复核**：polyfill-only 补丁——零新 stop 路径（client exit 不停远端任务不变）、vault 生命周期未重设计、零重复发送/通知路径、Electron excluded。
