@@ -599,7 +599,7 @@
       "id": "appearance-motion-zoom",
       "path": "patches/mobile/appearance-motion-zoom.patch",
       "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-goal-sources-panels",
@@ -665,7 +665,7 @@
       "id": "theme-components-migration",
       "path": "patches/mobile/theme-components-migration.patch",
       "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-providers-models-extensions",
@@ -821,13 +821,13 @@
       "id": "shell-titlebar-project-icons",
       "path": "patches/mobile/shell-titlebar-project-icons.patch",
       "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "ui-pin-target-residual",
       "path": "patches/mobile/ui-pin-target-residual.patch",
       "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-ui-rows-current-target",
@@ -930,6 +930,12 @@
       "path": "patches/mobile/runtime-data-v2-2-7.patch",
       "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
       "status": "active"
+    },
+    {
+      "id": "appearance-zoom-web-v2-2-7",
+      "path": "patches/mobile/appearance-zoom-web-v2-2-7.patch",
+      "sha256": "68bfbfa1c02069846614227077a40965739cfeef8603b8083f2768d29ef94630",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
@@ -964,21 +970,9 @@
       "status": "deferred"
     },
     {
-      "id": "appearance-motion-zoom",
-      "path": "patches/mobile/appearance-motion-zoom.patch",
-      "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50",
-      "status": "deferred"
-    },
-    {
       "id": "settings-about-version",
       "path": "patches/mobile/settings-about-version.patch",
       "sha256": "4b0bcaa5decd132cb4fcd0f67496f9491366a1bf6ae2e5277d10c428579ec636",
-      "status": "deferred"
-    },
-    {
-      "id": "theme-components-migration",
-      "path": "patches/mobile/theme-components-migration.patch",
-      "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
       "status": "deferred"
     },
     {
@@ -997,18 +991,6 @@
       "id": "ui-typeahead-export",
       "path": "patches/mobile/ui-typeahead-export.patch",
       "sha256": "c473140a2a839f804e964bfa6fad2b8da85f0c4078a1a0fa5f8af183bd4e0329",
-      "status": "deferred"
-    },
-    {
-      "id": "shell-titlebar-project-icons",
-      "path": "patches/mobile/shell-titlebar-project-icons.patch",
-      "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
-      "status": "deferred"
-    },
-    {
-      "id": "ui-pin-target-residual",
-      "path": "patches/mobile/ui-pin-target-residual.patch",
-      "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
       "status": "deferred"
     }
   ],
@@ -4010,6 +3992,12 @@
       "status": "absorbed"
     },
     {
+      "id": "appearance-motion-zoom",
+      "path": "patches/mobile/appearance-motion-zoom.patch",
+      "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50",
+      "status": "absorbed"
+    },
+    {
       "id": "session-goal-sources-panels",
       "path": "patches/mobile/session-goal-sources-panels.patch",
       "sha256": "9f035d5fa2587d098baafcbd9268ce788cf769f623e669b733cf06c9083606f8",
@@ -4061,6 +4049,12 @@
       "id": "settings-general-experimental-migration",
       "path": "patches/mobile/settings-general-experimental-migration.patch",
       "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
+      "status": "absorbed"
+    },
+    {
+      "id": "theme-components-migration",
+      "path": "patches/mobile/theme-components-migration.patch",
+      "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
       "status": "absorbed"
     },
     {
@@ -4193,6 +4187,18 @@
       "id": "model-selector-usage-parity",
       "path": "patches/mobile/model-selector-usage-parity.patch",
       "sha256": "c99f0881bea18da152e03c878ea53f80cbbac984db5a6c9653afffc49bf2d3ee",
+      "status": "absorbed"
+    },
+    {
+      "id": "shell-titlebar-project-icons",
+      "path": "patches/mobile/shell-titlebar-project-icons.patch",
+      "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
+      "status": "absorbed"
+    },
+    {
+      "id": "ui-pin-target-residual",
+      "path": "patches/mobile/ui-pin-target-residual.patch",
+      "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
       "status": "absorbed"
     },
     {

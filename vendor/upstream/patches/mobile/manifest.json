@@ -602,8 +602,8 @@
       "verification": "scripts/verify-appearance-settings.ts probe (per-file conversion enumeration, whole-tree prefers-reduced-motion whitelist set-equality {settings/model.tsx, providers/connect/go-upsell-hero-art.ts, ui/motion/reduced.ts}, two negative injections, zoom faces + A2 + i18n fallback + patch-face assertions), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts and the registered 70-file app combination under --conditions=solid), session-ui registered 8-file subset, first-party bun test --conditions=browser packages/mobile-hosts, V3 closure round-trip, bun run build:web + copy-web-dist with dist marker retrieval.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "795154753929378b893dd4e43aa71fd84dcfc49df85a4022b5e2c5a7bcb65e50",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (#197): the v2.2.7 pin fedc6f208a carries every face of this 39-target payload natively, and the one surviving face — the web.ts zoom implementation — is re-derived as ACTIVE appearance-zoom-web-v2-2-7 (row 91, same round). Evidence: reduce-motion family upstreamed verbatim (ui/src/motion/reduced.ts blob a20b9e83e28813ed7b080f00367235dce1a4ba52, git hash-object this round; the whole-tree :root[data-motion=\"reduce\"] CSS conversion, the three prefersReducedMotion TS consumers and the tailwind @custom-variant pair asserted pin-native by verify-appearance-settings groups 6-8); the CSS flip family absorbed (:root[data-motion=reduce] selector lines are pin content, per-file enumeration group 6); settings/zoom faces pin-native (eleven-level Chromium desktopZoomLevels + native nextDesktopZoomLevel in desktop-menu.ts, platform.tsx optional zoomLevel/setZoomLevel declarations, controllers/appearance/i18n/model.test verbatim — probe groups 1-5, 10, 11); the W5 M-035 search gate-drop is carried by ACTIVE settings-v2-2-7 and the #193 standing note ('the later appearance-motion-zoom rebase must not re-add the gate') is discharged — the gate stays dropped and the re-derived web face adds no search-gate content. Historical payload and identity retained."
     },
     {
       "id": "session-goal-sources-panels",
@@ -1044,8 +1044,8 @@
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + gui-plugins-native-test-deps..settings-general-experimental-migration) PASS; verify:closure PASS with 45 patches registered (both manifests 45=45, DANGLING=0); accumulated-tree 5-file byte-identity re-verified before generation (zero mobile hunks). app unit test:unit (no-seam) 646/4/24/1986 unchanged per-file (24 errors = mobile-hosts seam resolution set); mobile-hosts 434/0/2920 unchanged; typecheck:tsc 391 errors unchanged per-file; verify-appearance-settings rc=0 unmodified (zero-revision evidence); targeted suites unchanged; dist negative evidence: DEFAULT_THEMES/loadThemeFromUrl zero hits across shipped dist (previously reachable only via tree-shaking); device QA on DBY2-AL00 recorded in docs/build-and-verify.md issue #104 section.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (#197): the five targets are pin-native at fedc6f208a in the v2.2.1 target trim form — theme/index.ts blob 4d5462d70e8a77063cc71a09a7c025950d853bd9, theme/color.ts blob 0a1743bae356bc35e983e9a1a165a0e47a5d9c96, theme/resolve.ts blob 0ac7357f399c005fd08cf9f00c53b1c9cc82a7ba (git hash-object this round), and the two whole-file deletions loader.ts / default-themes.ts are absent from the vendored tree with the resolve.ts resolveThemeVariant/themeToCss pair still serving the gui-plugins terminal consumer. Historical payload and identity retained."
     },
     {
       "id": "settings-providers-models-extensions",
@@ -1990,9 +1990,9 @@
       "reason": "Issue #145 G1 + the shell-domain pin->target residual: adopt the fixed target 3ebcf9a session-title and project-icon faces. index.html gains the data-sm title (MetaProvider replaces the pre-load title via the <Title>OpenCode</Title> tag); app.tsx imports Title from @solidjs/meta, mounts ProjectIconsProvider around the root typography/commands tree and gains the <Title> element — VoiceProvider/VoiceOverlay stay excluded (ADR 0006, session-android-adaptation comment remains the registered adaptation). project-icons.tsx is copied byte-for-byte from the target (per-avatar generated icon persistence store over runtime/persistence storage; consumes the vendored @opencode/ui/project-avatar which is already byte-identical to the target — #140 carried only the component, not the provider; no exclusion was ever registered). toast.tsx is copied byte-for-byte from the target: the vendored extra dismissToast/toaster import dead export is deleted (zero production consumers repo-wide; the #107 no-owner-gap rider). app.tsx remains held by gui-plugins-api-migration for its registered hunks; this patch layers after it and registers its own app.tsx delta.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "Post-copy app directed subset (registry/registry-hydration/persistence consumers+storage/notification/helpers/composer queue/session-ownership/panel-motion) 58 pass / 0 fail — identical counts to the pre-change baseline; app.tsx delta vs target reduces to the two excluded Voice import lines plus the VoiceProvider subtree; session tab avatar persistence face re-verified on the device QA round.",
-      "status": "deferred",
+      "status": "absorbed",
       "sha256": "1daeb0dd1c4b6231857ca7e48fafa8c1d961d07d320297ddfb3a3dbf5d00889e",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed #195 note: 490739afe7 itself touched toast.tsx (its quota-failure notice createEffect via localStorageNoticePending + the toast.storage.writeFailed.* keys is pin-native at fedc6f208a); the vendored toast.tsx is byte-identical to the pin (V3 closure replay), so no mobile toast.tsx carrier is owed and row 72 stays deferred.",
+      "disposition": "absorbed (#197): project-icons.tsx is the adopted target form byte-for-byte (blob 1e6ddb3cc56601469d9a1a9aac4c4591918ed354, git hash-object this round); the index.html data-sm title and the app.tsx Title/ProjectIconsProvider faces are pin-native at fedc6f208a (V3 closure replay keeps toast.tsx pin-identical, so the #195 note stands: 490739afe7's quota-failure faces are pin content, no mobile toast.tsx carrier owed). Historical payload and identity retained.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2007,9 +2007,9 @@
       "reason": "Issue #145 §1.2: the four pin->target evolution residuals (files sit in NO earlier patch targets — the pin predates 776 commits of target drift), adopted to the fixed target 3ebcf9a byte-for-byte. list.tsx drops the vendored current-item scrollIntoView(\"center\") effect (the @opencode/ui/list export has zero production consumers; the auto-centering behavior is the target's removed semantics). motion-spring.tsx adopts the @kitlangton/solid-motion form (declared 0.2.2 in vendored ui dependencies and locked in bun.lock since before this round — lockfile untouched) with the spring.set(source.get()) resync and spring.stop() cleanup; the `motion` import it replaces becomes an unused-but-declared dependency BY DECISION (lockfile frozen zero-drift, registered here). text-field.tsx flips the copyable tooltip appearance standard->compact (one line). test-browser/motion-spring.test.ts is the target's three-case form, adopted in the same patch as its impl (test+impl one piece) and passing against the adopted impl (3/0).",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "Post-copy app directed subset 58 pass / 0 fail (zero new failures vs the recorded baseline, motion-spring.test.ts included in the run and also run standalone 3 pass / 0 fail); list.tsx zero-consumer fact re-checked (no @opencode/ui/list import in app/session-ui/gui-plugins); motion dependency left declared-unused (registered decision, no package.json/lockfile edit); device motion faces ride the T5/QA round.",
-      "status": "deferred",
+      "status": "absorbed",
       "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed",
+      "disposition": "absorbed (#197): motion-spring.tsx is the @kitlangton/solid-motion form (blob c4466d8075b99c16dffe36b0721751efcb2c1690) and test-browser/motion-spring.test.ts the target three-case form (blob f3828eea51b34c61772436e3a83ab171a957609f), both byte-identical this round (git hash-object); the list.tsx scrollIntoView removal and the text-field compact-tooltip flip are pin-native at fedc6f208a. Historical payload and identity retained.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit."
     },
     {
@@ -2408,6 +2408,26 @@
       "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
       "status": "active",
       "disposition": "active; the runtime-data polyfill face of issue #196. Rows 54/58/67 flip absorbed in the same round; row 53 keeps its deferred identity with a #196-round status note."
+    },
+    {
+      "id": "appearance-zoom-web-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/appearance-zoom-web-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/runtime/platform/web.ts"
+      ],
+      "dependsOn": [
+        "v2-2-7-mobile-connection-pairing-ssh-closure",
+        "composer-queue-attachments-v2-2-7",
+        "files-diff-review-v2-2-7"
+      ],
+      "reason": "Issue #197 ui/theme: the interface zoom web faces (M-035) re-derived at the v2.2.7 pin — the sole surviving face of the 39-target appearance-motion-zoom payload (row 35, flipped absorbed this round alongside rows 46/72/73). web.ts imports exactly createSignal + type Accessor (solid-js) and desktopZoomLevels + type DesktopZoomLevel (@/shell/commands/desktop-menu); nextDesktopZoomLevel is deliberately NOT imported or referenced (verify-pinch-shell-settings pins that symbol's file set to exactly desktop-menu.ts + its test). The ...createUiZoomLevel() spread joins the platform object immediately after the saveFile anchor so no excess property lands on the annotated literal (platform.tsx is a pin-native optional declaration this spread satisfies); the file-end helper is the row-35 payload's web.ts hunk verbatim: CSS zoom on documentElement (level 1 removes the property), localStorage persistence under opencode-ui-zoom-level (a non-sensitive UI preference, not a credential — the M-035 ruling stays factually true), stored values validated against the pin's eleven-level Chromium desktopZoomLevels [0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2] with fallback 1, and try/catch persistence keeping the session level applied on storage failure. M-035 historical marker text preserved verbatim; new lines carry the mobile(appearance-zoom-web-v2-2-7) marker.",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Pending the commit-2 probe re-anchor (verify-appearance-settings currently fails on its pre-landing group 5 zero-zoom negative and group 12 deferred-row assertion by design — c0 record); patch apply-check on a scratch pristine pin + packageSources + closure + 12-active-patch chain tree with the pre-state web.ts byte-identical to HEAD and the applied result byte-identical (cmp) to the working tree; gates recorded in docs/build-and-verify.md issue #197 section.",
+      "rebase": "v2.2.7: first registration against the fedc6f208a pin; hunks generated against the cumulative chain tree (pristine pin + closure patches + the 12 prior active mobile patches). dependsOn names the three active web.ts carriers this hunk layers over (full-predecessor convention for the shared target).",
+      "disposition": "active; sole carrier of the surviving appearance-motion-zoom web face (row 35) and the discharge of the #193 W5 standing note — the search-catalog gate stays dropped under settings-v2-2-7 ownership and this patch adds no search-gate content. dependsOn is the full-predecessor set for the shared web.ts target (the three active carriers), not a semantic dependency.",
+      "status": "active",
+      "sha256": "68bfbfa1c02069846614227077a40965739cfeef8603b8083f2768d29ef94630"
     }
   ]
 }

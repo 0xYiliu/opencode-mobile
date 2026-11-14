@@ -1,0 +1,102 @@
+# mobile(appearance-zoom-web-v2-2-7, issue #91 of the registry / issue #197): the web zoom
+# face — the sole surviving face of the 39-target appearance-motion-zoom payload (row 35,
+# flipped absorbed this round) re-derived at the v2.2.7 pin. The M-035 web.ts hunk is
+# re-applied verbatim (marker text preserved; CSS zoom on documentElement + the
+# opencode-ui-zoom-level localStorage key, a non-sensitive UI preference, validated against
+# desktopZoomLevels — the pin's eleven-level Chromium catalog — with fallback 1): the pin
+# absorbed every other face of that payload (the reduced-motion family natively, the
+# settings/zoom setting + search W5 faces via settings-v2-2-7, the platform type members,
+# the eleven-level catalog), so only the web implementation was missing. One target
+# (packages/app/src/runtime/platform/web.ts); dependsOn = the three active web.ts carriers
+# this hunk layers over (v2-2-7-mobile-connection-pairing-ssh-closure,
+# composer-queue-attachments-v2-2-7, files-diff-review-v2-2-7). Rows 35/46/72/73 flip
+# absorbed with the same round (evidence in the registry dispositions).
+diff --git a/packages/app/src/runtime/platform/web.ts b/packages/app/src/runtime/platform/web.ts
+index 0cd6944..0dca0fe 100644
+--- a/packages/app/src/runtime/platform/web.ts
++++ b/packages/app/src/runtime/platform/web.ts
+@@ -3,6 +3,8 @@ import { createBrowserDraftStore } from "@/runtime/persistence/drafts"
+ // through the module-level seam at call time, so a bridge that comes up after bootstrap
+ // is picked up without a re-render.
+ import { activeFilesPort, createSecureFetch } from "@opencode-mobile/mobile-hosts"
++import { createSignal, type Accessor } from "solid-js"
++import { desktopZoomLevels, type DesktopZoomLevel } from "@/shell/commands/desktop-menu"
+ import type { Platform } from "./platform"
+ 
+ export function createWebPlatform(version: string) {
+@@ -25,6 +27,18 @@ export function createWebPlatform(version: string) {
+     // one patch plus the entry wiring.
+     readClipboardImage: createPlatformClipboardReader(),
+     saveFile: createPlatformFileSaver(),
++    // mobile(M-035): the interface zoom faces (issue #65). Upstream declares
++    // zoomLevel/setZoomLevel desktop-only (Electron webContents zoom plus main-process
++    // storage); this closure ships the web shell only, so the faces are implemented here
++    // per the M-020 precedent: CSS `zoom` on the document element, persisted in
++    // localStorage (a non-sensitive UI preference, not a credential), values validated
++    // against desktopZoomLevels. Platform TYPES are unchanged; the faces join the
++    // platform object through a spread so no excess property is introduced on the
++    // annotated literal.
++    // mobile(appearance-zoom-web-v2-2-7, issue #197): the M-035 face re-derived verbatim at
++    // the v2.2.7 pin — platform.tsx now declares the optional members natively and the
++    // spread satisfies them; the catalog is the eleven-level Chromium set.
++    ...createUiZoomLevel(),
+     draftStore: createBrowserDraftStore(),
+     version,
+     openExternal(value) {
+@@ -113,3 +127,56 @@ function getCurrentServerUrl() {
+ 
+   return location.origin
+ }
++
++/**
++ * mobile(M-035): the interface zoom faces (issue #65). `zoomLevel` mirrors the upstream
++ * desktop contract: an accessor over the saved level, applied as CSS `zoom` on the
++ * document element (level 1 removes the property so the shell renders unzoomed), applied
++ * synchronously when the platform is constructed and persisted in localStorage under
++ * `opencode-ui-zoom-level`. Stored values are validated against `desktopZoomLevels`;
++ * anything unreadable or out of set falls back to 1. `setZoomLevel` applies, persists and
++ * resolves (the Platform face is async; storage failures leave the in-memory level
++ * applied for the session rather than throwing into the settings Select).
++ *
++ * mobile(appearance-zoom-web-v2-2-7, issue #197): re-derived verbatim from the row-35
++ * appearance-motion-zoom payload's web.ts hunk (sole surviving face; the rest of that
++ * payload is absorbed by the v2.2.7 pin).
++ */
++const UI_ZOOM_KEY = "opencode-ui-zoom-level"
++
++function createUiZoomLevel(): {
++  zoomLevel: Accessor<DesktopZoomLevel>
++  setZoomLevel: (level: DesktopZoomLevel) => Promise<void>
++} {
++  const readStored = (): DesktopZoomLevel => {
++    try {
++      const raw = localStorage.getItem(UI_ZOOM_KEY)
++      const parsed = raw === null ? Number.NaN : Number.parseFloat(raw)
++      return (desktopZoomLevels as readonly number[]).includes(parsed) ? (parsed as DesktopZoomLevel) : 1
++    } catch {
++      return 1
++    }
++  }
++
++  const [zoomLevel, setZoomLevel] = createSignal<DesktopZoomLevel>(readStored())
++
++  const apply = (level: DesktopZoomLevel) => {
++    if (level === 1) document.documentElement.style.removeProperty("zoom")
++    else document.documentElement.style.setProperty("zoom", String(level))
++  }
++
++  apply(zoomLevel())
++
++  return {
++    zoomLevel,
++    setZoomLevel: async (level) => {
++      setZoomLevel(level)
++      apply(level)
++      try {
++        localStorage.setItem(UI_ZOOM_KEY, String(level))
++      } catch {
++        // Persistence unavailable (storage disabled): keep the session-level zoom applied.
++      }
++    },
++  }
++}
