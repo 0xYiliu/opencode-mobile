@@ -6,9 +6,10 @@
 // Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
 // rebuilt dist baseline.
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + packageSources(gui-plugins=3ebcf9a) + gui-plugins-native-test-deps'..gui-plugins-api-migration + session-btw-narrow-entry)
+// Asserts, against the REAL vendored/first-party sources (pin fedc6f208a… + the 10 active
+// mobilePatches incl. gui-plugins-v2-2-7)
 // and the commit-1 docs, the structural facts the gui-plugins unit document relies on
-// (issue #67 renamed the unit doc; gui-plugins-native-test-deps'..session-goal-sources-panels'/gui-plugins-api-migration re-tabled the patch chain):
+// (issue #67 renamed the unit doc; gui-plugins-native-test-deps'..session-goal-sources-panels'/gui-plugins-api-migration re-tabled the patch chain; issue #194 flipped rows 36/37/38/66 deferred -> absorbed behind gui-plugins-v2-2-7):
 // the 15-builtin inventory with its os/web-guard/main-entry faces (acceptance 1; issue #66
 // added sources + goal after microsoft-office, in the v2.2.1 gui-plugins compose order), the
 // token/dependency classification, the upstream desktop+DEV double gate, the issue #26
@@ -56,23 +57,27 @@
 //   2. change the wsl os literal `os: ["windows"]` to `os: ["linux"]` in
 //      gui-plugins/src/wsl/index.ts -> group 2 os-declaration FAIL (forces an
 //      inventory-table re-review);
-//   3. delete the gui-plugins-disabled-merge union line (`for (const id of mobileDisabled.ids()) …`) from
-//      app/src/runtime/plugin/root.tsx -> group 4 gui-plugins-disabled-merge anchor FAIL;
+//   3. delete the gui-plugins-disabled-merge disabled-set pass-through (`disabled={mobileDisabled?.disabled}`)
+//      from app/src/runtime/plugin/root.tsx -> group 4 gui-plugins-disabled-merge anchor FAIL
+//      (old->new issue #194: the v2.2.1-era union line `for (const id of mobileDisabled.ids()) …`
+//      retired with the settings-v2-2-7 W3 pass-through form);
 //   4. delete the zh `settings.guiExtensions.title` key from app i18n zh.ts -> group 5
 //      9/9 pairing FAIL;
 //   5. delete the `"wsl"` entry from EXCLUDED_EXTENSIONS in mobile-hosts
 //      ui/extension-manager.tsx -> group 7 {"wsl"} set-equality FAIL (issue #62 — the
 //      static exclusion row must not silently disappear).
 //   6. delete the btw mobile face (the `mobile: {` block) from
-//      gui-plugins/src/btw/renderer.tsx -> group 2 D1 face FAIL (issue #70 — the
-//      narrow-screen More-drawer entry must not silently disappear);
+//      gui-plugins/src/btw/renderer.tsx -> group 2 D1 face FAIL (issue #194/gui-plugins-v2-2-7,
+//      M-038 lineage — the narrow-screen More-drawer entry must not silently disappear);
 //   7. re-insert the old desktop-width gate (`enabled: !layout.narrow() && mounted()`) in
 //      the same file -> group 2 removed-gate FAIL (issue #70 dropped the desktop-width
-//      restriction on purpose);
+//      restriction on purpose; the gui-plugins-v2-2-7 re-derivation keeps it dropped);
 //   8. delete the mobile render branch (the `"main"` panel-id dispatch) from the same file
 //      -> group 2 D2 FAIL (#66 discipline: the mobile rendering branch itself is locked);
-//   9. mutate a line of gui-plugins/src/btw/panel.tsx -> group 2 v2.2.1 content-sha1
-//      conservation FAIL (the session-btw-narrow-entry patch face is exactly renderer.tsx + i18n/en.ts).
+//   9. mutate a line of gui-plugins/src/btw/panel.tsx or btw/index.ts -> group 2 pin
+//      content-sha1 conservation FAIL (the gui-plugins-v2-2-7 btw face is exactly
+//      renderer.tsx + model.ts + i18n/en.ts; old->new issue #194: model.ts joined the patch
+//      face as the 10th target — the saved accessor — so the v2.2.1-era trio claim retired).
 //
 // HONEST BOUNDARY (same tradition as the sibling probes): this is a static STRUCTURE
 // check (text anchors / set equalities / negative injections). It proves source and doc
@@ -240,7 +245,9 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (/Ipc\.define\(/.test(browserContract)) fail("2: gui/browser.ts must stay Contract-only")
 
   // Issue #67: the three contract faces moved into the plugin gui host library
-  // (plugin/src/gui/{browser,file,review}.ts) — assert there; the per-plugin dirs keep none.
+  // (plugin/src/gui/{browser,file,review}.ts). old->new (issue #194 v2.2.7 re-anchor): the
+  // v2.2.7 pin re-grew review's per-plugin contract.ts (review/contract.ts:31 Contract.define,
+  // the ReviewDetails face) — the expected set is {review} now, not the v2.2.1-pin empty set.
   const contractFiles: string[] = []
   for (const id of ["browser", "file", "review", "terminal", "details", "context", "btw", "debug", "pairing", "updater", "ssh", "wsl", "microsoft-office", "sources", "goal"] as const) {
     let source: string
@@ -251,7 +258,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     }
     if (/Contract\.define[<(]/.test(source)) contractFiles.push(id)
   }
-  setEq(contractFiles, [], "2: per-plugin contract.ts set (the contracts moved to the host library)")
+  setEq(contractFiles, ["review"], "2: per-plugin contract.ts set (the contracts moved to the host library; v2.2.7 keeps review's per-plugin contract.ts — old->new issue #194: expected [] at the v2.2.1 pin, [\"review\"] at fedc6f208a)")
   for (const id of ["browser", "file", "review"]) {
     const host = await read(`vendor/upstream/packages/plugin/src/gui/${id}.ts`)
     if (!/Contract\.define[<(]/.test(host))
@@ -272,8 +279,14 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!core.includes("On the web, where no main process runs, it is inactive and every call rejects."))
     fail("2: gui/core.ts lost the web-inactive Ipc sentence (first-evidence anchor of #15, referenced)")
 
-  // Mobile Panel registrations (six here: 10–50 upstream + btw 80; sources 60 / goal 70 are
-  // FIRST LOCKED by verify-goal-sources group 1 — cross-referenced, not re-locked).
+  // Mobile Panel registrations (seven here: review 10 / file 20 / terminal 30 / context 40 /
+  // details 50 pin-native + sources 60 / btw 80 re-landed by gui-plugins-v2-2-7; goal has NO
+  // mobile face at v2.2.7 — goal ships as the native ComposerPill, so the old order 70 no
+  // longer exists and nothing is renumbered; the full order-set equality {10,20,30,40,50,60,80}
+  // is FIRST LOCKED by verify-goal-sources group 1 — cross-referenced, not re-locked).
+  // old->new (issue #194): the previous comment said "six here: 10–50 upstream + btw 80;
+  // sources 60 / goal 70 FIRST LOCKED by verify-goal-sources" — sources 60 moved into this
+  // probe's set (gui-plugins-v2-2-7 re-lands it) and goal 70 retired with the pill.
   const review = squash(await read(`${GUI_EXT}review/renderer.tsx`))
   if (!review.includes("order:10,kind:\"tab\",")) fail("2: review mobile panel lost order 10 / kind tab")
   const file = squash(await read(`${GUI_EXT}file/renderer.tsx`))
@@ -286,46 +299,60 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!details.includes("order:50,kind:\"drawer\""))
     fail("2: details mobile panel lost order 50 / kind drawer (cross-reference: verify-agent-capabilities group 3 locks the same anchor — common witness)")
 
-  // btw command gate (issue #70 / session-btw-narrow-entry): the desktop-width gate is DROPPED — a session being
+  // btw command gate (issue #194 / gui-plugins-v2-2-7, M-038 lineage): the desktop-width gate is DROPPED — a session being
   // open is the only requirement; on narrow screens the answer shows in the /btw mobile view.
   // Desktop width is unchanged by construction (>=768px makes !layout.narrow() constant, so the
   // old gate already reduced to mounted()).
   const btw = await read(`${GUI_EXT}btw/renderer.tsx`)
-  if (!btw.includes("// mobile(M-038): offered while a session is open; on narrow screens the answer shows in the /btw"))
-    fail("2: btw/renderer.tsx lost the session-btw-narrow-entry gate comment (issue #70)")
-  if (!btw.includes("enabled: mounted()")) fail("2: btw/renderer.tsx lost the mounted() command gate (issue #70; NEGATIVE 7 re-inserts the old desktop-width gate)")
+  if (!btw.includes("// mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): offered while a session is open; on narrow screens the"))
+    fail("2: btw/renderer.tsx lost the gui-plugins-v2-2-7 gate comment (issue #194, M-038 lineage; old->new: the session-btw-narrow-era // mobile(M-038) marker form)")
+  if (!btw.includes("enabled: mounted()")) fail("2: btw/renderer.tsx lost the mounted() command gate (issue #194 re-derivation; NEGATIVE 7 re-inserts the old desktop-width gate)")
   if (btw.includes("enabled: !layout.narrow()") || btw.includes("desktop-width window"))
-    fail("2: btw/renderer.tsx still carries the removed desktop-width gate (issue #70 dropped it)")
+    fail("2: btw/renderer.tsx still carries the removed desktop-width gate (issue #70 dropped it; the gui-plugins-v2-2-7 re-derivation keeps it dropped)")
 
   // The D1 mobile face + the D2 mobile render branch — the narrow-screen entry itself is
   // probe-locked (#66 discipline: a registered mobile rendering branch is part of the surface).
-  if (!btw.includes("// mobile(M-038): the narrow-screen More-drawer entry, after goal (order 70)."))
-    fail("2: btw/renderer.tsx lost the mobile face marker (D1; NEGATIVE 6 deletes the face)")
+  if (!btw.includes("// mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): the narrow-screen More-drawer entry, after sources 60"))
+    fail("2: btw/renderer.tsx lost the mobile face marker (D1; NEGATIVE 6 deletes the face; old->new issue #194: the v2.2.1-era marker read 'after goal (order 70)' — goal's face retired with the v2.2.7 pill)")
   const btwFaceAt = btw.indexOf("mobile: {")
   if (btwFaceAt === -1) fail("2: btw/renderer.tsx lost the mobile face block (D1)")
   const btwFace = btw.slice(btwFaceAt, btwFaceAt + 240)
-  if (!/order: 80,/.test(btwFace) || !/kind: "menu",/.test(btwFace))
-    fail("2: btw/renderer.tsx mobile face lost order 80 / kind menu (D1)")
+  if (!/order: 80,/.test(btwFace) || !/kind: "menu",/.test(btwFace) || !/icon: "comment",/.test(btwFace))
+    fail("2: btw/renderer.tsx mobile face lost order 80 / kind menu / icon comment (D1)")
   if (!btw.includes('return ctx.t("mobile.title")')) fail("2: btw/renderer.tsx lost the mobile.title face title (D1)")
   if (!btw.includes('props.tab.id === "main"'))
     fail("2: btw/renderer.tsx lost the mobile panel-id dispatch (D2; NEGATIVE 8 deletes the branch)")
   if (!btw.includes('ctx.t("mobile.none")')) fail("2: btw/renderer.tsx lost the mobile.none honest empty state (D2)")
-  if (!btw.includes("saved.ready()"))
-    fail("2: btw/renderer.tsx lost the store-ready gate (D2 — a not-yet-loaded store must render an empty container, not the empty state)")
+  // old->new (issue #194): the v2.2.1-era `saved.ready()` store-ready gate moved behind the
+  // v2.2.7 saved accessor — `saved(session)` returns the chats array or undefined while the
+  // store loads, so the ready gate is the `!== undefined` form and the latest chat is
+  // `?.at(-1)?.id` (the v2.2.1 patch read `saved.value?.chats.at(-1)`).
+  if (!btw.includes("btw.saved(props.session) !== undefined"))
+    fail("2: btw/renderer.tsx lost the store-ready gate (D2 — a not-yet-loaded store must render an empty container, not the empty state; issue #194 form: btw.saved(props.session) !== undefined)")
+  if (!btw.includes("btw.saved(props.session)?.at(-1)?.id"))
+    fail("2: btw/renderer.tsx lost the latest-chat dispatch (D3 — the mobile view renders the most recent stored chat; issue #194 form via the btw/model.ts saved accessor)")
+  // The 10th target (issue #194/C3): model.ts exports the saved list reader the dispatch uses.
+  const btwModel = await read(`${GUI_EXT}btw/model.ts`)
+  if (!btwModel.includes("// mobile(gui-plugins-v2-2-7, issue #194; M-038 D3): the narrow-screen mobile view renders the most recent"))
+    fail("2: btw/model.ts lost the saved-accessor marker (the 10th target; v2.2.7 createBtw exports ask/tab/view/retry/remove but not the saved list)")
+  if (!/^\s{4}saved,$/m.test(btwModel))
+    fail("2: btw/model.ts lost the saved accessor export (the 10th target — the D3 dispatch reads it)")
 
-  // session-btw-narrow-entry patch-face conservation: the patch touches ONLY renderer.tsx + i18n/en.ts; the other
-  // three btw files stay v2.2.1-verbatim (content-sha1 conservation — the strictest form of the
-  // not-touched claim; blob ids at v2.2.1 3ebcf9a: model 57a25f4a75, panel cd5bdaa261, index 30952a307a).
+  // gui-plugins-v2-2-7 patch-face conservation: the btw face is renderer.tsx + model.ts + i18n/en.ts; panel.tsx
+  // and index.ts stay pin-verbatim (content-sha1 conservation — the strictest form of the
+  // not-touched claim). old->new (issue #194): the session-btw-narrow-entry-era claim pinned the
+  // v2.2.1 trio (model 5a049e6032 / panel 7e9406ed83 / index d4063fa599) — model.ts joined the
+  // patch face as the 10th target (the saved accessor), so the conservation set is the PAIR now,
+  // pinned at the v2.2.7 pin bytes (panel 6f4a1d0cc1, index d4063fa599 — index is v2.2.1-identical).
   const btwSha1: Record<string, string> = {
-    "model.ts": "5a049e60323823d4d7ddd71c506de308a9b421c9",
-    "panel.tsx": "7e9406ed830611e1d1e23747f50f63fb7de776a8",
+    "panel.tsx": "6f4a1d0cc163453ce2f95404a1025cd825278236",
     "index.ts": "d4063fa59954d64c136ac9eae4fb265a205323a3",
   }
   for (const [file, hash] of Object.entries(btwSha1)) {
     const body = new Uint8Array(await Bun.file(new URL(`${GUI_EXT}btw/${file}`, repoRoot)).arrayBuffer())
     const actual = new Bun.CryptoHasher("sha1").update(body).digest("hex")
     if (actual !== hash)
-      fail(`2: btw/${file} drifted from the v2.2.1 content sha1 ${hash.slice(0, 10)} (session-btw-narrow-entry must not touch the trio; NEGATIVE 9 mutates panel.tsx)`)
+      fail(`2: btw/${file} drifted from the v2.2.7 pin content sha1 ${hash.slice(0, 10)} (gui-plugins-v2-2-7 must not touch the pair; NEGATIVE 9 mutates panel.tsx)`)
   }
   const btwI18n = await read(`${GUI_EXT}btw/i18n/en.ts`)
   if (!btwI18n.includes('"mobile.title": "Side question",') || !btwI18n.includes('"mobile.none": "No side question yet",'))
@@ -334,16 +361,22 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 // --- 3. The upstream management double gate (acceptance 4 upstream reality) ---
 {
-  const pageDev = await read(`${APP}src/runtime/plugin/settings-page-dev.tsx`)
-  if (!pageDev.includes("/** Development builds: every built-in GUI extension of this window, with enable and reload controls. */"))
-    fail("3: settings-page-dev.tsx lost the development-builds header")
-  if (!pageDev.includes("void (next ? bridge?.manager.enable(id) : bridge?.manager.disable(id))"))
-    fail("3: settings-page-dev.tsx lost the optional-chain toggle (the web double-dead face: no-op without a bridge)")
-  if (!pageDev.includes("installed.list.find((item) => item.id === id)?.enabled ?? true"))
-    fail("3: settings-page-dev.tsx lost the installed.list enabled reader (web: always empty -> always enabled)")
-  if (!pageDev.includes("host.reload(id)")) fail("3: settings-page-dev.tsx lost the renderer-side reload channel")
-  if (!pageDev.includes('void bridge?.manager.reload(id)'))
-    fail("3: settings-page-dev.tsx lost the manager reload channel (main-process reload is desktop-only)")
+  // old->new (issue #194 sequential reveal): the v2.2.1-pin DEV face file settings-page-dev.tsx is
+  // GONE at v2.2.7 — the management face is extension-plugins.tsx (ExtensionPlugins /
+  // OwnServerPlugins, the Extensions > Plugins tab rows). The three contracts re-anchor on it
+  // with the same semantics: the optional-chain toggle stays the web double-dead face
+  // (bridge undefined on the web -> run(undefined) no-op), the enabled reader keeps the ?? true
+  // default, and the reload keeps its two channels (renderer host + main manager).
+  const extensionPlugins = await read(`${APP}src/runtime/plugin/extension-plugins.tsx`)
+  if (!extensionPlugins.includes("The plugins of the desktop app's own server, merged by id with what main and this window know of their GUIs"))
+    fail("3: extension-plugins.tsx lost the own-server management-face header (old->new issue #194: settings-page-dev.tsx is gone at v2.2.7)")
+  if (!extensionPlugins.includes("run(next ? bridge?.manager.enable(id) : bridge?.manager.disable(id))"))
+    fail("3: extension-plugins.tsx lost the optional-chain toggle (the web double-dead face: no-op without a bridge; old->new issue #194: the v2.2.1 form was void (next ? bridge?.manager.enable(id) : ...))")
+  if (!extensionPlugins.includes("itemOf(id(), part)?.enabled ?? true"))
+    fail("3: extension-plugins.tsx lost the installed enabled reader (web: always empty -> always enabled; old->new issue #194: the v2.2.1 form was installed.list.find((item) => item.id === id)?.enabled ?? true)")
+  if (!extensionPlugins.includes("host.reload(id)")) fail("3: extension-plugins.tsx lost the renderer-side reload channel")
+  if (!extensionPlugins.includes("run(bridge?.manager.reload(id))"))
+    fail("3: extension-plugins.tsx lost the manager reload channel (main-process reload is desktop-only; old->new issue #194: the v2.2.1 form was void bridge?.manager.reload(id))")
 
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
   // Issue #101 / settings-framework-mobile: the migrated (v2.2.1) shell REMOVED the DEV-only lazy gate and the
@@ -355,7 +388,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
     fail("3: shell.tsx still carries the pin guiExtensions desktop gate (target-removed by the settings-framework-migration migration)")
   if (shell.includes("GuiExtensionsSettings"))
-    fail("3: shell.tsx unexpectedly references GuiExtensionsSettings (the DEV face belongs to settings-page-dev now)")
+    fail("3: shell.tsx unexpectedly references GuiExtensionsSettings (the migrated DEV face belongs to extension-plugins/settings-page-view now)")
 
   // Build channel/packaged faces (the dev/source vs packaged ruling's code anchors).
   const hostApis = squash(await read(`${APP}src/runtime/plugin/host-apis.tsx`))
@@ -383,14 +416,19 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
   if (!root.includes('import{createExtensionDisabled}from"@opencode-mobile/mobile-hosts"'))
     fail("4: root.tsx lost the gui-plugins-disabled-merge first-party import")
-  if (!root.includes("constmobileDisabled=createExtensionDisabled(window.localStorage)"))
-    fail("4: root.tsx lost the gui-plugins-disabled-merge shell-wide record instance (NEGATIVE 3 deletes the union below)")
-  if (!root.includes("constids=newSet(definitions().map((definition)=>definition.id))"))
-    fail("4: root.tsx lost the definitions id-set filter (rename self-heal)")
-  if (!root.includes("for(constidofmobileDisabled.ids())if(ids.has(id))merged.add(id)"))
-    fail("4: root.tsx lost the gui-plugins-disabled-merge disabled-set union line")
-  if (!root.includes("if(!state)returnundefined"))
-    fail("4: root.tsx lost the early-exit (enableState undefined -> neither face applies)")
+  // old->new (issue #194 sequential reveal; the forms are settings-v2-2-7's #193 W3 re-derivation,
+  // surfaced here because fail-fast stopped this probe at group 2 at c0): the root-level
+  // ids-filter/union face (`const ids = new Set(definitions()...)` +
+  // `for (const id of mobileDisabled.ids()) if (ids.has(id)) merged.add(id)` + the enableState
+  // early-exit) is GONE — the W3 form is the bridge-conditional instance and the reactive
+  // pass-through: with a bridge the host reads main's enable settings (disabled stays omitted,
+  // desktop behavior unchanged); without one the mobile records ARE the user's disable
+  // settings. The rename self-heal lives in the manager UI's mergeDisabledRecords consumption
+  // (group 5/7 keep those anchors).
+  if (!root.includes("constmobileDisabled=bridge?undefined:createExtensionDisabled(window.localStorage)"))
+    fail("4: root.tsx lost the gui-plugins-disabled-merge shell-wide record instance (settings-v2-2-7 W3 form; NEGATIVE 3 deletes the pass-through below)")
+  if (!root.includes("disabled={mobileDisabled?.disabled}"))
+    fail("4: root.tsx lost the disabled-set pass-through to the host (settings-v2-2-7 W3 form; the old root-level ids-filter/union retired with it)")
   if ((root.match(/mobile\(M-025\)/g) ?? []).length < 2)
     fail("4: root.tsx lost a mobile(M-025) marker comment")
 
@@ -403,8 +441,10 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // desktop face (target-removed); the settings-framework-mobile single-face forms are pinned here.
   if (!shell.includes('if(view.tab==="gui-extensions"&&!mobileGuiExtensions)surface.open("general")'))
     fail("4: shell.tsx redirect guard lost the settings-framework-mobile single-face form (issue #101 re-anchor)")
-  if (!shell.includes("...(mobileGuiExtensions?[{items:guiExtensionsTab.map"))
-    fail("4: shell.tsx nav group lost the settings-framework-mobile single-face condition")
+  // old->new (issue #194 sequential reveal, #193 W3 form): the nav group maps guiExtensionsTab
+  // directly (the old `[{items: guiExtensionsTab.map(...)}]` wrapper item is gone upstream).
+  if (!shell.includes("...(mobileGuiExtensions?guiExtensionsTab.map((item)=>({...item,label:language.t(item.label)})):[]),"))
+    fail("4: shell.tsx nav group lost the settings-framework-mobile single-face condition (old->new issue #194: the [{items: ...}] wrapper form retired)")
   if (!shell.includes("mobileGuiExtensions&&(<Tabs.Contentvalue=\"gui-extensions\"class=\"settings-panel\"><Suspense><MobileExtensionManager/></Suspense>"))
     fail("4: shell.tsx lost the settings-framework-mobile first-party mount branch condition")
   if (!shell.includes("module.ExtensionManager")) fail("4: shell.tsx lost the ExtensionManager lazy import")
@@ -412,12 +452,17 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   if (!shell.includes("definitions={host.definitions()}") || !shell.includes("onReload={(id)=>host.reload(id)}"))
     fail("4: shell.tsx wrapper lost the props injection (definitions/status/failure/reload)")
 
-  // The settings-mobile-host-manager lazy block stays byte-intact (layered-patch neighbor, zero re-touch). The
-  // settings-ssh-entry-guard hunks are ABSORBED by the migration (issue #101, plan §3.3): the target nav keeps
-  // the "servers" group unconditionally (settings.tab.servers / pageLabels.servers label)
-  // and the pin five-tab redirect guard is target-removed — structural reachability is
-  // locked by verify-projects-sessions' revised settings-ssh-entry-guard section.
-  if (shell.includes("module.MobileHostManager")) fail("4: Settings must not restore the non-upstream MobileHostManager (settings-server-menu)")
+  // old->new (issue #194 sequential reveal): the settings-server-menu-era negative "Settings must
+  // not restore the non-upstream MobileHostManager" is INVERTED at v2.2.7 — settings-v2-2-7's W1
+  // legitimately re-lands the lazy MobileHostManager block as the servers tab's first child
+  // (first lock: verify-settings-framework group 1; cross-referenced here as the layered-patch
+  // witness, not re-locked). The settings-ssh-entry-guard hunks are ABSORBED by the migration
+  // (issue #101, plan §3.3): the target nav keeps the "servers" group unconditionally
+  // (settings.tab.servers / pageLabels.servers label) and the pin five-tab redirect guard is
+  // target-removed — structural reachability is locked by verify-projects-sessions' revised
+  // settings-ssh-entry-guard section.
+  if (!shell.includes("module.MobileHostManager"))
+    fail("4: shell.tsx lost the settings-v2-2-7 W1 MobileHostManager lazy import (old->new issue #194: the settings-server-menu-era absence negative inverted by the W1 re-land; first lock verify-settings-framework group 1)")
   // `shell` is squashed (RAW whitespace removal), so the pins below are the no-space forms.
   if (!shell.includes('multiple()?"settings.tab.servers":pageLabels.servers'))
     fail("4: shell.tsx lost the migrated unconditional servers nav group (settings-ssh-entry-guard absorbed)")
@@ -503,9 +548,13 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail("5: panels.tsx lost the transient cleanup comment")
 
   // WebView localStorage landing (web persistence of the persisted state).
+  // old->new (issue #194 sequential reveal): the v2.2.1 two-view face (localStorageWithPrefix /
+  // localStorageDirect) converged into the one parameterized factory `localStorageView(prefix?)` —
+  // the contract is unchanged (every persisted view is a localStorage view; the
+  // workspace/draft/window stores are keyed names over it).
   const storage = await read(`${APP}src/runtime/persistence/storage.ts`)
-  if (!storage.includes("function localStorageWithPrefix(prefix: string): SyncStorage {") || !storage.includes("function localStorageDirect(): SyncStorage {"))
-    fail("5: persistence/storage.ts lost the two localStorage views")
+  if (!storage.includes("function localStorageView(prefix?: string): LocalStorageView {"))
+    fail("5: persistence/storage.ts lost the localStorage view factory (old->new issue #194: localStorageWithPrefix/localStorageDirect converged into localStorageView(prefix?))")
 
   // i18n 9/9 pairing — SAME-FACE as verify-agent-capabilities group 5's commit-2 revised
   // pairing (review N3 declaration: common witness; the settings-mobile-gui-plugins en/zh key sets).
@@ -526,7 +575,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const host = await read(`${APP}src/runtime/plugin/host.tsx`)
   if (!host.includes("One batch: every contribution and contract of the plugin disappears in the same frame."))
     fail("6: host.tsx lost the same-frame batch comment")
-  if (!host.includes("Publish every disabled status")) fail("6: host.tsx lost the disabled-status publication watcher comment")
+  // old->new (issue #194 sequential reveal): the publication comment reworded upstream —
+  // "Publish every disabled status" -> "A memo, so every disabled status publishes before render
+  // effects read it." (the memo form is unchanged: dispatch reconcile with all() + disabled()).
+  if (!host.includes("A memo, so every disabled status publishes before render effects read it."))
+    fail("6: host.tsx lost the disabled-status publication comment (old->new issue #194: the v2.2.1 wording was 'Publish every disabled status')")
 
   // The More-trigger conditional render (strongest no-dead-menu witness).
   const mobile = squash(await read(`${APP}src/runtime/plugin/mobile.tsx`))
@@ -535,23 +588,34 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
   // Contribution error isolation.
   const render = await read(`${APP}src/runtime/plugin/render.tsx`)
-  if (!render.includes("a contribution that throws records the\n * error and renders nothing, and the rest of the window keeps working."))
-    fail("6: render.tsx lost the ErrorBoundary isolation comment")
+  // old->new (issue #194 sequential reveal): the isolation comment reworded upstream — the tail
+  // gained "then runs `failed`" and the lead-in became "Renders one plugin contribution with its
+  // context and error isolation"; the contract is unchanged (ErrorBoundary fallback records +
+  // host.fail + renders nothing).
+  if (!render.includes("a contribution that throws records the\n * error and renders nothing, then runs `failed`, and the rest of the window keeps working."))
+    fail("6: render.tsx lost the ErrorBoundary isolation comment (old->new issue #194: the v2.2.1 wording lacked 'then runs `failed`')")
 
-  // The dispose-domain negative (NEW lock; pty.remove exact-one is FIRST LOCKED by
-  // verify-terminal group 2 set equality + group 3 pairing anchor — F8).
+  // The dispose-domain negative (NEW lock; the persistent-pty remove exact-one is FIRST LOCKED by
+  // verify-terminal — its old-face `pty.remove` set is [] there and persistent-pty.removed is
+  // exactly {terminal/model.ts}).
+  // old->new (issue #194 sequential reveal, v2.2.7 form): the v2.2.1 two-call shape (storage.remove
+  // + pty.remove) became THREE call sites — ONE server.client.experimental.persistentPty.remove
+  // (the pty teardown face) + TWO input.storage.remove(LEGACY.key (the legacy-cleanup pair); the
+  // dispose() domain ends at function dropLegacy now (createWorkspace is gone upstream).
   const model = await read(`${GUI_EXT}terminal/model.ts`)
   const removeCalls = [...model.matchAll(/\.remove\(/g)].length
-  if (removeCalls !== 2)
-    fail(`6: terminal/model.ts must carry exactly two .remove( call shapes (storage.remove + pty.remove), got ${removeCalls}`)
-  if (!model.includes("input.storage.remove(STORE")) fail("6: terminal/model.ts lost the storage.remove face")
-  if (!model.includes("pty.remove({ ptyID: id, location })")) fail("6: terminal/model.ts lost the pty.remove close face")
+  if (removeCalls !== 3)
+    fail(`6: terminal/model.ts must carry exactly three .remove( call shapes (1 persistentPty.remove + 2 storage.remove), got ${removeCalls}`)
+  if ((model.match(/input\.storage\.remove\(LEGACY\.key/g) ?? []).length !== 2)
+    fail("6: terminal/model.ts lost the two storage.remove(LEGACY.key legacy-cleanup faces (old->new issue #194: the v2.2.1 anchor was input.storage.remove(STORE)")
+  if (!model.includes("server.client.experimental.persistentPty.remove({ ptyID: command.ptyID }"))
+    fail("6: terminal/model.ts lost the persistentPty.remove teardown face (old->new issue #194: the v2.2.1 anchor was pty.remove({ ptyID: id, location })")
   const disposeStart = model.indexOf("dispose() {")
-  const disposeEnd = model.indexOf("function createWorkspace", disposeStart)
+  const disposeEnd = model.indexOf("function dropLegacy", disposeStart)
   if (disposeStart === -1 || disposeEnd === -1) fail("6: terminal/model.ts dispose domain unresolvable (structure moved)")
   const disposeDomain = model.slice(disposeStart, disposeEnd)
   if (/\.remove\(/.test(disposeDomain))
-    fail("6: terminal/model.ts dispose() body gained a .remove( — the disable path must NOT terminate remote sessions (domain-scoped negative; dispose ends at function createWorkspace)")
+    fail("6: terminal/model.ts dispose() body gained a .remove( — the disable path must NOT terminate remote sessions (domain-scoped negative; dispose ends at function dropLegacy)")
 
   // Extension servers keep their inventory as stopped entries; the route stays mounted.
   const servers = await read(`${APP}src/runtime/plugin/servers.tsx`)
@@ -698,7 +762,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   // Cross-reference the current baseline first-locked by verify-notifications group 8.
   // Earlier settings-mobile-gui-plugins/connection-initial-ssh-entry/connection-method-layout measurements remain historical in build-and-verify.md.
   const distManifest = JSON.parse(await read("web-dist/manifest.json")) as { fileCount?: number; totalBytes?: number }
-  if (distManifest.fileCount !== 5622 || distManifest.totalBytes !== 150022223) // issue #149 measured (2.2.1 release identity rebuild — the round's single web build on the c2 identity tree: same 5622 file count as the #148 G33① build, +78278 bytes dominated by sourcemap machine-path churn — 649 .map files re-embed the building worktree path — plus the identity face: entry chunk renamed index-B-7B3T0I->index-CpaevSWf carrying 2.2.1 with zero 0.1.0, index.html/sw.js moved with the Workbox index digest); issue #142 merge-resolution measured (model selector family + usage flow model-selector-usage-parity rebuilt on the #144 settings-acceptance tree: +4 files/+239160 bytes vs #144; usage positives: usage.title + command.usage.view + model.details.usage in the language chunk, /api/experimental/usage/limits in the effect+promise chunks); issue #144 measured (settings acceptance round: M-035 zoom-row restore + pruned session-client-compatibility/session-workbench hunks — same 5616 file count as the #140/#143-era committed manifest 5616/149831838; prior 5617/149595730 = issue #141 provider-connect-flow-redesign: first dist rebuild since the #110-era committed manifest)
+  if (distManifest.fileCount !== 5630 || distManifest.totalBytes !== 155851603) // old->new (issue #194 re-anchor): the committed #193 web payload is 5630/155851603 — the previous constant 5622/150022223 was the issue #149 measurement, stale since the #193 settings rebuild; issue #149 measured (2.2.1 release identity rebuild — the round's single web build on the c2 identity tree: same 5622 file count as the #148 G33① build, +78278 bytes dominated by sourcemap machine-path churn — 649 .map files re-embed the building worktree path — plus the identity face: entry chunk renamed index-B-7B3T0I->index-CpaevSWf carrying 2.2.1 with zero 0.1.0, index.html/sw.js moved with the Workbox index digest); issue #142 merge-resolution measured (model selector family + usage flow model-selector-usage-parity rebuilt on the #144 settings-acceptance tree: +4 files/+239160 bytes vs #144; usage positives: usage.title + command.usage.view + model.details.usage in the language chunk, /api/experimental/usage/limits in the effect+promise chunks); issue #144 measured (settings acceptance round: M-035 zoom-row restore + pruned session-client-compatibility/session-workbench hunks — same 5616 file count as the #140/#143-era committed manifest 5616/149831838; prior 5617/149595730 = issue #141 provider-connect-flow-redesign: first dist rebuild since the #110-era committed manifest)
     // Issue #109 measured: the gui-extensions D4 resolution + label disambiguation (settings-gui-plugins-tab-label)
     // rebuilt the payload to 3520/159673641 (+645 bytes at the same 3520 file count; the
     // two tab-label i18n values "GUI extensions"/"GUI 扩展" + comment stripping ship
@@ -732,7 +796,7 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     // measured 3516/159542455; issue #90's amended-gui-plugins-api-migration rebuild measured 3516/159542120 +335
     // via the settings search consumer rename; issue #70's btw entry measured 3516/159535257
     // and issue #67's gui-plugins swap measured 3516/159532385 — now historical).
-    fail(`8: current web-dist baseline drifted (expected 5622/150022223, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #110 errata: the fail message carried the stale issue #108 value (159672996) while the assert above already checks the current issue #109 measured baseline 159673641 — message-only correction, assertion unchanged
+    fail(`8: current web-dist baseline drifted (expected 5630/155851603, got ${String(distManifest.fileCount)}/${String(distManifest.totalBytes)})`) // issue #110 errata: the fail message carried the stale issue #108 value (159672996) while the assert above already checks the current issue #109 measured baseline 159673641 — message-only correction, assertion unchanged
 
   // The dist carries the runtime marker (minification-surviving constant) and the new
   // i18n keys; the mobile(M-025)/mobile(M-026) comment markers live in the sourcemaps
@@ -807,8 +871,16 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const directRe = /(?:\bname\s*=\s*|\bicon\s*=\s*|\bname:\s*"|\bicon:\s*"|\bgetIcon\(\s*)"([a-z][a-z0-9-]*)"/g
   const braceRe = /(?:\bname\s*=\s*\{|\bicon\s*=\s*\{)([^}]*)\}/g
   const used = new Map<string, string[]>()
+  // old->new (issue #194): v2.2.7's details/server-panel.tsx MCP sign-in paste form carries a
+  // TextInput `name="redirect"` — an HTML form-field name attribute, not an Icon literal (the
+  // icon universe has no such name and upstream renders no icon there; the v2.2.1 tree had no
+  // gui-plugins form field with a name attribute, so the RAW `name=` shape had no false
+  // positive then). Recorded exception — the closed-set semantics stay: any OTHER unresolved
+  // literal (or this one in a different file) still fails.
+  const nonIconNameAttributes: Array<[string, string]> = [["redirect", "details/server-panel.tsx"]]
   const note = (name: string, file: string) => {
     if (universe.has(name)) return
+    if (nonIconNameAttributes.some(([n, f]) => n === name && file.endsWith(f))) return
     const sites = used.get(name) ?? []
     sites.push(file)
     used.set(name, sites)
@@ -842,13 +914,13 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 console.log(
   "verify-gui-plugins: PASS (" +
     "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
-    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} (sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, six mobile Panel registrations here (tab 10/menu 20/menu 30/menu 40/drawer 50/btw menu 80 — sources 60 / goal 70 are locked by verify-goal-sources), btw gate mounted() with the desktop-width term dropped (issue #70/session-btw-narrow-entry) + the D2 mobile render branch (panel-id dispatch, mobile.none honest empty state, store-ready gate) + the v2.2.1 content-sha1 conservation of btw model/panel/index; " +
-    "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), settings-page-dev optional-chain toggle + installed.list reader + reload two channels, host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
-    "4: issue #26 face — gui-plugins-disabled-merge import/instance/filter/union/early-exit + two markers, settings-mobile-gui-plugins predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, settings-mobile-host-manager/settings-ssh-entry-guard hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
-    "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage two views, settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
-    "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-two .remove( with a remove-free dispose() domain (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
+    "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} + the v2.2.7 per-plugin {review} (old->new issue #194: expected [] at the v2.2.1 pin — review/contract.ts:31 Contract.define is pin-native at fedc6f208a; sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, seven mobile Panel registrations here (tab 10/menu 20/menu 30/menu 40/drawer 50 pin-native + sources menu 60 / btw menu 80 re-landed by gui-plugins-v2-2-7; no goal face — the v2.2.7 goal is the native ComposerPill, so order 70 no longer exists; the order-set equality {10,20,30,40,50,60,80} lives in verify-goal-sources), btw gate mounted() with the desktop-width term dropped (issue #194/gui-plugins-v2-2-7, M-038 lineage) + the D2/D3 mobile render branch (panel-id dispatch, latest chat via the btw/model.ts saved accessor — the 10th target, mobile.none honest empty state, !== undefined ready gate) + the pin content-sha1 conservation of btw panel/index; " +
+    "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), extension-plugins optional-chain toggle + installed enabled reader + reload two channels (old->new issue #194: settings-page-dev.tsx is gone at v2.2.7, the face re-anchored on extension-plugins.tsx), host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
+    "4: issue #26 face — gui-plugins-disabled-merge import + bridge-conditional instance + disabled-set pass-through (settings-v2-2-7 W3 form; old->new issue #194: the root-level ids-filter/union/early-exit retired) + two markers, settings-mobile-gui-plugins predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, settings-mobile-host-manager/settings-ssh-entry-guard hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
+    "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage view factory (old->new issue #194: localStorageWithPrefix/localStorageDirect converged into localStorageView(prefix?)), settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
+    "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-three .remove( (1 persistentPty.remove + 2 storage.remove(LEGACY.key); old->new issue #194 from the v2.2.1 two-call shape) with a remove-free dispose() domain ending at function dropLegacy (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-plugins.md ten sections (issue #67 renamed the unit doc) + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the session-goal-sources-panels registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
     "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
-    "8: build witnesses — dist baseline 5622/150022223 (issue #149 2.2.1 release identity rebuild — same 5622 file count, +78278 bytes of sourcemap machine-path churn + entry chunk rename index-B-7B3T0I->index-CpaevSWf carrying 2.2.1; prior 5620/149993193 = issue #142 model-selector-usage-parity rebuild on the merged #144 settings-acceptance tree; prior 5616/149754033 = issue #144 settings acceptance rebuild incl. the M-035 restore; prior 5617/149595730 = issue #141 provider-connect-flow-redesign rebuild; prior 3520/159558361 = issue #124 settings-server-menu; earlier build and registration counts remain historical in docs/build-and-verify.md), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
+    "8: build witnesses — dist baseline 5630/155851603 (old->new issue #194 re-anchor to the committed #193 payload; prior 5622/150022223 = issue #149 2.2.1 release identity rebuild — same 5622 file count, +78278 bytes of sourcemap machine-path churn + entry chunk rename index-B-7B3T0I->index-CpaevSWf carrying 2.2.1; prior 5620/149993193 = issue #142 model-selector-usage-parity rebuild on the merged #144 settings-acceptance tree; prior 5616/149754033 = issue #144 settings acceptance rebuild incl. the M-035 restore; prior 5617/149595730 = issue #141 provider-connect-flow-redesign rebuild; prior 3520/159558361 = issue #124 settings-server-menu; earlier build and registration counts remain historical in docs/build-and-verify.md), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )

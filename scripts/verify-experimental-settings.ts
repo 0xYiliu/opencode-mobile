@@ -46,9 +46,10 @@
 //      needs them); icon.tsx gained the module-level signal + setNewIcons
 //      export, the dual-symbol sprite (opencode-v2-icon-new-*), the functional
 //      pixelSize (new artwork stays 16px where small shrinks to 14) and the
-//      next()-switched viewBox/use href. Catalog negative boundary: sidebar-right
-//      stays, all FOURTEEN other v2.2.1 additions stay out (issue #66 moved
-//      outline-steer to the adopted set for session-goal-sources-panels's goal icon), and the pin trash /
+//      next()-switched viewBox/use href. Catalog boundary: at v2.2.7 the experiment GRADUATED
+//      upstream (the #66-era "outline-steer adopted for session-goal-sources-panels's goal
+//      icon" note retired — the icon is pin-native; issue #194 flipped that row to absorbed
+//      behind gui-plugins-v2-2-7), and the pin trash /
 //      copy artwork bodies are still verbatim (the v2.2.1 body rewrites — the
 //      "graduated" new-icons defaults — must NOT land, or the experiment would
 //      have no visible delta).
@@ -106,7 +107,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!file.includes("export const experimentalSettingsAvailable = true"))
     fail("1: experimentalSettingsAvailable is not flipped to true (v2.2.1 verbatim — no platform gate exists upstream)")
 
-  // The two rows, verbatim keys and anchors.
+  // The upstream rows, verbatim keys and anchors (the gui-plugins-v2-2-7 Sources row is anchored below).
   for (const anchor of [
     'title={language.t("settings.experimental.row.newIcons.title")}',
     'description={language.t("settings.experimental.row.newIcons.description")}',
@@ -127,6 +128,24 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   ]) {
     if (!file.includes(binding)) fail(`1: experimental.tsx lost the Switch binding ${binding}`)
   }
+
+  // old->new (issue #194/gui-plugins-v2-2-7): the Sources gate row re-lands as the page's LAST
+  // row (the v2.2.7 page carries five rows: sidebarOrganize / newIcons / foldUserMessages /
+  // newQuestionUI / sources) — its knob write path is the session-ui setSourcesEnabled accessor
+  // (the storedToggle/setStoredToggle helpers of the v2.2.1 patch do not exist at v2.2.7).
+  for (const anchor of [
+    'title={language.t("settings.experimental.row.sources.title")}',
+    'description={language.t("settings.experimental.row.sources.description")}',
+    '<div data-action="settings-sources">',
+    "checked={sourcesExperiment.enabled}",
+    "onChange={(checked) => setSourcesEnabled(checked)}",
+    'import { setSourcesEnabled, sourcesExperiment } from "@opencode/session-ui/sources/experiment"',
+  ]) {
+    if (!file.includes(anchor)) fail(`1: experimental.tsx lost the gui-plugins-v2-2-7 Sources row anchor ${anchor}`)
+  }
+  const switchActions = [...file.matchAll(/data-action="(settings-[a-z-]+)"/g)].map((m) => m[1]!)
+  if (JSON.stringify(switchActions.sort()) !== JSON.stringify(["settings-fold-user-messages", "settings-new-icons", "settings-new-question-ui", "settings-sidebar-organize", "settings-sources"]))
+    fail(`1: experimental.tsx data-action set drifted: ${JSON.stringify(switchActions)} (expected the five-row v2.2.7 page incl. settings-sources)`)
 }
 
 // --- 2. Gates untouched (settings/shell.tsx, settings/pages.ts) ---
@@ -294,7 +313,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   // Issue #144: the S38-era "rewrite content must not leak" negatives are retired — the
   // v2.2.1 user-runs/link rewrite IS the current (target byte-identical) form of
   // message-content.tsx, and the sources boundary it used to fence is owned by
-  // session-goal-sources-panels / verify-goal-sources.ts. The fold slice positives above
+  // verify-goal-sources.ts (issue #194 rewrite; the v2.2.1 carrier row is absorbed). The fold slice positives above
   // carry the S38 contract on the target form.
 }
 
@@ -421,13 +440,23 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     fail("8: ui en.ts readMore/showLess are not inserted right after ui.message.collapse")
 
   // zh (and sampled locales) stay key-free — the registered en-fallback delta.
+  // old->new (issue #194/gui-plugins-v2-2-7): zh gains EXACTLY the first-party row.sources.*
+  // pair (the #193 en+zh pairing convention; the upstream en-only rows stay en-fallback), so
+  // the zh negative narrows to "no experimental keys beyond the sources pair".
   for (const locale of ["zh", "zht", "ko", "de", "fr"]) {
     const appDict = await read(`${APP}src/runtime/i18n/${locale}.ts`)
-    if (appDict.includes("settings.experimental.row") || appDict.includes("foldUserMessages"))
-      fail(`8: app ${locale}.ts carries experimental keys — v2.2.1 keeps those locales en-fallback; a translation would be a project-local addition needing a delta re-registration`)
+    const zhRowKeys = [...appDict.matchAll(/"(settings\.experimental\.row\.[A-Za-z0-9.]+)"/g)].map((m) => m[1]!)
+    if (locale === "zh") {
+      if (JSON.stringify(zhRowKeys.sort()) !== JSON.stringify(["settings.experimental.row.sources.description", "settings.experimental.row.sources.title"]))
+        fail(`8: app zh.ts settings.experimental.row.* must be exactly the gui-plugins-v2-2-7 sources pair, got ${JSON.stringify(zhRowKeys)}`)
+    } else if (zhRowKeys.length > 0) {
+      fail(`8: app ${locale}.ts carries experimental row keys ${JSON.stringify(zhRowKeys)} — the en-fallback delta stands beyond the first-party zh pair`)
+    }
+    if (appDict.includes("foldUserMessages"))
+      fail(`8: app ${locale}.ts carries foldUserMessages keys — those locales stay en-fallback`)
     const uiDict = await read(`${UI}src/i18n/${locale}.ts`)
     if (uiDict.includes("ui.message.readMore") || uiDict.includes("ui.message.showLess"))
-      fail(`8: ui ${locale}.ts carries the fold toggle keys — v2.2.1 keeps those locales en-fallback`)
+      fail(`8: ui ${locale}.ts carries the fold toggle keys — those locales stay en-fallback`)
   }
 
   // The fallback chain anchors themselves, verbatim on both packages.
@@ -546,7 +575,7 @@ const PATCHES = "vendor/upstream/patches/mobile/"
 
 console.log(
   "verify-experimental-settings: PASS (" +
-    "1: experimentalSettingsAvailable=true verbatim (no platform gate), two rows with keys/data-actions/Switch bindings; " +
+    "1: experimentalSettingsAvailable=true verbatim (no platform gate), the v2.2.7 five-row page — the two S38 rows with keys/data-actions/Switch bindings plus the gui-plugins-v2-2-7 Sources row (setSourcesEnabled knob-accessor write path, exact data-action set); " +
     "2: shell.tsx :309 guard and :362 grouping byte-identical to pin, flask + label registration intact; " +
     "3: model.tsx two schema fields with upstream comments, false defaults, withFallback readers, setNewIcons effect, accessors; backgroundActivity/timelineWidth Literals + defaults in place (moved off the negative list by issue #103/settings-general-experimental-migration; sidebarOpen by settings-framework-migration, reduceMotion by appearance-motion-zoom's rebase round), showFileTree at the native retired-block decode-stub form; terminalPlacement SUPERSEDED (the v2.2.7 pin dropped the key; negative-pinned, issue #193 re-anchor); " +
     "4: model.test.ts defaults +2 lines, the target discards-retired-preferences assertion pinned (issue #144: the #103 retained decode lines left with the retired deviations), plugins copy-out test name (issue #103 target form); " +

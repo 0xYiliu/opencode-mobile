@@ -1,84 +1,98 @@
-// verify-goal-sources.ts — static probe for issue #66 (W22+W23: register the Goal and
-// Sources panels, the v2.2.1 delta).
+// verify-goal-sources.ts — static probe for the Goal + Sources panels (issue #66 W22+W23,
+// REWRITTEN for the v2.2.7 pin by issue #194).
 //
-// Asserts, against the REAL vendored/first-party sources (pin b4525d79bf… + gui-plugins-native-test-deps..session-goal-sources-panels),
-// the structural facts the issue #66 alignment record relies on:
+// At fedc6f208a the v2.2.1 delta this probe used to lock is largely PIN-ABSORBED: goal ships as
+// the native ComposerPill with a goal machine (the old Panel re-shell and its mobile face
+// order 70 are superseded upstream), the session-ui sources subsystem (incl. the graduated
+// sources-expand-machine), the timeline turnSources hooks, the motion spring/loop modules,
+// outline-steer, the ui.sources.* i18n family and the SourcesProvider host wrapper are all
+// native. The surviving narrow-screen deltas — the sources mobile face 60 + gate-off honest
+// empty state, the panel-id "turn" dispatch, the panel.* i18n keys, the Settings -> Experimental
+// Sources gate row and its en/zh keys — re-land by gui-plugins-v2-2-7 and are locked here.
+// old->new (issue #194 rewrite): the v2.2.1-only assertions retired with their faces — the
+// motion-tuning shim helpers (storedToggle/setStoredToggle do not exist at v2.2.7), the
+// 0f379f0a33 old-host four-files-verbatim claim, the 22-file patch face, the goal Panel
+// re-shell/mobile 70, the user-runs rewrite negatives (the v2.2.7 timeline IS the rewrite
+// target form), and the 14-catalog-rejection list (the experiment graduated upstream).
 //
-//   1. Registration face: renderer.ts carries exactly 15 compose entries with sources and
-//      goal appended after microsoft-office in the v2.2.1 gui-plugins compose order (sources
-//      then goal); main.ts carries the same 15-id table with the six lazy main entries
-//      unchanged (sources/goal are renderer-only, ids reserved); the mobile face order set
-//      is exactly {10,20,30,40,50,60,70,80} — no duplicates (sources 60 menu, goal 70 menu,
-//      btw 80 menu registered by issue #70/session-btw-narrow-entry: the btw FACE belongs to that issue, but the
-//      order-set equality is locked here — same cross-probe convention as the #66 round).
-//   2. #67 host boundary (issue #67 revision): the OLD host tokens (`@opencode/gui-extensions`
-//      specifier, `Extension.define`, `useExtension`) have ZERO hits across the four vendored
-//      domains (gui-plugins/src, session-ui/src, app/src, ui/src), while `@opencode/plugin/gui`
-//      is a POSITIVE anchor there; `ComposerPill` and `plugin-pills` keep their zero-hit
-//      negatives (D1: the pill host stays unadopted), and the two new builtin directories are
-//      additionally scanned as a precise double check.
-//   3. Goal contract: schema/goal.ts is the v2.2.1 verbatim form including its THREE
-//      `Schema.toStandardSchemaV1(...)` wrappers. Implementation note (deviation from the
-//      approved plan recorded here): the plan expected the wrappers stripped because the pin
-//      tree has no usage of that API — at implementation the closure's effect@4.0.1 DOES
-//      export it and the promise client's RpcClient<P extends Rpc.PortableDefinition>
-//      requires the Standard Schema form (raw effect codecs fail the PortableDefinition
-//      bound), so the verbatim v2.2.1 form landed and is locked here. The renderer's data
-//      layer is verbatim (per-server+session store, createKeyed keyed on server.connected +
-//      directory, heard-flag late-snapshot drop, the error-swallow comment that degrades a
-//      server without the goal plugin to "no goal"), the three-state status map and the
-//      session.command pause/resume/clear path with the error toast are verbatim; the UI is
-//      the registered Panel re-shell (pinned transient side tab + mobile face order 70).
-//      Negatives: the server-side goal plugin is NOT vendored, and the client's
-//      session.metadata.updated event face is NOT adopted.
-//   4. Sources port: the 0f379f0a33 old-host four files verbatim (soft browser `uses`, the
-//      transient side panel whose list empties when the experiment is off, the LinkHandler,
-//      i18n tab.count, the panel's uses.browser()/openExternal fallback) plus the registered
-//      narrow-screen branch (panel id path -> most recent turn with sources, empty states).
-//      session-ui exports, ui en 9 keys, app en 2 keys (en-only; sampled locales stay
-//      key-free), the Experimental tab row, the app SourcesProvider wrapper, and the three
-//      timeline hook increments — with the settings-experimental fold anchors still in place (layering
-//      witness).
-//   5. Gate shim: ui/src/motion-tuning.ts implements ONLY the four faces experiment.ts
-//      consumes (toggle/choice/spring/subscribe) over the upstream `opencode.motion.v2`
-//      localStorage record (toggles 0|1, choices the option index, non-default entries
-//      only, record removed when empty), default false (the Experimental row reads the same
-//      default), no settings.v3 key, no Knob registry/panel/globals/action face, zero
-//      runtime imports.
-//   6. user-runs/quote domain negatives (BLOCKER-1 cross-check with the revised
-//      verify-experimental-settings group 5 kept set): the sources slice carries none of
-//      the rewrite domain — message-content/current-message/timeline-row token scans, the
-//      14 kept catalog rejections, and clean new session-ui directories.
-//   7. Motion: spring.ts/loop.ts are verbatim zero-import modules behind the motion entry;
-//      the sources surface uses only :root[data-motion="reduce"] (three blocks, zero
-//      @media prefers-reduced-motion); among the new motion surface only reduced.ts
-//      mentions prefers-reduced-motion (its query constant). The whole-tree three-file
-//      whitelist set-equality is verify-appearance-settings' (#65) lock and is NOT
-//      re-asserted here — this branch predates the appearance-motion-zoom tree conversion (rebase round
-//      re-checks).
-//   8. Icons + patch registration: outline-steer is the verbatim v2.2.1 artwork (the only
-//      catalog addition; removed from the #64 probe's rejected list in the same commit);
-//      session-goal-sources-panels is registered in BOTH manifests with the exact 33-file patch face (post-rebase:
-//      reduced.ts and the './motion' export returned to appearance-motion-zoom). No dist
-//      marker is staged for this patch: it carries no credential/security semantics — the
-//      gate shim stores a non-sensitive, device-local UI preference (an experiment gate),
-//      so the connection-password-memory-only marker precedent does not apply; recorded here deliberately.
+// Asserts, against the REAL vendored/first-party sources (pin fedc6f208a… + the 10 active
+// mobilePatches incl. gui-plugins-v2-2-7):
+//
+//   1. Registration face: renderer.ts carries exactly 15 compose entries with sources and goal
+//      appended after microsoft-office (the v2.2.1 compose order the pin kept); main.ts carries
+//      the same 15-id table with the six lazy main entries unchanged (sources/goal are
+//      renderer-only, ids reserved); the mobile face order set is exactly
+//      {10,20,30,40,50,60,80} — review 10 tab / file 20 menu / terminal 30 menu / context 40
+//      menu / details 50 drawer pin-native, sources 60 menu + btw 80 menu re-landed by
+//      gui-plugins-v2-2-7; goal has NO mobile face (the native ComposerPill), so 70 exists
+//      nowhere and nothing is renumbered.
+//   2. Host boundary: the OLD host tokens (`@opencode/gui-extensions` specifier,
+//      `Extension.define`, `useExtension`) have ZERO hits across the four vendored domains
+//      (gui-plugins/src, session-ui/src, app/src, ui/src), while `@opencode/plugin/gui` is a
+//      POSITIVE anchor there. The pill faces flipped from negatives to positives at the pin:
+//      goal IS the native ComposerPill and app/src/session/composer/plugin-pills.tsx hosts it.
+//   3. Goal contract (v2.2.7 pin form): schema/goal.ts keeps the Goal namespace export, the
+//      opencode.goal RPC (get + events.changed) and its THREE `Schema.toStandardSchemaV1(...)`
+//      wrappers (the promise client's PortableDefinition requires the Standard Schema form; the
+//      wrappers are upstream-native now, not a port artifact). The renderer is the machine form:
+//      createGoalState/transitionGoal/selectGoal/selectGoalBusy + the GOAL_* timeouts from
+//      machine.ts, the createKeyed subscription keyed on the routed session (server connected +
+//      directory equality), the fetch/subscribe/command guard with attempt timeouts, the
+//      three-state status map verbatim, the error toast with `common.requestFailed`, and the
+//      pill menu's pause/resume/clear. Negatives: no server-side goal plugin vendored, no
+//      session.metadata.updated adoption, no mobile face (order 70 retired with the pill), no
+//      first-party `none:` i18n key (the v2.2.1 empty-state key retired).
+//   4. Sources (pin body + gui-plugins-v2-2-7 faces): sources/index.ts is the two-line
+//      Plugin.define; the renderer keeps the soft browser LinkHandler face, the transient side
+//      Panel whose list empties when the experiment is off, the gated onIdle preload and the
+//      SourcesTitle/count faces; gui-plugins-v2-2-7 re-lands the mobile face (order 60, menu,
+//      icon globe), the gate-off honest panel.disabled fallback, the panel-id "turn" dispatch
+//      (most recent turn with sources), the panel.none empty state and the panel.* i18n keys.
+//      Downstream: session-ui exports 4, ui en 9 keys in the v2.2.1 position, the app
+//      en/zh row.sources.* pair (gui-plugins-v2-2-7; the #193 en+zh pairing convention), the
+//      Experimental row flipping the knob through setSourcesEnabled, the app SourcesProvider
+//      wrapper inside the Links/MarkdownProvider, and the three timeline hook increments
+//      (row turnSourcesValue memo + call-site props, current-message TurnSources passthrough,
+//      message-content footer restructure) — with the settings-experimental fold witnesses
+//      still in place (layering witness).
+//   5. Gate/knob (v2.2.7 real module): motion-tuning.ts is the upstream Knobs registry module —
+//      the opencode.motion.v2 record, the toggle/choice/spring/subscribe faces experiment.ts
+//      consumes, motionTuning.set/list/actions, motionPresets/MotionKnob/motionTimeScale/
+//      motionGlobals — with ZERO runtime imports; the retired v2.2.1 shim helpers
+//      storedToggle/setStoredToggle must NOT exist. The knob default is false at the
+//      declaration; the gui-plugins-v2-2-7 accessor closes over the single registered instance
+//      (enabledKnob capture + setSourcesEnabled export) so no call site re-registers or looks
+//      the knob up.
+//   6. Icons + patch registration: outline-steer is the pin-native catalog entry after waveform
+//      (the v2.2.1 verbatim artwork, absorbed); session-goal-sources-panels stays registered
+//      (status absorbed, patch file untouched on disk) and gui-plugins-v2-2-7 is registered in
+//      BOTH manifests with the exact 11-file patch face (mobilePatches position 10, dependsOn
+//      settings-v2-2-7); the 22-file face claim is retired with the absorption. No dist marker
+//      is staged for the family: the gate stores a non-sensitive, device-local UI preference
+//      (an experiment gate) in the upstream opencode.motion.v2 record — recorded deliberately.
+//   7. Motion: spring.ts/loop.ts are verbatim zero-import modules; the motion entry is the FULL
+//      upstream re-export list (spring/loop/velocity/reduced/waapi/slider — the v2.2.1-era
+//      M-035/M-036 provenance comment retired with the absorption); sources.css uses only
+//      :root[data-motion="reduce"] (three blocks, zero @media prefers-reduced-motion); within
+//      the sources motion surface only ui/src/motion/reduced.ts mentions the media query.
 //
 // NEGATIVE EXAMPLES (run at verification time by injecting/reverting mutations;
 // inject -> FAIL rc=1 -> restore -> PASS rc=0, logs kept):
 //   1. flip the gate default `value: false` -> `value: true` in
 //      session-ui/src/sources/experiment.ts -> group 5 default-false FAIL;
-//   2. delete the goal mobile face (the `order: 70` block) from
-//      gui-extensions/src/goal/renderer.tsx -> group 1 order-set FAIL;
-//   3. inject `import { probe } from "@opencode/plugin/gui"` into
-//      gui-extensions/src/sources/index.ts -> group 2 domain scan FAIL.
+//   2. delete the btw mobile face (the `mobile: {` block) from
+//      gui-plugins/src/btw/renderer.tsx -> group 1 order-set FAIL (issue #194 — the
+//      re-landed narrow-screen entry must not silently disappear);
+//   3. inject `import { probe } from "@opencode/plugin/gui"` — wait, that is a REQUIRED token;
+//      the injection is `import { probe } from "@opencode/gui-extensions/sdk"` into
+//      gui-plugins/src/sources/index.ts -> group 2 domain scan FAIL.
 //
 // HONEST BOUNDARY (same tradition as the sibling probes): static STRUCTURE check — text
 // anchors / set equalities / negative injections. It proves source shape, NOT runtime
-// behavior: tab reachability, the gate surviving process restarts (off by default), the
-// chip presentation and panel opening, goal command round-trips against real servers, the
-// error toast, the empty states and TalkBack announcement are device QA items registered in
-// docs/build-and-verify.md (issue #66 section), NOT executed at this level.
+// behavior: tab reachability, the gate surviving process restarts (off by default), the chip
+// presentation and panel opening, goal command round-trips against real servers, the error
+// toast, the empty states and TalkBack announcement are device QA items registered in
+// docs/build-and-verify.md, NOT executed at this level.
 //
 // Usage:
 //   bun run scripts/verify-goal-sources.ts
@@ -139,25 +153,25 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
 // --- 1. Registration face ---
 {
-  // Issue #67: the v2.2.1 gui-plugins compose is an OBJECT MAP keyed by plugin id with
-  // `windowEntry` (renderer) / `mainEntry` (main) faces — same 15 ids, same order.
+  // The pin keeps the v2.2.1 compose: an OBJECT MAP keyed by plugin id with `windowEntry`
+  // (renderer) / `mainEntry` (main) faces — same 15 ids, same order.
   const renderer = await read(`${GUI}renderer.ts`)
   const composeStart = renderer.indexOf("export const builtins = compose({")
-  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose (v2.2.1 object-map form)")
+  if (composeStart === -1) fail("1: renderer.ts lost the builtins compose (object-map form)")
   const composeBlock = renderer.slice(composeStart, renderer.indexOf("\n})", composeStart))
   const entryIds = [...composeBlock.matchAll(/^  "?([\w-]+)"?: \{/gm)].map((m) => m[1]!)
   if (entryIds.length !== EXPECTED_IDS.length)
-    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryIds.length} (NEGATIVE 2 deletes the goal mobile face / an entry)`)
+    fail(`1: builtins compose must carry exactly ${EXPECTED_IDS.length} entries, got ${entryIds.length} (NEGATIVE 2 deletes the btw mobile face / an entry)`)
   setEq(entryIds, EXPECTED_IDS, "1: builtins compose id set")
-  // v2.2.1 compose order: … microsoft-office, sources, goal.
+  // Compose order tail: … microsoft-office, sources, goal.
   const at = (id: string) => composeBlock.indexOf(`  ${id}: {`) !== -1
     ? composeBlock.indexOf(`  ${id}: {`)
     : composeBlock.indexOf(`  "${id}": {`)
   for (const id of ["microsoft-office", "sources", "goal"]) if (at(id) === -1) fail(`1: compose lost the ${id} entry`)
   if (!(at("microsoft-office") < at("sources") && at("sources") < at("goal")))
-    fail("1: compose order must be microsoft-office -> sources -> goal (v2.2.1 gui-plugins renderer.ts order)")
+    fail("1: compose order must be microsoft-office -> sources -> goal")
   if (!renderer.includes("windowEntry: eager(goalRenderer)"))
-    fail("1: renderer.ts compose lost the windowEntry face (v2.2.1 gui-plugins compose)")
+    fail("1: renderer.ts compose lost the windowEntry face")
 
   const main = await read(`${GUI}main.ts`)
   const mainImports = [...main.matchAll(/import (\w+) from "\.\/([\w-]+)"/g)].map((m) => m[1]!)
@@ -170,8 +184,10 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   const mainLazy = [...main.matchAll(/\{\s*\.\.\.(\w+),\s*mainEntry:/g)].map((m) => m[1]!)
   setEq(mainLazy, EXPECTED_MAIN_LAZY, "1: main.ts lazy mainEntry set (sources/goal are renderer-only)")
 
-  // Mobile face orders across the eight registered faces: no duplicates, exact set.
-  // (btw 80 belongs to issue #70/session-btw-narrow-entry; the set equality lives here — declared cross-reference.)
+  // Mobile face orders across the SEVEN registered faces: no duplicates, exact set.
+  // (review 10 … details 50 are pin-native; sources 60 + btw 80 re-land by gui-plugins-v2-2-7;
+  // goal has NO face at v2.2.7 — the native ComposerPill — so 70 exists nowhere.
+  // old->new issue #194: the previous set was {10,20,30,40,50,60,70,80}.)
   const faces: Array<[string, number, string]> = [
     ["review/renderer.tsx", 10, "tab"],
     ["file/renderer.tsx", 20, "menu"],
@@ -179,7 +195,6 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     ["context/renderer.tsx", 40, "menu"],
     ["details/renderer.tsx", 50, "drawer"],
     ["sources/renderer.tsx", 60, "menu"],
-    ["goal/renderer.tsx", 70, "menu"],
     ["btw/renderer.tsx", 80, "menu"],
   ]
   const seenOrders = new Set<number>()
@@ -196,12 +211,16 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     if (seenOrders.has(order)) fail(`1: mobile face order ${order} duplicated (registry would mis-sort)`)
     seenOrders.add(order)
   }
-  setEq(seenOrders, [10, 20, 30, 40, 50, 60, 70, 80], "1: mobile face order set {10..80}")
+  setEq(seenOrders, [10, 20, 30, 40, 50, 60, 80], "1: mobile face order set {10..60,80} — no 70 (old->new issue #194: the v2.2.1 set was {10..80}; the goal face retired with the native ComposerPill)")
+  // goal/renderer.tsx must NOT grow a mobile face (the pill is a composer face, not a panel).
+  const goal = squash(await read(`${GUI}goal/renderer.tsx`))
+  if (goal.includes("mobile:{"))
+    fail("1: goal/renderer.tsx grew a mobile face (goal is the native ComposerPill at v2.2.7 — order 70 retired with the Panel re-shell)")
 }
 
-// --- 2. #67 host boundary (four tokens x four vendored domains, zero hits) ---
+// --- 2. Host boundary (old-host tokens zero-hit; the pill faces are pin-positive now) ---
 {
-  const FORBIDDEN = ["@opencode/gui-extensions", "Extension.define", "useExtension", "ComposerPill", "plugin-pills"]
+  const FORBIDDEN = ["@opencode/gui-extensions", "Extension.define", "useExtension"]
   const REQUIRED = ["@opencode/plugin/gui"]
   const DOMAINS = [
     "vendor/upstream/packages/gui-plugins/src",
@@ -230,24 +249,18 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   })
   if (leaked) fail("2: an old-host token leaked into the vendored domains (NEGATIVE 3 injects one deliberately)")
 
-  // Double check: the two new builtin directories precisely.
-  for (const dir of [`${GUI}sources`, `${GUI}goal`]) {
-    for (const entry of readdirSync(`${repoRoot.pathname}${dir}`, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        for (const inner of readdirSync(`${repoRoot.pathname}${dir}/${entry.name}`)) {
-          const body = await Bun.file(`${repoRoot.pathname}${dir}/${entry.name}/${inner}`).text()
-          for (const token of FORBIDDEN) if (body.includes(token)) fail(`2: ${dir}/${entry.name}/${inner} mentions ${token}`)
-        }
-        continue
-      }
-      const body = await Bun.file(`${repoRoot.pathname}${dir}/${entry.name}`).text()
-      for (const token of FORBIDDEN) if (body.includes(token)) fail(`2: ${dir}/${entry.name} mentions ${token}`)
-    }
-  }
+  // old->new (issue #194): ComposerPill and plugin-pills FLIPPED from the forbidden list to
+  // positive anchors — goal IS the native ComposerPill at v2.2.7 and the app composer's
+  // plugin-pills host renders it; the D1-era "pill host stays unadopted" negative is retired.
+  const goalRenderer = await read(`${GUI}goal/renderer.tsx`)
+  if (!goalRenderer.includes("ComposerPill")) fail("2: goal/renderer.tsx lost the native ComposerPill face")
+  const pluginPills = await read(`${APP}src/session/composer/plugin-pills.tsx`)
+  if (!pluginPills.includes('data-component="session-plugin-pills"')) fail("2: app plugin-pills.tsx lost the pill host face")
 }
 
-// --- 3. Goal contract (schema + data layer + Panel re-shell + degradation negatives) ---
+// --- 3. Goal contract (v2.2.7 pin form: schema + machine + ComposerPill + degradation negatives) ---
 {
+  const goal = squash(await read(`${GUI}goal/renderer.tsx`))
   const schema = await read("vendor/upstream/packages/schema/src/goal.ts")
   if (!schema.includes('export * as Goal from "./goal.js"')) fail("3: schema/goal.ts lost the Goal namespace export")
   if (!schema.includes('id: "opencode.goal",')) fail("3: schema/goal.ts lost the opencode.goal RPC id")
@@ -257,7 +270,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   }
   if (!schema.includes("optional(Schema.String)")) fail("3: schema/goal.ts lost the optional() reason/stalls shape")
   if (!schema.includes("Rpc.define({")) fail("3: schema/goal.ts lost the Rpc.define form")
-  // The THREE Standard Schema wrappers (v2.2.1 verbatim; see the implementation note in the header).
+  // The THREE Standard Schema wrappers (upstream-native at v2.2.7; the v2.2.1-port artifact
+  // note retired — the promise client's PortableDefinition still requires this form).
   const wrappers = [...schema.matchAll(/: Schema\.toStandardSchemaV1\(/g)].length
   if (wrappers !== 3) fail(`3: schema/goal.ts must carry exactly three Schema.toStandardSchemaV1 wrappers (get.input/get.output/events.changed.schema), got ${wrappers}`)
   for (const anchor of [
@@ -268,79 +282,86 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     if (!schema.includes(anchor)) fail(`3: schema/goal.ts lost the wrapper anchor ${anchor.split("(")[0].trim()}`)
   }
 
-  const goal = squash(await read(`${GUI}goal/renderer.tsx`))
-  // Data layer, verbatim (ComposerPillProps -> MountedSession is the only rename).
+  // The renderer machine form (v2.2.7; the v2.2.1 data-layer anchors retired with the machine).
   for (const anchor of [
-    "const[goals,setGoals]=createStore<Record<string,{goal:Goal.State|null}>>({})",
-    "constkey=(server:string,sessionID:string)=>`${server}\\u0000${sessionID}`",
-    "session?.server.connected?key(session.server.id,session.id)+`\\u0000${session.directory}`:undefined",
-    "constheard={value:false}",
-    "if(event.data.sessionID===session.id)heard.value=true",
-    "rpc.events.on(\"changed\",",
-    "{signal:controller.signal},",
-    "A server without the goal plugin answers with an error, and the session shows no goal.",
-    "if(!controller.signal.aborted&&!heard.value)setGoals(key(server,session.id),{goal:next})",
-    "()=>undefined,",
+    "createGoalState,",
+    "GOAL_COMMAND_TIMEOUT_MS,",
+    "GOAL_SNAPSHOT_TIMEOUT_MS,",
+    "selectGoal,",
+    "selectGoalBusy,",
+    "transitionGoal,",
+    "const next = transitionGoal(untrack(goalState), event)",
+    "next.effects.forEach((effect) => void Promise.try(() => run(effect)).catch(console.error))",
+    "client.rpc(Goal.Definition).events.on(\"changed\", (event) =>",
+    ".get({ sessionID: effect.sessionID }, { location: { directory: effect.directory }, signal })",
+    "client.session.command({ sessionID: effect.sessionID, name: \"goal\", text: effect.action }, { signal })",
+    "equals: (a, b) => a.key === b.key && a.directory === b.directory",
+    "The server's goal plugin owns the goal and serves it over its RPC; a bare `/goal` shows the last",
   ]) {
-    if (!goal.includes(squash(anchor))) fail(`3: goal/renderer.tsx lost the data-layer anchor ${anchor.slice(0, 60)}`)
+    if (!goal.includes(squash(anchor))) fail(`3: goal/renderer.tsx lost the machine-form anchor ${anchor.slice(0, 60)}`)
   }
-  // Status map, verbatim.
+  // Status map, verbatim (squashed — `goal` is the squashed form).
   for (const anchor of [
-    'active:{label:"title",icon:"outline-steer",tone:undefined},',
-    'paused:{label:"paused",icon:"circle-exclamation",tone:"warning"},',
-    'complete:{label:"met",icon:"circle-check",tone:"success"},',
+    'active: { label: "title", icon: "outline-steer", tone: undefined },',
+    'paused: { label: "paused", icon: "circle-exclamation", tone: "warning" },',
+    'complete: { label: "met", icon: "circle-check", tone: "success" },',
   ]) {
-    if (!goal.includes(anchor)) fail(`3: goal/renderer.tsx lost the status map entry ${anchor.slice(0, 40)}`)
+    if (!goal.includes(squash(anchor))) fail(`3: goal/renderer.tsx lost the status map entry ${anchor.slice(0, 40)}`)
   }
-  // Command path + toast failure path, verbatim.
+  // Pill face + toast + menu actions (squashed — `goal` is the squashed form).
   for (const anchor of [
-    'command({sessionID:session.id,name:"goal",text})',
-    'title:ctx.t("common.requestFailed"),',
-    "causeinstanceofError?cause.message:String(cause),",
-    'variant:"error",',
+    "ctx.add(ComposerPill, {",
+    'id: "goal",',
+    'title: ctx.t("common.requestFailed"),',
     'run("pause")',
     'run("resume")',
     'run("clear")',
   ]) {
-    if (!goal.includes(anchor)) fail(`3: goal/renderer.tsx lost the command/toast anchor ${anchor.slice(0, 50)}`)
+    if (!goal.includes(squash(anchor))) fail(`3: goal/renderer.tsx lost the pill/toast/menu anchor ${anchor}`)
   }
-  // Panel re-shell (registered delta D1): pinned transient side tab + mobile face 70.
-  for (const anchor of ['id:"goal",', 'region:"side",', "transient:true,", "pinned:true,", "order:70,", 'kind:"menu",']) {
-    if (!goal.includes(anchor)) fail(`3: goal/renderer.tsx lost the Panel re-shell anchor ${anchor}`)
+  if (goal.includes("ctx.add(Panel")) fail("3: goal/renderer.tsx grew a Panel (the pill is the pin form; the v2.2.1 re-shell retired)")
+
+  const machine = await read(`${GUI}goal/machine.ts`)
+  for (const anchor of [
+    "export const GOAL_SNAPSHOT_TIMEOUT_MS = 15_000",
+    "export const GOAL_COMMAND_TIMEOUT_MS = 15_000",
+    "export function createGoalState()",
+    "export function transitionGoal",
+    "export function selectGoal(",
+    "export function selectGoalBusy(",
+  ]) {
+    if (!machine.includes(anchor)) fail(`3: goal/machine.ts lost the anchor ${anchor}`)
   }
-  if (!goal.includes("mobile(M-036)")) fail("3: goal/renderer.tsx lost the mobile(M-036) marker (D1 provenance)")
-  // The pill-only surfaces must not appear: the re-shell lists a Panel, not a pill.
-  if (goal.includes("ctx.add(ComposerPill") || goal.includes("ComposerPillProps"))
-    fail("3: goal/renderer.tsx adopted the composer-pill host face (D1 violation)")
+  if (!machine.includes("Every fetch failed, as on a server without the goal plugin"))
+    fail("3: goal/machine.ts lost the no-goal-plugin degradation comment")
 
   const goalI18n = await read(`${GUI}goal/i18n/en.ts`)
   for (const key of ['title: "Goal",', 'paused: "Goal paused",', 'met: "Goal met",', 'pause: "Pause",', 'resume: "Resume",', 'clear: "Clear",']) {
     if (!goalI18n.includes(key)) fail(`3: goal i18n en lost ${key.trim()}`)
   }
-  if (!goalI18n.includes("none:") || !goalI18n.includes("mobile(M-036)"))
-    fail("3: goal i18n en lost the first-party none empty-state key with its marker")
+  // old->new (issue #194): the first-party `none:` empty-state key retired with the Panel
+  // re-shell — the pill form has no panel body to empty.
+  if (goalI18n.includes("none:") || goalI18n.includes("mobile("))
+    fail("3: goal i18n en carries a retired first-party key (none: / mobile marker — the v2.2.7 pill i18n is the six upstream keys only)")
 
   // Degradation negatives: no server plugin vendored; no client event adoption.
   if (await exists("vendor/upstream/packages/core/src/plugin/goal.ts"))
     fail("3: the server-side goal plugin was vendored (remote service domain — out of scope by AGENTS.md)")
   if (await exists("vendor/upstream/packages/core"))
     fail("3: packages/core appeared in the closure (it is not a registered package)")
+  // old->new (issue #194): the session.metadata.updated negative RETIRED — the event handler is
+  // upstream-native at v2.2.7 (client solid/data.ts reconciles the metadata record; not a
+  // v2.2.1-era adoption by the goal/sources slice, and unrelated to the goal domain).
   const clientData = await read("vendor/upstream/packages/client/src/solid/data.ts")
-  if (clientData.includes("session.metadata.updated"))
-    fail("3: client solid/data.ts adopted session.metadata.updated (server-event domain this issue does not consume)")
+  if (!clientData.includes('case "session.metadata.updated":'))
+    fail("3: client solid/data.ts lost the upstream-native session.metadata.updated handler (old->new issue #194: the v2.2.1-era negative retired — the event is upstream-native now)")
 }
 
-// --- 4. Sources port (0f379f0a33 verbatim + registered deltas + consumption chain) ---
+// --- 4. Sources (pin body + gui-plugins-v2-2-7 narrow-screen faces + consumption chain) ---
 {
-  const index = squash(await read(`${GUI}sources/index.ts`))
-  // Issue #67: the gui-plugins host derives the plugin id from the directory (Plugin.define
-  // no longer declares it) and the soft browser `uses` moves to the typed registry import.
-  for (const anchor of [
-    "i18n:{en}",
-    "exportdefaultPlugin.define({i18n:{en}})",
-    'import{Plugin}from"@opencode/plugin/gui"',
-  ]) {
-    if (!index.includes(anchor)) fail(`4: sources/index.ts lost the anchor ${anchor.slice(0, 60)}`)
+  const index = await read(`${GUI}sources/index.ts`)
+  for (const anchor of ["import { Plugin } from \"@opencode/plugin/gui\"", "export default Plugin.define({ i18n: { en } })"]) {
+    if (!index.includes(anchor)) fail(`4: sources/index.ts lost the anchor ${anchor}`)
   }
 
   const renderer = squash(await read(`${GUI}sources/renderer.tsx`))
@@ -357,10 +378,20 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     "SourcesTitle",
     "constcount=(session:MountedSession,id:string)=>turnSources(turnMessages(session.server.data.session.message.list(session.id),id)).sources.length",
   ]) {
-    if (!renderer.includes(anchor)) fail(`4: sources/renderer.tsx lost the 0f379 anchor ${anchor.slice(0, 60)}`)
+    if (!renderer.includes(anchor)) fail(`4: sources/renderer.tsx lost the pin anchor ${anchor.slice(0, 60)}`)
   }
-  if (!renderer.includes("mobile(M-036)") || !renderer.includes("panel.disabled"))
-    fail("4: sources/renderer.tsx lost the gate-off empty-state fallback (mobile face honest state)")
+  // gui-plugins-v2-2-7 faces: the mobile face + the gate-off honest fallback.
+  for (const anchor of [
+    'mobile(gui-plugins-v2-2-7,issue#194;M-036):thenarrow-screenMore-drawerentry',
+    "mobile:{",
+    'returnctx.t("panel.title")',
+    "order:60,",
+    'kind:"menu",',
+    'icon:"globe",',
+    'ctx.t("panel.disabled")',
+  ]) {
+    if (!renderer.includes(anchor)) fail(`4: sources/renderer.tsx lost the gui-plugins-v2-2-7 face ${anchor.slice(0, 60)}`)
+  }
 
   const panel = squash(await read(`${GUI}sources/panel.tsx`))
   for (const anchor of [
@@ -368,7 +399,10 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     'if(pane.status==="active"&&pane.value.canOpen(props.session))returnpane.value.open(props.session,url)',
     "ctx.system.openExternal(url)",
     'props.from!=="turn"',
-    "mobile(M-036)",
+    "mobile(gui-plugins-v2-2-7,issue#194;M-036)",
+    "for(letindex=list.length-1;index>=0;index--){",
+    "if(value.steps.length>0)returnvalue",
+    "return{steps:[],sources:[]}",
     'ctx.t("panel.none")',
     'data-slot="session-sources-panel"',
   ]) {
@@ -377,10 +411,10 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
   const sourcesI18n = await read(`${GUI}sources/i18n/en.ts`)
   if (!sourcesI18n.includes('"tab.count": "Sources · {{count}}"')) fail("4: sources i18n en lost tab.count verbatim")
-  if (!sourcesI18n.includes('"panel.title": "Sources",') || !sourcesI18n.includes("panel.disabled") || !sourcesI18n.includes("panel.none") || !sourcesI18n.includes("mobile(M-036)"))
-    fail("4: sources i18n en lost the first-party mobile-face keys with their marker")
+  if (!sourcesI18n.includes('"panel.title": "Sources",') || !sourcesI18n.includes("panel.disabled") || !sourcesI18n.includes("panel.none") || !sourcesI18n.includes("mobile(gui-plugins-v2-2-7, issue #194; M-036)"))
+    fail("4: sources i18n en lost the gui-plugins-v2-2-7 mobile-face keys with their marker")
 
-  // session-ui exports (v2.2.1 same-position block).
+  // session-ui exports.
   const pkg = await read(`${SUI}package.json`)
   for (const anchor of [
     '"./sources": "./src/sources/sources.ts",',
@@ -409,46 +443,55 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   for (const key of uiKeys) {
     const at = uiEn.indexOf(key)
     if (at === -1) fail(`4: ui en.ts lost ${key}`)
-    if (at < prev) fail(`4: ui en.ts sources keys are not in v2.2.1 order at ${key}`)
+    if (at < prev) fail(`4: ui en.ts sources keys are not in order at ${key}`)
     prev = at
   }
   if (uiEn.indexOf('"ui.sessionTimeline.notice.model"') < prev)
-    fail("4: ui en.ts sources keys must sit before the sessionTimeline block (v2.2.1 position)")
+    fail("4: ui en.ts sources keys must sit before the sessionTimeline block")
 
-  // app en: two keys after the foldUserMessages row, before guiExtensions; en-only delta.
+  // app en/zh: the row.sources.* pair (gui-plugins-v2-2-7, #193 pairing convention).
   const appEn = await read(`${APP}src/runtime/i18n/en.ts`)
-  const foldDesc = appEn.indexOf('"settings.experimental.row.foldUserMessages.description"')
   const srcTitle = appEn.indexOf('"settings.experimental.row.sources.title"')
   const srcDesc = appEn.indexOf('"settings.experimental.row.sources.description"')
-  const guiExt = appEn.indexOf('"settings.guiExtensions.title"')
-  if (foldDesc < 0 || srcTitle < 0 || srcDesc < 0 || guiExt < 0 || !(foldDesc < srcTitle && srcTitle < srcDesc && srcDesc < guiExt))
-    fail("4: app en.ts sources row keys are not right after the foldUserMessages row")
-  for (const locale of ["zh", "zht", "ko", "de", "fr"]) {
-    if ((await read(`${APP}src/runtime/i18n/${locale}.ts`)).includes("settings.experimental.row.sources"))
-      fail(`4: app ${locale}.ts carries the sources row keys (en-fallback is the registered delta)`)
-    if ((await read(`${UI}src/i18n/${locale}.ts`)).includes("ui.sources."))
-      fail(`4: ui ${locale}.ts carries the sources keys (en-fallback is the registered delta)`)
-  }
+  const sidebarList = appEn.indexOf('"settings.experimental.sidebarOrganize.list"')
+  if (sidebarList < 0 || srcTitle < 0 || srcDesc < 0 || !(sidebarList < srcTitle && srcTitle < srcDesc))
+    fail("4: app en.ts sources row keys are not right after the sidebarOrganize.list row (gui-plugins-v2-2-7 position)")
+  if (!appEn.includes('"settings.experimental.row.sources.title": "Sources",'))
+    fail("4: app en.ts lost the sources row title value")
+  const appZh = await read(`${APP}src/runtime/i18n/zh.ts`)
+  if (!appZh.includes('"settings.experimental.row.sources.title": "来源",') || !appZh.includes('"settings.experimental.row.sources.description": "一轮回复检索并阅读过的页面",'))
+    fail("4: app zh.ts lost the sources row pair (gui-plugins-v2-2-7 en/zh pairing per the #193 convention)")
+  if (!appZh.includes("mobile(gui-plugins-v2-2-7, issue #194"))
+    fail("4: app zh.ts lost the sources row marker comment")
+  // The upstream en-only rows stay key-free in zh (only the first-party pair is translated).
+  if (appZh.includes("settings.experimental.row.newIcons") || appZh.includes("settings.experimental.row.foldUserMessages"))
+    fail("4: app zh.ts carries upstream en-only experimental rows (the fallback delta is upstream's; only row.sources.* is first-party)")
 
-  // Experimental row (D2 writer face).
+  // Experimental row (gui-plugins-v2-2-7 writer face): flips the registered knob via the
+  // exported accessor — the storedToggle/setStoredToggle write path does not exist at v2.2.7.
   const experimental = await read(`${APP}src/settings/experimental/experimental.tsx`)
   for (const anchor of [
+    'import { setSourcesEnabled, sourcesExperiment } from "@opencode/session-ui/sources/experiment"',
     'data-action="settings-sources"',
     'title={language.t("settings.experimental.row.sources.title")}',
     'description={language.t("settings.experimental.row.sources.description")}',
-    'storedToggle("sources.enabled", false)',
-    'setStoredToggle("sources.enabled", checked, false)',
-    "mobile(M-036)",
+    "checked={sourcesExperiment.enabled}",
+    "onChange={(checked) => setSourcesEnabled(checked)}",
+    "mobile(gui-plugins-v2-2-7, issue #194; M-036)",
   ]) {
     if (!experimental.includes(anchor)) fail(`4: experimental.tsx lost the sources row anchor ${anchor}`)
   }
+  for (const gone of ["storedToggle", "setStoredToggle", "motion-tuning"]) {
+    if (experimental.includes(gone))
+      fail(`4: experimental.tsx carries the retired write path token "${gone}" (old->new issue #194: the row flips the knob through setSourcesEnabled)`)
+  }
 
-  // App SourcesProvider wrapper (inside the MarkdownProvider).
+  // App SourcesProvider wrapper (inside the Links/MarkdownProvider composition).
   const render = await read(`${APP}src/runtime/plugin/render.tsx`)
   for (const anchor of [
     'import { SourcesProvider } from "@opencode/session-ui/context/sources"',
     'import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"',
-    "A turn's\n * sources chip opens its turn through the Sources plugin's handler.",
+    "A turn's sources chip opens its turn",
     "<SourcesProvider",
     "enabled={sourcesExperiment.enabled}",
     "icons={sourcesExperiment.icons}",
@@ -457,8 +500,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   ]) {
     if (!render.includes(anchor)) fail(`4: app render.tsx lost the SourcesProvider anchor ${anchor.slice(0, 50)}`)
   }
-  if (!(render.indexOf("<MarkdownProvider") < render.indexOf("<SourcesProvider")))
-    fail("4: SourcesProvider must wrap inside the MarkdownProvider (v2.2.1 shape)")
+  if (!(render.indexOf("<MarkdownProvider") !== -1 && render.indexOf("<MarkdownProvider") < render.indexOf("<SourcesProvider")))
+    fail("4: SourcesProvider must compose inside the Links/MarkdownProvider")
 
   // Consumption chain: timeline-row -> current-message -> message-content.
   const row = await read(`${SUI}src/timeline/session-timeline-row.tsx`)
@@ -489,12 +532,8 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
 
   const content = await read(`${SUI}src/message/message-content.tsx`)
   for (const anchor of [
-    'import { useSources } from "../context/sources"',
-    'import { SourcesChip } from "../sources/sources-chip"',
-    'import type { TurnSources } from "../sources/sources"',
     "const sourcesHost = useSources()",
     "let rendered = false",
-    "onMount(() => (rendered = true))",
     "const sources = () => (props.showCopy && sourcesHost?.enabled ? props.sources : undefined)",
     "<Show when={sources()} fallback={<Show when={props.showCopy}>{copyFooter()}</Show>}>",
     'data-slot="text-part-footer"',
@@ -502,7 +541,6 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     'icons={sourcesHost?.icons ?? "letters"}',
     "onOpen={() => props.onOpenSources?.()}",
     "function copyFooter() {",
-    '/** The finished turn\'s web searches and fetches, shown as a chip in its footer. */',
   ]) {
     if (!content.includes(anchor)) fail(`4: message-content.tsx lost the anchor ${anchor.slice(0, 60)}`)
   }
@@ -515,37 +553,30 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     fail("4: message-content.tsx lost the settings-experimental USER_MESSAGE_FOLD witness")
 }
 
-// --- 5. Gate shim (upstream storage format, default false, minimal face) ---
+// --- 5. Gate/knob (v2.2.7 real module, default false, single-registration accessor) ---
 {
   const shim = await read(`${UI}src/motion-tuning.ts`)
-  // Issue #67 (ruling 4): the real v2.2.1 module replaces the shim; the session-goal-sources-panels gate helpers
-  // are merged at the tail with their marker. Faces keep the same storage record.
   for (const anchor of [
     'const key = "opencode.motion.v2"',
     "export const motionTuning = {",
     "toggle(id: string, meta: Meta & { value: boolean }) {",
     "spring(id: string, meta: Meta & { presets: Record<MotionPreset, DurationOptions>; shipped?: MotionPreset }) {",
     "subscribe(listener: () => void) {",
-    "export function storedToggle(id: string, initial: boolean) {",
-    "export function setStoredToggle(id: string, value: boolean, initial: boolean) {",
-    "if (value === initial) delete saved[id]",
-    "localStorage.removeItem(key)",
+    "set<K extends MotionKnob>(knob: K, value: K[\"value\"]) {",
+    "list: () => [...knobs.values()],",
+    "export const motionPresets",
+    "export type MotionKnob",
+    "export function motionTimeScale()",
+    "export const motionGlobals",
     'JSON.parse(localStorage.getItem(key) ?? "{}")',
-    "mobile(M-036)",
   ]) {
     if (!shim.includes(anchor)) fail(`5: motion-tuning.ts lost the anchor ${anchor.slice(0, 60)}`)
   }
-  // Default false at the knob declaration (NEGATIVE 1 flips it) and at the settings reader.
-  const experiment = await read(`${SUI}src/sources/experiment.ts`)
-  const settingsRow = await read(`${APP}src/settings/experimental/experimental.tsx`)
-  if (!experiment.includes("value: false,")) fail("5: sources experiment knob default is not false (must not ship enabled)")
-  if (!settingsRow.includes('storedToggle("sources.enabled", false)'))
-    fail("5: the Experimental row's gate reader default is not false")
-  // Issue #67 flip: the real module carries the Knobs registry (motionPresets/MotionKnob/
-  // motionTimeScale/motionGlobals/knobs) — assert them positively; the settings.v3 store key
-  // and the /components lab route stay out (DEV-console-only consumers).
-  for (const required of ["motionPresets", "MotionKnob", "motionTimeScale", "motionGlobals"]) {
-    if (!shim.includes(required)) fail(`5: motion-tuning.ts lost the real-module face ${required} (ruling 4)`)
+  // old->new (issue #194): the v2.2.1 shim helpers are GONE at v2.2.7 — the settings row rides
+  // the knob accessor instead.
+  for (const gone of ["storedToggle", "setStoredToggle"]) {
+    if (shim.includes(gone))
+      fail(`5: motion-tuning.ts carries the retired shim helper "${gone}" (old->new issue #194: the v2.2.7 module has no stored write helpers)`)
   }
   if (shim.includes("settings.v3")) fail("5: motion-tuning.ts adopted the settings.v3 key (out of scope)")
   if (/from ["']knobs["']/.test(shim)) fail("5: motion-tuning.ts imports knobs at runtime (only -fields may)")
@@ -554,9 +585,12 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   // The knobs-consuming submodules ship and keep the console DEV-only.
   for (const f of [`${UI}src/motion-tuning-features.ts`, `${UI}src/motion-tuning-fields.ts`]) {
     const body = await read(f)
-    if (!body.includes("knobs")) fail(`5: ${f.split("/").pop()} lost the knobs import (ruling 4)`)
+    if (!body.includes("knobs")) fail(`5: ${f.split("/").pop()} lost the knobs import`)
   }
-  // The four consumed faces, verbatim call shapes in experiment.ts (v2.2.1 file).
+  // Default false at the knob declaration (NEGATIVE 1 flips it).
+  const experiment = await read(`${SUI}src/sources/experiment.ts`)
+  if (!experiment.includes("value: false,")) fail("5: sources experiment knob default is not false (must not ship enabled)")
+  // The four consumed faces, verbatim call shapes.
   for (const anchor of [
     'motionTuning.toggle("sources.enabled"',
     'motionTuning.choice("sources.icons"',
@@ -567,58 +601,77 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
     "experiment: true,",
     "export const sourcesExperiment = state",
   ]) {
-    if (!experiment.includes(anchor)) fail(`5: experiment.ts lost the shim call anchor ${anchor}`)
+    if (!experiment.includes(anchor)) fail(`5: experiment.ts lost the call anchor ${anchor}`)
   }
+  // The gui-plugins-v2-2-7 write path: the accessor closes over the single registered instance —
+  // no re-registration (Map.set would clobber it), no call-site lookup.
+  for (const anchor of [
+    "motionTuning",
+    'knob.id === "sources.enabled"',
+    "export const setSourcesEnabled = (value: boolean) => {",
+    "motionTuning.set(enabledKnob, value)",
+    "mobile(gui-plugins-v2-2-7, issue #194; M-036)",
+  ]) {
+    if (!experiment.includes(anchor)) fail(`5: experiment.ts lost the setSourcesEnabled accessor anchor ${anchor}`)
+  }
+  if ((experiment.match(/motionTuning\.toggle\("sources\.enabled"/g) ?? []).length !== 1)
+    fail("5: experiment.ts must register sources.enabled EXACTLY once (a second motionTuning.toggle would Map.set-clobber the instance — the row would show on while the experiment stays off)")
 }
 
-// --- 6. user-runs/quote domain negatives (sources slice carries none of it) ---
+// --- 6. Icons + patch registration ---
 {
-  const content = await read(`${SUI}src/message/message-content.tsx`)
-  // Same eight-token set the revised #64 probe group 5 keeps (cross-probe interlock).
-  for (const token of ["linkSegments", "UserRun", "commentCardTarget", "quoteTooltip", "springStyle", "userRunSpring", "agentLabel", "useNow"]) {
-    if (content.includes(token)) fail(`6: message-content.tsx carries the rewrite token ${token} (sources slice boundary)`)
-  }
-  const current = await read(`${SUI}src/message/current-message.tsx`)
-  if (current.includes("UserRun") || current.includes("user-runs")) fail("6: current-message.tsx adopted the UserRun import (only TurnSources crosses)")
-  if (current.includes("run?") || current.includes("run={props.run}")) fail("6: current-message.tsx adopted the run prop")
-  const row = await read(`${SUI}src/timeline/session-timeline-row.tsx`)
-  if (row.includes("run={joined()}")) fail("6: session-timeline-row.tsx adopted the user-runs run={joined()} boundary")
-  if (row.includes("user-runs")) fail("6: session-timeline-row.tsx imports from the user-runs domain")
-
   const catalog = await read(`${UI}src/icons/catalog.ts`)
-  // Issue #67: the EIGHT KEPT rejections (outline-steer left at #66; the six gui-plugins-domain
-  // icons — outline-expand/outline-code-brackets/outline-quote/comment/file-document/
-  // outline-console — left with the gui-plugins-api-migration adoption; file-tree was never on the list, D5).
-  const rejected = [
-    "outline-magnifier-minus",
-    "outline-magnifier-plus",
-    "outline-wave-audio",
-    "outline-text",
-    "outline-photo",
-    "outline-audio",
-    "outline-video",
-    "outline-brain",
-  ]
-  for (const name of rejected) {
-    if (new RegExp(`^  "?${name}"?: \\{`, "m").test(catalog)) fail(`6: catalog.ts adopted the rejected v2.2.1 icon "${name}"`)
-  }
+  if (!catalog.includes("M8 3.86328V12.1391C10.2854 12.1391 12.1379 10.2863 12.1379 8.00121C12.1379 5.71608 10.2854 3.86328 8 3.86328Z"))
+    fail("6: outline-steer body drifted from the v2.2.1 artwork (pin-native at v2.2.7)")
+  if (catalog.indexOf('"outline-steer"') < catalog.indexOf("  waveform: {"))
+    fail("6: outline-steer must sit after waveform (catalog position)")
 
-  // The new session-ui directories stay clean of the quote/comment rewrite domain.
-  const newFiles = [
-    `${SUI}src/context/sources.tsx`,
-    `${SUI}src/sources/sources.ts`,
-    `${SUI}src/sources/experiment.ts`,
-    `${SUI}src/sources/sources-panel.tsx`,
-    `${SUI}src/sources/sources-chip.tsx`,
-    `${SUI}src/sources/site-icon.tsx`,
-    `${SUI}src/sources/sources-title.tsx`,
-  ]
-  for (const file of newFiles) {
-    const body = await read(file)
-    for (const token of ["user-runs", "UserRun", "quoteTooltip", "commentCardTarget", "linkSegments"]) {
-      if (body.includes(token)) fail(`6: ${file.replace("vendor/upstream/packages/session-ui/", "")} mentions ${token}`)
-    }
+  const manifest = await read(`${PATCHES}manifest.json`)
+  // The absorbed predecessor stays registered with its historical payload (file untouched).
+  if (!manifest.includes('"id": "session-goal-sources-panels"') || !manifest.includes("patches/mobile/session-goal-sources-panels.patch"))
+    fail("6: patches/mobile/manifest.json does not register session-goal-sources-panels")
+  const registry = JSON.parse(manifest) as { patches?: Array<{ id?: string; status?: string; sha256?: string }> }
+  const absorbedRow = (registry.patches ?? []).find((p) => p.id === "session-goal-sources-panels")
+  if (!absorbedRow || absorbedRow.status !== "absorbed")
+    fail("6: session-goal-sources-panels did not flip to absorbed (old->new issue #194: goal half pin-native, narrow-screen faces re-landed by gui-plugins-v2-2-7)")
+  // The new carrier in BOTH manifests (mobilePatches position 10, dependsOn settings-v2-2-7).
+  if (!manifest.includes('"id": "gui-plugins-v2-2-7"') || !manifest.includes("patches/mobile/gui-plugins-v2-2-7.patch"))
+    fail("6: patches/mobile/manifest.json does not register gui-plugins-v2-2-7")
+  const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
+  const order = JSON.parse(await read("vendor/upstream/vendor-manifest.json"))["mobilePatches"] as string[]
+  if (!vendorManifest.includes("patches/mobile/gui-plugins-v2-2-7.patch"))
+    fail("6: vendor-manifest.json does not register gui-plugins-v2-2-7 (verify-closure reads only this list)")
+  if (order[9] !== "patches/mobile/gui-plugins-v2-2-7.patch")
+    fail("6: gui-plugins-v2-2-7 is not mobilePatches position 10 (dependsOn settings-v2-2-7 at position 9)")
+  const patch = await read(`${PATCHES}gui-plugins-v2-2-7.patch`)
+  const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
+  if (touched.length !== 11) fail(`6: gui-plugins-v2-2-7 patch face drifted: ${touched.length} files (expected exactly 11)`)
+  for (const required of [
+    "packages/gui-plugins/src/btw/renderer.tsx",
+    "packages/gui-plugins/src/btw/model.ts",
+    "packages/gui-plugins/src/btw/i18n/en.ts",
+    "packages/gui-plugins/src/sources/renderer.tsx",
+    "packages/gui-plugins/src/sources/panel.tsx",
+    "packages/gui-plugins/src/sources/i18n/en.ts",
+    "packages/gui-plugins/src/details/details.css",
+    "packages/app/src/settings/experimental/experimental.tsx",
+    "packages/session-ui/src/sources/experiment.ts",
+    "packages/app/src/runtime/i18n/en.ts",
+    "packages/app/src/runtime/i18n/zh.ts",
+  ]) {
+    if (!touched.includes(required)) fail(`6: gui-plugins-v2-2-7 patch lost the target ${required}`)
   }
+  // The retired 22-file face claim: session-goal-sources-panels' own patch file must stay
+  // untouched on disk (its historical identity, not replayed).
+  const oldPatch = await read(`${PATCHES}session-goal-sources-panels.patch`)
+  if (!oldPatch.includes("packages/session-ui/src/sources/sources.ts"))
+    fail("6: the absorbed session-goal-sources-panels payload lost its historical face (the file must stay untouched on disk)")
+
+  console.log(
+    "verify-goal-sources: dist marker NOT staged for the goal/sources family — the patches carry no credential/security " +
+      "semantics; the gate stores a non-sensitive device-local UI preference (an experiment gate) in " +
+      "the upstream opencode.motion.v2 record, so the connection-password-memory-only marker precedent does not apply (deliberate note).",
+  )
 }
 
 // --- 7. Motion (verbatim zero-import modules + reduced-motion face) ---
@@ -626,7 +679,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   const spring = await read(`${UI}src/motion/spring.ts`)
   const loop = await read(`${UI}src/motion/loop.ts`)
   for (const [name, body] of [["spring.ts", spring], ["loop.ts", loop]] as const) {
-    if (/^import /m.test(body)) fail(`7: ${name} must be a zero-import module (v2.2.1 verbatim)`)
+    if (/^import /m.test(body)) fail(`7: ${name} must be a zero-import module (verbatim)`)
   }
   for (const anchor of ["export class Spring {", "static fromDuration(", "step(dt: number)", "get resting()"]) {
     if (!spring.includes(anchor)) fail(`7: spring.ts lost the anchor ${anchor}`)
@@ -634,12 +687,14 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   for (const anchor of ["export function createFrameLoop(", "export const frameLoop = createFrameLoop()", "requestAnimationFrame(callback)"]) {
     if (!loop.includes(anchor)) fail(`7: loop.ts lost the anchor ${anchor}`)
   }
+  // old->new (issue #194): the motion entry is the FULL upstream re-export list now — the
+  // v2.2.1-era M-035/M-036 provenance comment retired with the absorption.
   const index = await read(`${UI}src/motion/index.ts`)
-  for (const anchor of ['export * from "./reduced"', 'export * from "./spring"', 'export * from "./loop"']) {
+  for (const anchor of ['export * from "./spring"', 'export * from "./loop"', 'export * from "./velocity"', 'export * from "./reduced"', 'export * from "./waapi"', 'export * from "./slider"']) {
     if (!index.includes(anchor)) fail(`7: motion/index.ts lost ${anchor}`)
   }
-  if (!index.includes("M-035") || !index.includes("mobile(M-036)"))
-    fail("7: motion/index.ts lost the appearance-motion-zoom ownership / session-goal-sources-panels rebase provenance comment")
+  if (index.includes("mobile(M-036)") || index.includes("M-035"))
+    fail("7: motion/index.ts still carries the retired M-035/M-036 provenance comment (absorbed upstream)")
 
   const css = await read(`${SUI}src/sources/sources.css`)
   const reduceBlocks = [...css.matchAll(/:root\[data-motion="reduce"\]/g)].length
@@ -647,7 +702,7 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   if (css.includes("prefers-reduced-motion") || css.includes("@media"))
     fail("7: sources.css must use the data-motion attribute face only (appearance-motion-zoom mechanism)")
 
-  // Among the new motion surface, only reduced.ts mentions the media query (its constant).
+  // Within the sources motion surface, only reduced.ts mentions the media query.
   const motionFiles = [
     `${UI}src/motion/index.ts`,
     `${UI}src/motion/reduced.ts`,
@@ -662,66 +717,17 @@ const EXPECTED_MAIN_LAZY = ["debug", "browser", "pairing", "updater", "ssh", "ws
   for (const file of motionFiles) {
     if ((await read(file)).includes("prefers-reduced-motion")) mentioning.push(file.split("/").slice(-2).join("/"))
   }
-  setEq(mentioning, ["motion/reduced.ts"], "7: prefers-reduced-motion mentions within the new motion surface")
-}
-
-// --- 8. Icons + patch registration ---
-{
-  const catalog = await read(`${UI}src/icons/catalog.ts`)
-  const steer = catalog.match(/  "outline-steer": \{\n    viewBox: "0 0 16 16",\n    body: `<path d="[^"]+"[^<]*<path d="[^"]+" fill="currentColor"\/>`,\n  \},/)
-  if (!steer) fail("8: catalog.ts lost the outline-steer entry (the v2.2.1 verbatim artwork)")
-  if (!catalog.includes("M8 3.86328V12.1391C10.2854 12.1391 12.1379 10.2863 12.1379 8.00121C12.1379 5.71608 10.2854 3.86328 8 3.86328Z"))
-    fail("8: outline-steer body drifted from the v2.2.1 artwork")
-  if (catalog.indexOf('"outline-steer"') < catalog.indexOf("  waveform: {"))
-    fail("8: outline-steer must sit after waveform (v2.2.1 catalog position)")
-
-  const manifest = await read(`${PATCHES}manifest.json`)
-  if (!manifest.includes('"id": "session-goal-sources-panels"') || !manifest.includes("patches/mobile/session-goal-sources-panels.patch"))
-    fail("8: patches/mobile/manifest.json does not register session-goal-sources-panels")
-  const vendorManifest = await read("vendor/upstream/vendor-manifest.json")
-  if (!vendorManifest.includes("patches/mobile/session-goal-sources-panels.patch"))
-    fail("8: vendor-manifest.json does not register session-goal-sources-panels (verify-closure reads only this list)")
-  const patch = await read(`${PATCHES}session-goal-sources-panels.patch`)
-  const touched = [...patch.matchAll(/^diff --git a\/(\S+) b\//gm)].map((m) => m[1])
-  // Issue #67 (session-goal-sources-panels'): the gui-extensions face (9 files), the render.tsx SourcesProvider
-  // hunk and the motion-tuning shim returned to history/gui-plugins-api-migration — the patch face is 22 files.
-  if (touched.length !== 22) fail(`8: session-goal-sources-panels patch face drifted: ${touched.length} files (expected exactly 22 post-session-goal-sources-panels')`)
-  for (const required of [
-    "packages/schema/src/goal.ts",
-    "packages/session-ui/src/sources/sources.test.ts",
-    "packages/session-ui/src/context/sources.tsx",
-    "packages/app/src/settings/experimental/experimental.tsx",
-    "packages/ui/src/motion/spring.ts",
-    "packages/ui/src/motion/loop.ts",
-    "packages/ui/src/icons/catalog.ts",
-  ]) {
-    if (!touched.includes(required)) fail(`8: session-goal-sources-panels patch lost the target ${required}`)
-  }
-  for (const gone of ["packages/gui-extensions/src/sources/renderer.tsx", "packages/app/src/runtime/extension/render.tsx", "packages/ui/src/motion-tuning.ts"]) {
-    if (touched.includes(gone)) fail(`8: session-goal-sources-panels still carries the re-tabled target ${gone}`)
-  }
-  // gui-plugins-api-migration is registered in both manifests (the #67 migration patch).
-  if (!manifest.includes('"id": "gui-plugins-api-migration"') || !manifest.includes("patches/mobile/gui-plugins-api-migration.patch"))
-    fail("8: patches/mobile/manifest.json does not register gui-plugins-api-migration")
-  if (!vendorManifest.includes("patches/mobile/gui-plugins-api-migration.patch"))
-    fail("8: vendor-manifest.json does not register gui-plugins-api-migration")
-
-  console.log(
-    "verify-goal-sources: dist marker NOT staged for session-goal-sources-panels — the patch carries no credential/security " +
-      "semantics; the gate shim stores a non-sensitive device-local UI preference (an experiment gate) in " +
-      "the upstream opencode.motion.v2 record, so the connection-password-memory-only marker precedent does not apply (deliberate note).",
-  )
+  setEq(mentioning, ["motion/reduced.ts"], "7: prefers-reduced-motion mentions within the sources motion surface")
 }
 
 console.log(
   "verify-goal-sources: PASS (" +
-    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal, v2.2.1 order), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,70,80} no duplicates (sources 60 menu, goal 70 menu, btw 80 menu by issue #70/session-btw-narrow-entry — face owned there, set equality locked here); " +
-    "2: #67 boundary — four new-host tokens zero-hit across the four vendored domains + the two new builtin directories double-checked; " +
-    "3: goal — schema/opencode.goal verbatim incl. the three toStandardSchemaV1 wrappers (implementation note: the closure's effect@4.0.1 exports the API and PortableDefinition requires it — the plan's strip step proven unnecessary, verbatim form locked), data layer store/key/createKeyed/heard/error-swallow verbatim, status three-state map verbatim, session.command pause/resume/clear + error toast verbatim, Panel re-shell (pinned/transient/side + mobile 70 menu, D1 marker), no server plugin vendored, no session.metadata.updated adoption; " +
-    "4: sources — 0f379f0a33 four files verbatim anchors (uses/LinkHandler/transient/tab.count/uses.browser/openExternal), registered narrow-screen branch + gate-off honest empty states, session-ui exports 4, ui en 9 keys in v2.2.1 position, app en 2 keys en-only, Experimental row (storedToggle/setStoredToggle, default false), SourcesProvider inside MarkdownProvider, three hook increments, settings-experimental fold witnesses intact; " +
-    "5: gate shim — opencode.motion.v2 record format, four consumed faces only, zero runtime imports, no Knobs console/settings.v3/auto-enable face, knob default false (NEGATIVE 1 target); " +
-    "6: user-runs/quote negatives — eight-token message-content scan (= revised #64 kept set), current-message UserRun/run? boundaries, timeline-row run={joined()} boundary, 14 kept catalog rejections, new session-ui directories clean; " +
-    "7: motion — spring/loop zero-import verbatim, motion entry three exports with appearance-motion-zoom ownership note, sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the new surface exactly {motion/reduced.ts}; " +
-    "8: outline-steer verbatim artwork after waveform, session-goal-sources-panels in BOTH manifests with the exact 22-file patch face (post-session-goal-sources-panels' re-table), gui-plugins-api-migration in BOTH manifests, dist-marker absence recorded deliberately; " +
+    "1: registration — renderer.ts compose exactly 15 entries (microsoft-office -> sources -> goal), main.ts same 15-id table with the six lazy main entries unchanged, mobile face order set exactly {10,20,30,40,50,60,80} no duplicates (review 10 tab / file 20 / terminal 30 / context 40 menu / details 50 drawer pin-native; sources 60 + btw 80 re-landed by gui-plugins-v2-2-7; NO 70 — the v2.2.7 goal is the native ComposerPill, old->new issue #194 from {10..80}); " +
+    "2: host boundary — old-host tokens {gui-extensions specifier, Extension.define, useExtension} zero-hit across the four vendored domains; ComposerPill/plugin-pills flipped to positive anchors (the pin-native goal face); " +
+    "3: goal — schema/opencode.goal with the three toStandardSchemaV1 wrappers (upstream-native; PortableDefinition), the machine form (createGoalState/transitionGoal/selectGoal/selectGoalBusy + GOAL_* timeouts, createKeyed keyed subscription, guarded fetch/subscribe/command, three-state status map, common.requestFailed toast, pill menu pause/resume/clear), no Panel/mobile face/none-key (retired negatives), no server plugin vendored, session.metadata.updated upstream-native (old->new issue #194: the adoption negative retired); " +
+    "4: sources — pin body anchors (Plugin.define two-liner, LinkHandler, transient gate-off list, onIdle preload, SourcesTitle/count), gui-plugins-v2-2-7 faces (mobile 60 menu globe, panel.disabled fallback, panel-id turn dispatch most-recent-turn, panel.none, panel.* i18n with the marker), session-ui exports 4, ui en 9 keys in position, app en/zh row.sources.* pair (#193 convention) with upstream rows zh-key-free, Experimental row via setSourcesEnabled (storedToggle path retired), SourcesProvider inside Links/MarkdownProvider, three hook increments, fold witnesses intact; " +
+    "5: gate/knob — the v2.2.7 Knobs registry module (opencode.motion.v2, set/list/actions, motionPresets/MotionKnob/motionTimeScale/motionGlobals, zero runtime imports; storedToggle/setStoredToggle retired), knob default false (NEGATIVE 1 target), the four consumed faces verbatim + the gui-plugins-v2-2-7 setSourcesEnabled accessor (single-registration capture, no call-site lookup), sources.enabled registered exactly once; " +
+    "6: icons + registration — outline-steer verbatim artwork after waveform, session-goal-sources-panels absorbed (payload on disk untouched), gui-plugins-v2-2-7 in BOTH manifests at mobilePatches position 10 with the exact 11-file face, dist-marker absence recorded deliberately; " +
+    "7: motion — spring/loop zero-import verbatim, the FULL upstream motion entry (six re-exports; M-035/M-036 provenance comment retired), sources.css three data-motion blocks and zero @media, prefers-reduced-motion mentions within the surface exactly {motion/reduced.ts}; " +
     "STATIC check - tab reachability, gate restart persistence, chip/panel presentation, goal command round-trips, toast rendering, empty states and TalkBack are device QA items registered in docs/build-and-verify.md)",
 )
