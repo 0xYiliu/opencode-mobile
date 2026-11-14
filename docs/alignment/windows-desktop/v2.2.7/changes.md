@@ -651,3 +651,51 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **DENY（ai fixes）** settings 域与 ai 包相关修复 pin-carried，不重实现（沿 #192 口径）。
 - **DENY（routing）** `settings-notification-permission`/`appearance-motion-zoom`/`gui-plugins-api-migration`/`session-goal-sources-panels`/`settings-about-version` 五条 stay-deferred 本轮零触碰（routing 表）。
 - **EXCLUDED** 设备面：W1/W2/W4 的真实触摸走查（add-menu 三项、SSH row-menu connect/retry/remove/confirmHostKey、host-manager mount 导航）归 G30/G35 设备门禁，本轮 NOT RUN；不声称任何设备/真实服务验证。
+
+## Issue #194：gui-plugins crosswalk and absorption audit
+
+本节是 #194 的固定上游审计（gui-plugins 窄屏/管理面的 v2.2.7 吸收核对 + 幸存移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#193 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--194-gui-plugins`，分支 `feat/194-gui-plugins`，base `418918e`（#193 链尾）。本轮 landing = **consolidated active patch `gui-plugins-v2-2-7`（11 targets：D1 btw 命令门 + mobile face 80、D2/D3 panel-id dispatch + btw/model.ts saved accessor（第 10 target）、S1 sources mobile face 60/gate-off fallback/turn dispatch/panel.* i18n、S2 Experimental Sources 行（setSourcesEnabled knob-accessor 写路径）+ en/zh row.sources.*、F6 details flyout open-state 扁平化）+ 五探针修订（verify-gui-plugins 组 2/3/4/5/6/8/9 重锚定、verify-goal-sources 全量重写、verify-browser 逐组重锚定、verify-debug-bar 全组重锚定、verify-experimental-settings 组 1/8 增补）**；registry **88 registered / 10 active / 58 absorbed / 20 deferred**（4 rows 翻转 absorbed：rows 36/37/38/66 + row 88 注册 active）。
+
+### 审计数字（可复现口径）
+
+- **F1（计划勘误后口径）**：gui-plugins compose **15 builtins 不变**（`export const builtins = compose({` 对象映射在两 pin 同形同序，`microsoft-office → sources → goal` 尾序不变）；`main.ts` 同表 15 import、**六个 lazy mainEntry 不变**（`{debug,browser,pairing,updater,ssh,wsl}`）；`review/contract.ts` 为 **v2.2.7 新增文件**（v2.2.1 无此文件；`:31 Contract.define<ReviewDetails, "review.details">` —— per-plugin contract 集合由 v2.2.1-pin 的空集变为 `{review}`，verify-gui-plugins 组 2 重锚定在册）。
+- **计划 planning-slice 数字登记**：计划文本记录 "unique DIFF 82 on base"（planning 阶段 scoped 切片口径）；本轮以**可复现全集口径**复核——四条 absorbed rows（36/37/38/66）的 targets 并集恰 **201 个唯一文件**，逐文件对两 pin 分类为 **75 SAME / 92 DIFF / 33 new（v2.2.1 无）/ 1 deleted（v2.2.7 无）**（`git rev-parse <rev>:<path>` 逐 blob 对照；92 DIFF 的 carrier 面即本轮处置表 + pin 原生面）。两口径并存登记，引用时以本节定义为准。
+- **domain diff**：`packages/gui-plugins/src` v2.2.1→v2.2.7 diff 恰 **484 文件**（上游 machine 化重组：btw/goal/debug/memory/focus/expand/pane/address/diagnostics/main 等机器族 + browser 面重构）。
+
+### commit crosswalk 表（关键上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `7f40c505f1`（#61997） | fix(app): drive knobs panel, goal pill and catalog sync through state machines | **absorbed**（vendor pin） | 机器族原生：btw machine（machine.ts + btwTabView/btwChatView）、goal machine（createGoalState/transitionGoal/selectGoal/selectGoalBusy）、debug memory-machine（debugBarView）+ heap/focus machine、sources-expand-machine（graduated）——verify-goal-sources 组 3/5 与 verify-debug-bar 组 1/2 重锚定锁定 |
+| `4785478249`（#59468） | fix(app): tidy the Extensions submenus | **absorbed**（vendor pin；#194 携带 WebView 兼容重 derive） | details flyout 规则上游重写（v2.2.7 无 transition 块、嵌套祖先选择器）——extensions-flyout-webview（row 66）的历史扁平化面由 `gui-plugins-v2-2-7` F6 在新规则上重 derive；`&:dir(rtl)`/`[data-motion]` 嵌套保持 = 在册渐进损失 |
+| `fef232392d`（#60462） | fix(app,gui-plugins): port renderer UUID generation to HTTP-safe uuid() | **absorbed**（vendor pin，6 处 renderer 域站点） | btw/model、file/renderer、ssh/dialog、terminal/panel、browser/comment、browser/connection 六处 `crypto.randomUUID` → HTTP-safe `uuid()`；**browser 域残留 12 处**（chromium/diagnostics/files/pane/profiling + tests，7 文件）为 secure-context-gated API——SSH plain-HTTP 隧道上不可用，**owner #199/browser**（平台前置在册，不改） |
+| `78f8dffd48`（#60464） | fix(app): render inline content for built-in skills | **absorbed**（vendor pin） | file/browser 内联渲染面原生（#194 零触碰） |
+| machine families / browser family（聚合行） | btw/goal/debug/memory/focus/expand/pane/address/diagnostics/dialog/main 等 *-machine.ts(+test) 家族与 browser model-machine/main-machine 族 | **absorbed**（vendor pin） | 上游全面 machine 化；#194 的重 derive 全部按机器形落位（D2/D3 经 `saved` accessor、verify-debug-bar 按 debugBarView/barView().open/motion 面） |
+
+### per-patch verdict 表（4 flips + row 88 注册）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 36 | `session-goal-sources-panels` | deferred→absorbed | **split**：goal 半 + session-ui sources 子系统 + timeline 钩子 + motion spring/loop + outline-steer + ui.sources.* i18n + SourcesProvider = pin 原生（goal 即原生 ComposerPill，order 70 被 superseded）；幸存窄屏 delta 由 row 88 重 derive（处置全文见 patch-dispositions.md row 36） |
+| 37 | `gui-plugins-api-migration` | deferred→absorbed | superseded-by-pin：v2.2.7 gui-plugins/plugin 包即迁移后树（remote.test.ts byte-same）；MCP face → #193 probe；sources/btw 窄屏面 → row 88 |
+| 38 | `session-btw-narrow-entry` | deferred→absorbed | D1–D4 由 row 88 按 v2.2.7 machine 形重 derive；v2.2.1 sha1 三文件守恒主张退役（model.ts 入 patch face；panel/index 保持 pin 逐字锁） |
+| 66 | `extensions-flyout-webview` | deferred→absorbed | open-state 扁平化由 row 88 在 v2.2.7 规则上重 derive（3-property 形）；RTL/data-motion 嵌套渐进损失在册 |
+| 88 | `gui-plugins-v2-2-7` | 新注册 active | 11 targets；`dependsOn: ["settings-v2-2-7"]`（mobilePatches 第 10 项）；SHA-256=`d5ce7ea207428c1c58f87f316b1da2ee9724686644c816ba5ea5f1e8e01a3fe8` |
+
+### routing notes 履行与 row 1/54 注记
+
+- rows 36/37/66 的 #193 routing note（去向 #194）兑现为本轮 absorbed 翻转；row 37 的 #192 note 同轮履行完毕。
+- row 1 `gui-plugins-native-test-deps` stays deferred：routing note → **#199/browser**（devDependencies 移除零运行时影响）。
+- row 54 `webview-url-polyfill` stays deferred：**#194 audit = context-stale**——v2.2.7 polyfills.ts 仅 Map.groupBy/Promise.withResolvers/Promise.try，**不提供 URL.canParse**（C7 口径）；W19 前置保持开放，owner #199/browser 行，disposition deferred/not-fixed。
+
+### platform-limitation record（#199/browser owner 行 + 设备门）
+
+- **AbortSignal.any 受限面 1→20**：v2.2.1 pin 域内 1 处 → v2.2.7 gui-plugins/src 恰 **20 处**（btw/terminal/wsl/pairing/file/debug/review 等机器与 renderer）；Android WebView Chrome/114 缺 `AbortSignal.any`（#148 在册环境缺陷，`plugin/src/promise/adapter.ts:110` 同源）——**goal pill 三操作 BLOCKED 不变**（W22 行在册），解除条件=WebView ≥116 或 polyfill 决策。
+- **URL.canParse 7 处**：browser 域 4 文件（panel/renderer/policy/address）——同属 #199/browser 前置（row 54 audit）。
+- **browser 域 crypto.randomUUID 12 处**（7 文件，chromium/diagnostics/files/pane/profiling + tests）：secure-context-gated，SSH plain-HTTP 隧道不可用；`fef232392d` 吸收记录只覆盖 6 处已迁移 renderer 站点，**owner #199/browser**（W19 行在册，recorded not fixed）。
+- **goal-pill BLOCKED 不变**：见 S41/W22 行 #148 记录；本轮未声称任何设备/真实服务验证。
+
+### deny audit
+
+- **DENY（hard constraints 全域零触碰）**：updater/wsl gui-plugins 文件、mainEntry 注册、bridge.manager、Electron menubar/IPC 本轮零改动（→ #198 owner）；app runtime 无 `@opencode/plugin|gui-plugins` 新 import（agent-capabilities 组 3 specifier map 恒同 rc=0）；android/Kotlin 零改动（Gradle 42 tasks 与 JVM 10 suites/47 tests 恒同）；四条历史 patch 文件磁盘零触碰；#165 不在本轮范围（未修复，零声称）。
+- **EXCLUDED** 设备面：btw 窄屏入口/sources 抽屉入口/Settings 行开关的真实触摸走查归 G25/G28/G35 设备门禁，本轮 NOT RUN；不声称任何设备验证。
