@@ -1,4 +1,4 @@
-import { createMemo, lazy, onCleanup, Suspense } from "solid-js"
+import { createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { Icon } from "@opencode/ui/icon"
 import { Command, createKeyed, type PanelTab, type Plugin } from "@opencode/plugin/gui"
 import { BuiltinPanel, onIdle } from "@opencode/plugin/gui/builtin"
@@ -9,7 +9,6 @@ import { createBtw } from "./model"
 const setup: Plugin.Setup<typeof Btw> = (ctx) => {
   const SessionBtwPanel = lazy(() => import("./panel"))
   onCleanup(onIdle(() => void SessionBtwPanel.preload()))
-  const layout = ctx.layout
   const sessions = ctx.sessions
   const btw = createBtw(ctx)
   // Changes when a session mounts or unmounts, not on every switch between sessions.
@@ -46,8 +45,10 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
       section: "session",
       slash: { name: "btw", arguments: true },
       hidden: true,
-      // Offered only while a session is open in a desktop-width window.
-      enabled: !layout.narrow() && mounted(),
+      // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): offered while a session is open; on narrow screens the
+      // answer shows in the /btw mobile view. Desktop width keeps the upstream behavior (at >=768px
+      // !layout.narrow() is constant, so the old desktop-width gate already reduced to mounted()).
+      enabled: mounted(),
       run: (input) => btw.ask(input),
     }),
   )
@@ -58,6 +59,16 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
     transient: true,
     // Layouts saved before plugins store the tab as "btw"; as a panel key it leaves like any unlisted transient tab.
     legacy: { btw: "main" },
+    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): the narrow-screen More-drawer entry, after sources 60 —
+    // the drawer's last entry (the pin-native faces are review 10 … details 50; no existing face renumbered).
+    mobile: {
+      get title() {
+        return ctx.t("mobile.title")
+      },
+      order: 80,
+      kind: "menu",
+      icon: "comment",
+    },
     // One tab per question. A restored tab stays listed but hidden until the session's store loads so restore keeps
     // it; afterwards a tab without a stored question leaves the strip. A question asked here shows at once.
     list: (input) => {
@@ -95,11 +106,32 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
         return [tab]
       })
     },
-    render: (props) => (
-      <Suspense>
-        <SessionBtwPanel btw={btw} session={props.session} id={props.tab.id} />
-      </Suspense>
-    ),
+    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D2/D3): the narrow-screen mobile view receives the panel's id
+    // ("main"; chat ids are UUIDs, so the dispatch cannot collide) instead of a chat id — it shows the most recent
+    // stored chat once the session's store is ready (an empty container before that, the tabs' hidden-until-ready
+    // semantics), else the honest empty state. The desktop strip keeps one chat per tab id, rendered exactly as
+    // before. The mobile view has no tab-close channel, so chats asked on narrow screens reappear as strip tabs
+    // when the viewport widens (the close path lives there); the store itself keeps the upstream "kept until its
+    // tab closes" semantics.
+    render: (props) => {
+      const mobile = () => props.tab.id === "main"
+      const chatId = () => (mobile() ? btw.saved(props.session)?.at(-1)?.id : props.tab.id)
+
+      return (
+        <Suspense>
+          <Show
+            when={chatId()}
+            fallback={
+              <Show when={mobile() && btw.saved(props.session) !== undefined}>
+                <div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("mobile.none")}</div>
+              </Show>
+            }
+          >
+            {(id) => <SessionBtwPanel btw={btw} session={props.session} id={id()} />}
+          </Show>
+        </Suspense>
+      )
+    },
     close: (input) => {
       btw.remove(input.session, input.tab.id)
       tabs.get(input.session.key)?.delete(input.tab.id)

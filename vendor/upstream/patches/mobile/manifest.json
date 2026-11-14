@@ -14,7 +14,7 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058",
       "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed; issue #194 routing: the independent re-base belongs to the #199/browser follow-up unit (the same round that owns the browser-domain crypto.randomUUID secure-context prerequisite); the devDependencies removal has no gui-plugins runtime effect"
     },
     {
       "id": "connection-password-memory-only",
@@ -638,8 +638,8 @@
       "verification": "scripts/verify-goal-sources.ts probe (registration set/order, mobile face order set {10..70} no-duplicates, four-token four-domain #67 boundary negatives, goal contract verbatim anchors + PortableDefinition form, sources 0f379 verbatim anchors, shim storage-format + default-false assertions, i18n pairing, user-runs/quote domain negatives, settings-experimental fold anchors intact, new-surface prefers-reduced-motion mentions set-equality {motion/reduced.ts}, three negative injections), verify-gui-extensions.ts (revised in the same commit: 15 builtins, web set 10, doc arithmetic, dist baseline), verify-experimental-settings.ts (revised in the same commit: group 5 negative token table 11->8, group 6 rejected-icon list 15->14), upstream targeted subsets (settings 3 files 41 tests; session-ui registered 8 files + new sources.test.ts = 151 tests; ui i18n.test.ts), V3 closure round-trip (git apply --check to pristine pin + gui-plugins-native-test-deps..appearance-motion-zoom), bun run build:web + copy:web-dist with dist marker retrieval, first-party bun test --conditions=browser packages/mobile-hosts (423/2885 unchanged); rebase round (dev 0b79b06) re-verified: verify-appearance-settings whitelist interlock green, patch regenerated against pin + gui-plugins-native-test-deps..appearance-motion-zoom.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: goal/sources unit.",
       "sha256": "9f035d5fa2587d098baafcbd9268ce788cf769f623e669b733cf06c9083606f8",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed Issue #187 routing: not touched this round; owner: goal/sources unit."
+      "status": "absorbed",
+      "disposition": "absorbed by gui-plugins-v2-2-7 (issue #194) + the v2.2.7 pin, split: the goal half (schema/goal.ts with its three Schema.toStandardSchemaV1 wrappers, the renderer data layer, status map, command path, goal i18n) is pin-native at v2.2.7 — goal ships as the native ComposerPill with a goal machine, so the old Panel re-shell and its mobile face order 70 are superseded upstream (the v2.2.7 mobile order set has no 70); the session-ui sources subsystem (incl. the graduated sources-expand-machine), the timeline turnSources hooks, the motion spring/loop modules, outline-steer, ui.sources.* i18n and the SourcesProvider wrapper are pin-native; the surviving narrow-screen deltas re-derive in gui-plugins-v2-2-7 (sources mobile face 60 + gate-off fallback, panel-id turn dispatch, panel.* i18n, the Settings -> Experimental Sources row with the knob-accessor write path, en/zh row.sources.*); the storedToggle/setStoredToggle shim helpers and the 22-file face claim are v2.2.1-era and retired"
     },
     {
       "id": "gui-plugins-api-migration",
@@ -830,8 +830,8 @@
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "V3 closure round-trip (git apply --check over the whole chain to pristine pin + packageSources extraction), zero-hit net gates (@/runtime/extension|@opencode/gui-extensions and Extension* tokens in vendor app/src), full import-closure resolver (2883 @opencode/* + @/ imports, 0 unresolved), bun run build:web (compile gate; @pierre/trees beta.4 resolver API presence recorded), dist marker retrieval (opencode.goal / sources.enabled / data-plugin), targeted upstream subsets, sixteen probes rc=0 with negative injections, first-party bun test, gradle assembleDebug APK SHA. Issue #90: the amended patch round-trips the full-chain git apply --check (V3 closure, tree byte-identical incl. the new test file); the rendered regression fails on the reverted-consumer tree with the same TypeError (undefined is not an object, evaluating 'surface.extensions.items') and passes on the fixed tree under a browser-conditioned bun test with an in-file hyperscript JSX transform (the packages/ui solid-jsx preload is inert under Bun 1.4.2, see the mobile-hosts rendered-test precedent); the settings three-file subset stays 41/0/98. #162/#163 beta.6 amendment: beta.4 resolver API presence recorded in the earlier verification line stays as history; the revised hunks now carry the beta.6 form and verify:closure replays the chain green (78 registered, DANGLING=0, 2026-11-08).",
       "sha256": "e1e3d85f0ef729b98d20ddee4a7b29c324973b613c39c693988127db00dad0d4",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed Issue #187 routing: not touched this round; owner: gui-plugins/extensions unit.",
+      "status": "absorbed",
+      "disposition": "absorbed by the v2.2.7 pin (superseded-by-pin: the v2.2.7 gui-plugins/plugin packages ARE the migrated tree; providers/connect/remote.test.ts byte-same at the pin); the MCP face routes to settings-v2-2-7's #193 probe record; the sources/btw narrow-screen faces its amend rounds carried re-derive in gui-plugins-v2-2-7; historical payload and identity retained, not independently replayed",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: gui-plugins/extensions unit."
     },
     {
@@ -847,8 +847,8 @@
       "verification": "V3 closure round-trip (git apply --check over the whole 37-patch chain to pristine pin + packageSources, tree byte-identical); scripts/verify-gui-plugins.ts (revised same commit: gate comment + enabled: mounted() anchors, mobile face order 80/menu anchor, D2 mobile render branch anchors - panel-id dispatch + mobile.none + saved.ready() gate - and the v2.2.1 blob conservation of model.ts/panel.tsx/index.ts); scripts/verify-goal-sources.ts (revised same commit: mobile face order set {10..80} no duplicates); verify-commands-menus.ts + verify-attachments-artifacts.ts (37-patch sentinels); bun run build:web + copy-web-dist with dist markers (mobile.none copy) and refreshed dist baseline; vendored tsc -b (gui-plugins + app); negative injections (delete the mobile face, restore the desktop-width gate, delete the D2 branch, drift a trio blob, duplicate goal order 80) all FAIL-then-restore; device QA (slash reachability, drawer entry, TalkBack, desktop-width unchanged) registered in docs/build-and-verify.md and pending.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "2298709d78937d32c255d23588e3aef88003ef9b3c215dccfbbfa1f348c56f35",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by gui-plugins-v2-2-7 (issue #194): D1-D4 re-based on the v2.2.7 btw machine form — D1 the gate drop (enabled: mounted()) + the mobile face (order 80, kind menu, icon comment per the v2.2.7 MobileView icon field), D2/D3 the panel-id \"main\" dispatch via the new btw/model.ts saved accessor (v2.2.7 createBtw exports ask/tab/view/retry/remove but not the saved list the old D3 read as chats.at(-1) — hence the 10th target), D4 ask() stays upstream (open with tab:\"select\" does not trigger the host's narrow-screen selectMobile branch); the v2.2.1 content-sha1 conservation claim retires (model.ts gains the accessor; btw/panel.tsx and btw/index.ts stay pin-verbatim)"
     },
     {
       "id": "settings-about-version",
@@ -1191,7 +1191,7 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
       "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed; issue #194 audit: the payload is context-stale — the v2.2.7 polyfills.ts provides Map.groupBy/Promise.withResolvers/Promise.try only, no URL.canParse, and the sources domain's URL.canParse use plus the gui-plugins browser domain's 12 crypto.randomUUID sites (secure-context-gated, unavailable over the SSH plain-HTTP tunnel) stay an open platform prerequisite owned by the #199/browser line; disposition deferred/not-fixed"
     },
     {
       "id": "settings-server-menu",
@@ -1810,8 +1810,8 @@
       "verification": "MatePad pre-fix: all four top-level taps activate panes, but flyout body computed opacity remains zero. Post-fix device verification pending.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "c9ef8a139c956658a77f85c634dc87958036deea5002ec88b33e1539ca9755f6",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by gui-plugins-v2-2-7 (issue #194): the open-state ancestor selector `.session-service-flyout[data-open] &` flattens on the v2.2.7 rule (3-property form — the old patch's transition block is pin-absorbed upstream, so the flatten carries opacity/scale/translate only); the &:dir(rtl) and [data-motion] nesting stay nested and are recorded as a progressive loss on old WebViews (RTL mirroring and motion transitions only), not a fixed face"
     },
     {
       "id": "project-identity-migration",
@@ -2338,6 +2338,34 @@
       "disposition": "active; sole carrier of the re-derived settings-family payloads (rows 1-20 of the #193 disposition table: W1 host manager, W2 add-menu, W3 gui manager + disabled union, W4 SSH row actions, W5 zoom deviation, W6 test re-derivations)",
       "status": "active",
       "sha256": "caf6b2bd270edd73fa308066f8c23187f4226d44d3df2e1d061d3d318d4c4c45"
+    },
+    {
+      "id": "gui-plugins-v2-2-7",
+      "owner": "opencode-mobile maintainers",
+      "patch": "patches/mobile/gui-plugins-v2-2-7.patch",
+      "targets": [
+        "packages/gui-plugins/src/btw/renderer.tsx",
+        "packages/gui-plugins/src/btw/model.ts",
+        "packages/gui-plugins/src/btw/i18n/en.ts",
+        "packages/gui-plugins/src/sources/renderer.tsx",
+        "packages/gui-plugins/src/sources/panel.tsx",
+        "packages/gui-plugins/src/sources/i18n/en.ts",
+        "packages/gui-plugins/src/details/details.css",
+        "packages/app/src/settings/experimental/experimental.tsx",
+        "packages/session-ui/src/sources/experiment.ts",
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts"
+      ],
+      "dependsOn": [
+        "settings-v2-2-7"
+      ],
+      "reason": "Issue #194: the GUI-plugins mobile faces re-derived on the v2.2.7 surface (11 targets; rows 36/37/38/66 of the disposition table flip deferred -> absorbed, row 36's goal half is pin-native). D1 (M-038): btw command gate drops the desktop-width term (enabled: mounted()) + the mobile face (order 80, menu, icon comment). D2/D3 (M-038 + 10th target): the mobile render dispatches on the panel id \"main\" and shows the most recent stored chat via the new btw/model.ts saved accessor (v2.2.7 createBtw exports no saved list), else the honest mobile.none state; the no-close-channel semantics comment is preserved. S1 (M-036 sources): mobile face 60 (menu, icon globe), gate-off panel.disabled fallback, panel-id \"turn\" dispatch (most recent turn with sources), panel.none fallback, panel.title/panel.disabled/panel.none i18n. S2 (M-036 settings): the Settings -> Experimental Sources row (SettingsRow + data-action=\"settings-sources\" + en/zh row.sources.* per the #193 pairing convention) writing through the new setSourcesEnabled accessor that closes over the single registered knob instance (no re-registration: Map.set would clobber the instance and desync the row; motionTuning.set keeps the debug Knobs panel and the sourcesExperiment store in sync via subscribe). F6 (extensions-flyout-webview): the details flyout open-state ancestor selector flattens for WebView 114 ?inline injection (the v2.2.7 rule has no transition block; &:dir(rtl)/[data-motion] nesting stays nested = recorded progressive loss).",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/194-gui-plugins (post-#184/#186-#193 active chain, base 418918e).",
+      "verification": "Apply-check of the patch against the pre-patch chain tree (scratch pristine pin fedc6f20 + closure patch + the 9 prior active mobile patches) with the applied result byte-identical (cmp) to the working tree for all 11 targets; bun run patches:refresh + python3 scripts/mobile-patches.py PASS(88) + python3 scripts/test_mobile_patches.py OK (9 tests); bash scripts/verify-closure.sh PASS (10-patch replay byte-identical, DANGLING=0); git diff --check clean. Test suites at the c0 constants: gui-plugins goal/btw/details/context 118 pass / 0 fail / 432 expect / 12 files; gui-plugins files domain 430/0/1337/36; app Set A 396/5/1793/30 (5 pre-existing submit.test x4 + editor/actions.test x1, unchanged); mobile-hosts 446/0/3034/40; session-ui src/sources 11 pass / 0 fail / 71 expect / 2 files (first measurement of this set).",
+      "disposition": "active; sole carrier of the re-derived gui-plugins narrow-screen payloads (rows 36 sources/settings half, 37 sources faces, 38 D1-D4, 66 open-state flatten); rows 36 goal half / 37 migration body / session-ui sources subsystem are pin-absorbed with no carrier hunk",
+      "status": "active",
+      "sha256": "d5ce7ea207428c1c58f87f316b1da2ee9724686644c816ba5ea5f1e8e01a3fe8"
     }
   ]
 }
