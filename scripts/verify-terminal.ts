@@ -24,12 +24,24 @@
 //      verbatim at protocol/src/groups/pty.ts:9-12 — its connect constants are
 //      asserted here as a deprecated-surface record (persistent-pty.ts
 //      re-exports them); the old endpoint descriptions are dropped as retired.
+//      The SCHEMA face is split the same way (review follow-up — the original
+//      re-anchor dropped the old-surface schema shapes silently): the old
+//      schema files (schema/src/{pty,pty-ticket}.ts, byte-same at this pin)
+//      keep a deprecated-surface record (Info status literals / UpdateInput
+//      size / the four pty.* events / PtyTicket.ConnectToken), and the LIVE
+//      schema/src/persistent-pty.ts carries its own contract anchors
+//      (Snapshot checkpoint / UpdateInput nullable title / the three
+//      persistent-pty events).
 //   2. Call-face exhaustive sets (NORMALIZED whitespace-stripped scan — every
 //      zero/exclusive assertion below applies the same normalization, no
 //      exceptions). SCAN DOMAIN = app + gui-plugins `src/**` PRODUCTION files
-//      only (tests excluded by the new rule; at the old pin tests were
-//      in-domain, and the old `terminal.close` set leaned on a model.test.ts
-//      test-call site). Normalized call-site sets EQUAL exactly:
+//      only (tests excluded by the new rule — pin-precise history: at the OLD
+//      pin b4525d79bf the terminal directory carried NO model.test.ts and the
+//      old `terminal.close` set was exactly {renderer.tsx}; at the NEW pin
+//      model.test.ts exists and, under the old tests-in-domain rule, its
+//      `server.emit("persistent-pty.…")` test-call sites would have joined
+//      the subscription sets — hence production-only). Normalized call-site
+//      sets EQUAL exactly:
 //      persistentPty.list/create/remove/update → {terminal/model.ts}
 //      (:187/:221/:253/:322/:327); persistentPty.snapshot →
 //      {terminal/terminal.tsx} (:544); persistentPty.get/shutdown/handoff/
@@ -115,11 +127,13 @@
 //   - workspace.close call-face set {tab.tsx}: the tab now closes through the
 //     session handle (`props.session.close(props.terminal.id)`, tab.tsx:25);
 //     the close face is covered by the model close-command pairing (group 3).
-//   - terminal.close call-face set {renderer.tsx + model.test.ts test-call
-//     sites}: the latter was in-domain only under the old scan rule (tests
-//     excluded now); the close command survives as a BuiltinCommand — its
-//     FACE is asserted as presence (mod+w + terminal scope, group 6), not as
-//     a receiver-name call set.
+//   - terminal.close call-face set {renderer.tsx} — exactly, at the old pin
+//     (the old pin's terminal directory carried no model.test.ts): at the new
+//     pin the same scan would span renderer.tsx/panel.tsx plus model.test.ts
+//     test-call sites under the old tests-in-domain rule, so the set is
+//     retired with the production-only scan; the close command survives as a
+//     BuiltinCommand — its FACE is asserted as presence (mod+w + terminal
+//     scope, group 6), not as a receiver-name call set.
 //   - close(1000) count 3 → 2: recorded drop (see group 3).
 //   - persistTerminal + onCleanup adjacency: the client-side persisted
 //     snapshot is gone at v2.2.7 (the server snapshot IS the record);
@@ -153,13 +167,41 @@
 //     retired.
 //   - scheduleSize/lastSize/pushSize/handleOpen resize chain: replaced by the
 //     pane-machine sizing discipline + queue-resize effects (group 6).
+//   - old group-1 terminal.tsx binary-decode family (the binary control-frame
+//     comment verbatim, the ControlFrame = Schema.fromJsonString(...) decoder,
+//     the `bytes[0] !== 0` early return, the `cursor += data.length` text-frame
+//     advance, the `event.data instanceof ArrayBuffer` branch): the client-side
+//     decode mirror is deleted at this pin — replaced by the connector's
+//     decode/framing anchors (client/src/solid/pty.ts, group 1) and the
+//     checkpoint replay anchors (connection.ts `\x1bc`/atob, group 6).
+//   - model.ts clone face (`clone()` deleted upstream at v2.2.7 — the clone
+//     create shape `.create({location,title:pty.title})`, the
+//     buffer/cursor/scrollY restore-clear chain, the "Failed to clone
+//     terminal" swallow): dead-terminal replacement is now the surface-machine
+//     remount + snapshot/cursor restore chain (group 4); no client-side clone
+//     exists.
+//   - panels.tsx `id="terminal-panel"` and `collapseThreshold={50}` (old
+//     group 6): the v2.2.1 app-shell terminal dock is deleted/reshaped at
+//     this pin — app-shell anchors stay with verify-interaction-quality (see
+//     the visualViewport entry below).
+//   - OLD-surface schema data face (schema/src/pty.ts status literals /
+//     UpdateInput size / four pty.* events / pty-ticket ConnectToken): NOT
+//     dropped — re-anchored as a DEPRECATED-SURFACE RECORD (both files
+//     byte-same at this pin, group 1); the live face schema/src/
+//     persistent-pty.ts carries its own anchors (Snapshot checkpoint /
+//     UpdateInput nullable title / three persistent-pty events, group 1).
+//     Corrected in the review follow-up — the original re-anchor dropped
+//     these silently.
 //   - panels.tsx visualViewport sync, mobile.tsx sorted menu/drawer ordering,
 //     md:hidden ResizeHandle branch: app-shell anchors owned by
 //     verify-interaction-quality (its group 3/4 cross-references) — stale on
 //     this pin, pending that probe's own re-anchor; the terminal-face side is
 //     recorded as the group 6 zero-visualViewport scan.
 //   - terminal/index.ts ctrl+` toggle keybind: KEPT (group 6) — survives
-//     verbatim at index.ts:6.
+//     verbatim at index.ts:6. Review follow-up: the old ctrl+alt+t keybind
+//     (renderer.tsx:123) and the lazy panel chunk-split (renderer.tsx:173)
+//     ALSO still hold and are re-anchored (group 6) — they had been dropped
+//     without a retired entry.
 //
 // HONEST BOUNDARY (same tradition as verify-diff.ts): this is a static
 // STRUCTURE check (text anchors / regex on source files). It proves source
@@ -206,6 +248,7 @@ const APP = "vendor/upstream/packages/app/"
 const CLIENT = "vendor/upstream/packages/client/"
 const GUI_EXT = "vendor/upstream/packages/gui-plugins/"
 const PROTOCOL = "vendor/upstream/packages/protocol/"
+const SCHEMA = "vendor/upstream/packages/schema/"
 const MOBILE_HOSTS = "packages/mobile-hosts/"
 
 const TERMINAL = `${GUI_EXT}src/terminal/`
@@ -345,13 +388,47 @@ async function scan() {
       fail("1: PtyFeatureUnsupportedError moved (the rename-501 error face)")
     if (!errors.includes('"PtyFeatureUnsupportedError"') || !errors.includes("{ httpApiStatus: 501 }"))
       fail("1: PtyFeatureUnsupportedError lost its tag or 501 status")
+
+    // SCHEMA data face. DEPRECATED-SURFACE RECORD: the old-surface schema
+    // files survive byte-same at this pin (byte-compared against the pin in
+    // the #191 audit) — the old pty.Info/ticket shapes keep a guard here. LIVE
+    // FACE: the persistent schema is the contract source the unit document
+    // cites — Snapshot (checkpoint) / UpdateInput (nullable title) / the three
+    // persistent-pty events each carry their own anchors.
+    const schemaPty = await read(`${SCHEMA}src/pty.ts`)
+    if (!schemaPty.includes('status: Schema.Literals(["running", "exited"])'))
+      fail("1: deprecated record — pty.Info status literals changed")
+    if (!squash(schemaPty).includes("title:optional(Schema.String),size:optional(Schema.Struct({rows:PositiveInt,cols:PositiveInt,}),"))
+      fail("1: deprecated record — pty.UpdateInput shape changed")
+    for (const ev of ['"pty.created"', '"pty.updated"', '"pty.exited"', '"pty.deleted"']) {
+      if (!schemaPty.includes(`type: ${ev}`)) fail(`1: deprecated record — the ${ev} event definition moved`)
+    }
+    const schemaTicket = await read(`${SCHEMA}src/pty-ticket.ts`)
+    if (!schemaTicket.includes("ticket: Schema.String") || !schemaTicket.includes("expires_in: PositiveInt"))
+      fail("1: deprecated record — PtyTicket.ConnectToken shape changed")
+    if (!schemaTicket.includes('identifier: "PtyTicket.ConnectToken"'))
+      fail("1: deprecated record — PtyTicket.ConnectToken identifier moved")
+    const schemaPersistent = await read(`${SCHEMA}src/persistent-pty.ts`)
+    if (!schemaPersistent.includes('identifier: "PersistentPty.Snapshot"'))
+      fail("1: the PersistentPty.Snapshot schema identifier moved")
+    if (!schemaPersistent.includes("checkpoint: Schema.Uint8Array"))
+      fail("1: the snapshot checkpoint field changed (the replay contract)")
+    if (!schemaPersistent.includes('identifier: "PersistentPty.UpdateInput"') ||
+      !squash(schemaPersistent).includes("title:optional(Schema.NullOr(Schema.String)),"))
+      fail("1: the PersistentPty.UpdateInput nullable-title (rename) contract changed")
+    for (const ev of ['"persistent-pty.added"', '"persistent-pty.removed"', '"persistent-pty.updated"']) {
+      if (!schemaPersistent.includes(`type: ${ev}`)) fail(`1: the ${ev} event schema definition moved`)
+    }
   }
 
   // --- 2. Call-face exhaustive sets (normalized scan; scan domain written here) ---
   {
     // SCAN DOMAIN = app + gui-plugins `src/**` PRODUCTION files only — test
-    // files are excluded by the #191 rule (the old pin's `terminal.close` set
-    // leaned on a model.test.ts test-call site; the sets are now
+    // files are excluded by the #191 rule (pin-precise history: at the OLD
+    // pin the terminal dir carried no model.test.ts and the old
+    // `terminal.close` set was exactly {renderer.tsx}; at the NEW pin
+    // model.test.ts exists and its `server.emit(...)` test-call sites would
+    // have joined the sets under the old tests-in-domain rule — hence
     // production-only). The client GENERATED surface (endpoint wrappers with
     // zero terminal-UI callers) is NOT part of the sets (N-5 layering note).
     // The connector's own token/connect calls live in the client package,
@@ -717,6 +794,12 @@ async function scan() {
       fail("6: the mobile Panel registration (order 30, kind menu, icon terminal) changed")
     if (!renderer.includes('bind: "mod+w"') || !renderer.includes("scope: '[data-component=\"terminal\"]'"))
       fail("6: the close command face (mod+w, terminal scope — presence, not a call-face set) changed")
+    // Review follow-up: both anchors STILL hold at this pin (old group 6 had
+    // them; the first re-anchor dropped them without a retired entry).
+    if (!renderer.includes('bind: "ctrl+alt+t"'))
+      fail("6: the new-terminal command keybind (ctrl+alt+t, renderer.tsx:123) changed (review re-added anchor)")
+    if (!renderer.includes('const TerminalPanel = lazy(() => import("./panel"))'))
+      fail("6: the lazy panel chunk split changed (renderer.tsx:173, review re-added anchor)")
     const termIndex = await read(`${TERMINAL}index.ts`)
     if (!termIndex.includes('bind: "ctrl+`"')) fail("6: the toggle command keybind changed (terminal/index.ts)")
 
@@ -867,7 +950,7 @@ await drill(
 
 console.log(
   "verify-terminal: PASS (" +
-    "1: persistent-pty data face (frame 5-byte header + 7-variant message union + decode export; connector ticket header/path/query params/binaryType/openSocket seam; protocol group identifiers + update-501/connect/read descriptions verbatim; deprecated pty.ts constants record; PtyFeatureUnsupportedError 501); " +
+    "1: persistent-pty data face (frame 5-byte header + 7-variant message union + decode export; connector ticket header/path/query params/binaryType/openSocket seam; protocol group identifiers + update-501/connect/read descriptions verbatim; deprecated pty.ts constants record; PtyFeatureUnsupportedError 501; schema deprecated record — pty.Info/UpdateInput/4 events/ConnectToken byte-same; live PersistentPty schema — Snapshot checkpoint/UpdateInput nullable title/3 events); " +
     "2: normalized exhaustive sets over " +
     prodFilesScanned +
     " production files — persistentPty.list/create/remove/update {model.ts}, snapshot {terminal.tsx}, get/shutdown/handoff/connectToken/connect ZERO, createPersistentPtyClient {terminal.tsx}, OLD pty.* face + createPtyClient ZERO, persistent-pty.added/removed/updated {model.ts}; " +
@@ -878,7 +961,7 @@ console.log(
     "5: lifecycle/rename — 15s request budget + legacy storage decode-dedup + title numbering dedup + rename machine/inline field/tab wiring + PtyFeatureUnsupportedError→rename.unsupported 501 classification + persistent-pty event subscriptions + 10k scrollback + " +
     TEST_FILES.length +
     " test files; " +
-    "6: resize chain — ResizeObserver/window/font measure + queue-resize effect and 3 emissions + writer-ordered \\x1bc checkpoint + pane-machine 100ms debounce/seq guard/first-size/pendingInput flush + kill-line \\x15 + ctrl+shift+c + toggle passthrough + order-30/order-20 registrations + mod+w close face + frame.placement mobile + en/zh i18n + zero visualViewport terminal-face record; " +
+    "6: resize chain — ResizeObserver/window/font measure + queue-resize effect and 3 emissions + writer-ordered \\x1bc checkpoint + pane-machine 100ms debounce/seq guard/first-size/pendingInput flush + kill-line \\x15 + ctrl+shift+c + toggle passthrough + order-30/order-20 registrations + mod+w close face + ctrl+alt+t keybind + lazy panel chunk-split (review re-added) + frame.placement mobile + en/zh i18n + zero visualViewport terminal-face record; " +
     "7: zero host-OS conditionals across " +
     osScanFiles +
     " whitelisted files (terminal directory + client solid/pty.ts); " +
