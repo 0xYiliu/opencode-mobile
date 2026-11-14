@@ -1,4 +1,5 @@
 import { Component } from "solid-js"
+import { setSourcesEnabled, sourcesExperiment } from "@opencode/session-ui/sources/experiment"
 import { Switch } from "@opencode/ui/switch"
 import { Select } from "@opencode/ui/select"
 import { useLanguage } from "@/runtime/i18n/language"
@@ -77,6 +78,18 @@ export const SettingsExperimental: Component = () => {
                 >
                   {language.t("settings.experimental.row.newQuestionUI.title")}
                 </Switch>
+              </div>
+            </SettingsRow>
+            {/* mobile(gui-plugins-v2-2-7, issue #194; M-036): the Sources experiment gate row. The knob is declared
+                once by session-ui's sources experiment; this row flips that same registered instance through the
+                exported setter — re-registering here would clobber the knob and leave the row showing on while the
+                experiment stays off — and the experiment's subscribe mirrors the flip back into the store. */}
+            <SettingsRow
+              title={language.t("settings.experimental.row.sources.title")}
+              description={language.t("settings.experimental.row.sources.description")}
+            >
+              <div data-action="settings-sources">
+                <Switch checked={sourcesExperiment.enabled} onChange={(checked) => setSourcesEnabled(checked)} />
               </div>
             </SettingsRow>
           </SettingsList>

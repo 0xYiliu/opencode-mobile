@@ -731,6 +731,9 @@ export const dict = {
   "titlebar.tabs": "标签页",
   "settings.tab.experimental": "实验",
   "settings.experimental.description": "尝试实验性功能",
+  // mobile(gui-plugins-v2-2-7, issue #194；M-036 lineage)：实验页 Sources 开关行（en/zh 成对登记）。
+  "settings.experimental.row.sources.title": "来源",
+  "settings.experimental.row.sources.description": "一轮回复检索并阅读过的页面",
   // mobile(M-026)：非桌面构建的第一方 GUI 扩展管理面（issue #26）——上游八键的中文对齐 + 移动描述（#109 消歧标题）。
   "settings.guiExtensions.title": "GUI 扩展",
   "settings.guiExtensions.description": "本窗口的内建 GUI 扩展。仅开发构建可用。",

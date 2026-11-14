@@ -857,6 +857,9 @@ export const dict = {
     "Group side tabs by project or show one list. Only applies to side tabs.",
   "settings.experimental.sidebarOrganize.projects": "Projects",
   "settings.experimental.sidebarOrganize.list": "One list",
+  // mobile(gui-plugins-v2-2-7, issue #194; M-036): the Sources experiment gate row (Settings → Experimental).
+  "settings.experimental.row.sources.title": "Sources",
+  "settings.experimental.row.sources.description": "Pages a turn searched and read",
   "sidebar.organize.projects": "Projects",
   "sidebar.organize.openTab": "Open tab",
   "sidebar.organize.showMore": "Show more",
