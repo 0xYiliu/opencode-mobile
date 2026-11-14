@@ -6,6 +6,24 @@
 // Groups 1–6 are untouched; group 7 gained the exclusion-row locks below, group 8 the
 // rebuilt dist baseline.
 //
+// Issue #198 revision (updater-web-exclusion-v2-2-7, row 92): the v2.2.7 pin grew a
+// web-updates face inside the shared updater plugin (upstream 4fa365faf5, #61995 —
+// web.tsx registers the SW checks + a general-page Updates SettingsPage + the titlebar
+// pending item + a hidden check command; renderer.tsx:29 routed to it with
+// `if (!ctx.desktop) return webUpdates(ctx)`, and general.tsx:356 mounts the
+// plugin-owned general sections, so the face ACTIVATED on mobile — the pre-#198
+// group-1 anchor `if (!ctx.desktop) return` was substring-true on that line and thus
+// carried false confidence; that assertion is UNCHANGED, and the exclusion lock is the
+// NEW content). Row 92 converts the guard to the pairing/renderer.tsx:8 bare early-exit
+// form and removes the webUpdates import; group 1 locks the post-patch exclusion form
+// (bare return + marker comment) and the no-webUpdates negative
+// (NEGATIVE 10 re-routes → FAIL), group 7 adds the DESKTOP_HOST_EXTENSIONS set-equality
+// witness (NEGATIVE 11 deletes "updater" → FAIL), group 4 marks the general.tsx:356
+// mount as a witness-only registration point (not an availability claim — the updates
+// SettingsPage registration is excluded by row 92). The exclusion scope is the
+// web-updates face ONLY: whatsNew/betaNotes run BEFORE the guard and stay active (the
+// surviving What's New face is not a failed exclusion).
+//
 // Asserts, against the REAL vendored/first-party sources (pin fedc6f208a… + the 10 active
 // mobilePatches incl. gui-plugins-v2-2-7)
 // and the commit-1 docs, the structural facts the gui-plugins unit document relies on
@@ -78,6 +96,12 @@
 //      content-sha1 conservation FAIL (the gui-plugins-v2-2-7 btw face is exactly
 //      renderer.tsx + model.ts + i18n/en.ts; old->new issue #194: model.ts joined the patch
 //      face as the 10th target — the saved accessor — so the v2.2.1-era trio claim retired).
+//   10. revert the updater guard to `if (!ctx.desktop) return webUpdates(ctx)` in
+//      gui-plugins/src/updater/renderer.tsx -> group 1 no-webUpdates exclusion lock FAIL
+//      (issue #198/row 92 — the v2.2.7 web-updates face must not re-route on mobile).
+//   11. delete the "updater" member from DESKTOP_HOST_EXTENSIONS in mobile-hosts
+//      ui/extension-manager.tsx -> group 7 set-equality witness FAIL (issue #198 —
+//      updater must stay presented as the desktop-host row while its web face is excluded).
 //
 // HONEST BOUNDARY (same tradition as the sibling probes): this is a static STRUCTURE
 // check (text anchors / set equalities / negative injections). It proves source and doc
@@ -214,6 +238,24 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const sshRenderer = await read(`${GUI_EXT}ssh/renderer.tsx`)
   if (!sshRenderer.includes("// SSH lives in the desktop main process."))
     fail("1: ssh/renderer.tsx lost the desktop-main-process comment")
+
+  // Issue #198 / updater-web-exclusion-v2-2-7 (row 92): the post-patch exclusion form and the
+  // no-webUpdates negative lock. Honest ledger: the guard anchor above is UNCHANGED — pre-patch
+  // it was substring-true on `if (!ctx.desktop) return webUpdates(ctx)` (false confidence: the
+  // v2.2.7 web-updates face, upstream 4fa365faf5 #61995, ACTIVATED on mobile through that
+  // routing); the exclusion lock is the NEW content below. Exclusion scope is the web-updates
+  // face ONLY — whatsNew/betaNotes run before the guard and stay active (ordering witness).
+  const updaterRenderer = squash(await read(`${GUI_EXT}updater/renderer.tsx`))
+  if (updaterRenderer.includes("webUpdates"))
+    fail("1: updater/renderer.tsx still references webUpdates — the v2.2.7 web-updates face (SW checks + general-page Updates SettingsPage + titlebar pending item + hidden check command) must stay excluded on mobile (issue #198 row 92; NEGATIVE 10 re-routes the guard -> this FAIL)")
+  if (!updaterRenderer.includes(squash("if (!ctx.desktop) return")))
+    fail("1: updater/renderer.tsx lost the bare early-exit form (the pairing/renderer.tsx:8 form; issue #198 row 92)")
+  if (!updaterRenderer.includes(squash("mobile(updater-web-exclusion-v2-2-7, issue #198)")))
+    fail("1: updater/renderer.tsx lost the mobile(updater-web-exclusion-v2-2-7, issue #198) exclusion marker comment")
+  const whatsNewAt = updaterRenderer.indexOf("whatsNew(ctx)")
+  const guardAt = updaterRenderer.indexOf(squash("if (!ctx.desktop) return"))
+  if (whatsNewAt === -1 || guardAt === -1 || whatsNewAt > guardAt)
+    fail("1: updater/renderer.tsx lost the pre-guard whatsNew(ctx)/betaNotes(ctx) ordering (the What's New face stays active by design — issue #198 scope statement)")
 }
 
 // --- 2. Tokens and dependencies: Ipc 6 / Contract 3 / requires 0 / mobile panels ---
@@ -505,6 +547,11 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
     fail("4: general.tsx lost the section-scoped PluginSettingsSections placement (issue #109 S41 hosting)")
   if (!rawGeneral.includes('<PluginSettingsSections page="general" />'))
     fail("4: general.tsx lost the page-level PluginSettingsSections placement (issue #109 S41 hosting)")
+  // Issue #198 witness-only marking: the general.tsx page-level mount above (general.tsx:356 at
+  // the pin) is the plugin-registration POINT, not an availability claim — which plugin-owned
+  // sections render there is each plugin's own guard semantics. Since row 92 the updater
+  // web-updates SettingsPage is excluded on mobile (group 1 no-webUpdates lock), so nothing may
+  // be inferred from this mount about an Updates page being present.
 }
 
 // --- 5. State restoration and migration (acceptance 2 state restoration) ---
@@ -688,6 +735,14 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
   const excludedKeys = [...excludedTableMatch[1]!.matchAll(/([A-Za-z0-9-]+):/g)].map((m) => m[1]!)
   const excludedValues = [...excludedTableMatch[1]!.matchAll(/"([a-z][a-z0-9.-]*)"/g)].map((m) => m[1]!)
   setEq(excludedKeys, ["wsl"], "7: EXCLUDED_EXTENSIONS must be exactly {wsl} (NEGATIVE 5 deletes the entry)")
+  // Issue #198 witness: the desktop-host presentation set stays exactly {browser,pairing,ssh,
+  // updater} while the updater WEB face is excluded on mobile by row 92 — the row is
+  // presentation ("desktop-host" capability class), not activation (NEGATIVE 11 deletes
+  // "updater" -> this FAIL).
+  const desktopHostMatch = manager.match(/const DESKTOP_HOST_EXTENSIONS: ReadonlySet<string> = new Set\(\[([^\]]*)\]\)/)
+  if (!desktopHostMatch) fail("7: extension-manager.tsx lost the DESKTOP_HOST_EXTENSIONS literal set (issue #198 witness anchor)")
+  const desktopHostMembers = [...desktopHostMatch[1]!.matchAll(/"([A-Za-z0-9-]+)"/g)].map((m) => m[1]!)
+  setEq(desktopHostMembers, ["browser", "pairing", "ssh", "updater"], "7: DESKTOP_HOST_EXTENSIONS must be exactly {browser,pairing,ssh,updater} (issue #198 witness — presentation row survives the row-92 web-face exclusion; NEGATIVE 11 deletes updater)")
   if (excludedKeys.length !== excludedValues.length || excludedValues[0] !== "guiext.excluded.wsl.reason")
     fail("7: EXCLUDED_EXTENSIONS values must be the members' own reason keys (no fallback copy)")
   if (!manager.includes('data-capability="excluded"')) fail("7: extension-manager.tsx lost the excluded capability marker")
@@ -913,14 +968,14 @@ function setEq<T>(got: Iterable<T>, expected: Iterable<T>, label: string) {
 
 console.log(
   "verify-gui-plugins: PASS (" +
-    "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment; " +
+    "1: inventory — builtins compose exactly 15 entries with the id set equality (sources + goal appended after microsoft-office per v2.2.1 compose order, issue #66), main.ts same-table import set, six lazy main entries {debug,browser,pairing,updater,ssh,wsl}, os declarations exactly {wsl: windows}, root.tsx VAC first-lock witnesses (os gate/OS filter/.ocdx), five renderer early-exit guards + ssh desktop-main-process comment, updater web-face exclusion lock (issue #198 row 92: no webUpdates reference + bare pairing-form early-exit + mobile(updater-web-exclusion-v2-2-7) marker + pre-guard whatsNew ordering — the guard anchor itself UNCHANGED, its pre-patch substring-true was false confidence); " +
     "2: tokens — Ipc.define exactly {pairing,wsl,ssh,updater,debug,browser} + BrowserPane, Contract.define exactly {browser,file,review} + the v2.2.7 per-plugin {review} (old->new issue #194: expected [] at the v2.2.1 pin — review/contract.ts:31 Contract.define is pin-native at fedc6f208a; sources/goal scanned, zero), zero requires: across 15 builtins, always-inactive core sentence, seven mobile Panel registrations here (tab 10/menu 20/menu 30/menu 40/drawer 50 pin-native + sources menu 60 / btw menu 80 re-landed by gui-plugins-v2-2-7; no goal face — the v2.2.7 goal is the native ComposerPill, so order 70 no longer exists; the order-set equality {10,20,30,40,50,60,80} lives in verify-goal-sources), btw gate mounted() with the desktop-width term dropped (issue #194/gui-plugins-v2-2-7, M-038 lineage) + the D2/D3 mobile render branch (panel-id dispatch, latest chat via the btw/model.ts saved accessor — the 10th target, mobile.none honest empty state, !== undefined ready gate) + the pin content-sha1 conservation of btw panel/index; " +
     "3: upstream double gate — DEV-only lazy + desktop-only gate (VAC first-lock witness), extension-plugins optional-chain toggle + installed enabled reader + reload two channels (old->new issue #194: settings-page-dev.tsx is gone at v2.2.7, the face re-anchored on extension-plugins.tsx), host-apis channel/packaged faces, bridge install/Built-ins-refuse; " +
     "4: issue #26 face — gui-plugins-disabled-merge import + bridge-conditional instance + disabled-set pass-through (settings-v2-2-7 W3 form; old->new issue #194: the root-level ids-filter/union/early-exit retired) + two markers, settings-mobile-gui-plugins predicate/revised guard (VAC common witness)/nav condition/mount branch/lazy import/props injection, settings-mobile-host-manager/settings-ssh-entry-guard hunks intact, manifest+vendor-manifest double registration + patch target headers; " +
     "5: state — guiext.v1 key/shape/merge/self-heal/volatile, extensionEnabled legacy rows, extension.<id>.<name> namespace, settings.v3 picks (review/details/updater), panels legacy-rewrite/transient comments, localStorage view factory (old->new issue #194: localStorageWithPrefix/localStorageDirect converged into localStorageView(prefix?)), settings.guiExtensions 9/9 en/zh pairing (VAC common witness); " +
     "6: guarantees — same-frame batch + disabled publication, More-trigger conditional render, ErrorBoundary renders-nothing comment, terminal model.ts exactly-three .remove( (1 persistentPty.remove + 2 storage.remove(LEGACY.key); old->new issue #194 from the v2.2.1 two-call shape) with a remove-free dispose() domain ending at function dropLegacy (NEGATIVE-lockable), stopped-entries + keep-mounted draft comments; " +
     "7: docs closure — gui-plugins.md ten sections (issue #67 renamed the unit doc) + authority + zero-marketplace/no-adapt sentences + 15 inventory rows + capability three-set mapping (web 10/desktop-host 4/excluded {wsl} — issue #62 static exclusion row with doc zero-operation wording and the 14+1 arithmetic revised 13->15/12->14 with the session-goal-sources-panels registrations), interaction.md G1–G35 + G35 row + twenty-first wording + failure path + revised G26 face, agent-capabilities.md three revisions, README index, architecture rows; " +
-    "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; " +
+    "issue #62 code locks — EXCLUDED_EXTENSIONS exactly {wsl} (NEGATIVE 5), data-capability=excluded + reused disabled status + wsl reason key, zero-controls domain scan of the excluded row region (rendered machine check: extension-manager.rendered.test.tsx), guiext.excluded.* en/zh pairing; issue #198 witness — DESKTOP_HOST_EXTENSIONS exactly {browser,pairing,ssh,updater} (presentation row survives the row-92 web-face exclusion; NEGATIVE 11), general.tsx:356 mount marked witness-only (registration point, not availability claim); " +
     "8: build witnesses — dist baseline 5630/155888644 (issue #197 ui/theme rebuild — the ui/theme source faces + the M-035 web.ts zoom face inside the renamed entry chunk index-DoY3Cqzj.js->index-0cplS7fk.js (css index-Q7koRpsf.css->index-D_I6wsj-.css), +4184 bytes at the same 5630 file count, zero new chunks; prior 5630/155884460 = the #196 runtime-data rebuild — the URL.canParse/URL.parse shims inside the existing entry chunk, +2568 bytes at the same 5630 file count; prior 5630/155881892 = the #195 notifications rebuild; prior 5630/155863020 = the #194 gui-plugins rebuild, +11397 bytes inside existing chunks; prior 5630/155851603 = the committed #193 payload; prior 5622/150022223 = issue #149 2.2.1 release identity rebuild — same 5622 file count, +78278 bytes of sourcemap machine-path churn + entry chunk rename index-B-7B3T0I->index-CpaevSWf carrying 2.2.1; prior 5620/149993193 = issue #142 model-selector-usage-parity rebuild on the merged #144 settings-acceptance tree; prior 5616/149754033 = issue #144 settings acceptance rebuild incl. the M-035 restore; prior 5617/149595730 = issue #141 provider-connect-flow-redesign rebuild; prior 3520/159558361 = issue #124 settings-server-menu; earlier build and registration counts remain historical in docs/build-and-verify.md), runtime markers (guiext.v1 constant + en/zh i18n keys + zh exclusion reason) staged on a built dist, bun.lock workspace anchor; " +
     "STATIC check - tab reachability, toggle chains, menu disappearance, restart restoration, volatile presentation, desktop-host rows, the excluded row presentation and dual-route consistency on a device are G35)",
 )
