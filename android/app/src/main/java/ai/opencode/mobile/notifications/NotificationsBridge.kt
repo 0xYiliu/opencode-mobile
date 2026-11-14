@@ -45,12 +45,13 @@ import org.json.JSONObject
  *    a body or any content value.
  *
  * Face contract:
- *  - notify {category, title, body, route}: category ∈ {agent, permissions, errors}; a
- *    front-focused shell answers {posted:false, code:"foreground"} (native re-check — the
- *    JS-side document.hasFocus() suppression stays the first layer, this one does not rely
- *    on that assumption); a denied notification permission answers {posted:false,
- *    code:"permission"} (silent degradation — the in-app sound/badge/dock faces are
- *    unaffected). Otherwise one notification is posted on the category channel:
+ *  - notify {category, title, body, route}: category ∈ {agent, permissions, questions,
+ *    errors} (issue #195 four-category set); a front-focused shell answers {posted:false,
+ *    code:"foreground"} (native re-check — the JS-side document.hasFocus() suppression
+ *    stays the first layer, this one does not rely on that assumption); a denied
+ *    notification permission answers {posted:false, code:"permission"} (silent
+ *    degradation — the in-app sound/badge/dock faces are unaffected). Otherwise one
+ *    notification is posted on the category channel:
  *    tag = category, id = route.hashCode() (same-session same-kind notifications REPLACE,
  *    never stack), autoCancel, IMPORTANCE_DEFAULT channel with setSound(null, null) — the
  *    45-sound setting plays through the upstream Audio path (single sound source; "sound
@@ -85,8 +86,12 @@ class NotificationsBridge(
         private val REQUEST_ID = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
         private val OPERATIONS = setOf("notify", "requestPermission")
 
-        /** The category whitelist — exactly the three notification kinds (JS mirror). */
-        private val CATEGORIES = setOf("agent", "permissions", "errors")
+        /**
+         * The category whitelist — exactly the four notification kinds (JS mirror:
+         * NOTIFICATION_CATEGORIES; issue #195 adds "questions" adjacent to "permissions",
+         * mirroring the settings row order and the upstream requestTitles two-value map).
+         */
+        private val CATEGORIES = setOf("agent", "permissions", "questions", "errors")
 
         /** The wire error-code set (JS mirror: NOTIFICATIONS_ERROR_CODES). */
         private val ERROR_CODES = setOf("unavailable", "permission", "foreground", "io")
@@ -383,6 +388,7 @@ class NotificationsBridge(
     private fun channelTitle(category: String): String = when (category) {
         "agent" -> CHANNEL_GROUP
         "permissions" -> "$CHANNEL_GROUP (permissions)"
+        "questions" -> "$CHANNEL_GROUP (questions)"
         else -> "$CHANNEL_GROUP (errors)"
     }
 
