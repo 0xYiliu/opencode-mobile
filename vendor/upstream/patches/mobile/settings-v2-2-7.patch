@@ -1,0 +1,1699 @@
+# mobile(settings-v2-2-7, issue #193 of the registry / GitHub issue #193): the ONE consolidated
+# Android settings-domain re-derivation at v2.2.7 — the last large sub-issue of the v2.2.7
+# alignment chain. Re-derives, on the v2.2.7 surface, the surviving mobile deltas the
+# deferred settings-* family registered, and records the rest as pin-absorbed native:
+#   W1  (M-008, settings-mobile-host-manager row): MobileHostManager lazy mount as the FIRST
+#       child of the v2.2.7 servers tab (`<Show when={multiple() ? undefined : inventory()[0]}>`
+#       target form preserved, first-empty-list creation path intact).
+#   W2  (N12, settings-server-menu row): SettingsAddServerMenu wrapper (checkAndroid ->
+#       isAndroidMobileHost) with unsupportedWsl — the N12 disabled WSL menu row (label only,
+#       zero controls), the Add-SSH item behind the 350ms WebView-114 compatibility-click
+#       guard (cleanup cancels a stale open), and useServerAddItems(excludePlugin) via the
+#       host.items face; the add-menu test group re-derives the Kobalte menu contract.
+#   W3  (M-026/M-044/M-052/M-025, settings-mobile-gui-plugins + gui-plugins-disabled-merge +
+#       settings-gui-plugins-tab-label rows): the "gui-extensions" root tab restored
+#       (route.ts union + rootTabs, pages.ts icon/label, route.test host-tab-wins cases),
+#       the shell guard/nav/mount for the first-party ExtensionManager (usePluginHost
+#       definitions/status/failure/reload at the v2.2.7 call-face), and the plugin-host
+#       disabled set fed from createExtensionDisabled(window.localStorage) in
+#       runtime/plugin/root.tsx — ONLY where no bridge exists (mobile); desktop keeps the
+#       bridge-owned enable settings. i18n en/zh settings.guiExtensions.* with the #109
+#       "GUI extensions"/"GUI 扩展" disambiguation + mobile.description.
+#   W4  (S36/#161, settings-ssh-row-runtime-actions row): the mobile SSH row-menu adapter —
+#       settings/servers/mobile-ssh.tsx (mobileSshItems / useMobileSshUi / useMobileSshMenu-
+#       Actions) + the ServerRowMenu branch keyed on parseHostKey: Connect drives the shared
+#       runtime (T1 fresh attempt from idle/failed/authRequired; T10 offline re-enters via
+#       retry; disabled while connecting), the hostKeyUnverified challenge opens the
+#       first-party KeyedHostKeyPrompt (T3 confirm / T4 reject via runtime.confirmHostKey),
+#       incompatible rows open the upstream DialogSsh challenge face, Delete is the T14
+#       local-only registry removal (zero transport calls; bound credentials stay explicit
+#       orphans). Credentials stay memory-only; delete never touches the remote.
+#   W5  (M-035, registered deviation matrix S42 / issue #144): the zoom search-catalog row
+#       drops `available: "desktop"` (web-available) with search-results.test flips, citing
+#       the deviation; the appearance-motion-zoom rebase must not re-add the gate.
+#   W6  (M-044/D3): keyed-server-entry.test.tsx + settings-search-plugin.test.tsx re-derived
+#       (the W1 lockup + the target `entry={entry()}` non-keyed form; the surface.plugins
+#       source pin + the two S14 hosted-contribution cases); the surface/palette/search-
+#       reveal test trio stays out per D3 (native coverage: route.test/model.test/inventory
+#       .test/machine.test exist natively). route.test.ts gains the two gui-extensions
+#       resolution cases. servers-page.test.tsx gains only the honest SettingsAddServerMenu
+#       mock entry (dependsOn server-edit-touch-compatibility; generated against its
+#       replayed output — the pinned source strings of that patch are untouched).
+# The i18n half of settings-ssh-entry-guard re-derives as well: en/zh gain the
+# settings.tab.sshHosts key (pristine v2.2.7 has none; the applied tree consumes it at servers/connect/screen.tsx:161 via v2-2-7-mobile-connection-pairing-ssh-closure
+# without defining it — the SSH entry button label would render empty); the row's
+# redirect/entry halves are obsolete-native (see its disposition).
+# The remaining v2.2.7 settings surface (framework, general/experimental, appearance,
+# notifications, keybinds/command catalog, providers/models/extensions pages, workspaces,
+# servers page target form, About face) is pin-absorbed pristine upstream — carried by NO
+# hunk here. Marker: mobile(settings-v2-2-7, issue #193).
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index ef45cae..1539d68 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -424,6 +424,9 @@ export const dict = {
+   "dialog.server.add.error": "Could not connect to server",
+   "dialog.server.add.checking": "Checking…",
+   "dialog.server.add.button": "Add server",
++  // mobile(N12, issue #124): the WSL row is visible but disabled on the mobile shell (zero controls).
++  "dialog.server.add.wsl": "Add WSL server",
++  "dialog.server.add.wslUnavailable": "WSL servers are only available on Windows desktop.",
+   "dialog.server.add.name": "Server name (optional)",
+   "dialog.server.add.namePlaceholder": "Localhost",
+   "dialog.server.add.password": "Password",
+@@ -736,6 +739,8 @@ export const dict = {
+   "session.location.noBranch": "No branch",
+ 
+   "settings.tab.servers": "Servers",
++  // mobile(settings-ssh-entry-guard): the connect screen's SSH entry button label (upstream consumes the key at servers/connect/screen.tsx without defining it).
++  "settings.tab.sshHosts": "SSH hosts",
+   "settings.extensions.tab.plugins": "Plugins",
+ 
+   "common.copied": "Copied",
+@@ -870,6 +875,18 @@ export const dict = {
+   "settings.plugins.part.tui": "TUI",
+   "settings.plugins.parts.note":
+     'Switches turn off only a plugin\'s desktop UI. Add "-<id>" to plugins in your global opencode.json to turn off its server part, or "-" and its TUI plugin\'s ID to plugins in cli.json to turn off its TUI part.',
++  // mobile(M-026/M-044): the first-party manager face on non-desktop builds (issue #26;
++  // issue #109 disambiguated the label from the per-server Extensions tab).
++  "settings.guiExtensions.title": "GUI extensions",
++  "settings.guiExtensions.description": "Built-in GUI extensions in this window. Development builds only.",
++  "settings.guiExtensions.reload": "Reload",
++  "settings.guiExtensions.status.loading": "Loading",
++  "settings.guiExtensions.status.active": "Active",
++  "settings.guiExtensions.status.failed": "Failed",
++  "settings.guiExtensions.status.disabled": "Disabled",
++  "settings.guiExtensions.status.blocked": "Blocked",
++  "settings.guiExtensions.mobile.description":
++    "Built-in GUI extensions of this app. Turn one off to hide its panels here; the remote server keeps working.",
+   "settings.tab.about": "About",
+   "settings.about.version": "Version {{version}}",
+   "settings.about.devVersion": "development",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index 3c4f5d5..360ce8e 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -281,6 +281,9 @@ export const dict = {
+   "dialog.server.add.error": "无法连接到服务器",
+   "dialog.server.add.checking": "检查中…",
+   "dialog.server.add.button": "添加服务器",
++  // mobile(N12, issue #124)：移动端壳中 WSL 行可见但禁用（零控件）。
++  "dialog.server.add.wsl": "添加 WSL 服务器",
++  "dialog.server.add.wslUnavailable": "WSL 服务器仅适用于 Windows 桌面版。",
+   "dialog.server.add.name": "服务器名称（可选）",
+   "dialog.server.add.namePlaceholder": "Localhost",
+   "dialog.server.add.password": "密码（可选）",
+@@ -389,6 +392,8 @@ export const dict = {
+   "session.new.git.none": "无 Git",
+ 
+   "settings.tab.servers": "服务器",
++  // mobile(settings-ssh-entry-guard)：连接页 SSH 入口按钮标签（上游在 servers/connect/screen.tsx 消费该键但未定义）。
++  "settings.tab.sshHosts": "SSH 主机",
+   "settings.extensions.tab.plugins": "插件",
+ 
+   "common.copied": "已复制",
+@@ -726,6 +731,17 @@ export const dict = {
+   "titlebar.tabs": "标签页",
+   "settings.tab.experimental": "实验",
+   "settings.experimental.description": "尝试实验性功能",
++  // mobile(M-026)：非桌面构建的第一方 GUI 扩展管理面（issue #26）——上游八键的中文对齐 + 移动描述（#109 消歧标题）。
++  "settings.guiExtensions.title": "GUI 扩展",
++  "settings.guiExtensions.description": "本窗口的内建 GUI 扩展。仅开发构建可用。",
++  "settings.guiExtensions.reload": "重新加载",
++  "settings.guiExtensions.status.loading": "加载中",
++  "settings.guiExtensions.status.active": "活跃",
++  "settings.guiExtensions.status.failed": "失败",
++  "settings.guiExtensions.status.disabled": "已禁用",
++  "settings.guiExtensions.status.blocked": "被阻断",
++  "settings.guiExtensions.mobile.description":
++    "本应用的内建 GUI 扩展。关闭某个扩展会隐藏其在本设备上的面板；远程服务器不受影响。",
+   "settings.tab.about": "关于",
+   "settings.about.version": "版本{{version}}",
+   "settings.about.devVersion": "发展",
+diff --git a/packages/app/src/runtime/plugin/root.tsx b/packages/app/src/runtime/plugin/root.tsx
+index 2a690fe..d8d0f11 100644
+--- a/packages/app/src/runtime/plugin/root.tsx
++++ b/packages/app/src/runtime/plugin/root.tsx
+@@ -4,6 +4,8 @@ import { builtins } from "./builtins"
+ import { PluginGuiLoader, type PluginGui } from "./plugins"
+ import { createMenubarItems, MenubarItemsProvider } from "./menubar-items"
+ import { usePlatform } from "@/runtime/platform/platform"
++// mobile(M-025): the first-party mobile disable records feed the host's disabled set below.
++import { createExtensionDisabled } from "@opencode-mobile/mobile-hosts"
+ import { PluginHostProvider, usePluginHost } from "./host"
+ import { createIpcClients } from "./ipc"
+ import { createPluginAttachment, createHostApis, PluginAttachmentProvider, type HostApis } from "./host-apis"
+@@ -72,6 +74,14 @@ export function PluginRoot(props: ParentProps) {
+ 
+   const builtinIds = new Set(builtins.map((builtin) => builtin.id))
+ 
++  // mobile(M-025): one shell-wide record instance; the settings manager UI reads the same.
++  // WebView localStorage is the persistence candidate; safeStorage degrades to memory and
++  // reports volatile when persistence is unavailable. Desktop builds never render the
++  // mobile face and carry no such records — with a bridge the host reads main's enable
++  // settings instead (the disabled prop stays omitted there, so desktop behavior is
++  // unchanged), and without one the mobile records ARE the user's disable settings.
++  const mobileDisabled = bridge ? undefined : createExtensionDisabled(window.localStorage)
++
+   return (
+     <HostApisContext.Provider value={apis}>
+       <PluginsContext.Provider
+@@ -87,6 +97,7 @@ export function PluginRoot(props: ParentProps) {
+           definitions={definitions}
+           bridge={bridge}
+           builtins={builtinIds}
++          disabled={mobileDisabled?.disabled}
+           servers
+           apis={apis.apis}
+           whenMounted={apis.whenMounted}
+diff --git a/packages/app/src/runtime/plugin/servers.tsx b/packages/app/src/runtime/plugin/servers.tsx
+index 7358ada..dd8d9fb 100644
+--- a/packages/app/src/runtime/plugin/servers.tsx
++++ b/packages/app/src/runtime/plugin/servers.tsx
+@@ -257,14 +257,15 @@ export function useServerRowItems(server: () => string) {
+   )
+ }
+ 
+-/** MenuItem "server.add" contributions, in order. */
+-export function useServerAddItems() {
++/** MenuItem "server.add" contributions, in order. The mobile shell excludes one plugin's
++ * contribution (N12: the WSL add face is replaced by the disabled row there). */
++export function useServerAddItems(excludePlugin?: () => string | undefined) {
+   const host = usePluginHost()
+ 
+   return createMemo(() =>
+     host
+-      .list(MenuItem)
+-      .flatMap((item) => (item.menu === "server.add" ? [item] : []))
++      .items(MenuItem)
++      .flatMap((item) => (item.plugin !== excludePlugin?.() && item.value.menu === "server.add" ? [item.value] : []))
+       .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+   )
+ }
+diff --git a/packages/app/src/servers/registry/add-menu.test.tsx b/packages/app/src/servers/registry/add-menu.test.tsx
+new file mode 100644
+index 0000000..37761b7
+--- /dev/null
++++ b/packages/app/src/servers/registry/add-menu.test.tsx
+@@ -0,0 +1,206 @@
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test as bunTest } from "bun:test"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++import { createRequire } from "node:module"
++import type { Window as HappyDOMWindow } from "happy-dom"
++
++function isHappyDOMWindow(value: unknown): value is { happyDOM: Pick<HappyDOMWindow["happyDOM"], "setURL"> } {
++  if (typeof value !== "object" || value === null || !("happyDOM" in value)) return false
++  const api = value.happyDOM
++  return typeof api === "object" && api !== null && "setURL" in api && typeof api.setURL === "function"
++}
++if (!isHappyDOMWindow(window)) throw new Error("This rendered test requires the Happy DOM preload")
++const browser = window.happyDOM
++
++// Standalone rendered test for the settings add-server menu (N12 contract, issue #124):
++// on the Android shell the control becomes a menu with Add server / Add SSH server / a
++// disabled WSL row (visible but disabled, zero controls, no extra explanation); elsewhere
++// the upstream control is unchanged. Run with:
++//   bun test --conditions=browser --isolate --preload ./happydom.ts src/servers/registry/add-menu.test.tsx
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core") as {
++  transformSync: (source: string, options: object) => { code: string | null } | null
++}
++plugin({
++  name: "add-server-menu-rendered",
++  setup(build) {
++    build.onLoad({ filter: /packages\/(app|ui)\/src\/.*\.tsx$/ }, async (args) => ({
++      contents: babel.transformSync(await Bun.file(args.path).text(), {
++        filename: args.path,
++        presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")],
++        configFile: false,
++        babelrc: false,
++      })!.code!,
++      loader: "js",
++    }))
++  },
++})
++
++let contributions: Array<{ plugin: string; value: { menu: "server.add"; id: string; title: string; run: () => void } }> = []
++mock.module("@/runtime/plugin/host", () => ({ usePluginHost: () => ({ items: () => contributions }) }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ t: (key: string) => key }) }))
++let sshOpened = 0
++mock.module("@/settings/servers/mobile-ssh", () => ({ useMobileSshUi: () => ({ translate: (key: string) => key === "add" ? "Add SSH server" : key, open: () => { sshOpened++ } }) }))
++// Shared-preload degradation (the servers-page.test.tsx convention): when the unit
++// suite's own ui solid-jsx preload also owns these sources, this file's classic-h
++// transform cannot win and executing real modules' JSX raises; the behavioral group
++// then degrades to skipped. Standalone evidence run (browser conditions, no shared
++// preload): bun test --conditions=browser --isolate --preload ./happydom.ts src/servers/registry/add-menu.test.tsx
++let rendered = false
++let AddServerMenu: (props: never) => unknown
++let SettingsAddServerMenu: (props: never) => unknown
++try {
++  ;({ AddServerMenu, SettingsAddServerMenu } = (await import("./add-menu")) as never)
++  // The import succeeds in every environment; executing the real components' JSX is
++  // what raises under the unit suite (its shared preload / solid server dist owns
++  // these sources there — the servers-page.test.tsx degradation convention).
++  createRoot((stop) => {
++    insert(document.createElement("div"), createComponent(SettingsAddServerMenu as never, { onAddServer: () => {} }))
++    queueMicrotask(stop)
++  })
++  rendered = true
++} catch {
++  // Degrade to skipped (see the note above).
++}
++
++let dispose: (() => void) | undefined
++afterEach(() => { dispose?.(); document.body.replaceChildren(); contributions = []; sshOpened = 0 })
++
++function mount(unsupportedWsl: boolean, onAddServer: () => void) {
++  const host = document.createElement("div")
++  document.body.append(host)
++  createRoot((stop) => {
++    dispose = stop
++    insert(host, createComponent(AddServerMenu, { onAddServer, unsupportedWsl }))
++  })
++  return host
++}
++
++function open(host: HTMLElement) {
++  host.querySelector("button")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }))
++}
++
++const items = () => [...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent)
++
++describe("settings add server menu", () => {
++  // Every case renders the real menu; where the environment cannot (see above) the
++  // group degrades to skipped instead of failing.
++  const test = rendered ? bunTest : bunTest.skip
++
++  test("first render distinguishes same-origin browser from native shell", async () => {
++    const initial = window.location.href
++    let added = 0
++    try {
++      browser.setURL("http://127.0.0.1:18090/")
++      const host = document.createElement("div")
++      document.body.append(host)
++      createRoot((stop) => {
++        dispose = stop
++        insert(host, createComponent(SettingsAddServerMenu, { checkAndroid: true, onAddServer: () => added++ }))
++      })
++      host.querySelector("button")!.click()
++      expect(added).toBe(1)
++      expect(document.querySelector('[role="menuitem"]')).toBeNull()
++      dispose?.()
++      host.remove()
++      const marker = document.createElement("meta")
++      marker.name = "opencode-mobile-host"
++      marker.content = "android-v1"
++      document.head.append(marker)
++      const android = document.createElement("div")
++      document.body.append(android)
++      createRoot((stop) => {
++        dispose = stop
++        insert(android, createComponent(SettingsAddServerMenu, { checkAndroid: true, onAddServer: () => added++ }))
++      })
++      open(android)
++      await Promise.resolve()
++      const wsl = [...document.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent?.includes("dialog.server.add.wsl"))!
++      expect(wsl.getAttribute("aria-disabled")).toBe("true")
++      expect(added).toBe(1)
++      marker.remove()
++    } finally {
++      browser.setURL(initial)
++    }
++  })
++
++  test("mobile exposes exactly Add, SSH and disabled WSL, without extra explanation", async () => {
++    let added = 0
++    const host = mount(true, () => added++)
++    open(host)
++    await Promise.resolve()
++    const wsl = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent?.includes("dialog.server.add.wsl"))!
++    expect(wsl).toBeDefined()
++    expect(wsl.getAttribute("aria-disabled")).toBe("true")
++    expect(items()).toEqual(["dialog.server.add.button", "Add SSH server", "dialog.server.add.wsl"])
++    expect(document.querySelector('[role="note"]')).toBeNull()
++    wsl.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    wsl.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }))
++    expect(added).toBe(0)
++    const add = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "dialog.server.add.button")!
++    add.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(added).toBe(0)
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(added).toBe(1)
++  })
++
++  test("mobile SSH touch action opens the upstream dialog after menu dismissal", async () => {
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    const ssh = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Add SSH server")!
++    ssh.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(sshOpened).toBe(0)
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(sshOpened).toBe(1)
++  })
++
++  test("leaving Settings cancels a pending Android touch open", async () => {
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    const ssh = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "Add SSH server")!
++    ssh.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    dispose?.()
++    await new Promise((resolve) => setTimeout(resolve, 370))
++    expect(sshOpened).toBe(0)
++  })
++
++  test("preserves other contributions but never runs the WSL contribution", async () => {
++    let wsl = 0
++    let other = 0
++    contributions = [
++      { plugin: "wsl", value: { menu: "server.add", id: "add", title: "real WSL", run: () => wsl++ } },
++      { plugin: "other", value: { menu: "server.add", id: "add", title: "other server", run: () => other++ } },
++    ]
++    const host = mount(true, () => {})
++    open(host)
++    await Promise.resolve()
++    expect(document.body.textContent).not.toContain("real WSL")
++    const otherItem = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "other server")!
++    otherItem.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", button: 0 }))
++    expect(other).toBe(1)
++    expect(wsl).toBe(0)
++  })
++
++  test("non-mobile with no contributions retains the direct Add action", () => {
++    let added = 0
++    const host = mount(false, () => added++)
++    host.querySelector("button")!.click()
++    expect(added).toBe(1)
++    expect(document.querySelector('[role="menuitem"]')).toBeNull()
++  })
++
++  test("non-mobile retains a real WSL contribution", async () => {
++    let wsl = 0
++    contributions = [{ plugin: "wsl", value: { menu: "server.add", id: "add", title: "real WSL", run: () => wsl++ } }]
++    const host = mount(false, () => {})
++    open(host)
++    await Promise.resolve()
++    const item = [...document.querySelectorAll('[role="menuitem"]')].find((el) => el.textContent === "real WSL")!
++    item.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }))
++    expect(wsl).toBe(1)
++    expect(document.body.textContent).not.toContain("dialog.server.add.wslUnavailable")
++  })
++})
+diff --git a/packages/app/src/servers/registry/add-menu.tsx b/packages/app/src/servers/registry/add-menu.tsx
+index c8cbd76..b7b45d6 100644
+--- a/packages/app/src/servers/registry/add-menu.tsx
++++ b/packages/app/src/servers/registry/add-menu.tsx
+@@ -2,18 +2,29 @@ import { Button } from "@opencode/ui/button"
+ import { Icon } from "@opencode/ui/icon"
+ import { IconButton } from "@opencode/ui/icon-button"
+ import { Menu } from "@opencode/ui/menu"
+-import { For, Show } from "solid-js"
++import { For, onCleanup, Show } from "solid-js"
+ import { useServerAddItems } from "@/runtime/plugin/servers"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { isAndroidMobileHost } from "@/settings/servers/android-host"
++import { useMobileSshUi } from "@/settings/servers/mobile-ssh"
++
++/** The settings header's add control: on the Android shell it becomes the N12 menu
++ * (Add server / Add SSH server / disabled WSL); elsewhere it is the upstream menu. */
++export function SettingsAddServerMenu(props: { onAddServer: () => void; checkAndroid?: boolean }) {
++  return <AddServerMenu onAddServer={props.onAddServer} unsupportedWsl={!!props.checkAndroid && isAndroidMobileHost()} />
++}
+ 
+ /** The add-server button; plugins that add their own kinds of server turn it into a menu. */
+-export function AddServerMenu(props: { onAddServer: () => void; compact?: boolean }) {
++export function AddServerMenu(props: { onAddServer: () => void; compact?: boolean; unsupportedWsl?: boolean }) {
+   const language = useLanguage()
+-  const items = useServerAddItems()
++  const ssh = useMobileSshUi()
++  const items = useServerAddItems(() => (props.unsupportedWsl ? "wsl" : undefined))
++  let pendingAdd: ReturnType<typeof setTimeout> | undefined
++  onCleanup(() => clearTimeout(pendingAdd))
+ 
+   return (
+     <Show
+-      when={items().length > 0}
++      when={props.unsupportedWsl || items().length > 0}
+       fallback={
+         <Show
+           when={props.compact}
+@@ -52,8 +63,27 @@ export function AddServerMenu(props: { onAddServer: () => void; compact?: boolea
+         </Show>
+         <Menu.Portal>
+           <Menu.Content>
+-            <Menu.Item onSelect={props.onAddServer}>{language.t("dialog.server.add.button")}</Menu.Item>
++            <Menu.Item onSelect={() => {
++              // Android WebView 114 can deliver a compatibility click after touch selection.
++              // Opening immediately lets that trailing click dismiss the new dialog's backdrop.
++              // Wait past the 300ms compatibility-click window; cleanup cancels a stale open.
++              if (props.unsupportedWsl) {
++                clearTimeout(pendingAdd)
++                pendingAdd = setTimeout(props.onAddServer, 350)
++                return
++              }
++              props.onAddServer()
++            }}>{language.t("dialog.server.add.button")}</Menu.Item>
+             <For each={items()}>{(item) => <Menu.Item onSelect={() => item.run()}>{item.title}</Menu.Item>}</For>
++            <Show when={props.unsupportedWsl}>
++              <Menu.Item onSelect={() => {
++                clearTimeout(pendingAdd)
++                pendingAdd = setTimeout(() => void ssh.open(), 350)
++              }}>{ssh.translate("add")}</Menu.Item>
++              <Menu.Item disabled>
++                {language.t("dialog.server.add.wsl")}
++              </Menu.Item>
++            </Show>
+           </Menu.Content>
+         </Menu.Portal>
+       </Menu>
+diff --git a/packages/app/src/servers/registry/row-menu.tsx b/packages/app/src/servers/registry/row-menu.tsx
+index e8b01f5..0b23291 100644
+--- a/packages/app/src/servers/registry/row-menu.tsx
++++ b/packages/app/src/servers/registry/row-menu.tsx
+@@ -5,6 +5,11 @@ import { type Component, Show } from "solid-js"
+ import type { ServerActionsController } from "@/servers/registry/controller"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ServerConnection } from "@/runtime/server/registry"
++// mobile(S36): a first-party SSH host row drives the shared mobile runtime from this
++// generic row menu; the adapter lives in the settings servers domain (issue #161
++// semantics: T1 connect / T10 retry / T14 local-only delete, challenge dialogs).
++import { parseHostKey } from "@opencode-mobile/mobile-hosts"
++import { useMobileSshMenuActions, type MobileSshMenuActions } from "@/settings/servers/mobile-ssh"
+ 
+ export const ServerRowMenu: Component<{
+   server: ServerConnection.Any
+@@ -15,20 +20,25 @@ export const ServerRowMenu: Component<{
+ }> = (props) => {
+   const language = useLanguage()
+   const key = ServerConnection.key(props.server)
++  const sshId = parseHostKey(key)
++  // Unconditional call: the adapter returns undefined (and builds nothing — no catalog
++  // resource, no runtime access) for every non-mobile-SSH key.
++  const ssh = useMobileSshMenuActions(() => sshId)
+ 
+   return (
+     <ServerRowMenuView
+       server={props.server}
+       labels={serverMenuLabels(language)}
+-      canRemove={props.domain.connection.canRemove(key)}
+-      canHide={props.domain.connection.canHide(key)}
+-      hidden={props.domain.connection.isHidden(key)}
++      canRemove={ssh ? true : props.domain.connection.canRemove(key)}
++      canHide={ssh ? undefined : props.domain.connection.canHide(key)}
++      hidden={ssh ? undefined : props.domain.connection.isHidden(key)}
+       onEdit={props.onEdit}
+-      onRemove={() => props.domain.connection.remove(key)}
++      onRemove={() => (ssh ? void ssh.remove() : props.domain.connection.remove(key))}
+       onHide={() => props.domain.connection.setHidden(key, true)}
+       onShow={() => props.domain.connection.setHidden(key, false)}
+       open={props.open}
+       onOpenChange={props.onOpenChange}
++      mobileSsh={ssh}
+     />
+   )
+ }
+@@ -56,6 +66,8 @@ export const ServerRowMenuView: Component<{
+   onShow?: () => void
+   open?: boolean
+   onOpenChange?: (open: boolean) => void
++  /** Present for a first-party mobile SSH row: connect/retry replaces the edit/hide face. */
++  mobileSsh?: MobileSshMenuActions
+ }> = (props) => {
+   const builtin = () => ServerConnection.builtin(props.server)
+   const httpServer = () => (props.server.type === "http" ? props.server : undefined)
+@@ -73,21 +85,34 @@ export const ServerRowMenuView: Component<{
+         <Menu.Content>
+           <Menu.Group>
+             <Menu.GroupLabel>{props.labels.server}</Menu.GroupLabel>
+-            <Menu.Item
+-              disabled={builtin() || !httpServer()}
+-              onSelect={() => {
+-                const server = httpServer()
++            <Show
++              when={props.mobileSsh}
++              fallback={
++                <>
++                  <Menu.Item
++                    disabled={builtin() || !httpServer()}
++                    onSelect={() => {
++                      const server = httpServer()
+ 
+-                if (server) props.onEdit(server)
+-              }}
++                      if (server) props.onEdit(server)
++                    }}
++                  >
++                    {props.labels.edit}
++                  </Menu.Item>
++                  <Show when={props.hidden}>
++                    <Menu.Item onSelect={props.onShow}>{props.labels.show}</Menu.Item>
++                  </Show>
++                  <Show when={!props.hidden && props.canHide}>
++                    <Menu.Item onSelect={props.onHide}>{props.labels.hide}</Menu.Item>
++                  </Show>
++                </>
++              }
+             >
+-              {props.labels.edit}
+-            </Menu.Item>
+-            <Show when={props.hidden}>
+-              <Menu.Item onSelect={props.onShow}>{props.labels.show}</Menu.Item>
+-            </Show>
+-            <Show when={!props.hidden && props.canHide}>
+-              <Menu.Item onSelect={props.onHide}>{props.labels.hide}</Menu.Item>
++              {(ssh) => (
++                <Menu.Item disabled={ssh().connecting()} onSelect={() => ssh().connect()}>
++                  {ssh().label()}
++                </Menu.Item>
++              )}
+             </Show>
+             <Show when={props.canRemove}>
+               <Menu.Separator />
+diff --git a/packages/app/src/settings/keyed-server-entry.test.tsx b/packages/app/src/settings/keyed-server-entry.test.tsx
+new file mode 100644
+index 0000000..afb9465
+--- /dev/null
++++ b/packages/app/src/settings/keyed-server-entry.test.tsx
+@@ -0,0 +1,76 @@
++import { describe, expect, test } from "bun:test"
++import { createComponent, createRoot, Show, type Accessor } from "solid-js"
++import { insert } from "solid-js/web"
++
++// mobile(M-044) rewrite for the migrated servers-tab shape (issue #101, plan §3.3):
++// the target `<Show when={multiple() ? undefined : inventory()[0]} fallback={...}>` is NOT
++// keyed — its callback receives the plain value, which is why the value must be passed on as
++// `entry={entry()}` (the frozen-baseline failure was the pin-era keyed form passing the
++// getter wrapper to `SettingsServerGeneral entry={entry}`). The render below uses
++// createComponent + createRoot + a manual host append instead of `render()` from
++// solid-js/web, whose server dist throws `notSup` under the unit-test conditions (the
++// frozen baseline's environment failure; the same render-free harness as the M-044
++// surface.test.ts).
++
++describe("root Settings Server keyed entry", () => {
++  test("passes the plain entry value to the root server panel (non-keyed target form)", () => {
++    const entry = { key: "synthetic-server", name: "Synthetic server" }
++    const host = document.createElement("div")
++    document.body.appendChild(host)
++
++    createRoot((dispose) => {
++      const tree = createComponent(Show, {
++        get when() {
++          return entry
++        },
++        get children() {
++          return (value: Accessor<typeof entry>) => {
++            // Non-keyed function children receive an accessor; the panel prop unwraps it
++            // (`entry={entry()}`), which is exactly the identity this test locks.
++            expect(value()).toBe(entry)
++
++            const heading = document.createElement("h2")
++            heading.dataset.testid = "server-name"
++            heading.textContent = value().name
++
++            return heading
++          }
++        },
++      })
++
++      // solid-js/web's insert materializes thunks/arrays (what render() does before its
++      // server dist raises notSup): under the browser dist createComponent returns a lazy
++      // thunk, so a plain appendChild would mount nothing — while under the server dist
++      // insert itself is the client-only API, and the eagerly-evaluated node appends
++      // directly. Either environment mounts exactly one of the two ways.
++      try {
++        insert(host, tree as never)
++      } catch {
++        if (tree instanceof Node) host.appendChild(tree)
++      }
++      queueMicrotask(dispose)
++    })
++
++    expect(host.querySelector("[data-testid=server-name]")?.textContent).toBe("Synthetic server")
++  })
++
++  test("the migrated shell renders the target servers-tab shape with the host manager first", async () => {
++    const source = await Bun.file(new URL("./shell.tsx", import.meta.url)).text()
++
++    // mobile(M-008): the first-party SSH host manager is the tab's first child.
++    expect(source).toContain('<Tabs.Content value="servers" class="settings-panel">')
++    expect(source).toContain("<MobileHostManager />")
++    expect(source.indexOf("<MobileHostManager />")).toBeGreaterThan(
++      source.indexOf('<Tabs.Content value="servers" class="settings-panel">'),
++    )
++
++    // Target form: non-keyed Show with the SettingsServerList fallback wired to the
++    // surface's server scope, and the plain value passed to the root server panel.
++    expect(source).toContain("when={multiple() ? undefined : inventory()[0]}")
++    expect(source).toContain("<SettingsServerList")
++    expect(source).toContain("selected={surface.server()?.key}")
++    expect(source).toContain("onServerChange={selectServer}")
++    expect(source).toContain("<SettingsServerGeneral entry={entry()} onAddServer={addServer} />")
++    expect(source).not.toContain("<SettingsServerGeneral entry={entry} onAddServer={addServer} />")
++  })
++})
+diff --git a/packages/app/src/settings/pages.ts b/packages/app/src/settings/pages.ts
+index 2aad8a9..2f84635 100644
+--- a/packages/app/src/settings/pages.ts
++++ b/packages/app/src/settings/pages.ts
+@@ -14,6 +14,10 @@ export const pageIcons = {
+   extensions: "extensions",
+   servers: "server",
+   experimental: "flask",
++  // mobile(M-044): restored with the "gui-extensions" root tab (M-026 face, D4);
++  // issue #109 resolved the D4 contract - kept (see the route.ts note and
++  // docs/design/units/gui-plugins.md section 4).
++  "gui-extensions": "extensions",
+   about: "info",
+ } as const satisfies Record<SettingsRootTab, IconProps["name"]>
+ 
+@@ -29,5 +33,9 @@ export const pageLabels = {
+   extensions: "settings.tab.extensions",
+   servers: "settings.section.server",
+   experimental: "settings.tab.experimental",
++  // mobile(M-044): restored with the "gui-extensions" root tab (M-026 face, D4);
++  // issue #109 resolved the D4 contract - kept (see the route.ts note and
++  // docs/design/units/gui-plugins.md section 4).
++  "gui-extensions": "settings.guiExtensions.title",
+   about: "settings.tab.about",
+ } as const satisfies Record<SettingsRootTab, Parameters<ReturnType<typeof useLanguage>["t"]>[0]>
+diff --git a/packages/app/src/settings/route.test.ts b/packages/app/src/settings/route.test.ts
+index cb66631..5d9a875 100644
+--- a/packages/app/src/settings/route.test.ts
++++ b/packages/app/src/settings/route.test.ts
+@@ -49,6 +49,35 @@ describe("settings route", () => {
+     })
+   })
+ 
++  // mobile(M-044/M-052, issue #109): the restored "gui-extensions" root tab parses as a
++  // host tab, and host tabs win over a plugin page claiming the same id (route.ts
++  // isRootTab branch precedes the pluginTabs branch — the D4 contract in
++  // docs/design/units/gui-plugins.md).
++  test("parses the restored gui-extensions host root tab", () => {
++    expect(parseSettingsView("?tab=gui-extensions")).toEqual({
++      type: "root",
++      tab: "gui-extensions",
++      server: undefined,
++      subtab: undefined,
++    })
++    expect(parseSettingsView("?server=wsl%3ADebian&tab=gui-extensions")).toEqual({
++      type: "root",
++      tab: "gui-extensions",
++      server: "wsl:Debian",
++      subtab: undefined,
++    })
++  })
++
++  test("host tabs win over a plugin page with the same id", () => {
++    const pluginTabs = new Set(["gui-extensions"])
++    expect(parseSettingsView("?tab=gui-extensions", undefined, pluginTabs)).toEqual({
++      type: "root",
++      tab: "gui-extensions",
++      server: undefined,
++      subtab: undefined,
++    })
++  })
++
+   test("keeps search reveal state transient", () => {
+     expect(
+       parseSettingsView("?server=local&project=%2Fwork&tab=extensions&subtab=plugins", {
+diff --git a/packages/app/src/settings/route.ts b/packages/app/src/settings/route.ts
+index 2d64da6..56e87c9 100644
+--- a/packages/app/src/settings/route.ts
++++ b/packages/app/src/settings/route.ts
+@@ -12,6 +12,13 @@ export type SettingsRootTab =
+   | "extensions"
+   | "servers"
+   | "experimental"
++  // mobile(M-044): the "gui-extensions" root tab is restored for the first-party GUI
++  // extension manager (M-026 face, unit contract D4 in docs/design/units/gui-plugins.md).
++  // Deliberate deviation from the target route model, resolved as KEEP (issue #109): the
++  // target PluginSettingsPages registry hosts plugin-owned contributions only, and the
++  // target Extensions face is server-scoped and renders only under reachable-server data
++  // scope, while this manager is window-local.
++  | "gui-extensions"
+   | "about"
+ 
+ declare const pluginTab: unique symbol
+@@ -57,6 +64,7 @@ const rootTabs: Record<SettingsRootTab, true> = {
+   extensions: true,
+   servers: true,
+   experimental: true,
++  "gui-extensions": true,
+   about: true,
+ }
+ 
+diff --git a/packages/app/src/settings/search-catalog.ts b/packages/app/src/settings/search-catalog.ts
+index 7429fa4..7bcafbc 100644
+--- a/packages/app/src/settings/search-catalog.ts
++++ b/packages/app/src/settings/search-catalog.ts
+@@ -162,7 +162,9 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
+     label: "settings.appearance.row.zoom.title",
+     target: "settings-zoom",
+     keywords: "scale size text font larger bigger accessibility",
+-    available: "desktop",
++    // mobile(M-035): the upstream gate drops `available: "desktop"` — zoom is web-available
++    // on this mobile client (registered deviation, matrix S42 / issue #144; the later
++    // appearance-motion-zoom rebase must not re-add the gate).
+   },
+   {
+     tab: "appearance",
+diff --git a/packages/app/src/settings/search-results.test.ts b/packages/app/src/settings/search-results.test.ts
+index 51469e2..70d6123 100644
+--- a/packages/app/src/settings/search-results.test.ts
++++ b/packages/app/src/settings/search-results.test.ts
+@@ -45,13 +45,16 @@ describe("settings search index", () => {
+       target: undefined,
+       subtab: undefined,
+     })
+-    expect(rankSettings("font", items)).toHaveLength(3)
++    // mobile(M-035): the zoom row drops the target's desktop gate, so it joins the "font"
++    // query (4 results instead of the target's 3; registered deviation, matrix S42).
++    expect(rankSettings("font", items)).toHaveLength(4)
+   })
+ 
+   test("only advertises settings supported by this platform", () => {
+     const targets = (input: Parameters<typeof index>[0]) => index(input).map((item) => item.view.target)
+     expect(targets({})).not.toContain("settings-pinch-zoom")
+-    expect(targets({})).not.toContain("settings-zoom")
++    // mobile(M-035): the zoom row is web-available on this client (gate dropped).
++    expect(targets({})).toContain("settings-zoom")
+     expect(targets({})).not.toContain("settings-experimental-browser")
+     expect(targets({})).not.toContain("settings-show-project-icon")
+     expect(targets({})).toContain("settings-tab-layout")
+diff --git a/packages/app/src/settings/servers/mobile-ssh.test.tsx b/packages/app/src/settings/servers/mobile-ssh.test.tsx
+new file mode 100644
+index 0000000..afc7398
+--- /dev/null
++++ b/packages/app/src/settings/servers/mobile-ssh.test.tsx
+@@ -0,0 +1,278 @@
++import { plugin } from "bun"
++import { afterEach, describe, expect, mock, test as bunTest } from "bun:test"
++import { createComponent, createRoot, createSignal, Suspense } from "solid-js"
++import { insert } from "solid-js/web"
++import { createRequire } from "node:module"
++import en from "../../../../gui-plugins/src/ssh/i18n/en"
++
++// Standalone browser-condition rendered tests for the settings SSH row-menu adapter
++// (issue #161 semantics on the generic ServerRowMenu architecture, D2). Fixtures below
++// are not production backend successes: the runtime drives the injected fail-closed or
++// scripted ports, and every assertion is a real machine-state or registry fact — no
++// faked success. Run with:
++//   bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/mobile-ssh.test.tsx
++const require = createRequire(import.meta.resolve("vite-plugin-solid"))
++const babel = require("@babel/core")
++plugin({ name: "ssh-row-menu-rendered", setup(build) {
++  build.onLoad({ filter: /packages\/.*\.tsx$/ }, async (args) => ({
++    contents: babel.transformSync(await Bun.file(args.path).text(), {
++      filename: args.path, presets: [require.resolve("babel-preset-solid"), require.resolve("@babel/preset-typescript")], configFile: false, babelrc: false,
++    }).code, loader: "js",
++  }))
++} })
++
++let pushed: (() => unknown)[] = []
++let closed = 0
++let toasts = 0
++let locale = () => "en"
++const catalogRequests: Record<string, Array<(value: { default: Record<string, string> }) => void>> = {}
++const delayedCatalog = (key: string) => () => new Promise<{ default: Record<string, string> }>((resolve) => {
++  ;(catalogRequests[key] ??= []).push(resolve)
++})
++mock.module("../../../../gui-plugins/src/ssh/index", () => ({ default: { i18n: { en, zh: delayedCatalog("zh"), fr: delayedCatalog("fr") } } }))
++mock.module("@/runtime/i18n/language", () => ({ useLanguage: () => ({ locale: () => locale(), t: (key: string) => key, rich: (key: string) => key }) }))
++const uiDialog = await import("@opencode/ui/context/dialog")
++mock.module("@opencode/ui/context/dialog", () => ({
++  ...uiDialog,
++  useDialog: () => ({ push: (render: () => unknown) => { pushed.push(render) }, close: () => closed++ }),
++}))
++mock.module("@/shell/notifications/toast", () => ({ showToast: () => { toasts++ } }))
++// Keep original DialogSsh JSX, replace only its outer dialog/focus-management host.
++mock.module("@opencode/ui/dialog", () => {
++  const box = (props: { children: unknown }) => props.children
++  return { Dialog: box, DialogBody: box, DialogFooter: box, DialogHeader: box, DialogTitle: box }
++})
++const { createMobileHosts, createMemoryStorage, TransportUnavailableError, parseHostKey } = await import("@opencode-mobile/mobile-hosts")
++const { useMobileSshUi, mobileSshItems, useMobileSshMenuActions } = await import("./mobile-ssh")
++
++// Shared-preload degradation (the servers-page.test.tsx convention): under the unit
++// suite the shared ui solid-jsx preload / solid server dist owns these sources and any
++// createRoot raises, so the behavioral group degrades to skipped there. The behavioral
++// evidence run is standalone (browser conditions, no shared preload):
++//   bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/servers/mobile-ssh.test.tsx
++let rendered = false
++try {
++  // The probe drives the real hook chain (createResource): exactly the surface the
++  // unit suite's solid server dist refuses, so the flag splits the environments.
++  const probeRuntime = createMobileHosts({ storage: createMemoryStorage() })
++  const probeHost = probeRuntime.registry.add({ name: "Canary", target: "example@example.invalid", servicePort: 4096 })
++  createRoot((stop) => {
++    useMobileSshMenuActions(() => parseHostKey(`mobile-ssh:${probeHost.id}`))
++    stop()
++  })
++  rendered = true
++} catch {
++  // Degrade to skipped (see the note above).
++}
++
++let dispose: (() => void) | undefined
++afterEach(() => { dispose?.(); document.body.replaceChildren(); pushed = []; closed = 0; toasts = 0; locale = () => "en"; for (const key of Object.keys(catalogRequests)) delete catalogRequests[key] })
++function mount(create: () => unknown) {
++  const host = document.createElement("div")
++  document.body.append(host)
++  createRoot((stop) => { dispose = stop; insert(host, create() as never) })
++  return host
++}
++
++/** Mounts the row-menu actions for one host key under a real owner. */
++function mountActions(key: () => string | undefined) {
++  let actions: ReturnType<typeof useMobileSshMenuActions> | undefined
++  mount(() => {
++    actions = useMobileSshMenuActions(key)
++    return document.createElement("span")
++  })
++  return actions
++}
++
++describe("settings SSH row-menu adapter (issue #161 on the generic row menu)", () => {
++  // Every case mounts real Solid roots; where the environment cannot (see above) the
++  // group degrades to skipped instead of failing.
++  const test = rendered ? bunTest : bunTest.skip
++
++  test("non-SSH keys build nothing (no runtime access, no catalog resource)", () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    // The row-menu contract: the adapter receives the PARSED host id (row-menu applies
++    // parseHostKey), so a plain server key parses to undefined and builds nothing.
++    const actions = mountActions(() => parseHostKey(saved.id))
++    expect(actions).toBeUndefined()
++    expect(pushed.length).toBe(0)
++    expect(toasts).toBe(0)
++  })
++
++  test("T1: an ordinary row starts a real runtime attempt — connecting, then failed under the stub verifier, no fail-closed toast, no dialog", async () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const actions = mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!
++    expect(actions).toBeDefined()
++
++    actions!.connect()
++    // The row starts a real runtime attempt (T1) — no fail-closed toast, no dialog.
++    expect(runtime.stateOf(saved.id)).toBe("connecting")
++    expect(toasts).toBe(0)
++    expect(pushed.length).toBe(0)
++    // Under the fail-closed stub verifier the attempt settles into failed (T8), leaving
++    // the row actionable again instead of dead-ending on an unavailable error.
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(runtime.stateOf(saved.id)).toBe("failed")
++    expect(toasts).toBe(0)
++    // And the failed row re-drives (T1 sources failed too).
++    actions!.connect()
++    expect(runtime.stateOf(saved.id)).toBe("connecting")
++  })
++
++  test("T10: an offline row re-enters through retry — reconnecting, then offline again while the budget lasts", async () => {
++    let loss: (() => void) | undefined
++    let opens = 0
++    const runtime = createMobileHosts({
++      storage: createMemoryStorage(),
++      hostKey: { verify: async () => ({ action: "trust" }) },
++      transport: {
++        open: async (input) => {
++          opens++
++          if (opens === 1) {
++            loss = () => input.onEvent({ type: "connectionLost" })
++            return { url: "http://127.0.0.1:41017" }
++          }
++          throw new TransportUnavailableError()
++        },
++      },
++      fetch: (async () => new Response(JSON.stringify({ version: "2.2.7" }), { status: 200, headers: { "content-type": "application/json" } })) as never,
++    })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const actions = mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!
++
++    actions!.connect()
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(runtime.stateOf(saved.id)).toBe("ready")
++    // T9: a client-side loss lands the host in offline; the remote keeps running.
++    loss!()
++    expect(runtime.stateOf(saved.id)).toBe("offline")
++
++    // The menu's ordinary Connect re-enters through the T10 retry path.
++    actions!.connect()
++    expect(runtime.stateOf(saved.id)).toBe("reconnecting")
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    // The scripted transport refuses the second open (T8): while the retry budget lasts
++    // the failure lands back in offline — the row stays actionable.
++    expect(runtime.stateOf(saved.id)).toBe("offline")
++    expect(toasts).toBe(0)
++  })
++
++  test("T14: Delete removes the registry record locally — zero transport calls, no toast, no dialog", async () => {
++    let opens = 0
++    const runtime = createMobileHosts({
++      storage: createMemoryStorage(),
++      hostKey: { verify: async () => ({ action: "trust" }) },
++      transport: { open: async () => { opens++; return { url: "http://127.0.0.1:41018" } } },
++      fetch: (async () => new Response(JSON.stringify({ version: "2.2.7" }), { status: 200 })) as never,
++    })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const actions = mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!
++    expect(await actions!.remove()).toBe(true)
++    expect(runtime.registry.list()).toHaveLength(0)
++    // Zero transport calls: the remote host keeps running (AGENTS.md red line).
++    expect(opens).toBe(0)
++    expect(toasts).toBe(0)
++    expect(pushed.length).toBe(0)
++    // Removing an unknown host reports false through the same path (the menu toasts).
++    expect(await mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!.remove()).toBe(false)
++    expect(toasts).toBe(1)
++  })
++
++  test("the host-key challenge opens the first-party prompt; Trust and connect confirms the pending key (T3)", async () => {
++    let opens = 0
++    const runtime = createMobileHosts({
++      storage: createMemoryStorage(),
++      hostKey: { verify: async () => ({ action: "prompt", fingerprint: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99" }) },
++      transport: { open: async () => { opens++; return { url: "http://127.0.0.1:41019" } } },
++      fetch: (async () => new Response(JSON.stringify({ version: "2.2.7" }), { status: 200 })) as never,
++    })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const actions = mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!
++
++    actions!.connect()
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(runtime.stateOf(saved.id)).toBe("hostKeyUnverified")
++    expect(runtime.fingerprintOf(saved.id)).toContain("AA:BB")
++
++    // The menu's Connect presents the prompt dialog instead of a new attempt.
++    actions!.connect()
++    expect(pushed.length).toBe(1)
++    expect(runtime.stateOf(saved.id)).toBe("hostKeyUnverified")
++    expect(opens).toBe(0)
++
++    // Rendering the pushed dialog and confirming drives runtime.confirmHostKey (T3):
++    // the attempt proceeds to the transport with the pinned fingerprint and turns ready.
++    const host = mount(() => pushed[0]!())
++    const confirm = [...host.querySelectorAll("button")].find((el) => el.textContent?.includes("Trust"))
++    expect(confirm).toBeDefined()
++    confirm!.click()
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(runtime.stateOf(saved.id)).toBe("ready")
++    expect(opens).toBe(1)
++  })
++
++  test("the connect item reflects the machine state: label per state, disabled while connecting", () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const saved = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const actions = mountActions(() => parseHostKey(`mobile-ssh:${saved.id}`))!
++    expect(actions!.label()).toBe("Connect")
++    actions!.connect()
++    expect(runtime.stateOf(saved.id)).toBe("connecting")
++    expect(actions!.connecting()).toBe(true)
++    expect(actions!.label()).toBe("Connect")
++  })
++})
++
++describe("adapter data face", () => {
++  const test = rendered ? bunTest : bunTest.skip
++
++  test("saved host config and identity are read without mutation", () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    const host = runtime.registry.add({ name: "Fixture", target: "example@example.invalid", servicePort: 4096 })
++    const item = mobileSshItems(runtime)[0]!
++    expect(item.config.id).toBe(host.id)
++    expect(item.config.target).toBe(host.target)
++    expect(item.stage).toBe("disconnected")
++  })
++
++  test("delayed initial and switched catalogs never suspend or reuse the previous language", async () => {
++    const runtime = createMobileHosts({ storage: createMemoryStorage() })
++    runtime.registry.add({ name: "Catalog fixture", target: "example@example.invalid", servicePort: 4096 })
++    let select!: (next: string) => void
++    const host = mount(() => {
++      const [current, setCurrent] = createSignal("zh")
++      locale = current
++      select = setCurrent
++      return createComponent(Suspense, {
++        fallback: "SUSPENDED SETTINGS",
++        get children() {
++          const ui = useMobileSshUi()
++          const label = document.createElement("span")
++          insert(label, () => ui.translate("add"))
++          return label
++        },
++      })
++    })
++    await Promise.resolve()
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++    expect(host.textContent).toContain("Add SSH server")
++    for (const resolve of catalogRequests.zh!) resolve({ default: { ...en, add: "ZH fixture add" } })
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(host.textContent).toContain("ZH fixture add")
++    select("fr")
++    await Promise.resolve()
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++    expect(host.textContent).toContain("Add SSH server")
++    expect(host.textContent).not.toContain("ZH fixture")
++    for (const resolve of catalogRequests.fr!) resolve({ default: { ...en, add: "FR fixture add" } })
++    await new Promise((resolve) => setTimeout(resolve, 0))
++    expect(host.textContent).toContain("FR fixture add")
++    expect(host.textContent).not.toContain("SUSPENDED SETTINGS")
++  })
++})
+diff --git a/packages/app/src/settings/servers/mobile-ssh.tsx b/packages/app/src/settings/servers/mobile-ssh.tsx
+new file mode 100644
+index 0000000..0422783
+--- /dev/null
++++ b/packages/app/src/settings/servers/mobile-ssh.tsx
+@@ -0,0 +1,139 @@
++/** Settings-only presentation adapter for first-party SSH host rows (mobile-ssh: keys).
++ * The existing mobile runtime remains the sole owner. No desktop renderer, IPC, restore
++ * or remote bootstrap is installed here. Row-menu Connect and Delete drive that runtime
++ * directly (issue #161 semantics on the generic ServerRowMenu architecture); the
++ * challenge dialog path is the only UI-local flow.
++ */
++import { getMobileHosts, parseHostKey, KeyedHostKeyPrompt, type MobileHosts } from "@opencode-mobile/mobile-hosts"
++import { showToast } from "@/shell/notifications/toast"
++import { useDialog } from "@opencode/ui/context/dialog"
++import { createMemo, createResource, type Accessor } from "solid-js"
++import type { BuiltinCatalog } from "@opencode/plugin/gui/builtin"
++import type { SshItem } from "../../../../gui-plugins/src/ssh/contract"
++import { useLanguage } from "@/runtime/i18n/language"
++import { DialogSsh } from "../../../../gui-plugins/src/ssh/dialog"
++import { createSshController } from "../../../../gui-plugins/src/ssh/state"
++import type { SshConfig } from "../../../../gui-plugins/src/ssh/contract"
++import en from "../../../../gui-plugins/src/ssh/i18n/en"
++import definition from "../../../../gui-plugins/src/ssh/index"
++import "../../../../gui-plugins/src/ssh/ssh.css"
++
++export function mobileSshItems(runtime: MobileHosts): SshItem[] {
++  return runtime.registry.list().map((host) => {
++    const state = runtime.stateOf(host.id)
++    const stage: SshItem["stage"] = state === "ready" ? "ready"
++      : state === "incompatible" ? "incompatible"
++      : state === "authRequired" || state === "hostKeyUnverified" ? "authentication"
++      : state === "failed" ? "failed"
++      : state === "connecting" || state === "reconnecting" ? "connecting"
++      : "disconnected"
++    const fingerprint = state === "hostKeyUnverified" ? runtime.fingerprintOf(host.id) : undefined
++    return {
++      config: { id: host.id, target: host.target, name: host.name }, saved: true, stage, detail: "",
++      ...(fingerprint ? { prompt: { id: `host-key:${host.id}`, text: `${host.target}\n${fingerprint}`, confirm: true } } : {}),
++    }
++  })
++}
++
++export function useMobileSshUi() {
++  const language = useLanguage()
++  const dialog = useDialog()
++  const [messages] = createResource(language.locale, async (locale) => {
++    const catalog = definition.i18n as BuiltinCatalog
++    const entry = catalog[locale]
++    const messages = typeof entry === "function" ? (await entry()).default : entry ?? en
++    return { locale, messages }
++  })
++  const translate = (key: string, params?: Record<string, string>) => {
++    // Neither resource() nor .latest is safe before the first value. Keep the
++    // existing UI mounted while loading, and never display a previous locale's catalog.
++    const loaded = messages.state === "ready" || messages.state === "refreshing"
++    const latest = loaded ? messages.latest : undefined
++    const dict: Record<string, string> = latest?.locale === language.locale() ? latest.messages : en
++    const text = dict[key] ?? language.t(key as Parameters<typeof language.t>[0])
++    return text.replace(/{{\s*(\w+)\s*}}/g, (_, name) => params?.[name] ?? "")
++  }
++  const unavailable = () => showToast({ variant: "error", title: translate("error.unavailable") })
++  const open = (config?: SshConfig) => dialog.push(() => {
++    const runtime = getMobileHosts()
++    const ssh = createSshController({
++      // A ready runtime snapshot predates this UI attempt and cannot make it succeed.
++      items: () => mobileSshItems(runtime).map((item) => item.stage === "ready" ? { ...item, stage: "disconnected" as const } : item),
++      api: () => undefined,
++      refresh: async () => {},
++      error: unavailable,
++    })
++    return <DialogSsh ssh={ssh} translate={translate} config={config} />
++  })
++  return { translate, unavailable, open }
++}
++
++/** The row-menu actions of one mobile SSH host (D2: the generic ServerRowMenu gains the
++ * runtime face; nothing here renders a dedicated row). */
++export type MobileSshMenuActions = {
++  /** True while a connect/reconnect attempt is in flight (the menu item stays disabled). */
++  connecting: () => boolean
++  /** The connect item's label for the host's current state. */
++  label: () => string
++  /** Starts the runtime action for the current state. */
++  connect: () => void
++  /** T14: local-only registry removal, zero transport calls; the remote host keeps running. */
++  remove: () => Promise<boolean>
++}
++
++/** Row-menu actions for one mobile SSH host; undefined when the key is not one. */
++export function useMobileSshMenuActions(id: Accessor<string | undefined>): MobileSshMenuActions | undefined {
++  const hostId = createMemo(id)
++  // Solid hooks are owner-scoped, not index-based: a non-SSH row never builds the
++  // catalog resource or touches the runtime.
++  if (!hostId()) return undefined
++  const host = hostId()
++  const runtime = getMobileHosts()
++  const ui = useMobileSshUi()
++  const dialog = useDialog()
++  const item = createMemo(() => mobileSshItems(runtime).find((entry) => entry.config.id === host))
++  const connecting = () => {
++    const state = runtime.stateOf(host)
++
++    return state === "connecting" || state === "reconnecting"
++  }
++  const connect = () => {
++    const current = item()
++    const config = current?.config
++
++    if (!config) return
++    // The host-key challenge presents the first-party prompt (T3 confirm / T4 reject via
++    // runtime.confirmHostKey/rejectHostKey); the incompatible row presents the upstream
++    // update dialog. Everything else drives the shared runtime directly (issue #161):
++    // offline re-enters through the T10 retry path, every other state starts a fresh
++    // attempt (T1 sources idle/failed/incompatible/authRequired, so a failed row is
++    // actionable again).
++    if (runtime.stateOf(host) === "hostKeyUnverified") {
++      dialog.push(() => <KeyedHostKeyPrompt runtime={runtime} hostId={hostId} onClose={() => dialog.close()} />)
++      return
++    }
++    if (current.stage === "incompatible") {
++      void ui.open(config)
++      return
++    }
++    if (runtime.stateOf(host) === "offline") runtime.retry(host)
++    else runtime.connect(host)
++  }
++  const label = () => (item()?.stage === "authentication" ? ui.translate("authenticate") : ui.translate("connect"))
++  const remove = async () => {
++    // Delete is a local-only registry removal (T14, issue #161): zero transport calls,
++    // the remote host keeps running. A bound vault credential stays as an explicit
++    // orphan for the user to review in Credentials (runtime remove contract).
++    const removed = await runtime.remove(host)
++
++    if (!removed) ui.unavailable()
++    return removed
++  }
++
++  return { connecting, label, connect, remove }
++}
++
++/** The settings row key of a mobile SSH host, or undefined for every other server. */
++export function mobileSshHostId(key: string): string | undefined {
++  return parseHostKey(key)
++}
+diff --git a/packages/app/src/settings/servers/servers-page.test.tsx b/packages/app/src/settings/servers/servers-page.test.tsx
+index ea25dcf..e65461e 100644
+--- a/packages/app/src/settings/servers/servers-page.test.tsx
++++ b/packages/app/src/settings/servers/servers-page.test.tsx
+@@ -179,12 +179,20 @@ try {
+   }))
+ 
+   // Observe the page-to-menu option on both real page layouts without replacing the pages.
++  // mobile(N12): the page now mounts the SettingsAddServerMenu wrapper (the upstream
++  // AddServerMenu stays its non-Android form), so the mock replaces the wrapper.
+   mock.module("@/servers/registry/add-menu", () => ({
+     AddServerMenu: () => {
+       const button = document.createElement("button")
+       button.textContent = "dialog.server.add.button"
+       return button
+     },
++    SettingsAddServerMenu: (props: { checkAndroid?: boolean }) => {
++      const button = document.createElement("button")
++      button.textContent = "dialog.server.add.button"
++      button.dataset.checkAndroid = String(!!props.checkAndroid)
++      return button
++    },
+   }))
+ 
+   mock.module("@/servers/registry/row", () => ({
+diff --git a/packages/app/src/settings/servers/servers.tsx b/packages/app/src/settings/servers/servers.tsx
+index 103b42c..b18135b 100644
+--- a/packages/app/src/settings/servers/servers.tsx
++++ b/packages/app/src/settings/servers/servers.tsx
+@@ -4,7 +4,7 @@ import { createMemo, For, onCleanup, Show, type Component } from "solid-js"
+ import { ServerRowMenu } from "@/servers/registry/row-menu"
+ import { ServerHealthIndicator } from "@/servers/registry/row"
+ import { PluginServerRow } from "@/servers/registry/plugin-row"
+-import { AddServerMenu } from "@/servers/registry/add-menu"
++import { SettingsAddServerMenu } from "@/servers/registry/add-menu"
+ import { useLanguage } from "@/runtime/i18n/language"
+ import { ServerConnection } from "@/runtime/server/registry"
+ import { useServerCollectionController } from "@/servers/registry/controller"
+@@ -100,7 +100,8 @@ function SettingsServersHeader(props: { title: string; onAddServer: () => void }
+           <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
+         </div>
+         <div class="settings-tab-header-actions">
+-          <AddServerMenu onAddServer={props.onAddServer} />
++          {/* mobile(N12): the Android shell swaps the add control for the WSL-aware menu. */}
++          <SettingsAddServerMenu onAddServer={props.onAddServer} checkAndroid />
+         </div>
+       </div>
+     </div>
+diff --git a/packages/app/src/settings/settings-search-plugin.test.tsx b/packages/app/src/settings/settings-search-plugin.test.tsx
+new file mode 100644
+index 0000000..b48102e
+--- /dev/null
++++ b/packages/app/src/settings/settings-search-plugin.test.tsx
+@@ -0,0 +1,293 @@
++import { describe, expect, mock, test } from "bun:test"
++import { plugin } from "bun"
++import { createComponent, createRoot } from "solid-js"
++import { insert } from "solid-js/web"
++
++// Issue #90 regression: the settings search index consumer must read the surface's
++// `plugins` handle (the M-037-era rename broke the pin-era consumer; on the migrated
++// v2.2.7 surface the target form is native). The suite mounts the real SettingsSearch
++// inside the real SettingsSurfaceProvider over a real (empty) plugin host; the
++// environment providers the shell normally supplies are stubbed at their seams (each
++// mock keeps the real module's remaining exports, since unrelated modules in the import
++// graph consume them), following the in-tree mock.module precedent
++// (src/new-session/project/selector.test.tsx).
++//
++// Test environment (precedent: packages/mobile-hosts/test/extension-manager.rendered
++// .test.tsx, itself "borrowed in spirit" from packages/ui/test/solid-jsx.ts): Solid's
++// compiler normally replaces JSX, and Bun 1.4.2's Transpiler ignores an inline tsconfig
++// `jsx: "react-jsx"` (it still emits classic React.createElement), so the transform uses
++// the classic form with `jsxFactory: "h"` against Solid's hyperscript runtime, prepending
++// the imports the classic form needs. Unlike the packages/ui preload, the plugin here is
++// registered by this file and scoped to this run (run bun test with --preload
++// ./happydom.ts only, without the ../ui/test/solid-jsx.ts preload, so the two plugins do
++// not fight over the same modules); the filter covers every JSX-bearing source module in
++// this file's import graph (app src + the ui package this graph reaches).
++const transpiler = new Bun.Transpiler({
++  loader: "tsx",
++  trimUnusedImports: true,
++  tsconfig: { compilerOptions: { jsx: "react", jsxFactory: "h", jsxFragmentFactory: "Fragment" } },
++})
++
++plugin({
++  name: "settings-search-rendered-solid-jsx",
++  setup(build) {
++    build.onLoad({ filter: /packages\/(app|ui)\/src\/.*\.tsx$/ }, async (args) => ({
++      contents:
++        'import h from "solid-js/h";\nimport { Fragment } from "solid-js/h/jsx-runtime";\n' +
++        transpiler.transformSync(await Bun.file(args.path).text()),
++      loader: "js",
++    }))
++  },
++})
++
++const language = await import("@/runtime/i18n/language")
++mock.module("@/runtime/i18n/language", () => ({
++  ...language,
++  useLanguage: () => ({
++    t: (key: string) => key,
++    rich: (key: string) => key,
++    locale: () => "en",
++    intl: () => "en-US",
++    plural: () => "other",
++  }),
++}))
++
++const platform = await import("@/runtime/platform/platform")
++mock.module("@/runtime/platform/platform", () => ({
++  ...platform,
++  usePlatform: () => ({ platform: "web" as const }),
++}))
++
++const runtime = await import("@/runtime/server/runtime")
++mock.module("@/runtime/server/runtime", () => ({
++  ...runtime,
++  useGlobal: () => ({ serverCtx: () => undefined }),
++}))
++
++const command = await import("@/shell/commands/command")
++mock.module("@/shell/commands/command", () => ({
++  ...command,
++  useCommand: () => ({ register: () => () => {}, trigger: () => {} }),
++}))
++
++const inventory = await import("@/settings/servers/inventory")
++// mobile(M-044): the migrated inventory no longer exports `settingsProjects` (the target
++// search catalog reads `context.projects.list()` instead), so the mock only replaces the
++// server list seam.
++mock.module("@/settings/servers/inventory", () => ({
++  ...inventory,
++  useSettingsServers: () => () => [],
++}))
++
++const layout = await import("@/shell/state/layout")
++mock.module("@/shell/state/layout", () => ({
++  ...layout,
++  useLayout: () => ({ route: () => ({ type: "home" as const }), home: { selection: () => ({ server: undefined }) } }),
++}))
++
++const tabs = await import("@/shell/tabs/tabs")
++mock.module("@/shell/tabs/tabs", () => ({
++  ...tabs,
++  useTabs: () => ({ store: [] }),
++}))
++
++const registry = await import("@/runtime/server/registry")
++mock.module("@/runtime/server/registry", () => ({
++  ...registry,
++  useServers: () => ({ local: () => false }),
++}))
++
++const router = await import("@solidjs/router")
++mock.module("@solidjs/router", () => ({
++  ...router,
++  useNavigate: () => () => {},
++  useLocation: () => ({ search: "", state: undefined }),
++}))
++
++const uiDialog = await import("@opencode/ui/context/dialog")
++mock.module("@opencode/ui/context/dialog", () => ({
++  ...uiDialog,
++  useDialog: () => ({ show: () => {}, push: () => {}, close: () => {}, dismiss: () => {}, active: undefined, closing: false }),
++}))
++
++// Shared-preload degradation (the servers-page.test.tsx convention): under the unit
++// suite the shared ui solid-jsx preload / solid server dist owns these sources and the
++// rendered mount raises, so that one behavioral case degrades to skipped there. The
++// behavioral evidence run is standalone (browser conditions, no shared preload):
++//   bun test --conditions=browser --isolate --preload ./happydom.ts src/settings/settings-search-plugin.test.tsx
++let rendered = false
++try {
++  // The probe touches solid-js/web's insert: exactly the client-only surface the unit
++  // suite's solid server dist refuses, so the flag splits the environments.
++  createRoot((stop) => {
++    const probeHost = document.createElement("div")
++    insert(probeHost, document.createElement("span"))
++    stop()
++  })
++  rendered = true
++} catch {
++  // Degrade to skipped (see the note above).
++}
++
++const { SettingsSearch } = await import("./search")
++const { settingsSearchIndex } = await import("./search-index")
++const { rankSettings } = await import("./search-results")
++const { useSettingsSurface, SettingsSurfaceProvider } = await import("./surface")
++const { PluginHostProvider } = await import("@/runtime/plugin/host")
++const { render } = await import("solid-js/web")
++const h = (await import("solid-js/h")).default
++
++// The hyperscript transform of provider components reads their `children` prop eagerly
++// (where babel-solid would keep a getter), so a subtree built directly would be created
++// OUTSIDE the context providers and miss their values. Wrapping each subtree in an
++// h-style `$ELEMENT` thunk defers creation until the provider reads its children, under
++// the provider's owner — the same timing babel-solid produces.
++const $ELEMENT = Object.getOwnPropertySymbols(h("div"))[0]
++const lazy = (create: () => unknown) => {
++  const thunk = () => create()
++  ;(thunk as unknown as Record<symbol, boolean>)[$ELEMENT] = true
++
++  return thunk
++}
++
++describe("settings search plugin catalog", () => {
++  test("reads the migrated plugin handle from the search source", async () => {
++    const source = await Bun.file(new URL("./search.tsx", import.meta.url)).text()
++    // mobile(M-044): the migrated (v2.2.1/v2.2.7) search source reads the surface's
++    // `plugins` handle natively — the assertion pins the target form.
++    expect(source).toContain("plugins: surface.plugins.items()")
++    expect(source).not.toContain("surface.extensions.")
++  })
++
++  test.skipIf(!rendered)("mounts the search over the real surface plugin handle and builds the catalog", async () => {
++    let surface: ReturnType<typeof useSettingsSurface> | undefined
++    const SurfaceProbe = () => {
++      surface = useSettingsSurface()
++
++      return document.createElement("span")
++    }
++
++    const host = document.createElement("div")
++    document.body.appendChild(host)
++    const dispose = render(() =>
++      createComponent(PluginHostProvider, {
++        definitions: () => [],
++        disabled: () => new Set<string>(),
++        apis: {},
++        whenMounted: (run: () => void) => {
++          run()
++
++          return () => {}
++        },
++        get children() {
++          return lazy(() =>
++            createComponent(SettingsSurfaceProvider, {
++              get children() {
++                return [lazy(() => createComponent(SurfaceProbe, {})), lazy(() => createComponent(SettingsSearch, {}))]
++              },
++            }),
++          )
++        },
++      }),
++      host,
++    )
++
++    // The plugin handle is present (an absent `plugins` key was the #90 break) and the
++    // plugin contribution section degrades to an empty array with no host pages.
++    expect(surface?.plugins.items()).toEqual([])
++    expect(surface?.plugins.pages()).toEqual([])
++
++    expect(host.querySelector(".settings-search")).not.toBeNull()
++    const input = host.querySelector<HTMLInputElement>("input[type=search]")
++    expect(input).not.toBeNull()
++
++    // The catalog memo is eagerly evaluated during setup, so reaching this point already
++    // proves the consumer chain built the catalog. Driving the query and ranking a catalog
++    // below is the in-register supplementary (non-failure) shape-object variant: the
++    // hyperscript transform snapshots expression JSX props (`<Show when={...}>`), so the
++    // rendered results list cannot update in this harness and is not asserted.
++    surface?.search.input("general")
++    expect(surface?.search.query()).toBe("general")
++    const catalog = settingsSearchIndex({
++      servers: [],
++      desktop: false,
++      browser: false,
++      mobile: false,
++      translate: (key: string) => key,
++      // mobile(M-044): the migrated index reads the surface's `plugins` handle and
++      // rankSettings is the target 2-arg form.
++      plugins: surface!.plugins.items(),
++    })
++    expect(rankSettings("general", catalog).length).toBeGreaterThan(0)
++
++    dispose()
++    host.remove()
++  })
++
++  // Issue #109 (S14 search reveal): the review plugin's Wrap-lines contribution is hosted
++  // on the General page via PluginSettingsSections, and the search index must reveal it
++  // with the host-scoped section label. search-index.ts: a `page: "general"` contribution
++  // WITH `section` set reads the HOST's General-section label
++  // (settings.general.section.general); the plugin title is the section label only for a
++  // page-level contribution WITHOUT `section`. The fixtures mimic review/renderer.tsx's
++  // SettingsPage shape ({ id: "mobile-diff", page: "general", section: "general", ... }).
++  test("indexes a hosted wrap-lines entry under the host's General section label", () => {
++    const catalog = settingsSearchIndex({
++      servers: [],
++      desktop: false,
++      browser: false,
++      mobile: false,
++      translate: (key: string) => key,
++      plugins: [
++        {
++          plugin: "review",
++          value: {
++            id: "mobile-diff",
++            page: "general",
++            section: "general",
++            title: "Review",
++            entries: [
++              { id: "settings-mobile-diff-wrap", title: "Wrap long lines in mobile diffs", keywords: "diff wrap lines" },
++            ],
++            // Data-only fixture: the index never mounts the page; h() satisfies the JSX.Element return.
++            render: () => h("div")(),
++          },
++        },
++      ],
++    })
++
++    const wrap = catalog.find((item) => item.view.target === "settings-mobile-diff-wrap")
++    expect(wrap).toBeDefined()
++    expect(wrap?.view).toMatchObject({ type: "root", tab: "general", target: "settings-mobile-diff-wrap" })
++    expect(wrap?.title).toBe("Wrap long lines in mobile diffs")
++    // Host-owned presentation: the host General-section label, host icon.
++    expect(wrap?.page).toBe("settings.tab.preferences / settings.general.section.general")
++    expect(wrap?.icon).toBe("sliders")
++  })
++
++  test("uses the plugin title as the section label only without a host section", () => {
++    const catalog = settingsSearchIndex({
++      servers: [],
++      desktop: false,
++      browser: false,
++      mobile: false,
++      translate: (key: string) => key,
++      plugins: [
++        {
++          plugin: "acme",
++          value: {
++            id: "acme-page",
++            page: "general",
++            title: "Acme",
++            entries: [{ id: "settings-acme-row", title: "Acme row", keywords: "acme" }],
++            render: () => h("div")(),
++          },
++        },
++      ],
++    })
++
++    const row = catalog.find((item) => item.view.target === "settings-acme-row")
++    expect(row).toBeDefined()
++    expect(row?.page).toBe("settings.tab.preferences / Acme")
++  })
++})
+diff --git a/packages/app/src/settings/shell.tsx b/packages/app/src/settings/shell.tsx
+index fb0af1c..007c306 100644
+--- a/packages/app/src/settings/shell.tsx
++++ b/packages/app/src/settings/shell.tsx
+@@ -1,8 +1,11 @@
+ import { Tabs } from "@opencode/ui/tabs"
+ import { useDialog } from "@opencode/ui/context/dialog"
+-import { createEffect, createMemo, For, on, onCleanup, onMount, Show, Switch, Match, type Accessor } from "solid-js"
++// mobile(M-044): `lazy` + `Suspense` return for the mobile faces below; `usePlatform` feeds
++// the non-desktop gui-extensions predicate (the M-026 mount keeps its <Suspense> wrapper).
++import { createEffect, createMemo, For, lazy, on, onCleanup, onMount, Show, Suspense, Switch, Match, type Accessor } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { useLanguage } from "@/runtime/i18n/language"
++import { usePlatform } from "@/runtime/platform/platform"
+ import { useTabs } from "@/shell/tabs/tabs"
+ import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
+ import { ServerConnection } from "@/runtime/server/registry"
+@@ -34,8 +37,37 @@ import { useSettingsSurface } from "./surface"
+ import { settingsViewRedirect } from "./route"
+ import { pageIcons, pageLabels } from "./pages"
+ import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
++// mobile(M-026): the plugin host handle for the first-party GUI extension manager.
++import { usePluginHost } from "@/runtime/plugin/host"
+ import "@/settings/settings.css"
+ 
++// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
++const MobileHostManager = lazy(() =>
++  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
++)
++
++// mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
++// "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
++// props (the shared package never imports app internals).
++const ExtensionManager = lazy(() =>
++  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.ExtensionManager })),
++)
++
++function MobileExtensionManager() {
++  const host = usePluginHost()
++
++  return (
++    <Suspense>
++      <ExtensionManager
++        definitions={host.definitions()}
++        statusOf={(id) => host.status(id)}
++        failureOf={(id) => host.failure(id)?.error}
++        onReload={(id) => host.reload(id)}
++      />
++    </Suspense>
++  )
++}
++
+ const rootClientTabs = [
+   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
+   { value: "appearance", icon: pageIcons.appearance, label: "settings.general.section.appearance" },
+@@ -66,6 +98,12 @@ const experimentalTab = [
+ 
+ const aboutTab = [{ value: "about", icon: pageIcons.about, label: "settings.tab.about" }] as const
+ 
++// mobile(M-026): the tab id stays "gui-extensions" (unit contract D4,
++// docs/design/units/gui-plugins.md); route.ts/pages.ts restore it in M-044.
++const guiExtensionsTab = [
++  { value: "gui-extensions", icon: pageIcons["gui-extensions"], label: "settings.guiExtensions.title" },
++] as const
++
+ const nestedProjectTabs = [
+   { value: "general", icon: pageIcons.projects, label: "settings.general.section.general" },
+   { value: "workspaces", icon: pageIcons.workspaces, label: "settings.tab.workspaces" },
+@@ -169,6 +207,7 @@ function RootSettings() {
+   const dialog = useDialog()
+   const surface = useSettingsSurface()
+   const inventory = useSettingsServers()
++  const platform = usePlatform()
+ 
+   const [state, setState] = createStore<{ worktreeFilterReset: number; modelProvider: string | undefined }>({
+     worktreeFilterReset: 0,
+@@ -186,12 +225,23 @@ function RootSettings() {
+ 
+   const prefetchWorkspaces = useWorkspacesPrefetch(reachable)
+   const activeDirectory = useSettingsDirectory(reachable)
++
++  // mobile(M-026): non-desktop builds mount the first-party GUI extension manager (issue
++  // #26) on the "gui-extensions" tab — the upstream DEV+desktop face is upstream-removed on
++  // the v2.2.7 shell (the DEV plugin face lives in PluginSettingsPages/settings-page-dev),
++  // so the pin's dual-face condition collapses to this single face.
++  const mobileGuiExtensions = platform.platform !== "desktop"
++
+   createEffect(() => {
+     const view = surface.view()
+ 
+     if (view.type !== "root") return
+ 
+     if (view.tab === "experimental" && !experimentalSettingsAvailable) surface.open("general")
++
++    // mobile(M-026): the guard bounces the tab where the face is not mounted — on
++    // non-desktop builds the first-party manager takes the tab.
++    if (view.tab === "gui-extensions" && !mobileGuiExtensions) surface.open("general")
+   })
+ 
+   const selectServer = (server: ServerConnection.Any) => surface.selectServer(ServerConnection.key(server))
+@@ -229,6 +279,9 @@ function RootSettings() {
+         ...(experimentalSettingsAvailable
+           ? experimentalTab.map((item) => ({ ...item, label: language.t(item.label) }))
+           : []),
++        // mobile(M-026): the gui-extensions nav group opens for the first-party face on
++        // non-desktop builds (the upstream DEV+desktop face is upstream-removed here).
++        ...(mobileGuiExtensions ? guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) : []),
+         ...aboutTab.map((item) => ({ ...item, label: language.t(item.label) })),
+       ],
+     },
+@@ -260,6 +313,16 @@ function RootSettings() {
+         <SettingsKeybinds active={surface.view().tab === "shortcuts"} />
+       </Tabs.Content>
+       <PluginSettingsPages />
++      {/* mobile(M-026): the first-party GUI extension manager on non-desktop builds — the
++          disable records feed the plugin host's disabled set (M-025). Mutual exclusion with
++          any upstream branch is structural: mobileGuiExtensions implies not desktop. */}
++      {mobileGuiExtensions && (
++        <Tabs.Content value="gui-extensions" class="settings-panel">
++          <Suspense>
++            <MobileExtensionManager />
++          </Suspense>
++        </Tabs.Content>
++      )}
+       <Tabs.Content value="experimental" class="settings-panel">
+         <SettingsExperimental />
+       </Tabs.Content>
+@@ -342,6 +405,10 @@ function RootSettings() {
+         )}
+       </Show>
+       <Tabs.Content value="servers" class="settings-panel">
++        {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
++            upstream server panel; it renders even with an empty upstream list so the first
++            SSH host can be created. */}
++        <MobileHostManager />
+         <Show
+           when={multiple() ? undefined : inventory()[0]}
+           fallback={

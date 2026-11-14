@@ -66,7 +66,8 @@
     "patches/mobile/timeline-messaging-v2-2-7.patch",
     "patches/mobile/composer-queue-attachments-v2-2-7.patch",
     "patches/mobile/files-diff-review-v2-2-7.patch",
-    "patches/mobile/providers-models-usage-v2-2-7.patch"
+    "patches/mobile/providers-models-usage-v2-2-7.patch",
+    "patches/mobile/settings-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -150,7 +151,7 @@
       "id": "settings-mobile-host-manager",
       "path": "patches/mobile/settings-mobile-host-manager.patch",
       "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "connection-remember-credential",
@@ -210,7 +211,7 @@
       "id": "settings-ssh-entry-guard",
       "path": "patches/mobile/settings-ssh-entry-guard.patch",
       "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "files-platform-bridge",
@@ -252,13 +253,13 @@
       "id": "gui-plugins-disabled-merge",
       "path": "patches/mobile/gui-plugins-disabled-merge.patch",
       "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-mobile-gui-plugins",
       "path": "patches/mobile/settings-mobile-gui-plugins.patch",
       "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "connection-initial-ssh-entry",
@@ -300,13 +301,13 @@
       "id": "settings-interface-mode",
       "path": "patches/mobile/settings-interface-mode.patch",
       "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-experimental",
       "path": "patches/mobile/settings-experimental.patch",
       "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "appearance-motion-zoom",
@@ -348,31 +349,31 @@
       "id": "settings-framework-dependencies",
       "path": "patches/mobile/settings-framework-dependencies.patch",
       "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-framework-migration",
       "path": "patches/mobile/settings-framework-migration.patch",
       "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-framework-mobile",
       "path": "patches/mobile/settings-framework-mobile.patch",
       "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-servers-migration",
       "path": "patches/mobile/settings-servers-migration.patch",
       "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-general-experimental-migration",
       "path": "patches/mobile/settings-general-experimental-migration.patch",
       "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "theme-components-migration",
@@ -384,31 +385,31 @@
       "id": "settings-providers-models-extensions",
       "path": "patches/mobile/settings-providers-models-extensions.patch",
       "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-workspaces-migration",
       "path": "patches/mobile/settings-workspaces-migration.patch",
       "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-notifications-migration",
       "path": "patches/mobile/settings-notifications-migration.patch",
       "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-keybinds-command-catalog",
       "path": "patches/mobile/settings-keybinds-command-catalog.patch",
       "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-gui-plugins-tab-label",
       "path": "patches/mobile/settings-gui-plugins-tab-label.patch",
       "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "connection-pairing-url",
@@ -432,7 +433,7 @@
       "id": "settings-server-menu",
       "path": "patches/mobile/settings-server-menu.patch",
       "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-workbench-upstream",
@@ -558,7 +559,7 @@
       "id": "settings-ssh-row-runtime-actions",
       "path": "patches/mobile/settings-ssh-row-runtime-actions.patch",
       "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "diff-worker-pool-fallback",
@@ -619,6 +620,12 @@
       "path": "patches/mobile/providers-models-usage-v2-2-7.patch",
       "sha256": "c978a78f0dc0dbbca027379c4b6cc8656d7d47baba07ae15fb02b8b9cbc27421",
       "status": "active"
+    },
+    {
+      "id": "settings-v2-2-7",
+      "path": "patches/mobile/settings-v2-2-7.patch",
+      "sha256": "caf6b2bd270edd73fa308066f8c23187f4226d44d3df2e1d061d3d318d4c4c45",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
@@ -635,12 +642,6 @@
       "status": "deferred"
     },
     {
-      "id": "settings-mobile-host-manager",
-      "path": "patches/mobile/settings-mobile-host-manager.patch",
-      "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb",
-      "status": "deferred"
-    },
-    {
       "id": "app-service-operations-bridge",
       "path": "patches/mobile/app-service-operations-bridge.patch",
       "sha256": "c077d6d331d1d5a5dc86ba16b472eae4f74fe74b32c7bebe051f6eb40b781cbb",
@@ -650,12 +651,6 @@
       "id": "session-home-archive",
       "path": "patches/mobile/session-home-archive.patch",
       "sha256": "896177b54870763a19386a373e8e920674f0c7f0ece78a16bcf867ccc645f8bc",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-ssh-entry-guard",
-      "path": "patches/mobile/settings-ssh-entry-guard.patch",
-      "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
       "status": "deferred"
     },
     {
@@ -683,33 +678,9 @@
       "status": "deferred"
     },
     {
-      "id": "gui-plugins-disabled-merge",
-      "path": "patches/mobile/gui-plugins-disabled-merge.patch",
-      "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-mobile-gui-plugins",
-      "path": "patches/mobile/settings-mobile-gui-plugins.patch",
-      "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926",
-      "status": "deferred"
-    },
-    {
       "id": "connection-utf8-basic-auth",
       "path": "patches/mobile/connection-utf8-basic-auth.patch",
       "sha256": "c59a7da93ed3462e7bbaf8786b85ec80dc6391096f31cad8e61ec7110e068b03",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-interface-mode",
-      "path": "patches/mobile/settings-interface-mode.patch",
-      "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-experimental",
-      "path": "patches/mobile/settings-experimental.patch",
-      "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e",
       "status": "deferred"
     },
     {
@@ -743,69 +714,9 @@
       "status": "deferred"
     },
     {
-      "id": "settings-framework-dependencies",
-      "path": "patches/mobile/settings-framework-dependencies.patch",
-      "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-framework-migration",
-      "path": "patches/mobile/settings-framework-migration.patch",
-      "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-framework-mobile",
-      "path": "patches/mobile/settings-framework-mobile.patch",
-      "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-servers-migration",
-      "path": "patches/mobile/settings-servers-migration.patch",
-      "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-general-experimental-migration",
-      "path": "patches/mobile/settings-general-experimental-migration.patch",
-      "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
-      "status": "deferred"
-    },
-    {
       "id": "theme-components-migration",
       "path": "patches/mobile/theme-components-migration.patch",
       "sha256": "0b45ac0491eb590878b55fa5ab0a04002ca065cf452debc0e0d5e5c8b9357684",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-providers-models-extensions",
-      "path": "patches/mobile/settings-providers-models-extensions.patch",
-      "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-workspaces-migration",
-      "path": "patches/mobile/settings-workspaces-migration.patch",
-      "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-notifications-migration",
-      "path": "patches/mobile/settings-notifications-migration.patch",
-      "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-keybinds-command-catalog",
-      "path": "patches/mobile/settings-keybinds-command-catalog.patch",
-      "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-gui-plugins-tab-label",
-      "path": "patches/mobile/settings-gui-plugins-tab-label.patch",
-      "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69",
       "status": "deferred"
     },
     {
@@ -818,12 +729,6 @@
       "id": "webview-url-polyfill",
       "path": "patches/mobile/webview-url-polyfill.patch",
       "sha256": "2a5d1eeaff29ab3392559268057cf8c6aa03cba17cd5c3341ccf2837a6757115",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-server-menu",
-      "path": "patches/mobile/settings-server-menu.patch",
-      "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
       "status": "deferred"
     },
     {
@@ -867,12 +772,6 @@
       "path": "patches/mobile/ui-pin-target-residual.patch",
       "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
       "status": "deferred"
-    },
-    {
-      "id": "settings-ssh-row-runtime-actions",
-      "path": "patches/mobile/settings-ssh-row-runtime-actions.patch",
-      "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
-      "status": "deferred"
     }
   ],
   "absorbedMobilePatches": [
@@ -904,6 +803,12 @@
       "id": "app-mobile-hosts-bootstrap",
       "path": "patches/mobile/app-mobile-hosts-bootstrap.patch",
       "sha256": "c8bc3466e179cf062ad2cb9eb893c3186d2cb5045f225e3266041560284deede",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-mobile-host-manager",
+      "path": "patches/mobile/settings-mobile-host-manager.patch",
+      "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb",
       "status": "absorbed"
     },
     {
@@ -949,6 +854,12 @@
       "status": "absorbed"
     },
     {
+      "id": "settings-ssh-entry-guard",
+      "path": "patches/mobile/settings-ssh-entry-guard.patch",
+      "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
+      "status": "absorbed"
+    },
+    {
       "id": "files-platform-bridge",
       "path": "patches/mobile/files-platform-bridge.patch",
       "sha256": "5615a555df06aa55748c907303861b558a98d3c6fd64cc76ab07254acd11982e",
@@ -958,6 +869,18 @@
       "id": "attachments-share-bridge",
       "path": "patches/mobile/attachments-share-bridge.patch",
       "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
+      "status": "absorbed"
+    },
+    {
+      "id": "gui-plugins-disabled-merge",
+      "path": "patches/mobile/gui-plugins-disabled-merge.patch",
+      "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-mobile-gui-plugins",
+      "path": "patches/mobile/settings-mobile-gui-plugins.patch",
+      "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926",
       "status": "absorbed"
     },
     {
@@ -991,15 +914,93 @@
       "status": "absorbed"
     },
     {
+      "id": "settings-interface-mode",
+      "path": "patches/mobile/settings-interface-mode.patch",
+      "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-experimental",
+      "path": "patches/mobile/settings-experimental.patch",
+      "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e",
+      "status": "absorbed"
+    },
+    {
       "id": "files-open-external",
       "path": "patches/mobile/files-open-external.patch",
       "sha256": "2ba59687bb5548ad05c6913cbef1df1f2edf5f251b7a3f1ba32f47a26a122983",
       "status": "absorbed"
     },
     {
+      "id": "settings-framework-dependencies",
+      "path": "patches/mobile/settings-framework-dependencies.patch",
+      "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-framework-migration",
+      "path": "patches/mobile/settings-framework-migration.patch",
+      "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-framework-mobile",
+      "path": "patches/mobile/settings-framework-mobile.patch",
+      "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-servers-migration",
+      "path": "patches/mobile/settings-servers-migration.patch",
+      "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-general-experimental-migration",
+      "path": "patches/mobile/settings-general-experimental-migration.patch",
+      "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-providers-models-extensions",
+      "path": "patches/mobile/settings-providers-models-extensions.patch",
+      "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-workspaces-migration",
+      "path": "patches/mobile/settings-workspaces-migration.patch",
+      "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-notifications-migration",
+      "path": "patches/mobile/settings-notifications-migration.patch",
+      "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-keybinds-command-catalog",
+      "path": "patches/mobile/settings-keybinds-command-catalog.patch",
+      "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-gui-plugins-tab-label",
+      "path": "patches/mobile/settings-gui-plugins-tab-label.patch",
+      "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69",
+      "status": "absorbed"
+    },
+    {
       "id": "connection-pairing-url",
       "path": "patches/mobile/connection-pairing-url.patch",
       "sha256": "04e56d1eb9c0fb184d8b87f4bfda64494ae994328ef581cf63d18e38dfe0f6ac",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-server-menu",
+      "path": "patches/mobile/settings-server-menu.patch",
+      "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
       "status": "absorbed"
     },
     {
@@ -1078,6 +1079,12 @@
       "id": "session-android-back-bridge",
       "path": "patches/mobile/session-android-back-bridge.patch",
       "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-ssh-row-runtime-actions",
+      "path": "patches/mobile/settings-ssh-row-runtime-actions.patch",
+      "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
       "status": "absorbed"
     },
     {

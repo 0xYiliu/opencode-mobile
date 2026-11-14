@@ -4,6 +4,8 @@ import { builtins } from "./builtins"
 import { PluginGuiLoader, type PluginGui } from "./plugins"
 import { createMenubarItems, MenubarItemsProvider } from "./menubar-items"
 import { usePlatform } from "@/runtime/platform/platform"
+// mobile(M-025): the first-party mobile disable records feed the host's disabled set below.
+import { createExtensionDisabled } from "@opencode-mobile/mobile-hosts"
 import { PluginHostProvider, usePluginHost } from "./host"
 import { createIpcClients } from "./ipc"
 import { createPluginAttachment, createHostApis, PluginAttachmentProvider, type HostApis } from "./host-apis"
@@ -72,6 +74,14 @@ export function PluginRoot(props: ParentProps) {
 
   const builtinIds = new Set(builtins.map((builtin) => builtin.id))
 
+  // mobile(M-025): one shell-wide record instance; the settings manager UI reads the same.
+  // WebView localStorage is the persistence candidate; safeStorage degrades to memory and
+  // reports volatile when persistence is unavailable. Desktop builds never render the
+  // mobile face and carry no such records — with a bridge the host reads main's enable
+  // settings instead (the disabled prop stays omitted there, so desktop behavior is
+  // unchanged), and without one the mobile records ARE the user's disable settings.
+  const mobileDisabled = bridge ? undefined : createExtensionDisabled(window.localStorage)
+
   return (
     <HostApisContext.Provider value={apis}>
       <PluginsContext.Provider
@@ -87,6 +97,7 @@ export function PluginRoot(props: ParentProps) {
           definitions={definitions}
           bridge={bridge}
           builtins={builtinIds}
+          disabled={mobileDisabled?.disabled}
           servers
           apis={apis.apis}
           whenMounted={apis.whenMounted}

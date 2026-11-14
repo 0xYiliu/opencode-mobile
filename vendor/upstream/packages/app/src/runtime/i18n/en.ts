@@ -424,6 +424,9 @@ export const dict = {
   "dialog.server.add.error": "Could not connect to server",
   "dialog.server.add.checking": "Checking…",
   "dialog.server.add.button": "Add server",
+  // mobile(N12, issue #124): the WSL row is visible but disabled on the mobile shell (zero controls).
+  "dialog.server.add.wsl": "Add WSL server",
+  "dialog.server.add.wslUnavailable": "WSL servers are only available on Windows desktop.",
   "dialog.server.add.name": "Server name (optional)",
   "dialog.server.add.namePlaceholder": "Localhost",
   "dialog.server.add.password": "Password",
@@ -736,6 +739,8 @@ export const dict = {
   "session.location.noBranch": "No branch",
 
   "settings.tab.servers": "Servers",
+  // mobile(settings-ssh-entry-guard): the connect screen's SSH entry button label (upstream consumes the key at servers/connect/screen.tsx without defining it).
+  "settings.tab.sshHosts": "SSH hosts",
   "settings.extensions.tab.plugins": "Plugins",
 
   "common.copied": "Copied",
@@ -870,6 +875,18 @@ export const dict = {
   "settings.plugins.part.tui": "TUI",
   "settings.plugins.parts.note":
     'Switches turn off only a plugin\'s desktop UI. Add "-<id>" to plugins in your global opencode.json to turn off its server part, or "-" and its TUI plugin\'s ID to plugins in cli.json to turn off its TUI part.',
+  // mobile(M-026/M-044): the first-party manager face on non-desktop builds (issue #26;
+  // issue #109 disambiguated the label from the per-server Extensions tab).
+  "settings.guiExtensions.title": "GUI extensions",
+  "settings.guiExtensions.description": "Built-in GUI extensions in this window. Development builds only.",
+  "settings.guiExtensions.reload": "Reload",
+  "settings.guiExtensions.status.loading": "Loading",
+  "settings.guiExtensions.status.active": "Active",
+  "settings.guiExtensions.status.failed": "Failed",
+  "settings.guiExtensions.status.disabled": "Disabled",
+  "settings.guiExtensions.status.blocked": "Blocked",
+  "settings.guiExtensions.mobile.description":
+    "Built-in GUI extensions of this app. Turn one off to hide its panels here; the remote server keeps working.",
   "settings.tab.about": "About",
   "settings.about.version": "Version {{version}}",
   "settings.about.devVersion": "development",

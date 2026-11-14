@@ -49,6 +49,35 @@ describe("settings route", () => {
     })
   })
 
+  // mobile(M-044/M-052, issue #109): the restored "gui-extensions" root tab parses as a
+  // host tab, and host tabs win over a plugin page claiming the same id (route.ts
+  // isRootTab branch precedes the pluginTabs branch — the D4 contract in
+  // docs/design/units/gui-plugins.md).
+  test("parses the restored gui-extensions host root tab", () => {
+    expect(parseSettingsView("?tab=gui-extensions")).toEqual({
+      type: "root",
+      tab: "gui-extensions",
+      server: undefined,
+      subtab: undefined,
+    })
+    expect(parseSettingsView("?server=wsl%3ADebian&tab=gui-extensions")).toEqual({
+      type: "root",
+      tab: "gui-extensions",
+      server: "wsl:Debian",
+      subtab: undefined,
+    })
+  })
+
+  test("host tabs win over a plugin page with the same id", () => {
+    const pluginTabs = new Set(["gui-extensions"])
+    expect(parseSettingsView("?tab=gui-extensions", undefined, pluginTabs)).toEqual({
+      type: "root",
+      tab: "gui-extensions",
+      server: undefined,
+      subtab: undefined,
+    })
+  })
+
   test("keeps search reveal state transient", () => {
     expect(
       parseSettingsView("?server=local&project=%2Fwork&tab=extensions&subtab=plugins", {

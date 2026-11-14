@@ -118,8 +118,8 @@
       "verification": "V2 build smoke (bun run build:web) with the lazy chunk resolving through the app-mobile-hosts-alias alias; manager rendering and interactions on device are BLOCKED (G13).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "30f11c375fc8aeddacbb5c6f16a6e731136a5ca289e77ab6208b2d33717260bb",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W1): the MobileHostManager lazy block re-derives the mount as the FIRST child of the v2.2.7 servers tab; the v2.2.7 target form `<Show when={multiple() ? undefined : inventory()[0]}>` is preserved (non-keyed, entry={entry()}), so the first-empty-list creation path and the keyed-server-entry.test.tsx lockup both return."
     },
     {
       "id": "connection-remember-credential",
@@ -272,10 +272,10 @@
       "reason": "Restores the SSH hosts entry in the multi-server settings layout and revises the redirect guard (issue #8; this closes the gap settings-mobile-host-manager pre-registered in docs/design/units/server-list.md - it is deliberately NOT an issue #8 acceptance item itself). Two same-file changes in shell.tsx: (i) the root-tab redirect guard's includes list drops \"servers\" (the other five entries keep their upstream redirect semantics - those panels are per-server and carried by the per-server nav entries); without this revision ANY navigation setting view.tab='servers' is bounced to general by the guard createEffect, so an entry alone would not be reachable; (ii) the multiple() nav group gains a fixed 'SSH hosts' entry that opens the existing 'servers' tab (surface.select('servers')), where the settings-mobile-host-manager host-manager panel renders unconditionally. i18n key settings.tab.sshHosts added to en/zh (connection-remember-credential/connection-error-classification three-file precedent). Semantic spillover assessed low and recorded: if upstream ever mounts something else on the 'servers' tab relying on its multi-server unreachability, behavior changes; rollback is re-adding the list entry (one line) and dropping the entry item.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "V2 build smoke (bun run build:web rc=0 after applying); dist i18n key hit: settings.tab.sshHosts / 'SSH hosts' in language-Cwk-VMvM.js + shell chunk, 'SSH 主机' in zh-49VEr5mD.js; scripts/verify-projects-sessions.ts asserts BOTH the guard revision (includes list without \"servers\") and the entry item. HONEST BOUNDARY: build/dist/probe layers cannot prove runtime navigation reachability (the guard is a Solid createEffect) - 'entry reachable in multiple() layout and not bounced' is a G19 device check (docs/design/interaction.md).",
-      "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
+      "rebase": "v2.2.7: the guard/entry halves are obsolete-native at fedc6f208a; the i18n half re-derives inside the active settings-v2-2-7 consolidated patch.",
       "sha256": "46387d5b4c17772aeb3c20e37822dff8615218d74b593cdeb1b26f8d8169473e",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, reviewer MINOR-4): the i18n half IS carried — en/zh gain the settings.tab.sshHosts key the row registered, because the v2.2.7 upstream consumes it at servers/connect/screen.tsx:161 without defining it in any locale (t() returns undefined for missing keys, so the SSH entry button label would render empty); the other two halves are obsolete/native at v2.2.7 — (i) the redirect-guard revision has no target (settingsViewRedirect only redirects server-scope exits; there is no root-tab includes-list guard left to revise), and (ii) the fixed 'SSH hosts' nav entry is unnecessary because the v2.2.7 nav group carries the servers item unconditionally (shell.tsx label: multiple() ? settings.tab.servers : pageLabels.servers) and the W1 host manager gives the tab its mobile content."
     },
     {
       "id": "files-platform-bridge",
@@ -368,7 +368,7 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
       "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed | issue #193 routing: stays deferred -> #195 (Android POST_NOTIFICATIONS face); not re-derived by the settings-v2-2-7 consolidated re-derivation."
     },
     {
       "id": "gui-plugins-disabled-merge",
@@ -382,8 +382,8 @@
       "verification": "V3 tree equivalence with the patch registered; bun run build:web rc=0; scripts/verify-gui-extensions.ts group 4 (import anchor, createExtensionDisabled anchor, union+definitions-filter anchor, mobile(M-025) markers); packages/mobile-hosts/test/extension-manager.test.ts locks the record layer; scripts/verify-agent-capabilities.ts group 3 root.tsx anchors unchanged; device behavior BLOCKED (G35).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "ce4397b70cb7c9bec7e992b64dee0eaf0edb0be72a1be23f6f75dcc5ead785f2",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W3d): the M-025 disable-record union re-derives on the v2.2.7 plugin host — runtime/plugin/root.tsx (the row's runtime/extension/root.tsx path is v2.2.1-era and absent at fedc6f208a) passes disabled={mobileDisabled?.disabled} from createExtensionDisabled(window.localStorage) ONLY where no bridge exists, so desktop keeps the bridge-owned enable settings (the v2.2.7 host.tsx contract) and the mobile manager face drives the same records (sharedExtensionDisabled)."
     },
     {
       "id": "settings-mobile-gui-plugins",
@@ -399,8 +399,8 @@
       "verification": "V3 tree equivalence with the patch registered (LAYERED round-trip: applies to pin+gui-plugins-native-test-deps..settings-notification-permission and byte-reproduces the implementation tree); bun run build:web rc=0 with the new keys in the built language chunks; scripts/verify-gui-extensions.ts group 4 (mobileGuiExtensions line, revised guard, nav condition, mount branch, settings-mobile-host-manager/settings-ssh-entry-guard hunks untouched) and scripts/verify-agent-capabilities.ts group 5 revised counts (9/9 - deliberate revision, issue #26); device behavior BLOCKED (G35).",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "1480b7eaacfc609b6605537bc817844ef35e0bf67d9b8c5e133cf7cff9d4d926",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W3): the gui-extensions root tab is restored on the v2.2.7 shell — mobileGuiExtensions predicate (usePlatform), guard bounce where the face is not mounted, nav group, and the <Suspense>-wrapped MobileExtensionManager mount; the pin's dual-face (guiExtensions DEV+desktop) condition collapses because the v2.2.7 shell is upstream-removed of that face."
     },
     {
       "id": "connection-initial-ssh-entry",
@@ -521,8 +521,8 @@
       "verification": "scripts/verify-interface-mode.ts probe (enum/predicate/mount/catalog/en keys/zh fallback/negative assertions), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts under --conditions=solid), V3 closure round-trip (git apply --check to pristine pin), bun run build:web, first-party bun test --conditions=browser packages/mobile-hosts.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "5c6324c19b1f3f6d52b88534396554347647be170f2390148f88400ef0c8ed0a",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the three-value tabLayout literal + 'inbox', the !== \"horizontal\" && !mobile() sidebar predicate, and the InterfaceModeSetting fieldset natively; the probe's former === \"vertical\" negative is retired — the one surviving === \"vertical\" comparison at shell/shell.tsx is the v2.2.7 sidebarOrganize projects grouping (upstream's own), not the S04 predicate."
     },
     {
       "id": "settings-experimental",
@@ -549,8 +549,8 @@
       "verification": "scripts/verify-experimental-settings.ts probe (constant flip, verbatim gates, 70-key replacement set, catalog negatives for all 15 rejected names, fold surgery boundaries, model.test.ts sync, i18n fallback anchors, patch-face set equality), upstream targeted subset (settings/model.test.ts, settings/search-results.test.ts, settings/route.test.ts under --conditions=solid), V3 closure round-trip (git apply --check to pristine pin + gui-plugins-native-test-deps..settings-interface-mode), bun run build:web, first-party bun test --conditions=browser packages/mobile-hosts.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit. Issue #187 routing: not touched this round; owner: settings/experimental unit.",
       "sha256": "d41b3e7cbea090cf5df698480dd041f2ea18a17f040137362a52868690e7080e",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed Issue #187 routing: not touched this round; owner: settings/experimental unit."
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): experimentalSettingsAvailable=true, the two rows with data-actions/Switch bindings, the model.tsx schema/defaults/readers/accessors, the fold chain and the graduated new-icons catalog are all native at v2.2.7 (verify-experimental-settings group 1-2 anchors pass unchanged); only the defaults-adjacency assertion needed the #193 probe re-anchor."
     },
     {
       "id": "appearance-motion-zoom",
@@ -864,10 +864,10 @@
       "reason": "Issue #72 S39: About version face + notices v2.2.1 scroll alignment, delivered as two separated tracks. Track 1 (upstream alignment, closes the last v2.2.1 target-face gap verbatim): notices/dialog.tsx takes the v2.2.1 (3ebcf9a) face verbatim - 3 hunks: drop the ScrollView import, ScrollView wrapper -> div.settings-notices-scroll[data-scrollable] (open tag), closing tag </ScrollView> -> </div> - and settings.css gains exactly the enabling v2.2.1 line overflow-y: auto inside .settings-notices-scroll (no other v2.2.1 settings.css hunk taken; the file's remaining pin->v2.2.1 delta stays out of scope). Track 2 (baseline intent, registered first-party delta, NOT an upstream form): entry.tsx createWebPlatform(pkg.version) -> createWebPlatform(MOBILE_APP_VERSION) so platform.version is the mobile app version (0.1.0, first-party constant synced with android gradle versionName and packages/mobile-hosts package.json) and the About/error pages show this app's own version instead of impersonating the vendored base version; the Sentry release line stays pkg.version verbatim (negative-locked by the probe); about.tsx keeps the platform.version row verbatim and adds two rows in a settings-about-versions[data-component] anchor - the upstream base row (vendored packages/app package.json version = 2.1.4) and the server version row via the upstream public useServerCollectionController (the shown server is the first entry of the sorted collection: sortServerConnections ranks healthy-first over the full list INCLUDING hidden hosts, single-host equivalent; with multiple servers only the first sorted entry is shown - registered boundary, the complete per-server version face lives in the servers settings rows; key derivation ServerConnection.key(item)) with explicit degradation strings: no collection entry -> row not rendered; health entry undefined (not yet established) or checking -> checking key; unauthorized / unhealthy / healthy-but-version-missing-or-not-presentable (non-empty-string guard, verbatim display like the servers rows) -> unavailable key. i18n en +4 keys (settings.about.upstreamVersion / serverVersion.version / serverVersion.checking / serverVersion.unavailable; zh/zht zero new keys, non-en falls back through the language.tsx en-base-first merge chain - registered en-only lineage like #63-#70). Second-order effect registered in E27: ctx.app.version (runtime/plugin/host-apis) follows platform.version to 0.1.0; its mobile-reachable consumer is only the updater What's New read watermark (S40/E24 in-registry, desktop-host disabled set) - no version-comparison consumption.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "verification": "V3 closure round-trip (git apply --check over the whole 38-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: settings-about-version git apply --check rc=0 against the pin + packageSources + gui-plugins-native-test-deps..session-btw-narrow-entry intermediate tree, then applied and byte-compared == working tree); scripts/verify-about-version.ts (new probe: notices verbatim face incl. css one-line; version face anchors - platform row verbatim, base row pkg import, server row controller/ServerConnection.key/degradation branches/settings-about-versions anchor; three-way version sync constant==gradle:15==package.json; en exactly 4 keys + zh/zht zero + language.tsx fallback anchors verbatim; negative boundaries - Sentry pkg.version release line, error.tsx platform.version, host-apis ctx.app.version, search-catalog about row verbatim (two-condition lock: row verbatim + file absent from the settings-about-version touch set; the file's 88-line pre-existing delta is other patches' work), exact 5-file patch touch face with settings.css adding exactly one line, session-goal-sources-panels..038 faces zero spill; manifest dual registration 38=38); verify-commands-menus/verify-attachments-artifacts/verify-gui-plugins sentinels revised same commit to 38 registered (M-019 and M-039 reserved-absent) and dist baseline refreshed; bun run build:web + copy-web-dist with dist markers; vendored tsc -b app 388 errors == pre-change baseline 388 (zero errors in the five touched files); negative injections (delete data-scrollable, re-substitute pkg.version into createWebPlatform, break the three-way version sync, delete the unavailable key, add a sixth file to the patch) all FAIL-then-restore; device QA (About three-row display, server degradation paths, notices scroll, zh fallback) registered in docs/build-and-verify.md and pending.",
-      "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
+      "rebase": "v2.2.7: Track 1 native-absorbed at fedc6f208a; Track 2 overlay retired (D1) — disposition owned by the #184-legacy closure round.",
       "sha256": "4b0bcaa5decd132cb4fcd0f67496f9491366a1bf6ae2e5277d10c428579ec636",
       "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "disposition": "stays deferred (issue #193 routing, D1): Track 1 (About version face + notices) is native-absorbed at v2.2.7 — verify-about-version PASS( rc=0) at c0 with MOBILE_APP_VERSION == vendor pkg.version and the AboutCopy face native (cd6551f9a0) — while Track 2 (the three-row About version overlay) STAYS RETIRED per the recorded #184 disposition; the row's final absorbed flip rides the #184-legacy closure round, which owns the retirement record. No #193 hunk carries it."
     },
     {
       "id": "files-open-external",
@@ -903,8 +903,8 @@
       "verification": "V3 closure round-trip (git apply --check over the whole 40-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: settings-framework-dependencies git apply --check rc=0 against pin + packageSources + gui-plugins-native-test-deps..files-open-external, applied and byte-compared == working tree); import-closure check - every import in the five new files resolves inside the applied tree (@solid-primitives/media + event-listener at app package.json:74-78, ui ./motion + ./motion-tuning vendored via appearance-motion-zoom/gui-plugins-api-migration, ServerConnection.builtin + serverName + props.canonicalLocalServer in the accumulated registry, server.thisComputer key added to en.ts by settings-framework-migration); bun run verify:closure PASS at registration",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "5571e689189385c794191707a5dec6cc4d9099b527f521602b9de6494683729b",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): every dependency-closure file the row registered exists natively at v2.2.7 (shell/sidebar-toggle.tsx + sidebar-peek.ts/.css, servers/registry/label.tsx, ui/src/typography/slash/* + the ./slash export, registry.tsx serverLabel/hint, settings.css markers, health/runtime shapes); the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "settings-framework-migration",
@@ -954,8 +954,8 @@
       "verification": "V3 closure round-trip (git apply --check over the whole 41-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: settings-framework-migration git apply --check rc=0 against pin + packageSources + gui-plugins-native-test-deps..files-open-external + settings-framework-dependencies, applied and byte-compared == working tree); bun run verify:closure PASS at registration; bun run build:web succeeds at the settings-framework-migration+settings-framework-mobile state (test-file fallout is resolved by settings-framework-mobile inside the same registration round, plan red-window m1); diff(accumulated, target) empty for the 19 verbatim files (verified file-by-file at generation)",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "36443c3a4371bbe80dd7f6fe700fb081cb39f9c485eda37a9662b96d4e4ab34f",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin IS the migrated settings framework — outer shell, navigation, route/surface, search family, command-palette bridge, settings CSS, servers inventory/switcher/unavailable and health/runtime shapes all exist natively at fedc6f208a (blob-identity with the 3ebcf9a target form the row registered); the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "settings-framework-mobile",
@@ -975,8 +975,8 @@
       "verification": "V3 closure round-trip (git apply --check over the whole 42-patch chain to pristine pin + packageSources, tree byte-identical; pre-registration gate: settings-framework-mobile git apply --check rc=0 against pin + packageSources + gui-plugins-native-test-deps..settings-framework-migration, applied and byte-compared == working tree); bun run verify:closure PASS at registration; vendored app unit suite green-set delta recorded in the ledger (keyed-entry failure upgraded to passing; both settings-framework-mobile-completed test files green in the worktree environment); probes verify-gui-plugins (groups 3/4 revised to the absence/settings-framework-mobile forms) + verify-appearance-settings (group 9 revised) + the new scripts/verify-settings-framework.ts all rc=0 at the registered tree",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "c0e8aed55ac0a6233ae3825b3fd356d19197d449166e24fe350205adb2f74d98",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W1/W3/W6): the mobile faces re-derive on the native v2.2.7 settings framework (search-reveal/surface/search machine are upstream now, so the revealSettingsSearch chain and searchActivation semantics moved into surface.tsx/search-reveal.ts natively); carried hunks are the shell mount/guard/nav forms, and the M-035 zoom row + the keyed/search-plugin test re-derivations; the M-044 search-catalog prune register is gone — the three dangling-anchor rows exist natively at v2.2.7 (search-index page/section markers native)."
     },
     {
       "id": "settings-servers-migration",
@@ -995,8 +995,8 @@
       "verification": "V3 closure round-trip (git apply --check over the 43-patch chain to pristine pin + packageSources, tree byte-identical, DANGLING=0; bun run verify:closure PASS at registration); servers.tsx/row.tsx/redeem.ts byte-compared == v2.2.1 3ebcf9a target files; vendored app unit suite: the persistence.test.ts baseline failure upgrades to passing (0 fail in the file), servers-page.test.tsx green in both environments (standalone 6/0/27 expect() behavioral; 2 source pins pass + 4 behavioral skips under the shared-preload suite command, no new suite failures); directed subset (servers-page/inventory/management/controller/registry/client/api) 0 fail; typecheck: the transitional servers.tsx action-prop error resolves against the general.tsx hunk, touched files zero errors; build:web rc=0 and the dist baseline registered in the dist-pinned probes at the same commit",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "ff37babc9fb5feee5812c045375938c503b3131d71b6fb483d0d2f19be018a14",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the completed servers page form natively (SettingsServerGeneral delegating to the shared ServerConnectionRow, SettingsServersHeader, the health-gated Shell section, inventory/machine); the row's re-derivation obligation is empty at v2.2.7 (server-edit-touch-compatibility remains the active carrier of the touch adaptations on top)."
     },
     {
       "id": "settings-general-experimental-migration",
@@ -1025,8 +1025,8 @@
       "verification": "V3 closure round-trip (git apply --check over the 44-patch chain to pristine pin + packageSources, tree byte-identical on all 7 targets, DANGLING=0; bun run verify:closure PASS at registration); bun test targeted subset (model.test.ts, search-results.test.ts, search-reveal.test.ts, keyed-server-entry.test.tsx, palette.test.ts, route.test.ts) 48 pass / 0 fail; app full unit run reconciled per-file against the 5fe6d8e baseline (no NEW failures; 24 pre-existing errors are the mobile-hosts seam resolution set); typecheck:tsc reconciled per-class against baseline (zero new errors in touched files); device QA on DBY2-AL00 (modify/navigate/restart persistence per row, timeline width 3-state, search reveal on restored rows, terminalPlacement row absent, permissions opt-in, newIcons/fold regression) recorded in docs/build-and-verify.md issue #103 section.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "498d28ccce23aa1b66be549dc33b396013b56dea03fe12a6bc8ff21136fc7627",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the completed General/Experimental page form natively (InterfaceModeSetting mount, backgroundActivity/timelineWidth rows + anchors, sounds rows, model.tsx Literals/defaults incl. newIcons/foldUserMessages false before mobileTitlebarPosition); the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "theme-components-migration",
@@ -1067,8 +1067,8 @@
       "verification": "V3 closure round-trip at registration: git apply --check of this patch against the pristine accumulated tree (pin b4525d79bf + packageSources gui-plugins 3ebcf9a + gui-plugins-native-test-deps..theme-components-migration) PASS; applied tree byte-identical (diff -r rc=0, zero output) to the working vendor tree; verify:closure PASS with 46 patches registered (both manifests 46=46, DANGLING=0); git diff --check clean. typecheck:tsc 391 errors unchanged per-file; app unit (no-seam) 646/4/24/1986 unchanged; mobile-hosts 434/0/2920 unchanged. The new packages/app/src/shell/search-list.css carries an upstream-native @media (prefers-reduced-motion: reduce) pending-dot guard (:207-211, .mcp-status-dot[data-status=pending] { animation: none; }) and is therefore added to verify-appearance-settings group 7 WHITELIST as its 6th entry (v2.2.1-native-file class, same as palette-menu.css) - the probe is revised in the same change; the i18n consumed-keys guard in verify-agent-capabilities (language.t literals of the five migrated files subset-checked against en.ts) is revised in the same change and covers the untyped-t() silent-defect class.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "4ccbdae43938405798300608a6579e83a7e5e96b15569466231bbdf38c7bfd5c",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the providers/models/extensions settings pages target form natively (headerAction slot, extensions subtabs, mcp face at providers/connect/mcp.tsx — the MCP call-face probe ownership moved to #193's re-anchored verify-agent-capabilities named set); the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "settings-workspaces-migration",
@@ -1084,8 +1084,8 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "f5f74a56cf97a5841f579656b17e674d1d808ec63f93db014c92e54705b3d335",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the workspaces/projects/project page target form natively (min-w-0 headers, autoFOCUS delete buttons, context().projects.list()); the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "settings-notifications-migration",
@@ -1102,8 +1102,8 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "4370be6efbea54c15d062cfd9e0149da216de08f3277c1e563591f10cd5cb1f9",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the notifications/sounds page target form natively — the sounds-interface SettingsRow + data-action anchor + settings.sounds.interfaceEnabled wiring and the search-catalog settings-sounds-interface row all exist at fedc6f208a."
     },
     {
       "id": "settings-keybinds-command-catalog",
@@ -1125,8 +1125,8 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "cef0224d18056a5652e8e1279f2512aa7a5e4e5bc2c5ea023998bed519640c4a",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed (native, no carrier hunk): the v2.2.7 pin carries the Shortcuts page (SettingsKeybinds), the command catalog/keymap core and the keybind migration natively; the row's re-derivation obligation is empty at v2.2.7."
     },
     {
       "id": "settings-gui-plugins-tab-label",
@@ -1144,8 +1144,8 @@
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
       "sha256": "e184c044a3398fab53debd282f242ba71ee98bb2cfa23d856971497f55d94e69",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W3): the D4 KEEP disposition is carried verbatim — route.ts/pages.ts/guiExtensionsTab entries + the en/zh 'GUI extensions'/'GUI 扩展' disambiguation + the two route.test.ts gui-extensions cases (host root tab parse; host tabs win over a same-id plugin page, M-052); the two S14 settings-search-plugin.test.tsx hosted-contribution cases re-derive natively (search-index page/section markers at v2.2.7 search-index.ts)."
     },
     {
       "id": "connection-pairing-url",
@@ -1220,8 +1220,8 @@
       "verification": "Rendered Kobalte menu and real mobile adapter fail-closed tests, upstream challenge/state fixtures, Settings regressions, first-party tests, web/Android builds and layered closure. Actual device evidence and remaining blockers are recorded in docs/build-and-verify.md; fixtures do not establish real backend success.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "15130aa769e55f2b2c646a1e8bfbd34bffbbfa44aba1aca2c5a35f7f0deab163",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W2/W4): the N12 add-menu face re-derives (SettingsAddServerMenu wrapper, unsupportedWsl, disabled WSL row with zero controls, Add-SSH 350ms guard, useServerAddItems exclusion) and the SSH row actions re-derive on the D2 generic-row architecture (ServerRowMenu branch + mobile-ssh.tsx adapter) instead of the old dedicated SshRow mount; the gui-plugins ssh dialog/row translate affordances the row carried are natively present at v2.2.7; the dedicated MobileSshSettingsRow/SshRow mount face is NOT re-derived (superseded by D2)."
     },
     {
       "id": "session-workbench-upstream",
@@ -2062,8 +2062,8 @@
       "verification": "V3 byte-exact closure round-trip (bun run patches:refresh; verify:patches; verify:closure DANGLING=0); vendored app targeted subset incl. revised mobile-ssh.test green under browser conditions with the test-time mobile-hosts seam; first-party regression bun test --conditions=browser packages/mobile-hosts unchanged; bun run scripts/verify-ssh.ts --pre-native --pre-vendor PASS; build:web + copy:web-dist PASS. Device-side connect→message→reconnect acceptance for issue #161 is gated on the Step 0 root-cause instrumentation run and recorded separately in docs/build-and-verify.md.",
       "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
       "sha256": "27ac8a1429114f778363e7206a60922724af331e64147dc27040dcb3bb57eb0b",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed"
+      "status": "absorbed",
+      "disposition": "absorbed by settings-v2-2-7 (issue #193, W4): the #161 semantics re-derive on the D2 row-menu architecture — Connect drives the shared runtime (T1 fresh attempt from idle/failed/authRequired; T10 offline re-enters via retry; disabled while connecting/reconnecting; no fail-closed toast), the hostKeyUnverified challenge opens the first-party KeyedHostKeyPrompt (T3/T4 via runtime.confirmHostKey/rejectHostKey — an upgrade over the #161 fail-closed dialog path, which the plan's confirmHostKey wiring required), incompatible rows open the upstream DialogSsh challenge face, Delete is the T14 local-only registry removal (zero transport calls, credentials untouched); proven by the re-derived mobile-ssh.test.tsx (8 cases, standalone browser-conditions run)."
     },
     {
       "id": "diff-worker-pool-fallback",
@@ -2303,6 +2303,41 @@
       "sha256": "c978a78f0dc0dbbca027379c4b6cc8656d7d47baba07ae15fb02b8b9cbc27421",
       "status": "active",
       "disposition": "active; sole carrier of the re-derived session-agent-selector (row 65) agent-visibility payload"
+    },
+    {
+      "id": "settings-v2-2-7",
+      "patch": "patches/mobile/settings-v2-2-7.patch",
+      "targets": [
+        "packages/app/src/runtime/i18n/en.ts",
+        "packages/app/src/runtime/i18n/zh.ts",
+        "packages/app/src/runtime/plugin/root.tsx",
+        "packages/app/src/runtime/plugin/servers.tsx",
+        "packages/app/src/servers/registry/add-menu.test.tsx",
+        "packages/app/src/servers/registry/add-menu.tsx",
+        "packages/app/src/servers/registry/row-menu.tsx",
+        "packages/app/src/settings/keyed-server-entry.test.tsx",
+        "packages/app/src/settings/pages.ts",
+        "packages/app/src/settings/route.test.ts",
+        "packages/app/src/settings/route.ts",
+        "packages/app/src/settings/search-catalog.ts",
+        "packages/app/src/settings/search-results.test.ts",
+        "packages/app/src/settings/servers/mobile-ssh.test.tsx",
+        "packages/app/src/settings/servers/mobile-ssh.tsx",
+        "packages/app/src/settings/servers/servers-page.test.tsx",
+        "packages/app/src/settings/servers/servers.tsx",
+        "packages/app/src/settings/settings-search-plugin.test.tsx",
+        "packages/app/src/settings/shell.tsx"
+      ],
+      "dependsOn": [
+        "server-edit-touch-compatibility"
+      ],
+      "reason": "Issue #193: the ONE consolidated Android settings-domain re-derivation at v2.2.7 (19 targets). W1 (M-008): MobileHostManager lazy mount as the servers tab's first child, target Show form preserved. W2 (N12): SettingsAddServerMenu wrapper + unsupportedWsl with the disabled WSL menu row (label only, zero controls), the Add-SSH item behind the 350ms WebView-114 compatibility-click guard, useServerAddItems(excludePlugin) via host.items. W3 (M-026/M-044/M-052/M-025): the gui-extensions root tab restored (route/pages/shell guard+nav+mount, i18n GUI-extensions disambiguation, route.test host-tab-wins cases) and the plugin-host disabled set fed from createExtensionDisabled(window.localStorage) only where no bridge exists. W4 (#161 semantics on the D2 generic-row architecture): the mobile SSH row-menu adapter (settings/servers/mobile-ssh.tsx + ServerRowMenu parseHostKey branch) driving runtime connect/retry/remove/confirmHostKey/stateOf — T1 fresh attempts, T10 offline retry, T14 local-only delete (zero transport, credentials memory-only), KeyedHostKeyPrompt for the host-key challenge, DialogSsh for incompatible rows. W5 (M-035 deviation, matrix S42): the zoom catalog row drops available:\"desktop\" with search-results.test flips. W6 (M-044/D3): keyed-server-entry.test.tsx + settings-search-plugin.test.tsx re-derived (W1 lockup + target entry={entry()} form; surface.plugins pin + two S14 cases); the surface/palette/search-reveal test trio stays out (native coverage exists). servers-page.test.tsx gains only the honest SettingsAddServerMenu mock entry; its server-edit-touch-compatibility source pins are untouched. The i18n half of settings-ssh-entry-guard re-derives too: en/zh gain the settings.tab.sshHosts key (upstream consumes it at servers/connect/screen.tsx without defining it — the SSH entry button label would render empty). The rest of the v2.2.7 settings surface is pin-absorbed pristine (18 deferred rows flip absorbed with per-row notes; notification-permission stays #195; about-version rides the #184-legacy round). Marker: mobile(settings-v2-2-7, issue #193).",
+      "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
+      "verification": "Apply-check of the patch against the pre-patch chain tree (eb1fc20 vendor state = pristine pin + packageSources + closure patches + the 8 prior active mobile patches) with the applied result byte-identical to the working tree for all 19 targets (verify-closure V3 replay, DANGLING=0); bun run patches:refresh + python3 scripts/mobile-patches.py PASS(87) + python3 scripts/test_mobile_patches.py OK; settings test suite green (route.test 13, keyed-server-entry 2, search-results.test, model.test, inventory/machine, settings-search-plugin 4, servers-page 9 standalone, mobile-ssh 8 standalone browser-conditions, add-menu 7 standalone); Set A 396/5/1793/30 constant; 13-file provider set 136/0/389/13 constant; mobile-hosts 446/0/3034/40, session-ui 9-file 139/0/436/9, gui-plugins files 430/0/1337/36 + terminal 131/0/820/12, test-browser C set 13/0/35/4 constant; full app unit suite 2636 pass / 21 skip / 3 fail = c0 pre-existing set (servers-page behavior x2 missing skipIf + queue-lifecycle R4) with zero new failures. W4 red lines proven by tests: T1 connecting->failed under the stub verifier with no toast, T14 zero transport opens, credentials memory-only. Device-side navigation/connect acceptance is NOT RUN (registered in docs/build-and-verify.md).",
+      "rebase": "v2.2.7: this entry IS the v2.2.7 re-derivation; hunks generated against the cumulative chain tree at feat/193-settings (post-#184/#186/#187/#188/#189/#190/#191/#192 active chain).",
+      "disposition": "active; sole carrier of the re-derived settings-family payloads (rows 1-20 of the #193 disposition table: W1 host manager, W2 add-menu, W3 gui manager + disabled union, W4 SSH row actions, W5 zoom deviation, W6 test re-derivations)",
+      "status": "active",
+      "sha256": "caf6b2bd270edd73fa308066f8c23187f4226d44d3df2e1d061d3d318d4c4c45"
     }
   ]
 }

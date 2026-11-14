@@ -567,3 +567,87 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **DENY（routing）** `settings-providers-models-extensions`（row 47，deferred）：targets 中 provider 侧（`providers/connect/mcp.ts` mcp.connect/disconnect 命名 hunk、`settings/providers|models` 目标形）已被 pin 吸收或属 #86/#193 范围——provider-side targets absorbed by pin；其余 targets（extension/plugins 面）**路由 #193**，本轮不触碰。
 - **DENY（routing）** `gui-plugins-api-migration`（row 37，deferred）：provider/connect 相邻 targets（`providers/connect/remote.test.ts`）属 pin 吸收面；本体（extension/plugin API 迁移）**路由 #193**，本轮零触碰。
 - **EXCLUDED** 真实凭据链/设备面：no-credential 态 = v2.2.7 原生 `usage/dialog.tsx:103`（`limits === null → { kind: "signed-out" }`）+ :147-151 signed-out 分支（`usage.signedOut.title/body`）——**native，非移动补丁**；真实凭据链与设备走查 BLOCKED 边界原样保留（解除条件=真实凭据 / 授权设备）。
+
+## Issue #193：settings crosswalk and absorption audit
+
+本节是 #193 的固定上游审计（settings 域的 v2.2.7 吸收核对 + 移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#192 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--193-settings`，分支 `feat/193-settings`，base `eb1fc20`（#192 链尾）。本轮 landing = **consolidated active patch `settings-v2-2-7`（19 targets：W1 MobileHostManager servers-tab mount（M-008）、W2 SettingsAddServerMenu N12 face（WSL disabled row + 350ms-guarded Add-SSH item）、W3 gui-extensions root tab + first-party ExtensionManager + plugin-host disabled union（M-026/M-044/M-052/M-025）、W4 mobile SSH row-menu adapter（runtime connect/retry/remove/confirmHostKey）、W5 M-035 zoom catalog deviation（S42）、W6 keyed-server-entry/settings-search-plugin/route.test 测试重 derive）+ settings 域六探针 v2.2.7 重锚定（verify-settings-framework / verify-experimental-settings / verify-interface-mode / verify-appearance-settings / verify-pinch-shell-settings / verify-agent-capabilities）**；registry **87 registered / 9 active / 54 absorbed / 24 deferred**（18 rows 翻转 absorbed + row 87 注册 active）。
+
+### 可复现 fixed-source 命令
+
+```bash
+# settings 域 target surface（v2.2.1→v2.2.7 全量 diff 的 settings 子集）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/settings packages/app/src/servers \
+  packages/app/src/shell/commands/desktop-menu.ts packages/app/src/shell/commands/command.tsx \
+  packages/app/src/runtime/plugin/root.tsx packages/app/src/runtime/plugin/servers.tsx \
+  packages/app/src/runtime/platform/platform.tsx packages/app/src/runtime/platform/web.ts \
+  packages/app/src/settings/general/controllers.ts packages/ui/src/motion packages/ui/src/styles/tailwind/index.css
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；post-#193 差异恰为 settings-v2-2-7 的 19 targets。
+```
+
+### 审计数字（104 unique targets 的精确定义）
+
+- **集合定义**：104 unique targets = 18 条 deferred settings-family rows 在 `eb1fc20` manifest 中的 targets 并集（42 条 deferred 时的登记面）+ `appearance-motion-zoom`（39 targets，settings 域子集）——去重后（`en.ts`/`search-catalog.ts`/`search-results.test.ts`/`settings.css` 等跨 row 共享文件只计一次）恰 **104 个唯一文件**。逐文件三分类：
+  - **84 SAME**：vendored（post-rebase）文件与上游 `fedc6f208a` blob 逐字节相同（`git hash-object` 相等）——吸收由 vendor pin 承载，无 carrier patch。
+  - **9 DIFF**：vendored 文件 ≠ 上游 blob，差异恰为 `settings-v2-2-7` 在册 hunk（W1–W6 的 19 targets 中落在该 104 集合内的 9 个：`shell.tsx`、`add-menu.tsx`、`row-menu.tsx`、`plugin/root.tsx`、`plugin/servers.tsx`、`route.ts`、`pages.ts`、`search-catalog.ts`、`search-results.test.ts`——其余 10 个 patch targets 为新增文件/测试（`mobile-ssh.tsx(+test)`、`add-menu.test.tsx`、`keyed-server-entry.test.tsx`、`settings-search-plugin.test.tsx`、`servers-page.test.tsx` 增量、`servers.tsx` 增量、`route.test.ts` 增量、en/zh i18n 键），不在 v2.2.1→v2.2.7 diff 集合内故不入 104）。
+  - **11 MISSING**：v2.2.1 目标文件在 v2.2.7 上游已删除/改名（例如 `providers/connect/mcp.ts`→`mcp.tsx`、`runtime/extension/*`→`runtime/plugin/*` 旧名残留、`settings/search-reveal.test.ts`/`surface.test.ts`/`palette.test.ts` 上游退役、`settings/mobile.tsx` 移除）——目标面消失 = 吸收的极端形（pin 无此文件，mobile delta 无处重放；其语义由现存后继文件承载，逐条归并入探针重锚定记录）。
+- **结论**：84/104 SAME + 9 DIFF（全部在册 carrier）+ 11 MISSING（目标面退役）= settings 域 v2.2.1→v2.2.7 重组 **absorbed by vendor pin，无未承载 mobile delta**。
+
+### per-patch verdict 表（18 flips + settings-ssh-entry-guard disposition）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 8 | `settings-mobile-host-manager` | deferred→absorbed | W1：MobileHostManager lazy mount 为 `settings-v2-2-7` servers-tab first-child（verify-settings-framework 组 1 正锚 + I1 负注入）；上游无此面，载体在册 |
+| 18 | `settings-ssh-entry-guard` | deferred→absorbed | **disposition：redirect 半 obsolete**（`settingsViewRedirect` root-tab 重定向由目标结构吸收——servers 组无条件在 nav，root tab 永不被重定向，settings.md 壳契约在册）；**entry 半 overlaps W1**（servers tab 入口即 W1 mount）——payload 不重 derive，语义由 W1 + 目标 redirect 表承载 |
+| 25 | `gui-plugins-disabled-merge` | deferred→absorbed | W3：`createExtensionDisabled` disabled union 在 `plugin/root.tsx:83` 在册（`mobileDisabled = bridge ? undefined : createExtensionDisabled(window.localStorage)`）；agent-capabilities 组 3 正锚 |
+| 26 | `settings-mobile-gui-plugins` | deferred→absorbed | W3：gui-extensions root tab（M-044）+ `mobileGuiExtensions` predicate/redirect guard/Tabs.Content mount（M-026）+ en 9 键 guiExtensions family + zh 全块 |
+| 33 | `settings-interface-mode` | deferred→absorbed | v2.2.7 pin 原生携带三值 tabLayout/interface-mode.tsx（七 targets 全部 pin 形——`InterfaceModeSetting` 移入 General list、four-key i18n、fixed-card CSS）；verify-interface-mode 重锚定 rc=0 |
+| 34 | `settings-experimental` | deferred→absorbed | v2.2.7 pin 原生携带十四 targets（newIcons/foldUserMessages schema+rows、42+71 icon 表、createDisclosure fold 链、e2e/stories 两条 in-set 例外）；verify-experimental-settings 重锚定 rc=0 |
+| 41 | `settings-framework-dependencies` | deferred→absorbed | 八 targets（sidebar-toggle/sidebar-peek/servers-registry label/ui slash+css+export）全部 pin 原生（framework shell 依赖闭合） |
+| 42 | `settings-framework-migration` | deferred→absorbed | 37 targets 全部 pin 原生（单一 RootSettings、surface search attach/sync、route view 模型、catalog/rank 两参形、switcher/unavailable、health machine retry dispatch）；verify-settings-framework 重锚定 rc=0 |
+| 43 | `settings-framework-mobile` | deferred→absorbed | 七 targets：shell/route/pages/search-catalog 的 mobile 剪除面为 pin 自有（M-044 语义归 W3 重 derive）；keyed/settings-search-plugin 测试重 derive 归 W6 |
+| 44 | `settings-servers-migration` | deferred→absorbed | 六 targets（servers.tsx/row.tsx/general.tsx ShellSetting action/redeem/persistence test）全部 pin 原生；verify-pinch-shell-settings 组 2 重锚定（serverPagesConnection 门）在册 |
+| 45 | `settings-general-experimental-migration` | deferred→absorbed | 16 targets 全部 pin 原生（general.tsx 目标行、backgroundActivity/timelineWidth schema+token、mobileTitlebarPosition）；verify-appearance-settings 组 1 重锚定在册 |
+| 47 | `settings-providers-models-extensions` | deferred→absorbed | 九 targets 全部 pin 原生（providers/models/extensions 页目标形、extensions.tsx 数据层 sync/list、mcp-dialog 目标形、mcp.ts→mcp.tsx 改名吸收）；agent-capabilities 组 1/5 重锚定在册；#192 routing note 履行完毕（见 routing 表） |
+| 48 | `settings-workspaces-migration` | deferred→absorbed | 三 targets（workspaces/projects/project）全部 pin 原生；#106/#147 历史记录继续适用 |
+| 49 | `settings-notifications-migration` | deferred→absorbed | 四 targets（notifications 页/sound.ts）全部 pin 原生；settings-notification-permission Android 权限面 hunks 保持 deferred（routing 表） |
+| 50 | `settings-keybinds-command-catalog` | deferred→absorbed | 九 targets（keybinds/command/ui button）全部 pin 原生；command.test 在 focused settings 套件 84/0 在册 |
+| 51 | `settings-gui-plugins-tab-label` | deferred→absorbed | 六 targets：标签歧义键由 pin 自有（"GUI extensions"/"GUI 扩展" 在 v2.2.7 en/zh），测试回归锁由 W6 route.test 重 derive |
+| 55 | `settings-server-menu` | deferred→absorbed | W2/W4：add-menu WSL disabled row + 350ms-guarded Add-SSH item（M-045 语义重 derive）、mobile-ssh.tsx row-menu adapter（W4）+ android-host 保留（inherited row 80 继续独立重放）；16 targets 中其余由 pin 原生（servers-page.test 复用形） |
+| 76 | `settings-ssh-row-runtime-actions` | deferred→absorbed | W4：mobile-ssh row-menu adapter 驱动 runtime connect/retry/remove/confirmHostKey（T1/T10/T14 由 mobile-ssh.test.tsx 8/0 在册证明；credentials memory-only）——payload 由 `settings-v2-2-7` 重 derive 承载 |
+
+### upstream coverage 表（关键上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `1341387981`（#60162） | feat(app): align searchable dialogs | **absorbed**（vendor pin） | SearchList/searchable-dialog 对齐原生在册（verify-settings-framework 组 5 SearchList/Slash 形） |
+| `d9d3548548`（#60200） | fix(app): match search dialog radius and background | **absorbed**（vendor pin） | search-list 半径/背景面原生（#192 段已在册的 dialog 面同源） |
+| `83e3999996`（#60221） | feat(app): group added projects in settings | **absorbed**（vendor pin） | settings projects 分组（sidebarOrganize 投影分组——verify-interface-mode 组 2 重锚定的 `tabLayout() === "vertical"` 唯一原生残留即此面） |
+| `825167351e`（#60046） | fix(app): keep sidebar search muted on hover and show its shortcut | **absorbed**（vendor pin） | sidebar search hover/shortcut 原生 |
+| `cd6551f9a0`（#52356） | feat(app): copy version from about settings | **absorbed**（vendor pin） | **S39 D1 三行 overlay 保持退役的依据**：上游 About 原生 AboutCopy（版本复制面），`MOBILE_APP_VERSION == vendor 版本`，三行 overlay（client/base/server 分行）无信息增量——`settings-about-version`（row 39）stays deferred 归 #184-legacy 轮 |
+| `bf94de965d`（#59129） | feat(desktop): spellcheck toggle and system-language dictionaries | **absorbed**（vendor pin） | spellcheck 设置行 desktop-gate（`desktop() && "getSpellcheckEnabled" in platform`，general.tsx:247）原生在册——**mobile 不泄漏**（verify-pinch-shell-settings 组 1 drill ⑧ 在册；desktop-only 行 <Show when={desktop()}> 内） |
+| 状态机族（machine families） | connect/dialog-machine/form-machine/mcp-machine/go-upsell-hero-machine + settings general machine（createOptimisticSetting/machine.ts） | **absorbed**（vendor pin） | 全部上游原生 pin 携带——#192 段已登记 connect 族；本轮新增 settings general 乐观机器（controllers.ts createOptimisticSetting + machine.ts write.failed/notify.error）与 mcp.tsx per-connection machine 为同族 native 形，verify-appearance/pinch/agent-capabilities 重锚定在册 |
+
+### routing 表（7 stay-deferred 的最终去向；无未登记路由）
+
+| row | patch | 去向 | 说明 |
+| --- | --- | --- | --- |
+| 24 | `settings-notification-permission` | **#195** | Android 通知权限行 hunks 保留 deferred；owner：notification permission 单元 |
+| 35 | `appearance-motion-zoom` | **#197** | 39 targets deferred（web.ts zoom 实现 + CSS 面 + motion 模块裁剪的历史 payload）；**M-035 zoom catalog deviation 为在册 standing deviation**——`settings-v2-2-7` W5 已承载搜索目录 gate-drop（三行 registered-deviation 注记），#197 重基时**不得重加 `available: "desktop"` 门**（search-catalog.ts 注记逐字「the later appearance-motion-zoom rebase must not re-add the gate」）；外观行/controllers/platform types 已 pin 原生，重基 payload 只覆盖 web 实现与 CSS 消费面 |
+| 36 | `session-goal-sources-panels` | **#194/#196** | Sources/Goal 面归 goal-sources 单元（#194）；fork/revert 生命周期守卫套件归 #196（#188 处置继承）；本轮零触碰 |
+| 37 | `gui-plugins-api-migration` | **#194** | 本体（extension/plugin API 迁移残留）归 #194；#192 routing note（provider/connect 相邻 target）已由本轮 pin 吸收面履行完毕 |
+| 39 | `settings-about-version` | **#184-legacy** | 三行 overlay 保持退役（cd6551f9a0 原生 AboutCopy + MOBILE_APP_VERSION == vendor 版本，见 upstream coverage 表）；随 #184-legacy 轮处置 |
+| 17 | `session-home-archive` | **#184-legacy** | archive 面保持上游 pin 实态（`SHOW_HOME_SESSION_ARCHIVE=false`）；verify-projects-sessions 预存 rc=1 首 FAIL 恒同 |
+| 66 | `extensions-flyout-webview` | **#194** | details css 面归 gui-extensions 单元；本轮零触碰 |
+
+### M-035 standing deviation（#197 注记）
+
+`settings.appearance.row.zoom.title` 搜索目录行**无 `available: "desktop"` 门**（W5，S42 语义）：v2.2.7 上游该行带 desktop 门，移动客户端按在册偏离（M-035）保持 web 可用——设置页 zoom 行本身为 `<Show when={appearance.zoom.available()}>` 平台能力门（web 平台当前未实现 zoomLevel，行隐藏——**该实现面为 deferred `appearance-motion-zoom` 的 owner round（#197 方向）交付**，deferred patch 39 targets 携带其历史 web 实现）；search-results.test `font` 查询 3→4 与 `toContain("settings-zoom")` 正锚在册。#197 重基该 patch 时必须携带 W5 目录形态（三行 registered-deviation 注记），不得回退门控。
+
+### deny audit
+
+- **DENY（ai fixes）** settings 域与 ai 包相关修复 pin-carried，不重实现（沿 #192 口径）。
+- **DENY（routing）** `settings-notification-permission`/`appearance-motion-zoom`/`gui-plugins-api-migration`/`session-goal-sources-panels`/`settings-about-version` 五条 stay-deferred 本轮零触碰（routing 表）。
+- **EXCLUDED** 设备面：W1/W2/W4 的真实触摸走查（add-menu 三项、SSH row-menu connect/retry/remove/confirmHostKey、host-manager mount 导航）归 G30/G35 设备门禁，本轮 NOT RUN；不声称任何设备/真实服务验证。
