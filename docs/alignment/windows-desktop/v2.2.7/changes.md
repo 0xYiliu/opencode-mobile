@@ -809,3 +809,42 @@ questions 投递若无白名单扩展存在**两条明确的失败形态**：其
 - **语义（与 verify-webview-url-compat.test 逐条对齐）**：native 在场时身份保持（feature-gate，`if (!URL.canParse)` / `if (!URL.parse)`）；ToString 转换错误传播（`String(url)`/`String(base)` 在 try 块外转换，抛错透传不吞成 false）；parse 失败 → `canParse=false` / `parse=null`；无参 TypeError（`arguments.length === 0` 检查，与 WebIDL required-argument 形一致）；base 作 URL 对象经同一 String 转换透传（URL.toString → href）。
 - **WebView floor**：设备在册实测 WebView **114.0.5735.196**（MatePad DBY2-AL00，[connection.md](../../../design/units/connection.md) QA-0 判定记录，2026-10-30）；`minSdk = 29`（android/app/build.gradle.kts:44）；Chrome 120 起 URL.canParse/URL.parse 原生——114 floor 落在 shim 需求区间；**壳层无 WebView 最低版本门**（零版本 gate，低版本 WebView 直接加载 web 资产，shim 在 entry 装配安装）。settings.md:136 在册的「设备实测 system 档在 WebView 114 退化 full」同源证实 114 为当前设备实态版本。
 - **红线复核**：polyfill-only 补丁——零新 stop 路径（client exit 不停远端任务不变）、vault 生命周期未重设计、零重复发送/通知路径、Electron excluded。
+
+## Issue #197：UI/theme crosswalk and absorption audit（rows 35/46/72/73 翻转 + row 91 web 缩放面重 derive）
+
+本节是 #197 的 ui/theme 域审计（appearance/motion-zoom 39-target payload 收口 + theme/motion/project-icons 三 deferred 收口 + web 缩放实现面重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#196 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成（blob 身份经 `git ls-tree -r` + `git hash-object` 本轮实算）；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--197-ui-theme`，分支 `feat/197-ui-theme`，base `7a13992`（#196 链尾，stacked chain main a25ab51 → #187 → … → #196）。本轮 landing = **consolidated active patch `appearance-zoom-web-v2-2-7`（row 91，1 target：`packages/app/src/runtime/platform/web.ts` createUiZoomLevel 面，M-035 marker verbatim，十一级目录校验，fallback 1）**；registry **91 registered / 13 active / 69 absorbed / 9 deferred**（rows 35/46/72/73 翻转 absorbed；row 91 为 mobilePatches 第 13 项）。
+
+### §0.1 accounting（packages/ui 全等 + app/session-ui/gui-plugins delta 全载体归属）
+
+- **packages/ui：1765/1765 byte-identity to pin**。`git ls-tree -r fedc6f208a -- packages/ui` 的 1765 个 blob 与 vendored `vendor/upstream/packages/ui` 1765 个跟踪文件逐一 `git hash-object` 对比：**SAME=1765 / DIFF=0 / ADDED=0 / MISSING=0**——ui 包零移动面，theme 三件（index/color/resolve）与 motion reduced/spring 均为 pin 原生内容（row 46/73 的 blob 断言因此成立）。
+- **app/session-ui/gui-plugins delta vs pin = 80 M + 14 A，全部 active-carried**。同法对三包清点：app pin=1264/local=1277（SAME=1186）、session-ui pin=256/local=257（SAME=253）、gui-plugins pin=1034/local=1034（SAME=1021）；合并 **DIFF 94 M + ADDED 14 A**，其中 94 M 含 12 条 `public/` 品牌资产（favicon/apple-touch-icon/social-share/web-app-manifest 位图）与 `tsconfig.json`/`vite.js` 两条 vendor 基础设施文件——**源码 DIFF = 80 M**（settings/gui-plugins/notifications/runtime-data/composer/back-chain/panel-motion 等各 active 行载体，与 #193–#196 各轮 16-diff map 一致，本轮零新增 M）+ **14 A**（app 13：fade/fade.test、registry-hydration.test、add-menu.test、queue-lifecycle.test、keyed-server-entry.test、android-host、mobile-ssh.tsx/.test、servers-page.test、settings-search-plugin.test、back-chain.ts/.test；session-ui 1：pierre/pool-strategy.ts——全部为在册 active patch 新文件）。本轮 vendor delta vs base `7a13992` = **恰 web.ts +67 行**（row 91 载体）+ provenance/vendor-manifest 刷新。
+
+### §0.2 commit crosswalk 表（5 行，ui/theme 域上游 fix 族）
+
+| commit | 主题（上游） | 判定 | 载体 / 本轮关系 |
+| --- | --- | --- | --- |
+| `50ea8d5003`（#59427） | fix(app): keep the mobile drawer open while a session loads | **absorbed**（vendor pin） | `session/composer/controller.ts` tree==pin SAME（git hash-object 本轮）；移动树零 hunk 欠账 |
+| `33e495a18f`（#60368） | fix(app): preserve command selection under a stationary pointer | **absorbed**（vendor pin） | `composer/editor/editor.tsx` tree==pin SAME；editor.tsx 为 #84 时代已在册 editor 家族 pin 载体域，本轮零触碰 |
+| `653650de19`（#60436） | fix(app): stabilize side-panel click targets across reactive updates | **absorbed**（vendor pin） | `runtime/plugin/{panel-menu.ts,panel-trigger.tsx,panels.tsx,side-region.tsx}` + `gui-plugins/src/browser/{connection.ts,connection.test.ts}` 六文件 tree==pin SAME 全验证 |
+| `0da727dc11`（#59467） | fix(app): feather the sidebar list's scroll edges | **absorbed**（vendor pin） | `shell/titlebar/{tab-strip.tsx,titlebar.css}` tree==pin SAME；titlebar 域 #186/#187 记录不动（back-chain/titlebar 零本轮改动） |
+| `fdb588ae81`（#60026） | fix(app): size the agent menu to its options | **absorbed**（vendor pin） | `composer/editor/editor.tsx` tree==pin SAME（同 33e495a18f 域） |
+
+### §0.3 四 flip 处置（verbatims 见 manifest.json/patch-dispositions.md）
+
+| row | patch | 旧→新 | 判定核心（blob 身份本轮 git hash-object 实算） |
+| --- | --- | --- | --- |
+| 35 | `appearance-motion-zoom` | deferred→absorbed | 39-target payload 在 pin 全部原生吸收，唯一幸存 web.ts 缩放面由 **active row 91 重 derive**；reduce-motion 族 upstreamed verbatim（`ui/src/motion/reduced.ts` blob `a20b9e83e28813ed7b080f00367235dce1a4ba52`——**UPSTREAMED-verbatim headline**；全树 `:root[data-motion="reduce"]` CSS 转换、三处 prefersReducedMotion TS 消费者、tailwind `@custom-variant` 对由 verify-appearance-settings 组 6–8 pin-native 断言钉定）；settings/zoom 面 pin 原生（十一级 Chromium desktopZoomLevels + native `nextDesktopZoomLevel` + platform.tsx 可选声明——探针组 1–5/10/11）；W5 M-035 搜索门弃置由 active `settings-v2-2-7` 承载、#193 standing note 履行完毕 |
+| 46 | `theme-components-migration` | deferred→absorbed | 五 targets pin-native 于 v2.2.1 目标修剪形：theme/index.ts blob `4d5462d70e8a77063cc71a09a7c025950d853bd9`、theme/color.ts blob `0a1743bae356bc35e983e9a1a165a0e47a5d9c96`、theme/resolve.ts blob `0ac7357f399c005fd08cf9f00c53b1c9cc82a7ba` + loader.ts/default-themes.ts 两整文件退役于 vendored 树缺席（resolveThemeVariant/themeToCss 对继续服务 gui-plugins terminal 消费者） |
+| 72 | `shell-titlebar-project-icons` | deferred→absorbed | project-icons.tsx 即采用目标形 byte-for-byte（blob `1e6ddb3cc56601469d9a1a9aac4c4591918ed354`）；index.html data-sm title 与 app.tsx Title/ProjectIconsProvider 面 pin 原生；**#195 toast note carried**——V3 closure 重放保持 toast.tsx pin-identical，490739afe7 quota-failure 面为 pin 内容，无移动侧 toast.tsx carrier 欠账 |
+| 73 | `ui-pin-target-residual` | deferred→absorbed | motion-spring.tsx 即 @kitlangton/solid-motion 形（blob `c4466d8075b99c16dffe36b0721751efcb2c1690`）+ `app/test-browser/motion-spring.test.ts` 目标三例形（blob `f3828eea51b34c61772436e3a83ab171a957609f`）两文件 byte-identical；list.tsx scrollIntoView 移除与 text-field compact-tooltip 翻转 pin 原生 |
+
+### sole-survivor 分析（web.ts 缩放面为何是唯一移动 hunk）
+
+- **pin 的 web.ts 零 zoom token**：`git show fedc6f208a:packages/app/src/runtime/platform/web.ts` grep zoom 计数 = **0**——上游在 web 平台从未实现缩放应用面（desktop 独占 Electron 缩放链），这是 39-target payload 中唯一不被 pin 吸收的面。
+- **pin 的 platform.tsx 已带可选声明**：`:90-96` `webviewZoom`/`zoomLevel?: Accessor<DesktopZoomLevel>`/setZoomLevel 注释声明——声明在、实现缺；row 91 的 `...createUiZoomLevel()` spread 在 saveFile 锚后加入即满足注解 literal（无 excess property）。
+- **十一级 Chromium 目录 pin 原生**：desktop-menu.ts:63 `desktopZoomLevels = [0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`（Chromium 缩放目录形）——重 derive 的 web 面按该十一级校验存储值；#104 时代六档 100–200% 记录为历史形态（storage 值 1–2 均在新目录内，legacy 存储值继续有效）。
+- **`nextDesktopZoomLevel` import ban**：重 derive 零 import/零引用（pinch-shell 不变量——该符号文件集 pin 恰 desktop-menu.ts + 其 test，verify-pinch-shell-settings drill ⑦ 在册）。
+
+### deny audit（本轮零触碰边界）
+
+`git diff 7a13992..HEAD` 构造性核对：**零 back-chain 改动**（back-chain.ts/.test 与 #186 域零交集，focused back-chain 15/0 恒同）、**零 Kotlin/android 改动**（android/ 空 diff）、**零 entry.tsx 改动**、**零 search-catalog.ts/search-results.test.ts 改动**（W5 M-035 门弃置形原样，standing deviation 不回退）、**零 identity-migration.json 改动**、**旧 patch 文件零改写**（patches/mobile/*.patch 唯一 delta = 新增 appearance-zoom-web-v2-2-7.patch +102 行）；#193 W5 standing note（「appearance-motion-zoom 重基不得回退门控」）随 row 35 翻转 discharge——门保持弃置且 row 91 面零 search-gate 内容；verify-appearance-settings 的 A2 注入（web.ts 加 zoom token）在重锚定后翻转为正锁（组 5 断言 row 91 面存在），探针 rc=0 保持。
