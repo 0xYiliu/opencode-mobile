@@ -72,7 +72,8 @@
     "patches/mobile/notifications-v2-2-7.patch",
     "patches/mobile/runtime-data-v2-2-7.patch",
     "patches/mobile/appearance-zoom-web-v2-2-7.patch",
-    "patches/mobile/updater-web-exclusion-v2-2-7.patch"
+    "patches/mobile/updater-web-exclusion-v2-2-7.patch",
+    "patches/mobile/gui-plugins-native-test-deps.patch"
   ],
   "excluded": {
     "packages": [
@@ -113,8 +114,8 @@
     {
       "id": "gui-plugins-native-test-deps",
       "path": "patches/mobile/gui-plugins-native-test-deps.patch",
-      "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058",
-      "status": "deferred"
+      "sha256": "3379113e0a13e6e14c7c96bca785b2afa90dbf48bdc8d7588e564c9f88813efb",
+      "status": "active"
     },
     {
       "id": "connection-password-memory-only",
@@ -664,12 +665,6 @@
     }
   ],
   "deferredMobilePatches": [
-    {
-      "id": "gui-plugins-native-test-deps",
-      "path": "patches/mobile/gui-plugins-native-test-deps.patch",
-      "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058",
-      "status": "deferred"
-    },
     {
       "id": "workspace-dependency-closure",
       "path": "patches/mobile/workspace-dependency-closure.patch",

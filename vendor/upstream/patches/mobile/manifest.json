@@ -8,13 +8,13 @@
       "targets": [
         "packages/gui-plugins/package.json"
       ],
-      "reason": "Remove Electron-only dev tooling (electron, @lydell/node-pty, devtools-protocol) from devDependencies. They are used only by gui-plugins' own tests/typecheck, and electron's postinstall pulls ~110MB of binaries that the web build never needs. (gui-plugins-native-test-deps' issue #67: retargeted from gui-extensions, which the gui-plugins package replaces; the three removals are identical and the devDependencies block shape matches the old gui-extensions one.)",
+      "reason": "Remove the five desktop/main-side-only devDependencies (electron, @lydell/node-pty, devtools-protocol, electron-updater, lighthouse) from gui-plugins. All five have zero renderer-import-graph hits (reviewer-verified at the #199 audit): electron pulls ~110MB of postinstall binaries the web build never needs; @lydell/node-pty and devtools-protocol are the historical main-side trio; electron-updater is the desktop auto-update channel (web-updates face already excluded on mobile by row 92 updater-web-exclusion-v2-2-7; ADR 0005 defers APK updates); lighthouse is a desktop-only audit tool that transitively re-introduces devtools-protocol. @happy-dom/global-registrator stays (canonical package-dir test form uses the bunfig happydom preload). Per-line justification in the patch header.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
-      "verification": "V2 (bun run build:web) succeeds without the removed devDependencies.",
-      "rebase": "v2.2.7 migration: outside the #184 scoped overlay; independent rebase is deferred to the owning follow-up unit.",
-      "sha256": "e41b3a24245a7edd5c850e0b16e3c923549056d46682e79e9ea61cceffeb1058",
-      "status": "deferred",
-      "disposition": "deferred outside the #184 scoped overlay; historical payload and identity retained for its owning follow-up, not independently replayed; issue #194 routing: the independent re-base belongs to the #199/browser follow-up unit (the same round that owns the browser-domain crypto.randomUUID secure-context prerequisite); the devDependencies removal has no gui-plugins runtime effect"
+      "verification": "V2 (bun run build:web) rc=0 without the removed devDependencies (#199 round); gui-plugins terminal 131/0 canonical (package-dir form) and files domain 430/0 unchanged; 15-active verify-closure replay byte-identical, DANGLING=0.",
+      "rebase": "#199 re-base: regenerated against pristine pin fedc6f208aa2bd54c1019227214568083f6380ad (the v2.2.7 devDependencies block carries @opencode/protocol between the kept entries, which the pre-rebase hunk did not know; removals grow 3 -> 5). Context/header only; semantic ID and single target unchanged.",
+      "sha256": "3379113e0a13e6e14c7c96bca785b2afa90dbf48bdc8d7588e564c9f88813efb",
+      "status": "active",
+      "disposition": "active since #199 (was deferred outside the #184 scoped overlay; the #194 routing note pointed the independent re-base at this round and is hereby fulfilled): targets gui-plugins/package.json, no dependsOn, appended to vendor-manifest mobilePatches position 15. The red line targets dependency entries, not config: the root patchedDependencies electron-updater@6.8.9 declaration and vendor/upstream/patches/electron-updater@6.8.9.patch stay on disk as upstream-carried records (mobile root deps/devDependencies remain {})."
     },
     {
       "id": "connection-password-memory-only",

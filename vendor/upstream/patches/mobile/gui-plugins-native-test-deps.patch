@@ -1,18 +1,41 @@
+# mobile(gui-plugins-native-test-deps, issue #199 of the registry): the gui-plugins devDependencies
+# re-based to the v2.2.7 devDep set — same semantic ID and same single target
+# (packages/gui-plugins/package.json), now ACTIVE (was deferred outside the #184 scoped overlay
+# since #184; the #194 routing note pointed the independent re-base at this round). devDependencies
+# only; the dependencies block and every runtime import face are untouched. Per-line justification
+# (each removed name has ZERO renderer-import-graph hits — reviewer-verified at the #199 audit):
+#   electron "44.9.1": desktop runtime; its trustedDependencies postinstall pulls ~110MB of
+#     binaries the web build never needs. No gui-plugins test needs it (terminal/files suites).
+#   @lydell/node-pty "catalog:": main-side pty host; main-process-only consumers (historical 3).
+#   devtools-protocol "0.0.1687809": CDP types for desktop-side tooling (historical 3).
+#   electron-updater "6.8.9": desktop auto-update channel; the v2.2.7 web-updates face is already
+#     deliberately excluded on mobile by row 92 updater-web-exclusion-v2-2-7, and ADR 0005 defers
+#     APK updates (the red line targets this dependency entry; the root patchedDependencies
+#     declaration stays an upstream-carried config record, not a mobile dependency).
+#   lighthouse "13.4.1": desktop-only audit tool (chrome-launcher/puppeteer-core/@sentry/node
+#     tree; itself transitively re-introduces devtools-protocol).
+#   @happy-dom/global-registrator stays: the canonical gui-plugins test form runs inside the
+#     package (bun test src/terminal with the package bunfig happydom preload).
+# Verification: mobile-patches PASS, 15-active verify-closure replay byte-identical, gui-plugins
+# terminal 131/0 canonical + files domain 430/0, bun run build:web rc=0 in the same round.
 diff --git a/packages/gui-plugins/package.json b/packages/gui-plugins/package.json
-index cd213b1..6401edd 100644
+index 165d026..fdabb71 100644
 --- a/packages/gui-plugins/package.json
 +++ b/packages/gui-plugins/package.json
-@@ -48,13 +48,10 @@
+@@ -45,16 +45,11 @@
    },
    "devDependencies": {
      "@happy-dom/global-registrator": "20.0.11",
 -    "@lydell/node-pty": "catalog:",
+     "@opencode/protocol": "workspace:*",
      "@tsconfig/node22": "catalog:",
      "@types/bun": "catalog:",
      "@types/node": "catalog:",
      "@typescript/native": "catalog:",
 -    "devtools-protocol": "0.0.1687809",
 -    "electron": "44.9.1",
-     "electron-updater": "6.8.9",
-     "lighthouse": "13.4.1",
+-    "electron-updater": "6.8.9",
+-    "lighthouse": "13.4.1",
      "vite": "catalog:"
+   }
+ }
