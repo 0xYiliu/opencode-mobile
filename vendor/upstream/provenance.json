@@ -515,25 +515,25 @@
       "id": "app-notifications-bridge",
       "path": "patches/mobile/app-notifications-bridge.patch",
       "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "notifications-platform-delivery",
       "path": "patches/mobile/notifications-platform-delivery.patch",
       "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "notifications-webview-focus-gate",
       "path": "patches/mobile/notifications-webview-focus-gate.patch",
       "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-notification-permission",
       "path": "patches/mobile/settings-notification-permission.patch",
       "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "gui-plugins-disabled-merge",
@@ -918,6 +918,12 @@
       "path": "patches/mobile/gui-plugins-v2-2-7.patch",
       "sha256": "d5ce7ea207428c1c58f87f316b1da2ee9724686644c816ba5ea5f1e8e01a3fe8",
       "status": "active"
+    },
+    {
+      "id": "notifications-v2-2-7",
+      "path": "patches/mobile/notifications-v2-2-7.patch",
+      "sha256": "5d19f55c2a8a8ea5c93738b0a685938e415d0ffb647375f8c787fdfa356df003",
+      "status": "active"
     }
   ],
   "deferredMobilePatches": [
@@ -943,30 +949,6 @@
       "id": "session-home-archive",
       "path": "patches/mobile/session-home-archive.patch",
       "sha256": "896177b54870763a19386a373e8e920674f0c7f0ece78a16bcf867ccc645f8bc",
-      "status": "deferred"
-    },
-    {
-      "id": "app-notifications-bridge",
-      "path": "patches/mobile/app-notifications-bridge.patch",
-      "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e",
-      "status": "deferred"
-    },
-    {
-      "id": "notifications-platform-delivery",
-      "path": "patches/mobile/notifications-platform-delivery.patch",
-      "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
-      "status": "deferred"
-    },
-    {
-      "id": "notifications-webview-focus-gate",
-      "path": "patches/mobile/notifications-webview-focus-gate.patch",
-      "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
-      "status": "deferred"
-    },
-    {
-      "id": "settings-notification-permission",
-      "path": "patches/mobile/settings-notification-permission.patch",
-      "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
       "status": "deferred"
     },
     {
@@ -3959,6 +3941,30 @@
       "id": "attachments-share-bridge",
       "path": "patches/mobile/attachments-share-bridge.patch",
       "sha256": "f98801d89125be81660ce15fff94384295b522adc79b3f7e5553ba00cac0a70c",
+      "status": "absorbed"
+    },
+    {
+      "id": "app-notifications-bridge",
+      "path": "patches/mobile/app-notifications-bridge.patch",
+      "sha256": "1eb077b24fc455ace79ea7e327f4ecdfd49cd20e43a36331b510226e4248ee9e",
+      "status": "absorbed"
+    },
+    {
+      "id": "notifications-platform-delivery",
+      "path": "patches/mobile/notifications-platform-delivery.patch",
+      "sha256": "ec4ef944d4c94c2894b907c043e616728bd28b3ea82f58c6c6f744dfa73af062",
+      "status": "absorbed"
+    },
+    {
+      "id": "notifications-webview-focus-gate",
+      "path": "patches/mobile/notifications-webview-focus-gate.patch",
+      "sha256": "ecc9aebc0a25930f25ffbe5cceefe5d9dcaf8da5da314400da4157d167080a28",
+      "status": "absorbed"
+    },
+    {
+      "id": "settings-notification-permission",
+      "path": "patches/mobile/settings-notification-permission.patch",
+      "sha256": "950b120cd0a5f9a2489e2a45d2c04944b98eb2814951cd7dc351017924ad9842",
       "status": "absorbed"
     },
     {

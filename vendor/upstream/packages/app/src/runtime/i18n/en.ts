@@ -1145,6 +1145,14 @@ export const dict = {
   "settings.general.notifications.questions.description": "Show system notification when the agent asks a question",
   "settings.general.notifications.errors.title": "Errors",
   "settings.general.notifications.errors.description": "Show system notification when an error occurs",
+  "settings.general.notifications.android.title": "System notifications (Android)",
+  "settings.general.notifications.android.description":
+    "Turning a notification switch on asks Android for the notification permission when needed",
+  "settings.general.notifications.android.granted": "Android notification permission granted",
+  "settings.general.notifications.android.denied":
+    "Android notification permission denied — in-app sounds and badges still work",
+  "settings.general.notifications.android.unavailable":
+    "System notifications are unavailable in this environment — in-app faces still work",
 
   "settings.general.sounds.agent.title": "Agent",
   "settings.general.sounds.agent.description": "Play sound when the agent is complete or needs attention",

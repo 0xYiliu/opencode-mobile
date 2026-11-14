@@ -16,6 +16,7 @@ import pkg from "../package.json"
 import {
   createFilesClient,
   createMobileHosts,
+  createNotificationsClient,
   createProbeClient,
   createSshHostKeyVerifier,
   createSshHostTransport,
@@ -24,11 +25,13 @@ import {
   createVaultResolver,
   createAndroidXVaultTransport,
   createWebMessageFilesTransport,
+  createWebMessageNotificationsTransport,
   createWebMessageProbeTransport,
   createWebMessageSshTransport,
   createBackHandlerBinding,
   setActiveBackHandlerPort,
   setActiveFilesPort,
+  setActiveNotificationsPort,
 } from "@opencode-mobile/mobile-hosts"
 import { consumeBackChain } from "@/shell/back-chain"
 
@@ -179,6 +182,31 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
     setActiveFilesPort(
       createFilesClient(
         createWebMessageFilesTransport({
+          subscribe: (handler) => {
+            window.addEventListener("message", handler as EventListener)
+            return () => window.removeEventListener("message", handler as EventListener)
+          },
+        }),
+      ),
+    )
+    // mobile(M-022): the notifications bridge (issue #23) — the SIXTH protocol-isolated
+    // sibling of the vault/probe/ssh/svcops/files bridges on the same window message
+    // events. Its handshake string ("opencode-mobile-notifications-handshake") is captured
+    // only by this transport (strict data equality + exactly one port), so none of the six
+    // bridges can capture another's handshake; event.origin is never consulted
+    // (embedder-posted messages carry an empty origin by platform construction). The port
+    // is captured into the transport closure and acked immediately; before that ack the
+    // notifications port stays a fail-closed stub — the exact pre-issue state (the Web
+    // Notification API behind platform.notify does not exist in the Android WebView), so
+    // the in-app faces carry on either way. Registration goes through the module-level
+    // notifications seam (setActiveNotificationsPort) so the runtime bootstrap contract
+    // stays unchanged — the same shape as the files registration directly above. The
+    // bridge is notification-ONLY: its op whitelist {notify, requestPermission} has no
+    // reply/cancel/interrupt face, so a notification can never approve a permission or
+    // stop a task (issue #23 acceptance 3).
+    setActiveNotificationsPort(
+      createNotificationsClient(
+        createWebMessageNotificationsTransport({
           subscribe: (handler) => {
             window.addEventListener("message", handler as EventListener)
             return () => window.removeEventListener("message", handler as EventListener)
