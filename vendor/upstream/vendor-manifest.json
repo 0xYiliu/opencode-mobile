@@ -649,7 +649,7 @@
     {
       "id": "runtime-data-v2-2-7",
       "path": "patches/mobile/runtime-data-v2-2-7.patch",
-      "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
+      "sha256": "5d12ec0b421dad8b7b6b72c4c2bf999080d0384b580854304b43ab60031748a6",
       "status": "active"
     },
     {

@@ -4353,7 +4353,7 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 
 **分支与基线**：worktree `/home/peterhan/worktrees/opencode-mobile/feat--196-runtime-data`，分支 `feat/196-runtime-data`，base `9b2e5dd`（#195 链尾，stacked chain main a25ab51 → #187 → … → #195；PR #203–#211 open）；vendor pin `fedc6f208aa2bd54c1019227214568083f6380ad`；提交链 `bb5a159`（feat vendor，row 90 patch 注册 + rows 54/58/67 翻转 absorbed + row 53 注记）→ `df02841`（fix probes，verify-recovery 重锚定）→ `fa31770`（chore web payload + 三探针 dist 常量回填）→ 本轮 docs commit；不推送、不创建 PR。
 
-**payload**：active `runtime-data-v2-2-7`（row 90，1 target `packages/app/src/runtime/polyfills.ts`，**无 dependsOn**——单目标不由任何 active patch 承载，row 54 翻转时为 deferred；mobilePatches 第 12 项）SHA-256＝`fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f`；apply-check rc=0（scratch pristine pin 树逐字：pristine polyfills.ts == pin `fedc6f208a` 形，apply 后与工作树 byte-identical）+ V3 replay 全链 byte-identical；registry **90 registered / 12 active / 65 absorbed / 13 deferred**；`python3 scripts/mobile-patches.py` → **PASS (90 registered; updated: none)**（refresh 后幂等复跑同串）；`python3 scripts/test_mobile_patches.py` → **OK（9/9，Ran 9 tests）**；`bash scripts/verify-closure.sh` → **PASS**（V3(a) byte-identical 含 row 90 按序重放、file types/executable bits/symlinks match、LICENSE byte-identical、DANGLING=0、V3(b)/V3(c) OK）；`git diff --check`（工作树全程）rc=0 PASS——scope 口径 `-- . ':(exclude)vendor/upstream/patches/**'` PASS；mobile patches 独立口径 `git diff --check origin/main...HEAD -- vendor/upstream/patches/mobile` 报 1 条**预存** whitespace 诊断（`notifications-v2-2-7.patch:351 new blank line at EOF`，#195 在册原文，本轮零触碰该文件；#187 卡「diff-check boundary」前例：上游/历史生成 patch 内容不改写）。
+**payload**：active `runtime-data-v2-2-7`（row 90，1 target `packages/app/src/runtime/polyfills.ts`，**无 dependsOn**——单目标不由任何 active patch 承载，row 54 翻转时为 deferred；mobilePatches 第 12 项）SHA-256＝`5d12ec0b421dad8b7b6b72c4c2bf999080d0384b580854304b43ab60031748a6`；apply-check rc=0（scratch pristine pin 树逐字：pristine polyfills.ts == pin `fedc6f208a` 形，apply 后与工作树 byte-identical）+ V3 replay 全链 byte-identical；registry **90 registered / 12 active / 65 absorbed / 13 deferred**；`python3 scripts/mobile-patches.py` → **PASS (90 registered; updated: none)**（refresh 后幂等复跑同串）；`python3 scripts/test_mobile_patches.py` → **OK（9/9，Ran 9 tests）**；`bash scripts/verify-closure.sh` → **PASS**（V3(a) byte-identical 含 row 90 按序重放、file types/executable bits/symlinks match、LICENSE byte-identical、DANGLING=0、V3(b)/V3(c) OK）；`git diff --check`（工作树全程）rc=0 PASS——scope 口径 `-- . ':(exclude)vendor/upstream/patches/**'` PASS；mobile patches 独立口径 `git diff --check origin/main...HEAD -- vendor/upstream/patches/mobile` 报 1 条**预存** whitespace 诊断（`notifications-v2-2-7.patch:351 new blank line at EOF`，#195 在册原文，本轮零触碰该文件；#187 卡「diff-check boundary」前例：上游/历史生成 patch 内容不改写）。
 
 **c0 基线（coordinator 记录，引用不重 derive；当轮首跑逐字复现）**：verify-recovery FAIL「2: persist.ts lost the 100ms save-debounce constant」（rc=1；重锚定目标——reviewer-verified sequential reveals：组 2 修复后依次组 4「registry.tsx lost the mobile(M-010) patch marker」→ 组 5「client.tsx lost the plugin/sidecar-only reconnect ternary」→ 组 6「session/route.tsx lost the PendingSessionState fallback」→ PASS；本轮实跑补充 reveal：组 2 内 dirty-value-priority 旧形正则同样失效（`if (dirty) { remote = data.newValue … }` 已随 persist-machine 化消失），与 (a) 同组一并重锚——ledger (b)，见下）；verify-webview-url-compat.test（bun test）**1 pass / 3 fail**（polyfill 落地转绿、零探针改动）；registry PASS(89)/closure PASS；探针普查 25 rc=0 / 14 rc=1。
 
@@ -4455,3 +4455,21 @@ bunx tsc --noEmit --composite false --incremental false --emitDeclarationOnly fa
 **Android（build-only）**：`ANDROID_HOME=$HOME/.android-sdk /home/peterhan/gradle-bootstrap/gradle-9.6.1/bin/gradle -p android :app:testDebugUnitTest :app:assembleDebug` → **BUILD SUCCESSFUL in 12s**（42 tasks）；单测 **47 tests / 0 failures / 0 errors**（`android/app/build/test-results/testDebugUnitTest/` 10 XML 汇总）；APK `app-debug.apk` SHA-256 = **`5ac687a2b98d6d25a0db90fbc3f1b733113e1377720ec704ac12e2c053b6867a`**（66,210,471 bytes）；**未安装**——依赖基线轮无设备工作，零安装/零启动主张。
 
 **BLOCKED 边界**：无设备/真实服务/runtime 主张；gui-plugins main-side fresh-install 类型姿态与 three-dist-constant 探针（总量未变无需回填）如实登记；AbortSignal.any 不 polyfill（普查 20+1=21，owner #165）；CSS 嵌套/zoom-flash 继承边界见 changes.md #199 §7 劣化项台账。
+
+### issue #182 设备真机验收轮（2026-11-15，MatePad DBY2-AL00 无线 ADB 192.168.3.173）
+
+**构建身份**：链尾 APK（feat/199-deps-baseline 覆盖安装，数据保留）→ 真机发现会话打开崩溃后追加强化提交（AbortSignal.any polyfill 入 row 90，重装重验）；WebView = com.huawei.webview 114.0.5.302（Chromium 114，与在册 floor 一致）。
+
+**设备轮发现与处置**：
+1. **#165 残差真机命中并闭卷**：打开会话即 `TypeError: AbortSignal.any is not a function`（commands chunk）→ 整 shell 进 error screen。影响面超出静态审计的"个别面板"评级（29 处组合信号调用点）。处置改为 polyfill 携带（row 90 扩展，sha 5d12ec0b…）：重装后会话正常打开、完整 agent turn（4 工具调用）经组合信号全链跑通。#165 BLOCKED 解除。
+2. **#196 canParse polyfill 真机实证**：registry loopbackOrigin 归一化在 WebView 114 成功（服务器列表/项目加载正常）。
+3. **#188 发送→工具→流式→完成真机全链 PASS**（真实服务器 bastion/luna 项目）：4 轮 turn（ls/write/rm/write），每轮流式完成带模型标签时长；时间线 Markdown 渲染正常。
+4. **#189 permission dock 真机 PASS**：`edit: ask` 配置后 dock 呈现（Permission required + 目标文件名 + Deny/Allow always/Allow once 三决策）；**Allow once tap → 工具执行 → 服务器端文件真实创建**（qa-dock-test.md = "# dock QA"）；dock 跨应用重启（服务端挂起）与跨后台保持（W07 挂起面）。
+5. **#195**：前台抑制 PASS（dock 挂起期间前台零系统通知投递）；**后台投递 BLOCKED（外部）**——new-api 上游中继故障（do_request_failed 500，多模型重试均失败），turn 驱动的 ask/complete 事件无法在后台产生；解除条件 = 中继恢复后一轮（tap 路由随该轮一并验收）。
+6. **#191 终端**：Terminal 1 PTY 创建成功（prompt 渲染 ~/repository/luna$），输入通路消费确认；CJK IME 组合输入注入不具代表性（adb 注入路径），登记为物理键盘后续项。
+7. **#190**：Review 面板 "1 file changed"（qa-dock-test.md turn 产物）真机呈现；面板区三入口（Review/Terminal/Open file）齐全。
+8. **#213/#197**：theme=oc-2 / scheme=dark 真机生效（v2.2.7 主题机）；#196 loopbackOrigin 同为 canParse 面。
+9. **#209/#194**：Settings 导航含 GUI extensions tab（#193 恢复面）真机可见；Servers 页 Add host/Add server + Terminal shell 每服务器选择呈现。
+10. **W07 红线**：权限挂起跨后台 + 跨应用重启保持（服务端 pending 不撤销）；app 后台期间零 interrupt 可达。
+
+**门禁**：polyfill 追加后 mobile-patches PASS(93) / closure PASS（row 90 扩展重放字节等价）/ uuid-safety 探针 3/0；设备 UI 流程全程截图 + CDP 驱动（webview_devtools_remote）证据在案。

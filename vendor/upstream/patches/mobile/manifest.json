@@ -2403,9 +2403,9 @@
       ],
       "reason": "Issue #196 runtime/data follow-up: URL.canParse and URL.parse are missing on Android WebViews older than Chrome 120 (the floor the Android shell ships on), and the v2.2.7 pin's sources domain and pairing flow call both. Adds inline feature-gated shims to polyfills.ts in the file's existing Map.groupBy/Promise.* style — core-js is not a v2.2.7 app dependency, so the retired webview-url-polyfill payload's core-js import form (row 54, absorbed this round) cannot be replayed as-is. The shims keep the native contract: native identity preserved when present, ToString conversion errors propagate, parse failure answers canParse=false / parse=null, no-arg TypeError, URL-object base passed through the same conversion.",
       "upstreamBaseline": "fedc6f208aa2bd54c1019227214568083f6380ad",
-      "verification": "scripts/verify-webview-url-compat.test.ts 4 pass / 0 fail (was 1 pass / 3 fail) with zero probe changes; patch apply-check on a scratch pristine pin tree + byte-identical result; verify-closure.sh replay PASS; gates recorded in docs/build-and-verify.md issue #196 section.",
+      "verification": "scripts/verify-webview-url-compat.test.ts 4 pass / 0 fail (was 1 pass / 3 fail) with zero probe changes; patch apply-check on a scratch pristine pin tree + byte-identical result; verify-closure.sh replay PASS; gates recorded in docs/build-and-verify.md issue #196 section. #199 residual close: the patch now also carries the feature-gated AbortSignal.any composition (spec: any-abort forwards reason; stop-signal cleans up); verified on device 2026-11-15 — session open + a full agent turn (4 tool calls) ran through the composed signals on Huawei WebView 114.",
       "rebase": "v2.2.7: first registration against the fedc6f208a pin; dependsOn validated empty — the single target is carried by no active patch (row 54 was deferred).",
-      "sha256": "fb892bbe11cd5355009ebb8c03d2c01736a749a0913c82591ecdf7c65b43e51f",
+      "sha256": "5d12ec0b421dad8b7b6b72c4c2bf999080d0384b580854304b43ab60031748a6",
       "status": "active",
       "disposition": "active; the runtime-data polyfill face of issue #196. Rows 54/58/67 flip absorbed in the same round; row 53 keeps its deferred identity with a #196-round status note."
     },
