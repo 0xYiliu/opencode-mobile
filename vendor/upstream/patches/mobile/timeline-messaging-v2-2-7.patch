@@ -1,0 +1,85 @@
+diff --git a/packages/app/src/shell/panel-motion.test.ts b/packages/app/src/shell/panel-motion.test.ts
+index 6e5dd42..a8e08a3 100644
+--- a/packages/app/src/shell/panel-motion.test.ts
++++ b/packages/app/src/shell/panel-motion.test.ts
+@@ -1,5 +1,5 @@
+ import { expect, it } from "bun:test"
+-import { panelOpacity, panelSpring } from "./panel-motion"
++import { isRTL, panelOpacity, panelSpring } from "./panel-motion"
+ 
+ it("scales the shared spring's time by the square root of the distance against a 480px panel", () => {
+   expect(panelSpring(480)).toEqual({ duration: 0.3, bounce: 0 })
+@@ -24,3 +24,34 @@ it("keeps a panel's contents solid until the last stretch of travel before close
+   expect(Number(panelOpacity(0.925))).toBeCloseTo(0.5, 5)
+   expect(panelOpacity(1)).toBe("0")
+ })
++
++// mobile(timeline-messaging-v2-2-7, issue #187): the direction probe must survive WebViews that
++// reject the `:dir()` pseudo-class (Chromium 114), falling back to the LTR reading without throwing.
++it("isRTL falls back to LTR when the environment rejects the :dir() selector", () => {
++  const element = document.createElement("div")
++  document.body.appendChild(element)
++
++  const original = element.matches.bind(element)
++  element.matches = (selector: string) => {
++    if (selector.includes(":dir")) throw new DOMException(":dir is not a valid selector", "SyntaxError")
++    return original(selector)
++  }
++
++  expect(isRTL(element)).toBe(false)
++  element.matches = original
++})
++
++it("isRTL still reports RTL when the environment supports the :dir() selector", () => {
++  const element = document.createElement("div")
++  element.dir = "rtl"
++  document.body.appendChild(element)
++
++  const original = element.matches.bind(element)
++  element.matches = (selector: string) => {
++    if (selector.includes(":dir")) return true
++    return original(selector)
++  }
++
++  expect(isRTL(element)).toBe(true)
++  element.matches = original
++})
+diff --git a/packages/app/src/shell/panel-motion.ts b/packages/app/src/shell/panel-motion.ts
+index be4ed9f..82be65f 100644
+--- a/packages/app/src/shell/panel-motion.ts
++++ b/packages/app/src/shell/panel-motion.ts
+@@ -11,6 +11,12 @@ import {
+   type PanelMotionEvent,
+ } from "./panel-motion-machine"
+ 
++// mobile(timeline-messaging-v2-2-7, issue #187; re-based from the #126 session-android-adaptation
++// guard): the target's `anchorX` probes direction with `matches(":dir(rtl)")`, which older Android
++// WebViews (Chromium 114) reject with a SyntaxError that takes the whole shell to the error screen.
++// `isRTL` wraps that probe in a capability guard falling back to the LTR branch; desktop and
++// modern-browser behavior is unchanged (the query still matches there).
++
+ // Panels in flight across the app, the size of `landings`. Native views, which no DOM box clips, stay hidden while any
+ // panel moves.
+ const [flights, setFlights] = createSignal(0)
+@@ -421,10 +427,20 @@ export function guardClosingFocus(input: {
+   })
+ }
+ 
++/** Whether the document lays out right-to-left. Older WebViews (Chromium < 120) reject the `:dir()`
++ * pseudo-class, so a rejected query falls back to the LTR reading instead of throwing mid-flight. */
++export function isRTL(element: HTMLElement) {
++  try {
++    return element.matches(":dir(rtl)")
++  } catch {
++    return false
++  }
++}
++
+ function anchorX(element: HTMLElement, anchor: Anchor) {
+   const box = element.getBoundingClientRect()
+ 
+   if (anchor === "center") return box.left + box.width / 2
+ 
+-  return element.matches(":dir(rtl)") ? box.right : box.left
++  return isRTL(element) ? box.right : box.left
+ }

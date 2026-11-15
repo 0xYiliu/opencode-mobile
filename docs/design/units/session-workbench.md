@@ -1,6 +1,6 @@
 # 单元：session-workbench（会话工作台——流式消息、上下文、工具与子任务）
 
-状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑；当前 v2.2.7/#186 仍以 copy 上游实现并做必要 Android 适配为主，mobile patch registry 为 **82 registered / 4 active / 19 absorbed / 59 deferred**。旧的迁移轮次 registry 数字只属于冻结 v2.2.1 历史，不是当前事实。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
+状态：**已实现（未验证）**（issue #9 检查点）。会话内的流式时间线、长历史、模型/代理/工具/子任务状态、请求 dock（permission/question/elicitation 的呈现与事件接线）、composer 发送/排队/重试、草稿与滚动保持**全部由上游闭包承载**（`packages/session-ui` + `app/src/session|composer|shell` + `client/src/solid`）。issue #9 检查点时，本仓库零新建界面、零第一方会话逻辑；当前 v2.2.7/#186/#187 仍以 copy 上游实现并做必要 Android 适配为主，mobile patch registry 为 **83 registered / 5 active / 26 absorbed / 52 deferred**。旧的迁移轮次 registry 数字只属于冻结 v2.2.1 历史，不是当前事实。全部运行期行为未经设备验证：真机门禁见 **G20**（[interaction.md](../interaction.md)），真模型 live E2E（直连+SSH 双路由）BLOCKED。
 
 行号声明：本文部分旧行号来自迁移前 vendor pin `b4525d79bf`，仅作为冻结 v2.2.1/迁移前历史定位；它们不是当前 v2.2.7 来源事实。当前源码事实以固定 pin `fedc6f208aa2bd54c1019227214568083f6380ad` 和引号内源文本锚为准。
 
@@ -107,7 +107,7 @@
 
 ## 移动端窄屏与无障碍承接
 
-- 布局：`session/screen-layout.ts`——side tabs/dock/fileTree 全部 `session.isDesktop()` 门控（web/移动构建单列渲染）；`session-panel-width.ts` 面板宽度钳制；`composer/submit.ts` `window.matchMedia("(max-width: 767px)")`（窄屏提交后 blur 编辑器）；`message-timeline.tsx` `md:px-6` 响应式 padding、`motion-reduce:animate-none` 动效降级。
+- 布局：`session/screen-layout.ts`——side tabs/dock/fileTree 全部 `session.isDesktop()` 门控（web/移动构建单列渲染）；`session-panel-width.ts` 面板宽度钳制；面板开合动效路径 `shell/panel-motion.ts` 的方向探针带 WebView 114 `:dir()` capability guard（active `timeline-messaging-v2-2-7` 的 `isRTL` try/catch→LTR fallback，issue #187——内部健壮性修复，桌面/现代浏览器行为不变）；`composer/submit.ts` `window.matchMedia("(max-width: 767px)")`（窄屏提交后 blur 编辑器）；`message-timeline.tsx` `md:px-6` 响应式 padding、`motion-reduce:animate-none` 动效降级。
 - 视觉/视口口径见 [visual.md](../visual.md) 与 [README.md](../README.md) 无障碍行；**本期承接**：窄屏/读屏/焦点/触摸目标的运行期核验并入 **G20** 清单（不再停留于「未安排」）。
 - 流式到达的传输前提是既有 **G6**（fetch ReadableStream/SSE 增量在 WebView 内到达）——G20 叠加其上，不替代。
 

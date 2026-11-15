@@ -62,7 +62,8 @@
     "patches/mobile/v2-2-7-mobile-connection-pairing-ssh-closure.patch",
     "patches/mobile/server-edit-touch-compatibility.patch",
     "patches/mobile/home-new-session-v2-2-7.patch",
-    "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch"
+    "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
+    "patches/mobile/timeline-messaging-v2-2-7.patch"
   ],
   "excluded": {
     "packages": [
@@ -434,13 +435,13 @@
       "id": "session-workbench-upstream",
       "path": "patches/mobile/session-workbench-upstream.patch",
       "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-client-compatibility",
       "path": "patches/mobile/session-client-compatibility.patch",
       "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-media-source-safety",
@@ -458,7 +459,7 @@
       "id": "session-android-adaptation",
       "path": "patches/mobile/session-android-adaptation.patch",
       "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "connection-initial-credential-persistence",
@@ -476,13 +477,13 @@
       "id": "session-e2e-runtime-compatibility",
       "path": "patches/mobile/session-e2e-runtime-compatibility.patch",
       "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-composer-test-fixture",
       "path": "patches/mobile/session-composer-test-fixture.patch",
       "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-agent-selector",
@@ -542,13 +543,13 @@
       "id": "session-ui-rows-current-target",
       "path": "patches/mobile/session-ui-rows-current-target.patch",
       "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "session-android-back-bridge",
       "path": "patches/mobile/session-android-back-bridge.patch",
       "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
-      "status": "deferred"
+      "status": "absorbed"
     },
     {
       "id": "settings-ssh-row-runtime-actions",
@@ -590,6 +591,12 @@
       "id": "tabs-inbox-titlebar-v2-2-7",
       "path": "patches/mobile/tabs-inbox-titlebar-v2-2-7.patch",
       "sha256": "1a267f74048fb0405ee9cf3fcf5ab3bb5a87547edb1f260378c25f4505325ae2",
+      "status": "active"
+    },
+    {
+      "id": "timeline-messaging-v2-2-7",
+      "path": "patches/mobile/timeline-messaging-v2-2-7.patch",
+      "sha256": "602b9ac14bc06d4f19e605e1fccc11d88a6a6f1cd753721b494c57fe8a0b1a99",
       "status": "active"
     }
   ],
@@ -823,18 +830,6 @@
       "status": "deferred"
     },
     {
-      "id": "session-workbench-upstream",
-      "path": "patches/mobile/session-workbench-upstream.patch",
-      "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",
-      "status": "deferred"
-    },
-    {
-      "id": "session-client-compatibility",
-      "path": "patches/mobile/session-client-compatibility.patch",
-      "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
-      "status": "deferred"
-    },
-    {
       "id": "session-media-source-safety",
       "path": "patches/mobile/session-media-source-safety.patch",
       "sha256": "97a818617ec27a71d6a6e1db5cc7d8a45ab98885d7e2776e083196568e4fe323",
@@ -844,24 +839,6 @@
       "id": "files-stream-watch",
       "path": "patches/mobile/files-stream-watch.patch",
       "sha256": "f9f4a8c0c8c22fac37612f2db9b641278e8fb4961d126299e120c603eb2f3265",
-      "status": "deferred"
-    },
-    {
-      "id": "session-android-adaptation",
-      "path": "patches/mobile/session-android-adaptation.patch",
-      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
-      "status": "deferred"
-    },
-    {
-      "id": "session-e2e-runtime-compatibility",
-      "path": "patches/mobile/session-e2e-runtime-compatibility.patch",
-      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
-      "status": "deferred"
-    },
-    {
-      "id": "session-composer-test-fixture",
-      "path": "patches/mobile/session-composer-test-fixture.patch",
-      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
       "status": "deferred"
     },
     {
@@ -916,18 +893,6 @@
       "id": "ui-pin-target-residual",
       "path": "patches/mobile/ui-pin-target-residual.patch",
       "sha256": "eaa4cff802c507ce527d39904b5e56b3dd68dbb587953199fc69dfed380d09a2",
-      "status": "deferred"
-    },
-    {
-      "id": "session-ui-rows-current-target",
-      "path": "patches/mobile/session-ui-rows-current-target.patch",
-      "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922",
-      "status": "deferred"
-    },
-    {
-      "id": "session-android-back-bridge",
-      "path": "patches/mobile/session-android-back-bridge.patch",
-      "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
       "status": "deferred"
     },
     {
@@ -1053,6 +1018,24 @@
       "status": "absorbed"
     },
     {
+      "id": "session-workbench-upstream",
+      "path": "patches/mobile/session-workbench-upstream.patch",
+      "sha256": "c352fdbe05cb76884075a4baa26d1687ff4c027a433c5905a7116691b5f80d69",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-client-compatibility",
+      "path": "patches/mobile/session-client-compatibility.patch",
+      "sha256": "9f34fbe56e21c817ac80d1841510c4756857c4884a219d9fe93d877496c34cdb",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-android-adaptation",
+      "path": "patches/mobile/session-android-adaptation.patch",
+      "sha256": "1592f92778e4916476b2e15b0ce0664925a39be88ebcfcb88bb30fa997f44f73",
+      "status": "absorbed"
+    },
+    {
       "id": "connection-initial-credential-persistence",
       "path": "patches/mobile/connection-initial-credential-persistence.patch",
       "sha256": "d259b2b8ef6c3fec523f0f16ab3464b2c70f62796d98d772e5497e1ac38cca70",
@@ -1062,6 +1045,30 @@
       "id": "connection-vault-ready-wait",
       "path": "patches/mobile/connection-vault-ready-wait.patch",
       "sha256": "630baba49be6c76bb1875d6496446dc59c6a40cce4c792de75cf34f67e047288",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-e2e-runtime-compatibility",
+      "path": "patches/mobile/session-e2e-runtime-compatibility.patch",
+      "sha256": "aa7e8e67c54f3483942e6b1e0dae3b69683db01e4d3191d254495f4f735785fc",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-composer-test-fixture",
+      "path": "patches/mobile/session-composer-test-fixture.patch",
+      "sha256": "666267b9085248693f88db39083aa20745659a8a4697a16ab37f2a4de1e7b0fe",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-ui-rows-current-target",
+      "path": "patches/mobile/session-ui-rows-current-target.patch",
+      "sha256": "55a7c20ee9912de3509ee7fa7e629e804175bb25c553650d24b7136c414fc922",
+      "status": "absorbed"
+    },
+    {
+      "id": "session-android-back-bridge",
+      "path": "patches/mobile/session-android-back-bridge.patch",
+      "sha256": "228eff1e157f2fa81d12f42d9f6bf52870f69406558a3e89df61e1ef87fb7d12",
       "status": "absorbed"
     }
   ],
