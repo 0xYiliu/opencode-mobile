@@ -24,6 +24,7 @@ type Inline =
         endChar: number
       }
       url?: string
+      sourceServerKey?: string
       mime?: string
       filename?: string
       description?: string
@@ -75,7 +76,14 @@ export type PromptSource = Omit<
 // return as trailing mentions, and inline files as attachments.
 export function extractPromptFromMessage(
   message: PromptSource,
-  opts?: { directory?: string; attachmentName?: string; sessionTitle?: (id: string) => string | undefined },
+  opts?: {
+    directory?: string
+    // mobile(M-016, issue #188): the server this message's media refs came from, so restored
+    // references resolve (and pin) against their own source instead of any registered server.
+    sourceServerKey?: string
+    attachmentName?: string
+    sessionTitle?: (id: string) => string | undefined
+  },
 ): Prompt {
   const presentation = readPromptPresentation(message.metadata)
   const text = presentation?.displayText ?? message.text
@@ -129,6 +137,7 @@ export function extractPromptFromMessage(
         path: toRelative(mention.text.startsWith("@") ? mention.text.slice(1) : mention.text),
         selection: selectionFromFileUrl(uri),
         url: uri,
+        sourceServerKey: opts?.sourceServerKey,
         mime: file.mime,
         filename: file.name,
         description: file.description,
@@ -154,7 +163,7 @@ export function extractPromptFromMessage(
       id: `${message.id}:file:${attachments.length}`,
       filename: file.name ?? attachmentName,
       mime: file.mime,
-      blob: createLegacyBlobReference(dataUrl),
+      blob: createLegacyBlobReference(dataUrl, opts?.sourceServerKey),
     })
   }
 
@@ -291,6 +300,7 @@ function buildPrompt(
       path: item.path,
       selection: item.selection,
       url: item.url,
+      sourceServerKey: item.sourceServerKey,
       mime: item.mime,
       filename: item.filename,
       description: item.description,

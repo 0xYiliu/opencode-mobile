@@ -103,8 +103,13 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   const shell = await read(`${APP}src/shell/shell.tsx`)
   if (!shell.includes('const verticalTabs = () => preferences.appearance.tabLayout() !== "horizontal" && !mobile()'))
     fail('2: shell.tsx predicate is not the one-line !== "horizontal" && !mobile() form')
-  if (/===\s*"vertical"/.test(shell))
-    fail("2: shell.tsx still contains a === \"vertical\" tabLayout comparison")
+  // old->new (issue #193 v2.2.7 re-anchor): the v2.2.7 shell legitimately contains one
+  // `tabLayout() === "vertical"` comparison — the sidebarOrganize projects grouping
+  // (upstream's own side-tab face). The S04 negative narrows to the rail predicate
+  // itself: verticalTabs must stay the !== "horizontal" form and must never compare
+  // === "vertical" again.
+  if (/verticalTabs\s*=\s*\(\)\s*=>[^;\n]*===\s*"vertical"/.test(shell))
+    fail("2: shell.tsx rail predicate regressed to a === \"vertical\" comparison")
 }
 
 // --- 3. Settings face (settings/general/) ---
@@ -132,33 +137,45 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   if (!general.includes("BackgroundActivitySetting") || !general.includes("TimelineWidthSetting"))
     fail("3: general.tsx lost the issue #103 BackgroundActivity/TimelineWidth setting rows (S11)")
 
-  // Mount position: h3 → <InterfaceModeSetting /> → <SettingsList> → LanguageSetting.
+  // Mount position. old->new (issue #193 v2.2.7 re-anchor): the v2.2.7 General page
+  // mounts the fieldset INSIDE the section list — h3 → <SettingsList> →
+  // <InterfaceModeSetting /> → <LanguageSetting /> (the #101-era pin had it between the
+  // h3 and the list head).
   const h3 = general.indexOf('settings-section-title">{language.t("settings.general.section.general")}')
   const mount = general.indexOf("<InterfaceModeSetting />")
   const list = general.indexOf("<SettingsList>")
   const language = general.indexOf("<LanguageSetting />")
-  if (h3 < 0 || mount < 0 || list < 0 || language < 0 || !(h3 < mount && mount < list && list < language))
-    fail("3: general.tsx InterfaceModeSetting is not mounted between the General h3 and the settings list head")
+  if (h3 < 0 || mount < 0 || list < 0 || language < 0 || !(h3 < list && list < mount && mount < language))
+    fail("3: general.tsx InterfaceModeSetting is not mounted inside the General settings list (v2.2.7 order)")
 
-  // Component shape: three modes in order, radio fieldset, same anchor, badge.
+  // Component shape: three modes in order, radio fieldset, same anchor.
+  // old->new (issue #193 v2.2.7 re-anchor): the #63-era "Experimental" badge anchor is
+  // SUPERSEDED — the v2.2.7 pin has no interfaceMode.experimental key (the badge was the
+  // registered deviation; the pin absorbs by removal) — and the preview slots renamed to
+  // the strip/rail/page family; the modes block satisfies the struct form.
   const modesBlock = /const modes = \[\s*\n\s*\{ id: "top", layout: "horizontal" \},\s*\n\s*\{ id: "side", layout: "vertical" \},\s*\n\s*\{ id: "inbox", layout: "inbox" \},\s*\n\] as const satisfies/
   if (!modesBlock.test(component))
     fail('3: interface-mode.tsx modes are not exactly top/horizontal, side/vertical, inbox/inbox in order')
   for (const anchor of [
     '<fieldset data-component="interface-mode" data-action="settings-tab-layout">',
-    'settings.general.row.interfaceMode.experimental',
     'type="radio"',
-    'data-slot="interface-mode-preview"',
+    'data-slot="preview-rail"',
     'settings.general.row.interfaceMode.${mode.id}',
-    'settings.general.row.interfaceMode.${mode.id}.description',
   ]) {
     if (!component.includes(anchor)) fail(`3: interface-mode.tsx lost the anchor ${anchor}`)
   }
+  if (component.includes("interfaceMode.experimental"))
+    fail("3: interface-mode.tsx resurrected the Experimental badge (v2.2.7 pin absorbs by removal)")
 
-  // CSS exists and carries the adaptive grid + component root.
+  // CSS exists and carries the component root.
+  // old->new (issue #193 v2.2.7 re-anchor): the pin's own layout is the fixed-card flex
+  // row (width: 120px cards) — the #63-era adaptive minmax(220px) grid was the registered
+  // deviation and is absorbed by the pin's form.
   const css = await read(`${APP}src/settings/general/interface-mode.css`)
   if (!css.includes('[data-component="interface-mode"]')) fail("3: interface-mode.css lost the component root")
-  if (!css.includes("repeat(auto-fit, minmax(220px, 1fr))")) fail("3: interface-mode.css lost the adaptive preview grid")
+  if (!css.includes("width: 120px;")) fail("3: interface-mode.css lost the v2.2.7 fixed-card preview row")
+  if (css.includes("minmax(220px"))
+    fail("3: interface-mode.css resurrected the #63-era adaptive grid (pin absorbs by its fixed-card form)")
 
   // The legacy tabs i18n keys stay (v2.2.1 keeps them too).
   const en = await read(`${APP}src/runtime/i18n/en.ts`)
@@ -175,32 +192,33 @@ const PATCHES = "vendor/upstream/patches/mobile/"
     fail("4: search-catalog.ts lost the interfaceMode entry (label/target/keywords must match v2.2.1, target stays settings-tab-layout)")
 }
 
-// --- 5. i18n: eight keys, nine lines, en-only with base-first fallback ---
+// --- 5. i18n: the v2.2.7 key set, en-only with base-first fallback ---
 {
   const en = await read(`${APP}src/runtime/i18n/en.ts`)
-  // F1: EIGHT keys asserted one by one; inbox.description spans two physical lines.
+  // old->new (issue #193 v2.2.7 re-anchor): the pin's own key set is FIVE keys — title is
+  // "Interface layout", the top/side descriptions are gone (the cards name themselves),
+  // inbox.description folded into the title's shared description, and the #63-era
+  // "Experimental" badge key is absorbed by removal. The S04 contract (three modes +
+  // en-only fallback) is unchanged.
   const keys = [
-    '"settings.general.row.interfaceMode.title": "Interface",',
+    '"settings.general.row.interfaceMode.title": "Interface layout",',
     '"settings.general.row.interfaceMode.top": "Top tabs",',
-    '"settings.general.row.interfaceMode.top.description": "Browser-style tabs across the top of the window.",',
     '"settings.general.row.interfaceMode.side": "Side tabs",',
-    '"settings.general.row.interfaceMode.side.description": "Browser-style tabs in a sidebar.",',
     '"settings.general.row.interfaceMode.inbox": "Inbox",',
-    '"settings.general.row.interfaceMode.inbox.description":\n    "Every session across your servers, sorted by what needs you next.",',
-    '"settings.general.row.interfaceMode.experimental": "Experimental",',
   ]
   for (const key of keys) {
     if (!en.includes(key)) fail(`5: en.ts lost or reshaped the key ${key.split(":")[0]}`)
   }
+  for (const gone of ["interfaceMode.top.description", "interfaceMode.side.description", "interfaceMode.inbox.description", "interfaceMode.experimental"]) {
+    if (en.includes(gone)) fail(`5: en.ts resurrected the superseded key ${gone} (v2.2.7 pin key set)`)
+  }
 
-  // Insertion point: directly after the legacy tabs.vertical key and before the
-  // notifications block (v2.2.1 keeps the legacy block adjacent).
+  // Insertion point: the interfaceMode block sits right after the legacy tabs keys.
   const verticalAt = en.indexOf('"settings.appearance.row.tabs.vertical": "Vertical",')
   const first = en.indexOf('"settings.general.row.interfaceMode.title"')
-  const last = en.indexOf('"settings.general.row.interfaceMode.experimental"')
-  const notifications = en.indexOf('"settings.notifications.description"')
-  if (verticalAt < 0 || first < 0 || last < 0 || notifications < 0 || !(verticalAt < first && first < last && last < notifications))
-    fail("5: en.ts interfaceMode block is not inserted between tabs.vertical and the notifications block")
+  const zoomAt = en.indexOf('"settings.appearance.row.zoom.title"')
+  if (verticalAt < 0 || first < 0 || zoomAt < 0 || !(verticalAt < first && first < zoomAt))
+    fail("5: en.ts interfaceMode block is not adjacent to the legacy tabs keys (v2.2.7 order)")
 
   // zh (and every other locale) stays key-free — the registered fallback delta.
   const locales = ["zh", "zht", "ko", "de", "fr"]
@@ -211,11 +229,13 @@ const PATCHES = "vendor/upstream/patches/mobile/"
   }
 
   // The fallback chain itself: en base is spread FIRST in language.tsx.
+  // old->new (issue #193 v2.2.7 re-anchor): the pin replaces the flatten() calls with the
+  // typed base spread and the app+ui merge() helper.
   const languageFile = await read(`${APP}src/runtime/i18n/language.tsx`)
-  if (!languageFile.includes("const base = flatten({ ...en, ...dict })"))
-    fail("5: language.tsx lost the en base-first flatten")
-  if (!languageFile.includes("{ ...base, ...flatten({ ...a.dict, ...b.dict }) }"))
-    fail("5: language.tsx merge no longer spreads the en base before the locale dict")
+  if (!languageFile.includes("const base: Dictionary = { ...en, ...dict }"))
+    fail("5: language.tsx lost the en base-first spread")
+  if (!languageFile.includes("const merge = (app: Promise<Source>, ui: Promise<Source>)"))
+    fail("5: language.tsx merge no longer merges the locale dict over the en base")
 }
 
 // --- 6. Patch/manifest face ---
@@ -317,9 +337,9 @@ console.log(
   "verify-interface-mode: PASS (" +
     "1: tabLayout three-value literal + upstream comment, default horizontal, settings.v3 verbatim, withFallback read path + per-field recover() contract; " +
     "2: shell predicate !== \"horizontal\" && !mobile() one-liner, no === \"vertical\" remnant; " +
-    "3: InterfaceModeSetting mounted h3→fieldset→list, modes exactly top/side/inbox, radio+anchor+experimental badge, adaptive grid CSS, TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting removed with the target migration (issue #103/settings-general-experimental-migration — S37 shell-setting lives in controllers.ts) and the BackgroundActivity/TimelineWidth rows in place (issue #103 S11), PluginSettingsSections import (issue #67 rename); " +
+    "3: InterfaceModeSetting mounted inside the General list (h3→list→fieldset→LanguageSetting, issue #193 re-anchor), modes exactly top/side/inbox, radio+anchor, the v2.2.7 fixed-card CSS (the #63 adaptive grid and Experimental badge absorbed by the pin — negative-pinned), TabLayoutSetting/tabLayoutOptions removed, TerminalPlacementSetting removed with the target migration (issue #103/settings-general-experimental-migration — S37 shell-setting lives in controllers.ts) and the BackgroundActivity/TimelineWidth rows in place (issue #103 S11), PluginSettingsSections import (issue #67 rename); " +
     "4: search-catalog interfaceMode entry with settings-tab-layout target and v2.2.1 keywords; " +
-    "5: EIGHT en keys (nine lines) one-by-one after the kept legacy tabs block, zero interfaceMode keys in zh/zht/ko/de/fr, language.tsx base-first merge fallback chain; " +
+    "5: the v2.2.7 four-key interfaceMode set after the kept legacy tabs block (the #63 description/badge keys absorbed by removal — negative-pinned, issue #193 re-anchor), zero interfaceMode keys in zh/zht/ko/de/fr, language.tsx base-first spread + merge fallback chain; " +
     "6: settings-interface-mode in BOTH manifests, patch face exactly the seven S04 files, no other patch references interface-mode (0035/0037/0046 context-line exemptions registered — settings-general-experimental-migration by issue #103), zero interfaceMode tokens in vendor sources outside the settings-interface-mode set (byte equivalence is V3's job); " +
     "7: packages/mobile-hosts zero interface-mode/tabLayout references; " +
     "STATIC check - preview rendering, radio interaction, narrow-screen stacking, restart persistence and the inbox-rail (no grouping/aggregation/badge) presentation are device-QA items registered in docs/build-and-verify.md)",

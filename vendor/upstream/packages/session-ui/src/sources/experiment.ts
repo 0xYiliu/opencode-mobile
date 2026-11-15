@@ -1,4 +1,4 @@
-import { motionTuning } from "@opencode/ui/motion-tuning"
+import { motionTuning, type MotionKnob } from "@opencode/ui/motion-tuning"
 import { createStore } from "solid-js/store"
 
 export type SiteIconMode = "letters" | "site"
@@ -54,6 +54,20 @@ export const sourcesExpand = motionTuning.spring("sources.expand", {
 const [state, setState] = createStore({ enabled: enabled(), icons: icons() })
 
 motionTuning.subscribe(() => setState({ enabled: enabled(), icons: icons() }))
+
+// mobile(gui-plugins-v2-2-7, issue #194; M-036): the mobile Settings row writes the same experiment. The knob
+// instance is captured once here, right after its single registration above — no other module may re-register
+// "sources.enabled" (Map.set would clobber this instance and leave the row showing on while the experiment
+// stays off) and no call site looks the knob up. motionTuning.set persists the flip and notifies the
+// subscribers, so the debug Knobs panel and the sourcesExperiment store below stay in sync.
+const enabledKnob = motionTuning
+  .list()
+  .find((knob): knob is Extract<MotionKnob, { kind: "toggle" }> => knob.kind === "toggle" && knob.id === "sources.enabled")
+
+/** mobile: flips the Sources experiment from the settings row; every subscriber follows. */
+export const setSourcesEnabled = (value: boolean) => {
+  if (enabledKnob) motionTuning.set(enabledKnob, value)
+}
 
 /** Experiment: a "N sources" chip under a reply that searched the web, opening the turn's searches in the side panel. */
 export const sourcesExperiment = state

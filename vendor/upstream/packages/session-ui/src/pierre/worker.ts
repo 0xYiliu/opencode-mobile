@@ -1,6 +1,18 @@
 import { WorkerPoolManager } from "@pierre/diffs/worker"
 import DiffsWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
+import { watchPoolSettlement } from "./pool-strategy"
 import { highlightOptions } from "./index"
+
+// mobile(diff-worker-pool-fallback): pierre gives up on its own initialization after 10s; probe
+// with a margin over that so pool-side timeouts surface as rejections rather than probe timeouts.
+const POOL_PROBE_TIMEOUT_MS = 12_000
+
+// mobile(diff-worker-pool-fallback): a pool whose first initialize() rejects — or never settles —
+// must not gate rendering forever (#163). Such a pool is recorded here and getWorkerPool() hands
+// back undefined, so viewers construct without a pool and render rows on the main-thread path
+// (word-level diff/highlight semantics degrade to pierre's no-pool face; registered in
+// docs/design/units/diff.md). The probe lives in pool-strategy.ts so bun tests can exercise it.
+const failedPools = new WeakSet<WorkerPoolManager>()
 
 function createPool(lineDiffType: "none" | "word-line") {
   const pool = new WorkerPoolManager(
@@ -22,6 +34,14 @@ function createPool(lineDiffType: "none" | "word-line") {
     },
   )
 
+  watchPoolSettlement(pool, {
+    timeoutMs: POOL_PROBE_TIMEOUT_MS,
+    onError: (cause) => {
+      failedPools.add(pool)
+      console.error("[diff] pierre worker pool init failed", cause)
+    },
+  })
+
   void pool.initialize()
 
   return pool
@@ -37,10 +57,10 @@ export function getWorkerPool(lineDiffType: "none" | "word-line" = "word-line"):
   if (lineDiffType === "none") {
     if (!plain) plain = createPool("none")
 
-    return plain
+    return failedPools.has(plain) ? undefined : plain
   }
 
   if (!diff) diff = createPool("word-line")
 
-  return diff
+  return failedPools.has(diff) ? undefined : diff
 }

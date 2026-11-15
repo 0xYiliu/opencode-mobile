@@ -1,6 +1,6 @@
 # 通知面（Task completion, permission, and error notifications）
 
-**状态：issue #148 M-023 投递面恢复后通知面已实现；#148 G33 真机轮已核验可达层（①前台抑制/门控/dock 链/进程死亡边界；②后台全链按已登记 socket 死亡 PASS 形态记录——本机 WebView 挂起即冻结，五样本零后台事件派发）**——文档/探针/单测/编译层已验证；投递面历史：#23 交付 → #140 时代 session-workbench-upstream 补丁以目标形覆盖将其退役（#144 登记缺口、探针负锚钉定）→ #148 修剪该补丁 retirement hunks 恢复（notifications-platform-delivery 补丁字节不动）；G33① 判定产出 notifications-webview-focus-gate 补丁（hasFocus 前后台恒 true 实测 → 门与锁跟随 visibilityState）。运行期行为收口归 **G33** 真机门禁（[interaction.md](../interaction.md)），本轮未达层（后台系统通知到达/tap 路由/锁屏呈现/双路由）仍以 G33 记录为准。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
+**状态：issue #195 已随 v2.2.7 重 derive 落位（四类别桥投递 + focus-lock-machine 生命周期上的 G33① 门 + M-022/M-024 注册与设置面——active `notifications-v2-2-7`）；issue #148 M-023 投递面恢复后通知面已实现；#148 G33 真机轮已核验可达层（①前台抑制/门控/dock 链/进程死亡边界；②后台全链按已登记 socket 死亡 PASS 形态记录——本机 WebView 挂起即冻结，五样本零后台事件派发）**——文档/探针/单测/编译层已验证；投递面历史：#23 交付 → #140 时代 session-workbench-upstream 补丁以目标形覆盖将其退役（#144 登记缺口、探针负锚钉定）→ #148 修剪该补丁 retirement hunks 恢复（notifications-platform-delivery 补丁字节不动）；G33① 判定产出 notifications-webview-focus-gate 补丁（hasFocus 前后台恒 true 实测 → 门与锁跟随 visibilityState）。运行期行为收口归 **G33** 真机门禁（[interaction.md](../interaction.md)），本轮未达层（后台系统通知到达/tap 路由/锁屏呈现/双路由）仍以 G33 记录为准。第六座协议隔离桥（NotificationsBridge）沿用 #16 files 桥经评审通过的全部机制（协议隔离/白名单/fail-closed/零新依赖/零 androidx/零值日志）。
 
 ## ① 上游通知面全景（已随闭包进入移动壳）
 
@@ -10,6 +10,7 @@
 - **应用内呈现面**：tab 头像 unread/attention 徽标（`project-avatar-state.ts`：`needsAttention`=挂起 permission/form，`unread`=needsAttention ‖ 服务端派生 unread）；`ToastRegion` 应用内 toast；permission dock（会话内，标题 `notification.permission.title`）。
 - **未读水位**：`isSessionUnread` = `time.idle > time.viewed` 服务端权威；`markViewed` 经 `session.view` API 上报（失败指数退避重试 250ms→5s）；进入会话即上报（`session/route.tsx`）；legacy 本地面迁移（旧客户端列表迁服务端后删除）。
 - **声音面**：`sound.ts` 45 音选项（`import.meta.glob` ui 包 aac 懒加载 + `new Audio` 播放）；`toast.tsx` 应用内 toast。
+- **v2.2.7 状态机化（pin 原生，#195 审计）**：未读水位迁入 `shell/notifications/machine.ts`（`isSessionUnread`/`selectSessionUnread`/`selectLegacyHiddenReports` + machine.test；notification.tsx 改 import/消费，`session.view` 报告面增 `idle: effect.idle`）；coordinator 重写为 focus-lock-machine 生命周期（shared FOCUS_LOCK + exclusive-ifAvailable DELIVERY_LOCK；`machine.test.ts`/`focus-lock-machine.test.ts` 在册）；permission 第四支监听被**统一 `handleRequest(kind, sessionID, requestID)`** superseded（两值 category 映射：question/mcp-elicitation → `questions`、其余 → `permissions`；request 面经 open-tab 检查解析根会话 `target`——#195 的 request 面路由即传该 `target`，tap 路由与上游导航严格一致）。
 
 **两个上游缺口（本期新实证，shell 内实施位）**：
 
@@ -34,11 +35,11 @@
 
 - **握手**：`opencode-mobile-notifications-handshake`（六桥两两不等；native 发起 `webView.createWebMessageChannel()`、平台强制 targetOrigin `http://127.0.0.1:18090`、端口闭包、ack 前零能力、5×500ms 重建重试、ack 生命周期导航作用域）。
 - **白名单恰二 op**（零动态路由零反射）：`notify` / `requestPermission`。
-- **`notify` 参数**：`{category, title, body, route}`——category ∈ {agent, permissions, errors} 白名单；title/body 长度上界 128/256（JS 先行校验 + Kotlin native re-check 双层）；route 正则白名单 `^\/server\/[A-Za-z0-9_-]{1,512}\/session\/[A-Za-z0-9_-]{1,128}$`（路径由 JS 侧 `sessionHref` 构造过桥，Kotlin 只做形状校验）。返回 `{posted: boolean, code?}`。
+- **`notify` 参数**：`{category, title, body, route}`——category ∈ {agent, permissions, questions, errors} 四类白名单（#195：questions 紧邻 permissions，镜像设置行序与上游 requestTitles 两值映射；JS `NOTIFICATION_CATEGORIES` 与 Kotlin `CATEGORIES` 双侧在册锁定）；title/body 长度上界 128/256（JS 先行校验 + Kotlin native re-check 双层）；route 正则白名单 `^\/server\/[A-Za-z0-9_-]{1,512}\/session\/[A-Za-z0-9_-]{1,128}$`（路径由 JS 侧 `sessionHref` 构造过桥，Kotlin 只做形状校验）。返回 `{posted: boolean, code?}`。
 - **`requestPermission` 参数**：`{}`。API<33 或已授权即答 `{granted:true}`；否则 `activity.requestPermissions(POST_NOTIFICATIONS, …)` 挂起、`onRequestPermissionsResult` 回答 `{granted}`（**用户必须在前台**——后台到达的该 op 立答 `{granted:false, code:"foreground"}`，不弹系统对话框，平台不允许也不尝试）。
 - **线码集**：`{"unavailable","permission","foreground","io"}`（JS 镜像 `NOTIFICATIONS_ERROR_CODES`）。
 - **通知身份**：tag=category、id=route.hashCode() → 同会话同类通知替换不堆叠。
-- **三类静默频道**：`notifications-agent`/`-permissions`/`-errors`，`setSound(null,null)` + IMPORTANCE_DEFAULT、创建一次不可变——用户所选 45 音经上游 Audio 路径播放（前台可靠；后台 WebView 音频平台相关尽力而为，G33③）、「关闭声音」=真正无声（频道不引入第二音源、无双响）。
+- **四类静默频道**：`notifications-agent`/`-permissions`/`-questions`/`-errors`（#195 增 questions——首投递时 `ensureChannel` 懒创建，既有频道零触碰；Android 频道创建后不可变，升级安装不重写既有频道名/重要性），`setSound(null,null)` + IMPORTANCE_DEFAULT、创建一次不可变——用户所选 45 音经上游 Audio 路径播放（前台可靠；后台 WebView 音频平台相关尽力而为，G33③）、「关闭声音」=真正无声（频道不引入第二音源、无双响）。
 - **锁屏可见性** `VISIBILITY_PRIVATE`（安全锁屏只显 App 名，正文隐藏——保守默认，G33⑧ 核对）；`setAutoCancel(true)`；**零 addAction**（唯一交互=contentIntent 导航）。
 - **contentIntent**：PendingIntent.getActivity(MainActivity, extras 恰 route 一枚，flag `FLAG_IMMUTABLE | FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_SINGLE_TOP`——standard launchMode 下既达 `onNewIntent` 也支持冷启 onCreate）。
 - **权限复核**：`NotificationManager.areNotificationsEnabled()` 为假 → `{posted:false, code:"permission"}`（拒绝后静默降级——应用内声音/徽标/dock 不受影响）。
@@ -52,7 +53,8 @@
 | --- | --- | --- | --- | --- |
 | agent | `session.execution.succeeded` | `hasOpenTab` × `settings.notifications.agent()` | `settings.sounds.agentEnabled()` → coordinator.sound → playSoundById(sounds.agent()) | coordinator.system（内含 `document.hasFocus()` 前台早退+去重）→ 桥 notify(category="agent") |
 | errors | `session.execution.failed` | `hasOpenTab` × `settings.notifications.errors()` | `settings.sounds.errorsEnabled()` → 同上 | 同上（category="errors"） |
-| permissions | `permission.asked`（notifications-platform-delivery 新增第四支） | `hasOpenTab` × `settings.notifications.permissions()` × **`!settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session?.projectID))`**（project-avatar-state 逐字先例镜像——已覆盖项目不通知，auto-approve 面守卫抑制） | `settings.sounds.permissionsEnabled()` → playSoundById(sounds.permissions())（死开关的声音面一并补全） | coordinator.system → 桥 notify(category="permissions") |
+| permissions | `handleRequest("permission", …)`（v2.2.7 统一面；supersede 旧 M-023 第四支 handlePermissionAsked） | `pending()` 守卫链：open-tab（经 `target` 根会话解析） × `settings.notifications[category]()` × **`!settings.permissions.autoApproves(projectSettingsKey(input.sdk.scope, session.projectID))`**（上游统一形式；已覆盖项目不通知） | `settings.sounds.permissionsEnabled()` → playSoundById(sounds.permissions()) | coordinator.system → 桥 notify(category="permissions") |
+| questions | `handleRequest` 于 `form.created`（kind=question/mcp-elicitation；websearch.provider 映射 permission 标题） | 两值 category 映射 `question/mcp-elicitation → "questions"`（#195 四类别对齐；v2.2.7 上游 handleRequest 原生） | `settings.sounds.questionsEnabled()` → playSoundById(sounds.questions()) | coordinator.system → 桥 notify(category="questions"，路由=sessionHref(key, target)) |
 
 **恢复登记（issue #148）**：本表四支触发面随 #23 交付；#140 时代 session-workbench-upstream 补丁的 v2.2.1 目标形覆盖将投递面退役（#144 登记为 M-023 缺口、verify-notifications 组 2/3 负锚钉定）；#148 修剪该补丁 notification.tsx 段的四个 retirement hunks（仅保留 hasRunningChild 助手与 handleSessionIdle 守卫两个目标形 hunk 并改号），notifications-platform-delivery 补丁字节不动——其 post-image（宽形 imports + 三类桥投递 + `handlePermissionAsked` + `permission.asked` 派发）即恢复面本体，与目标形 hasRunningChild 守卫合成现树形态；verify-notifications 组 2/3/7 已随恢复转正（桥投递正锚、M-023 源注释必需、once-call 6）。
 
@@ -92,10 +94,10 @@
 
 ## ⑨ 设置面
 
-- **三开关**（上游闭包在册）：agent（默认 true）/ permissions（默认 true）/ errors（默认 false）——`settings.notifications.*`；notifications-platform-delivery 后 permissions 开关获得运行时效果（死开关消灭）。
+- **四开关**（v2.2.7 上游在册；#195 前为三开关 + questions 上游补齐）：agent / permissions / questions / errors——`settings.notifications.*`；v2.2.7 统一 handleRequest 后四开关全部有运行时触发面（`settings.notifications[category]()` 计算访问器）。
 - **三声音**（上游闭包在册）：`settings.sounds.{agentEnabled, permissionsEnabled, errorsEnabled}` + 45 音选择（默认 `staplebops-01`/`staplebops-02`/`nope-03`）；notifications-platform-delivery 后 permissions 声音获得事件面消费（`playSoundById` 事件面恰 3 处）。
 - **Interface 声音行**（issue #107/settings-notifications-migration 恢复，target 11 行 SettingsRow）：`settings.sounds.interfaceEnabled` 持久化 Switch（`data-action="settings-sounds-interface"`）+ 搜索目录行（keywords `sound audio interface effects wordmark logo`）随 settings-notifications-migration 回归——**播放消费者惰性登记**：target 由 new-session 面（wordmark/PinBoard/pin-sound 族）消费 `sounds.interfaceEnabled()`，该消费族不在 vendored 树；呈现归后续 new-session issue（S11 backgroundActivity 先例：字段+行+搜索行落地，呈现归后续）。45 音资源双侧同树 hash（26 emitted + 19 内联 data-URL，三默认音内联）；sound.ts 随目标收敛 3 个 export（`SoundOption`/`SoundID`/`soundSrc` 转模块私有，vendored 零消费者）。
-- **Android 权限显态**（settings-notification-permission 新增）：开关开启触发用户在场的 POST_NOTIFICATIONS 请求；拒绝/桥缺席显态描述行（`settings.general.notifications.android.*` 键族，en/zh）；再授权后自动恢复投递（`areNotificationsEnabled()` 每次通知复核）。**再进入语义**（#107 设备 QA 登记）：状态行是 **session-signal**（settings-notification-permission createSignal，不入 settings.v3）——同进程内切页返回行保留上次结果（设置壳 tab 组件 keep-alive），跨重启回中性文案；per-notify `areNotificationsEnabled()` 复核不变。#107 设备实测：OFF→ON 可信点击触发请求 → 结果（本轮环境 seam fail-closed = unavailable 文案）落显式状态行，零 dialog、零 adb 授权态变更。
+- **Android 权限显态**（settings-notification-permission 新增；**#195 重 derive**：active `notifications-v2-2-7` 在 v2.2.7 四开关页上 re-base——四开关全经 `onNotificationSwitch` 包裹（agent/permissions/errors 直接；questions 经 hideLabel+children 形，wrapper 仅触及 onChange，children 保留），errors 行后显式状态行；en/zh 五条 `settings.general.notifications.android.*` 键逐字保留）：开关开启触发用户在场的 POST_NOTIFICATIONS 请求；拒绝/桥缺席显态描述行（`settings.general.notifications.android.*` 键族，en/zh）；再授权后自动恢复投递（`areNotificationsEnabled()` 每次通知复核）。**再进入语义**（#107 设备 QA 登记）：状态行是 **session-signal**（settings-notification-permission createSignal，不入 settings.v3）——同进程内切页返回行保留上次结果（设置壳 tab 组件 keep-alive），跨重启回中性文案；per-notify `areNotificationsEnabled()` 复核不变。#107 设备实测：OFF→ON 可信点击触发请求 → 结果（本轮环境 seam fail-closed = unavailable 文案）落显式状态行，零 dialog、零 adb 授权态变更。
 - **toast.tsx no-owner-gap 登记**（#107，manifest settings-notifications-migration reason 同源）：target 的 toast.tsx dead-export 收敛（移除 `dismissToast` 导出 + `toaster` 导入，vendored 树 measured 零消费者）本轮**不采纳**——shell/notifications 源面在 sound.ts 之外零触碰；显式登记为无主缺口（当前无 carve 后续 issue），candidate rider = 未来 notification-face / dead-export-sweep issue。
 - 设置侧边栏 notifications 根级 tab 上游已装配（settings/shell.tsx，守卫重定向列表不含 notifications——双布局可达，无 settings-ssh-entry-guard 类守卫问题）。
 

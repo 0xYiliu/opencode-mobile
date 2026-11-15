@@ -167,12 +167,16 @@ button.session-service-row:focus-visible,
     translate: -4px 0;
     transform-origin: left top;
   }
+}
 
-  .session-service-flyout[data-open] & {
-    opacity: 1;
-    scale: 1;
-    translate: 0 0;
-  }
+/* mobile(gui-plugins-v2-2-7, issue #194; extensions-flyout-webview lineage): keep the ancestor selector
+   parseable by Android WebView's CSS nesting implementation. The &:dir(rtl) nesting above and the
+   [data-motion] nesting below stay nested — a progressive loss on old WebViews (RTL mirroring and motion
+   transitions only), recorded in the registry. */
+.session-service-flyout[data-open] .session-service-flyout-body {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
 }
 
 .session-service-flyout-surface {

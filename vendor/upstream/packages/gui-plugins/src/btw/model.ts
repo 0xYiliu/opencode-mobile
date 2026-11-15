@@ -174,6 +174,9 @@ export function createBtw(ctx: SetupContext<typeof Btw>) {
 
   return {
     ask,
+    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D3): the narrow-screen mobile view renders the most recent
+    // stored chat — expose the same saved-list reader the tab/view accessors dispatch through.
+    saved,
     tab: (session: MountedSession, id: string) => btwTabView(state(), saved(session), session.key, id),
     view: (session: MountedSession, id: string) => btwChatView(state(), saved(session), session.key, id),
     retry: (session: MountedSession, id: string) => {

@@ -42,6 +42,8 @@ export const FileAttachmentPart = Persistence.struct({
   filename: Persistence.optional(Schema.String),
   description: Persistence.optional(Schema.String),
   url: Persistence.optional(Schema.String),
+  // mobile(M-016, issue #188): the server a `media:` URL was captured on; bytes resolve only there.
+  sourceServerKey: Persistence.optional(Schema.String),
   source: Persistence.optional(FilePartSource),
 })
 
@@ -79,7 +81,12 @@ const ImageFields = {
 const Image = Persistence.struct({
   ...ImageFields,
   // An empty URL is an image whose bytes are still in the draft store; see `resolveBlobUrl`.
-  blob: Schema.Struct({ id: Schema.NonEmptyString, url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)) }),
+  blob: Schema.Struct({
+    id: Schema.NonEmptyString,
+    url: Schema.String.check(Schema.isPattern(/^(blob:|data:|$)/)),
+    // mobile(M-016, issue #188): the captured source of a `media:` id (issue #188).
+    sourceServerKey: Schema.optional(Schema.String),
+  }),
 })
 
 // Draft storage keeps content-addressed blobs in the store until an image is shown or sent; a
@@ -87,7 +94,11 @@ const Image = Persistence.struct({
 export const ImageAttachmentPart = Schema.Struct({
   ...ImageFields,
   blob: Persistence.optional(
-    Schema.Struct({ id: Persistence.optional(Schema.String), url: Persistence.optional(Schema.String) }),
+    Schema.Struct({
+      id: Persistence.optional(Schema.String),
+      url: Persistence.optional(Schema.String),
+      sourceServerKey: Persistence.optional(Schema.String),
+    }),
   ),
   dataUrl: Persistence.optional(Schema.String),
 }).pipe(
@@ -104,6 +115,7 @@ export const ImageAttachmentPart = Schema.Struct({
         mime: value.mime,
         blob: {
           id,
+          sourceServerKey: value.blob?.sourceServerKey,
           url: url?.startsWith("blob:") || url?.startsWith("data:") ? url : id.startsWith("data:") ? id : "",
         },
       }

@@ -8,4 +8,8 @@ export default {
   "error.timeout": "The model took too long to reply.",
   retry: "Retry",
   copy: "Copy answer",
+  // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1/D2): the narrow-screen More-drawer entry title and its
+  // honest empty state.
+  "mobile.title": "Side question",
+  "mobile.none": "No side question yet",
 }

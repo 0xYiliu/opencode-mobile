@@ -272,3 +272,717 @@ git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
 - **ALLOW（audit-only）** `packages/app/e2e`（Playwright spec/fixture/mock-server）：作为 fixed-source 审计面 byte-identical 登记（pass-2 SAME），**不作为 Android 运行门禁**——Playwright 不是 Android APK 硬门禁；本轮未运行 e2e。
 - **DENY（routing）** 历史 M-021/files-bridge 类平台桥 payload 不由 #187 承载：`files-platform-bridge`/`attachments-share-bridge` 等 platform-bridge 家族保持 deferred，归 files/attachments 桥 owner 单元。
 - **routing notes（7 absorbed + 5 deferred）**：7 条 absorbed（rows 56/57/60/63/64/74/75）按「v2.2.7 vendor pin byte-identity / active `timeline-messaging-v2-2-7`（panel-motion guard）/ active `tabs-inbox-titlebar-v2-2-7`（row 75 back bridge）」三类载体登记；5 条 deferred（`session-goal-sources-panels`→goal/sources 单元、`session-media-source-safety`→composer/media 单元 #188/#196 lineage、`settings-experimental`→settings/experimental 单元、`gui-plugins-api-migration`→gui-plugins/extensions 单元、`project-identity-migration`→identity 单元 #140 lineage）加「本轮未触碰 + owner」routing note，状态不翻转。panel-motion `:dir()` guard 是本轮唯一 active delta，#197 不得双落。
+
+## Issue #188：composer / queue / attachments crosswalk and allowlist
+
+本节是 #188 的固定上游审计，不改变冻结的 v2.2.1 文档与前序 #186/#187 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--188-composer-queue-attachments`，分支 `feat/188-composer-queue-attachments`，base `e4a6dd1`（#187 链尾）。本轮 landing 是 active `composer-queue-attachments-v2-2-7`（#84）：v2.2.7 重 derive 已退役的 `attachments-upload-redirect-policy`（#12）/`files-platform-bridge`（#19）/`attachments-share-bridge`（#20）与 `session-media-source-safety`（#58）的 composer 侧 payload。
+
+### 可复现 fixed-source 命令
+
+```bash
+# path set（composer / session composer / persistence / session-ui src）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/composer packages/app/src/session/composer \
+  packages/app/src/runtime/persistence packages/session-ui/src
+# 逐文件 byte-compare：`git -C <upstream> rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# absence 负检：上列 D 条目在 vendored 树必须不存在
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- 范围条目 **233 paths**（按目录：`composer` 57、`session/composer` 35、`runtime/persistence` 21、`session-ui/src` 120），对应 **116 commits**；形态分布 102 A + 125 M + 6 D（0 R）。
+- 计划期审计：**227 present → 227 SAME + 0 DIFF；6 deleted-absent（0 present）**——上游删除的 `runtime/persistence/uuid{,.test}.ts` 与 `session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts` 在 vendored 树全部不存在。
+- 本轮 landing 后重放（同命令同法）：**227 present → 216 SAME + 11 DIFF**——11 条 DIFF 全部是 active `composer-queue-attachments-v2-2-7` 的在册载体 hunks：`composer/{attachments/destination.ts,history/entry.ts,request.ts,request.test.ts,schema.ts,state.ts}`、`runtime/persistence/{drafts.ts,drafts.test.ts}`、`session/composer/{queue.ts,queue.test.ts,region.tsx}`（与 #187 轮 `screen.tsx` DIFF = #186 在册载体同一处理方式）；其余 216 条保持 byte-identical，absorbed by vendor pin。#84 targets 中不在本 allowlist 的文件（media/prompt/prompt-parts/persistence/fork/revert/entry/web 等）不在本审计范围内，由 `verify-closure.sh` 全树 byte-identity 覆盖。
+
+### 行为 crosswalk
+
+| fixed upstream commit | 目标行为 | #188 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `095098fd6a` | fix(app): drive the session queue with an explicit state machine (#61592)——queue machine 家族 | **absorbed**（vendor pin，queue-machine.ts 零改动） | `session/composer/queue-machine.test.ts` 等 SAME 集 |
+| `17100fc529` | fix(app): give composer recovery, queue mutations, row stops and /reload explicit lifecycles (#62097)——queue mutation 生命周期 | **absorbed**（vendor pin）+ #84 在 queue.ts 加 per-attempt owner（machine 原生中止路径，queue.ts-local） | `session/composer/queue.ts`（DIFF = #84 在册载体）；queue.test 18/0 |
+| `14df429e18` | fix(app): drive request slots and draft image retention through state machines (#61970)——drafts retention machine（drafts-machine） | **absorbed**（vendor pin，drafts-machine.ts 零改动）+ #84 drafts.ts fail-closed 媒体面 | `runtime/persistence/{drafts-machine.test.ts,drafts.test.ts}`；drafts.test 重 derive 后全绿 |
+| `1c3decd370` | fix(app): drive composer history, shell mode and retry IDs through explicit state machines (#62021)——history/retry 机器 | **absorbed**（vendor pin）；#84 的 request.ts wire floor 与 v2.2.7 `retryFingerprint` 镜像共存（记录性偏差：images 不在 request.ts 重复把关，blobDataUrl 为执行点） | `composer/{history/entry.test.ts,retry.test.ts,request.test.ts}` SAME/载体集 |
+| `42be645ad7` | fix(app): drive quote comment, upload and @-mention search lifecycles through state machines (#62016)——quote-comment/uploads/mention 机器 | **absorbed**（vendor pin） | `composer/{quote-comment-machine.test.ts,attachments/uploads.test.ts,suggestions/machine.test.ts}` SAME 集 |
+| `65d59b9847` | fix(app): drive the composer focus handoff with an explicit state machine (#61924)——focus 机器 | **absorbed**（vendor pin） | `session/composer/focus-machine.test.ts` SAME 集 |
+| `0e655ff2a2` | fix(app): keep pasted image bytes in memory so a deleted temp file can't break the send (#62057)——paste detach | **absorbed**（vendor pin）；#84 的 `sourceServerKey` 溯源与其正交（本地字节引用不携带远端 key） | `composer/attachments/uploads.test.ts` SAME；drafts.test 重 derive 集 |
+| `0cb3d68f6e` + `490739afe7` | fix(app): retry failed namespace writes and settle load and clear races (#61766) / keep persisting after a localStorage quota failure (#61764)——persistence 稳健性 | **absorbed**（vendor pin）；#84 未解析引用以 `{mediaURI,sourceServerKey}` 持久化不阻塞 strict write（与其互补） | `runtime/persistence/{storage.test.ts,schema.test.ts}` SAME；drafts.test `unresolved` 用例 |
+
+- **machine families（pin 携带）**：`09dcb47861`（composer morph/Grow springs）、`36bdbb8584`/`b6f3294e9d`（rewind/undo/redo——本轮仅 provenance threading，生命周期守卫归 #196）、`c3f9fbbce3`（optimistic prompt handoff 恢复）、`12c371e08d`（web search consent dock，#189 deny）等 `session/composer/*machine*` 与 `session-ui` 状态机族全部 byte-identical。
+- **editor dom/actions 处置（一行）**：`composer/editor/{dom,actions,interaction,machine,...}` 家族 pin 携带（byte-identical），其 pin-carried 语义由 composer 门禁行使（set A 396 pass / 5 pre-existing fail 基线恒同），本轮零改动。
+- **prompt-status/prompt-status-machine/comment-focus-machine/quote-comment-machine** 同为 pin 携带（SAME），#84 只加可选 `sourceServerKey` 溯源字段。
+
+### deny audit
+
+- **DENY（routing）** `#189` web search consent dock（`12c371e08d` 的 dock 面）：本轮不承载，保持其 owner 单元 routing。
+- **DENY（routing）** `#196` runtime/server/client.tsx capture/generation/mediaApi seam 与 fork/revert 生命周期守卫套件：本轮明确不落（superseded-by-design 记录在 row 58 处置：queue.ts 本地 owner lease + 原生 client.tsx:89 media-loader 接线已覆盖其意图）。
+- **DENY（routing）** `#199` 依赖升级类 payload（workspace-dependency-closure 等依赖面）：本轮不触碰。
+- **EXCLUDED** `packages/core|server|schema|protocol` fs/media 服务端语义不在 vendored closure（同 #11 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。
+
+## Issue #189：request docks crosswalk and allowlist
+
+本节是 #189 的固定上游审计（session/requests 请求 dock 面），不改变冻结的 v2.2.1 文档与前序 #186/#187/#188 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--189-request-docks`，分支 `feat/189-request-docks`，base `31f8399`（#188 链尾）。本轮 landing 方式 = **纯静态轮（零新 mobile patch）**：request docks 域 50 文件全部 byte-identical 于 v2.2.7 pin（v2.2.1-parity 性质），交付物为 `verify-permission-requests` 探针的 v2.2.7 重锚定（14 条 fact 级 old→new，全部「v2.2.7-context 漂移，非契约违约」）+ 单元文档事实同步；`patches:refresh` 未运行（登记面零改动），registry 保持 **84 registered / 6 active / 29 absorbed / 49 deferred** 不变。
+
+### 可复现 fixed-source 命令
+
+```bash
+# ① 50 文件 docks surface 清单（canonical）
+git -C /home/peterhan/repository/opencode ls-tree -r --name-only v2.2.7 -- packages/app/src/session/requests   # 34 files
+# +16 extras：session-ui/src/components/{question-prompt.css,question-prompt-experimental.css,dock-prompt.tsx,message-part.css}、
+#   session-ui/src/styles/index.css、ui/src/data-display/keybind/{keybind.css,keybind.tsx}、
+#   app/src/session/composer/session-composer-region.tsx、app/src/session/question-switch.stories.tsx、
+#   app/src/settings/experimental/experimental.tsx、app/src/settings/{model.tsx,model.test.ts,search-catalog.ts,search-results.test.ts}、
+#   app/src/runtime/i18n/en.ts、ui/src/i18n/en.ts
+# ② 逐文件 byte-compare：`git archive v2.2.7 packages | tar -x` 后 `cmp` 50 文件（vendor/upstream/<同路径>）
+# ③ 全树核算：`diff -rq <v2.2.7 packages> vendor/upstream/packages` → Files differing 清单
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **docks surface：50/50 SAME + 0 DIFF + 0 MISSING**（34 requests 文件 + 16 extras 全部 byte-identical）。
+- **全树核算：54 Files differing = 50 条 active-target union 成员 + 4 条 closure-trim package.json**（`ai/client/patchmark/plugin`）；50 条 DIFF 全部 ⊆ 六个 active patch 的 58-target 并集（其余 8 条为 vendor 侧新增文件，不在 pristine v2.2.7 清单内），0 条清单外 DIFF。
+- 结论：request docks 域在当前链树上与 v2.2.7 上游 **零 delta**；唯一非 SAME 面与 #184–#188 在册载体完全重合（由 verify-closure.sh 全树 byte-identity 覆盖）。
+
+### 逐 commit crosswalk（14 条 + inbox note）
+
+| fixed upstream commit | 目标行为 | #189 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `7d0f79d2ca` | feat(app): make redesigned question dock opt-in (#59723)——question dock 重设计 opt-in 双形态 + question-state LRU 草稿缓存 | **absorbed**（vendor pin）；`newQuestionUI` 默认 false=classic 形 | `session-question-dock.tsx` thin router + `session-question-dock-{classic,experimental}.tsx` + `question-state.ts`（50-file SAME 集） |
+| `9d89512e93` | fix(app): drive pane sizing and the question dock through state machines (#61949)——question/question-switch machine + 共享 controller | **absorbed**（vendor pin） | `question-machine.test.ts`/`question-switch-machine.test.ts`/`question-controller.ts`（machine 9-file 集 115/0/375） |
+| `2b9216a002` | fix(app): settle permission replies and the session header fit through state machines (#61942)——permission-machine + model.ts machine reply effect + NotFound→reply.succeeded 计数 | **absorbed**（vendor pin） | `permission-machine.test.ts`；model.ts:244 reply effect、:249-257 NotFound 分类（探针组 1/2 重锚定锚） |
+| `e5f2dde373` | fix(app): surface exhausted auto-approve permission requests (#61584)——auto-approve-machine | **absorbed**（vendor pin） | `auto-approve-machine.test.ts`；gave-up/idle 状态 + `needsUser` |
+| `50971aedbf` | fix(app): bound MCP elicitation and auto-approve requests with explicit machines (#62111)——elicitation machine/controller + auto-approve sweep machine | **absorbed**（vendor pin） | `elicitation-machine.test.ts`/`elicitation-controller.ts`；auto-approve `dispatchSweep(sweep.start/cancel)` + `sweepLocations(signal)` |
+| `12c371e08d` | fix(app): drive the web search consent dock through one state machine (#61962)——websearch machine | **absorbed**（vendor pin）；#188 deny audit 移交本单元的 routing 在此落地（零补丁需求） | `websearch-machine.test.ts`（SAME 集） |
+| `443878def0` | fix(app): badge permission requests that auto-approve gave up on (#61736)——gave-up 徽标 | **absorbed**（vendor pin） | `auto-approve-machine.ts` `status: "gave-up"` + model.ts `needsUser` 消费（SAME 集） |
+| `bd420e0b84` | fix(app): name the MCP tool and its input in the permission dock (#60548)——permission dock 命名 | **absorbed**（vendor pin） | `session-permission-dock.tsx`（byte-identical；三决策 ghost/neutral/submit 形在册） |
+| `f73e2847ba` | fix(app): make URLs in questions, MCP prompts and errors clickable (#61514)——question 内 URL 可点 | **absorbed**（vendor pin） | dock classic/experimental byte-identical（SAME 集） |
+| `d09e2c6c8d` | feat(app): add question notifications and sounds (#60358)——question 通知与声音 | **absorbed**（vendor pin）；通知投递面归 #195 | `notification.tsx`/i18n en.ts（SAME/在册集） |
+| `53ad857b7a` | fix(app): preserve simultaneous request notifications (#60378)——并发请求通知保持 | **absorbed**（vendor pin） | 同上（SAME 集） |
+| `524afbb2bb` | fix(session-ui): show the picked question answer as a raised card (#62896)——已选答案卡 | **absorbed**（vendor pin） | `question-prompt.css`/`question-prompt-experimental.css`/`dock-prompt.tsx`（SAME 集） |
+| `bc7da10f3d` | fix(app): keep question options and submit controls reachable on mobile (#60335)——question 控件移动可达性 | **absorbed（=上游自身的 mobile fix）**：v2.2.7 已自带移动可达修复，vendored 树 byte-identical，无需移动补丁 | classic/experimental dock（SAME 集） |
+| `7ed1f96e29` | feat(app): allow selecting question answer text (#60372)——答案文本可选中 | **absorbed**（vendor pin） | question dock/css（SAME 集） |
+
+- **inbox note（a35d91bb8b，v2.2.1 pin 内既入）**：`shell/titlebar/inbox-model.ts` 的显式决策路径 `decide(entry, decision) → entry.ctx.data.session.permission.reply({…decision}).catch(requestFailed)`（v2.2.7 :450-458）由 a35d91bb8b「turn Home into a session inbox (#57281)」引入（2026-10-20，随 v2.2.1 pin 入树）。旧探针 pin `b4525d79bf` 不在该 merge 血统内（pin 晚于 a35d91bb8b），「wrapper 零 in-app caller」断言在 v2.2.1 时点已实质过期，但被探针 fail-fast 的前置断言（linear 闭集缺 auto-approve.ts）掩盖至本轮才暴露；#189 重锚定为 EXACT-SET {auto-approve.ts, shell/titlebar/inbox-model.ts}。
+
+### 行为 crosswalk
+
+- **question dock opt-in 双形态**（`7d0f79d2ca`）：thin router `settings.general.newQuestionUI()`（默认 false→classic），guards live 于 classic+experimental（各自 `sending()` 19 处、`if (sending()) return` 5/6 处、`disabled={sending()}` 9/10 处，grep 计数在案）；Esc reject 两形态均为 `const reject = form.dismiss` + `aria-keyshortcuts="Escape"`；draft 缓存 = `question-state.ts` `questionCache`（LRU 100），key = `ScopedKey.from(serverSDK.scope, untrack(input.request).id)`。
+- **permission 三决策 once/always/reject**：dock 标签↔值映射如实登记——Deny 按钮文本标签为「Deny」，其 wired decision value = `reject`；Allow Always（neutral）= `always`；Allow Once（submit）= `once`。三按钮全部 `disabled={props.responding}`（count=3），responding 态由 permission-machine `isPermissionResponding` 承载。
+- **六 machine 家族（pin 携带）**：permission（`2b9216a002`）、question/question-switch（`9d89512e93`）、auto-approve（`e5f2dde373`+`50971aedbf` sweep）、elicitation（`50971aedbf`）、websearch（`12c371e08d`）+ steer-background/question-keys（v2.2.1 既入，byte-same）。机器 9-file 测试集 **115 pass / 0 fail / 375 expect / 9 files** 恒同。
+- **NotFound 显式计数为已答复**（`2b9216a002`，v2.2.7 语义重分类）：machine reply effect 中 `isPermissionNotFoundError(error) → { type: "reply.succeeded" }`（model.ts:249-257）——他端/TUI 已答的请求计为 replied 而非失败；真实失败 → `reply.failed` 携带 `error.message`，machine toast-failed effect 呈现 `common.requestFailed`。
+- **auto-approve gave-up**（`443878def0`/`e5f2dde373`）：machine 状态 `gave-up` + `needsUser()` 让被放弃请求重新呈现给用户；sweep = `sweepLocations(signal)`（session.active ∪ 本地已知会话按 location 去重）+ machine `sweep.start/sweep.cancel` dispatch；「never loaded」残例注释逐字保留（:213-216）。
+- **tab-strip 错峰同步（v2.2.1 pin 既入，非 v2.2.1..v2.2.7 delta）**：`running` 条件化的 `permission.sync(id)/form.sync(id)` spread + `window.setTimeout(…, 300 + props.index * 50)` + `Promise.allSettled`（2141b1ba35「defer inactive-tab sync…」#57617 引入，早于 v2.2.1）；tab-strip.tsx 不在 54-DIFF 清单（v2.2.1→v2.2.7 byte-same）。旧探针的 `permission.sync(value.id)` 锚在其书写 pin（b4525d79bf，早于 2141b1ba35 merge）成立，v2.2.1 起已实质过期，被 fail-fast 掩盖至本轮重锚定（`sync(id)` + running-conditioned 形）。
+
+### deny audit
+
+- **audit-only Playwright**：`e2e/regression/session-request-docks.spec.ts` 在册 byte-identical（vendor pin），本轮未运行、不作为 Android APK 门禁（#188 同口径）。
+- **DENY（routing）** `appearance-motion-zoom`（→#197）：本轮不承载；其 pin 更新须同步 rebase `session-ui/src/components/question-prompt.css`/`message-part.css` 的载量（本轮 50-file SAME 集成员），#197 落地时按在册 targets 处理。
+- **DENY（routing）** `settings-experimental`（→settings 单元 follow-up）：本轮不承载（`experimental/experimental.tsx`、`settings/model.tsx`、`search-catalog.ts` 等 SAME 集成员由 pin 携带）。
+- **DENY（routing）** `session-goal-sources-panels`（→goal/sources 单元）：本轮不触碰。
+- **DENY（routing）** notification delivery（→#195）：question/request 通知投递面不在本轮。
+- **EXCLUDED** `#168` 范围未触碰；`packages/core|server|schema` permission 服务端语义不在 vendored closure（同 #10 传统，引 pin cache）。
+
+## Issue #190：files / diff / review crosswalk and allowlist
+
+本节是 #190 的固定上游审计（files / diff / review / Office 面），不改变冻结的 v2.2.1 文档与前序 #186–#189 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--190-files-diff-review`，分支 `feat/190-files-diff-review`，base `818b14e`（#189 链尾）。本轮 landing 是 active `files-diff-review-v2-2-7`（row 85）：v2.2.7 重 derive 四条退役 payload（rows 40/59/77/78 全部翻转 absorbed）的 files/diff/review 在册载体面。
+
+### 可复现 fixed-source 命令
+
+```bash
+# 计划期审计命令（plan §1，2026-11-14 规划轮记录）：files/diff/review/Office surface
+#   `git -C /home/peterhan/repository/opencode diff --name-status 3ebcf9a3… fedc6f20… -- <domain paths>`
+#   逐文件 byte-compare：`git rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# 计划期记录结果：426 = 247 M + 175 A + 4 D → 422 present → 422 SAME + 0 DIFF；
+#   4 条上游删除 = session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts 家族
+#   （#188 section 已核对同一家族：上游删除文件在 vendored 树 0 present）。
+# 本轮重放命令（同法、明确 19-path 口径；计划期全集 path 清单未随计划文本存档，
+#   按 #187 先例以上列可复现命令与 vendored 树的当轮重放为准）：
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/session-ui/src \
+  packages/app/src/workspaces packages/app/src/settings/workspaces \
+  packages/app/src/session/revert.ts packages/app/src/session/revert-machine.ts \
+  packages/app/src/session/revert-machine.test.ts packages/app/src/composer/submit.ts \
+  packages/app/src/runtime/server/api.ts packages/app/src/runtime/server/api.test.ts \
+  packages/app/src/runtime/platform/web.ts \
+  packages/gui-plugins/src/file packages/gui-plugins/src/review packages/gui-plugins/src/microsoft-office \
+  packages/protocol/src/groups/fs.ts packages/protocol/src/groups/vcs.ts packages/protocol/src/groups/worktree.ts \
+  packages/client/src/promise/generated/client.ts packages/client/src/promise/generated/types.ts \
+  packages/schema/src
+# 逐文件 byte-compare：`git -C <upstream> rev-parse fedc6f2:<path>` 对 `git hash-object vendor/upstream/<path>`
+# absence 负检：上列 D 条目在 vendored 树必须不存在
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（19-path 口径）**：284 entries = 146 M + 134 A + 4 D → 280 present → **277 SAME + 3 DIFF**。4 条 D = `session-ui/src/components/markdown-worker-{queue,transport}{,.test}.ts`（与计划期记录同一删除家族，vendored 树 0 present——#188 section 负检继续成立）。
+- 3 条 DIFF 全部为在册载体 hunks（与 #187 轮 `screen.tsx`、#188 轮 11 条 DIFF 同一处理方式）：`app/src/session/revert.ts`（#188 active `composer-queue-attachments-v2-2-7` 的 M-016 provenance hunk）、`app/src/workspaces/files/artifact.test.ts` 与 `session-ui/src/pierre/index.ts`（本轮 active `files-diff-review-v2-2-7` 的重 derive hunks）。其余 277 条保持 byte-identical，absorbed by vendor pin。
+- **补丁 targets 的澄清（诚实登记）**：`session-ui/src/pierre/worker.ts` 与 `app/src/runtime/platform/web.ts` 在 v2.2.1→v2.2.7 之间 byte-same（不在 diff entries 内，故不在 280 present 清单），其 vendored 形态与 pin 的差异完全来自在册 mobile 载体（#85 worker hunks；#184/#188 M-011/M-020 + #85 M-041）；`pierre/pool-strategy.ts` 为 vendored-new 文件（两个 pin 均不存在）。这三条由 `verify-closure.sh` 全树 byte-identity（V3 replay 含 #85 按序重放）覆盖，不重复计入本 allowlist。
+- 计划期审计（426 entries → 422 SAME）与本轮重放（284 entries → 277 SAME）的差额为清点口径差（计划期 path 全集更宽，含未随计划文本存档的目录面）；两类记录的 DIFF/删除归因一致，以上列可复现命令的当轮重放为准（#187「计划期 vs 当轮重放」同一先例）。
+
+### 逐 commit crosswalk（14 条）
+
+| fixed upstream commit | 目标行为 | #190 处置 | 证据/allowlist 归属 |
+|---|---|---|---|
+| `621f0ee53f` | fix(app): explicit review folder loads, render gate and narrow scroll restore (#61999)——review diff machine 族（folder/review-diff/scroll machine） | **absorbed**（vendor pin） | `gui-plugins/src/review/{machine,folder-machine,scroll-machine,render-machine}.test.ts`（baseline c 430/0 恒同集） |
+| `c9a9ac1ee8` | fix(session-ui): drive mentions, attachment media, review resize and diff mounts from machines (#62095) | **absorbed**（vendor pin） | `session-ui/src` machine 族 SAME 集 |
+| `c293e53511` | fix(session-ui): drive the Pierre viewer render lifecycle with one state machine (#61938)——viewer render machine 自持 pool fallback | **absorbed**（vendor pin）；#85 不再重 derive file.tsx createPoolReady hunk（superseded，render-machine.test.ts:116-141 行为级锁定） | `session-ui/src/pierre/render-machine{,.test}.ts`；baseline (b) 27/0 恒同 |
+| `fe19d9b799` | fix(session-ui): drive file media, find, sources expand and markdown parse jobs through state machines (#61980) | **absorbed**（vendor pin） | `session-ui/src` SAME 集 |
+| `5ea5c5e610` | fix(gui-plugins): drive the Pierre file tree through one state machine (#61954) | **absorbed**（vendor pin）；row 78 fill chain 的 native 基础（`packages/ui/src/styles/file-tree.css:15-27` `:has(> file-tree-container)`）在此形态内 | `gui-plugins/src/file/pierre-tree{,.test}.tsx`（baseline c SAME 集） |
+| `118d967743` | fix(gui-plugins): make file view scroll, Git init and Open in app explicit state machines (#62018) | **absorbed**（vendor pin） | `gui-plugins/src/file` SAME 集 |
+| `91202e6faf` | fix(session-ui): render partial diffs when review expand mode is on (#62241) | **absorbed**（vendor pin） | `session-ui/src/v2/components` SAME 集 |
+| `e23d54ca75` | fix(app): show Open in only in file and review headers (#62174) | **absorbed**（vendor pin）；OpenInApp contract gate 由 verify-diff 组 6 锚定 | `gui-plugins/src/review/panel.tsx`、`file/renderer.tsx`（SAME 集） |
+| `b8a9e8a73f` | fix(app): show load failures in review previews, details changes, file search and Word pages (#62114)——review diff machine 失败态 + retryDetails | **absorbed**（vendor pin）；verify-diff 组 1 的 details retry 锚即此形态 | `gui-plugins/src/review/model.ts`（SAME 集） |
+| `47cace689a` | fix(app): make settings account holds, worktree delete check, extension lists and picker cache explicit machines (#62103)——workspace delete machine（canDelete preflight gate + force 链） | **absorbed**（vendor pin）；verify-diff 组 3 重锚定锚（`canDelete: state.preflight.status === "ready"` + `start({ force: true })`） | `app/src/settings/workspaces/delete-machine{,.test}.ts`（SAME 集） |
+| `6469454d35` | fix(app): show failed and offline review diffs instead of a clean tree (#61862) | **absorbed**（vendor pin） | review diff machine offline/failure context（SAME 集） |
+| `602725f572` / `331a3b9c7f` / `d22f9b8eb3` | fix(session-ui): file line selection / focused review comment reveal / line comment drafts in explicit state machines (#61933/#61819/#61816) | **absorbed**（vendor pin） | `session-ui/src/pierre/selection-machine{,.test}.ts` 等（baseline b 27/0 恒同集） |
+| `c777f9a24e` / `e42ac691d5` | fix(app): reread a workspace file changed during its read (#61818) / reload a file tree directory changed during its listing (#61814) | **absorbed**（vendor pin）；files watcher 面 pin 携带（`server.connected` 重订阅、filesystem.changed 订阅） | `app/src/workspaces/files/{watcher,content-machine,tree-machine}.test.ts`（baseline a SAME 集） |
+| `66c278b559` | fix(session-ui): compute highlight styles once per subtree in Chromium (#60513) | **absorbed**（vendor pin）；#85 的 shiki-js 引擎 + pierre 内置主题对适配与其正交（引擎选择是 WebView wasm 面，不是样式计算面） | `session-ui/src/pierre/index.ts`（DIFF = #85 在册载体） |
+
+### deny audit
+
+- **DENY（routing）** `gui-plugins-api-migration`（@pierre/trees beta.6 基线族）不是 #190 的 payload：其 beta.6 baseline 锚由 `verify-pierre-webview-compat` dependency-baseline 测试与 verify-files 组 10 继续锁定，本轮零改动；#190 注册 reason 不承载该 patch 的 targets。
+- **DENY（routing）** `session-workbench-upstream` overlap：其与 review/files 面的重叠 hunks 已随前序轮 absorbed（#188 已核对 session-workbench 面），本轮不重复登记、不翻转。
+- **ALLOW（audit-only）** `packages/app/e2e` specs：作为 fixed-source 审计面 byte-identical 登记，**不作为 Android 运行门禁**（Playwright 不是 Android APK 硬门禁）；本轮未运行 e2e。
+- **EXCLUDED** `packages/core|server` vcs/fs 服务端实现不在 vendored closure（同 #12 probe 传统，从 pin cache 引证，不在本 probe 断言内）；`#168` 范围未触碰。
+
+## Issue #191：terminal / PTY crosswalk and allowlist
+
+本节是 #191 的固定上游审计（terminal / persistent-PTY 面），不改变冻结的 v2.2.1 文档与前序 #186–#190 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--191-terminal-pty`，分支 `feat/191-terminal-pty`，base `018a60a`（#190 链尾）。本轮 landing 方式 = **纯静态轮（零新 mobile patch、零 vendor delta）**：terminal surface 全部 byte-identical 于 v2.2.7 pin（v2.2.1→v2.2.7 的 persistent-PTY 重组 **absorbed by vendor pin**），交付物为 `verify-terminal` 探针的 v2.2.7 全量重锚定（issue #13 的旧 pty 面探针退役、persistent-PTY 面新锚 + 6 条 in-memory 负注入 drill）+ `docs/design/units/terminal.md` 重写为 persistent-PTY 契约；`patches:refresh` 未运行（登记面零改动），registry 保持 **85 registered / 7 active / 33 absorbed / 45 deferred** 不变。
+
+### 可复现 fixed-source 命令
+
+```bash
+# terminal / persistent-PTY surface（9-path 口径，2026-11-14 本轮重放）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/gui-plugins/src/terminal \
+  packages/client/src/solid/pty.ts \
+  packages/client/test/solid-pty-protocol.test.ts \
+  packages/client/test/solid-pty.test.ts \
+  packages/protocol/src/groups/persistent-pty.ts \
+  packages/protocol/src/groups/pty.ts \
+  packages/protocol/src/errors.ts \
+  packages/schema/src/persistent-pty.ts \
+  packages/app/e2e/utils/persistent-pty.ts
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；absence 负检：上列 4 条 D
+#   （gui-plugins/src/terminal/{serialize,state}{,.test}.ts）在 vendored 树必须 0 present
+#   （上游删除家族，同 #188/#190 markdown-worker 先例）。
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（9-path 口径）**：**106 entries = 22 A + 4 D + 80 M → 102 present → 102 SAME + 0 DIFF（vendored 0 absent）**。4 条 D = `gui-plugins/src/terminal/{serialize,state}{,.test}.ts`（客户端序列化快照家族：上游删除，vendored 树 0 present——客户端持久快照被服务端 snapshot/checkpoint 取代）。
+- **terminal surface DIFF = 0 vs pristine**：全部 102 条 present（含 `client/test/solid-pty{,-protocol}.test.ts`、`app/e2e/utils/persistent-pty.ts` 审计面）逐文件 `git rev-parse fedc6f2:<path>` ≡ `git hash-object vendor/upstream/<path>`；零 mobile 载体 hunks、零 vendored-new——终端面本轮**纯吸收**（对比 #190 轮 3 DIFF 在册载体形态）。
+- `packages/protocol/src/groups/pty.ts`（旧 pty 协议组）在两 pin 之间 byte-same（0-entry 路径入 9-path 集作**退役面记录**）；`client/src/solid/{data,index}.ts`、`schema/src/{pty,pty-ticket}.ts` 同为 byte-same 不入集。
+
+### commit crosswalk（上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体（vendored 形态） |
+| --- | --- | --- | --- |
+| `067b741783`（2026-10-29，#60323） | refactor(client): share the persistent pty protocol | **absorbed**（vendor pin） | `client/src/solid/pty.ts` 协议共享面（PersistentPtyMessage 7 变体 + persistentPtyFrame 5 字节帧 + createPersistentPtyClient）+ `client/test/solid-pty-protocol.test.ts` 新增（SAME 集） |
+| `a070e11643`（2026-10-29，#60327） | test(app): mock persistent pty routes | **absorbed**（vendor pin） | `app/e2e/utils/persistent-pty.ts` 新增（SAME 集；e2e audit-only，不作为 Android 门禁） |
+| `ef712d3a78`（2026-10-30，#60346） | feat(app): move the desktop terminal to persistent PTYs | **absorbed**（vendor pin） | terminal UI 整体迁移：`terminal/{terminal,model,panel,renderer,tab}.tsx(x)` 重写、`{serialize,state}{,.test}.ts` 删除（4 D）、`connection.ts`+`connection.test.ts` 新增；e2e `terminal{,-input,-focus}` spec 重排（e2e-only） |
+| `65c0d83f4d`（2026-10-30，#60329） | feat(core): rename persistent terminals | **absorbed**（vendor pin） | rename + 501 面：`protocol/src/groups/persistent-pty.ts` update 描述（"Renaming fails with 501…"）+ `errors.ts` `PtyFeatureUnsupportedError`（httpApiStatus 501）+ `schema/src/persistent-pty.ts` |
+| machine family（`0c441474bd`/`8f3f7b74c9`/`fff729917e`/`ee6b87031c`/`5e76d6a9b1`/`2a9c54c04f`，2026-11-04/05，#61650/#61847/#61852/#61940/#61941/#62004） | 终端面状态机化（server-list machine / surface remount / focus+rename / connection-machine / pane-machine / dispatch+quote-machine） | **absorbed**（vendor pin） | 22 A 中 18 条 machine/props 文件（machine/surface/focus/rename/pane/connection/quote 六 machine 族 + dispatch + inline-rename + props）+ machine.ts 的 stale-answer 拒绝/failed-list retry 链（SAME 集） |
+
+### 行为 crosswalk
+
+- **persistent-PTY 协议面**（`067b741783`）：`PersistentPtyMessage` 7 变体（attached/replay_complete/resized/controller_changed/exited/title_changed/foreground_process_changed）；`persistentPtyFrame` 二进制帧 = byte0（data?1:0）+ u16BE cols + u16BE rows + payload@5；`createPersistentPtyClient`：ticket header `x-opencode-ticket: "1"`、ws 路径 `api/experimental/persistent-pty/:ptyID/connect`、query `cursor`/`attachment_id`/`takeover`/`input_protocol`、`binaryType="arraybuffer"`、`openSocket?` 注入 seam。旧 `pty` 协议组在 `protocol/src/groups/pty.ts:9-12` 逐字存活为退役面（常量由 persistent-pty 组 re-export）——决策：**保留为退役面记录**（探针组 1 断言常量，旧端点描述退役）。
+- **snapshot/cursor/takeover connect**（`ef712d3a78`）：connect 链 = `persistentPty.snapshot({ptyID})` → `connection.restore({size: snapshot.info.size, checkpoint: snapshot.checkpoint})` → `createPersistentPtyClient(...).connect({ptyID, cursor: snapshot.info.output.tail, attachmentID, takeover: true})`——快照先恢复屏幕、cursor=服务端 output.tail、takeover 显式接管；`inputProtocol !== 1` → `outdated` 分类（serverOutdated 文案）。
+- **rename + 501**（`65c0d83f4d`）：`persistentPty.update({ptyID, title})`（null 清除恢复 shell 标题）；`PtyFeatureUnsupportedError`（501）→ `rename.failed kind:"unsupported"` → `toast-rename-failed` → `rename.unsupported` toast（en 逐字"Terminal renaming will be available after OpenCode's terminal service restarts"）；socket `title_changed` 消息被 connection machine **刻意忽略**（connection-machine.test「ignores what changes nothing」在册），标题经 `persistent-pty.updated` 事件 → `terminal.updated` 分发到达 UI。
+- **never-reconnects**（machine family）：connection-machine.ts:19 逐字「One WebSocket attachment to a persistent PTY. It never reconnects: after a failure the surface mounts a new terminal with a new attachment and a new state.」——旧退避重连/探活 clone 家族整体退役；恢复 = surface-machine remount（missing → issued+1 → mounted；failed mount 在更新的 server connection 列表后恰重挂一次）+ failed-list retry（panel retry 按钮 → model `session.retry` → 仅 failed 列表可重试）+ stale 拒绝（list attempt 守卫 + rename attempt 守卫）。
+- **disconnect 红线（v2.2.7 形态）**：terminal.tsx 零 `persistentPty.remove`/`kill(`；`close(1000)` 恰 2 处（stop() 在途 socket + aborted-connect；**旧 pin 计 3 → 本 pin 计 2 的回落如实登记**——onCleanup persist-close 随 persistTerminal 退役）；cleanup = `connection.dispose()` + `dispatch({type:"disposed"})`（dispose-only，零持久化零终止）；`persistentPty.remove` 全域恰 {model.ts close-terminal}（close.requested 单入口 + `isPtyNotFoundError → close.succeeded` 吞错配对——已退出终端的 close 不算失败）。
+- **mobile face**（上游原生）：`frame.placement() === "mobile"` 分支（panel.tsx:40）+ 移动 Panel 注册 order 30/kind menu/icon terminal（renderer.tsx:230-238）+ session.panel 菜单 order 20（renderer.tsx:155-171）+ mod+w close 命令 presence（face，非调用集）；queue-resize 效应（connection-machine 3 处发射 + connection.ts writer 排序含 `\x1bc` reset + base64 checkpoint）+ pane-machine 100ms debounce/seq 守卫/首测即用/pendingInput 顺序冲刷；en+zh 终端 i18n 键（loading/close/tab.title/command.new 宽容键型）；终端目录 visualViewport 零命中记录（app 壳软键盘锚归 verify-interaction-quality，其组 3 断言 stale-on-v2.2.7 待自身重锚）。
+
+### deny audit
+
+- **DENY（deny replay）** `session-workbench-upstream`（absorbed）terminal sections：其 v2.2.1 目标集不含 gui-plugins/terminal 生产路径；上游终端 e2e（`terminal-input.spec.ts`/`terminal-focus.spec.ts` 删除 → `terminal.spec.ts`/`component-tests/terminal.spec.ts` 新增，`ef712d3a78`）为 **e2e-only old/new-shape**——旧形 spec 不入 vendored 回放（deny replay），新形 spec 为 audit-only（Playwright 不是 Android APK 硬门禁，本轮未运行）。
+- **DENY（routing）** `gui-plugins-api-migration`（deferred）：targets 逐条核对**零 terminal 目标**（无 `gui-plugins/src/terminal/**`）——本轮不触碰，owner 不变。
+- **DENY（routing）** `ghostty-web` 升级/替换 payload → `#199`（依赖升级类，同 #190 deny audit 口径）：本轮不触碰；vendored `ghostty-web@0.3.0` 由 build-dependency closure 承载（`Ghostty.load()` 加载面归 G24①）。
+- **EXCLUDED / zero-touch** `app-ssh-bridge`（absorbed）：targets 恰 {`entry.tsx`}，终端面零触碰（SSH 隧道 ws 帧透传论证沿 units/terminal.md 专节）；`packages/core|server` persistent-pty 服务端实现（daemon/checkpoint/ticket 语义）不在 vendored closure（从 pin cache 引证，不在探针断言内）。
+
+## Issue #192：provider / model / usage crosswalk and absorption audit
+
+本节是 #192 的固定上游审计（provider 连接流 / 模型选择器 / usage 面的 v2.2.7 吸收核对），不改变冻结的 v2.2.1 文档与前序 #186–#191 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--192-provider-model-usage`，分支 `feat/192-provider-model-usage`，base `ad88e80`（#191 链尾）。本轮 landing = **agent-selector 重基（唯一幸存 mobile delta，#86 patch）+ verify-provider-models v2.2.7 连接状态机面全量重锚定（33 条 old→new）+ rows 65/69/71 翻转 absorbed**；registry **86 registered / 8 active / 36 absorbed / 42 deferred**。
+
+### 可复现 fixed-source 命令
+
+```bash
+# provider/model/usage target surface（2026-11-14 本轮重放）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/providers packages/app/src/usage \
+  packages/app/src/session/usage-exceeded-dialogs.tsx \
+  packages/schema/src packages/protocol/src packages/client/src
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；post-#192 差异恰为 #86 载体 3 文件。
+# blob-ancestry：`git -C <upstream> rev-parse <b-side-blob>^{blob}` +
+#   `git log --all --find-object=<blob> --oneline`（rows 69/71 处置证据）。
+```
+
+### 审计数字（2026-11-14 本轮可复现重放）
+
+- **本轮重放（target surface 口径）**：**85 entries = 30 A + 50 M + 2 D + R061/R071/R087（62 commits 触及）→ 83 present → 82 SAME + 1 DIFF（selection.tsx = #86 在册载体）+ 2 absent（D）**。口径注记：计划期记录「74 commits / 45 files 39M+8A+2D/R+1R071」为 plan-review 范围口径，本轮以本节命令实测为准——两口径的结论一致（见下）。
+- **base（ad88e80）target-area DIFF = 0**：83 条 present 逐文件 byte-compare 全 SAME（reviewer 在册事实，本轮 byte-compare 复核一致）——v2.2.1→v2.2.7 的 provider/usage 重组 **absorbed by vendor pin**。post-#192 与 pin 的差异恰为 `providers-models-usage-v2-2-7` 的 3 targets（agent.ts / agent.test.ts / selection.tsx——前两者两 tag 间 byte-same、不入 tag-diff 集）。
+- 验证面：13-file vendor provider/usage 集（双条件形）**136 pass / 0 fail / 389 expect**（c0 133/0/385 + agent.test +3 用例）；verify-provider-models 重锚定后 **rc=0**（fourPkgFiles=2204 / domainFiles=72 / osScanFiles=72）；mobile-hosts **446/0/3034**、session-ui 9-file **139/0/436** 恒同。
+
+### commit crosswalk（上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体（vendored 形态） |
+| --- | --- | --- | --- |
+| `eb06c3cfd2`（#59976） | feat(app): redesign the integrations dialog | **absorbed**（vendor pin） | connect/dialog.tsx 集成对话框重设计 origin（b-side 28b2830b 的前身） |
+| `d9d3548548`（#60200） | fix(app): match search dialog radius and background | **absorbed**（vendor pin） | connect/dialog.tsx b-side blob `28b2830b` 引入者（present SAME） |
+| `c8746a1c14`（#58238） | refactor(app): remove unused re-exports, dead helpers, internal-only exports | **absorbed**（vendor pin） | go-upsell-hero-art.ts `HeroPalette` unexport / controller 导出清理 origin |
+| `8505041881`（#60603） | feat(app): guide Claude Agent setup before connecting | **absorbed**（vendor pin） | connect/controller.ts b-side blob `22e3c74e` 引入者 + **claude.replace 凭据移除面**（探针 G1 remove 集第三站点） |
+| `5f0d45c779`（#61998） | fix(app): drive the Go hero loop, model picker flyout and drawer… through state machines | **absorbed**（vendor pin） | go-upsell-hero-machine.ts + models/select-dialog-machine.ts 新增；go-upsell-hero-art.ts b-side blob `a19c515d` 引入者 |
+| `404259b212`（#61929） | fix(app): drive model selection through one workspace state machine | **absorbed**（vendor pin） | models/selection-machine.ts 新增 + selection.tsx per-workspace opener（探针 G2/G5 重锚目标） |
+| `6eb22e77b7`（#61974） | fix(app): drive usage, worktree delete, MCP toggles and the QR scanner through state machines | **absorbed**（vendor pin） | usage/machine.ts + connect/mcp-machine.ts 新增 |
+| `b9e8b04d21`（#61917） | fix(app): drive the connect-provider dialog and Console catalog wait with explicit state machines | **absorbed**（vendor pin） | connect/dialog-machine.ts 新增（`CONSOLE_INTEGRATION="opencode"` 现址） |
+| `7f24020fb2`（#61610） | fix(app): drive provider connection from an explicit state machine | **absorbed**（vendor pin） | connect/machine.ts 新增（connectMethods「Same order as the TUI」:165-170、tagged cancel 效应、command signIn 状态现址） |
+| `f39aa60608`（#62102） | fix(app): recover MCP sign-in and provider form steps that could get stuck | **absorbed**（vendor pin） | connect/form-machine.ts 新增（providerFormDefaults 行为测试现址；connect-methods.test.ts 的取代面） |
+| `e42f6d1016`（#58694） | feat(core): read OpenCode Console usage limits and classify budget refusals | **absorbed**（vendor pin） | **schema/src/usage-limits.ts blob `c8b6566`（76 行）引入者**——blob-ancestry 修正：非 `3eb834b85a`（后者 #57897 触碰 `packages/tui/src/util/usage-limits.ts`） |
+| `33ffc3e58d`（#58714） | feat(app): show Console budgets and Go usage where they stop you | **absorbed**（vendor pin） | usage/**（dialog/format/limits/model）+ usage-exceeded 面 origin；usage-limits schema 同 blob 在册 |
+| `3eb834b85a`（#57897） | fix: type the Go and ChatGPT usage limits | **negative attribution（修正）** | 仅触及 `packages/tui/src/util/usage-limits.ts`；app schema blob 引入者为其后继 e42f6d1016/33ffc3e58d——本轮 audit record 纠正该归因 |
+
+### rows 69/71 blob-ancestry 处置表（翻转 absorbed 的证据）
+
+| row | b-side blob 判定（逐 target，`git rev-parse 3ebcf9a3:<path>` 对照） |
+| --- | --- |
+| 69 `provider-connect-flow-redesign` | chatgpt-usage-limit.stories.tsx（233bff92）与 chatgpt-welcome.stories.tsx（679f2a17）**byte-identical 于 pristine pin**；controller.ts（22e3c74e）/ dialog.tsx（28b2830b）/ dialog.stories.tsx（fecb69ce）/ go-upsell-hero-art.ts（a19c515d）**== v2.2.1 目标树 blob** 且 v2.2.7 演进面在册（行为概念 native 于 machine/dialog-machine/form-machine/mcp-machine/go-upsell-hero-machine 族）；credentials/ 三件**两 tag 均缺席**；connect-methods.test.ts（mobile 自创 d88ff605，两 tag 均无）**superseded**（form-machine.test.ts 默认值覆盖）；en.ts b-side 为 mobile i18n delta——25 键中 24 键 byte-identical 重落于 v2.2.7 en.ts，`dialog.provider.group.mcp` design-superseded（v2.2.7 将 MCP 移出 connect 流——dialog.tsx 过滤 `metadata.source !== "mcp"`，**MCP sign-in UI 面路由 #193**；计划期「3 i18n keys design-superseded」口径按本轮实测 1 键修正登记） |
+| 71 `model-selector-usage-parity` | 11 条 new-file b-side 全部为上游内容：8 条 **byte-identical 于 pristine pin**（details.tsx bb84cf6 / usage/dialog.css a36d458 / usage/format.ts c8c101a / usage/limits.test.ts 833c3b9 / usage/limits.ts aba16c1 / usage/model.tsx 33c2a28 / protocol/groups/usage.ts 5c0528d / schema/usage-limits.ts c8b6566）+ 3 条 == v2.2.1 目标树（manage.css 3e2f97e / usage/dialog.stories.tsx f09f75a / usage/dialog.tsx bb94788，v2.2.7 演进面在册——usage/dialog.tsx:103/147-151 原生 signed-out 分支即本 pin 现形）；全部 modified-file b-side == v2.2.1 目标 blob（manage/provider-group/search/select-dialog 族/unpaid 族/usage-exceeded-dialogs）；generated client.ts/types.ts/data.ts/api.ts b-side 两 tag 均无——由 v2.2.7 pin 自有 usage-limits 闭合承载（vendored client/protocol/schema 面 byte-identical 于 pristine）；en.ts 86 键全部 native 重落；v2.2.7 另增 select-dialog-machine / selection-machine / usage-machine |
+| 65 `session-agent-selector` | agent.ts b-side `c97ec4f` **无上游祖先（mobile delta）**；selection.tsx b-side `b3c9b69` 基于旧 v2.2.1 邻域（`store.current` 回退形）——payload 由 **#86 `providers-models-usage-v2-2-7` 重 derive 承载**（v2.2.7 形态重基：`desktopAgentsVisible` 拆分 + `list()[0]?.name` 回退门控 + android-host import）；历史 payload 与语义 ID 保留 |
+
+### agent-selector 重基记录（#86）
+
+- 重基点：v2.2.7 selection.tsx:337 `agentsVisible = settings.visibility.customAgents() || hasCustomAgent(list())`（desktop 语义，无 Android 感知）拆分为 `desktopAgentsVisible`（原表达式）+ `agentsVisible = shouldShowAgentSelector({android: isAndroidMobileHost(), preference: …, agents: list()})`；v2.2.7:428 的默认 agent 回退已从旧 payload 的 `store.current` 变为 `list()[0]?.name`——`current()` 门控对象改为 `desktopAgentsVisible()`，回退形保持 v2.2.7 原样。
+- import 依赖：`isAndroidMobileHost()` 来自 `@/settings/servers/android-host`（`server-edit-touch-compatibility` 在册模块；导出名已核验）→ manifest `dependsOn: ["server-edit-touch-compatibility"]`（validator 支持：依赖必须 active 且序位在前）。
+- 测试：pristine `agent.test.ts`（v2.2.7 上游已有）追加 3 条第一方用例（android=true → 可见；desktop 无偏好且无 custom → 隐藏；custom agent 在场 → 恒可见）——#185 fade.test.ts / #187 panel-motion.test.ts via-patch 回归测试先例。
+
+### deny audit
+
+- **DENY（routing）** **MCP sign-in UI 面 → #193**：v2.2.7 将 MCP 移出 connect 流——connect/dialog.tsx:247-253 过滤 `metadata.source !== "mcp"`（注释逐字「MCP servers are connected and managed from the MCP dialog, not here.」）；provider-connect-flow-redesign（row 69）历史 payload 中的 MCP picker 分组/`dialog.provider.group.mcp` 键不重 derive；MCP 连接/管理 UI 的移动适配归 issue #193。
+- **DENY（ai fixes）** row 69/71 与 ai 包相关修复 **pin-carried，不重实现**：vendored `packages/ai` 为 pin 形（verify-closure byte-identity 在册）；mobile-hosts 全域 `@opencode/ai` import 零命中（探针组 6 rc=0 在册）——无移动侧 ai 载体 hunks。
+- **DENY（routing）** `settings-providers-models-extensions`（row 47，deferred）：targets 中 provider 侧（`providers/connect/mcp.ts` mcp.connect/disconnect 命名 hunk、`settings/providers|models` 目标形）已被 pin 吸收或属 #86/#193 范围——provider-side targets absorbed by pin；其余 targets（extension/plugins 面）**路由 #193**，本轮不触碰。
+- **DENY（routing）** `gui-plugins-api-migration`（row 37，deferred）：provider/connect 相邻 targets（`providers/connect/remote.test.ts`）属 pin 吸收面；本体（extension/plugin API 迁移）**路由 #193**，本轮零触碰。
+- **EXCLUDED** 真实凭据链/设备面：no-credential 态 = v2.2.7 原生 `usage/dialog.tsx:103`（`limits === null → { kind: "signed-out" }`）+ :147-151 signed-out 分支（`usage.signedOut.title/body`）——**native，非移动补丁**；真实凭据链与设备走查 BLOCKED 边界原样保留（解除条件=真实凭据 / 授权设备）。
+
+## Issue #193：settings crosswalk and absorption audit
+
+本节是 #193 的固定上游审计（settings 域的 v2.2.7 吸收核对 + 移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#192 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--193-settings`，分支 `feat/193-settings`，base `eb1fc20`（#192 链尾）。本轮 landing = **consolidated active patch `settings-v2-2-7`（19 targets：W1 MobileHostManager servers-tab mount（M-008）、W2 SettingsAddServerMenu N12 face（WSL disabled row + 350ms-guarded Add-SSH item）、W3 gui-extensions root tab + first-party ExtensionManager + plugin-host disabled union（M-026/M-044/M-052/M-025）、W4 mobile SSH row-menu adapter（runtime connect/retry/remove/confirmHostKey）、W5 M-035 zoom catalog deviation（S42）、W6 keyed-server-entry/settings-search-plugin/route.test 测试重 derive）+ settings 域六探针 v2.2.7 重锚定（verify-settings-framework / verify-experimental-settings / verify-interface-mode / verify-appearance-settings / verify-pinch-shell-settings / verify-agent-capabilities）**；registry **87 registered / 9 active / 54 absorbed / 24 deferred**（18 rows 翻转 absorbed + row 87 注册 active）。
+
+### 可复现 fixed-source 命令
+
+```bash
+# settings 域 target surface（v2.2.1→v2.2.7 全量 diff 的 settings 子集）
+git -C /home/peterhan/repository/opencode diff --name-status --find-renames \
+  3ebcf9a32c7b28f658cfee80775448929361727a fedc6f208aa2bd54c1019227214568083f6380ad -- \
+  packages/app/src/settings packages/app/src/servers \
+  packages/app/src/shell/commands/desktop-menu.ts packages/app/src/shell/commands/command.tsx \
+  packages/app/src/runtime/plugin/root.tsx packages/app/src/runtime/plugin/servers.tsx \
+  packages/app/src/runtime/platform/platform.tsx packages/app/src/runtime/platform/web.ts \
+  packages/app/src/settings/general/controllers.ts packages/ui/src/motion packages/ui/src/styles/tailwind/index.css
+# 逐文件 byte-compare：`git -C /home/peterhan/repository/opencode rev-parse fedc6f2:<path>`
+#   对 `git hash-object vendor/upstream/<path>`；post-#193 差异恰为 settings-v2-2-7 的 19 targets。
+```
+
+### 审计数字（104 unique targets 的精确定义）
+
+- **集合定义**：104 unique targets = 18 条 deferred settings-family rows 在 `eb1fc20` manifest 中的 targets 并集（42 条 deferred 时的登记面）+ `appearance-motion-zoom`（39 targets，settings 域子集）——去重后（`en.ts`/`search-catalog.ts`/`search-results.test.ts`/`settings.css` 等跨 row 共享文件只计一次）恰 **104 个唯一文件**。逐文件三分类：
+  - **84 SAME**：vendored（post-rebase）文件与上游 `fedc6f208a` blob 逐字节相同（`git hash-object` 相等）——吸收由 vendor pin 承载，无 carrier patch。
+  - **9 DIFF**：vendored 文件 ≠ 上游 blob，差异恰为 `settings-v2-2-7` 在册 hunk（W1–W6 的 19 targets 中落在该 104 集合内的 9 个：`shell.tsx`、`add-menu.tsx`、`row-menu.tsx`、`plugin/root.tsx`、`plugin/servers.tsx`、`route.ts`、`pages.ts`、`search-catalog.ts`、`search-results.test.ts`——其余 10 个 patch targets 为新增文件/测试（`mobile-ssh.tsx(+test)`、`add-menu.test.tsx`、`keyed-server-entry.test.tsx`、`settings-search-plugin.test.tsx`、`servers-page.test.tsx` 增量、`servers.tsx` 增量、`route.test.ts` 增量、en/zh i18n 键），不在 v2.2.1→v2.2.7 diff 集合内故不入 104）。
+  - **11 MISSING**：v2.2.1 目标文件在 v2.2.7 上游已删除/改名（例如 `providers/connect/mcp.ts`→`mcp.tsx`、`runtime/extension/*`→`runtime/plugin/*` 旧名残留、`settings/search-reveal.test.ts`/`surface.test.ts`/`palette.test.ts` 上游退役、`settings/mobile.tsx` 移除）——目标面消失 = 吸收的极端形（pin 无此文件，mobile delta 无处重放；其语义由现存后继文件承载，逐条归并入探针重锚定记录）。
+- **结论**：84/104 SAME + 9 DIFF（全部在册 carrier）+ 11 MISSING（目标面退役）= settings 域 v2.2.1→v2.2.7 重组 **absorbed by vendor pin，无未承载 mobile delta**。
+
+### per-patch verdict 表（18 flips + settings-ssh-entry-guard disposition）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 8 | `settings-mobile-host-manager` | deferred→absorbed | W1：MobileHostManager lazy mount 为 `settings-v2-2-7` servers-tab first-child（verify-settings-framework 组 1 正锚 + I1 负注入）；上游无此面，载体在册 |
+| 18 | `settings-ssh-entry-guard` | deferred→absorbed | **disposition：redirect 半 obsolete**（`settingsViewRedirect` root-tab 重定向由目标结构吸收——servers 组无条件在 nav，root tab 永不被重定向，settings.md 壳契约在册）；**entry 半 overlaps W1**（servers tab 入口即 W1 mount）——payload 不重 derive，语义由 W1 + 目标 redirect 表承载 |
+| 25 | `gui-plugins-disabled-merge` | deferred→absorbed | W3：`createExtensionDisabled` disabled union 在 `plugin/root.tsx:83` 在册（`mobileDisabled = bridge ? undefined : createExtensionDisabled(window.localStorage)`）；agent-capabilities 组 3 正锚 |
+| 26 | `settings-mobile-gui-plugins` | deferred→absorbed | W3：gui-extensions root tab（M-044）+ `mobileGuiExtensions` predicate/redirect guard/Tabs.Content mount（M-026）+ en 9 键 guiExtensions family + zh 全块 |
+| 33 | `settings-interface-mode` | deferred→absorbed | v2.2.7 pin 原生携带三值 tabLayout/interface-mode.tsx（七 targets 全部 pin 形——`InterfaceModeSetting` 移入 General list、four-key i18n、fixed-card CSS）；verify-interface-mode 重锚定 rc=0 |
+| 34 | `settings-experimental` | deferred→absorbed | v2.2.7 pin 原生携带十四 targets（newIcons/foldUserMessages schema+rows、42+71 icon 表、createDisclosure fold 链、e2e/stories 两条 in-set 例外）；verify-experimental-settings 重锚定 rc=0 |
+| 41 | `settings-framework-dependencies` | deferred→absorbed | 八 targets（sidebar-toggle/sidebar-peek/servers-registry label/ui slash+css+export）全部 pin 原生（framework shell 依赖闭合） |
+| 42 | `settings-framework-migration` | deferred→absorbed | 37 targets 全部 pin 原生（单一 RootSettings、surface search attach/sync、route view 模型、catalog/rank 两参形、switcher/unavailable、health machine retry dispatch）；verify-settings-framework 重锚定 rc=0 |
+| 43 | `settings-framework-mobile` | deferred→absorbed | 七 targets：shell/route/pages/search-catalog 的 mobile 剪除面为 pin 自有（M-044 语义归 W3 重 derive）；keyed/settings-search-plugin 测试重 derive 归 W6 |
+| 44 | `settings-servers-migration` | deferred→absorbed | 六 targets（servers.tsx/row.tsx/general.tsx ShellSetting action/redeem/persistence test）全部 pin 原生；verify-pinch-shell-settings 组 2 重锚定（serverPagesConnection 门）在册 |
+| 45 | `settings-general-experimental-migration` | deferred→absorbed | 16 targets 全部 pin 原生（general.tsx 目标行、backgroundActivity/timelineWidth schema+token、mobileTitlebarPosition）；verify-appearance-settings 组 1 重锚定在册 |
+| 47 | `settings-providers-models-extensions` | deferred→absorbed | 九 targets 全部 pin 原生（providers/models/extensions 页目标形、extensions.tsx 数据层 sync/list、mcp-dialog 目标形、mcp.ts→mcp.tsx 改名吸收）；agent-capabilities 组 1/5 重锚定在册；#192 routing note 履行完毕（见 routing 表） |
+| 48 | `settings-workspaces-migration` | deferred→absorbed | 三 targets（workspaces/projects/project）全部 pin 原生；#106/#147 历史记录继续适用 |
+| 49 | `settings-notifications-migration` | deferred→absorbed | 四 targets（notifications 页/sound.ts）全部 pin 原生；settings-notification-permission Android 权限面 hunks 保持 deferred（routing 表） |
+| 50 | `settings-keybinds-command-catalog` | deferred→absorbed | 九 targets（keybinds/command/ui button）全部 pin 原生；command.test 在 focused settings 套件 84/0 在册 |
+| 51 | `settings-gui-plugins-tab-label` | deferred→absorbed | 六 targets：标签歧义键由 pin 自有（"GUI extensions"/"GUI 扩展" 在 v2.2.7 en/zh），测试回归锁由 W6 route.test 重 derive |
+| 55 | `settings-server-menu` | deferred→absorbed | W2/W4：add-menu WSL disabled row + 350ms-guarded Add-SSH item（M-045 语义重 derive）、mobile-ssh.tsx row-menu adapter（W4）+ android-host 保留（inherited row 80 继续独立重放）；16 targets 中其余由 pin 原生（servers-page.test 复用形） |
+| 76 | `settings-ssh-row-runtime-actions` | deferred→absorbed | W4：mobile-ssh row-menu adapter 驱动 runtime connect/retry/remove/confirmHostKey（T1/T10/T14 由 mobile-ssh.test.tsx 8/0 在册证明；credentials memory-only）——payload 由 `settings-v2-2-7` 重 derive 承载 |
+
+### upstream coverage 表（关键上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `1341387981`（#60162） | feat(app): align searchable dialogs | **absorbed**（vendor pin） | SearchList/searchable-dialog 对齐原生在册（verify-settings-framework 组 5 SearchList/Slash 形） |
+| `d9d3548548`（#60200） | fix(app): match search dialog radius and background | **absorbed**（vendor pin） | search-list 半径/背景面原生（#192 段已在册的 dialog 面同源） |
+| `83e3999996`（#60221） | feat(app): group added projects in settings | **absorbed**（vendor pin） | settings projects 分组（sidebarOrganize 投影分组——verify-interface-mode 组 2 重锚定的 `tabLayout() === "vertical"` 唯一原生残留即此面） |
+| `825167351e`（#60046） | fix(app): keep sidebar search muted on hover and show its shortcut | **absorbed**（vendor pin） | sidebar search hover/shortcut 原生 |
+| `cd6551f9a0`（#52356） | feat(app): copy version from about settings | **absorbed**（vendor pin） | **S39 D1 三行 overlay 保持退役的依据**：上游 About 原生 AboutCopy（版本复制面），`MOBILE_APP_VERSION == vendor 版本`，三行 overlay（client/base/server 分行）无信息增量——`settings-about-version`（row 39）stays deferred 归 #184-legacy 轮 |
+| `bf94de965d`（#59129） | feat(desktop): spellcheck toggle and system-language dictionaries | **absorbed**（vendor pin） | spellcheck 设置行 desktop-gate（`desktop() && "getSpellcheckEnabled" in platform`，general.tsx:247）原生在册——**mobile 不泄漏**（verify-pinch-shell-settings 组 1 drill ⑧ 在册；desktop-only 行 <Show when={desktop()}> 内） |
+| 状态机族（machine families） | connect/dialog-machine/form-machine/mcp-machine/go-upsell-hero-machine + settings general machine（createOptimisticSetting/machine.ts） | **absorbed**（vendor pin） | 全部上游原生 pin 携带——#192 段已登记 connect 族；本轮新增 settings general 乐观机器（controllers.ts createOptimisticSetting + machine.ts write.failed/notify.error）与 mcp.tsx per-connection machine 为同族 native 形，verify-appearance/pinch/agent-capabilities 重锚定在册 |
+
+### routing 表（7 stay-deferred 的最终去向；无未登记路由）
+
+| row | patch | 去向 | 说明 |
+| --- | --- | --- | --- |
+| 24 | `settings-notification-permission` | **#195** | Android 通知权限行 hunks 保留 deferred；owner：notification permission 单元 |
+| 35 | `appearance-motion-zoom` | **#197** | 39 targets deferred（web.ts zoom 实现 + CSS 面 + motion 模块裁剪的历史 payload）；**M-035 zoom catalog deviation 为在册 standing deviation**——`settings-v2-2-7` W5 已承载搜索目录 gate-drop（三行 registered-deviation 注记），#197 重基时**不得重加 `available: "desktop"` 门**（search-catalog.ts 注记逐字「the later appearance-motion-zoom rebase must not re-add the gate」）；外观行/controllers/platform types 已 pin 原生，重基 payload 只覆盖 web 实现与 CSS 消费面 |
+| 36 | `session-goal-sources-panels` | **#194/#196** | Sources/Goal 面归 goal-sources 单元（#194）；fork/revert 生命周期守卫套件归 #196（#188 处置继承）；本轮零触碰 |
+| 37 | `gui-plugins-api-migration` | **#194** | 本体（extension/plugin API 迁移残留）归 #194；#192 routing note（provider/connect 相邻 target）已由本轮 pin 吸收面履行完毕 |
+| 39 | `settings-about-version` | **#184-legacy** | 三行 overlay 保持退役（cd6551f9a0 原生 AboutCopy + MOBILE_APP_VERSION == vendor 版本，见 upstream coverage 表）；随 #184-legacy 轮处置 |
+| 17 | `session-home-archive` | **#184-legacy** | archive 面保持上游 pin 实态（`SHOW_HOME_SESSION_ARCHIVE=false`）；verify-projects-sessions 预存 rc=1 首 FAIL 恒同 |
+| 66 | `extensions-flyout-webview` | **#194** | details css 面归 gui-extensions 单元；本轮零触碰 |
+
+### M-035 standing deviation（#197 注记）
+
+`settings.appearance.row.zoom.title` 搜索目录行**无 `available: "desktop"` 门**（W5，S42 语义）：v2.2.7 上游该行带 desktop 门，移动客户端按在册偏离（M-035）保持 web 可用——设置页 zoom 行本身为 `<Show when={appearance.zoom.available()}>` 平台能力门（web 平台当前未实现 zoomLevel，行隐藏——**该实现面为 deferred `appearance-motion-zoom` 的 owner round（#197 方向）交付**，deferred patch 39 targets 携带其历史 web 实现）；search-results.test `font` 查询 3→4 与 `toContain("settings-zoom")` 正锚在册。#197 重基该 patch 时必须携带 W5 目录形态（三行 registered-deviation 注记），不得回退门控。
+
+### deny audit
+
+- **DENY（ai fixes）** settings 域与 ai 包相关修复 pin-carried，不重实现（沿 #192 口径）。
+- **DENY（routing）** `settings-notification-permission`/`appearance-motion-zoom`/`gui-plugins-api-migration`/`session-goal-sources-panels`/`settings-about-version` 五条 stay-deferred 本轮零触碰（routing 表）。
+- **EXCLUDED** 设备面：W1/W2/W4 的真实触摸走查（add-menu 三项、SSH row-menu connect/retry/remove/confirmHostKey、host-manager mount 导航）归 G30/G35 设备门禁，本轮 NOT RUN；不声称任何设备/真实服务验证。
+
+## Issue #194：gui-plugins crosswalk and absorption audit
+
+本节是 #194 的固定上游审计（gui-plugins 窄屏/管理面的 v2.2.7 吸收核对 + 幸存移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#193 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--194-gui-plugins`，分支 `feat/194-gui-plugins`，base `418918e`（#193 链尾）。本轮 landing = **consolidated active patch `gui-plugins-v2-2-7`（11 targets：D1 btw 命令门 + mobile face 80、D2/D3 panel-id dispatch + btw/model.ts saved accessor（第 10 target）、S1 sources mobile face 60/gate-off fallback/turn dispatch/panel.* i18n、S2 Experimental Sources 行（setSourcesEnabled knob-accessor 写路径）+ en/zh row.sources.*、F6 details flyout open-state 扁平化）+ 五探针修订（verify-gui-plugins 组 2/3/4/5/6/8/9 重锚定、verify-goal-sources 全量重写、verify-browser 逐组重锚定、verify-debug-bar 全组重锚定、verify-experimental-settings 组 1/8 增补）**；registry **88 registered / 10 active / 58 absorbed / 20 deferred**（4 rows 翻转 absorbed：rows 36/37/38/66 + row 88 注册 active）。
+
+### 审计数字（可复现口径）
+
+- **F1（计划勘误后口径）**：gui-plugins compose **15 builtins 不变**（`export const builtins = compose({` 对象映射在两 pin 同形同序，`microsoft-office → sources → goal` 尾序不变）；`main.ts` 同表 15 import、**六个 lazy mainEntry 不变**（`{debug,browser,pairing,updater,ssh,wsl}`）；`review/contract.ts` 为 **v2.2.7 新增文件**（v2.2.1 无此文件；`:31 Contract.define<ReviewDetails, "review.details">` —— per-plugin contract 集合由 v2.2.1-pin 的空集变为 `{review}`，verify-gui-plugins 组 2 重锚定在册）。
+- **计划 planning-slice 数字登记**：计划文本记录 "unique DIFF 82 on base"（planning 阶段 scoped 切片口径）；本轮以**可复现全集口径**复核——四条 absorbed rows（36/37/38/66）的 targets 并集恰 **201 个唯一文件**，逐文件对两 pin 分类为 **75 SAME / 92 DIFF / 33 new（v2.2.1 无）/ 1 deleted（v2.2.7 无）**（`git rev-parse <rev>:<path>` 逐 blob 对照；92 DIFF 的 carrier 面即本轮处置表 + pin 原生面）。两口径并存登记，引用时以本节定义为准。
+- **domain diff**：`packages/gui-plugins/src` v2.2.1→v2.2.7 diff 恰 **484 文件**（上游 machine 化重组：btw/goal/debug/memory/focus/expand/pane/address/diagnostics/main 等机器族 + browser 面重构）。
+
+### commit crosswalk 表（关键上游提交 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `7f40c505f1`（#61997） | fix(app): drive knobs panel, goal pill and catalog sync through state machines | **absorbed**（vendor pin） | 机器族原生：btw machine（machine.ts + btwTabView/btwChatView）、goal machine（createGoalState/transitionGoal/selectGoal/selectGoalBusy）、debug memory-machine（debugBarView）+ heap/focus machine、sources-expand-machine（graduated）——verify-goal-sources 组 3/5 与 verify-debug-bar 组 1/2 重锚定锁定 |
+| `4785478249`（#59468） | fix(app): tidy the Extensions submenus | **absorbed**（vendor pin；#194 携带 WebView 兼容重 derive） | details flyout 规则上游重写（v2.2.7 无 transition 块、嵌套祖先选择器）——extensions-flyout-webview（row 66）的历史扁平化面由 `gui-plugins-v2-2-7` F6 在新规则上重 derive；`&:dir(rtl)`/`[data-motion]` 嵌套保持 = 在册渐进损失 |
+| `fef232392d`（#60462） | fix(app,gui-plugins): port renderer UUID generation to HTTP-safe uuid() | **absorbed**（vendor pin，6 处 renderer 域站点） | btw/model、file/renderer、ssh/dialog、terminal/panel、browser/comment、browser/connection 六处 `crypto.randomUUID` → HTTP-safe `uuid()`；**browser 域残留 12 处**（chromium/diagnostics/files/pane/profiling + tests，7 文件）为 secure-context-gated API——SSH plain-HTTP 隧道上不可用，**owner #199/browser**（平台前置在册，不改） |
+| `78f8dffd48`（#60464） | fix(app): render inline content for built-in skills | **absorbed**（vendor pin） | file/browser 内联渲染面原生（#194 零触碰） |
+| machine families / browser family（聚合行） | btw/goal/debug/memory/focus/expand/pane/address/diagnostics/dialog/main 等 *-machine.ts(+test) 家族与 browser model-machine/main-machine 族 | **absorbed**（vendor pin） | 上游全面 machine 化；#194 的重 derive 全部按机器形落位（D2/D3 经 `saved` accessor、verify-debug-bar 按 debugBarView/barView().open/motion 面） |
+
+### per-patch verdict 表（4 flips + row 88 注册）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 36 | `session-goal-sources-panels` | deferred→absorbed | **split**：goal 半 + session-ui sources 子系统 + timeline 钩子 + motion spring/loop + outline-steer + ui.sources.* i18n + SourcesProvider = pin 原生（goal 即原生 ComposerPill，order 70 被 superseded）；幸存窄屏 delta 由 row 88 重 derive（处置全文见 patch-dispositions.md row 36） |
+| 37 | `gui-plugins-api-migration` | deferred→absorbed | superseded-by-pin：v2.2.7 gui-plugins/plugin 包即迁移后树（remote.test.ts byte-same）；MCP face → #193 probe；sources/btw 窄屏面 → row 88 |
+| 38 | `session-btw-narrow-entry` | deferred→absorbed | D1–D4 由 row 88 按 v2.2.7 machine 形重 derive；v2.2.1 sha1 三文件守恒主张退役（model.ts 入 patch face；panel/index 保持 pin 逐字锁） |
+| 66 | `extensions-flyout-webview` | deferred→absorbed | open-state 扁平化由 row 88 在 v2.2.7 规则上重 derive（3-property 形）；RTL/data-motion 嵌套渐进损失在册 |
+| 88 | `gui-plugins-v2-2-7` | 新注册 active | 11 targets；`dependsOn: ["settings-v2-2-7"]`（mobilePatches 第 10 项）；SHA-256=`d5ce7ea207428c1c58f87f316b1da2ee9724686644c816ba5ea5f1e8e01a3fe8` |
+
+### routing notes 履行与 row 1/54 注记
+
+- rows 36/37/66 的 #193 routing note（去向 #194）兑现为本轮 absorbed 翻转；row 37 的 #192 note 同轮履行完毕。
+- row 1 `gui-plugins-native-test-deps` stays deferred：routing note → **#199/browser**（devDependencies 移除零运行时影响）。
+- row 54 `webview-url-polyfill` stays deferred：**#194 audit = context-stale**——v2.2.7 polyfills.ts 仅 Map.groupBy/Promise.withResolvers/Promise.try，**不提供 URL.canParse**（C7 口径）；W19 前置保持开放，owner #199/browser 行，disposition deferred/not-fixed。
+
+### platform-limitation record（#199/browser owner 行 + 设备门）
+
+- **AbortSignal.any 受限面 1→20**：v2.2.1 pin 域内 1 处 → v2.2.7 gui-plugins/src 恰 **20 处**（btw/terminal/wsl/pairing/file/debug/review 等机器与 renderer）；Android WebView Chrome/114 缺 `AbortSignal.any`（#148 在册环境缺陷，`plugin/src/promise/adapter.ts:110` 同源）——**goal pill 三操作 BLOCKED 不变**（W22 行在册），解除条件=WebView ≥116 或 polyfill 决策。
+- **URL.canParse 7 处**：browser 域 4 文件（panel/renderer/policy/address）——同属 #199/browser 前置（row 54 audit）。
+- **browser 域 crypto.randomUUID 12 处**（7 文件，chromium/diagnostics/files/pane/profiling + tests）：secure-context-gated，SSH plain-HTTP 隧道不可用；`fef232392d` 吸收记录只覆盖 6 处已迁移 renderer 站点，**owner #199/browser**（W19 行在册，recorded not fixed）。
+- **goal-pill BLOCKED 不变**：见 S41/W22 行 #148 记录；本轮未声称任何设备/真实服务验证。
+
+### deny audit
+
+- **DENY（hard constraints 全域零触碰）**：updater/wsl gui-plugins 文件、mainEntry 注册、bridge.manager、Electron menubar/IPC 本轮零改动（→ #198 owner）；app runtime 无 `@opencode/plugin|gui-plugins` 新 import（agent-capabilities 组 3 specifier map 恒同 rc=0）；android/Kotlin 零改动（Gradle 42 tasks 与 JVM 10 suites/47 tests 恒同）；四条历史 patch 文件磁盘零触碰；#165 不在本轮范围（未修复，零声称）。
+- **EXCLUDED** 设备面：btw 窄屏入口/sources 抽屉入口/Settings 行开关的真实触摸走查归 G25/G28/G35 设备门禁，本轮 NOT RUN；不声称任何设备验证。
+
+## Issue #195：notifications crosswalk and absorption audit
+
+本节是 #195 的固定上游审计（通知面 v2.2.7 吸收核对 + 幸存移动 delta 重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#194 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--195-notifications`，分支 `feat/195-notifications`，base `21531ad`（#194 链尾，stacked chain main a25ab51 → #187 → … → #194；PR #203–#210 open）。本轮 landing = **consolidated active patch `notifications-v2-2-7`（6 targets：M-022 entry 注册重 derive、G33① 在 focus-lock-machine 生命周期上重 derive、M-023 三面桥投递重 derive（request 面传上游根会话 `target`）、M-024 四开关 POST_NOTIFICATIONS 面 re-base、en/zh 五条 android.* 键）+ 第一方面（commit 1 两笔，本轮 Android 侧首改）：mobile-hosts `NOTIFICATION_CATEGORIES` 恰四类（questions 紧邻 permissions）+ Kotlin `CATEGORIES` 镜像与 `notifications-questions` 频道**；registry **89 registered / 11 active / 62 absorbed / 16 deferred**（4 rows 翻转 absorbed：rows 21/22/23/24 + row 89 注册 active）。
+
+### 审计数字与 byte-compare 重放（可复现口径）
+
+- 上游通知域 commit 面：`git -C /home/peterhan/repository/opencode log --format='%h %s' v2.2.1..v2.2.7 -- packages/app/src/shell/notifications packages/app/src/settings/notifications packages/app/e2e/utils/notifications.ts` = **7 commits**（下表 7 行 + 1 条机器族聚合行 = 8 行表）。
+- v2.2.7 通知面目标形变化（pin 原生）：`isSessionUnread` 水位迁入 `shell/notifications/machine.ts`（notification.tsx 改 import/消费，`session.view` 报告面增 `idle: effect.idle`）；permission 第四支监听被**统一 `handleRequest(kind, sessionID, requestID)`** superseded（两值 category 映射：question/mcp-elicitation → `questions`，其余 → `permissions`；request 面经 open-tab 检查解析根会话 `target`）；coordinator 重写为 focus-lock-machine 生命周期（`INITIAL_FOCUS_LOCK_STATE`/`transitionFocusLock`，shared FOCUS_LOCK + exclusive-ifAvailable DELIVERY_LOCK）；设置页三开关变四开关（questions 行，hideLabel+children 形）；zh.ts 无 questions 键（上游 en 回退在册，非本侧缺陷）。
+- **byte-compare 重放证明**：`bash scripts/verify-closure.sh`（pristine pin fedc6f208a + closure patch + 11 active mobile patches 按序重放）→ V3(a) **byte-identical / DANGLING=0**；定向证明：scratch 链树 `packages/app/src/shell/notifications/` 9 文件 `cmp` 全 SAME + entry.tsx/settings/notifications/notifications.tsx + en.ts/zh.ts 逐 target byte-identical（`notifications-v2-2-7.patch` apply-check rc=0 后与工作树逐字节一致）。
+- 套件：mobile-hosts **447 pass / 0 fail / 3038 expect / 40 files**（c0 446/0/3034/40 + 恰 #195 增用例：四类别序锁 + questions 投递用例）；vendored shell/notifications 焦点集 **29/0/87/3** 恒同（machine.test + focus-lock-machine.test + notification.test——M-023 重路由与 G33① 重 derive 不扰动）。
+
+### commit crosswalk 表（7 上游提交 + 1 聚合行 → 本轮 absorbed 判定）
+
+| commit | 主题（上游） | 判定 | 载体 |
+| --- | --- | --- | --- |
+| `d09e2c6c8d`（#60358） | feat(app): add question notifications and sounds | **absorbed**（vendor pin） | questions 通知/声音类别、`requestTitles` 两值映射、设置页 questions 行（上游 question/en 键；zh 缺键=en 回退在册）——第一方面四类别白名单/questions 频道与之对齐 |
+| `53ad857b7a`（#60378） | fix(app): preserve simultaneous request notifications | **absorbed**（vendor pin） | 同会话同类替换语义的键域上游改造（kind:requestID 复合 key + `handleContext` 保留）；移动侧 Android 层 `tag=category, id=route.hashCode()` 反替换语义不变（四类别均适用），once=6 声路/门路不变量保持 |
+| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin；本行取代 db6633d 初稿的错误归因——勘误随 #195 docs 修正轮在册） | 该提交**本体触及 toast.tsx**（quota-failure 通知 createEffect：`localStorageNoticePending` + `toast.storage.writeFailed.*` 键，均为 pin 原生面）；vendored toast.tsx 与 pin **byte-identical**（V3 closure 重放），无需移动侧 toast.tsx carrier——row 72 注记在册、保持 deferred |
+| `452cfb579c`（#61809） | fix(app): retry failed mark-viewed reports for every caller | **absorbed**（vendor pin） | ViewReportState/`idle: effect.idle` 报告面重试语义原生；notification.tsx sendView 锚在探针组 1 在册 |
+| `2ec6485737`（#62005） | fix(app): make tab preview, crash page actions, notification focus lock and mobile tabs drawer explicit state machines | **absorbed**（vendor pin） | coordinator 重写为 focus-lock-machine 生命周期本体；G33① 门/锁语义由 active `notifications-v2-2-7` 在新生命周期上重 derive（focus-lock-machine.ts 零触碰） |
+| `ed0171f08a`（#62889） | feat(app): mark sessions read or unread from their menus | **absorbed**（vendor pin） | markUnread/manual-unread 面原生（unread 水位消费族）；与桥投递面零交 |
+| `2e64b9fc3b`（#60459） | fix(client): evict missing sessions on 404 instead of retrying or toasting | **absorbed**（vendor pin，client 包） | `data.session.sync` 404 驱逐改变 `lookup()` 失败路径形态；通知触发链（lookup→session 缺席早退）语义保持 |
+| 机器族聚合行 | focus-lock-machine（machine.ts+test）、notification machine（machine.ts isSessionUnread/selectSessionUnread/selectLegacyHiddenReports + machine.test） | **absorbed**（vendor pin） | v2.2.7 通知域状态机化本体；M-023/M-024/G33① 的幸存 delta 全部按机器形落位，不复制任何上游生产 hunk |
+
+### 两条降级模式（R1 口径，设计结论不变）
+
+questions 投递若无白名单扩展存在**两条明确的失败形态**：其一，`client.ts validate()`（:147/:163-164）在任何过桥行为之前 JS 层拒绝，应答 `{posted:false, code:"io"}`；其二，若 questions 被折叠进既有类别，才进入 Kotlin 同 tag 替换形态（`tag=category, id=route.hashCode()`，NotificationsBridge.kt:332-333 原语义）。设计结论不变：**两侧白名单同时加入 "questions"**（commit 1 两笔），使 questions 成为独立频道、独立替换域，不与前两者共享 tag。
+
+### per-patch verdict 表（4 flips + row 89 注册）
+
+| row | patch | 旧→新状态 | 判定依据 |
+| --- | --- | --- | --- |
+| 21 | `app-notifications-bridge` | deferred→absorbed | M-022 注册面由 row 89 重 derive（marker 逐字）；#144 retirement 后的 stub 悬置期结束 |
+| 22 | `notifications-platform-delivery` | deferred→absorbed | M-023 三面桥投递由 row 89 重 derive；旧 permission 第四支被上游统一 handleRequest superseded；request 面 `target` 路由 pin（R3） |
+| 23 | `notifications-webview-focus-gate` | deferred→absorbed | G33① 由 row 89 在 focus-lock-machine 生命周期上重 derive（machine 零触碰；门只向 hidden-but-hasFocus 放行） |
+| 24 | `settings-notification-permission` | deferred→absorbed | M-024 四开关 re-base + 状态行 + en/zh 五键逐字，由 row 89 承载；#193 routing note 履行完毕 |
+| 89 | `notifications-v2-2-7` | 新注册 active | 6 targets；`dependsOn: ["v2-2-7-mobile-connection-pairing-ssh-closure", "tabs-inbox-titlebar-v2-2-7", "composer-queue-attachments-v2-2-7", "settings-v2-2-7", "gui-plugins-v2-2-7"]`（entry.tsx 载体 78/81/83、i18n 载体 86/87 的全同目标前序集；mobilePatches 第 11 项）；SHA-256=`23c6a7f36e18f01234fa7231c6f845171cfc96675664ed9dfdaef4b025191087` |
+
+### platform boundary（红线复核）
+
+- **D05 不变**：零 keepalive、零前台服务、零推送通道——本轮 Kotlin 改动恰为 `CATEGORIES` 白名单扩展 + `channelTitle` questions 分支；`OPERATIONS` 恰 `{notify, requestPermission}` 不变；hasWindowFocus 前台拒绝、`areNotificationsEnabled()` → `"permission"` 静默降级、PendingIntent 路由链零变更；通知面零 `.reply(`/addAction/RemoteViews/网络面（探针组 4 负锁在册）。
+- **频道不可变注记**：`notifications-questions` 在首投递时经 `ensureChannel` 懒创建；既有三频道零触碰——Android 频道创建后不可变（升级安装不重写既有频道名/重要性）。
+- 门只收紧不放松：G33① 重 derive 后前台抑制语义对「真聚焦+可见」不变，仅向「hidden-but-hasFocus」的 WebView 缺陷态放行（负注入 (i) 钉定）。
+
+## Issue #196：runtime/data crosswalk and absorption audit（URL canParse polyfill + 四 payload 收口）
+
+本节是 #196 的 runtime/data 域审计（polyfills URL.canParse/URL.parse 前置 + rows 53/54/58/67 四条 payload 处置 + verify-recovery v2.2.7 重锚定），不改变冻结的 v2.2.1 文档与前序 #186–#195 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--196-runtime-data`，分支 `feat/196-runtime-data`，base `9b2e5dd`（#195 链尾，stacked chain main a25ab51 → #187 → … → #195；PR #203–#211 open）。本轮 landing = **consolidated active patch `runtime-data-v2-2-7`（row 90，1 target：polyfills.ts 内联 feature-gated URL.canParse/URL.parse shims）**；registry **90 registered / 12 active / 65 absorbed / 13 deferred**（rows 54/58/67 翻转 absorbed；row 53 保持 deferred + #196-round 注记）。
+
+### §0.1 accounting（16-diff map，R4 全载体归属）
+
+审计口径：runtime/data 域路径全集上，v2.2.1→v2.2.7 上游有变化的路径与「上游不变但树≠pin」的移动专用 diff 路径合并清点；每条 DIFF 路径归属其**全部**承载行（R4：shared 文件按 active patch 全列，不归单行）。域全集 82 条上游变化路径中 70 条 tree==pin（SAME，vendor pin 原生承载，零移动面）；**16 条 DIFF**：
+
+| # | 路径（`vendor/upstream/` 前缀省略） | 上游 v2.2.1→v2.2.7 | 树≠pin 形态 | 全部承载行（R4） |
+| --- | --- | --- | --- | --- |
+| 1 | `packages/app/src/runtime/i18n/en.ts` | M | active 五键族 + 本轮零增量 | **settings-v2-2-7 (#87) + gui-plugins-v2-2-7 (#88) + notifications-v2-2-7 (#89)**（#87/#88/#89 三行全列——connection-remember-credential 等 absorbed 行的 payload 由 pin/overlay 承载，不在此列） |
+| 2 | `packages/app/src/runtime/i18n/zh.ts` | M | 同上 | **#87 + #88 + #89** |
+| 3 | `packages/app/src/runtime/persistence/drafts.test.ts` | M | #84 重 derive 测试集 | **composer-queue-attachments-v2-2-7 (#84)** |
+| 4 | `packages/app/src/runtime/persistence/drafts.ts` | M | #84 fail-closed/lease 面（`captureMediaSource` registration form，drafts.ts:86-108） | **#84** |
+| 5 | `packages/app/src/runtime/server/health-machine.ts` | A | #184 overlay 健康机扩展 | **v2-2-7-mobile-connection-pairing-ssh-closure (#79)** |
+| 6 | `packages/app/src/runtime/server/health.ts` | M | #184 overlay 健康面 | **#79** |
+| 7 | `packages/app/src/runtime/server/machine.test.ts` | A | #184 overlay 机器测试 | **#79** |
+| 8 | `packages/app/src/runtime/server/registry.test.ts` | M | #184 credentialRef round-trip 断言 | **#79** |
+| 9 | `packages/app/src/runtime/server/registry.tsx` | M | #184 M-010 hydration 面 + vault-ready wait | **#79** |
+| 10 | `packages/app/src/session/composer/queue.ts` | M | #84 queue-local owner lease | **#84** |
+| 11 | `packages/app/src/session/fork.ts` | M | #84 attribution（machine 化 fork + `mobile(M-016, issue #188)` sourceServerKey，fork.ts:121-123） | **#84** |
+| 12 | `packages/app/src/session/revert.ts` | M | #84 attribution（revert-machine attempt-currency + `mobile(M-016)` origin，revert.ts:77-79/:205） | **#84** |
+| 13 | `packages/app/src/runtime/server/persistence.ts` | **S（v2.2.1==v2.2.7）** | M-002/M-005 marker scheme + MemoryOnlyPassword codec + credentialRef 字段（树 :6-18/:39-44，credentialRef 字段 :44；对应旧 vendored 树 :69-82 区段——pin numbering 引用：**:42-46 = 树行号**） | **#79** |
+| 14 | `packages/app/src/runtime/server/persistence.test.ts` | **S** | encode-drop/credentialRef 断言 | **#79** |
+| 15 | `packages/app/src/runtime/platform/web.ts` | **S** | 三行共载（drafts store + files openExternal + connection probe 桥） | **#79 + #84 + files-diff-review-v2-2-7 (#85)**（R4 钉定：三行全列） |
+| 16 | `packages/app/src/runtime/polyfills.ts` | **S** | **本轮新落**：feature-gated URL.canParse/URL.parse shims（row 90 载体） | **runtime-data-v2-2-7 (row 90)** |
+
+引用卫生（R4）：helpers 路径为 `packages/app/src/shell/layout/helpers.ts`（树实测存在；row 67 目标表内同名条目）；persistence.ts 引用一律树行号（:42-46 = credentialRef 字段区段），不与旧 vendored :69-82 混用。
+
+### §0.2 commit crosswalk 表（15 行，含 6000b7c51b 勘误注记）
+
+| commit | 主题（上游） | 判定 | 载体 / 本轮关系 |
+| --- | --- | --- | --- |
+| `0cb3d68f6e`（#61766） | fix(app): retry failed namespace writes and settle load and clear races | **absorbed**（vendor pin） | persist-machine/namespace-machine/storage-machine 本体；F-R1 脏值优先的 machine 形（settle()）为其中间语义，verify-recovery 组 2 重锚（ledger b）钉定 |
+| `490739afe7`（#61764） | fix(app): keep persisting after a localStorage quota failure | **absorbed**（vendor pin） | persist.ts write.failed 语义（#195 行已核对 toast 面）；本轮组 2 flush/debounce 锚钉定其 persist.ts 形态 |
+| `2e64b9fc3b`（#60459） | fix(client): evict missing sessions on 404 instead of retrying or toasting | **absorbed**（vendor pin，client 包） | data.ts 404 驱逐 = 本轮 **NEW 组 3 锚**（ledger g：evictMissing/refresh → markDeleted）；恢复语义：已删远端会话按驱逐处理非失败态 |
+| `6000b7c51b`（#58916） | perf(core): write each assistant part as its own row instead of rewriting the message | **absorbed**（vendor pin，client 包） | **勘误注记（typo note）**：本行 hash 以全串 `6000b7c51be5491e01c3c846ec969d35d2019f03` 为准钉定（计划初稿表格行存在笔误面，评审修正随本表在册）；协议面 = generated/types.ts `+part_rows?: boolean`（pin :2556）——W12 增量按 byte-identity 判定 |
+| `fef232392d`（#60462） | fix(app,gui-plugins): port renderer UUID generation to HTTP-safe uuid() | **absorbed**（vendor pin） | renderer 站点 6 处已迁移；gui-plugins browser 域 12 处 crypto.randomUUID 保持 recorded not fixed，owner #199/browser（W23 口径不变） |
+| `9a7f22a776`（#61595） | fix(app): derive server controllers from an explicit lifecycle machine | **absorbed**（vendor pin） | runtime.tsx server controller 生命周期机本体（row 67 目标域 pin 形） |
+| `eab8f49022`（#61763） | fix(app): drive server health and plugin server state with explicit machines | **absorbed**（vendor pin） | health-machine 本体；移动 delta（#79 载体）在 DIFF 13 表 |
+| `f12abcaf39`（#61765） | fix(app): sync the event stream only when live and keep the newest endpoint | **absorbed**（vendor pin） | sync.tsx/data.ts connected 门 + endpoint 保持——verify-recovery 组 3 adjacent pair 锚的来源面 |
+| `8a8a9d4af3`（#61753） | refactor(app): replace dead directory bootstrap with a directory cache machine | **absorbed**（vendor pin） | global-sync bootstrap/cache machine 本体（row 67 目标域 pin 形；bootstrap.test 的 server-order 断言为 pin 原生） |
+| `008619ae06`（#61963） | fix(app): select the session route view from one resolution machine | **absorbed**（vendor pin） | session/route.tsx resolution machine——组 6 重锚（ledger e）的 `resolving` Match 臂来源 |
+| `ef712d3a78`（#60346） | feat(app): move the desktop terminal to persistent PTYs | **absorbed**（vendor pin；域归属 #191） | persistent PTY 本体归 #191（matrix W04 在册）；Electron 桌面壳 excluded 不复制 |
+| `067b741783`（#60323） | refactor(client): share the persistent pty protocol | **absorbed**（vendor pin，client 包；域归属 #191） | pty 协议共享面；`solid/pty.ts` tree==pin（SAME，零移动面） |
+| `c6056f3931`（#60651） | chore: upgrade effect to 4.1.0 and fix a SQLite lock-up on interrupt | **absorbed**（vendor pin） | effect 4.1 为 Schema/SchemaGetter 编解码形（MemoryOnlyPassword/catchDecoding 族）的底座；#184 连接/凭据生命周期与 #192 provider 契约按 pin 形消费 |
+| `a88d3ca0bc`（#60460） | fix(app): match own server loopback port before treating http servers as local | **absorbed**（vendor pin） | registry isLocalHost 判定（#184 连接生命周期消费面） |
+| `0d226daccf`（#61679） | fix(client): clear pending prompts the transcript shows were delivered | **absorbed**（vendor pin，client 包） | data.ts pending 清算面（#188 drafts/queue attribution 的协议消费侧） |
+
+跨域消费注记：#184 连接/凭据生命周期（M-002/M-005/M-010 面 + #79 载体）、#188 drafts/queue attribution（#84 载体 + M-016 markers）、#192 provider 契约（usage-limits/agent 契约按 pin 形消费，#86 在册）、#199 schema/protocol consumption index（generated types/media.ts/promise 面 tree==pin SAME，part_rows 等 flag 位按 byte-identity 消费）；persistent PTY = #191（表内两行只记域归属）；Electron excluded（零 desktop 复制）。
+
+### §0.3 四 payload 处置（verbatims 见 manifest.json/patch-dispositions.md）
+
+| row | patch | 旧→新 | 判定核心 |
+| --- | --- | --- | --- |
+| 54 | `webview-url-polyfill` | deferred→absorbed | pin 的 URL-polyfill 缺口由 **row 90 内联 shims** 关闭（core-js 非 v2.2.7 依赖，历史 core-js import 形不可重放）；application-window 范围原样承载、workers 仍域外；verify-webview-url-compat.test **4 pass / 0 fail**（1/3→4/0）零探针改动 |
+| 58 | `session-media-source-safety` | deferred→absorbed | composer 侧集合 = #84 在册承载；fork/revert 生命周期守卫义务被 pin 机器 attempt-currency 形 supersede（fork-machine 按 attempt settle、revert.ts:205「drops a result whose attempt is no longer current」+ #84 M-016 sourceServerKey attribution）；client.tsx seam / media.ts 重挂 / session-ownership.test.ts 三项 superseded（在册）；rewrite 重入队残留注记逐字保留 |
+| 67 | `project-identity-migration` | deferred→absorbed | **FU-3 superseded-by-pin**：v2.2.7 pin 即目标 project-identity 模型（ServerState usedProjectIDs/lastProjectID/hostnames 原生，persistence.ts 树 :68-89（struct 止于 :89）；迁移注记 :69-71）；M-002/M-005 以 marker scheme 在 pin 行重申（:6-18/:39-44）；行为重申测试由 pin-form 测试集承载；M-010 hydration/vault-ready 由 #79 active 载体在册 |
+| 53 | `connection-password-keyboard` | deferred（不翻转）+ **#196-round 注记** | payload web 半仍不在 pin/#184/main 树；Android 半存活于 WebAssetServer.kt:25（/mobile-keyboard-config.json → BuildConfig.PASSWORD_KEYBOARD）——config 端点比其唯一 web 消费者长存，直到 connection follow-up 重落 screen 半；verify-password-keyboard.test = connection follow-up 的重锚（2 pass / 2 fail @:38），本轮零触碰 |
+
+### polyfill 语义与 WebView floor 证据
+
+- **语义（与 verify-webview-url-compat.test 逐条对齐）**：native 在场时身份保持（feature-gate，`if (!URL.canParse)` / `if (!URL.parse)`）；ToString 转换错误传播（`String(url)`/`String(base)` 在 try 块外转换，抛错透传不吞成 false）；parse 失败 → `canParse=false` / `parse=null`；无参 TypeError（`arguments.length === 0` 检查，与 WebIDL required-argument 形一致）；base 作 URL 对象经同一 String 转换透传（URL.toString → href）。
+- **WebView floor**：设备在册实测 WebView **114.0.5735.196**（MatePad DBY2-AL00，[connection.md](../../../design/units/connection.md) QA-0 判定记录，2026-10-30）；`minSdk = 29`（android/app/build.gradle.kts:44）；Chrome 120 起 URL.canParse/URL.parse 原生——114 floor 落在 shim 需求区间；**壳层无 WebView 最低版本门**（零版本 gate，低版本 WebView 直接加载 web 资产，shim 在 entry 装配安装）。settings.md:136 在册的「设备实测 system 档在 WebView 114 退化 full」同源证实 114 为当前设备实态版本。
+- **红线复核**：polyfill-only 补丁——零新 stop 路径（client exit 不停远端任务不变）、vault 生命周期未重设计、零重复发送/通知路径、Electron excluded。
+
+## Issue #197：UI/theme crosswalk and absorption audit（rows 35/46/72/73 翻转 + row 91 web 缩放面重 derive）
+
+本节是 #197 的 ui/theme 域审计（appearance/motion-zoom 39-target payload 收口 + theme/motion/project-icons 三 deferred 收口 + web 缩放实现面重 derive），不改变冻结的 v2.2.1 文档与前序 #186–#196 section。比较对象仍为 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad`，审计在只读上游仓库 `/home/peterhan/repository/opencode` 完成（blob 身份经 `git ls-tree -r` + `git hash-object` 本轮实算）；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--197-ui-theme`，分支 `feat/197-ui-theme`，base `7a13992`（#196 链尾，stacked chain main a25ab51 → #187 → … → #196）。本轮 landing = **consolidated active patch `appearance-zoom-web-v2-2-7`（row 91，1 target：`packages/app/src/runtime/platform/web.ts` createUiZoomLevel 面，M-035 marker verbatim，十一级目录校验，fallback 1）**；registry **91 registered / 13 active / 69 absorbed / 9 deferred**（rows 35/46/72/73 翻转 absorbed；row 91 为 mobilePatches 第 13 项）。
+
+### §0.1 accounting（packages/ui 全等 + app/session-ui/gui-plugins delta 全载体归属）
+
+- **packages/ui：1765/1765 byte-identity to pin**。`git ls-tree -r fedc6f208a -- packages/ui` 的 1765 个 blob 与 vendored `vendor/upstream/packages/ui` 1765 个跟踪文件逐一 `git hash-object` 对比：**SAME=1765 / DIFF=0 / ADDED=0 / MISSING=0**——ui 包零移动面，theme 三件（index/color/resolve）与 motion reduced/spring 均为 pin 原生内容（row 46/73 的 blob 断言因此成立）。
+- **app/session-ui/gui-plugins delta vs pin = 80 M + 14 A，全部 active-carried**。同法对三包清点：app pin=1264/local=1277（SAME=1186）、session-ui pin=256/local=257（SAME=253）、gui-plugins pin=1034/local=1034（SAME=1021）；合并 **DIFF 94 M + ADDED 14 A**，其中 94 M 含 12 条 `public/` 品牌资产（favicon/apple-touch-icon/social-share/web-app-manifest 位图）与 `tsconfig.json`/`vite.js` 两条 vendor 基础设施文件——**源码 DIFF = 80 M**（settings/gui-plugins/notifications/runtime-data/composer/back-chain/panel-motion 等各 active 行载体，与 #193–#196 各轮 16-diff map 一致，本轮零新增 M）+ **14 A**（app 13：fade/fade.test、registry-hydration.test、add-menu.test、queue-lifecycle.test、keyed-server-entry.test、android-host、mobile-ssh.tsx/.test、servers-page.test、settings-search-plugin.test、back-chain.ts/.test；session-ui 1：pierre/pool-strategy.ts——全部为在册 active patch 新文件）。本轮 vendor delta vs base `7a13992` = **恰 web.ts +67 行**（row 91 载体）+ provenance/vendor-manifest 刷新。
+
+### §0.2 commit crosswalk 表（5 行，ui/theme 域上游 fix 族）
+
+| commit | 主题（上游） | 判定 | 载体 / 本轮关系 |
+| --- | --- | --- | --- |
+| `50ea8d5003`（#59427） | fix(app): keep the mobile drawer open while a session loads | **absorbed**（vendor pin） | `session/composer/controller.ts` tree==pin SAME（git hash-object 本轮）；移动树零 hunk 欠账 |
+| `33e495a18f`（#60368） | fix(app): preserve command selection under a stationary pointer | **absorbed**（vendor pin） | `composer/editor/editor.tsx` tree==pin SAME；editor.tsx 为 #84 时代已在册 editor 家族 pin 载体域，本轮零触碰 |
+| `653650de19`（#60436） | fix(app): stabilize side-panel click targets across reactive updates | **absorbed**（vendor pin） | `runtime/plugin/{panel-menu.ts,panel-trigger.tsx,panels.tsx,side-region.tsx}` + `gui-plugins/src/browser/{connection.ts,connection.test.ts}` 六文件 tree==pin SAME 全验证 |
+| `0da727dc11`（#59467） | fix(app): feather the sidebar list's scroll edges | **absorbed**（vendor pin） | `shell/titlebar/{tab-strip.tsx,titlebar.css}` tree==pin SAME；titlebar 域 #186/#187 记录不动（back-chain/titlebar 零本轮改动） |
+| `fdb588ae81`（#60026） | fix(app): size the agent menu to its options | **absorbed**（vendor pin） | `composer/editor/editor.tsx` tree==pin SAME（同 33e495a18f 域） |
+
+### §0.3 四 flip 处置（verbatims 见 manifest.json/patch-dispositions.md）
+
+| row | patch | 旧→新 | 判定核心（blob 身份本轮 git hash-object 实算） |
+| --- | --- | --- | --- |
+| 35 | `appearance-motion-zoom` | deferred→absorbed | 39-target payload 在 pin 全部原生吸收，唯一幸存 web.ts 缩放面由 **active row 91 重 derive**；reduce-motion 族 upstreamed verbatim（`ui/src/motion/reduced.ts` blob `a20b9e83e28813ed7b080f00367235dce1a4ba52`——**UPSTREAMED-verbatim headline**；全树 `:root[data-motion="reduce"]` CSS 转换、三处 prefersReducedMotion TS 消费者、tailwind `@custom-variant` 对由 verify-appearance-settings 组 6–8 pin-native 断言钉定）；settings/zoom 面 pin 原生（十一级 Chromium desktopZoomLevels + native `nextDesktopZoomLevel` + platform.tsx 可选声明——探针组 1–5/10/11）；W5 M-035 搜索门弃置由 active `settings-v2-2-7` 承载、#193 standing note 履行完毕 |
+| 46 | `theme-components-migration` | deferred→absorbed | 五 targets pin-native 于 v2.2.1 目标修剪形：theme/index.ts blob `4d5462d70e8a77063cc71a09a7c025950d853bd9`、theme/color.ts blob `0a1743bae356bc35e983e9a1a165a0e47a5d9c96`、theme/resolve.ts blob `0ac7357f399c005fd08cf9f00c53b1c9cc82a7ba` + loader.ts/default-themes.ts 两整文件退役于 vendored 树缺席（resolveThemeVariant/themeToCss 对继续服务 gui-plugins terminal 消费者） |
+| 72 | `shell-titlebar-project-icons` | deferred→absorbed | project-icons.tsx 即采用目标形 byte-for-byte（blob `1e6ddb3cc56601469d9a1a9aac4c4591918ed354`）；index.html data-sm title 与 app.tsx Title/ProjectIconsProvider 面 pin 原生；**#195 toast note carried**——V3 closure 重放保持 toast.tsx pin-identical，490739afe7 quota-failure 面为 pin 内容，无移动侧 toast.tsx carrier 欠账 |
+| 73 | `ui-pin-target-residual` | deferred→absorbed | motion-spring.tsx 即 @kitlangton/solid-motion 形（blob `c4466d8075b99c16dffe36b0721751efcb2c1690`）+ `app/test-browser/motion-spring.test.ts` 目标三例形（blob `f3828eea51b34c61772436e3a83ab171a957609f`）两文件 byte-identical；list.tsx scrollIntoView 移除与 text-field compact-tooltip 翻转 pin 原生 |
+
+### sole-survivor 分析（web.ts 缩放面为何是唯一移动 hunk）
+
+- **pin 的 web.ts 零 zoom token**：`git show fedc6f208a:packages/app/src/runtime/platform/web.ts` grep zoom 计数 = **0**——上游在 web 平台从未实现缩放应用面（desktop 独占 Electron 缩放链），这是 39-target payload 中唯一不被 pin 吸收的面。
+- **pin 的 platform.tsx 已带可选声明**：`:90-96` `webviewZoom`/`zoomLevel?: Accessor<DesktopZoomLevel>`/setZoomLevel 注释声明——声明在、实现缺；row 91 的 `...createUiZoomLevel()` spread 在 saveFile 锚后加入即满足注解 literal（无 excess property）。
+- **十一级 Chromium 目录 pin 原生**：desktop-menu.ts:63 `desktopZoomLevels = [0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`（Chromium 缩放目录形）——重 derive 的 web 面按该十一级校验存储值；#104 时代六档 100–200% 记录为历史形态（storage 值 1–2 均在新目录内，legacy 存储值继续有效）。
+- **`nextDesktopZoomLevel` import ban**：重 derive 零 import/零引用（pinch-shell 不变量——该符号文件集 pin 恰 desktop-menu.ts + 其 test，verify-pinch-shell-settings drill ⑦ 在册）。
+
+### deny audit（本轮零触碰边界）
+
+`git diff 7a13992..HEAD` 构造性核对：**零 back-chain 改动**（back-chain.ts/.test 与 #186 域零交集，focused back-chain 15/0 恒同）、**零 Kotlin/android 改动**（android/ 空 diff）、**零 entry.tsx 改动**、**零 search-catalog.ts/search-results.test.ts 改动**（W5 M-035 门弃置形原样，standing deviation 不回退）、**零 identity-migration.json 改动**、**旧 patch 文件零改写**（patches/mobile/*.patch 唯一 delta = 新增 appearance-zoom-web-v2-2-7.patch +102 行）；#193 W5 standing note（「appearance-motion-zoom 重基不得回退门控」）随 row 35 翻转 discharge——门保持弃置且 row 91 面零 search-gate 内容；verify-appearance-settings 的 A2 注入（web.ts 加 zoom token）在重锚定后翻转为正锁（组 5 断言 row 91 面存在），探针 rc=0 保持。
+
+## Issue #198：Desktop-only 边界核查（41 desktop commits 逐能力裁定 + row 92 web-updates 排除面）
+
+本节是 #198 的 desktop-only 边界审计（范围裁定 + 一条排除补丁），不改变冻结的 v2.2.1 文档与前序 #186–#197 section。审计对象 = 上游区间 `3ebcf9a32c7b28f658cfee80775448929361727a` → `fedc6f208aa2bd54c1019227214568083f6380ad` 中触及 `packages/desktop` 的 **41 个 commit**（`git -C ~/.cache/opencode-upstream log --oneline 3ebcf9a32c..fedc6f208a -- packages/desktop`，本轮实跑 = 41）；实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--198-desktop-audit`，分支 `feat/198-desktop-audit`，base `b070d16`（#197 链尾，stacked chain main a25ab51 → #187 → … → #197）。本轮 landing = **排除补丁 `updater-web-exclusion-v2-2-7`（row 92，1 target：`packages/gui-plugins/src/updater/renderer.tsx` 两 hunk）**——coordinator ruling (b)：v2.2.7 pin 在共享 updater 插件内新长的 web-updates 面在移动端**蓄意排除**；registry **92 registered / 14 active / 69 absorbed / 9 deferred**（零翻转，新增 row 92 为 mobilePatches 第 14 项）。本节内 file:line 均为本 worktree 实测行号。
+
+### §0.1 逐能力 18 行裁定表
+
+| # | 能力（desktop-range commit 族） | 裁定 | 证据（本 worktree 实测 file:line + 门原文） |
+| --- | --- | --- | --- |
+| 1 | spellcheck 开关（`bf94de965d` #59129） | **不渲染**（双门结构性成立） | `general.tsx:247` capability 门 `source: () => (desktop() && "getSpellcheckEnabled" in platform) \|\| undefined`（web 平台无该成员 → undefined → 行不渲染）+ `general.tsx:278` `<Show when={desktop()}>` 双行包裹——capability 门与平台门双闸；platform.web 成员集零 spellcheck 面（web.ts:12-82 实测） |
+| 2 | 系统语言 dictionaries / 原生菜单翻译（同 commit） | **结构性无关**（desktop-native i18n 面） | `bf94de965d` 的共享触点 = `app/src/runtime/i18n/desktop-native.ts` + 5 个 typed locale（hr/hu/is/lt/en）；desktop-native 键仅被桌面原生菜单消费，web 语言链回退 en，零移动面 |
+| 3 | 多窗口 permission 保持（`f807ffeccb` #60458） | **结构性无关** | platform.tsx:144 类型行 `\| { platform: "web"; os?: never; windowID?: never }`——web 平台无 `windowID`，desktop-only 共享会话权限面无 web 构造点 |
+| 4 | 原生右键菜单翻译（`23f96c6efa` #62252） | **结构性无关** | packages/desktop 独占（Electron nativeMenu 域），vendor 树零共享 hunk |
+| 5 | open-path 失败错误呈现（`088682cb1e` #62572） | **结构性无关** | packages/desktop 独占；移动 openExternal 失败路径由 M-041 fail-closed 面承载（#76 在册） |
+| 6 | review 快捷键恢复（`dc71d5f94b` #62567） | **结构性无关** | packages/desktop 独占（全局快捷键注册域） |
+| 7 | deep link 单窗口投递（`dd9a5ab6ab` #61648） | **结构性无关**（共享树零接线） | 共享闭包仅两条注释提及 deep link（`runtime/plugin/stores.ts:283`、`runtime/plugin/session-store-machine.ts:6`），零 wiring；移动外跳边界归 [ADR 0007](../../decisions/0007-external-link.md)（外链唤起不实施） |
+| 8 | 更新交接失败重启插件（`4a6067d85c` #61649） | **结构性无关**（共享 diff 仅注释） | 唯一共享触点 = `plugin/src/gui/builtin.ts` Lifecycle 接口 doc comment（`git show 4a6067d85c` 本轮实读：行为语义零变更，仅补「other plugins start again…」文字） |
+| 9 | plugin host / CLI 重试（`1a8a369af7` #61720） | **结构性无关** | packages/desktop 独占；移动 web builtins only（root.tsx「The web runs built-ins only」），无 plugin host 装载路径（D4/§七零安装面） |
+| 10 | startup machine family ×12（`6666acc12c`/`dbc3f507ad`/`d8cb7c73d0`/`a4ce0b0989`/`36f40c852c`/`0d18f558b0`/`483969a884`/`1a2505118f`/`2e5d757adc`/`ce5c980f8b`/`d356b9b249`/`2047c0d4fd`） | **结构性无关**（sidecar 零构造点） | 12 commit 逐一实跑 `git show --name-only`：除 `2047c0d4fd` 外全为 packages/desktop 独占（`dbc3f507ad` 唯一共享触点 = `runtime/persistence/README.md` 注释）；`2047c0d4fd` 的共享 hunk = `runtime/server/client.tsx:145` `if (server.type === "plugin" \|\| server.type === "sidecar")` 与 `:205` 分支——**闭包内 `type: "sidecar"` 全树恰 1 处 = registry.tsx:164 类型声明**，零运行时构造点 → 分支结构性不可达 |
+| 11 | 窗口最大化/显示器恢复（`7b67adf7e1` #60482） | **结构性无关** | packages/desktop 独占（窗口管理域） |
+| 12 | force-focus 串行化 + debug bar 修复（`d1da4264a9` #61885） | **禁用 + 原因**（三重门锁定 + <768px 结构性隐藏） | 共享触点 = `gui-plugins/src/debug/{bar.tsx,focus-machine.ts}`；dispatchFocus `if (!desktop) return` 函数门为三重门之一（verify-debug-bar FOCUS triple gate 实测 :219-229：devTools Show 嵌套 + desktop Show + 函数门）；bar 本体 `pointer-events-auto hidden … md:block`（bar.tsx:202，verify-debug-bar :190-191）——<768px 结构性隐藏，生产 web 构建无 DEV → 移动端 debug bar 面缺席为**上游 web 同构事实**，非移动特判 |
+| 13 | 100% 以下缩放（`e4e55bd8eb` #61788，区间前已入 pin） | **边界注记** | 十一级 Chromium 目录共享（`desktop-menu.ts:63` `[0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`）；desktop 应用面 = Electron webContents 窗口机器，mobile = **#197 row 91 CSS zoom 面**（appearance-zoom-web-v2-2-7）——同一目录、两种应用机制；S42 边界句保持 |
+| 14 | updater desktop main 面（DESKTOP_HOST 行） | **禁用 + 原因** | ExtensionManager 能力行：`extension-manager.tsx:48` `DESKTOP_HOST_EXTENSIONS = new Set(["browser", "pairing", "ssh", "updater"])`——updater 呈现「桌面专属」禁用行不可启停（行是呈现不是可用性声明）；本轮新字面量锁 = verify-gui-plugins 组 7 集合等式（NEGATIVE 11 删 "updater" → FAIL，本轮 inject→FAIL→restore→PASS 在册） |
+| 15 | **updater web 面**（`4fa365faf5` #61995，**pin 新面**） | **EXCLUDED by row 92（ruling b）** | web.tsx/web-driver.ts/web-machine.ts 于 v2.2.1 缺席、pin 在册（`git log --diff-filter=A` 实证 = 4fa365faf5 区间内新增）；pre-patch `renderer.tsx:29` `if (!ctx.desktop) return webUpdates(ctx)` 使 webUpdates 面（SW checks + SettingsPage {id:"updates", page:"general"} + entries {settings-release-notes, settings-check-updates, settings-reload-from-server}（web.tsx:80-100 实测）+ titlebar pending item（web.tsx:66-78 webUpdatePending）+ hidden check command（web.tsx:100））在移动**激活**——general.tsx:356 `<PluginSettingsSections page="general" />` 挂载插件自有 general sections；row 92 改为 pairing/renderer.tsx:8 裸早退形 + 删 webUpdates import，web.tsx/web-driver.ts/web-machine.ts **上游原样不动**（守卫孤儿化） |
+| 16 | macOS packaging / ZIP descriptor / require 碰撞 / strobe（`1bf82105f0`/`1f67129936`/`2c49a18436`/`644d41f37a`/`a6212cb1b5`/`fe04656465`/`6973d89bf5`/`c64fff5bcb`） | **结构性无关**（`c64fff5bcb` ui file-icon 面除外——pin 原生吸收） | 全部 packages/desktop 或打包域独占；`a6212cb1b5` 共享触点 = desktop-native i18n（同行 2）；`fe04656465` 共享触点 = debug i18n 表 + `session/timeline/search-controller.ts` + perf fixtures（e2e/performance 目录不在 vendor 重放闭包；debug bar.tsx 面同行 12）；`c64fff5bcb` 的 `ui/src/components/file-icon.tsx` + `file-icons/choose-icon-name.ts` 为 pin 原生共享功能（vendored byte-identical，无移动 delta 欠账） |
+| 17 | worktree picker 快捷键 / shell mode 切换（`171dbd6abe` #60713） | **共享功能，不在排除范围** | 共享触点 = composer/model.ts、new-session location dialog/workspace selector、ui menu-scroll/typeahead——全部为 pin 原生共享功能，随 vendor 携带；快捷键触发依赖物理键盘（G34 域），非 desktop-only 排除面 |
+| 18 | server lifecycle machine（`9a7f22a776` #61595） | **共享 refactor**（#192/#196 域） | 共享触点 34 文件（runtime/server machine 族 + settings/shell 消费者）——server controllers 状态机化属共享演进，非 desktop-only 边界；verify-provider-models 已于 #192 在该状态机面上重锚定 rc=0，health/runtime 面由 #196 域覆盖 |
+
+### §0.2 41 desktop commits 的共享闭包触达（实跑口径）
+
+`git -C ~/.cache/opencode-upstream show --name-only` 逐 commit 对 vendored 闭包（app/client/protocol/schema/session-ui/ui/util/gui-plugins/plugin-browser/plugin，剔除 e2e/performance、component-tests、test 文件）实跑清点：**41 commit 中 7 个 release 版本号 bump（仅 package.json）+ 8 个非 release commit 触达共享闭包** = `bf94de965d`（spellcheck/search-catalog 新门）、`2047c0d4fd`（client.tsx sidecar 分支，零构造点结构性不可达）、`d1da4264a9`（debug-bar dispatchFocus 门）、`4a6067d85c`（builtin.ts 注释 only）、`9a7f22a776`（server lifecycle 共享 refactor）、`171dbd6abe`（worktree picker 共享功能）、`a6212cb1b5`（desktop-native i18n）、`fe04656465`（strobe：debug i18n + search-controller + perf，e2e/performance 不在闭包）；另有 `c64fff5bcb`（ui file-icon pin 原生吸收）与 `6973d89bf5`（session-ui component-tests 不在闭包）。**plan 审计口径的 8-commit 主张在剔除 release-bump 后实测成立；本表把 `c64fff5bcb` 的 ui 面单列为 pin 原生吸收注记**。updater web 面 commit `4fa365faf5` 不触及 packages/desktop（属 app 域 commit），是本轮 FINDING 的载体，不计入 41-commit 触达表。（注：5631621710「docs(app): require explicit state machines…」另触及 4 个闭包内 AGENTS.md 贡献者文档（零运行时代码）；dbc3f507ad 共享侧 persistence/README.md 已在行 10 计入——非 release 共享闭包触碰按此口径为 9）
+
+### FINDING 与裁定（v2.2.7 web-updates 面 + ruling b）
+
+- **FINDING**：v2.2.1 → v2.2.7 区间内，上游以 `4fa365faf5`（feat(app): update the web app and PWA in place，#61995）在**共享** updater 插件内新增 web 更新面：`web.tsx`（webUpdates：SW checks + SettingsPage {id:"updates", page:"general"}，entries {settings-release-notes, settings-check-updates, settings-reload-from-server}，web.tsx:80-100 实测）+ titlebar pending item（webUpdatePending，web.tsx:66-78）+ hidden check command（web.tsx:100）+ `web-driver.ts`/`web-machine.ts` 状态机；三文件 v2.2.1 缺席、pin 在册。pre-patch 的 `renderer.tsx:29` `if (!ctx.desktop) return webUpdates(ctx)` 使该面在 web 平台**激活**，而 general.tsx:356 挂载插件自有 general sections——**S40 的 #110「零 Updates 页」是 v2.2.1 时代事实，在 v2.2.7 pin 上已 drift-false**。
+- **裁定（coordinator ruling b）**：该面在移动端**蓄意排除**（非吸收、非适配），落为 row 92 `updater-web-exclusion-v2-2-7`（1 target、无 dependsOn）：guard 改 pairing/renderer.tsx:8 裸早退形 + 删除 webUpdates import（gui-plugins tsconfig noUnusedLocals=true，保留 import 即 TS6133）。依据 = S40/N09 在册暂缓边界 + [ADR 0005](../../decisions/0005-apk-update.md)（APK 更新暂缓；**激活条件 = ADR 0005 重启评估**——首个对外可下载已签名 release + 版本清单）。
+- **排除范围声明（防误读）**：`whatsNew(ctx)`/`betaNotes(ctx)` 在 guard 之前（renderer.tsx:25-26）运行且**保持激活**——What's New 外联面（release highlights/beta notes）不在排除范围；S40「当前只保留已有 What's New 外联面」的记录边界**不变**。幸存的 What's New 面不是「排除失败」：row 92 的排除 scope = SW checks + general 页 Updates SettingsPage + titlebar pending item + hidden check command 恰四项，patch 注释与探针锁均按此落字。
+- **上游文件零触碰**：web.tsx/web-driver.ts/web-machine.ts 不在任何 patch targets 内——web 面在上游原样保留，由 guard 孤儿化（dist 实证：`webUpdates` 标识符全 dist 缺席，row 92 marker 存活于 root chunk sourcemap）。
+
+### 探针台账（verify-gui-plugins #198 revision）
+
+- **group-1 早退守卫锚 UNCHANGED（诚实入账）**：`if (!ctx.desktop) return` 子串锚 pre-patch 对 `if (!ctx.desktop) return webUpdates(ctx)` 即为真——**pre-patch 的 substring-true 是假信心**（web-updates 面经该路由在移动激活）；该断言一字未改，**排除锁 = 新增内容**：① `!includes("webUpdates")` 负锁（web 面被重路由即 FAIL）；② 裸早退形锚（pairing/renderer.tsx:8 形）；③ `mobile(updater-web-exclusion-v2-2-7, issue #198)` marker 锚；④ pre-guard `whatsNew(ctx)` 排序 witness（What's New 面保持激活的范围声明锚）。
+- **新 witness 锚**：ExtensionManager `DESKTOP_HOST_EXTENSIONS` 恰 {browser,pairing,ssh,updater} 集合等式（组 7）；general.tsx:356 mount 标记 **witness-only**（注册点，非可用性主张——updates SettingsPage 注册已被 row 92 排除）。
+- **负注入 2 条（inject→FAIL→restore→PASS，日志 `.probe-logs/negex/`）**：NEGATIVE 10 revert guard 为 `return webUpdates(ctx)` → `1: updater/renderer.tsx still references webUpdates …` FAIL rc=1 → restore PASS rc=0；NEGATIVE 11 删 DESKTOP_HOST_EXTENSIONS 的 "updater" → `7: DESKTOP_HOST_EXTENSIONS must be exactly {browser,pairing,ssh,updater} … missing=["updater"]` FAIL rc=1 → restore PASS rc=0。
+- **其余探针零触碰**：12 条 rc=1 首 FAIL 字符串与 #197 台账逐字恒同（verify-commands-menus 组 8 常量随 commit 3 回填 5630/155852436，总体 rc 保持 1、首 FAIL 不变——#190 前例）；24 条 rc=0 保持 rc=0（verify-gui-plugins 回填后 rc=0；verify-notifications rc=0；verify-commands-menus rc=1 resetZoom 不变）。
+
+### 可复现命令（本轮实测口径）
+
+```sh
+# 41 desktop commits 清单
+git -C ~/.cache/opencode-upstream log --oneline 3ebcf9a32c..fedc6f208a -- packages/desktop   # = 41
+# 每 commit 共享闭包触达清点（逐 commit）
+git -C ~/.cache/opencode-upstream show --name-only --format= <sha>
+# updater web 面 pin 新增实证
+git -C ~/.cache/opencode-upstream log --oneline --diff-filter=A \
+  3ebcf9a32c..fedc6f208a -- packages/gui-plugins/src/updater/web.tsx \
+  packages/gui-plugins/src/updater/web-driver.ts packages/gui-plugins/src/updater/web-machine.ts  # 4fa365faf5
+# web 面 SettingsPage/titlebar/command 原文
+sed -n '66,100p' vendor/upstream/packages/gui-plugins/src/updater/web.tsx
+# sidecar 零构造点
+grep -rn 'type: "sidecar"' vendor/upstream/packages/app/src   # 恰 registry.tsx:164 类型声明 1 处
+# platform === "desktop" 普查（实测 23 处 / 17 文件）
+grep -rn 'platform === "desktop"' vendor/upstream/packages/app/src --include='*.ts' --include='*.tsx' | grep -v '\.test\.'   # 23 hits / 17 files
+```
+
+## Issue #199：依赖基线核对（catalog/overrides/bunfig/patchedDependencies + 两 devDep 补丁 + bun.lock 重算 + uuid-safety 探针锁）
+
+本节是 #199 的依赖基线轮记录（静态 + 机器门禁轮，无设备工作）。审计对象 = 移动根 `package.json`（workspaces.catalog / overrides / patchedDependencies / trustedDependencies）、根 `bunfig.toml`、根 `bun.lock` 与 vendored 两处 devDependency 清单，对上游 pin `fedc6f208aa2bd54c1019227214568083f6380ad` 的同名面。实现 worktree 为 `/home/peterhan/worktrees/opencode-mobile/feat--199-deps-baseline`，分支 `feat/199-deps-baseline`，base `a77f225`（#198 链尾，stacked chain main a25ab51 → #187 → … → #198；PR #203–#214 open，PR #215 = 本轮、不推送不创建不合并）。本轮 landing = **row 1 `gui-plugins-native-test-deps` re-base 转 active（5 devDep 移除，mobilePatches 第 15 项）+ 新 row 93 `plugin-electron-devdep-prune`（1 devDep 移除，mobilePatches 第 16 项）+ row 3 `workspace-dependency-closure` 翻转 absorbed + `bun.lock` 重算（desktop-only 依赖树剪除）+ 新探针 `verify-webview-uuid-safety.test.ts`**；registry **93 registered / 16 active / 70 absorbed / 7 deferred**。本节内 file:line 均为本 worktree 实测行号。
+
+### §0 依赖面核对表（程序化 diff，逐项引用不重 derive）
+
+| 面 | 移动实态 | 上游 pin 实态 | 结论 |
+| --- | --- | --- | --- |
+| workspaces.catalog | 72 键 | 66 键 | 66 共享键**零版本失配**（程序化 diff 实测）；移动多出 6 键 = `@hono/standard-validator`、`@hono/zod-validator`、`ai`、`hono-openapi`、`remend`、`ulid`（mobile-only；client/protocol 生成面与 mobile-hosts 所需）；上游多出 0 键 |
+| overrides | 10 键 | 12 键 | 10 共享键逐键相等；上游多出 `astro` + `@astrojs/starlight`（docs 站工具链）不携带 |
+| bunfig.toml `[install]` | 与上游 pin **byte-identical**（本轮程序化核对） | 同左 | exact=true + minimumReleaseAge 259200 + excludes 全集恒同；头注在 commit 1 由陈旧 `b4525d79` 字样更正为 `fedc6f208a (release: v2.2.7)`，并落字上游 `[test]` 节（`root = "./do-not-run-tests-from-root"`）**蓄意不携带**（mobile 按包跑 focused 套件，不守 workspace 根） |
+| patchedDependencies（根声明） | 19 键（全部 upstream-carried 文件在盘） | 17 键声明 / lock 段 13 | 差集 = mobile-only 增键 `@modelcontextprotocol/client@2.4.0`（上游 2.3.1 时代记录）与声明但图未解析类（见 §0.1） |
+| bun.lock patchedDependencies 段 | 重算前 10 键 → **重算后 9 键** | — | electron-updater@6.8.9 键随 devDep 剪除被 bun **经验性丢弃**（§0.1 R2 实证）；余 9 键 = `@modelcontextprotocol/client@2.4.0`、`@tanstack/virtual-core@3.17.8`、`pacote@21.5.1`、`@npmcli/agent@4.0.2`、`@pierre/trees@1.0.0-beta.6`、`vite@8.2.4`、`@corvu/drawer@0.2.4`、`@dnd-kit/dom@0.5.0`、`solid-js@1.9.17`，与在盘 9 个 patch 文件一一对应 |
+| trustedDependencies | `esbuild`、`node-pty`、`protobufjs`、`electron` | — | `electron` 条目重算后 **inert-after-prune**（图内零 electron 包，postinstall 不再运行）；声明原样保留（upstream-carried 记录） |
+
+§0.1（声明但图未解析 / R2 实证）：`app-builder-lib@26.15.7` 在重算前后都**不在** bun.lock 段（先例）；本轮实证 bun 对 `electron-updater@6.8.9` 采取同一行为——devDep 剪除后 recompute 把该键从 lock 段丢掉（10→9），根声明与 `vendor/upstream/patches/electron-updater@6.8.9.patch` **按裁定保留在盘**（upstream-carried config 记录；红线目标是 dependency entries，移动根 deps/devDependencies 保持 `{}`）；`@brendonovich/vite-plugin-opencode@0.1.3` 声明在根、重算前后都不在 lock 段（closure 图从不解析），显式登记为 declared-but-unresolved（provenance.json notCarried 两条新记录在册）。
+
+### §1 行 1 re-base 落地记录（5 devDep，逐行依据）
+
+`gui-plugins-native-test-deps`（row 1，同语义 ID、同单 target `packages/gui-plugins/package.json`）`deferred → active`——#194 routing note（独立重基归 #199/browser follow-up 单元）就此履行完毕。re-based against pristine pin（v2.2.7 devDependencies 块在保留项之间携带 `@opencode/protocol`，pre-rebase hunk 不知情）；移除 **5** 条（每行依据，全部满足「renderer import 图零命中」reviewer 核验事实）：
+
+1. `electron "44.9.1"` — desktop 运行时；trustedDependencies postinstall 拉 ~110MB 二进制，web 构建永不需要。
+2. `@lydell/node-pty "catalog:"` — main-side PTY 宿主（historical 3）。
+3. `devtools-protocol "0.0.1687809"` — desktop-side 工具 CDP 类型（historical 3）。
+4. `electron-updater "6.8.9"` — desktop 自动更新通道；v2.2.7 web-updates 面已被 row 92 `updater-web-exclusion-v2-2-7` 蓄意排除（#198），ADR 0005 暂缓 APK 更新。
+5. `lighthouse "13.4.1"` — desktop-only 审计工具（chrome-launcher/puppeteer-core/@sentry/node 树；自身传递再引入 devtools-protocol）。
+
+`@happy-dom/global-registrator` 保留（canonical 包目录测试形经包 bunfig happydom preload）。逐行依据同时落字于 patch 头注。**catalog 键 `@lydell/node-pty` 保留**（catalog diff 66/66+6 不动）——本轮只动 devDependencies 条目。SHA-256=`3379113e0a13e6e14c7c96bca785b2afa90dbf48bdc8d7588e564c9f88813efb`。
+
+### §2 行 93 落地记录 + 行 3 翻转 absorbed
+
+- **row 93 `plugin-electron-devdep-prune`**（新，active，1 target `packages/plugin/package.json`，无 dependsOn，mobilePatches 第 16 项）：只移除 devDependencies 的 `"electron": "44.9.1"`；pin 原生 optional peer `electron: "*"` + `peerDependenciesMeta.optional` **零触碰**（desktop 消费方包形保留；plugin gui host 库对 electron 为 type-only import——`src/gui/main.ts:1`）。pre-image = post-closure vendored 形（pre-image blob `bd188ca` == closure patch post-image blob；无任何 active mobile patch 触碰该文件）。SHA-256=`501b5ae0b0a22c32d900c1be9322951444ed5098bc2f60c6001f042bfad4912a`。
+- **row 3 `workspace-dependency-closure` 翻转 absorbed**（reviewer 逐 hunk 核验）：三条 hunk 全部由 closure patch `patches/closure/v2-2-7-build-dependency-closure.patch` 逐字承载——ai hunk（closure patch 文件 **L1**，devDependencies 移除 `@opencode/http-recorder`，@@ -158,7）、client hunk（**L13**，移除 `@opencode/httpapi-codegen`，@@ -54,7，上下文行 `@modelcontextprotocol/client "2.4.0"` 在册）、plugin hunk（**L4124**，`@opencode/theme` 三处移除）；语义与 row 3 三条移除清单逐字同。16-active verify-closure 重放 byte-identical/DANGLING=0 即承载证据。
+
+### §3 W4：bun.lock 重算与幂等证据（R2 实证）
+
+- `bun install`（recompute，非 frozen）：rc=0，「5 packages removed」，lock delta **19 insertions / 291 deletions**；被剪 lock 条目恰映射五个 desktop/main-side 依赖族——electron 树（`@electron/get`、sumchecker 等）、electron-updater 树（builder-util-runtime、tiny-typed-emitter、when-exit 等）、devtools-protocol（直连 + lighthouse/puppeteer-core 两条 nested）、lighthouse 树（chrome-launcher、puppeteer-core、@puppeteer/browsers、@sentry/node、axe-core、tldts、csp_evaluator、speedline-core 等）、@lydell/node-pty（+5 平台二进制）；packages 计数 **1115 → 1010**（6 条 cjs 别名键重解析为净差异：148 removed / 16 added entry keys（93 removed / 13 added 唯一 name@version；计数口径 = bun.lock 段条目键））。
+- **headline 验收**：`bun install --frozen-lockfile` ×2 → 双 rc=0、双「Checked 887 installs across 1010 packages (no changes)」、`sha256sum bun.lock` 两次同值 **9748d5e7528d14d82bcbc8273e1087f59f29b6911a981d2f135dae4f0b9e4024**、`git diff` bun.lock 空。
+- **负 grep（R2，分段实证）**：`"electron@"` / `"electron-updater@"` / `"devtools-protocol@"` / `"lighthouse@"` / `"@lydell/node-pty@"` / `"app-builder-lib@"` 在 bun.lock 内**含 patchedDependencies 段内外均 0 命中**；经验性结论 = bun 在图内无解析方时把 electron-updater 补丁键从段中丢弃（10→9），与 app-builder-lib 先例同形。
+- provenance.json 随重算刷新：lockfile sha → `9748d5e7…`；ghostty-web resolvedCommit `83c0a07` → **`e91e38a9ceb13c566ddfa15185a9393849f712a9`**（v2.2.7 spec；上游 v2.2.7 丢弃 ghostty patch，陈旧 patch 文件于本轮修剪）；顶层 `mobilePatches` 陈旧 17 项列表替换为 **live 16 项重放序**（== vendor-manifest——AGENTS.md 唯一重放顺序）；`upstreamPatches.carried` 三条陈旧文件行重写（R4：prunedAtIssue199 逐条带因）+ `@pierre/trees` 键更正为在盘 `1.0.0-beta.6` 文件；notCarried 增 @brendonovich 与 electron-updater 两条。
+
+### §4 W5：randomUUID 收口证据链（W19 residual closed）
+
+- **图导出锁（R1，非手列 allowlist）**：新探针 `scripts/verify-webview-uuid-safety.test.ts` 从 renderer 入口面（`gui-plugins/src/renderer.ts` + `plugin/src/gui/builtin.ts`）行走静态相对 import 闭包（bare=外边界、动态 import()=文档化 lazy 链不跟随、type-only 跳过、`.js`→`.ts` 与 `?inline` 解析），断言闭包内 **0** randomUUID 调用点（bare `crypto.randomUUID(` 与 main-side trio 的 named `import { randomUUID }` 双形）；closure size >50 防退化 witness。
+- **confined-set 等价**：gui-plugins/src 内（*.test.ts 豁免）randomUUID-bearing 文件恰 = FULL inventory `{browser/{chromium,diagnostics,files,pane,profiling}, ssh/askpass, wsl/{servers,sidecar}}`，双向断言 + 每文件调用形钉定（browser 域 bare 1/1/2/3/3、trio named 2/2/1）；12 browser-domain 站点 reachable ONLY via `browser/main.ts` lazy chain（静态 import 图实证：chromium/diagnostics/files/pane/profiling 的静态 importer 集只在 main-side 簇内）、`packages/client/src/pty-handoff.ts:56` 在 webview payload 图外（node-side PTY handoff）。
+- **dist 级**：staged assets（`android/app/src/main/assets/web`）对 4 个 main-side 模块 marker（`src/browser/main`/`src/ssh/askpass`/`src/wsl/servers`/`src/wsl/sidecar`）全 0 命中（sourcemap sources 出现即证明 main-side 代码被打进 bundle）；`webUpdates` 全 dist 缺席（row 92 排除面 intact）。探针存在性守卫（R5）：staging 前跳过、staging 后硬断言——本轮 commit 6 后复跑 3 pass / 0 fail。
+- **负注入 ≥1**：向 renderer 闭包文件 `renderer.ts` 注入裸 `crypto.randomUUID()` → closure 测试与 confined-set 测试双 FAIL rc=1（诊断串逐字在册：`the renderer import closure gained a randomUUID call site … renderer.ts bare=1 namedImport=0 namedCall=1`）→ restore byte-identical → 3 pass / 0 fail。
+- **上游规则已满足**：upstream `fef232392d`（v2.2.7 pin 在册）对 renderer-side randomUUID 已建立 feature-detected fallback 规则——staged dist 内 randomUUID 出现全部为该 fallback 形（#198 在册「18 处 randomUUID 全 feature-detected fallbacks」继续成立），无 bare renderer 调用；本轮零 polyfill、零源码改动。
+
+### §5 W6：AbortSignal.any 记录（R6 口径）
+
+`AbortSignal.any` 普查 = **gui-plugins 20 + plugin adapter 1 = 21**（reviewer 核验事实，本轮实测复核同值；`grep -rn "AbortSignal.any" vendor/upstream/packages/gui-plugins/src` = 20、`plugin/src` = 1）。**不 polyfill**（红线）；WebView 114 缺该 API 的运行期劣化维持 #148 在册记录（goal pill BLOCKED，owner #165）——本轮零触碰。
+
+### §6 探针普查 / 套件 / 构建与 Gradle
+
+- **探针普查**：**25 rc=0 / 12 rc=1**（新探针入 rc=0 侧）；12 条 rc=1 首 FAIL 串与 #198 台账**逐字恒同**（verify-artifacts「probe error: start fence not found…」、verify-commands-menus「1: DesktopMenuRole union set: missing expected member "resetZoom"…」、verify-connection-inline-ssh「missing in-place connection mode "ssh"」、verify-credential-ref「SyntaxError: Export named 'serverState' not found…」、verify-credential-vault「hydration injection block not found in registry.tsx」、verify-inline-ssh-device「TypeError: Unable to connect…（CDP refused，设备依赖）」、verify-interaction-quality「2: …titlebar.tsx gained a History API write/listener ("history.back")…」、verify-pairing「2: scanner.tsx lost the rejected-codes map declaration」、verify-password-keyboard.test 2/2 @:23/:38、verify-projects-sessions「session-home-archive: the archive stub text is still present…」、verify-service-ops「vendored entry.tsx: app-service-operations-bridge wiring missing…」、verify-session-workbench「1: unexpected linear interrupt call site outside the closed set…」）——本轮 rc=1 探针 input 文件与 vendor delta（两 package.json + bun.lock + bunfig 头注 + 三陈旧 patch 文件删除）**零交集**，构造性恒同成立。STOP 条款零触发。
+- **套件**：Set A 30-file **396/5/1793/30**（5 条 pre-existing 同名同位）；mobile-hosts **447/0/3038/40**；gui-plugins terminal（canonical 包目录形）**131/0/820/12** + files 域 **430/0/1337/36**；verify-pierre-webview-compat **14/0**；verify-webview-url-compat **4/0**。
+- **构建**：seam 前置（R5；`@opencode/*` workspace 链接 setup 期已在场，补建 mobile-hosts app seam——gitignored 面）→ `build:web` rc=0 → `copy:web-dist` rc=0 → `android_web_assets.py verify` rc=0；staged **5630 files / 155,852,436 bytes** == #198 在册值（payload 图零源码变化——package.json-only 轮）；committed manifest delta = 28 条 .map hash 对 + 1 条 generatedAt 时间戳（构建时钟，良性）（sourcemap 工作树路径 re-embed churn），零 chunk 改名/hash 变化、零文件数变化；dist-constant 三探针回填不需要（总量未变）。
+- **tsc 双跑**：vendored app `typecheck:tsc` 两跑（各清 tsbuildinfo）各 **838 error TS 行**，归一（文件,消息）kind diff **零差**；tsc 可见源输入对 #198 终态 byte-identical（`git diff a77f225 HEAD` 于 app/gui-plugins/mobile-hosts/session-ui/ui/client/plugin 源为零）——known-baseline 失败集恒同，不声称通过；gui-plugins 包内 tsc 口径诚实记录：本 worktree store 链接在场时恰 2 条 pre-existing（askpass.test TS2307 core/test/lib/effect + controller TS2353 stage），symlink 隐藏实验（fresh-install 姿态）下 main-side 9 文件 TS2307 + 总 36 条——**非移动门禁**（build-only，由 build:web rc=0 覆盖；v2.2.1 payload 同姿态）。
+- **Gradle**：`:app:testDebugUnitTest :app:assembleDebug` BUILD SUCCESSFUL（42 tasks），**47 tests / 0 failures / 0 errors**（10 XML）；APK `app-debug.apk` SHA-256 = **`5ac687a2b98d6d25a0db90fbc3f1b733113e1377720ec704ac12e2c053b6867a`**（66,210,471 bytes）；**未安装**——本轮为依赖基线轮，无设备工作。
+
+### §7 劣化项台账（本轮登记 / 继承边界）
+
+| 项 | 状态 | owner / 激活条件 |
+| --- | --- | --- |
+| `AbortSignal.any` 缺席（WebView 114） | 继承劣化，不 polyfill（红线）；普查 20+1=21 在册 | #165 / goal pill 运行面；解除条件 = WebView ≥116 或 polyfill 决策 |
+| CSS 嵌套渐进损失（details flyout `&:dir(rtl)`/`[data-motion]` 嵌套） | 继承边界（#194 在册），本轮零触碰 |gui-plugins 视觉域后续轮 |
+| 首帧 zoom flash（`opencode-ui-zoom-level` localStorage → documentElement CSS zoom 应用时序） | 继承边界（#197 在册记录），本轮零触碰 | 授权设备复验轮 |
+| gui-plugins main-side 类型姿态（electron/devtools-protocol/lighthouse/@lydell types 从 fresh install 起缺席） | 本轮新登记，**非移动门禁**；build-only 由 build:web rc=0 覆盖 | 若上游 gui-plugins main-side 进入移动构建范围时再评 |
+
+### §8 提交链与门禁
+
+`5748181` chore(vendor)（bunfig 头注更正 + 三陈旧 patch 文件修剪 + catalog/overrides 程序化记录 + fresh frozen-install ×2 幂等证据）→ `1694b8f` feat(vendor)（row 1 re-base 转 active，registry 92/15/69/8，15-active closure PASS，terminal 131/0 + files 430/0）→ `d69d73e` feat(vendor)（row 93 注册 + row 3 翻转 absorbed，registry 93/16/70/7，16-active closure PASS，apply-check 位置 16 PASS）→ `ed11c02` chore(deps)（bun.lock 重算 + frozen ×2 + R2 负 grep + provenance 刷新）→ `c110863` test(probes)（uuid-safety 探针 + 负注入）→ `4ce7171` chore(web)（5630/155,852,436 + marker greps + 普查 25/12 + 套件 + tsc 双跑 + Gradle 47/0）→ 本轮 docs commit。每提交门禁：`mobile-patches.py` PASS（commit 2 后 92 registered、commit 3 后 **93 registered**）/ `test_mobile_patches.py` OK（9/9）/ `verify-closure.sh` PASS（byte-identical 重放、DANGLING=0）/ apply-check scratch PASS / `git diff --check` 干净。registry 中间态（R3 诚实口径）：commit 2 = 92 total / 15 active / 69 absorbed / 8 deferred；commit 3 = 93/16/70/7。冻结安装幂等证据（commit 1 基线 + commit 4 重算后）双轮在册（§3）。BLOCKED 边界：无设备/真实服务主张；Playwright 非 Android APK 硬门禁。

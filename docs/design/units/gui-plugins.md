@@ -25,7 +25,7 @@
 | details | — | 无 | 无 | — | mobile Panel（drawer, order 50——MCP/plugins/skills/lsp server 面板） | #15 |
 | browser | **是** | 无 | `browser/renderer.tsx` `if (ctx.app.platform !== "desktop") return` | Ipc（BrowserPane）+ Contract | 零（桌面宿主专属；时间线呈现链由 app 承载，见 #17） | #17 |
 | pairing | **是** | 无 | `pairing/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Pairing） | 零（桌面配对发起端；移动接收端归 #22） | #22（接收端） |
-| updater | **是** | 无 | `updater/renderer.tsx` `if (!ctx.desktop) return` | Ipc（Updater） | 零（桌面发布流程，无移动等价物） | — |
+| updater | **是** | 无 | `updater/renderer.tsx` `if (!ctx.desktop) return`（**issue #198/row 92 重 derive 注记**：v2.2.7 上游 `4fa365faf5` #61995 把该行从纯早退拆成 `if (!ctx.desktop) return webUpdates(ctx)` 路由——web-updates 面（SW checks + general 页 Updates SettingsPage + titlebar pending item + hidden check command）经 general.tsx:356 的插件 general sections 挂载在移动**激活**；active `updater-web-exclusion-v2-2-7`（row 92，coordinator ruling b）把它恢复为裸早退形并删 webUpdates import，web 面三文件上游零触碰、守卫孤儿化；排除 scope 恰 web-updates 四项——`whatsNew(ctx)`/`betaNotes(ctx)` 在 guard 前运行且**保持激活**（What's New 外联面不在排除范围）；激活条件 = [ADR 0005](../../decisions/0005-apk-update.md) 重启评估；verify-gui-plugins 组 1 无 webUpdates 负锁 + NEGATIVE 10/11 在册） | Ipc（Updater） | 零（桌面发布流程，无移动等价物；web-updates 面已由 row 92 移动排除——DESKTOP_HOST 呈现行不变，行是呈现不是可用性声明） | — |
 | ssh | **是** | 无 | `ssh/renderer.tsx` `if (ctx.app.platform !== "desktop") return`（issue #67 起为 app.platform；上游注释措辞随宿主迁移更新） | Ipc（Ssh） | 零（第一方 mobile-hosts SSH 已替代，#6） | #6 |
 | wsl | **是** | **`os: ["windows"]`（全树唯一 os 声明）** | `wsl/renderer.tsx` `if (ctx.app.platform !== "desktop") return`（renderer 级守卫）+ root.tsx os 过滤（definitions 级，web `os=undefined` → 不入 definitions）——**双重排除**（renderer 守卫 + os 过滤，守卫在探针组 1 五早退守卫在册） | Ipc（Wsl） | **静态排除行（issue #62/N12）**：id + 禁用状态 + 原因文案（决策 0001），零操作（无 Reload/无 Switch/无任何启停安装入口）；宿主 definitions 仍不含 wsl（os 过滤不变） | —（范围排除） |
 | microsoft-office | — | 无 | 无 | Contract（FileViewer） | office 工件三 kind 查看器（#18 渲染链） | #18 |
@@ -75,7 +75,7 @@
 - **Build 四字段**：`Build { version, channel: "local"|"dev"|"beta"|"prod", platform: "web"|"desktop", packaged }`（core.ts；packaged 注释逐字「A packaged desktop app, not a development run. Always false on the web.」）；app 侧取值=host-apis.tsx `channel: (import.meta.env.VITE_OPENCODE_CHANNEL ?? "local")`、`packaged: platform.extensions?.packaged ?? false`。
 - **dev/source manager**（桌面 DEV 三件套）：settings-page-dev 设置页 + hmr.tsx（「Development only: reloads…」）+ builtins.ts `BUILTINS_UPDATED`/`import.meta.hot.accept`。
 - **packaged install 面**（桌面 bridge 专属）：`bridge.manager.install(source)/remove`（remove 注释逐字「Built-ins refuse.」）/source/asset——**全部 desktop bridge，web undefined**；root.tsx 注释逐字「Built-ins only: installed `.ocdx` archives run their main entry until that format ships renderer bundles.」。
-- **移动信任模型**：内建扩展随应用编译进 dist（vendored pin+gui-plugins-native-test-deps 剥 Electron 依赖在册），无第三方代码装载路径——**移动零安装/零移除/零商店面（marketplace）结构性成立并落字**；本单元与 #15 的「零 GUI 扩展安装入口」声明衔接：启停入口自本期新增，安装入口保持为零。
+- **移动信任模型**：内建扩展随应用编译进 dist（vendored pin+gui-plugins-native-test-deps 剥 Electron 依赖在册并于 #199 转 active（5 devDep 移除：electron/@lydell/node-pty/devtools-protocol/electron-updater/lighthouse）），无第三方代码装载路径——**移动零安装/零移除/零商店面（marketplace）结构性成立并落字**；本单元与 #15 的「零 GUI 扩展安装入口」声明衔接：启停入口自本期新增，安装入口保持为零。
 
 ## 八、与远程 Agent/MCP 配置的区分（#15 承接）
 
@@ -95,7 +95,7 @@
 ## 十、诚实边界（本期不声称）
 
 - **G35 全部运行期行为 BLOCKED**（十项）——未过前只声称「文档/探针/单测/构建级已验证，运行期已实现（未验证）」（§首第二十一处落字）。
-- **贡献设置行无需 app 侧移动能力过滤（issue #109/S41 如实登记）**：插件向 `PluginSettingsPages`/`PluginSettingsSections` 的注册发生在插件自己的桌面守卫之后——pairing 与 updater 均在 `if (!ctx.desktop) return` 之后才 `ctx.add(SettingsPage, …)`——移动构建上这些贡献结构性缺席：app 侧零平台过滤面、零 live root 插件页（verify-settings-framework 组 12 静态在钉；过滤属插件自有语义，宿主注册表不做平台过滤）。
+- **贡献设置行无需 app 侧移动能力过滤（issue #109/S41 如实登记）**：插件向 `PluginSettingsPages`/`PluginSettingsSections` 的注册发生在插件自己的桌面守卫之后——pairing 与 updater 均在 `if (!ctx.desktop) return` 之后才 `ctx.add(SettingsPage, …)`——移动构建上这些贡献结构性缺席：app 侧零平台过滤面、零 live root 插件页（verify-settings-framework 组 12 静态在钉；过滤属插件自有语义，宿主注册表不做平台过滤）。**issue #198 drift 修复（row 92 载体）**：该句在 v2.2.1 pin 原文为真，但在 v2.2.7 pin 上 drift-false——上游 `4fa365faf5`（#61995）把 updater 的 guard 行改为 `if (!ctx.desktop) return webUpdates(ctx)`，webUpdates 面在 web 平台注册同名 SettingsPage {id:"updates", page:"general"}（general.tsx:356 挂载插件 general sections 即可达），「移动构建上结构性缺席」不再成立；active `updater-web-exclusion-v2-2-7`（row 92，coordinator ruling b）把 guard 恢复为裸早退形后**本句恢复为真**（pairing 与 updater 均重新满足「guard 之后才注册」；verify-gui-plugins 组 1 以无 webUpdates 负锁把恢复态在钉，NEGATIVE 10 演练在册）。
 - **桌面主进程侧不声称**：EnableState 持久化语义、manager.reload main 面、.ocdx install/remove 行为、桌面 DEV 面运行实态——packages/desktop 不在闭包（仅图标资产）。
 - **移动禁用记录 device-local**：不跨设备、不与桌面 settings file、不与远端 opencode.json 同步；volatile 回退时禁用仅本会话有效并如实提示。
 - **desktop-host 四扩展（browser/pairing/ssh/updater）呈现「桌面专属」**：其 Active 状态是宿主机制实态而非可用性声明；wsl 以静态排除行呈现（issue #62/N12，决策 0001——不发现/不安装/不启停/不管理/不执行命令，原因文案明示且含 Windows 宿主，末句声明原生 Windows 远程主机支持保留）；btw 移动可达（issue #70/session-btw-narrow-entry：命令门放宽为 `mounted()` + mobile Panel menu order 80——**视口判据口径**：`narrow()` 为 <768px 视口而非平台判据，窄桌面窗口同样生效，与上游六 mobile face 的视口驱动机制一致；桌面 ≥768px 行为按构造不变）——管理面仍列出（定义在表），能力列如实。

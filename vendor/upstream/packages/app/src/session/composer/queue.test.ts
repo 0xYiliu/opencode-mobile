@@ -225,24 +225,29 @@ describe("queuedPromptAttachments", () => {
     const blobs = new Map<string, Uint8Array>([[hash, pngBytes]])
     const events: string[] = []
 
-    const extracted = extractPromptFromMessage({
-      id: "msg_queued_media",
-      text: "queued with image",
-      files: [
-        {
-          uri: mediaUri,
-          mime: "image/png",
-          source: { type: "inline" },
-          width: 1,
-          height: 1,
-          bytes: pngBytes.byteLength,
-          name: "shot.png",
-        },
-      ],
-    })
+    // mobile(M-016, issue #188): the extract attributes its refs with the queue's own server, so
+    // the fail-closed loader resolves them from their captured source.
+    const extracted = extractPromptFromMessage(
+      {
+        id: "msg_queued_media",
+        text: "queued with image",
+        files: [
+          {
+            uri: mediaUri,
+            mime: "image/png",
+            source: { type: "inline" },
+            width: 1,
+            height: 1,
+            bytes: pngBytes.byteLength,
+            name: "shot.png",
+          },
+        ],
+      },
+      { sourceServerKey: "queue-test" },
+    )
 
     expect(extracted.find((part) => part.type === "image")).toMatchObject({
-      blob: { id: `media:${hash}`, url: "" },
+      blob: { id: `media:${hash}`, url: "", sourceServerKey: "queue-test" },
     })
     expect(JSON.stringify(extracted)).not.toContain("/api/")
 
@@ -274,18 +279,29 @@ describe("queuedPromptAttachments", () => {
       expect(imagePart.blob.id).not.toStartWith("media:")
       expect(await blobDataUrl(imagePart.blob, imagePart.mime)).toBe(`data:image/png;base64,${pngBase64}`)
 
-      // Media nothing serves anymore fails the pin, so the item is never cancelled.
+      // mobile(M-016, issue #188): media nothing serves anymore fails the pin, so the item is
+      // never cancelled. The first item's bytes are already local, so an unserved ref needs its
+      // own hash; and a ref with no captured source is not probed on any other server either.
+      const unservedUri = `media:${"f".repeat(64)}`
+      const unserved = extractPromptFromMessage(
+        {
+          id: "msg_queued_media_unserved",
+          text: "queued with image",
+          files: [{ uri: unservedUri, mime: "image/png", source: { type: "inline" }, name: "shot.png" }],
+        },
+        { sourceServerKey: "queue-test" },
+      )
       const cancels = events.length
 
       await expect(
         undoQueuedPrompt({
-          prompt: extracted,
+          prompt: unserved,
           cancelInboxItem: async () => {
             events.push("cancelInboxItem")
           },
         }),
       ).rejects.toBeInstanceOf(Error)
-      expect(events.slice(cancels)).toEqual([`load:${mediaUri}`])
+      expect(events.slice(cancels)).toEqual([`load:${unservedUri}`])
 
       // An undo stopped while its media loads (past its bound, or on unmount) leaves the item queued.
       const stopped = new AbortController()
@@ -309,6 +325,65 @@ describe("queuedPromptAttachments", () => {
       expect(events.slice(before)).toEqual([])
     } finally {
       setMediaBlobLoader("queue-test", undefined)
+    }
+  })
+
+  test("undoQueuedPrompt backfills missing provenance with its own server key and never probes others", async () => {
+    // mobile(M-016, issue #188): queued items predate per-part provenance; the backfill attributes
+    // them with the queue's own server — never a cross-server probe.
+    const unsourced = extractPromptFromMessage({
+      id: "msg_queued_media_legacy",
+      text: "queued with image",
+      files: [
+        {
+          uri: `media:${"9".repeat(64)}`,
+          mime: "image/png",
+          source: { type: "inline" },
+          name: "shot.png",
+        },
+      ],
+    })
+    const legacy = unsourced.find((part) => part.type === "image")
+    expect(legacy?.type).toBe("image")
+    if (legacy?.type !== "image") return
+    expect(legacy.blob.sourceServerKey).toBeUndefined()
+    expect(legacy.blob.id).toStartWith("media:")
+
+    const loads: string[] = []
+    setMediaBlobLoader("legacy-queue-test", async (uri) => {
+      loads.push(uri)
+
+      return "data:image/png;base64,aGk="
+    })
+    const other: string[] = []
+    setMediaBlobLoader("other-server", async (uri) => {
+      other.push(uri)
+
+      return "data:image/png;base64,aGk="
+    })
+    try {
+      const pinned = await undoQueuedPrompt({
+        prompt: unsourced,
+        sourceServerKey: "legacy-queue-test",
+        cancelInboxItem: async () => undefined,
+      })
+      expect(loads).toEqual([`media:${"9".repeat(64)}`])
+      expect(other).toEqual([])
+      expect(pinned.find((part) => part.type === "image")).toMatchObject({ blob: { sourceServerKey: "legacy-queue-test" } })
+
+      // Without a backfill the same ref fails closed: no loader is consulted at all.
+      loads.length = 0
+      await expect(
+        undoQueuedPrompt({
+          prompt: unsourced,
+          cancelInboxItem: async () => undefined,
+        }),
+      ).rejects.toBeInstanceOf(Error)
+      expect(loads).toEqual([])
+      expect(other).toEqual([])
+    } finally {
+      setMediaBlobLoader("legacy-queue-test", undefined)
+      setMediaBlobLoader("other-server", undefined)
     }
   })
 })

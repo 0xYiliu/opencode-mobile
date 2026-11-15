@@ -2,6 +2,7 @@ import type { Accessor } from "solid-js"
 import { useServer } from "@/runtime/server/current"
 import { useServerSDK } from "@/runtime/server/client"
 import { authTokenFromCredentials } from "@/runtime/server/api"
+import { SecureFetchError, assertNoUrlCredentials, validateRedirectTarget } from "@opencode-mobile/mobile-hosts"
 import { uuid } from "@opencode/util/uuid"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import type { ComposerControls } from "../adapter"
@@ -47,6 +48,10 @@ function write(
   report: (loaded: number) => void,
   signal: AbortSignal,
 ) {
+  // mobile(M-012): the upload URL is assembled here, so its credential rule is enforced here too —
+  // a URL carrying userinfo credentials is refused before anything is sent (decision 0002 D-URL).
+  assertNoUrlCredentials(url.href)
+
   return new Promise<string>((resolve, reject) => {
     if (signal.aborted) return reject(new DOMException("Upload aborted", "AbortError"))
     const xhr = new XMLHttpRequest()
@@ -57,6 +62,13 @@ function write(
     if (password) xhr.setRequestHeader("authorization", `Basic ${authTokenFromCredentials({ password })}`)
     xhr.upload.addEventListener("progress", (event) => report(event.loaded))
     xhr.addEventListener("load", () => {
+      // mobile(M-012): the browser follows redirects silently, so the FINAL response URL is
+      // validated against the requested one — no https→http downgrade, no cross-host delivery
+      // (decision 0002 D1). An empty responseURL means the response never traversed the network
+      // (no redirect), and the status check below still applies.
+      const verdict = validateRedirectTarget(url.href, xhr.responseURL)
+      if (!verdict.allowed)
+        return reject(new SecureFetchError(verdict.reason === "downgrade" ? "redirect-downgrade" : "redirect-cross-host"))
       if (xhr.status !== 200) return reject(new Error(`Upload failed with status ${xhr.status}`))
       // SAFETY: a 200 from `fs.write` is its declared success body, `Location.response(FileSystem.Write)`.
       resolve((xhr.response as { data: { path: string } }).data.path)

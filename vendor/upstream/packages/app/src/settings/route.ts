@@ -12,6 +12,13 @@ export type SettingsRootTab =
   | "extensions"
   | "servers"
   | "experimental"
+  // mobile(M-044): the "gui-extensions" root tab is restored for the first-party GUI
+  // extension manager (M-026 face, unit contract D4 in docs/design/units/gui-plugins.md).
+  // Deliberate deviation from the target route model, resolved as KEEP (issue #109): the
+  // target PluginSettingsPages registry hosts plugin-owned contributions only, and the
+  // target Extensions face is server-scoped and renders only under reachable-server data
+  // scope, while this manager is window-local.
+  | "gui-extensions"
   | "about"
 
 declare const pluginTab: unique symbol
@@ -57,6 +64,7 @@ const rootTabs: Record<SettingsRootTab, true> = {
   extensions: true,
   servers: true,
   experimental: true,
+  "gui-extensions": true,
   about: true,
 }
 

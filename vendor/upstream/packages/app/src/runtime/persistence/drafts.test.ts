@@ -4,6 +4,7 @@ import {
   createDraftStore,
   draftTextChunk,
   draftTextThreshold,
+  pinMediaBlob,
   resolveBlobUrl,
   setMediaBlobLoader,
 } from "./drafts"
@@ -447,15 +448,16 @@ describe("draft store media refs", () => {
   const pngDataUrl = `data:image/png;base64,${png}`
 
   // A server's media blobs, served through the authenticated loader the way the media cache does.
+  // mobile(M-016, issue #188): the loader registration returns its own unregister closure.
   const serveMedia = (key: string, blobs: Map<string, string>) => {
     const loads: string[] = []
-    setMediaBlobLoader(key, async (uri) => {
+    const close = setMediaBlobLoader(key, async (uri) => {
       loads.push(uri)
 
       return blobs.get(uri.slice("media:".length))
     })
 
-    return { loads, close: () => setMediaBlobLoader(key, undefined) }
+    return { loads, close }
   }
 
   test("a media:<hash> ref is saved with its bytes, restored, and submitted as bytes after the server sweeps it", async () => {
@@ -468,7 +470,8 @@ describe("draft store media refs", () => {
       const memory = memoryDriver()
       const store = createDraftStore(memory.driver)
       // The composer holds the URL-neutral ref a restored message carries; `media:` is never fetched directly.
-      const live = { id: ref, url: ref }
+      // mobile(M-016, issue #188): the ref names the server it was captured on.
+      const live = { id: ref, url: ref, sourceServerKey: "srv-draft-media" }
       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: live }] })
 
       const stored = JSON.parse(memory.documents.get("doc")!).prompt[0].blob
@@ -494,7 +497,7 @@ describe("draft store media refs", () => {
     }
   })
 
-  test("a media ref no server can serve saves without failing and submits as the ref", async () => {
+  test("an unresolved media ref preserves the draft but cannot be submitted as attachment bytes", async () => {
     const ref = `media:${"b".repeat(64)}`
     const media = serveMedia("srv-draft-media-gone", new Map())
     const error = console.error
@@ -504,12 +507,109 @@ describe("draft store media refs", () => {
       const memory = memoryDriver()
       const store = createDraftStore(memory.driver)
       await store.setDocument("doc", { prompt: [{ type: "image", mime: "image/png", blob: { id: ref, url: ref } }] })
-      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ id: ref })
+      // mobile(M-016, issue #188): an unresolved remote reference persists as { mediaURI,
+      // sourceServerKey } — it does not claim local ownership, so the strict write is not blocked
+      // and the local-chunk GC stays coherent.
+      expect(JSON.parse(memory.documents.get("doc")!).prompt[0].blob).toEqual({ mediaURI: ref })
       expect(await resolveBlobUrl({ id: ref, url: ref })).toBeUndefined()
-      expect(await blobDataUrl({ id: ref, url: ref }, "image/png")).toBe(ref)
+      // The old `media:` passthrough is gone: a send without stored bytes fails closed here, and
+      // the wire boundary (buildPromptRequest) stops the submission instead.
+      await expect(blobDataUrl({ id: ref, url: ref }, "image/png")).rejects.toBeDefined()
+      expect(media.loads).toEqual([])
+
+      // Restored, the ref stays live with its (absent) source; the draft remains editable.
+      const restored = JSON.parse((await store.getItem("doc"))!).prompt[0].blob
+      expect(restored.id).toBe(ref)
     } finally {
       console.error = error
       media.close()
     }
+  })
+
+  test.each(["missing", "403", "404", "offline", "unknown"] as const)(
+    "source %s fails closed with zero calls to another server",
+    async (failure) => {
+      const ref = `media:${"c".repeat(64)}`
+      let a = 0
+      let b = 0
+      const closeA =
+        failure === "missing"
+          ? () => {}
+          : setMediaBlobLoader("failclosed-a", async () => {
+              a++
+              throw new Error(failure)
+            })
+      const closeB = setMediaBlobLoader("failclosed-b", async () => {
+        b++
+
+        return pngDataUrl
+      })
+      try {
+        const reference = { id: ref, url: "", sourceServerKey: failure === "unknown" ? undefined : "failclosed-a" }
+        await expect(pinMediaBlob(reference)).rejects.toBeDefined()
+        expect(await resolveBlobUrl(reference)).toBeUndefined()
+        expect(b).toBe(0)
+        expect(a).toBe(failure === "missing" || failure === "unknown" ? 0 : 2)
+      } finally {
+        closeA()
+        closeB()
+      }
+    },
+  )
+
+  test("equal remote hashes use source-scoped aliases and local copies remain usable offline", async () => {
+    const ref = `media:${"d".repeat(64)}`
+    let a = 0
+    let b = 0
+    const closeA = setMediaBlobLoader("alias-a", async () => {
+      a++
+
+      return "data:text/plain;base64,QQ=="
+    })
+    const closeB = setMediaBlobLoader("alias-b", async () => {
+      b++
+
+      return "data:text/plain;base64,Qg=="
+    })
+    const first = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-a" })
+    expect(a).toBe(1)
+    expect(b).toBe(0)
+    const second = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "alias-b" })
+    expect(second.id).not.toBe(first.id)
+    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
+    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
+    closeA()
+    closeB()
+    // The local copies are page-lifetime: the captured bytes survive their loader going away.
+    expect(await blobDataUrl(first, "text/plain")).toBe("data:text/plain;base64,QQ==")
+    expect(await blobDataUrl(second, "text/plain")).toBe("data:text/plain;base64,Qg==")
+    expect(await resolveBlobUrl({ id: ref, sourceServerKey: "alias-unknown" })).toBeUndefined()
+  })
+
+  test("late same-key completion and old cleanup cannot publish aliases or unregister a successor", async () => {
+    const ref = `media:${"e".repeat(64)}`
+    let finish!: (value: string) => void
+    const pending = new Promise<string>((resolve) => {
+      finish = resolve
+    })
+    const closeOld = setMediaBlobLoader("generation", () => pending)
+    const old = pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
+    const rejected = old.then(
+      () => false,
+      () => true,
+    )
+    let successor = 0
+    const closeNew = setMediaBlobLoader("generation", async () => {
+      successor++
+
+      return "data:text/plain;base64,TkVX"
+    })
+    closeOld()
+    finish("data:text/plain;base64,T0xE")
+    expect(await rejected).toBe(true)
+    const current = await pinMediaBlob({ id: ref, url: "", sourceServerKey: "generation" })
+    expect(successor).toBe(1)
+    expect(await blobDataUrl(current, "text/plain")).toBe("data:text/plain;base64,TkVX")
+    closeNew()
   })
 })

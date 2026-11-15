@@ -4,7 +4,7 @@ import { createMemo, For, onCleanup, Show, type Component } from "solid-js"
 import { ServerRowMenu } from "@/servers/registry/row-menu"
 import { ServerHealthIndicator } from "@/servers/registry/row"
 import { PluginServerRow } from "@/servers/registry/plugin-row"
-import { AddServerMenu } from "@/servers/registry/add-menu"
+import { SettingsAddServerMenu } from "@/servers/registry/add-menu"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useServerCollectionController } from "@/servers/registry/controller"
@@ -100,7 +100,8 @@ function SettingsServersHeader(props: { title: string; onAddServer: () => void }
           <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.servers.description")}</span>
         </div>
         <div class="settings-tab-header-actions">
-          <AddServerMenu onAddServer={props.onAddServer} />
+          {/* mobile(N12): the Android shell swaps the add control for the WSL-aware menu. */}
+          <SettingsAddServerMenu onAddServer={props.onAddServer} checkAndroid />
         </div>
       </div>
     </div>

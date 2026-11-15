@@ -4,6 +4,10 @@
 
 **状态行：框架已实现（未验证）。** 页面内容 S04+ 归各所属 Issue：Servers 页内面（#102/settings-servers-migration）、General/Experimental 偏好页内面（#103/settings-general-experimental-migration，见下方「偏好页内面」单元）、**Providers/Models/Extensions 页内面（#105/settings-providers-models-extensions，见下方「供应商/模型/服务端扩展页内面」单元）**、Projects/Workspaces 页内面（#106/settings-workspaces-migration）、**Notifications 页内面（#107/settings-notifications-migration，见下方「通知页内面」单元）**与 **Shortcuts 页内面（#108/settings-keybinds-command-catalog，见下方「快捷键页内面」单元）已交付**；**About 页内面已交付（#110 复验 + 链接/暂缓态验收补齐，见下方「About 页内面」单元）**；Desktop 实机视觉对照 **BLOCKED**（无 Windows 参考端）；真服务失败/恢复路径归 G 门禁。本轮运行证据：[build-and-verify.md issue #101/#105/#107/#108/#110 段](../../build-and-verify.md)。
 
+> **#193 校准（2026-11-14，v2.2.7）**：settings 域已完成 v2.2.7 重基——框架/页面内面为 pin 原生（settings-framework 三 patch + 12 条 settings-family rows 翻转 absorbed，54/24），移动 delta 由 active `settings-v2-2-7`（issue #193）重 derive：W1 MobileHostManager servers-tab mount、W2 add-menu WSL disabled row + 350ms-guarded Add-SSH item、W3 gui-extensions tab + ExtensionManager + disabled union、W4 mobile SSH row-menu adapter（connect/retry/remove/confirmHostKey）、W5 M-035 zoom catalog deviation（standing deviation，#197 不得回退门控）、W6 测试重 derive。六探针 v2.2.7 重锚定 rc=0（见 build-and-verify.md #193 段）；上文各 Issue 段的 v2.2.1 目标形描述保留为历史定位记录。
+
+> **#197 校准（2026-11-15，v2.2.7）**：web 缩放实现面已落地——W5 M-035 目录偏离由 standing deviation 兑现为实现面：active `appearance-zoom-web-v2-2-7`（issue #197，row 91，1 target web.ts）重 derive `createUiZoomLevel` 面（CSS zoom 于 documentElement、`opencode-ui-zoom-level` 键不变、存储值校验 + fallback 1），门保持弃置（零 search-gate 内容，W5 注记 discharge）。缩放目录为 pin 原生**十一级 Chromium 形** `[0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`（desktop-menu.ts）——下方 #104 时代「六档 100–200%」描述保留为历史形态，legacy 存储值 1–2 在新目录内继续有效；appearance/motion 域 rows 35/46/72/73 同轮翻转 absorbed（packages/ui 1765/1765 blob byte-identity to pin 在册）。十一级面上的设备逐档复验 BLOCKED（见 build-and-verify.md #197 段）。
+
 ## 单元边界（A/F 分界）
 
 - **A（本单元，issue #101）**：设置外层壳（`settings/shell.tsx` 单一 RootSettings 布局）、导航（`settings/navigation.tsx`）、路由/视图模型（`settings/route.ts`）、surface 与服务器上下文（`settings/surface.tsx` 的 `surface.server()`/`selectServer`/`openServers`）、搜索（index/catalog/results/UI/focus-reveal）、设置→命令面板桥（`settings/palette.ts` + `shell/commands/palette.ts`）、共享设置 CSS、以及依赖闭包（settings-framework-dependencies：sidebar-toggle/sidebar-peek/servers-registry label/ui slash + registry label/hint 块）。
@@ -108,7 +112,7 @@
 3. **UI Font**（`settings-ui-font`）——TextInput，默认空（回落 `"Inter", ui-sans-serif…` 栈）；写入即时生效 `--font-family-sans`。
 4. **Code Font**（`settings-code-font`）——TextInput，默认空（回落 `"IBM Plex Mono", ui-monospace…` 栈）；写入即时生效 `--font-family-mono` + `document.fonts.load("440 13px …")` 预载。
 5. **Terminal Font**（`settings-terminal-font`）——TextInput，默认空；写入 `appearance.terminal`，经 model.tsx `accessors.terminalFont` 消费（target 形；终端面呈现归 terminal 单元，不写 `--font-family-mono`）。
-6. **Zoom**（`settings-zoom`）——六档 Select 100/110/125/150/175/200%（`desktopZoomLevels`），默认 100%；平台层消费见下节。
+6. **Zoom**（`settings-zoom`）——六档 Select 100/110/125/150/175/200%（`desktopZoomLevels`），默认 100%；平台层消费见下节。（**#197 注记**：v2.2.7 pin 的 `desktopZoomLevels` 为十一级 Chromium 形 `[0.5,0.67,0.75,0.8,0.9,1,1.1,1.25,1.5,1.75,2]`——本行六档描述为 #104 历史形态，legacy 存储值 1–2 继续有效；web 应用面由 issue #197 row 91 落地。）
 7. **Reduce motion**（`settings-reduce-motion`）——system/on/off 三值，默认 system；`dataset.motion` 仲裁 effect 消费（system 档接 `prefers-reduced-motion` media query）。
 
 搜索行七条正锚（`search-catalog.ts`）：**七行全部 `tab: "appearance"`**（color-scheme/theme/ui-font/code-font/terminal-font/zoom/reduce-motion）；general/appearance 之分只在**标签键命名空间**——zoom/reduceMotion 五键用 `settings.appearance.row.*`、colorScheme/theme/uiFont/codeFont(=font)/terminalFont 五行用 `settings.general.row.*` 标签键——设备实测搜索 zoom/motion/theme/font/scheme 全命中真实行并点击定位视口内。

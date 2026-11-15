@@ -1,26 +1,42 @@
-// verify-agent-capabilities.ts — static probe for issue #15 (remote Agent
+// verify-agent-capabilities.ts — static probe for issues #15/#193 (remote Agent
 // capabilities and extension settings: agents / commands / skills / MCP /
 // plugin presentation, MCP state machine + re-auth, disconnect semantics,
 // and the GUI-extension main-process zero-execution boundary).
 //
-// Asserts, against the REAL vendored sources (pin b4525d79bf…), the
-// structural facts the agent-capabilities unit document relies on:
+// Issue #193 re-anchor (v2.2.7 = fedc6f208a): the MCP face moved OFF the
+// global-sync/sync.tsx toggle — v2.2.7 ships the machine-driven controller
+// providers/connect/mcp.tsx (mcp.ts -> mcp.tsx; runtime/server/global-sync/mcp.ts
+// deleted; the sync.tsx toggle + interactive-auth copy absorbed into the
+// per-connection machine with effect-driven open-external/open-sign-in). The
+// config-write stub in sync.tsx survives verbatim. installed.ts is gone — the
+// bridge-less inertness face moved into runtime/plugin/root.tsx (settled:!bridge
+// initial state + createExtensionDisabled) + embeds.tsx/ipc.ts. The i18n faces
+// re-derived: dialog.mcp en21/zh2 (the paste/sign-in wizard grew; zh keeps
+// title/empty), settings.extensions en8/zh7 (plugins.loadFailed en-only),
+// mcp.status en4/zh0 (the pin dropped the zh block; en fallback).
+//
+// Asserts, against the REAL vendored sources (pin fedc6f208a… + the active
+// patch chain), the structural facts the agent-capabilities unit document relies on:
 //
 //   1. MCP start/stop call-face EXHAUSTIVE SETS (normalized cross-line scan,
 //      no exceptions — B1 caliber): with the RECEIVER-TOLERANT regex
 //      `\b(api|client)\s*(\(\s*\))?\s*(\.\s*experimental\s*\(\s*\))?\s*\.\s*mcp\s*\.\s*(connect|disconnect)\s*\(`
 //      the `mcp.connect|disconnect` call face is EXACTLY
-//      {providers/connect/mcp.ts, runtime/server/sync.tsx,
-//      gui-extensions/src/details/server-panel.tsx} — app side via the
-//      OpenAPI-generated client receiver `serverSDK.api.mcp.`, gui-ext side
-//      via the promise client receiver `client.mcp.`; same endpoint face,
-//      both receiver shapes count (plan review F1). `mcp.list` is EXACTLY
-//      SIX files: those three + new-session/mcp.ts +
-//      settings/providers/extensions.tsx + the DATA-LAYER ACCESSOR in
+//      {providers/connect/mcp.tsx, gui-extensions/src/details/server-panel.tsx}
+//      (old->new: sync.tsx drops out — the v2.2.7 pin moved the toggle into the
+//      mcp.tsx machine). app side via the experimental-namespace receiver
+//      `api.experimental.mcp.` (old->new: the OpenAPI client grew the
+//      `experimental` namespace — serverSDK.api.mcp. is gone), gui-ext side via
+//      the promise client receiver `client.experimental.mcp.`; same endpoint
+//      face, both receiver shapes count. `mcp.list` is EXACTLY FOUR files:
+//      those two + new-session/mcp.ts + the DATA-LAYER ACCESSOR in
 //      client/src/solid/data.ts (`api().mcp.list(` — a FUNCTION-CALL-FORM
 //      receiver `api()` that the plain `\b(api|client)\.mcp` regex is blind
 //      to; plan review N1 — hence the optional-call-parens group `(\s*\))?`
-//      in the receiver tolerance). Assertion form: NAMED-FILE SET EQUALITY
+//      in the receiver tolerance). extensions.tsx stays OUT of the list set
+//      (the settings-providers-models-extensions retirement holds at v2.2.7 —
+//      the page reads the data layer; its sync/list overlay anchors are pinned).
+//      Assertion form: NAMED-FILE SET EQUALITY
 //      (each named file ≥1 hit + zero hits outside the named set) — the
 //      conjunction is equivalent to set equality, and when the regex and the
 //      sources disagree the failure lands on a MISSING hit in a named file,
@@ -28,99 +44,117 @@
 //      mirror protection). CALIBER NOTE: the tolerant regexes run on RAW
 //      text (with `\s*` between tokens), NOT on whitespace-squashed text —
 //      squashing would fuse `await client` into `awaitclient` and destroy
-//      the `\b` boundary (measured on this pin: the squashed caliber misses
-//      server-panel.tsx entirely). The extensions.tsx mcp.list call is
-//      written CROSS-LINE (`serverSdk.api.mcp\n.list()`), so the bare
-//      line-shape `/api\.mcp\.list/` misses it while the tolerant regex
-//      hits — asserted explicitly as the standing B1 cross-line case.
-//      plugin.list call face: EXACTLY {extensions.tsx,
+//      the `\b` boundary. plugin.list call face: EXACTLY {extensions.tsx,
 //      project-extensions.tsx, server-panel.tsx}.
-//   2. Re-authentication three-site chain (containment assertions, NOT a
-//      global exclusive set): each of the three call-face files contains the
-//      needs_auth → integration.get → oauth-method selection →
-//      integration.oauth.connect → openExternal chain (in that order), one
-//      interactiveForm-class error anchor and the terminal re-check comment
-//      (mcp.ts verbatim "A successful HTTP response can still leave the MCP
-//      connection in a failed state."). provider-face controller.ts legally
-//      co-exists the integration.get+oauth.connect pair (not an MCP face);
+//   2. Re-authentication two-site chain (containment assertions, NOT a
+//      global exclusive set; old->new: sync.tsx's third site is absorbed —
+//      the sign-in flow lives in the mcp.tsx machine and the gui-ext panel):
+//      each of the two call-face files contains the integration.get →
+//      oauth-method selection → integration.oauth.connect chain (in that
+//      order), one interactiveForm-class error anchor (mcp.auth.interactiveForm
+//      app-side / mcp.interactiveAuth gui-ext side) and the open-external
+//      face — app-side EFFECT-driven (`input.platform.openExternal(effect.url)`,
+//      old->new from the direct `platform.openExternal(attempt.data.url)` call),
+//      gui-ext side `ctx.system.openExternal(effect.url)`. provider-face
+//      controller.ts legally co-exists the oauth.connect call
+//      (serverSDK.api.integration.oauth.connect — not an MCP face);
 //      exclusivity is carried indirectly by the group-1 call-face sets.
-//      Source-caliber sets: integration.get EXACTLY FIVE files (the three
-//      MCP faces + controller.ts + providers.tsx), integration.oauth.connect
-//      EXACTLY FOUR files in the app/gui-extensions SOURCE caliber
-//      (providers.tsx has none — plan review N2: client/test/promise.test.ts
-//      carries three additional TEST-call occurrences but the test directory
-//      is outside this probe's src-domain scan).
+//      Source-caliber sets: integration.get EXACTLY FOUR files (the two MCP
+//      faces + controller.ts load + providers.tsx disconnect.run — cross-line
+//      faces; old->new: controller.ts/providers.tsx/sync.tsx drop out —
+//      controller.ts reads the useIntegrations catalog now), integration.oauth.connect
+//      EXACTLY THREE files in the app/gui-extensions SOURCE caliber
+//      (+ controller.ts; providers.tsx has none — plan review N2).
+//      The failed-state terminal re-check survives verbatim (mcp.tsx
+//      "A successful HTTP response can still leave the MCP connection in a
+//      failed state."); the throw shape became a machine event return
+//      (old->new: `throw new Error` -> `return { type: "toggle.failed", ... }`).
 //   3. GUI-extension main-process zero-execution negative group (four
 //      independent evidence chains): ① web platform has NO `extensions`
-//      (Bridge) field and bridge.ts's `extensions?: Bridge` doc says verbatim
+//      (Bridge) field and the Bridge doc says verbatim
 //      "What the desktop preload exposes to the renderer host; undefined on
-//      the web." — the desktop package SOURCE is not in the closure (only
-//      its 106 icon assets); ② core.ts Ipc doc verbatim "On the web, where
-//      no main process runs, it is always inactive."; ③ app/src carries ZERO
-//      `from "electron"` import shapes and its `@opencode/gui-extensions`
-//      import-specifier set is EXACTLY {sdk: 34, sdk/bridge: 8, renderer: 2,
-//      updater: 1} with ZERO `gui-extensions/main` / `sdk/main` imports
-//      (the main compose with six `main:` entries lives in
-//      gui-extensions/src/main.ts, consumed only by the desktop main host);
-//      ④ the settings gui-extensions tab is double-gated: DEV-only lazy
-//      import AND `platform.platform === "desktop"`, with the redirect guard
-//      bouncing other platforms to general — triple-unreachable in the
-//      production web build. ANTI-OVERCLAIM anchors: the renderer side DOES
-//      run on the web (ExtensionRoot mounts on web; builtins filter by OS
-//      only; installed.ts is inert without a bridge: `if (!bridge) return`)
-//      — renderer contributions (incl. the details mobile drawer) are pure
-//      SolidJS UI reading server data via the client API; the details drawer
-//      mobile registration (`kind: "drawer"`, order 50) and the app session
-//      screen `<MobileViewTabs` mount are asserted as the mobile reachability
+//      the web." — the desktop package SOURCE is not in the closure; ② the
+//      Ipc doc verbatim "On the web, where no main process runs, it is
+//      inactive and every call rejects."; ③ app/src carries ZERO
+//      `from "electron"` import shapes and its `@opencode/…` gui specifier
+//      set is EXACTLY the measured v2.2.7 map below with ZERO
+//      `gui-plugins/main` / `plugin/gui/main` imports (the main compose with
+//      six `main:` entries lives in gui-extensions/src/main.ts, consumed only
+//      by the desktop main host); ④ the settings gui-extensions tab keeps the
+//      W3 single-face form: the mobile(M-026) predicate
+//      `mobileGuiExtensions = platform.platform !== "desktop"`, the redirect
+//      guard `if (view.tab === "gui-extensions" && !mobileGuiExtensions)
+//      surface.open("general")`, and the first-party Tabs.Content mount.
+//      ANTI-OVERCLAIM anchors: the renderer side DOES run on the web
+//      (ExtensionRoot mounts on web; builtins filter by OS only —
+//      runsOn(definition, os); the bridge-less inertness face is
+//      root.tsx `{ settled: !bridge, plugins: [], reserved: [] }` +
+//      createExtensionDisabled + embeds.tsx `if (!bridge) return` + ipc.ts
+//      `if (!bridge) return` — old->new: the #15-era installed.ts pins are
+//      absorbed into these files); the details drawer mobile registration
+//      (`kind: "drawer"`, order 50) and the app session screen
+//      `<MobileViewTabs` mount are asserted as the mobile reachability
 //      chain's static half.
 //   4. Data-face five events + reconnect resync + client disconnect zero:
-//      data.ts handles mcp.status.changed (with the verbatim three-line
-//      comment — auth completion pushes state back, no polling),
-//      mcp.resources.changed, agent.updated, command.updated, skill.updated;
+//      data.ts handles mcp.status.changed (with the verbatim push-back
+//      comment — auth completion pushes state back, no polling — now with
+//      the settle() per-location dedupe), mcp.resources.changed,
+//      agent.updated, command.updated, skill.updated (old->new: the
+//      invalidate+refresh pairs collapsed into the refreshLocation helper);
 //      the reconnect/bootstrap sync block re-syncs agent/command/mcp.server/
 //      mcp.resource/skill; the locationResource accessors (incl. the
 //      `api().mcp.list(` data-layer form, N1) are anchored; connection.ts
 //      has ZERO mcp/agent/command/skill/plugin API call shapes (its only api
 //      use is event.subscribe) — disconnect never touches the five
 //      capability faces (#9/#13 red-line family).
-//   5. Error and recovery chain: the mcp.ts failed-state terminal re-check
-//      (verbatim), the mcp.auth.interactiveForm key, the catch→[] fallback
-//      comment (extensions.tsx verbatim + the project variant fragment),
-//      the LSP loadFailed+retry pair, the four session.summary.mcp.* keys in
-//      new-session/mcp.ts, the toggleMcp dispatch table verbatim
-//      (`{connected: disconnect, needs_auth: authenticate, disabled: connect,
-//      failed: connect}` + pending early-return), the mcp-dialog four-key
-//      statusLabels literal + pending-disabled Switch, and the en+zh i18n
-//      pairing counts (settings.extensions 7=7, mcp.status 4/4, dialog.mcp
-//      3/3, session.summary.mcp 4/4, project.settings.extensions 20/20) with
-//      settings.guiExtensions.* at 9/9 (issue #26 revised the en=8/zh=0 honest gap to a
-//      full en/zh pairing — deliberate revision, NOT a bypass).
+//   5. Error and recovery chain: the mcp.tsx failed-state terminal re-check
+//      (verbatim), the mcp.auth.interactiveForm key, the data-layer fallback
+//      shape (old->new: extensions.tsx's `.catch(() => [])` became the
+//      `?? []` list overlay — pinned in group 1; project-extensions.tsx
+//      dropped the rethrows/fall-back comments with the v2.2.7 retry
+//      machine — the LSP face is loadFailed/retry/onRetry=config.retry and
+//      the plugins face common.retry/onRetry=plugins.retry), the three
+//      session.summary.mcp.* keys in new-session/mcp.ts (old->new:
+//      prepareFailed left the consumer — the en key stays as a dead key, the
+//      machine's unresolved-status throw carries signInBeforeSend/notReady),
+//      the toggle machine face (old->new: the global-sync/mcp.ts dispatch
+//      table is gone — the run-toggle effect + the pending-refusal machine
+//      comment + the failed-state return carry the contract), the mcp-dialog
+//      statusLabels map + pending gate (old->new: the pending-disabled Switch
+//      gate became `disabled={view().pending}`), and the en+zh i18n pairing
+//      (settings.extensions en8/zh7 with plugins.loadFailed en-only,
+//      mcp.status en4/zh0 en-fallback, session.summary.mcp 4/4,
+//      project.settings.extensions 20/20) with settings.guiExtensions.* at
+//      9/9 and the EXACT key-set pins dialog.mcp en21/zh2 + settings.plugins
+//      en12/zh0.
 //   6. Config write boundary: the sync.tsx updateConfig stub (verbatim TODO
-//      + throw — the client cannot edit server opencode.json), the
-//      "Manage in opencode.json" copy, the THREE zero-call negatives with
-//      the receiver-tolerant regex (`mcp.add|remove`, `plugin.check|update`,
-//      `session.skill` — zero in the four-package src domain), the promise
-//      GENERATED surface registration anchors (client.ts `check:`/`update:`/
-//      `add:`/`remove:`/`skill:` via their unique input-type names — the
-//      generated face existing is NOT a call), the Mcp.Server schema with NO
-//      config-echo fields (name/status/integrationID? + the integrationID
-//      comment verbatim) and the five Status literals, the LocalConfig cwd
+//      + commented experimental call + throw — the client cannot edit server
+//      opencode.json), the "Manage in opencode.json" copy, the THREE
+//      zero-call negatives with the receiver-tolerant regex (`mcp.add|remove`,
+//      `plugin.check|update`, `session.skill` — zero in the four-package src
+//      domain), the promise GENERATED surface registration anchors
+//      (client.ts `check:`/`update:` via PluginCheckInput/PluginUpdateInput,
+//      `add:`/`remove:`/`skill:` via the v2.2.7 Experimental* input-type
+//      names — old->new: McpAddInput/McpRemoveInput/SessionSkillInput gained
+//      the Experimental prefix; the generated face existing is NOT a call),
+//      the Mcp.Server schema with the title member + NO config-echo fields
+//      (name/status/title?/integrationID? + the integrationID comment
+//      verbatim) and the five Status literals, the LocalConfig cwd
 //      description verbatim (server-side process semantics), and the
 //      mobile-hosts double lock (zero capability API call shapes across the
 //      whole shared layer).
 //   7. Zero host-OS conditionals (whitelist scan, #8 N-5 / #11 / #12 / #13
-//      / #14 pattern): the NEW scan domain — app/src/session/commands +
+//      / #14 pattern): the scan domain — app/src/session/commands +
 //      app/src/composer + app/src/runtime/server/global-sync +
-//      app/src/runtime/server/sync.tsx (59 .ts/.tsx files measured on this
-//      pin: 45 session/commands+composer + 13 global-sync + 1 sync.tsx;
-//      lower-bound assertion 50) — must contain ZERO process.platform /
+//      app/src/runtime/server/sync.tsx (90 .ts/.tsx files measured on this
+//      pin; lower-bound assertion 50) — must contain ZERO process.platform /
 //      navigator.platform / node:os / require("os") / from "os" references.
 //      COVERAGE NOTE (no double-counting): settings/providers/extensions.tsx
-//      + providers/connect/mcp.ts + providers/connect/mcp-dialog.tsx were
-//      first-scanned by #14 (49-file provider domain); settings/workspaces/**
-//      + gui-extensions/src/details/** by #12 (170-file six-domain
-//      whitelist); new-session/** by #8 — this probe does NOT rescan them
-//      and does NOT claim whole-repo coverage.
+//      + providers/connect/mcp.tsx + providers/connect/mcp-dialog.tsx were
+//      first-scanned by #14 (provider domain); settings/workspaces/**
+//      + gui-extensions/src/details/** by #12 (six-domain whitelist);
+//      new-session/** by #8 — this probe does NOT rescan them and does NOT
+//      claim whole-repo coverage.
 
 // HONEST BOUNDARY (same tradition as verify-terminal.ts /
 // verify-provider-models.ts): this is a static STRUCTURE check (text anchors
@@ -133,9 +167,16 @@
 // management IMPLEMENTATION (packages/server, packages/core) are NOT in the
 // vendored closure and are NOT asserted here — cited from the upstream pin
 // cache in the unit document. The protocol/schema descriptions, the toggle
-// state machine, the three call faces, the client solid data layer and the
+// state machine, the call faces, the client solid data layer and the
 // settings/dialog/drawer UI sources ARE in the closure and are asserted
 // here.
+//
+// Negative injections (issue #193 re-anchor round, run inject->FAIL->restore->PASS):
+//   B1 (group 1): append `await api.experimental.mcp.connect({})` to an
+//      unrelated file (settings/route.ts) -> the connect/disconnect set
+//      equality FAILS with the unexpected-site message.
+//   B2 (group 3): inject `import ... from "@opencode/plugin/gui/main"` into
+//      an app/src file -> the main-process import negative FAILS.
 //
 // Usage:
 //   bun run scripts/verify-agent-capabilities.ts
@@ -201,11 +242,10 @@ let fourPkgFiles = 0
 let osScanFiles = 0
 let mhFiles = 0
 
-// --- 1. MCP start/stop call-face exhaustive sets + mcp.list two-part set ---
+// --- 1. MCP start/stop call-face exhaustive sets + mcp.list set ---
 {
   const expectConnect = new Set([
-    `${APP}src/providers/connect/mcp.ts`,
-    `${APP}src/runtime/server/sync.tsx`,
+    `${APP}src/providers/connect/mcp.tsx`,
     `${GUI_EXT}src/details/server-panel.tsx`,
   ])
   const expectList = new Set([
@@ -240,11 +280,13 @@ let mhFiles = 0
   assertSet("plugin.list", gotPluginList, expectPluginList)
 
   // Receiver-shape anchors: both receiver forms on the same endpoint face.
-  const face = squash(await read(`${APP}src/providers/connect/mcp.ts`))
-  if (!/serverSDK\.api\s*\.\s*mcp/.test(face)) fail("1: the app-side OpenAPI-generated receiver (serverSDK.api.mcp.) moved")
+  // old->new (issue #193 re-anchor): the app receiver is the experimental
+  // namespace (`api.experimental.mcp.`) — the OpenAPI client grew the
+  // namespace and the pre-#193 serverSDK.api.mcp face is gone.
+  const face = squash(await read(`${APP}src/providers/connect/mcp.tsx`))
+  if (!/api\.experimental\.mcp/.test(face)) fail("1: the app-side experimental receiver (api.experimental.mcp.) moved")
+  if (/serverSDK\.api\s*\.\s*mcp/.test(face)) fail("1: mcp.tsx regained the pre-adoption serverSDK.api.mcp receiver")
   const panel = squash(await read(`${GUI_EXT}src/details/server-panel.tsx`))
-  // Issue #67: v2.2.1 namespaces the promise client under experimental
-  // (client.experimental.mcp.connect/disconnect).
   if (!/client(\s*\.\s*experimental)?\s*\.\s*mcp\s*\.\s*(connect|disconnect)/.test(panel))
     fail("1: the gui-plugins promise-client receiver (client.experimental.mcp.connect/disconnect) moved")
   const data = squash(await read(`${CLIENT}src/solid/data.ts`))
@@ -253,9 +295,9 @@ let mhFiles = 0
 
   // B1 retirement (settings-providers-models-extensions, issue #105): extensions.tsx used to be the standing
   // cross-line mcp.list case; the target migration moved it to the data layer,
-  // so the UI face is exactly the four files above + the data-layer accessor.
-  // The tolerant scan stays (it is what proves the retirement); the page pins
-  // its new data-layer shapes below.
+  // so the UI face is exactly the two MCP faces + new-session + the data-layer
+  // accessor. The tolerant scan stays (it is what proves the retirement); the
+  // page pins its data-layer shapes below.
   const extensionsRaw = await read(`${APP}src/settings/providers/extensions.tsx`)
   if (/api\s*\.\s*mcp\s*\.\s*list\s*\(/.test(extensionsRaw))
     fail("1: extensions.tsx regained an api.mcp.list call — settings-providers-models-extensions moved it to the data layer (retired B1 case); re-derive the set if intentional")
@@ -267,19 +309,18 @@ let mhFiles = 0
   if (!extensionsSq.includes("data.location.mcp.server.list(data.location.default())??[])"))
     fail("1: the extensions.tsx default-Location list overlay anchor moved")
 
-  // mcp.list UI-face vs data-face: the four UI files call it through
+  // mcp.list UI-face vs data-face: the three UI files call it through
   // server clients; only data.ts is the locationResource accessor (the N1
-  // two-part wording — UI call face four + data-layer accessor one).
+  // two-part wording — UI call face three + data-layer accessor one).
   if (!data.includes('locationResource("mcpServer",(location)=>api().mcp.list({location}))'))
     fail("1: the mcpServer locationResource accessor (data-layer mcp.list) changed")
 }
 
-// --- 2. Re-authentication three-site chain (containment) ---
+// --- 2. Re-authentication two-site chain (containment) ---
 {
-  const sites: [string, string, string, string][] = [
-    [`${APP}src/providers/connect/mcp.ts`, "mcp.auth.interactiveForm", "platform.openExternal(attempt.data.url)", "integration"],
-    [`${APP}src/runtime/server/sync.tsx`, "requires an interactive authentication form", "platform.openExternal(attempt.data.url)", "integration"],
-    [`${GUI_EXT}src/details/server-panel.tsx`, "mcp.interactiveAuth", "system.openExternal(attempt.data.url)", "integration"],
+  const sites: [string, string, string][] = [
+    [`${APP}src/providers/connect/mcp.tsx`, "mcp.auth.interactiveForm", "input.platform.openExternal(effect.url)"],
+    [`${GUI_EXT}src/details/server-panel.tsx`, "mcp.interactiveAuth", "ctx.system.openExternal(effect.url)"],
   ]
   for (const [rel, errorAnchor, openAnchor] of sites) {
     const raw = await read(rel)
@@ -296,15 +337,20 @@ let mhFiles = 0
       fail(`2: the needs_auth chain order (integration.get → oauth.connect) broke in ${rel}`)
     if (!sq.includes("if(!method||method.type!==")) fail(`2: the oauth-method selection guard (type check) moved in ${rel}`)
   }
-  // Terminal re-check after the action (mcp.ts verbatim).
-  const mcpToggle = squash(await read(`${APP}src/providers/connect/mcp.ts`))
+  // Terminal re-check after the action (mcp.tsx verbatim), with the machine
+  // event return shape (old->new: the #15-era throw became a toggle.failed event).
+  const mcpToggle = squash(await read(`${APP}src/providers/connect/mcp.tsx`))
   if (!mcpToggle.includes(squash("A successful HTTP response can still leave the MCP connection in a failed state.")))
     fail("2: the failed-state terminal re-check comment moved (verbatim)")
-  if (!mcpToggle.includes('if(status?.status==="failed")thrownewError'))
-    fail("2: the failed-state throw shape moved")
+  if (!mcpToggle.includes('if(status?.status==="failed")return{type:"toggle.failed",name,attempt,error:status.error,server:true}'))
+    fail("2: the failed-state toggle.failed return shape moved")
 
-  // Source-caliber sets (N2): integration.get exactly five, oauth.connect
-  // exactly four (providers.tsx has none; test-call surface outside src).
+  // Source-caliber sets (N2): integration.get exactly four (the two MCP faces
+  // + controller.ts's load effect + providers.tsx's disconnect.run effect —
+  // cross-line `…api.integration\n.get` writes the tolerant regex exists for),
+  // oauth.connect exactly three (+ controller.ts's serverSdk connect).
+  // old->new: sync.tsx dropped out of the get set — the sync toggle moved
+  // into the mcp.tsx machine.
   const gotGet = new Set<string>()
   const gotOauth = new Set<string>()
   for (const base of FOUR_PKGS) {
@@ -316,15 +362,13 @@ let mhFiles = 0
   }
   const expectGet = new Set([
     `${APP}src/providers/connect/controller.ts`,
-    `${APP}src/providers/connect/mcp.ts`,
-    `${APP}src/runtime/server/sync.tsx`,
+    `${APP}src/providers/connect/mcp.tsx`,
     `${APP}src/settings/providers/providers.tsx`,
     `${GUI_EXT}src/details/server-panel.tsx`,
   ])
   const expectOauth = new Set([
     `${APP}src/providers/connect/controller.ts`,
-    `${APP}src/providers/connect/mcp.ts`,
-    `${APP}src/runtime/server/sync.tsx`,
+    `${APP}src/providers/connect/mcp.tsx`,
     `${GUI_EXT}src/details/server-panel.tsx`,
   ])
   for (const file of gotGet) if (!expectGet.has(file)) fail(`2: unexpected integration.get call site: ${file}`)
@@ -345,18 +389,14 @@ let mhFiles = 0
   const core = await read("vendor/upstream/packages/plugin/src/gui/core.ts")
   if (!core.includes("On the web, where no main process runs, it is inactive and every call rejects."))
     fail("3: the Ipc 'always inactive on the web' doc moved (verbatim)")
-  // ③ zero electron imports + exact gui-extensions import-specifier set.
+  // ③ zero electron imports + exact gui specifier set.
   const electronShape = /from\s*["']electron["']/
-  // Specifier shapes: `from "@opencode/gui-extensions…"` imports AND the
-  // DEV HMR `import.meta.hot.accept("@opencode/gui-extensions/renderer",…)`
-  // form (builtins.ts — the renderer count 2 includes that one HMR accept).
-  // Issue #67: the app/src specifier graph moved to @opencode/plugin/gui* + gui-plugins/renderer.
-  // Measured (gui-plugins-api-migration tree): plugin/gui x33, /builtin x9, /host x16, /browser x1, /file x1,
-  // /main x1, /review x1, /updater x1, gui-plugins/renderer x2; main-process entries zero.
-  // Issue #141 drift repair (new-fact registration): commits after the last
-  // probe refresh added plugin/gui x4 (session shell), /builtin x1 (mobile
-  // ssh) and the test-only gui-plugins/terminal import (desktop-menu.test.ts);
-  // main-process entries stay zero.
+  // Specifier shapes: `from "@opencode/…"` imports AND the DEV HMR
+  // `import.meta.hot.accept(...)` form. Measured on the v2.2.7 pin + the
+  // settings-v2-2-7 W3 face (issue #193 re-anchor of the #141 map):
+  // plugin/gui x50, /builtin x10, /host x21, /browser x1, /file x1, /review x1,
+  // /updater x2, gui-plugins/renderer x2, gui-plugins/terminal x1; bare
+  // gui-plugins and BOTH main-process entries zero.
   const specifierRe = /(?:from\s*|import\.meta\.hot\.accept\(|import\()\s*["']@opencode\/(plugin\/gui[^"']*|gui-plugins\/?[^"']*)["']/g
   const specifiers = new Map<string, number>([
     ["plugin/gui", 0],
@@ -387,14 +427,14 @@ let mhFiles = 0
   }
   if (appSrcFiles < 300) fail(`3: app/src scan implausibly small (${appSrcFiles} files)`)
   const expectSpecifiers: [string, number][] = [
-    ["plugin/gui", 37],
+    ["plugin/gui", 50],
     ["plugin/gui/builtin", 10],
-    ["plugin/gui/host", 16],
+    ["plugin/gui/host", 21],
     ["plugin/gui/browser", 1],
     ["plugin/gui/file", 1],
     ["plugin/gui/main", 0],
     ["plugin/gui/review", 1],
-    ["plugin/gui/updater", 1],
+    ["plugin/gui/updater", 2],
     ["gui-plugins", 0],
     ["gui-plugins/renderer", 2],
     ["gui-plugins/terminal", 1],
@@ -403,42 +443,46 @@ let mhFiles = 0
     const got = specifiers.get(key) ?? -1
     if (got !== count) fail(`3: the @opencode plugin/gui specifier set changed: "${key}" expected ${count}, got ${got}`)
   }
-  // ④ settings entry (issue #101 / settings-framework-mobile forms). The migrated (v2.2.1) shell REMOVED the
-  // DEV-only lazy gate and the desktop-only gate (the DEV plugin face lives in
-  // PluginSettingsPages/settings-page-dev, carried by gui-plugins-api-migration), and the redirect guard
-  // collapsed to the single settings-framework-mobile face form — SAME-FACE as verify-gui-plugins group 3/4
-  // (common witness, drift double-FAILs preserved).
+  // ④ settings entry (settings-v2-2-7 W3 form, issue #193): the mobile(M-026)
+  // single-face predicate + redirect guard + the first-party Tabs.Content
+  // mount (SAME-FACE as verify-settings-framework group 1 and
+  // verify-gui-plugins — common witness, drift double-FAILs preserved).
   const shell = squash(await read(`${APP}src/settings/shell.tsx`))
   if (shell.includes("constGuiExtensionsSettings=import.meta.env.DEV"))
-    fail("3: shell.tsx still carries the pin DEV-only lazy gate (target-removed by the settings-framework-migration migration)")
-  if (shell.includes('constguiExtensions=!!GuiExtensionsSettings&&platform.platform==="desktop"'))
-    fail("3: shell.tsx still carries the pin guiExtensions desktop gate (target-removed by the settings-framework-migration migration)")
+    fail("3: shell.tsx still carries the pin DEV-only lazy gate (upstream-removed on the W3 face)")
+  if (!shell.includes('constmobileGuiExtensions=platform.platform!=="desktop"'))
+    fail("3: shell.tsx lost the mobile(M-026) gui-extensions predicate (settings-v2-2-7 W3)")
   if (!shell.includes('if(view.tab==="gui-extensions"&&!mobileGuiExtensions)surface.open("general")'))
-    fail("3: the gui-extensions redirect guard lost the settings-framework-mobile single-face form (issue #101 re-anchor)")
+    fail("3: the gui-extensions redirect guard lost the single-face form (settings-v2-2-7 W3)")
+  if (!shell.includes('<Tabs.Contentvalue="gui-extensions"'))
+    fail("3: shell.tsx lost the first-party gui-extensions Tabs.Content mount (settings-v2-2-7 W3)")
   // Anti-overclaim: renderer side DOES run on web (os filter + bridge-less
   // inertness), and the details mobile drawer chain stays in place.
+  // old->new (issue #193 re-anchor): installed.ts is gone — its bridge-less
+  // faces are absorbed into root.tsx (empty initial state +
+  // createExtensionDisabled), embeds.tsx and ipc.ts.
   const root = squash(await read(`${APP}src/runtime/plugin/root.tsx`))
   if (!root.includes('constos=platform.platform==="desktop"?platform.os:undefined'))
     fail("3: the root os gate (web ⇒ os undefined) moved")
-  // Issue #67: the inline os filter becomes the host's runsOn(definition, os) (same §4.1 row
-  // as the gui-plugins probe); the provider face renames; the .ocdx installed-archive comment
-  // is upstream-removed (its face is gone; the D04 anchor is the Bridge.manager member set).
   if (!root.includes("runsOn(definition,os)"))
-    fail("3: the builtins OS-only filter moved (runsOn host fn, issue #67)")
+    fail("3: the builtins OS-only filter moved (runsOn host fn)")
   if (!root.includes("ipc={bridge?(token)=>ipcs.client(token):undefined}"))
     fail("3: the PluginHostProvider ipc bridge-conditional moved")
-  const installed = squash(await read(`${APP}src/runtime/plugin/installed.ts`))
-  if (!installed.includes("if(!bridge)return")) fail("3: installed.ts must early-return without a bridge")
-  if (!installed.includes("bridge?bridge.manager.initial?.catch(()=>undefined):[]"))
-    fail("3: installed.ts initial list must be empty without a bridge")
+  if (!root.includes("settled:!bridge,plugins:[],reserved:[]"))
+    fail("3: root.tsx lost the bridge-less empty initial state (installed.ts successor)")
+  if (!root.includes("createExtensionDisabled(window.localStorage)"))
+    fail("3: root.tsx lost the createExtensionDisabled bridge-less union (settings-v2-2-7 W3)")
+  const embeds = squash(await read(`${APP}src/runtime/plugin/embeds.tsx`))
+  if (!embeds.includes("if(!bridge)return")) fail("3: embeds.tsx must early-return without a bridge")
+  const ipc = squash(await read(`${APP}src/runtime/plugin/ipc.ts`))
+  if (!ipc.includes("if(!bridge)return")) fail("3: ipc.ts must no-op without a bridge")
   const renderer = squash(await read(`${GUI_EXT}src/details/renderer.tsx`))
   if (!renderer.includes('order:50,kind:"drawer"')) fail("3: the details mobile drawer registration (order 50, kind drawer) moved")
   const screen = await read(`${APP}src/session/screen.tsx`)
   if (!/<MobileViewTabs/.test(screen)) fail("3: the session screen MobileViewTabs mount moved")
   const wsl = squash(await read(`${GUI_EXT}src/wsl/index.ts`))
   if (!wsl.includes('os:["windows"]')) fail("3: the wsl windows-only os literal moved (the only os-filtered builtin)")
-  // The gui-plugins main compose stays desktop-side (six mainEntry: entries in main.ts;
-  // issue #67 renames the face and the object-map form).
+  // The gui-plugins main compose stays desktop-side (six mainEntry: entries in main.ts).
   const mainCompose = await read(`${GUI_EXT}src/main.ts`)
   const mainEntries = (mainCompose.match(/mainEntry:\s*\(\)\s*=>\s*import\(/g) ?? []).length
   if (mainEntries !== 6) fail(`3: the gui-plugins main compose must carry exactly 6 mainEntry: entries (got ${mainEntries})`)
@@ -447,19 +491,22 @@ let mhFiles = 0
 // --- 4. Data-face five events + reconnect resync + disconnect zero ---
 {
   const data = squash(await read(`${CLIENT}src/solid/data.ts`))
+  // old->new (issue #193 re-anchor): the push-back comment gains the settle()
+  // dedupe sentence; the branches collapse into refreshLocation helpers and
+  // the mcp.status.changed branch settles via the per-location key.
   if (!data.includes(squash("Authenticating an MCP integration reconnects its server, which emits mcp.status.changed,")))
     fail("4: the mcp.status.changed push-back comment moved (verbatim, line 1)")
   if (!data.includes(squash("so the mcp list syncs here rather than off integration.updated. The server emits one event")))
     fail("4: the mcp.status.changed push-back comment moved (verbatim, line 2)")
-  if (!data.includes('case"mcp.status.changed":result.location.mcp.server.invalidate(location)'))
+  if (!data.includes('case"mcp.status.changed":{constactive=hasLocation("mcpServer",location)result.location.mcp.server.invalidate(location)'))
     fail("4: the mcp.status.changed invalidate+settle branch moved")
-  if (!data.includes('case"mcp.resources.changed":result.location.mcp.resource.invalidate(location)'))
+  if (!data.includes('case"mcp.resources.changed":refreshLocation("mcpResource",result.location.mcp.resource,location)'))
     fail("4: the mcp.resources.changed branch moved")
-  if (!data.includes('case"agent.updated":result.location.agent.invalidate(location)refresh(()=>result.location.agent.sync(location))'))
+  if (!data.includes('case"agent.updated":refreshLocation("agent",result.location.agent,location)'))
     fail("4: the agent.updated branch moved")
-  if (!data.includes('case"command.updated":result.location.command.invalidate(location)refresh(()=>result.location.command.sync(location))'))
+  if (!data.includes('case"command.updated":refreshLocation("command",result.location.command,location)'))
     fail("4: the command.updated branch moved")
-  if (!data.includes('case"skill.updated":result.location.skill.invalidate(location)refresh(()=>result.location.skill.sync(location))'))
+  if (!data.includes('case"skill.updated":refreshLocation("skill",result.location.skill,location)'))
     fail("4: the skill.updated branch moved")
   // Reconnect/bootstrap resync block: five capability directories in sync().
   for (const dir of [
@@ -490,18 +537,11 @@ let mhFiles = 0
 
 // --- 5. Error and recovery chain ---
 {
-  // catch→[] fallback comments (both variants). settings-providers-models-extensions (issue #105): the target
-  // extensions.tsx DELETES the "Reading `.latest` rethrows…" comment (its
-  // mcpList resource is gone; only the pluginList `.catch(() => [])` shape
-  // remains), so the comment pin narrows to project-extensions.tsx (zero-delta
-  // file) and extensions.tsx keeps the shape pin + gains its target-face pins.
+  // old->new (issue #193 re-anchor): the data-layer fallback shape is the
+  // `?? []` list overlay (group 1); the v2.2.7 retry machines carry the
+  // recovery faces.
   const extensions = squash(await read(`${APP}src/settings/providers/extensions.tsx`))
-  if (!extensions.includes(".catch(()=>[])")) fail("5: the catch→[] fallback shape moved (extensions.tsx)")
-  const project = squash(await read(`${APP}src/settings/workspaces/project-extensions.tsx`))
-  if (!project.includes(squash("rethrows a failed fetch")) || !project.includes(squash("fall back to empty instead of crashing the page")))
-    fail("5: the catch→[] fallback comment moved (project-extensions.tsx, variant fragment)")
-  if (!project.includes(".catch(()=>[])")) fail("5: the catch→[] fallback shape moved (project-extensions.tsx)")
-  // Target-face pins (issue #105 S25/S26): data-layer MCP row with the status
+  // Target-face pins (settings-providers-models-extensions S25/S26): data-layer MCP row with the status
   // dot, the failed View-error Button, the needs_auth Sign-in Button and the
   // extensions-side statusLabels map.
   if (!extensions.includes("settings-mcp-row")) fail("5: the extensions.tsx MCP row class (settings-mcp-row) moved")
@@ -514,36 +554,47 @@ let mhFiles = 0
     !extensions.includes('connected:"mcp.status.connected",failed:"mcp.status.failed",needs_auth:"mcp.status.needs_auth",disabled:"mcp.status.disabled"')
   )
     fail("5: the extensions.tsx statusLabels four-key map changed")
-  // LSP loadFailed + retry recovery pair.
+  // LSP loadFailed + retry recovery pair (the v2.2.7 retry-machine form:
+  // onRetry={config.retry}; old->new from `void config.refetch()`).
+  const project = squash(await read(`${APP}src/settings/workspaces/project-extensions.tsx`))
   if (!project.includes('language.t("project.settings.extensions.lsp.loadFailed")'))
     fail("5: the LSP loadFailed copy key moved")
   if (!project.includes('language.t("project.settings.extensions.lsp.retry")'))
     fail("5: the LSP retry button moved")
-  if (!project.includes("voidconfig.refetch()")) fail("5: the LSP retry action (config.refetch) moved")
-  // new-session prepare-gate failure keys.
+  if (!project.includes("onRetry={config.retry}")) fail("5: the LSP retry action (config.retry) moved")
+  if (!project.includes('retry={language.t("common.retry")}')) fail("5: the plugins retry button (common.retry) moved")
+  if (!project.includes("onRetry={plugins.retry}")) fail("5: the plugins retry action (plugins.retry) moved")
+  // new-session prepare-gate failure keys (old->new: prepareFailed left the
+  // consumer — the machine's unresolved-status throw carries
+  // signInBeforeSend/notReady; the en key stays as a dead key).
   const newSessionMcp = await read(`${APP}src/new-session/mcp.ts`)
   for (const key of [
     "session.summary.mcp.unavailable",
     "session.summary.mcp.signInBeforeSend",
     "session.summary.mcp.notReady",
-    "session.summary.mcp.prepareFailed",
   ]) {
     if (!newSessionMcp.includes(key)) fail(`5: the prepare-gate key ${key} moved`)
   }
+  if (newSessionMcp.includes("session.summary.mcp.prepareFailed"))
+    fail("5: new-session/mcp.ts regained session.summary.mcp.prepareFailed (the v2.2.7 unresolved-status throw superseded it)")
+  const en = await read(`${APP}src/runtime/i18n/en.ts`)
+  if (!en.includes('"session.summary.mcp.prepareFailed"'))
+    fail("5: en.ts lost the dead session.summary.mcp.prepareFailed key (registered dead-key face)")
   if (!newSessionMcp.includes("mcp.unavailable")) fail("5: the catalog availability re-check moved")
-  // toggleMcp dispatch table (verbatim, whitespace-tolerant).
-  const dispatch = squash(await read(`${APP}src/runtime/server/global-sync/mcp.ts`))
-  if (!dispatch.includes('if(input.status==="pending")return')) fail("5: the toggleMcp pending early-return moved")
-  if (!dispatch.includes("{connected:input.disconnect,needs_auth:input.authenticate,disabled:input.connect,failed:input.connect,}[input.status]()"))
-    fail("5: the toggleMcp dispatch table changed (verbatim; squash keeps the trailing comma — #13 lesson)")
-  if (!dispatch.includes("awaitinput.refresh()")) fail("5: the toggleMcp refresh tail moved")
-  // mcp-dialog: four-key statusLabels + pending-disabled Switch.
+  // The toggle machine face (old->new: the global-sync/mcp.ts dispatch table
+  // is gone — the run-toggle effect + the pending-refusal machine comment
+  // carry the contract).
+  const mcpToggle = squash(await read(`${APP}src/providers/connect/mcp.tsx`))
+  if (!mcpToggle.includes('if(effect.type==="run-toggle")')) fail("5: the run-toggle effect face moved")
+  if (!mcpToggle.includes(squash('the machine refuses the request, which only a `"pending"` status does')))
+    fail("5: the pending-refusal machine comment moved (verbatim)")
+  // mcp-dialog: statusLabels map + pending gate (old->new: the
+  // pending-disabled Switch gate became disabled={view().pending}).
   const dialog = squash(await read(`${APP}src/providers/connect/mcp-dialog.tsx`))
   if (!dialog.includes('connected:"mcp.status.connected",failed:"mcp.status.failed",needs_auth:"mcp.status.needs_auth",disabled:"mcp.status.disabled"'))
     fail("5: the mcp-dialog statusLabels four-key literal changed")
-  if (!dialog.includes('disabled={status()?.status==="pending"||busy()}')) fail("5: the mcp-dialog pending-disabled Switch gate moved (target form)")
-  // i18n en+zh pairing (honest counts, zh gap included as-is).
-  const en = await read(`${APP}src/runtime/i18n/en.ts`)
+  if (!dialog.includes("disabled={view().pending}")) fail("5: the mcp-dialog pending gate moved (v2.2.7 form)")
+  // i18n en+zh pairing.
   const zh = await read(`${APP}src/runtime/i18n/zh.ts`)
   const keySet = (text: string, family: string): Set<string> => {
     const keys = new Set<string>()
@@ -551,82 +602,14 @@ let mhFiles = 0
     for (const match of text.matchAll(pattern)) keys.add(match[1])
     return keys
   }
-  const assertPair = (family: string, expect: number) => {
-    const enKeys = keySet(en, family)
-    const zhKeys = keySet(zh, family)
-    if (enKeys.size !== expect) fail(`5: ${family}.* en key count ${enKeys.size} ≠ ${expect}`)
-    if (zhKeys.size !== expect) fail(`5: ${family}.* zh key count ${zhKeys.size} ≠ ${expect}`)
-    for (const key of enKeys) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
-    for (const key of zhKeys) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
-  }
-  // settings-providers-models-extensions (issue #105): dialog.mcp and settings.plugins move from count pins to
-  // EXACT key-set pins, because `language.t` is untyped — tsc and count-only
-  // pairing stay green while a consumed key goes missing (the MAJOR-2
-  // silent-defect class). dialog.mcp en carries the target's 14 added keys PLUS
-  // the retained dead key `description` (target deletes it; our cross-locale
-  // sweep rides FU-1), zh stays at the three pin keys. settings.plugins is
-  // en-only (12 keys; zh has none and base-merge falls back to en).
-  const assertExactSet = (family: string, expectEn: string[], expectZh: string[]) => {
-    const enKeys = keySet(en, family)
-    const zhKeys = keySet(zh, family)
-    for (const key of expectEn) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
-    for (const key of enKeys) if (!expectEn.includes(key)) fail(`5: ${family}.${key} unexpected in en (key-set pin drifted)`)
-    for (const key of expectZh) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
-    for (const key of zhKeys) if (!expectZh.includes(key)) fail(`5: ${family}.${key} unexpected in zh (key-set pin drifted)`)
-  }
-  assertExactSet(
-    "dialog.mcp",
-    [
-      "title",
-      "description",
-      "empty",
-      "search.placeholder",
-      "search.empty",
-      "error.title",
-      "error.copy",
-      "error.copyFailed",
-      "error.open",
-      "error.status",
-      "signingIn",
-      "error.view",
-      "error.viewLabel",
-      "error.disable",
-      "signIn",
-      "signIn.open",
-      "error.details",
-    ],
-    ["title", "description", "empty"],
-  )
-  assertExactSet(
-    "settings.plugins",
-    [
-      "reload",
-      "status.loading",
-      "status.failed",
-      "error.notFound",
-      "error.show",
-      "error.hide",
-      "builtin",
-      "reserved",
-      "unsupported",
-      "part.server",
-      "part.tui",
-      "parts.note",
-    ],
-    [],
-  )
-  assertPair("settings.extensions", 7)
-  assertPair("mcp.status", 4)
-  assertPair("session.summary.mcp", 4)
-  assertPair("project.settings.extensions", 20)
-  // Systemic consumed-keys guard (issue #105 §3-1d): every `language.t("…")`
-  // quoted literal in the five migrated files must exist in en.ts. `language.t`
-  // is untyped, so tsc cannot catch a missing key; this file-wide scan (quoted
+  // Systemic consumed-keys guard (settings-providers-models-extensions §3-1d): every `language.t("…")`
+  // quoted literal in the guarded files must exist in en.ts. `language.t`
+  // is untyped, so tsc and count-only pairing stay green while a consumed key
+  // goes missing (the MAJOR-2 silent-defect class). This file-wide scan (quoted
   // literals inside the call parens, ternary-wrapped forms included — NOT a
   // naive call-site regex) is the machine check that closes the class.
   const enKeyUniverse = new Set([...en.matchAll(/["']([A-Za-z0-9_.]+)["']\s*:/g)].map((m) => m[1]!))
-  // issue #141 (deliberate extension): the connect dialog also consumes shared
-  // ui-package keys (ui.question.custom.placeholder etc.) that the language
+  // The connect dialog also consumes shared ui-package keys that the language
   // base-merge resolves from packages/ui/src/i18n/en.ts — include that
   // universe so the guard checks the dialog's full literal set.
   const uiEn = await read(`vendor/upstream/packages/ui/src/i18n/en.ts`)
@@ -655,11 +638,9 @@ let mhFiles = 0
             literal += source[j]!
             j++
           }
-          // issue #141 skip rule (same family as the `key === ""` rule): a
-          // quoted literal immediately followed by `?` is the CONDITION
-          // operand of a ternary key choice
-          // (`language.t(provider === "opencode-go" ? "a" : "b")`) — not a
-          // key; both ternary branches still end in `:` or `)` and are checked.
+          // A quoted literal immediately followed by `?` is the CONDITION
+          // operand of a ternary key choice — not a key; both ternary
+          // branches still end in `:` or `)` and are checked.
           let peek = j + 1
           while (peek < source.length && /\s/.test(source[peek]!)) peek++
           if (source[peek] !== "?") out.push(literal)
@@ -678,13 +659,7 @@ let mhFiles = 0
     `${APP}src/settings/providers/extensions.tsx`,
     `${APP}src/providers/connect/mcp-dialog.tsx`,
     `${APP}src/runtime/plugin/extension-plugins.tsx`,
-    // Issue #107: the notifications page joins the guard — its static language.t
-    // literals (notification/sound/interface rows) must exist in en.ts; the dynamic
-    // `language.t(androidPermissionDescription())` form contributes no literal.
     `${APP}src/settings/notifications/notifications.tsx`,
-    // Issue #141 (deliberate extension): the redesigned connect dialog joins the
-    // guard — its 81 static language.t literals (picker groups, form wizard,
-    // command view, accounts) must exist in en.ts; tsc cannot catch a missing key.
     `${APP}src/providers/connect/dialog.tsx`,
   ]) {
     const source = await read(rel)
@@ -698,13 +673,94 @@ let mhFiles = 0
     }
     if (checked === 0) fail(`5: the consumed-keys guard found no language.t literals in ${rel} — scan broke`)
   }
-  // Issue #26 revision (deliberate, NOT a bypass): the en8/zh0 honest gap CLOSED —
-  // settings-mobile-gui-plugins added settings.guiExtensions.mobile.description to en (8->9) and the full
-  // nine-key block to zh (0->9); both counts now assert 9 with full key-set pairing.
+  // EXACT key-set pins (v2.2.7 faces, issue #193 re-anchor):
+  // dialog.mcp en21 (the sign-in wizard grew signIn.description +
+  // signIn.paste.* + signIn.syncFailed; the dead `description` key left) /
+  // zh2 {title, empty}; settings.plugins en12/zh0.
+  const assertExactSet = (family: string, expectEn: string[], expectZh: string[]) => {
+    const enKeys = keySet(en, family)
+    const zhKeys = keySet(zh, family)
+    for (const key of expectEn) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
+    for (const key of enKeys) if (!expectEn.includes(key)) fail(`5: ${family}.${key} unexpected in en (key-set pin drifted)`)
+    for (const key of expectZh) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
+    for (const key of zhKeys) if (!expectZh.includes(key)) fail(`5: ${family}.${key} unexpected in zh (key-set pin drifted)`)
+  }
+  assertExactSet(
+    "dialog.mcp",
+    [
+      "title",
+      "empty",
+      "search.placeholder",
+      "search.empty",
+      "error.title",
+      "error.copy",
+      "error.copyFailed",
+      "error.open",
+      "error.status",
+      "error.view",
+      "error.viewLabel",
+      "error.disable",
+      "error.details",
+      "signingIn",
+      "signIn",
+      "signIn.description",
+      "signIn.open",
+      "signIn.paste.label",
+      "signIn.paste.placeholder",
+      "signIn.paste.required",
+      "signIn.syncFailed",
+    ],
+    ["title", "empty"],
+  )
+  assertExactSet(
+    "settings.plugins",
+    [
+      "reload",
+      "status.loading",
+      "status.failed",
+      "error.notFound",
+      "error.show",
+      "error.hide",
+      "builtin",
+      "reserved",
+      "unsupported",
+      "part.server",
+      "part.tui",
+      "parts.note",
+    ],
+    [],
+  )
+  // Pairing faces: settings.extensions en8/zh7 (plugins.loadFailed en-only —
+  // the v2.2.7 registered en-fallback gap), session.summary.mcp 4/4,
+  // project.settings.extensions 20/20.
+  const extEn = keySet(en, "settings.extensions")
+  const extZh = keySet(zh, "settings.extensions")
+  if (extEn.size !== 8) fail(`5: settings.extensions.* en key count ${extEn.size} ≠ 8`)
+  if (extZh.size !== 7) fail(`5: settings.extensions.* zh key count ${extZh.size} ≠ 7`)
+  for (const key of extZh) if (!extEn.has(key)) fail(`5: settings.extensions.${key} missing in en`)
+  for (const key of extEn) if (!extZh.has(key) && key !== "plugins.loadFailed")
+    fail(`5: settings.extensions.${key} missing in zh (only plugins.loadFailed may be en-only)`)
+  const assertPair = (family: string, expect: number) => {
+    const enKeys = keySet(en, family)
+    const zhKeys = keySet(zh, family)
+    if (enKeys.size !== expect) fail(`5: ${family}.* en key count ${enKeys.size} ≠ ${expect}`)
+    if (zhKeys.size !== expect) fail(`5: ${family}.* zh key count ${zhKeys.size} ≠ ${expect}`)
+    for (const key of enKeys) if (!zhKeys.has(key)) fail(`5: ${family}.${key} missing in zh`)
+    for (const key of zhKeys) if (!enKeys.has(key)) fail(`5: ${family}.${key} missing in en`)
+  }
+  assertPair("session.summary.mcp", 4)
+  assertPair("project.settings.extensions", 20)
+  // mcp.status: en 4 / zh 0 (old->new: the pin dropped the zh block; the
+  // base-merge en fallback is the registered shape).
+  const mcpStatusEn = keySet(en, "mcp.status")
+  const mcpStatusZh = keySet(zh, "mcp.status")
+  if (mcpStatusEn.size !== 4) fail(`5: mcp.status.* en key count ${mcpStatusEn.size} ≠ 4`)
+  if (mcpStatusZh.size !== 0) fail(`5: mcp.status.* zh key count ${mcpStatusZh.size} ≠ 0 (the v2.2.7 pin is en-fallback)`)
+  // Issue #26/#193: settings.guiExtensions stays 9/9 with full key-set pairing.
   const guiExtEn = keySet(en, "settings.guiExtensions")
   const guiExtZh = keySet(zh, "settings.guiExtensions")
   if (guiExtEn.size !== 9) fail(`5: settings.guiExtensions.* en key count ${guiExtEn.size} ≠ 9`)
-  if (guiExtZh.size !== 9) fail(`5: settings.guiExtensions.* zh key count ${guiExtZh.size} ≠ 9 (issue #26 aligned zh with en — the registered honest gap closed)`)
+  if (guiExtZh.size !== 9) fail(`5: settings.guiExtensions.* zh key count ${guiExtZh.size} ≠ 9`)
   for (const key of guiExtEn) if (!guiExtZh.has(key)) fail(`5: settings.guiExtensions.${key} missing in zh`)
   for (const key of guiExtZh) if (!guiExtEn.has(key)) fail(`5: settings.guiExtensions.${key} missing in en`)
   // Server-side presentation copy (verbatim en values).
@@ -721,10 +777,14 @@ let mhFiles = 0
     fail("6: the updateConfig stub TODO moved (verbatim)")
   if (!sync.includes(squash('throw new Error(`Config updates are unavailable: ${Object.keys(config).length} fields were not saved`)')))
     fail("6: the updateConfig stub throw moved (verbatim)")
-  if (!sync.includes('awaitserverSDK.api.mcp.connect({server:name,location:{directory:key}})'))
-    fail("6: the sync.tsx mcp.toggle connect call shape moved")
-  if (!sync.includes(squash("MCP server ${name} requires an interactive authentication form")))
-    fail("6: the sync.tsx interactive-form error copy moved (verbatim)")
+  // old->new (issue #193 re-anchor): the mcp.toggle face moved off sync.tsx
+  // into the mcp.tsx machine — the connect/disconnect write shapes live there
+  // (experimental namespace, { server, location: ref } argument form).
+  const mcpFace = squash(await read(`${APP}src/providers/connect/mcp.tsx`))
+  if (!mcpFace.includes("awaitapi.experimental.mcp.disconnect({server:name,location:ref},{signal})"))
+    fail("6: the mcp.tsx disconnect call shape moved")
+  if (!mcpFace.includes("awaitapi.experimental.mcp.connect({server:name,location:ref},{signal})"))
+    fail("6: the mcp.tsx connect call shape moved")
   // Zero-call negatives (receiver-tolerant, four-package src).
   const zeroShapes: [RegExp, string][] = [
     [mcpCall("(add|remove)"), "mcp.add/remove"],
@@ -740,20 +800,25 @@ let mhFiles = 0
     }
   }
   // The promise GENERATED surface stays registered (existence ≠ a call).
+  // old->new: the mcp/skill input types gained the Experimental prefix at v2.2.7.
   const generated = await read(`${CLIENT}src/promise/generated/client.ts`)
   for (const anchor of [
     "check: (input?: PluginCheckInput",
     "update: (input: PluginUpdateInput",
-    "add: (input: McpAddInput",
-    "remove: (input: McpRemoveInput",
-    "skill: (input: SessionSkillInput",
+    "add: (input: ExperimentalMcpAddInput",
+    "remove: (input: ExperimentalMcpRemoveInput",
+    "skill: (input: ExperimentalSessionSkillInput",
   ]) {
     if (!generated.includes(anchor)) fail(`6: the promise generated-client anchor moved: ${anchor}`)
   }
   // Mcp.Server schema: no config echo + five statuses + integrationID note.
+  // old->new: the struct gained the optional `title` member (serverInfo.title
+  // display face) and the statuses are annotated structs.
   const mcpSchema = squash(await read(`${SCHEMA}src/mcp.ts`))
   if (!mcpSchema.includes("exportconstServer=Schema.Struct({name:Schema.String,status:Status,"))
-    fail("6: the Mcp.Server shape (name/status only) changed")
+    fail("6: the Mcp.Server shape (name/status) changed")
+  if (!mcpSchema.includes(squash("Display title from the connected server's `serverInfo.title`; absent while disconnected or when not provided.")))
+    fail("6: the Mcp.Server title comment moved (verbatim)")
   if (!mcpSchema.includes("integrationID:optional(IntegrationID)")) fail("6: the Mcp.Server integrationID field moved")
   if (!mcpSchema.includes(squash("Set for remote servers registered as OAuth integrations; lets clients act on the right integration")))
     fail("6: the integrationID comment moved (verbatim)")
@@ -811,7 +876,7 @@ let mhFiles = 0
   }
 }
 
-// --- 7. Zero host-OS conditionals in the new scan domain ---
+// --- 7. Zero host-OS conditionals in the scan domain ---
 {
   const osPatterns: [RegExp, string][] = [
     [/process\.platform/, "process.platform"],
@@ -825,11 +890,18 @@ let mhFiles = 0
     `${APP}src/composer/`,
     `${APP}src/runtime/server/global-sync/`,
   ]
+  // Registered in-set exception (issue #193 re-anchor): the v2.2.7 pin ships
+  // composer/editor/quote-comment.tsx with a native Mac sniff
+  // (`const IS_MAC = /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)`) for
+  // the comment-posting hint — upstream editor-face content, not a mobile
+  // branch. The file stays in the scan for the OTHER four patterns.
+  const navigatorPlatformExceptions = new Set([`${APP}src/composer/editor/quote-comment.tsx`])
   for (const base of bases) {
     for (const rel of await srcFiles(base)) {
       osScanFiles++
       const source = await read(rel)
       for (const [pattern, label] of osPatterns) {
+        if (label === "navigator.platform" && navigatorPlatformExceptions.has(rel)) continue
         if (pattern.test(source)) fail(`7: host-OS conditional (${label}) found in whitelisted ${rel}`)
       }
     }
@@ -842,26 +914,24 @@ let mhFiles = 0
       if (pattern.test(source)) fail(`7: host-OS conditional (${label}) found in whitelisted ${rel}`)
     }
   }
-  // Lower bound (real count on this pin: 59 .ts/.tsx files —
-  // session/commands 4 + composer 41 + global-sync 13 + sync.tsx 1;
-  // the plan's caliber counts tests too). Both calibers stay honest.
+  // Lower bound (measured on this pin: 90 .ts/.tsx files). Both calibers stay honest.
   if (osScanFiles < 50) fail(`7: whitelist scan covered only ${osScanFiles} files — the directory set looks wrong`)
 }
 
 console.log(
   "verify-agent-capabilities: PASS (" +
-    "1: MCP start/stop call-face exhaustive sets — connect/disconnect EXACTLY {providers/connect/mcp.ts, runtime/server/sync.tsx, gui-ext details/server-panel.tsx}, mcp.list EXACTLY 5 (= 4 UI files + data.ts `api().mcp.list` N1 data-layer accessor; the extensions.tsx cross-line B1 case is RETIRED by settings-providers-models-extensions — the page reads the data layer, its sync/list anchors pinned), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
+    "1: MCP start/stop call-face exhaustive sets (issue #193 re-anchor) — connect/disconnect EXACTLY {providers/connect/mcp.tsx (experimental receiver), gui-ext details/server-panel.tsx}, mcp.list EXACTLY 4 (= 2 MCP faces + new-session/mcp.ts + data.ts `api().mcp.list` N1 data-layer accessor; the extensions.tsx retirement holds), plugin.list EXACTLY 3, receiver-tolerant RAW-text scan over " +
     fourPkgFiles +
     " four-package src files; " +
-    "2: re-auth three-site chain (integration.get → oauth.connect → openExternal + interactiveForm anchors + failed-state terminal re-check verbatim), integration.get exactly 5, oauth.connect exactly 4 (source caliber, N2); " +
-    "3: GUI-extension main-process zero-execution — web.ts no extensions field, Bridge/Ipc verbatim, zero electron imports, specifier set exactly {sdk:34, sdk/bridge:8, renderer:2, updater:1} zero main, DEV+desktop double gate + guard, anti-overclaim renderer/os/installed anchors, details drawer chain (order 50 kind drawer + MobileViewTabs), wsl os literal, 6 main: entries desktop-side; " +
-    "4: data-face five events (mcp.status.changed verbatim push-back comment) + reconnect resync five directories + locationResource accessors + connection.ts zero capability calls (event.subscribe only); " +
-    "5: error/recovery chain — catch→[] shape (comment pin narrowed to project-extensions.tsx by settings-providers-models-extensions), LSP loadFailed+retry, prepare-gate four keys, toggleMcp dispatch verbatim, mcp-dialog statusLabels + pending-disabled (target form), extensions MCP row/dot/View-error/Sign-in pins, i18n EXACT key-set pins dialog.mcp en17/zh3 + settings.plugins en12/zh0 (retained dead key description) + en+zh 7/4/4/20 pairs + guiExtensions 9/9 (issue #26 closed the en8/zh0 gap), consumed-keys guard over the seven guarded files (issue #107 notifications, issue #141 connect dialog + ui i18n universe), manageConfig copy; " +
-    "6: config write boundary — updateConfig stub verbatim, mcp.add/remove + plugin.check/update + session.skill ZERO (receiver-tolerant), generated client anchors (PluginCheck/PluginUpdate/McpAdd/McpRemove/SessionSkill), Mcp.Server no-echo schema + five statuses, LocalConfig cwd verbatim, mobile-hosts " +
+    "2: re-auth two-site chain (integration.get → oauth.connect → effect-driven openExternal + interactiveForm/mcp.interactiveAuth anchors), the failed-state terminal re-check verbatim + the toggle.failed return shape, integration.get exactly 4 (+controller.ts load, +providers.tsx disconnect.run), oauth.connect exactly 3 (+controller.ts; source caliber); " +
+    "3: GUI-extension main-process zero-execution — web.ts no extensions field, Bridge/Ipc verbatim, zero electron imports, specifier set exactly {plugin/gui:50, builtin:10, host:21, browser:1, file:1, review:1, updater:2, renderer:2, terminal:1} zero main (v2.2.7+W3 measured), W3 mobileGuiExtensions predicate + redirect guard + Tabs.Content mount, anti-overclaim renderer/os/bridge-less anchors (root.tsx settled:!bridge + createExtensionDisabled, embeds.tsx/ipc.ts early-returns — installed.ts absorbed), details drawer chain (order 50 kind drawer + MobileViewTabs), wsl os literal, 6 mainEntry: entries desktop-side; " +
+    "4: data-face five events (mcp.status.changed verbatim push-back comment + settle() dedupe, refreshLocation branches) + reconnect resync five directories + locationResource accessors + connection.ts zero capability calls (event.subscribe only); " +
+    "5: error/recovery chain — extensions MCP row/dot/View-error/Sign-in pins, LSP loadFailed/retry/onRetry=config.retry + plugins common.retry/onRetry=plugins.retry (v2.2.7 retry machines), prepare-gate three keys + prepareFailed dead-key face, run-toggle machine face + pending-refusal comment (the global-sync dispatch table absorbed), mcp-dialog statusLabels + disabled={view().pending}, consumed-keys guard over the seven guarded files (+ ui i18n universe), i18n EXACT key-set pins dialog.mcp en21/zh2 + settings.plugins en12/zh0 + settings.extensions en8/zh7 (plugins.loadFailed en-only) + mcp.status en4/zh0 + session.summary.mcp 4/4 + project.settings.extensions 20/20 + guiExtensions 9/9, manageConfig copy; " +
+    "6: config write boundary — updateConfig stub verbatim, mcp.tsx experimental connect/disconnect write shapes, mcp.add/remove + plugin.check/update + session.skill ZERO (receiver-tolerant), generated client anchors (PluginCheck/PluginUpdate/ExperimentalMcpAdd/ExperimentalMcpRemove/ExperimentalSessionSkill), Mcp.Server no-echo schema + title member + five statuses, LocalConfig cwd verbatim, mobile-hosts " +
     mhFiles +
     " files capability-face-free, protocol descriptions verbatim; " +
     "7: zero host-OS conditionals across " +
     osScanFiles +
-    " whitelisted files (session/commands + composer + global-sync + sync.tsx; 59 measured, lower bound 50); " +
+    " whitelisted files (session/commands + composer + global-sync + sync.tsx; 90 measured, lower bound 50; the registered in-set exception: composer/editor/quote-comment.tsx native IS_MAC navigator.platform sniff (pin content)); " +
     "STATIC check — real MCP connect/re-auth round-trip, window.open inside the Android WebView (G26③, same-origin as G25③), prepare gate on real sends, remote MCP survival across disconnect (G26⑦) and server-side registration/process semantics (outside the closure) are G26/BLOCKED)",
 )

@@ -102,6 +102,10 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
     if (partA.type === "session" && (partB.type !== "session" || partA.id !== partB.id)) return false
 
     if (partA.type === "file") {
+      // A `media:` ref's captured source belongs to the fingerprint (issue #188): the same URL
+      // restored from another server is a different attachment.
+      if (partB.type !== "file" || partA.sourceServerKey !== partB.sourceServerKey || partA.url !== partB.url)
+        return false
       if (partA.path !== (partB.type === "file" ? partB.path : "")) return false
       const a = partA.selection
       const b = partB.type === "file" ? partB.selection : undefined
@@ -125,6 +129,11 @@ function isPromptEqual(entryA: PromptHistoryStoredEntry, entryB: PromptHistorySt
     }
 
     if (isAttachment(partA) && partA.id !== (isAttachment(partB) ? partB.id : "")) return false
+
+    // An image's stored bytes are content-addressed, so the blob id IS the identity; the captured
+    // source rides with it (issue #188) — equal hashes from two servers are different attachments.
+    if (partA.type === "image" && (partB.type !== "image" || partA.blob.id !== partB.blob.id || partA.blob.sourceServerKey !== partB.blob.sourceServerKey))
+      return false
   }
 
   if (entryA.comments.length !== entryB.comments.length) return false

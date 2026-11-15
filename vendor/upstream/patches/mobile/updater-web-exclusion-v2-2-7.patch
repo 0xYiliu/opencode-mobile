@@ -1,0 +1,38 @@
+# mobile(updater-web-exclusion-v2-2-7, issue #198): deliberate mobile exclusion of the upstream
+# web-updates face — the service-worker update checks, the general-page Updates SettingsPage
+# (entries {settings-release-notes, settings-check-updates, settings-reload-from-server}), the
+# titlebar pending item and the hidden check command — per the S40/N09 recorded boundary and ADR
+# 0005 (APK update deferred; activation condition = ADR 0005 revisited). The upstream web face
+# (web.tsx/web-driver.ts/web-machine.ts) stays upstream untouched, orphaned by this guard; the
+# import that routed to it is removed (noUnusedLocals would fail otherwise). whatsNew/betaNotes
+# run BEFORE the guard and stay active — the exclusion scope is the web-updates face ONLY, not
+# the What's New face. One target; no dependsOn (renderer.tsx is carried by no other active
+# patch, so the pre-image is the pristine pin state).
+diff --git a/packages/gui-plugins/src/updater/renderer.tsx b/packages/gui-plugins/src/updater/renderer.tsx
+index 47b03edf1b2159ef8705df8d35c7dd05f048d0ba..380b1d33ea8b20e897219b359038e2e36ab53037 100644
+--- a/packages/gui-plugins/src/updater/renderer.tsx
++++ b/packages/gui-plugins/src/updater/renderer.tsx
+@@ -11,7 +11,6 @@
+   type WindowUpdaterEffect,
+   type WindowUpdaterEvent,
+ } from "./window-machine"
+-import { webUpdates } from "./web"
+ import {
+   initWhatsNew,
+   transitionWhatsNew,
+@@ -26,7 +25,14 @@
+   whatsNew(ctx)
+   betaNotes(ctx)
+ 
+-  if (!ctx.desktop) return webUpdates(ctx)
++  // mobile(updater-web-exclusion-v2-2-7, issue #198): deliberate mobile exclusion of the upstream
++  // web-updates face — the service-worker update checks, the general-page Updates SettingsPage, the
++  // titlebar pending item and the hidden check command — per the S40/N09 recorded boundary and ADR
++  // 0005 (APK update deferred; activation condition = ADR 0005 revisited). whatsNew/betaNotes above
++  // run BEFORE this guard and stay active: the exclusion scope is the web-updates face ONLY, not the
++  // What's New face. The upstream web face (web.tsx/web-driver.ts/web-machine.ts) stays upstream
++  // untouched, orphaned by this guard.
++  if (!ctx.desktop) return
+   const updater = ctx.main(Updater)
+   // Undefined until main's updater is up and has sent its state, and again while it is gone.
+   const state = () => updater.state()

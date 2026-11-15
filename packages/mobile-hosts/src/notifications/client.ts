@@ -54,8 +54,12 @@ export function isNotificationsErrorCode(value: unknown): value is Notifications
 // Shape validation (the JS layer of the two-layer defense)
 // ---------------------------------------------------------------------------
 
-/** The exactly-three notification kinds (Kotlin mirror: CATEGORIES). */
-export const NOTIFICATION_CATEGORIES = ["agent", "permissions", "errors"] as const
+/**
+ * The exactly-four notification kinds (Kotlin mirror: CATEGORIES). "questions" sits
+ * adjacent to "permissions" mirroring the settings row order and the upstream
+ * requestTitles two-value map (question/mcp-elicitation -> questions) — issue #195.
+ */
+export const NOTIFICATION_CATEGORIES = ["agent", "permissions", "questions", "errors"] as const
 
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number]
 

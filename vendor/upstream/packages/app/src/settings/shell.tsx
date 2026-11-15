@@ -1,8 +1,11 @@
 import { Tabs } from "@opencode/ui/tabs"
 import { useDialog } from "@opencode/ui/context/dialog"
-import { createEffect, createMemo, For, on, onCleanup, onMount, Show, Switch, Match, type Accessor } from "solid-js"
+// mobile(M-044): `lazy` + `Suspense` return for the mobile faces below; `usePlatform` feeds
+// the non-desktop gui-extensions predicate (the M-026 mount keeps its <Suspense> wrapper).
+import { createEffect, createMemo, For, lazy, on, onCleanup, onMount, Show, Suspense, Switch, Match, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
+import { usePlatform } from "@/runtime/platform/platform"
 import { useTabs } from "@/shell/tabs/tabs"
 import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -34,7 +37,36 @@ import { useSettingsSurface } from "./surface"
 import { settingsViewRedirect } from "./route"
 import { pageIcons, pageLabels } from "./pages"
 import { PluginSettingsPages } from "@/runtime/plugin/settings-page-view"
+// mobile(M-026): the plugin host handle for the first-party GUI extension manager.
+import { usePluginHost } from "@/runtime/plugin/host"
 import "@/settings/settings.css"
+
+// mobile(M-008): the first-party SSH host manager mounts in the settings "servers" tab.
+const MobileHostManager = lazy(() =>
+  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.MobileHostManager })),
+)
+
+// mobile(M-026): the first-party GUI extension manager (issue #26) mounts on the
+// "gui-extensions" tab for non-desktop builds; the extension host handle flows in via
+// props (the shared package never imports app internals).
+const ExtensionManager = lazy(() =>
+  import("@opencode-mobile/mobile-hosts").then((module) => ({ default: module.ExtensionManager })),
+)
+
+function MobileExtensionManager() {
+  const host = usePluginHost()
+
+  return (
+    <Suspense>
+      <ExtensionManager
+        definitions={host.definitions()}
+        statusOf={(id) => host.status(id)}
+        failureOf={(id) => host.failure(id)?.error}
+        onReload={(id) => host.reload(id)}
+      />
+    </Suspense>
+  )
+}
 
 const rootClientTabs = [
   { value: "general", icon: pageIcons.general, label: "settings.tab.preferences" },
@@ -65,6 +97,12 @@ const experimentalTab = [
 ] as const
 
 const aboutTab = [{ value: "about", icon: pageIcons.about, label: "settings.tab.about" }] as const
+
+// mobile(M-026): the tab id stays "gui-extensions" (unit contract D4,
+// docs/design/units/gui-plugins.md); route.ts/pages.ts restore it in M-044.
+const guiExtensionsTab = [
+  { value: "gui-extensions", icon: pageIcons["gui-extensions"], label: "settings.guiExtensions.title" },
+] as const
 
 const nestedProjectTabs = [
   { value: "general", icon: pageIcons.projects, label: "settings.general.section.general" },
@@ -169,6 +207,7 @@ function RootSettings() {
   const dialog = useDialog()
   const surface = useSettingsSurface()
   const inventory = useSettingsServers()
+  const platform = usePlatform()
 
   const [state, setState] = createStore<{ worktreeFilterReset: number; modelProvider: string | undefined }>({
     worktreeFilterReset: 0,
@@ -186,12 +225,23 @@ function RootSettings() {
 
   const prefetchWorkspaces = useWorkspacesPrefetch(reachable)
   const activeDirectory = useSettingsDirectory(reachable)
+
+  // mobile(M-026): non-desktop builds mount the first-party GUI extension manager (issue
+  // #26) on the "gui-extensions" tab — the upstream DEV+desktop face is upstream-removed on
+  // the v2.2.7 shell (the DEV plugin face lives in PluginSettingsPages/settings-page-dev),
+  // so the pin's dual-face condition collapses to this single face.
+  const mobileGuiExtensions = platform.platform !== "desktop"
+
   createEffect(() => {
     const view = surface.view()
 
     if (view.type !== "root") return
 
     if (view.tab === "experimental" && !experimentalSettingsAvailable) surface.open("general")
+
+    // mobile(M-026): the guard bounces the tab where the face is not mounted — on
+    // non-desktop builds the first-party manager takes the tab.
+    if (view.tab === "gui-extensions" && !mobileGuiExtensions) surface.open("general")
   })
 
   const selectServer = (server: ServerConnection.Any) => surface.selectServer(ServerConnection.key(server))
@@ -229,6 +279,9 @@ function RootSettings() {
         ...(experimentalSettingsAvailable
           ? experimentalTab.map((item) => ({ ...item, label: language.t(item.label) }))
           : []),
+        // mobile(M-026): the gui-extensions nav group opens for the first-party face on
+        // non-desktop builds (the upstream DEV+desktop face is upstream-removed here).
+        ...(mobileGuiExtensions ? guiExtensionsTab.map((item) => ({ ...item, label: language.t(item.label) })) : []),
         ...aboutTab.map((item) => ({ ...item, label: language.t(item.label) })),
       ],
     },
@@ -260,6 +313,16 @@ function RootSettings() {
         <SettingsKeybinds active={surface.view().tab === "shortcuts"} />
       </Tabs.Content>
       <PluginSettingsPages />
+      {/* mobile(M-026): the first-party GUI extension manager on non-desktop builds — the
+          disable records feed the plugin host's disabled set (M-025). Mutual exclusion with
+          any upstream branch is structural: mobileGuiExtensions implies not desktop. */}
+      {mobileGuiExtensions && (
+        <Tabs.Content value="gui-extensions" class="settings-panel">
+          <Suspense>
+            <MobileExtensionManager />
+          </Suspense>
+        </Tabs.Content>
+      )}
       <Tabs.Content value="experimental" class="settings-panel">
         <SettingsExperimental />
       </Tabs.Content>
@@ -342,6 +405,10 @@ function RootSettings() {
         )}
       </Show>
       <Tabs.Content value="servers" class="settings-panel">
+        {/* mobile(M-008): the first-party SSH host manager mounts in this tab, above the
+            upstream server panel; it renders even with an empty upstream list so the first
+            SSH host can be created. */}
+        <MobileHostManager />
         <Show
           when={multiple() ? undefined : inventory()[0]}
           fallback={

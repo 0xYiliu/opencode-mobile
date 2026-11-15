@@ -1,8 +1,10 @@
 # Root bunfig for the opencode-mobile web build host.
 # The [install] section mirrors the upstream opencode repository at the vendored pin
-# b4525d79bf3ec46c9c40bf2b843111d3cdd9ce43 so dependency resolution behaves identically
-# (upstream added @pierre/highlights, bun-types, typescript@7.1.0-beta to the release-age
-# excludes at this revision; minimumReleaseAge itself is unchanged at 259200).
+# fedc6f208aa2bd54c1019227214568083f6380ad (release: v2.2.7) so dependency resolution
+# behaves identically: the [install] section is byte-identical to the upstream bunfig
+# at this pin, minimumReleaseAge itself is unchanged at 259200. The upstream [test]
+# section (root = "./do-not-run-tests-from-root") is intentionally not carried: the
+# mobile host runs focused suites per package instead of guarding the workspace root.
 [install]
 exact = true
 # Only install newly resolved package versions published at least 3 days ago.

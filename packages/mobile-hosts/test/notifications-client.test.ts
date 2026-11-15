@@ -14,10 +14,10 @@ import {
 } from "../src/notifications/client"
 import { NOTIFICATIONS_HANDSHAKE, createWebMessageNotificationsTransport } from "../src/notifications/transport"
 
-// Notifications port client + seam (issue #23, plan D3). The fail-closed stub semantics,
-// the four-code taxonomy, the two-layer shape validation (JS layer: category set exactly
-// three / title+body bounds / session-route pattern) and the safety op set are locked here.
-// All payloads are synthetic.
+// Notifications port client + seam (issue #23, plan D3; issue #195 four-category set).
+// The fail-closed stub semantics, the four-code taxonomy, the two-layer shape validation
+// (JS layer: category set exactly four / title+body bounds / session-route pattern) and
+// the safety op set are locked here. All payloads are synthetic.
 
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
@@ -105,8 +105,12 @@ describe("StubNotificationsPort + module-level seam (fail-closed defaults)", () 
 // ---------------------------------------------------------------------------
 
 describe("taxonomy + JS-side shape validation", () => {
-  test("the category set is exactly the three kinds", () => {
-    expect([...NOTIFICATION_CATEGORIES].sort()).toEqual(["agent", "errors", "permissions"])
+  test("the category set is exactly the four kinds, questions adjacent to permissions (issue #195)", () => {
+    // Exact order locked (not sorted): questions sits adjacent to permissions, mirroring
+    // the settings row order and the upstream requestTitles two-value map
+    // (question/mcp-elicitation -> questions). The Kotlin CATEGORIES mirror re-checks
+    // membership only; this order is the shared package's canonical declaration.
+    expect([...NOTIFICATION_CATEGORIES]).toEqual(["agent", "permissions", "questions", "errors"])
   })
 
   test("the wire code set is exactly the four codes", () => {
@@ -168,6 +172,23 @@ describe("createNotificationsClient (bridge-backed)", () => {
     expect(engine.requests).toHaveLength(1)
     expect(Object.keys(engine.requests[0]!.params).sort()).toEqual(["body", "category", "route", "title"])
     expect(engine.requests[0]!.params).toEqual({ category: "agent", title: "Response ready", body: "session title", route: VALID.route })
+  })
+
+  test("the questions category is a deliverable kind (issue #195): posts through the bridge like agent", async () => {
+    const engine = createEngine((op) => {
+      expect(op).toBe("notify")
+      return { ok: true, result: { posted: true } }
+    })
+    engine.native.connect()
+    const result = await engine.client.notify({ ...VALID, category: "questions" })
+    expect(result).toEqual({ posted: true })
+    expect(engine.requests).toHaveLength(1)
+    expect(engine.requests[0]!.params).toEqual({
+      category: "questions",
+      title: "Response ready",
+      body: "session title",
+      route: VALID.route,
+    })
   })
 
   test("native error responses map onto the four-code taxonomy (unknown code degrades to io)", async () => {

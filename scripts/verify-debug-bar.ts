@@ -150,18 +150,33 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
     fail("1: renderer.tsx lost the if (desktop) heap witness (first lock: verify-commands-menus group 5)")
 
   // The Slot face: window.bottom + the two view gates + the prop wiring.
+  // old->new (issue #194 sequential reveal, v2.2.7 machine form): the bar's visibility moved
+  // behind the memory-machine view — renderer.tsx:13 imports debugBarView and :44 builds
+  // barView = debugBarView(bar.value, memoryState()); the Show gate is barView().open (the old
+  // `visible() || memoryState()?.on` disjunction), the diagnostics prop renamed devTools, the
+  // motion prop carries { open: barView().motion, toggle }, and the Knobs inner gate is
+  // barView().motion. The toggle Command's enabled is barView().togglable (running diagnostics
+  // pin the bar open), and onClose rides barView().closable.
+  if (!renderer.includes("import { debugBarView } from \"./memory-machine\""))
+    fail("1: renderer.tsx lost the debugBarView machine import (old->new issue #194)")
+  if (!renderer.includes("const barView = createMemo(() => debugBarView(bar.value, memoryState()))"))
+    fail("1: renderer.tsx lost the barView machine build (debugBarView(bar.value, memoryState()); old->new issue #194)")
   if (!renderer.includes('at: "window.bottom"'))
     fail("1: renderer.tsx lost the window.bottom Slot")
-  if (!flat.includes("<Showwhen={visible()||memoryState()?.on}>"))
-    fail("1: renderer.tsx lost the bar Show gate (visible() || memoryState()?.on)")
-  if (!flat.includes("diagnostics={import.meta.env.DEV}"))
-    fail("1: renderer.tsx lost the diagnostics prop wiring (import.meta.env.DEV — the production-web build-time absence)")
+  if (!flat.includes("<Showwhen={barView().open}>"))
+    fail("1: renderer.tsx lost the bar Show gate (barView().open; old->new issue #194: visible() || memoryState()?.on)")
+  if (!flat.includes("devTools={import.meta.env.DEV}"))
+    fail("1: renderer.tsx lost the devTools prop wiring (import.meta.env.DEV — the production-web build-time absence; old->new issue #194: the prop was diagnostics)")
   if (!flat.includes("memory={memoryControl()}"))
     fail("1: renderer.tsx lost the memory prop wiring (memoryControl() — undefined while the contract is inactive)")
-  if (!flat.includes("motion={Motion?{open:motion(),toggle:toggleMotion}:undefined}"))
-    fail("1: renderer.tsx lost the motion prop wiring (Motion ? … : undefined)")
-  if (!flat.includes("<Showwhen={visible()&&motion()}>"))
-    fail("1: renderer.tsx lost the Knobs workspace inner gate (visible() && motion())")
+  if (!flat.includes("motion={Motion?{open:barView().motion,toggle:toggleMotion}:undefined}"))
+    fail("1: renderer.tsx lost the motion prop wiring (Motion ? { open: barView().motion, toggle } : undefined; old->new issue #194: the open flag rode motion())")
+  if (!flat.includes("<Showwhen={barView().motion}>"))
+    fail("1: renderer.tsx lost the Knobs workspace inner gate (barView().motion; old->new issue #194: visible() && motion())")
+  if (!flat.includes("enabled:barView().togglable"))
+    fail("1: renderer.tsx toggle Command lost the machine togglable gate (running diagnostics keep the bar open)")
+  if (!flat.includes("onClose={barView().closable?hide:undefined}"))
+    fail("1: renderer.tsx lost the closable-conditional onClose (only the shown state may close)")
 }
 
 // --- 2. Bar element gates (debug/bar.tsx) ---
@@ -184,37 +199,38 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   if (!flat.includes('label={ctx.t("duration.label")}') || !flat.includes('label={ctx.t("tps.label")}'))
     fail("2: bar.tsx lost the DURATION/TPS cells (ungated, rows 4-5)")
 
-  // Diagnostics gate + the nine-cell family + DIRECTION (rows 6-7).
-  const diagShowIdx = bar.indexOf("<Show when={props.diagnostics}>")
+  // Dev-tools gate (props.devTools = import.meta.env.DEV, renamed from diagnostics — issue #194)
+  // + the DIRECTION cell inside it. old->new (issue #194 sequential reveal): the v2.2.1
+  // nine-cell performance family (nav/fps/frame/jank/long/delay/inp/cls/mem + the MEM
+  // desktop-conditional span) is GONE upstream — the dev-tools zone is now the DIRECTION cell
+  // and the FOCUS toggle only; the DURATION/TPS cells survive ungated on the turn memo.
+  const diagShowIdx = bar.indexOf("<Show when={props.devTools}>")
   if (diagShowIdx === -1)
-    fail("2: bar.tsx lost the diagnostics Show gate (props.diagnostics = import.meta.env.DEV)")
+    fail("2: bar.tsx lost the dev-tools Show gate (props.devTools = import.meta.env.DEV; old->new issue #194: the prop was diagnostics)")
   for (const cell of ["nav.label", "fps.label", "frame.label", "jank.label", "long.label", "delay.label", "inp.label", "cls.label", "mem.label"])
-    if (!flat.includes(`label={ctx.t("${cell}")}`))
-      fail(`2: bar.tsx lost the ${cell} diagnostics cell`)
+    if (flat.includes(`label={ctx.t("${cell}")}`))
+      fail(`2: bar.tsx resurrected the retired ${cell} diagnostics cell (old->new issue #194: the nine-cell family is upstream-removed at v2.2.7)`)
+  if (bar.includes("span={desktop ? 2 : 3}"))
+    fail("2: bar.tsx resurrected the MEM desktop-conditional span (old->new issue #194: retired with the nine-cell family)")
   const directionIdx = bar.indexOf('label={ctx.t("direction.label")}')
   if (directionIdx === -1 || directionIdx < diagShowIdx)
-    fail("2: bar.tsx DIRECTION cell must sit inside the diagnostics Show block")
+    fail("2: bar.tsx DIRECTION cell must sit inside the dev-tools Show block")
 
-  // FOCUS triple gate (row 8, review MINOR-4): (a) inside the diagnostics Show,
-  // (b) the desktop Show, (c) the toggleFocus function guard.
+  // FOCUS triple gate (review MINOR-4): (a) inside the dev-tools Show,
+  // (b) the desktop Show, (c) the dispatchFocus function guard (focus-machine form).
   const focusShowIdx = bar.indexOf("<Show when={desktop}>")
   const focusCellIdx = bar.indexOf('label={ctx.t("focus.label")}')
   const memoryShowIdx = bar.indexOf("<Show when={props.memory}>")
   if (focusShowIdx === -1)
     fail("2: bar.tsx lost the FOCUS desktop Show gate")
   if (!(diagShowIdx < focusShowIdx && focusShowIdx < focusCellIdx && focusCellIdx < memoryShowIdx))
-    fail("2: bar.tsx FOCUS cell must stay nested inside the diagnostics Show (triple gate a+b; review MINOR-4)")
-  if (!bar.includes("const toggleFocus = async () => {\n    if (!desktop) return"))
-    fail("2: bar.tsx lost the toggleFocus if (!desktop) return function guard (triple gate c)")
-  if (!flat.includes("awaitdesktop.forceFocus(enabled)") || !flat.includes("desktop?.forceFocus(false)"))
-    fail("2: bar.tsx lost the desktop forceFocus wiring (FOCUS is a desktop-only capability)")
+    fail("2: bar.tsx FOCUS cell must stay nested inside the dev-tools Show (triple gate a+b; review MINOR-4)")
+  if (!bar.includes("const dispatchFocus = (event: FocusToggleEvent) => {\n    if (!desktop) return"))
+    fail("2: bar.tsx lost the dispatchFocus if (!desktop) return function guard (triple gate c; old->new issue #194: the v2.2.1 guard rode async toggleFocus)")
+  if (!flat.includes("desktop.forceFocus(effect.enabled)") || !flat.includes("desktop.forceFocus(false)"))
+    fail("2: bar.tsx lost the desktop forceFocus wiring (FOCUS is a desktop-only capability; old->new issue #194: the v2.2.1 shapes were await desktop.forceFocus(enabled) / desktop?.forceFocus(false))")
 
-  // MEM cell: desktop-conditional span inside the diagnostics block.
-  const spanIdx = bar.indexOf("span={desktop ? 2 : 3}")
-  if (spanIdx === -1 || !(diagShowIdx < spanIdx && spanIdx < focusShowIdx))
-    fail("2: bar.tsx MEM cell lost the desktop-conditional span (desktop ? 2 : 3)")
-
-  // MEMORY toggle gate (row 9): renderer side props.memory only — the main-side
+  // MEMORY toggle gate: renderer side props.memory only — the main-side
   // debugBuild gate lives in group 3.
   if (!flat.includes("<Showwhen={props.memory}>"))
     fail("2: bar.tsx lost the MEMORY Show gate (props.memory)")
@@ -250,24 +266,23 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   if (!squash(hostApis).includes('channel:(import.meta.env.VITE_OPENCODE_CHANNEL??"local")'))
     fail("3: host-apis.tsx channel ?? local witness moved (first lock: verify-gui-plugins group 3)")
 
-  // titlebar ChannelIndicator — the MAJOR-1 no-entry gate.
+  // titlebar channel badge — old->new (issue #194 sequential reveal, v2.2.7 removal): the
+  // MAJOR-1 story is SUPERSEDED. The v2.2.1-pin titlebar retained the ChannelIndicator consumer
+  // reading a field the migrated interface no longer declared (find() permanently empty, so the
+  // badge never rendered at any viewport); v2.2.7 upstream DELETED the consumer entirely — no
+  // channel env read, no ChannelIndicator, no placement consumer in titlebar.tsx. The
+  // no-render guarantee becomes an ABSENCE guarantee (a stronger form: the mobile badge face is
+  // gone, not merely dead). The mobile() 767px media query survives for its other consumers.
   const titlebar = await read(`${APP}src/shell/titlebar/titlebar.tsx`)
   const flat = squash(titlebar)
-  if (!flat.includes('constchannel=import.meta.env.VITE_OPENCODE_CHANNEL'))
-    fail("3: titlebar.tsx lost the channel env read (const channel = import.meta.env.VITE_OPENCODE_CHANNEL)")
-  if (!flat.includes('if(!channel||channel==="prod")returnnull'))
-    fail("3: titlebar.tsx lost the no-entry early return (if (!channel || channel === 'prod') return null) — MAJOR-1: with the env unset the badge never renders at any viewport")
-  if (!titlebar.includes("A plugin may turn the dev badge into a toggle (the debug bar does)."))
-    fail("3: titlebar.tsx lost the dev-badge-toggle verbatim comment")
-  if (!flat.includes('host.list(TitlebarItem).find((item)=>item.placement==="channel")'))
-    fail("3: titlebar.tsx lost the placement consumer (find(item => item.placement === 'channel'))")
-  const horizontalGate = "<Show when={!mobile() && (!props.verticalTabs || windows())}>"
-  const horizontalIdx = titlebar.indexOf(horizontalGate)
-  const horizontalBadgeIdx = titlebar.indexOf("<ChannelIndicator horizontal />")
-  if (horizontalIdx === -1 || horizontalBadgeIdx === -1 || horizontalBadgeIdx < horizontalIdx)
-    fail("3: titlebar.tsx lost the !mobile() gate around the horizontal ChannelIndicator")
-  if (!titlebar.includes("<ChannelIndicator sidebar />"))
-    fail("3: titlebar.tsx lost the sidebar ChannelIndicator variant")
+  for (const gone of [
+    "constchannel=import.meta.env.VITE_OPENCODE_CHANNEL",
+    "ChannelIndicator",
+    'item.placement==="channel"',
+  ]) {
+    if (flat.includes(gone))
+      fail(`3: titlebar.tsx resurrected the removed channel-badge face ${JSON.stringify(gone)} (old->new issue #194: v2.2.7 deleted the consumer; MAJOR-1 superseded by the absence guarantee)`)
+  }
   if (!titlebar.includes('createMediaQuery("(max-width: 767px)")'))
     fail("3: titlebar.tsx lost the mobile() media query (max-width: 767px)")
 
@@ -286,13 +301,11 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   if (debugTitlebarHits !== 0)
     fail("3: debug/ registers a TitlebarItem — the v2.2.1 debug module has none (zero-hit negative)")
 
-  // The migrated interface carries NO placement field (the consumer above reads
-  // a field the interface no longer declares → find() is permanently empty).
-  // Mixed-generation drift witness: the pin generation had the field
-  // (gui-extensions/src/sdk/registries.ts:522/:530) AND the registration
-  // (gui-extensions debug/renderer.tsx:75-86); v2.2.1 dropped both. NOT an
-  // gui-plugins-api-migration missed migration and NOT a first-party adaptation gap (registered in
-  // implementation.md E29; the S0 stop-line condition does not trigger).
+  // The interface carries NO placement field. Mixed-generation drift witness, RESOLVED at
+  // v2.2.7 (old->new issue #194): the pin generation had the field AND a real channel
+  // registration; the v2.2.1 migration dropped both but kept the dead consumer (the E29
+  // registered drift); v2.2.7 upstream deleted the consumer, closing the drift. A placement
+  // field returning now would reintroduce it — keep the negative.
   const registries = await read("vendor/upstream/packages/plugin/src/gui/registries.ts")
   const ifaceStart = registries.indexOf("export interface TitlebarItem {")
   if (ifaceStart === -1)
@@ -300,7 +313,7 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   const ifaceEnd = registries.indexOf("\n}", ifaceStart)
   const iface = registries.slice(ifaceStart, ifaceEnd)
   if (iface.includes("placement"))
-    fail("3: TitlebarItem interface regained a placement field (v2.2.1 generation has none — the titlebar consumer reads a nonexistent field; reclassify the drift if this fires)")
+    fail("3: TitlebarItem interface regained a placement field (no consumer exists at v2.2.7 — issue #194 resolved the mixed-generation drift by deletion; a field would reopen it)")
 }
 
 // --- 4. Whitelist and docs closure ---
@@ -336,17 +349,19 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
   if (!unit.includes("窄屏 face 源码级未真机宣称"))
     fail("4: gui-plugins.md §十 lost the narrow-screen source-level-only boundary (issue #73)")
 
-  // matrix.md W28 terminal row (MAJOR-1 phrasing).
+  // matrix.md W28 terminal row. old->new (issue #194 sequential reveal): the row was revised by
+  // the #145/#148 evidence rounds — the E-marker set is now E29/E34 (the #73-era pin was
+  // E09/E29) and the MAJOR-1 no-render phrasing + the drift classification moved into
+  // implementation.md's E29 narrative; the probe pins the CURRENT row face and re-anchors the
+  // MAJOR-1/drift phrasing there.
   const matrix = await read("docs/alignment/windows-desktop/v2.2.1/matrix.md")
   const w28 = matrix.split("| W28 |")[1] ?? ""
-  if (!w28.includes("E09/E29"))
-    fail("4: matrix.md W28 row lost the E09/E29 evidence markers")
-  if (!w28.includes("两移动列均不渲染") || !w28.includes('if (!channel || channel === "prod") return null'))
-    fail("4: matrix.md W28 row lost the MAJOR-1 no-render phrasing (the badge never renders with the env unset)")
-  if (!w28.includes("pin 内混合代际漂移"))
-    fail("4: matrix.md W28 row lost the mixed-generation drift classification (review MINOR-2)")
+  if (!w28.includes("E29/E34"))
+    fail("4: matrix.md W28 row lost the E29/E34 evidence markers (old->new issue #194: the #73-era pin was E09/E29)")
+  if (!w28.includes("部分实现（web 子集）") || !w28.includes("窄屏 bar 隐藏"))
+    fail("4: matrix.md W28 row lost the web-subset / narrow-hidden face")
 
-  // implementation.md E29 row + W28 section.
+  // implementation.md E29 row + W28 section + the MAJOR-1/drift phrasing (moved from the matrix row).
   const implementation = await read("docs/alignment/windows-desktop/v2.2.1/implementation.md")
   if (!implementation.includes("E29 为 issue #73（W28：Debug bar 移动可用范围逐操作核对并登记）"))
     fail("4: implementation.md lost the E29 narrative paragraph")
@@ -354,13 +369,17 @@ const MANAGER = "packages/mobile-hosts/src/ui/extension-manager.tsx"
     fail("4: implementation.md lost the E29 evidence-table row")
   if (!implementation.includes("### W28 差异核对与实施记录（issue #73，E29）"))
     fail("4: implementation.md lost the W28 section")
+  if (!implementation.includes("均**不渲染**") || !implementation.includes('if (!channel || channel === "prod") return null'))
+    fail("4: implementation.md lost the MAJOR-1 no-render phrasing (old->new issue #194: moved from the matrix row)")
+  if (!implementation.includes("pin 内混合代际漂移"))
+    fail("4: implementation.md lost the mixed-generation drift classification (old->new issue #194: moved from the matrix row)")
 }
 
 console.log(
   "verify-debug-bar: PASS (" +
-    "1: renderer gates — motionTools build-time gate verbatim (prod drops the import), toggle Command registered unconditionally BEFORE the desktop gate line, main-only memory comment, window.bottom Slot with visible()||memoryState()?.on + diagnostics=DEV + memoryControl() + Motion-conditional wiring and the Knobs inner gate; heap anchors are witnesses only (first lock: verify-commands-menus group 5); " +
-    "2: bar element gates — aside viewport CSS hidden/md:block verbatim (narrow-screen structural hiding = upstream-web-identical), CLOSE Show + ungated DURATION/TPS, diagnostics Show + nine-cell family + DIRECTION, FOCUS triple gate (diagnostics Show nesting + desktop Show + if (!desktop) return, review MINOR-4), MEM desktop-conditional span, MEMORY Show, motion Show + inner build-time recheck + /components link; " +
-    "3: channel and titlebar gates — debugBuild (!packaged || beta) + main.ts early return, host-apis ?? local witness (first lock: verify-gui-plugins group 3), titlebar no-entry early return (MAJOR-1: env unset → the badge never renders at any viewport), !mobile() render gates, placement consumer verbatim, mobile() 767px media query, zero-hit negatives (placement: 'channel' nowhere in gui-plugins/src; no debug TitlebarItem; the migrated TitlebarItem interface has no placement field — mixed-generation drift witness, MINOR-2); " +
-    "4: whitelist and docs closure — WEB_ACTIVE_EXTENSIONS debug membership (not set equality; equality is verify-gui-plugins group 7), debug not desktop-host, renderer-side classification comment, gui-plugins.md refined debug row + §九/§十 additions, matrix.md W28 terminal row (MAJOR-1 phrasing), implementation.md E29 + W28 section; " +
+    "1: renderer gates — motionTools build-time gate verbatim (prod drops the import), toggle Command registered unconditionally BEFORE the desktop gate line, main-only memory comment, window.bottom Slot on the debugBarView(bar.value, memoryState()) machine face (old->new issue #194: visible()||memoryState()?.on) with barView().open Show + devTools=DEV (renamed from diagnostics) + memoryControl() + {open:barView().motion,toggle} wiring, the barView().motion Knobs inner gate, the togglable command gate and the closable-conditional onClose; heap anchors are witnesses only (first lock: verify-commands-menus group 5); " +
+    "2: bar element gates — aside viewport CSS hidden/md:block verbatim (narrow-screen structural hiding = upstream-web-identical), CLOSE Show + ungated DURATION/TPS (turn memo), devTools Show + DIRECTION (old->new issue #194: renamed from diagnostics; the nine-cell family and the MEM span are upstream-REMOVED — pinned as resurrect-negatives), FOCUS triple gate (devTools Show nesting + desktop Show + the dispatchFocus if (!desktop) return guard — focus-machine form, review MINOR-4), MEMORY Show, motion Show + inner build-time recheck + /components link; " +
+    "3: channel and titlebar gates — debugBuild (!packaged || beta) + main.ts early return, host-apis ?? local witness (first lock: verify-gui-plugins group 3), titlebar channel-badge ABSENCE guarantee (old->new issue #194: MAJOR-1 superseded — v2.2.7 deleted the ChannelIndicator consumer/env read/placement find entirely; the no-render guarantee is now the stronger no-face guarantee), mobile() 767px media query, zero-hit negatives (placement: 'channel' nowhere in gui-plugins/src; no debug TitlebarItem; the TitlebarItem interface has no placement field — the mixed-generation drift MINOR-2 is RESOLVED upstream, deletion-verified); " +
+    "4: whitelist and docs closure — WEB_ACTIVE_EXTENSIONS debug membership (not set equality; equality is verify-gui-plugins group 7), debug not desktop-host, renderer-side classification comment, gui-plugins.md refined debug row + §九/§十 additions, matrix.md W28 terminal row at the #145/#148 face (E29/E34; old->new issue #194 from E09/E29 — the MAJOR-1/drift phrasing re-anchored on implementation.md's E29 narrative), implementation.md E29 + W28 section; " +
     "STATIC check — bar presentation, palette reachability (keybind-only per commands-menus.md §二), management toggle behavior and store persistence on a device are QA items registered pending in docs/build-and-verify.md issue #73 (QA-1..QA-3); the narrow-screen column is a source-level claim only (device floor 818px, S04); dist untouched (no rebuild, no sentinel backfill — group 8 probes own the 3516/159542120 baseline)",
 )

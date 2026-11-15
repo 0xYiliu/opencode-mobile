@@ -53,6 +53,8 @@
 - **迁移轮默认落点缺口（如实登记）**：目标 `migrate()` 只回填 `usedProjectIDs` 不回填 `lastProjectID`——覆盖升级后默认落点回落 `used[0]`，直至用户首次 touch 写入 `lastProjectID`。
 - **ctx.projects 面**（runtime/server/runtime.tsx，目标形）：`list/unique/used/add/forDirectory/forSession/last/touch/hide`；`add` = 异步 `location.get` → 刷新 → touch；`touch(directory)` = `forDirectory(directory).id` → `registry.projects.touch(id)`（写 lastProjectID+usedProjectIDs）；`hide(project)` = 该路径的项目 id 从 used 移除（服务端保留项目）。settings 项目菜单的移动「关闭」面（settings-framework-migration 在册）映射为同一 hide 语义。
 - **恢复守卫**：home 恢复选择清除需 `servers.hydrated()` 且 `ctx.sync.project.ready()`（目标守卫照抄）——远端列表未就绪不得清掉恢复的项目选择；不同服务器同名目录由 ServerScope+project id 双键天然隔离（身份键见下节）。
+- **#196 FU-3 pin-native 注记**：退役 `project-identity-migration`（row 67）已翻转 absorbed——v2.2.7 vendor pin 即目标 project-identity 模型本体（ServerState usedProjectIDs/lastProjectID/hostnames 为 pin 原生，非移动补丁携带）；其上骑行的 M-002/M-005 安全层以 marker scheme 在 pin 的 persistence.ts 重申（:6-18/:39-44，树行号；引用口径见 changes.md #196 §0.1），M-010 hydration/vault-ready 由 active #79 载体在册。本节上文各「目标形」表述自 #196 赮即为 pin 原生形，语义不变。
+- **#196 404 驱逐注记**：客户端 data 层（`packages/client/src/solid/data.ts`，上游 2e64b9fc3b）对 session-not-found（404）响应走 `evictMissing`/refresh → `markDeleted`：本地缓存（message/pending/family 查询）驱逐并标 `session.missing`，不作为错误态呈现——已删远端会话的恢复语义为驱逐而非报错；静态锚在 verify-recovery 组 3（issue #196 重锚定新锁）。
 
 ## 路径边界（手机路径 vs 远程路径）
 

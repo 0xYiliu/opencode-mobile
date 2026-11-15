@@ -168,8 +168,15 @@ const squash = (source: string) => source.replace(/\s+/g, "")
   if (!region.includes("mobile(M-021): timeline attachment share over the files bridge (issue #16)"))
     fail("3: region.tsx lost the attachments-share-bridge dist marker string")
   // file:// (uri) branch faces intact — the upstream reveal/download logic stands verbatim.
+  // Re-anchored to the v2.2.7 form (issue #188): the b4525d79-era inline split
+  // (`const url = file.source.type === "uri" ? file.source.uri : ...`) reads through the
+  // current `inlineUrl` shape (`source?.type === "uri" ? source.uri : fileData !== undefined ? ... : undefined`).
   const squashedRegion = squash(region)
-  if (!squashedRegion.includes('consturl=file.source.type==="uri"?file.source.uri:`data:${file.mime};base64,${file.data}`'))
+  if (
+    !squashedRegion.includes(
+      'constinlineUrl=source?.type==="uri"?source.uri:fileData!==undefined?`data:${file.mime};base64,${fileData}`:undefined',
+    )
+  )
     fail("3: the uri/data url split changed (file:// branch must stay untouched)")
   if (!squashedRegion.includes("if(!platform.revealPath||!absolute)returndownload()"))
     fail("3: the uri-branch reveal/download logic changed (identity separation: remote artifacts keep upstream behavior)")

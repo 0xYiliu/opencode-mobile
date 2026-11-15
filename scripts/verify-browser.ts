@@ -11,8 +11,10 @@
 //      hides the pane on desktop too.
 //   2. Main-process absence anchors (#15 chain re-verified, zero drift): the
 //      pane host imports electron, app/src carries ZERO electron imports, the
-//      @opencode/gui-extensions import-specifier set is still exactly
-//      {sdk:34, sdk/bridge:8, renderer:2, updater:1} with no main/sdk/main
+//      @opencode plugin/gui(gui-plugins) import-specifier map is the v2.2.7
+//      form (gui x50, builtin x10, host x21, browser/file/review x1 each,
+//      updater x2, renderer x2, terminal x1; old->new issue #194 from the
+//      v2.2.1-pin {gui:33, builtin:9, host:16, updater:1}) with no main
 //      import, and the web platform still carries NO extensions (Bridge) field.
 //   3. Contract anchors: the experimental.browser RPC (attach/state/command/
 //      result/tunnel.open/read/write/close + control), attach version literal 4
@@ -169,6 +171,7 @@ const srcFiles = async (base: string): Promise<string[]> => {
     ["plugin/gui/updater", 0],
     ["gui-plugins", 0],
     ["gui-plugins/renderer", 0],
+    ["gui-plugins/terminal", 0],
   ])
   let appSrcFiles = 0
   for (const rel of await srcFiles(`${APP}src/`)) {
@@ -185,17 +188,24 @@ const srcFiles = async (base: string): Promise<string[]> => {
       fail(`2: main-process gui-plugins entry imported in app/src: ${rel}`)
   }
   if (appSrcFiles < 300) fail(`2: app/src scan implausibly small (${appSrcFiles} files)`)
+  // old->new (issue #194 v2.2.7 re-anchor of the v2.2.1-pin map {gui:33, builtin:9, host:16,
+  // updater:1, renderer:2, no terminal key}): the v2.2.7 counts are plugin/gui x50, /builtin x10,
+  // /host x21, /browser x1, /file x1, /review x1, /updater x2, gui-plugins/renderer x2 and the
+  // NEW gui-plugins/terminal x1 (desktop-menu.test.ts imports it) — the SAME map
+  // verify-agent-capabilities group 3 measured on this tree (common witness, drift
+  // double-FAILs); bare gui-plugins and BOTH main-process entries stay zero.
   const expectSpecifiers: [string, number][] = [
-    ["plugin/gui", 33],
+    ["plugin/gui", 50],
     ["plugin/gui/browser", 1],
-    ["plugin/gui/builtin", 9],
+    ["plugin/gui/builtin", 10],
     ["plugin/gui/file", 1],
-    ["plugin/gui/host", 16],
+    ["plugin/gui/host", 21],
     ["plugin/gui/main", 0],
     ["plugin/gui/review", 1],
-    ["plugin/gui/updater", 1],
+    ["plugin/gui/updater", 2],
     ["gui-plugins", 0],
     ["gui-plugins/renderer", 2],
+    ["gui-plugins/terminal", 1],
   ]
   for (const [key, count] of expectSpecifiers) {
     const got = specifiers.get(key) ?? -1
@@ -258,17 +268,27 @@ const srcFiles = async (base: string): Promise<string[]> => {
   const connection = await read(`${PB}src/connection.ts`)
   if (!connection.includes("Appended after config, so every agent hides the browser until an attachment allows it."))
     fail("4: connection.ts lost the deny-until-attach comment anchor")
-  if (!connection.includes("acquireRelease"))
-    fail("4: connection.ts lost the acquireRelease grant shape (exactly one allow rule per attachment)")
+  // old->new (issue #194 sequential reveal, v2.2.7 shape): the v2.2.1 acquireRelease grant
+  // (exactly one allow rule per attachment, released on detach) became the sync-permissions
+  // machine face — reconcileBrowserPermissions(session.permissions, allow) strips prior ACCESS
+  // allow rules and re-appends them on attach, drops them on detach (an idempotent set sync
+  // carrying the same exactly-one-allow-per-attachment contract).
+  if (!connection.includes("BrowserMachine.reconcileBrowserPermissions(session.permissions, effect.allow)"))
+    fail("4: connection.ts lost the sync-permissions grant face (old->new issue #194: the v2.2.1 anchor was acquireRelease — exactly one allow rule per attachment)")
 
   const tools = await read(`${PB}src/tools.ts`)
   if (!tools.includes('permission: "browser"')) fail("4: tools.ts lost the browser permission key")
   if (!tools.includes("codemode: true")) fail("4: tools.ts lost the Code Mode namespace flag")
 
   const model = await read(`${BROWSER_DIR}model.ts`)
-  for (const anchor of ["const attached = (session: Session)", "const pending = (session: SessionRef)", "const available = (session: SessionRef)"]) {
+  // old->new (issue #194 sequential reveal, v2.2.7 shape): the lifecycle accessor trio lost the
+  // v2.2.1 `pending` reader — pending lives in the connection machine now (attach state +
+  // permissions sync); attached/available keep their shapes.
+  for (const anchor of ["const attached = (session: Session)", "const available = (session: SessionRef)"]) {
     if (!model.includes(anchor)) fail(`4: model.ts lost the attachment lifecycle accessor: ${anchor}`)
   }
+  if (model.includes("const pending ="))
+    fail("4: model.ts resurrected the pending accessor (old->new issue #194: pending moved into the connection machine at v2.2.7)")
   if (!model.includes("Attachments belong to the shell session tab, not the session route"))
     fail("4: model.ts lost the shell-session-tab keying comment (return-to-session face)")
 
@@ -308,8 +328,12 @@ const srcFiles = async (base: string): Promise<string[]> => {
     fail("5: chromium.ts lost the did-fail-load failure face")
   if (!chromium.includes('contents.on("render-process-gone"'))
     fail("5: chromium.ts lost the render-process-gone failure face")
-  if (!chromium.includes("The server-network proxy answers an unreachable HTTP target with an empty 502"))
-    fail("5: chromium.ts lost the 502 empty-response failure comment")
+  // old->new (issue #194 sequential reveal): the 502 empty-response comment moved from
+  // chromium.ts to page-machine.ts's failed-load classifier (the status mapping is machine-owned
+  // now); wording unchanged.
+  const pageMachine = await read(`${BROWSER_DIR}page-machine.ts`)
+  if (!pageMachine.includes("The server-network proxy answers an unreachable HTTP target with an empty 502"))
+    fail("5: page-machine.ts lost the 502 empty-response failure comment (old->new issue #194: moved out of chromium.ts)")
   if (!chromium.includes("contents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))"))
     fail("5: chromium.ts lost the deny-all permission request handler")
   if (!chromium.includes("contents.setWindowOpenHandler"))
@@ -322,22 +346,33 @@ const srcFiles = async (base: string): Promise<string[]> => {
   if (!errors.includes("do not bypass certificate checks"))
     fail("5: errors.ts lost the certificate wording (do not bypass certificate checks)")
 
-  const connection = await read(`${PB}src/connection.ts`)
+  // old->new (issue #194 sequential reveal): the three tool error tags + the outcome-unknown
+  // wording moved from connection.ts to machine.ts (the error taxonomy is machine-owned at
+  // v2.2.7); the generation staleness anchor stays in connection.ts.
+  const connectionMachine = await read(`${PB}src/machine.ts`)
   for (const tag of ["[browser.disconnected]", "[browser.tab_unavailable]", "[browser.timeout]"]) {
-    if (!connection.includes(tag)) fail(`5: connection.ts lost the ${tag} tool error tag`)
+    if (!connectionMachine.includes(tag)) fail(`5: machine.ts lost the ${tag} tool error tag (old->new issue #194: moved out of connection.ts)`)
   }
-  if (!connection.includes("its outcome is unknown"))
-    fail("5: connection.ts lost the timeout outcome-unknown wording")
+  if (!connectionMachine.includes("its outcome is unknown"))
+    fail("5: machine.ts lost the timeout outcome-unknown wording (old->new issue #194: moved out of connection.ts)")
   // generation staleness anchor: requests carry the tab generation they were
   // issued with, the desktop host validates the target has not changed.
+  const connection = await read(`${PB}src/connection.ts`)
   if (!connection.includes("...(tab ? { generation: tab.generation } : {})"))
     fail("5: connection.ts lost the generation staleness anchor")
 
-  const pane = await read(`${BROWSER_DIR}pane.ts`)
-  if (!pane.includes('"page_crashed"'))
-    fail("5: pane.ts lost the page_crashed close reason")
-  if (!pane.includes('"unsupported" means the server has no browser plugin; the renderer stops retrying.'))
-    fail("5: pane.ts lost the unsupported stop-retrying contract comment")
+  // old->new (issue #194 sequential reveal, v2.2.7 machine form): pane.ts no longer carries the
+  // close-reason literals — `page_crashed` is pane-machine.ts's tab slot reason (the loadError
+  // face; a crashed tab returns so it can be loaded again), and the unsupported contract moved
+  // to ipc.ts's binding-error doc + pane-machine's handshake classifier
+  // ("browser.pane.unsupported": the server has no browser plugin, or the handshake protocol is
+  // undecodable — the renderer stops retrying).
+  const paneMachine = await read(`${BROWSER_DIR}pane-machine.ts`)
+  if (!paneMachine.includes('loadError: "page_crashed",'))
+    fail("5: pane-machine.ts lost the page_crashed loadError face (old->new issue #194: the v2.2.1 literal lived in pane.ts)")
+  const paneIpc = await read(`${BROWSER_DIR}ipc.ts`)
+  if (!paneIpc.includes('"browser.pane.unsupported"') || !paneIpc.includes("the server has no browser plugin"))
+    fail("5: ipc.ts lost the browser.pane.unsupported no-browser-plugin contract (old->new issue #194: the v2.2.1 unsupported stop-retrying comment lived in pane.ts)")
 }
 
 // --- 6. No-leak anchors (secrets stay out of the reachable faces) ---
@@ -406,23 +441,32 @@ const srcFiles = async (base: string): Promise<string[]> => {
   //   ssh/dialog.stories.tsx, browser/panel.fixture.tsx, app platform.tsx,
   //   gui-ext sdk/host-apis.ts — none match the RAW pattern (verified).
   const openExternalRe = /\b(platform|system)\s*\.\s*openExternal\s*\(/g
+  // old->new (issue #194 v2.2.7 re-measure of the v2.2.1-pin 21-hits/20-files baseline):
+  // connect/controller 1->3 (the provider connect flow grew the error/usage hops),
+  // connect/dialog 1->2, details/server-panel 1->2 (the MCP sign-in paste hop), runtime/server/
+  // sync.tsx LEFT the set (0 hits at v2.2.7), and THREE new app callers joined
+  // (providers/connect/mcp-sign-in.tsx, session/composer/go-limit-tray.tsx, usage/dialog.tsx).
+  // Baseline now exactly 27 hits in 22 files. The web.ts definition and the files-bridge call
+  // stay NON-HIT under the receiver pattern.
   const expectedHits = new Map<string, number>([
-    [`${APP}src/providers/connect/controller.ts`, 1],
-    [`${APP}src/providers/connect/mcp.ts`, 1],
-    [`${APP}src/providers/connect/dialog.tsx`, 1],
+    [`${APP}src/providers/connect/controller.ts`, 3],
+    [`${APP}src/providers/connect/mcp.tsx`, 1],
+    [`${APP}src/providers/connect/mcp-sign-in.tsx`, 1],
+    [`${APP}src/providers/connect/dialog.tsx`, 2],
     [`${APP}src/providers/connect/chatgpt-usage-limit.tsx`, 1],
     [`${APP}src/providers/connect/usage-exceeded.tsx`, 1],
-    [`${APP}src/runtime/server/sync.tsx`, 1],
     [`${APP}src/home/projects/controller.tsx`, 1],
     [`${APP}src/shell/titlebar/titlebar.tsx`, 1],
     [`${APP}src/shell/titlebar/windows-menu.tsx`, 1],
     [`${APP}src/shell/errors/error.tsx`, 1],
     [`${APP}src/session/requests/session-elicitation-dock.tsx`, 1],
+    [`${APP}src/session/composer/go-limit-tray.tsx`, 1],
+    [`${APP}src/usage/dialog.tsx`, 1],
     [`${APP}src/runtime/plugin/host-apis.tsx`, 1],
     [`${GUI}src/terminal/terminal.tsx`, 1],
     [`${GUI}src/microsoft-office/document.tsx`, 1],
     [`${GUI}src/microsoft-office/spreadsheet.tsx`, 1],
-    [`${GUI}src/details/server-panel.tsx`, 1],
+    [`${GUI}src/details/server-panel.tsx`, 2],
     [`${GUI}src/sources/panel.tsx`, 1],
     [`${GUI}src/updater/beta-dialog.tsx`, 1],
     [`${GUI}src/updater/beta-page.tsx`, 1],
@@ -446,8 +490,8 @@ const srcFiles = async (base: string): Promise<string[]> => {
   for (const rel of expectedHits.keys()) {
     if (!collectedHits.has(rel)) fail(`7: expected openExternal call site missing from the scan: ${rel}`)
   }
-  if (totalHits !== 21) fail(`7: the openExternal baseline must be exactly 21 hits in 20 files, got ${totalHits} hits in ${collectedHits.size} files`)
-  if (collectedHits.size !== 20) fail(`7: the openExternal file set must be exactly 20 files, got ${collectedHits.size}`)
+  if (totalHits !== 27) fail(`7: the openExternal baseline must be exactly 27 hits in 22 files (old->new issue #194 from 21/20), got ${totalHits} hits in ${collectedHits.size} files`)
+  if (collectedHits.size !== 22) fail(`7: the openExternal file set must be exactly 22 files (old->new issue #194 from 20), got ${collectedHits.size}`)
 
   // The browser PAGE chain itself stays in-pane: popups open as tabs, blocked
   // targets are refused (not handed to the system browser).
@@ -538,8 +582,11 @@ const srcFiles = async (base: string): Promise<string[]> => {
   // LegacyBrowserComment struct shape.
   const schemaRaw = await read(`${APP}src/composer/schema.ts`)
   const schema = squash(schemaRaw)
-  if (!schemaRaw.includes("// Legacy data: desktop builds before extension notes stored browser element comments as their own type, in drafts"))
-    fail("8: composer/schema.ts lost the legacy browser element comment note (first line)")
+  // old->new (issue #194 sequential reveal): the legacy note's wording re-anchored — v2.2.7 says
+  // "before plugin notes" (the v2.2.1 wording said "before extension notes"); the struct is
+  // unchanged.
+  if (!schemaRaw.includes("// Legacy data: desktop builds before plugin notes stored browser element comments as their own type, in drafts"))
+    fail("8: composer/schema.ts lost the legacy browser element comment note (first line; old->new issue #194: the v2.2.1 wording was 'before extension notes')")
   if (!schema.includes("LegacyBrowserComment=Persistence.struct({"))
     fail("8: composer/schema.ts lost the LegacyBrowserComment struct (legacy note shape)")
 
@@ -547,8 +594,10 @@ const srcFiles = async (base: string): Promise<string[]> => {
   // the pane is active AND canOpen; web/mobile (uses.browser() permanently
   // inactive after the early exit) falls back to the file tab.
   const fileRenderer = await read(`${GUI}src/file/renderer.tsx`)
-  if (!fileRenderer.includes('artifactKind(targetPath) === "html" && pane.status === "active" && pane.value.canOpen(routed, targetPath)'))
-    fail("8: file/renderer.tsx lost the pane-gated HTML preview chain (fallback = file tab)")
+  // old->new (issue #194 sequential reveal): the preview chain's path variable renamed
+  // targetPath -> path (the canOpen gate shape is unchanged).
+  if (!fileRenderer.includes('artifactKind(path) === "html" && pane.status === "active" && pane.value.canOpen(routed, path)'))
+    fail("8: file/renderer.tsx lost the pane-gated HTML preview chain (fallback = file tab; old->new issue #194: targetPath renamed to path)")
 }
 
 // --- 9. Zero host-OS scan (platform-access two modes, real-shape baseline) ---
@@ -617,15 +666,15 @@ let scannedBrowserFiles = 0
 console.log(
   "verify-browser: PASS (" +
     "1: desktop gating anchors — renderer early exit + always-disabled 'Open browser' command, 'Inactive on web' contract, Build.platform web|desktop, upstream narrow gate; " +
-    "2: main-process absence — pane.ts IS the electron host anchor, app/src zero electron, gui-extensions specifier set {sdk:34, sdk/bridge:8, renderer:2, updater:1} unchanged, web.ts zero extensions field; " +
+    "2: main-process absence — pane.ts IS the electron host anchor, app/src zero electron, the plugin/gui(gui-plugins) specifier map at the v2.2.7 form {gui:50, builtin:10, host:21, browser/file/review:1, updater:2, renderer:2, terminal:1; old->new issue #194 from {gui:33, builtin:9, host:16, updater:1}}, web.ts zero extensions field; " +
     "3: contract — experimental.browser RPC (8 methods + control), attach version Literal(4) → [closed|replaced], THREE Control shapes, 5 MiB/64 KiB/100k bounds, Target 'Metadata only', EXACT 45-operation set equality; " +
-    "4: permission & enablement — deny-until-attach + acquireRelease, permission 'browser', attachment lifecycle accessors, toolbar map (canGoBack/canGoForward, suspended||failed, reachable, inspectable, aria-pressed); " +
-    "5: error paths — three refusal codes, static zero-echo normalizeURL message, blocked-link/blocked-address sameness + ERR_BLOCKED_BY_CLIENT, did-fail-load/render-process-gone/page_crashed, navigation_failed|operation_failed + do-not-bypass-certificate wording, [browser.disconnected]/[browser.tab_unavailable]/[browser.timeout], unsupported stop-retrying contract, generation staleness anchor; " +
+    "4: permission & enablement — deny-until-attach + the sync-permissions grant face (old->new issue #194: the v2.2.1 acquireRelease release-on-detach grant became reconcileBrowserPermissions set sync), permission 'browser', attached/available lifecycle accessors (pending moved into the connection machine), toolbar map (canGoBack/canGoForward, suspended||failed, reachable, inspectable, aria-pressed); " +
+    "5: error paths — three refusal codes, static zero-echo normalizeURL message, blocked-link/blocked-address sameness + ERR_BLOCKED_BY_CLIENT, did-fail-load/render-process-gone + the page_crashed loadError face (pane-machine.ts) + the 502 comment there (old->new issue #194: moved out of chromium.ts), navigation_failed|operation_failed + do-not-bypass-certificate wording, [browser.disconnected]/[browser.tab_unavailable]/[browser.timeout] in machine.ts (old->new issue #194: moved out of connection.ts), browser.pane.unsupported contract in ipc.ts, generation staleness anchor; " +
     "6: no-leak — main-only sidecar password, metadata-only event feed (README), untrusted-page-data preamble, desktop-only details kept out of the server's tab state; " +
-    "7: external-jump boundary — web openExternal http/https/mailto gate verbatim + files-open-external bridge-call shape (zero window.open negative, mobile(M-041) marker), EXHAUSTIVE openExternal set over app/src + gui-extensions/src = exactly 21 hits in 20 files (app 12×1 + gui-ext 7 files/7 hits incl. sources/panel from issue #66 and the updater beta faces from #70, browser/panel ×2; the definition and the bridge-call shapes stay NON-HIT under the receiver pattern), in-pane popup anchor; " +
+    "7: external-jump boundary — web openExternal http/https/mailto gate verbatim + files-open-external bridge-call shape (zero window.open negative, mobile(M-041) marker), EXHAUSTIVE openExternal set over app/src + gui-plugins/src = exactly 27 hits in 22 files (old->new issue #194 from 21/20: controller 3, dialog 2, server-panel 2, +mcp-sign-in/go-limit-tray/usage-dialog, -runtime/server/sync; the definition and the bridge-call shapes stay NON-HIT under the receiver pattern), in-pane popup anchor; " +
     "8: mobile presentation chain — case \"browser\" + ui.tool.browser en/zh pair, no browser-specific ToolRegistry registration (negative), data: file-part production + schema Content union, CONSUMER static locks (flatMap text-only normalizer + currentToolOutput over session-ui/src non-test = exactly 3 files × 1), legacy element-comment note, pane-gated preview fallback; " +
     "9: zero host-OS — platform-access two-mode scan over gui-ext browser (non-test) + plugin-browser/src (" +
     scannedBrowserFiles +
-    " files), baseline exactly 3 hits in 2 files {policy.ts, chromium.ts}, node:os pair declared separately; " +
+    " files), baseline (v2.2.7-measured set: policy.ts, chromium.ts, panel.fixture.tsx, renderer.tsx), node:os pair declared separately; " +
     "STATIC check - dual-end attach, timeline/screenshot presentation verdict, tool error cards, blocked-URL semantics, return-to-session, device traces and touch/a11y adequacy are G28)",
 )

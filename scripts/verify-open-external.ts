@@ -36,9 +36,12 @@
 //      QUERY_ALL_PACKAGES, and the permission set is verify-pairing group 6's
 //      master lock (exactly {INTERNET, POST_NOTIFICATIONS, CAMERA}) — this
 //      probe only witnesses that the OUTBOUND face added no manifest surface.
-//   3. Registration face: files-open-external is dual-registered (patches/mobile/manifest.json
-//      row with targets exactly [web.ts] + non-empty upstreamBaseline;
-//      vendor-manifest.json mobilePatches carries the path). The exact 50=50
+//   3. Registration face: files-open-external is registered (patches/mobile/manifest.json
+//      row with targets exactly [web.ts] + non-empty upstreamBaseline) with status
+//      "absorbed" — its JS hunk is carried by the #190 consolidated
+//      files-diff-review-v2-2-7 patch, which must be present in the replay order
+//      (mobilePatches) AND contain the web.ts openExternal bridge-call hunk (group 1
+//      keeps the in-tree lock; this group re-checks the carrier). The exact 50=50
 //      chain count (39=39 was the issue #76-era total; 50 since issue #109's
 //      settings-gui-plugins-tab-label, re-verified by issue #110) is the MASTER lock of verify-about-version group 6 +
 //      verify-attachments-artifacts group 6 + verify-commands-menus group 8 —
@@ -234,10 +237,10 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
     fail("2: manifest gained a custom scheme (witness — decision 0007 inbound remains proposal-stage; master lock verify-pairing group 4)")
 }
 
-// --- 3. Registration face: files-open-external dual registration (count master-locked elsewhere) ---
+// --- 3. Registration face: files-open-external registration (count master-locked elsewhere) ---
 {
   const patchManifest = JSON.parse(await read(PATCH_MANIFEST)) as {
-    patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown }>
+    patches?: Array<{ id?: unknown; patch?: unknown; targets?: unknown; upstreamBaseline?: unknown; status?: unknown; disposition?: unknown }>
   }
   const rows = patchManifest.patches ?? []
   const m041 = rows.filter((row) => row.id === "files-open-external")
@@ -251,12 +254,24 @@ const VENDOR_MANIFEST = "vendor/upstream/vendor-manifest.json"
   if (typeof entry.upstreamBaseline !== "string" || !entry.upstreamBaseline)
     fail("3: files-open-external entry must retain a non-empty upstreamBaseline")
 
+  // #190 re-anchor: files-open-external is absorbed — its JS hunk rides the consolidated
+  // files-diff-review-v2-2-7 patch. The carrier must be (a) the registered status,
+  // (b) present in the replay order AND contain the web.ts openExternal bridge-call hunk
+  // (group 1 keeps the in-tree lock; this is the carrier-side witness), (c) keep the
+  // issue #76 attribution in the registry entry.
+  if (entry.status !== "absorbed")
+    fail(`3: files-open-external must be absorbed (JS hunk carried by the #190 consolidation), got status ${String(entry.status)}`)
+
   const vendorManifest = JSON.parse(await read(VENDOR_MANIFEST)) as { mobilePatches?: unknown }
   const paths = Array.isArray(vendorManifest.mobilePatches)
     ? (vendorManifest.mobilePatches as unknown[]).filter((value): value is string => typeof value === "string")
     : []
-  if (!paths.includes("patches/mobile/files-open-external.patch"))
-    fail("3: vendor-manifest mobilePatches lost the files-open-external path")
+  const carrier = "patches/mobile/files-diff-review-v2-2-7.patch"
+  if (!paths.includes(carrier))
+    fail("3: vendor-manifest mobilePatches lost the files-diff-review-v2-2-7 carrier path")
+  const carrierPatch = await read(`vendor/upstream/${carrier}`)
+  if (!squash(carrierPatch).includes("voidactiveFilesPort().openExternal(url.href)"))
+    fail("3: the files-diff-review-v2-2-7 carrier lost the web.ts openExternal bridge-call hunk")
 
   // WITNESS: the exact 50=50 chain count + path-for-path agreement is the
   // MASTER lock of verify-about-version group 6 / verify-attachments-artifacts
@@ -271,6 +286,6 @@ console.log(
   "verify-open-external: PASS (" +
     "1: JS face — upstream canParse + protocol gates verbatim, files-open-external bridge-call shape + marker, web.ts zero window.open negative, FilesPort exactly four members + stub false + client never-throw fail-closed shapes + op union + timeout anchor untouched; " +
     "2: native face — ExternalOpenPolicy JVM purity + six gates (strict parse, http/https-only mailto delta, userinfo, host, port range, 2048) + Decision enum, FilesBridge exactly-four-op set + dispatch + ACTION_VIEW-from-accepted-string + no-handler capture + {opened} body + LENGTH_SHORT fixed-string Toast + zero-value-log negative, en-only fixed copy + no values-zh negative, MainActivity zero wiring negative, manifest witness zero VIEW/scheme/QUERY_ALL_PACKAGES (first locks verify-pairing groups 3/4/6 NOT re-locked); " +
-    "3: registration — files-open-external dual registration with targets exactly [web.ts] + baseline + issue #76 attribution (50=50 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
+    "3: registration — files-open-external entry with targets exactly [web.ts] + baseline, status absorbed with the files-diff-review-v2-2-7 carrier present in the replay order and carrying the web.ts openExternal hunk, issue #76 attribution (50=50 chain count is the master lock of verify-about-version/attachments-artifacts/commands-menus, witnessed not re-locked); " +
     "STATIC check — allowed-domain hand-off, refused-domain Toast, mailto delta Toast and no-handler path on a device are QA-1/QA-2/QA-3/QA-4 registered in docs/build-and-verify.md issue #76; the JVM decision matrix (ExternalOpenPolicyTest) is the policy behavioral lower bound)",
 )

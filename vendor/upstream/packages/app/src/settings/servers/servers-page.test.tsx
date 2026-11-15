@@ -179,10 +179,18 @@ try {
   }))
 
   // Observe the page-to-menu option on both real page layouts without replacing the pages.
+  // mobile(N12): the page now mounts the SettingsAddServerMenu wrapper (the upstream
+  // AddServerMenu stays its non-Android form), so the mock replaces the wrapper.
   mock.module("@/servers/registry/add-menu", () => ({
     AddServerMenu: () => {
       const button = document.createElement("button")
       button.textContent = "dialog.server.add.button"
+      return button
+    },
+    SettingsAddServerMenu: (props: { checkAndroid?: boolean }) => {
+      const button = document.createElement("button")
+      button.textContent = "dialog.server.add.button"
+      button.dataset.checkAndroid = String(!!props.checkAndroid)
       return button
     },
   }))

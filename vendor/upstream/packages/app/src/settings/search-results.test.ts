@@ -45,13 +45,16 @@ describe("settings search index", () => {
       target: undefined,
       subtab: undefined,
     })
-    expect(rankSettings("font", items)).toHaveLength(3)
+    // mobile(M-035): the zoom row drops the target's desktop gate, so it joins the "font"
+    // query (4 results instead of the target's 3; registered deviation, matrix S42).
+    expect(rankSettings("font", items)).toHaveLength(4)
   })
 
   test("only advertises settings supported by this platform", () => {
     const targets = (input: Parameters<typeof index>[0]) => index(input).map((item) => item.view.target)
     expect(targets({})).not.toContain("settings-pinch-zoom")
-    expect(targets({})).not.toContain("settings-zoom")
+    // mobile(M-035): the zoom row is web-available on this client (gate dropped).
+    expect(targets({})).toContain("settings-zoom")
     expect(targets({})).not.toContain("settings-experimental-browser")
     expect(targets({})).not.toContain("settings-show-project-icon")
     expect(targets({})).toContain("settings-tab-layout")

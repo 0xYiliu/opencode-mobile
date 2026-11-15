@@ -281,6 +281,9 @@ export const dict = {
   "dialog.server.add.error": "无法连接到服务器",
   "dialog.server.add.checking": "检查中…",
   "dialog.server.add.button": "添加服务器",
+  // mobile(N12, issue #124)：移动端壳中 WSL 行可见但禁用（零控件）。
+  "dialog.server.add.wsl": "添加 WSL 服务器",
+  "dialog.server.add.wslUnavailable": "WSL 服务器仅适用于 Windows 桌面版。",
   "dialog.server.add.name": "服务器名称（可选）",
   "dialog.server.add.namePlaceholder": "Localhost",
   "dialog.server.add.password": "密码（可选）",
@@ -389,6 +392,8 @@ export const dict = {
   "session.new.git.none": "无 Git",
 
   "settings.tab.servers": "服务器",
+  // mobile(settings-ssh-entry-guard)：连接页 SSH 入口按钮标签（上游在 servers/connect/screen.tsx 消费该键但未定义）。
+  "settings.tab.sshHosts": "SSH 主机",
   "settings.extensions.tab.plugins": "插件",
 
   "common.copied": "已复制",
@@ -496,6 +501,11 @@ export const dict = {
   "settings.general.notifications.permissions.description": "当需要权限时显示系统通知",
   "settings.general.notifications.errors.title": "错误",
   "settings.general.notifications.errors.description": "发生错误时显示系统通知",
+  "settings.general.notifications.android.title": "系统通知（Android）",
+  "settings.general.notifications.android.description": "开启任一通知开关时，按需向 Android 请求通知权限",
+  "settings.general.notifications.android.granted": "已获得 Android 通知权限",
+  "settings.general.notifications.android.denied": "Android 通知权限被拒绝——应用内声音与徽标仍然可用",
+  "settings.general.notifications.android.unavailable": "此环境不支持系统通知——应用内提示仍然可用",
   "settings.general.sounds.agent.title": "智能体",
   "settings.general.sounds.agent.description": "当智能体完成或需要注意时播放声音",
   "settings.general.sounds.permissions.title": "权限",
@@ -726,6 +736,20 @@ export const dict = {
   "titlebar.tabs": "标签页",
   "settings.tab.experimental": "实验",
   "settings.experimental.description": "尝试实验性功能",
+  // mobile(gui-plugins-v2-2-7, issue #194；M-036 lineage)：实验页 Sources 开关行（en/zh 成对登记）。
+  "settings.experimental.row.sources.title": "来源",
+  "settings.experimental.row.sources.description": "一轮回复检索并阅读过的页面",
+  // mobile(M-026)：非桌面构建的第一方 GUI 扩展管理面（issue #26）——上游八键的中文对齐 + 移动描述（#109 消歧标题）。
+  "settings.guiExtensions.title": "GUI 扩展",
+  "settings.guiExtensions.description": "本窗口的内建 GUI 扩展。仅开发构建可用。",
+  "settings.guiExtensions.reload": "重新加载",
+  "settings.guiExtensions.status.loading": "加载中",
+  "settings.guiExtensions.status.active": "活跃",
+  "settings.guiExtensions.status.failed": "失败",
+  "settings.guiExtensions.status.disabled": "已禁用",
+  "settings.guiExtensions.status.blocked": "被阻断",
+  "settings.guiExtensions.mobile.description":
+    "本应用的内建 GUI 扩展。关闭某个扩展会隐藏其在本设备上的面板；远程服务器不受影响。",
   "settings.tab.about": "关于",
   "settings.about.version": "版本{{version}}",
   "settings.about.devVersion": "发展",

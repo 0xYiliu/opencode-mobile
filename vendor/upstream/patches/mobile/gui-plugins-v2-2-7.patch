@@ -1,0 +1,381 @@
+# mobile(gui-plugins-v2-2-7, issue #194 of the registry / GitHub issue #194): the GUI-plugins mobile
+# faces re-derived on the v2.2.7 surface — the narrow-screen entries the v2.2.7 pin absorbed away
+# with the goal/sources/btw reworks, re-landed as the pin-native faces demand. Four retired payloads
+# fold into this one patch (their old .patch files stay untouched on disk for audit):
+#   D1  (M-038, session-btw-narrow-entry row): the /btw command gate drops the desktop-width term
+#       (enabled: mounted(); desktop width is unchanged by construction — at >=768px !layout.narrow()
+#       is constant, so the old gate already reduced to mounted()) and the BuiltinPanel gains the
+#       narrow-screen mobile face (order 80, kind menu, icon comment — the More-drawer entry after
+#       sources 60, the pin-native faces being review 10 / file 20 / terminal 30 / context 40 /
+#       details 50; goal's old order 70 is gone because v2.2.7 goal is the native ComposerPill, not
+#       a panel — no face is renumbered).
+#   D2/D3  (M-038 + the 10th target): the mobile render path dispatches on the panel id ("main";
+#       chat ids are UUIDs, so the dispatch cannot collide) and shows the most recent stored chat
+#       once the session's store is ready (an empty container before that, the tabs'
+#       hidden-until-ready semantics), else the honest mobile.none empty state. v2.2.7's createBtw
+#       exports ask/tab/view/retry/remove but not the saved list the old D3 read (chats.at(-1)), so
+#       btw/model.ts gains the minimal `saved` accessor export (same reader the tab/view accessors
+#       dispatch through) — the 10th target of this patch. The mobile view has no tab-close channel,
+#       so chats asked on narrow screens reappear as desktop strip tabs when the viewport widens
+#       (the close path lives there); the store keeps the upstream "kept until its tab closes"
+#       semantics. btw/panel.tsx and btw/index.ts stay pin-verbatim (probe-locked sha1).
+#   S1  (M-036 sources half, session-goal-sources-panels row): the sources side panel re-lands its
+#       narrow-screen face — mobile face order 60 (kind menu, icon globe), the gate-off honest
+#       panel.disabled empty state (the fallback is only reachable from the always-present More
+#       drawer entry), the panel-id "turn" dispatch rendering the most recent turn with sources,
+#       the panel.none empty state, and the panel.title/panel.disabled/panel.none i18n keys.
+#   S2  (M-036 settings half, session-goal-sources-panels row): the Settings -> Experimental Sources
+#       gate row re-lands on the v2.2.7 page (SettingsRow + data-action="settings-sources" Switch,
+#       en/zh row.sources.* keys per the #193 pairing convention). The old storedToggle/
+#       setStoredToggle write path does not exist at v2.2.7 — the row flips the knob DECLARED ONCE by
+#       session-ui's sources experiment through the new setSourcesEnabled accessor (the knob instance
+#       captured once in that module; re-registering motionTuning.toggle("sources.enabled") anywhere
+#       would Map.set-clobber the instance and leave the row showing on while the experiment stays
+#       off; motionTuning.set persists and notifies, so the debug Knobs panel and the
+#       sourcesExperiment store stay in sync via subscribe).
+#   F6  (extensions-flyout-webview row): the details flyout open-state rule
+#       `.session-service-flyout[data-open] &` flattens to the non-nested ancestor-selector form
+#       (WebView 114 ?inline CSS injection cannot parse this nesting; the &:dir(rtl) and
+#       [data-motion] nesting stay nested — a progressive loss on old WebViews, recorded). The
+#       v2.2.7 rule carries no transition block (the old patch's transition lines are pin-absorbed
+#       upstream), so the flatten is the 3-property open-state rule only.
+# Everything else the four payloads carried is pin-absorbed native at v2.2.7 (the goal data layer
+# and schema/goal.ts, the session-ui sources subsystem incl. the graduated sources-expand-machine,
+# the timeline turnSources hooks, the motion spring/loop modules, outline-steer, ui.sources.* i18n,
+# the SourcesProvider host wrapper): carried by NO hunk here. Marker:
+# mobile(gui-plugins-v2-2-7, issue #194); lineage markers keep the M-036/M-038 /
+# extensions-flyout-webview spellings for identity-migration.json cross-reference.
+diff --git a/packages/app/src/runtime/i18n/en.ts b/packages/app/src/runtime/i18n/en.ts
+index 1539d68b4fbec2e18101a016a448d117ad9bd052..b7621b0ef77d125d5ad28eef9f67fbd5d59cb072 100644
+--- a/packages/app/src/runtime/i18n/en.ts
++++ b/packages/app/src/runtime/i18n/en.ts
+@@ -857,6 +857,9 @@ export const dict = {
+     "Group side tabs by project or show one list. Only applies to side tabs.",
+   "settings.experimental.sidebarOrganize.projects": "Projects",
+   "settings.experimental.sidebarOrganize.list": "One list",
++  // mobile(gui-plugins-v2-2-7, issue #194; M-036): the Sources experiment gate row (Settings → Experimental).
++  "settings.experimental.row.sources.title": "Sources",
++  "settings.experimental.row.sources.description": "Pages a turn searched and read",
+   "sidebar.organize.projects": "Projects",
+   "sidebar.organize.openTab": "Open tab",
+   "sidebar.organize.showMore": "Show more",
+diff --git a/packages/app/src/runtime/i18n/zh.ts b/packages/app/src/runtime/i18n/zh.ts
+index 360ce8e4989aeb2cc6af335c3271b549c3d38d17..fc1d6f60f021bb75ab7f30b8d53ef6acab7d8780 100644
+--- a/packages/app/src/runtime/i18n/zh.ts
++++ b/packages/app/src/runtime/i18n/zh.ts
+@@ -731,6 +731,9 @@ export const dict = {
+   "titlebar.tabs": "标签页",
+   "settings.tab.experimental": "实验",
+   "settings.experimental.description": "尝试实验性功能",
++  // mobile(gui-plugins-v2-2-7, issue #194；M-036 lineage)：实验页 Sources 开关行（en/zh 成对登记）。
++  "settings.experimental.row.sources.title": "来源",
++  "settings.experimental.row.sources.description": "一轮回复检索并阅读过的页面",
+   // mobile(M-026)：非桌面构建的第一方 GUI 扩展管理面（issue #26）——上游八键的中文对齐 + 移动描述（#109 消歧标题）。
+   "settings.guiExtensions.title": "GUI 扩展",
+   "settings.guiExtensions.description": "本窗口的内建 GUI 扩展。仅开发构建可用。",
+diff --git a/packages/app/src/settings/experimental/experimental.tsx b/packages/app/src/settings/experimental/experimental.tsx
+index 81aad8ab23226307733998601d75692984938c1d..f00cde829cc793f8b7cb4e100605e0184e052a1c 100644
+--- a/packages/app/src/settings/experimental/experimental.tsx
++++ b/packages/app/src/settings/experimental/experimental.tsx
+@@ -1,4 +1,5 @@
+ import { Component } from "solid-js"
++import { setSourcesEnabled, sourcesExperiment } from "@opencode/session-ui/sources/experiment"
+ import { Switch } from "@opencode/ui/switch"
+ import { Select } from "@opencode/ui/select"
+ import { useLanguage } from "@/runtime/i18n/language"
+@@ -79,6 +80,18 @@ export const SettingsExperimental: Component = () => {
+                 </Switch>
+               </div>
+             </SettingsRow>
++            {/* mobile(gui-plugins-v2-2-7, issue #194; M-036): the Sources experiment gate row. The knob is declared
++                once by session-ui's sources experiment; this row flips that same registered instance through the
++                exported setter — re-registering here would clobber the knob and leave the row showing on while the
++                experiment stays off — and the experiment's subscribe mirrors the flip back into the store. */}
++            <SettingsRow
++              title={language.t("settings.experimental.row.sources.title")}
++              description={language.t("settings.experimental.row.sources.description")}
++            >
++              <div data-action="settings-sources">
++                <Switch checked={sourcesExperiment.enabled} onChange={(checked) => setSourcesEnabled(checked)} />
++              </div>
++            </SettingsRow>
+           </SettingsList>
+         </div>
+       </div>
+diff --git a/packages/gui-plugins/src/btw/i18n/en.ts b/packages/gui-plugins/src/btw/i18n/en.ts
+index d5d51911a0357e0dbc3eda617445246a60560ca2..152190f406149389e7997a47b1b7aa1bc4fe8c35 100644
+--- a/packages/gui-plugins/src/btw/i18n/en.ts
++++ b/packages/gui-plugins/src/btw/i18n/en.ts
+@@ -8,4 +8,8 @@ export default {
+   "error.timeout": "The model took too long to reply.",
+   retry: "Retry",
+   copy: "Copy answer",
++  // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1/D2): the narrow-screen More-drawer entry title and its
++  // honest empty state.
++  "mobile.title": "Side question",
++  "mobile.none": "No side question yet",
+ }
+diff --git a/packages/gui-plugins/src/btw/model.ts b/packages/gui-plugins/src/btw/model.ts
+index 21a148cf72d45ac137272f63b1c783486547d808..4db8cac6d8cc66a892315da9a7b8f1abde53a707 100644
+--- a/packages/gui-plugins/src/btw/model.ts
++++ b/packages/gui-plugins/src/btw/model.ts
+@@ -174,6 +174,9 @@ export function createBtw(ctx: SetupContext<typeof Btw>) {
+ 
+   return {
+     ask,
++    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D3): the narrow-screen mobile view renders the most recent
++    // stored chat — expose the same saved-list reader the tab/view accessors dispatch through.
++    saved,
+     tab: (session: MountedSession, id: string) => btwTabView(state(), saved(session), session.key, id),
+     view: (session: MountedSession, id: string) => btwChatView(state(), saved(session), session.key, id),
+     retry: (session: MountedSession, id: string) => {
+diff --git a/packages/gui-plugins/src/btw/renderer.tsx b/packages/gui-plugins/src/btw/renderer.tsx
+index 4a47d8cf8e9ec485f9ba4a8a11d4603f0cfb22b9..0c6f67e454c9b54809749e173e6a1ce26cf5b27f 100644
+--- a/packages/gui-plugins/src/btw/renderer.tsx
++++ b/packages/gui-plugins/src/btw/renderer.tsx
+@@ -1,4 +1,4 @@
+-import { createMemo, lazy, onCleanup, Suspense } from "solid-js"
++import { createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
+ import { Icon } from "@opencode/ui/icon"
+ import { Command, createKeyed, type PanelTab, type Plugin } from "@opencode/plugin/gui"
+ import { BuiltinPanel, onIdle } from "@opencode/plugin/gui/builtin"
+@@ -9,7 +9,6 @@ import { createBtw } from "./model"
+ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
+   const SessionBtwPanel = lazy(() => import("./panel"))
+   onCleanup(onIdle(() => void SessionBtwPanel.preload()))
+-  const layout = ctx.layout
+   const sessions = ctx.sessions
+   const btw = createBtw(ctx)
+   // Changes when a session mounts or unmounts, not on every switch between sessions.
+@@ -46,8 +45,10 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
+       section: "session",
+       slash: { name: "btw", arguments: true },
+       hidden: true,
+-      // Offered only while a session is open in a desktop-width window.
+-      enabled: !layout.narrow() && mounted(),
++      // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): offered while a session is open; on narrow screens the
++      // answer shows in the /btw mobile view. Desktop width keeps the upstream behavior (at >=768px
++      // !layout.narrow() is constant, so the old desktop-width gate already reduced to mounted()).
++      enabled: mounted(),
+       run: (input) => btw.ask(input),
+     }),
+   )
+@@ -58,6 +59,16 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
+     transient: true,
+     // Layouts saved before plugins store the tab as "btw"; as a panel key it leaves like any unlisted transient tab.
+     legacy: { btw: "main" },
++    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D1): the narrow-screen More-drawer entry, after sources 60 —
++    // the drawer's last entry (the pin-native faces are review 10 … details 50; no existing face renumbered).
++    mobile: {
++      get title() {
++        return ctx.t("mobile.title")
++      },
++      order: 80,
++      kind: "menu",
++      icon: "comment",
++    },
+     // One tab per question. A restored tab stays listed but hidden until the session's store loads so restore keeps
+     // it; afterwards a tab without a stored question leaves the strip. A question asked here shows at once.
+     list: (input) => {
+@@ -95,11 +106,32 @@ const setup: Plugin.Setup<typeof Btw> = (ctx) => {
+         return [tab]
+       })
+     },
+-    render: (props) => (
+-      <Suspense>
+-        <SessionBtwPanel btw={btw} session={props.session} id={props.tab.id} />
+-      </Suspense>
+-    ),
++    // mobile(gui-plugins-v2-2-7, issue #194; M-038 D2/D3): the narrow-screen mobile view receives the panel's id
++    // ("main"; chat ids are UUIDs, so the dispatch cannot collide) instead of a chat id — it shows the most recent
++    // stored chat once the session's store is ready (an empty container before that, the tabs' hidden-until-ready
++    // semantics), else the honest empty state. The desktop strip keeps one chat per tab id, rendered exactly as
++    // before. The mobile view has no tab-close channel, so chats asked on narrow screens reappear as strip tabs
++    // when the viewport widens (the close path lives there); the store itself keeps the upstream "kept until its
++    // tab closes" semantics.
++    render: (props) => {
++      const mobile = () => props.tab.id === "main"
++      const chatId = () => (mobile() ? btw.saved(props.session)?.at(-1)?.id : props.tab.id)
++
++      return (
++        <Suspense>
++          <Show
++            when={chatId()}
++            fallback={
++              <Show when={mobile() && btw.saved(props.session) !== undefined}>
++                <div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("mobile.none")}</div>
++              </Show>
++            }
++          >
++            {(id) => <SessionBtwPanel btw={btw} session={props.session} id={id()} />}
++          </Show>
++        </Suspense>
++      )
++    },
+     close: (input) => {
+       btw.remove(input.session, input.tab.id)
+       tabs.get(input.session.key)?.delete(input.tab.id)
+diff --git a/packages/gui-plugins/src/details/details.css b/packages/gui-plugins/src/details/details.css
+index c3b97e855b2536a859287ad649918e6685bdd798..ac6ed31522f647116608c8aeeaa713aadddbd161 100644
+--- a/packages/gui-plugins/src/details/details.css
++++ b/packages/gui-plugins/src/details/details.css
+@@ -167,12 +167,16 @@ button.session-service-row:focus-visible,
+     translate: -4px 0;
+     transform-origin: left top;
+   }
++}
+ 
+-  .session-service-flyout[data-open] & {
+-    opacity: 1;
+-    scale: 1;
+-    translate: 0 0;
+-  }
++/* mobile(gui-plugins-v2-2-7, issue #194; extensions-flyout-webview lineage): keep the ancestor selector
++   parseable by Android WebView's CSS nesting implementation. The &:dir(rtl) nesting above and the
++   [data-motion] nesting below stay nested — a progressive loss on old WebViews (RTL mirroring and motion
++   transitions only), recorded in the registry. */
++.session-service-flyout[data-open] .session-service-flyout-body {
++  opacity: 1;
++  scale: 1;
++  translate: 0 0;
+ }
+ 
+ .session-service-flyout-surface {
+diff --git a/packages/gui-plugins/src/sources/i18n/en.ts b/packages/gui-plugins/src/sources/i18n/en.ts
+index 6f712088d760c30b527afa685dc8c18a1527e361..cc5763b0d98e8bb7edb1715ec94aa79eb20d5353 100644
+--- a/packages/gui-plugins/src/sources/i18n/en.ts
++++ b/packages/gui-plugins/src/sources/i18n/en.ts
+@@ -1,3 +1,8 @@
+ export default {
+   "tab.count": "Sources · {{count}}",
++  // mobile(gui-plugins-v2-2-7, issue #194; M-036): narrow-screen face entry and empty states. The upstream
++  // panel has none — its More-drawer route does not exist upstream.
++  "panel.title": "Sources",
++  "panel.disabled": "Sources are turned off. Enable them in Settings → Experimental.",
++  "panel.none": "No sources yet. Pages a turn searches and reads appear here.",
+ }
+diff --git a/packages/gui-plugins/src/sources/panel.tsx b/packages/gui-plugins/src/sources/panel.tsx
+index b738d1dbbd9c8128cdafc3c3c33e7d2469d3c929..d1273f3594c2ff98808d9bfa94385a83c5850d45 100644
+--- a/packages/gui-plugins/src/sources/panel.tsx
++++ b/packages/gui-plugins/src/sources/panel.tsx
+@@ -1,4 +1,4 @@
+-import { createMemo } from "solid-js"
++import { createMemo, Show } from "solid-js"
+ import { turnMessages, turnSources } from "@opencode/session-ui/sources"
+ import { sourcesExperiment } from "@opencode/session-ui/sources/experiment"
+ import { SourcesPanel } from "@opencode/session-ui/sources/panel"
+@@ -9,9 +9,26 @@ import { Browser } from "@opencode/plugin/gui/browser"
+ export default function SourcesTab(props: { session: MountedSession; from: string }) {
+   const ctx = usePlugin<typeof Sources>()
+ 
+-  const sources = createMemo(() =>
+-    turnSources(turnMessages(props.session.server.data.session.message.list(props.session.id), props.from)),
+-  )
++  // mobile(gui-plugins-v2-2-7, issue #194; M-036): on the narrow-screen mobile view the render receives the
++  // panel's id instead of a message id, so the tab shows the most recent turn that has sources, else the empty
++  // state. The chip path below (a message id from `list`) is the wide-layout entry.
++  const sources = createMemo(() => {
++    const list = props.session.server.data.session.message.list(props.session.id)
++
++    if (props.from !== "turn") return turnSources(turnMessages(list, props.from))
++
++    for (let index = list.length - 1; index >= 0; index--) {
++      const message = list[index]
++
++      if (message.type !== "user") continue
++
++      const value = turnSources(turnMessages(list, message.id))
++
++      if (value.steps.length > 0) return value
++    }
++
++    return { steps: [], sources: [] }
++  })
+ 
+   const open = (url: string) => {
+     const pane = ctx.use(Browser)()
+@@ -22,9 +39,14 @@ export default function SourcesTab(props: { session: MountedSession; from: strin
+ 
+   return (
+     <div class="flex h-full min-h-0 flex-col bg-v2-background-bg-base" data-slot="session-sources-panel">
+-      <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
+-        <SourcesPanel sources={sources()} icons={sourcesExperiment.icons} onOpen={open} />
+-      </div>
++      <Show
++        when={sources().steps.length > 0}
++        fallback={<div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("panel.none")}</div>}
++      >
++        <div class="min-h-0 flex-1 overflow-y-auto" data-scrollable>
++          <SourcesPanel sources={sources()} icons={sourcesExperiment.icons} onOpen={open} />
++        </div>
++      </Show>
+     </div>
+   )
+ }
+diff --git a/packages/gui-plugins/src/sources/renderer.tsx b/packages/gui-plugins/src/sources/renderer.tsx
+index 10159765ec99563c924e37709567a4823411bfab..c8e5b4255eafee0d408c417fe30c8e0e954cb8fb 100644
+--- a/packages/gui-plugins/src/sources/renderer.tsx
++++ b/packages/gui-plugins/src/sources/renderer.tsx
+@@ -47,6 +47,17 @@ const setup: Plugin.Setup<typeof Sources> = (ctx) => {
+     id: "turn",
+     region: "side",
+     transient: true,
++    // mobile(gui-plugins-v2-2-7, issue #194; M-036): the narrow-screen More-drawer entry, after the pin-native
++    // faces (review 10 … details 50). The render receives the panel's id as the tab id on this path; the tab
++    // shows the most recent turn with sources, or an honest empty state while the experiment is off.
++    mobile: {
++      get title() {
++        return ctx.t("panel.title")
++      },
++      order: 60,
++      kind: "menu",
++      icon: "globe",
++    },
+     list: (input) => {
+       if (!sourcesExperiment.enabled) {
+         tabs.delete(input.session.key)
+@@ -80,7 +91,13 @@ const setup: Plugin.Setup<typeof Sources> = (ctx) => {
+       })
+     },
+     render: (props) => (
+-      <Show when={sourcesExperiment.enabled}>
++      // mobile(gui-plugins-v2-2-7, issue #194; M-036): the gate-off fallback renders an honest empty state
++      // instead of the upstream blank face — the fallback is only reachable on the narrow-screen mobile view,
++      // whose More drawer entry always exists.
++      <Show
++        when={sourcesExperiment.enabled}
++        fallback={<div class="flex h-full items-center justify-center p-4 text-v2-text-text-muted">{ctx.t("panel.disabled")}</div>}
++      >
+         <Suspense>
+           <SourcesTab session={props.session} from={props.tab.id} />
+         </Suspense>
+diff --git a/packages/session-ui/src/sources/experiment.ts b/packages/session-ui/src/sources/experiment.ts
+index 6e578c72d261655035644aef51781c571b8c549a..bb0cd81e8aaffaac856af8e282f8b1cffb0de468 100644
+--- a/packages/session-ui/src/sources/experiment.ts
++++ b/packages/session-ui/src/sources/experiment.ts
+@@ -1,4 +1,4 @@
+-import { motionTuning } from "@opencode/ui/motion-tuning"
++import { motionTuning, type MotionKnob } from "@opencode/ui/motion-tuning"
+ import { createStore } from "solid-js/store"
+ 
+ export type SiteIconMode = "letters" | "site"
+@@ -55,5 +55,19 @@ const [state, setState] = createStore({ enabled: enabled(), icons: icons() })
+ 
+ motionTuning.subscribe(() => setState({ enabled: enabled(), icons: icons() }))
+ 
++// mobile(gui-plugins-v2-2-7, issue #194; M-036): the mobile Settings row writes the same experiment. The knob
++// instance is captured once here, right after its single registration above — no other module may re-register
++// "sources.enabled" (Map.set would clobber this instance and leave the row showing on while the experiment
++// stays off) and no call site looks the knob up. motionTuning.set persists the flip and notifies the
++// subscribers, so the debug Knobs panel and the sourcesExperiment store below stay in sync.
++const enabledKnob = motionTuning
++  .list()
++  .find((knob): knob is Extract<MotionKnob, { kind: "toggle" }> => knob.kind === "toggle" && knob.id === "sources.enabled")
++
++/** mobile: flips the Sources experiment from the settings row; every subscriber follows. */
++export const setSourcesEnabled = (value: boolean) => {
++  if (enabledKnob) motionTuning.set(enabledKnob, value)
++}
++
+ /** Experiment: a "N sources" chip under a reply that searched the web, opening the turn's searches in the side panel. */
+ export const sourcesExperiment = state

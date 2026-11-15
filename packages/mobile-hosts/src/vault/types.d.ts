@@ -1,0 +1,71 @@
+/** Kinds of credential the vault can hold. */
+export type VaultKind = "password" | "privateKey";
+/** Vault availability: an explicit status, never inferred. */
+export type VaultStatus = "unavailable" | "available";
+/**
+ * Error taxonomy (docs/design/units/connection.md 失效矩阵):
+ * - unavailable: AndroidX listener/readiness unavailable, request rejected before dispatch, or non-Android shell.
+ * - corrupt: envelope damaged, GCM authentication failed, AAD (entry id) mismatch.
+ * - unsupported: envelope version not recognized (a future envelope).
+ * - io: native keystore/filesystem failures and client-side invalid input.
+ */
+export type VaultErrorCode = "unavailable" | "corrupt" | "unsupported" | "io" | "unknown";
+export declare class VaultError extends Error {
+    readonly code: VaultErrorCode;
+    /** Known non-secret ref associated with an uncertain mutation outcome. */
+    readonly recoveryRef?: string | undefined;
+    constructor(code: VaultErrorCode, message?: string, 
+    /** Known non-secret ref associated with an uncertain mutation outcome. */
+    recoveryRef?: string | undefined);
+}
+/** Metadata-only view of a stored entry. NEVER carries a value field. */
+export interface VaultEntryMetadata {
+    id: string;
+    kind: VaultKind;
+    label?: string;
+    createdAt: string;
+}
+export interface VaultPutInput {
+    kind: VaultKind;
+    /** The secret. Non-empty, at most MAX_SECRET_BYTES UTF-8 bytes; never logged, never persisted raw. */
+    value: string;
+    /** Optional display label (non-secret). */
+    label?: string;
+    /**
+     * In-place update: overwrite the entry this reference points at while keeping its id
+     * (the ref stays stable across a re-save, including the corrupt-entry healing path).
+     */
+    existingRef?: string;
+}
+export interface CredentialVault {
+    /** Reactive-friendly status read (backed by a solid signal in the bridge client). */
+    status(): VaultStatus;
+    /**
+     * Optional bounded ordering wait (issue #128, M-062): resolves "available" once the
+     * transport reports readiness, or "unavailable" when the deadline (implementation
+     * default 15000ms) passes first. NEVER rejects, never retries, never posts an extra
+     * probe. Callers that need ordering (e.g. the cold-start credential restore) feature-
+     * detect it; get()/put() semantics are unchanged and still fail closed when unavailable.
+     */
+    ready?(timeoutMs?: number): Promise<VaultStatus>;
+    /** Encrypt and store; resolves with the `mobile-credential:<id>` reference. */
+    put(input: VaultPutInput): Promise<string>;
+    /** Delete an entry. Unknown ids resolve silently (idempotent; delete races are harmless). */
+    remove(ref: string): Promise<void>;
+    /** Decrypt to memory. Missing / corrupt / unsupported entries yield undefined; a vault-level failure throws. */
+    get(ref: string): Promise<string | undefined>;
+    /** Metadata list only. Implementations must never include a value field. */
+    list(): Promise<VaultEntryMetadata[]>;
+}
+/** Application-chosen size bound for a credential value (JS pre-check + native re-check). */
+export declare const MAX_SECRET_BYTES = 65536;
+/** Parse a valid reference into its entry id; undefined when the shape is wrong. */
+export declare function parseVaultRef(ref: string): string | undefined;
+/** Build a reference from an entry id (assumes an id that satisfies the ref pattern). */
+export declare function formatVaultRef(id: string): string;
+/**
+ * The fail-closed default: every operation reports `unavailable`. Injected until the
+ * Android shell wires the bridge client (M-007 amendment) — the explicit state makes the
+ * absence of the vault visible instead of degrading to plaintext anywhere.
+ */
+export declare const UnavailableVault: CredentialVault;
